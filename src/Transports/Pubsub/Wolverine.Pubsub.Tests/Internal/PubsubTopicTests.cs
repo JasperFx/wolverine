@@ -21,7 +21,7 @@ public class PubsubTopicTests {
     public void create_uri() {
         var topic = new PubsubTopic("top1", createTransport());
 
-        topic.Uri.ShouldBe(new Uri($"{PubsubTransport.ProtocolName}://topic/top1"));
+        topic.Uri.ShouldBe(new Uri($"{PubsubTransport.ProtocolName}://top1"));
     }
 
     [Fact]
@@ -49,10 +49,10 @@ public class PubsubTopicTests {
 
         var topic = new PubsubTopic("foo", transport);
 
-        transport.PublisherApiClient!.GetTopicAsync(Arg.Is(topic.TopicName)).Throws<Exception>();
+        transport.PublisherApiClient!.GetTopicAsync(Arg.Is(topic.Name)).Throws<Exception>();
 
         await topic.InitializeAsync(NullLogger.Instance);
 
-        await transport.PublisherApiClient!.Received().CreateTopicAsync(Arg.Is(topic.TopicName));
+        await transport.PublisherApiClient!.Received().CreateTopicAsync(Arg.Is(topic.Name));
     }
 }

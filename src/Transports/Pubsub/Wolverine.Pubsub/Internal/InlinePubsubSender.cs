@@ -1,29 +1,22 @@
-using Google.Cloud.PubSub.V1;
 using Microsoft.Extensions.Logging;
-using Wolverine.Transports;
+using Wolverine.Runtime;
 using Wolverine.Transports.Sending;
 
 namespace Wolverine.Pubsub.Internal;
 
 public class InlinePubsubSender : ISender {
-    private readonly PubsubTopic _endpoint;
-    private readonly IOutgoingMapper<PubsubMessage> _mapper;
+    private readonly PubsubTopic _topic;
     private readonly ILogger _logger;
-    private readonly CancellationToken _cancellationToken;
 
     public bool SupportsNativeScheduledSend => false;
-    public Uri Destination => _endpoint.Uri;
+    public Uri Destination => _topic.Uri;
 
     public InlinePubsubSender(
         PubsubTopic endpoint,
-        IOutgoingMapper<PubsubMessage> mapper,
-        ILogger logger,
-        CancellationToken cancellationToken
+        IWolverineRuntime runtime
     ) {
-        _endpoint = endpoint;
-        _mapper = mapper;
-        _logger = logger;
-        _cancellationToken = cancellationToken;
+        _topic = endpoint;
+        _logger = runtime.LoggerFactory.CreateLogger<InlinePubsubSender>();
     }
 
     public async Task<bool> PingAsync() {
@@ -39,18 +32,5 @@ public class InlinePubsubSender : ISender {
         }
     }
 
-    public async ValueTask SendAsync(Envelope envelope) {
-        if (_endpoint.Transport.PublisherApiClient is null) throw new WolverinePubsubTransportNotConnectedException();
-
-        await _endpoint.InitializeAsync(_logger);
-
-        var message = new PubsubMessage();
-
-        _mapper.MapEnvelopeToOutgoing(envelope, message);
-
-        await _endpoint.Transport.PublisherApiClient.PublishAsync(new() {
-            TopicAsTopicName = _endpoint.TopicName,
-            Messages = { message }
-        }, _cancellationToken);
-    }
+    public ValueTask SendAsync(Envelope envelope) => new ValueTask(_topic.SendMessageAsync(envelope, _logger));
 }

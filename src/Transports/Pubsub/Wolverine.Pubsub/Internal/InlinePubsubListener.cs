@@ -1,24 +1,21 @@
-using Google.Cloud.PubSub.V1;
-using Microsoft.Extensions.Logging;
+using Wolverine.Runtime;
 using Wolverine.Transports;
-using Wolverine.Transports.Sending;
 
 namespace Wolverine.Pubsub.Internal;
 
-public class InlinePubsubListener : PubsubListener2 {
+public class InlinePubsubListener : PubsubListener {
     public InlinePubsubListener(
         PubsubSubscription endpoint,
-        ILogger logger,
+        PubsubTransport transport,
         IReceiver receiver,
-        ISender requeuer,
-        IIncomingMapper<PubsubMessage> mapper
-    ) : base(endpoint, logger, receiver, requeuer, mapper) { }
+        IWolverineRuntime runtime
+    ) : base(endpoint, transport, receiver, runtime) { }
 
     public override Task StartAsync() => listenForMessagesAsync(async () => {
-        if (_endpoint.Transport.SubscriberApiClient is null) throw new WolverinePubsubTransportNotConnectedException();
+        if (_transport.SubscriberApiClient is null) throw new WolverinePubsubTransportNotConnectedException();
 
-        var response = await _endpoint.Transport.SubscriberApiClient.PullAsync(
-            _endpoint.SubscriptionName,
+        var response = await _transport.SubscriberApiClient.PullAsync(
+            _endpoint.Name,
             maxMessages: 1,
             _cancellation.Token
         );

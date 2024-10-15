@@ -1,29 +1,27 @@
 using Google.Api.Gax.Grpc;
-using Google.Cloud.PubSub.V1;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
+using Wolverine.Runtime;
 using Wolverine.Transports;
-using Wolverine.Transports.Sending;
 using Wolverine.Util.Dataflow;
 
 namespace Wolverine.Pubsub.Internal;
 
-public class BatchedPubsubListener : PubsubListener2 {
+public class BatchedPubsubListener : PubsubListener {
     public BatchedPubsubListener(
         PubsubSubscription endpoint,
-        ILogger logger,
+        PubsubTransport transport,
         IReceiver receiver,
-        ISender requeuer,
-        IIncomingMapper<PubsubMessage> mapper
-    ) : base(endpoint, logger, receiver, requeuer, mapper) { }
+        IWolverineRuntime runtime
+    ) : base(endpoint, transport, receiver, runtime) { }
 
     public override async Task StartAsync() {
-        if (_endpoint.Transport.SubscriberApiClient is null) throw new WolverinePubsubTransportNotConnectedException();
+        if (_transport.SubscriberApiClient is null) throw new WolverinePubsubTransportNotConnectedException();
 
-        using var streamingPull = _endpoint.Transport.SubscriberApiClient.StreamingPull(CallSettings.FromCancellationToken(_cancellation.Token));
+        using var streamingPull = _transport.SubscriberApiClient.StreamingPull(CallSettings.FromCancellationToken(_cancellation.Token));
 
         await streamingPull.WriteAsync(new() {
-            SubscriptionAsSubscriptionName = _endpoint.SubscriptionName,
+            SubscriptionAsSubscriptionName = _endpoint.Name,
             StreamAckDeadlineSeconds = 20,
             MaxOutstandingMessages = _endpoint.Options.MaxOutstandingMessages ?? 0,
             MaxOutstandingBytes = _endpoint.Options.MaxOutstandingByteCount ?? 0,

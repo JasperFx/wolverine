@@ -6,53 +6,56 @@ using Wolverine.Transports.Sending;
 
 namespace Wolverine.Pubsub.Internal;
 
-public class PubsubSenderProtocol : ISenderProtocol {
+internal class PubsubSenderProtocol : ISenderProtocol {
+    private readonly PubsubTopic _topic;
+    private readonly PublisherServiceApiClient _client;
     private readonly IWolverineRuntime _runtime;
-    private readonly PubsubTopic _endpoint;
-    private readonly IOutgoingMapper<PubsubMessage> _mapper;
     private readonly ILogger<PubsubSenderProtocol> _logger;
 
     public PubsubSenderProtocol(
-        IWolverineRuntime runtime,
-        PubsubTopic endpoint,
-        IOutgoingMapper<PubsubMessage> mapper
+        PubsubTopic topic,
+        PublisherServiceApiClient client,
+        IWolverineRuntime runtime
     ) {
+        _topic = topic;
+        _client = client;
         _runtime = runtime;
-        _endpoint = endpoint;
-        _mapper = mapper;
         _logger = runtime.LoggerFactory.CreateLogger<PubsubSenderProtocol>();
     }
 
-    public async Task SendBatchAsync(
-        ISenderCallback callback,
-        OutgoingMessageBatch batch
-    ) {
-        if (_endpoint.Transport.PublisherApiClient is null) throw new WolverinePubsubTransportNotConnectedException();
+    public async Task SendBatchAsync(ISenderCallback callback, OutgoingMessageBatch batch) {
+        await _topic.InitializeAsync(_logger);
 
-        await _endpoint.InitializeAsync(_logger);
-
-        var messages = new List<PubsubMessage>(batch.Messages.Count);
+        var messages = new List<PubsubMessage>();
+        var successes = new List<Envelope>();
+        var fails = new List<Envelope>();
 
         foreach (var envelope in batch.Messages) {
             try {
                 var message = new PubsubMessage();
 
-                _mapper.MapEnvelopeToOutgoing(envelope, message);
+                _topic.Mapper.MapEnvelopeToOutgoing(envelope, message);
 
                 messages.Add(message);
+                successes.Add(envelope);
             }
             catch (Exception ex) {
-                _logger.LogError(ex, "{Uril}: Error trying to translate envelope \"{Envelope}\" to a PubsubMessage object. Message will be discarded.", _endpoint.Uri, envelope);
+                _logger.LogError(ex, "{Uril}: Error while mapping envelope \"{Envelope}\" to a PubsubMessage object.", _topic.Uri, envelope);
+
+                fails.Add(envelope);
             }
         }
 
         try {
-            await _endpoint.Transport.PublisherApiClient.PublishAsync(new() {
-                TopicAsTopicName = _endpoint.TopicName,
+            await _client.PublishAsync(new() {
+                TopicAsTopicName = _topic.Name,
                 Messages = { messages }
             }, _runtime.Cancellation);
 
-            await callback.MarkSuccessfulAsync(batch);
+            await callback.MarkSuccessfulAsync(new OutgoingMessageBatch(batch.Destination, successes));
+
+            if (fails.Any())
+                await callback.MarkProcessingFailureAsync(new OutgoingMessageBatch(batch.Destination, fails));
         }
         catch (Exception ex) {
             await callback.MarkProcessingFailureAsync(batch, ex);

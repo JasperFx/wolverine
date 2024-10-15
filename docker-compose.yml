@@ -1,51 +1,51 @@
 version: "3"
 
 networks:
-    app-tier:
-        driver: bridge
+  app-tier:
+    driver: bridge
 
 services:
-    postgresql:
-        image: "postgres:latest"
-        ports:
-            - "5433:5432"
-        environment:
-            - POSTGRES_DATABASE=postgres
-            - POSTGRES_USER=postgres
-            - POSTGRES_PASSWORD=postgres
+  postgresql:
+    image: "postgres:latest"
+    ports:
+      - "5433:5432"
+    environment:
+      - POSTGRES_DATABASE=postgres
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
 
-    gcp-pubsub:
-        image: gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators
-        ports:
-            - "8085:8085"
-        command:
-            [
-                "gcloud",
-                "--quiet",
-                "beta",
-                "emulators",
-                "pubsub",
-                "start",
-                "--host-port",
-                "0.0.0.0:8085",
-                "--project",
-                "wolverine",
-                "--verbosity",
-                "debug",
-                "--log-http",
-                "--user-output-enabled",
-            ]
+  gcp-pubsub:
+    image: gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators
+    ports:
+      - "8085:8085"
+    command:
+      [
+        "gcloud",
+        "--quiet",
+        "beta",
+        "emulators",
+        "pubsub",
+        "start",
+        "--host-port",
+        "0.0.0.0:8085",
+        "--project",
+        "wolverine",
+        "--verbosity",
+        "debug",
+        "--log-http",
+        "--user-output-enabled",
+      ]
 
   localstack:
     image: localstack/localstack
     ports:
-      - "127.0.0.1:4566:4566"            # LocalStack Gateway
-      - "127.0.0.1:4510-4559:4510-4559"  # external services port range
+      - "127.0.0.1:4566:4566" # LocalStack Gateway
+      - "127.0.0.1:4510-4559:4510-4559" # external services port range
     environment:
       - DEBUG=${DEBUG-}
       - PERSISTENCE=${PERSISTENCE-}
       - LAMBDA_EXECUTOR=${LAMBDA_EXECUTOR-}
-      - LOCALSTACK_API_KEY=${LOCALSTACK_API_KEY-}  # only required for Pro
+      - LOCALSTACK_API_KEY=${LOCALSTACK_API_KEY-} # only required for Pro
       - DOCKER_HOST=unix:///var/run/docker.sock
     volumes:
       - "${LOCALSTACK_VOLUME_DIR:-./volume}:/var/lib/localstack"
@@ -58,7 +58,7 @@ services:
       ZOOKEEPER_TICK_TIME: 2000
     ports:
       - 22181:2181
-  
+
   kafka:
     image: confluentinc/cp-kafka:latest
     depends_on:

@@ -1,6 +1,5 @@
 using Google.Cloud.PubSub.V1;
 using Grpc.Core;
-using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
@@ -10,68 +9,65 @@ using Wolverine.Transports.Sending;
 namespace Wolverine.Pubsub.Internal;
 
 public class PubsubSubscription : PubsubEndpoint, IBrokerQueue {
-    private bool _hasInitialized = false;
-
-    public readonly SubscriptionName SubscriptionName;
+    public readonly SubscriptionName Name;
     public readonly PubsubSubscriptionOptions Options;
-    public readonly PubsubTopic TopicEndpoint;
+    public readonly PubsubTopic Topic;
 
     public PubsubSubscription(
         string subscriptionName,
         PubsubTopic topic,
         PubsubTransport transport,
         EndpointRole role = EndpointRole.Application
-    ) : base(new($"{transport.Protocol}://topic/{topic.EndpointName}/{subscriptionName}"), transport, role) {
-        SubscriptionName = new(transport.ProjectId, $"w-{subscriptionName}");
-        TopicEndpoint = topic;
+    ) : base(new($"{transport.Protocol}://{topic.EndpointName}/{subscriptionName}"), transport, role) {
+        Name = new(transport.ProjectId, $"{PubsubTransport.SanitizePubsubName(subscriptionName)}");
+        Topic = topic;
         Options = new PubsubSubscriptionOptions() {
-            DeadLetterName = PubsubTransport.DeadLetterEndpointName
+            // DeadLetterName = PubsubTransport.DeadLetterEndpointName
         };
         EndpointName = subscriptionName;
         IsListener = true;
     }
 
-    public override async ValueTask InitializeAsync(ILogger logger) {
-        if (_hasInitialized) return;
-        if (Transport.AutoProvision) await SetupAsync(logger);
-
-        _hasInitialized = true;
-    }
-
     public override async ValueTask SetupAsync(ILogger logger) {
-        if (Transport.SubscriberApiClient is null || Transport.PublisherApiClient is null) throw new WolverinePubsubTransportNotConnectedException();
+        if (_transport.SubscriberApiClient is null || _transport.PublisherApiClient is null) throw new WolverinePubsubTransportNotConnectedException();
 
         try {
             var request = new Subscription {
-                SubscriptionName = SubscriptionName,
-                TopicAsTopicName = TopicEndpoint.TopicName,
+                SubscriptionName = Name,
+                TopicAsTopicName = Topic.Name,
             };
 
-            if (Options.DeadLetterName.IsNotEmpty() && !Transport.Options.DisableDeadLetter)
-                request.DeadLetterPolicy = new DeadLetterPolicy {
-                    DeadLetterTopic = Transport.Topics[Options.DeadLetterName].TopicName.ToString(),
-                    MaxDeliveryAttempts = Options.DeadLetterMaxDeliveryAttempts
-                };
+            // if (Options.DeadLetterName.IsNotEmpty() && !_transport.Options.DisableDeadLetter)
+            //     request.DeadLetterPolicy = new DeadLetterPolicy {
+            //         DeadLetterTopic = new TopicName(_transport.ProjectId, Options.DeadLetterName).ToString(),
+            //         MaxDeliveryAttempts = Options.DeadLetterMaxDeliveryAttempts
+            //     };
 
-            await Transport.SubscriberApiClient.CreateSubscriptionAsync(request);
+            await _transport.SubscriberApiClient.CreateSubscriptionAsync(request);
         }
         catch (RpcException ex) {
-            if (ex.StatusCode != StatusCode.AlreadyExists) throw new WolverinePubsubTransportException($"{Uri}: Error trying to initialize Google Cloud Pub/Sub subscription \"{SubscriptionName}\" to topic \"{TopicEndpoint.TopicName}\"", ex);
+            if (ex.StatusCode != StatusCode.AlreadyExists) {
+                logger.LogError(ex, "{Uri}: Error trying to initialize Google Cloud Pub/Sub subscription \"{Subscription}\" to topic \"{Topic}\"", Uri, Name, Topic.Name);
 
-            logger.LogInformation("{Uri}: Google Cloud Pub/Sub subscription \"{Subscription}\" already exists", Uri, SubscriptionName);
+                throw;
+            }
+
+            logger.LogInformation("{Uri}: Google Cloud Pub/Sub subscription \"{Subscription}\" already exists", Uri, Name);
         }
         catch (Exception ex) {
-            throw new WolverinePubsubTransportException($"{Uri}: Error trying to initialize Google Cloud Pub/Sub subscription \"{SubscriptionName}\" to topic \"{TopicEndpoint.TopicName}\"", ex);
+            logger.LogError(ex, "{Uri}: Error trying to initialize Google Cloud Pub/Sub subscription \"{Subscription}\" to topic \"{Topic}\"", Uri, Name, Topic.Name);
+
+            throw;
         }
     }
 
     public ValueTask PurgeAsync(ILogger logger) => ValueTask.CompletedTask;
 
     public override async ValueTask<bool> CheckAsync() {
-        try {
-            if (Transport.SubscriberApiClient is null) return false;
+        if (_transport.SubscriberApiClient is null) return false;
 
-            await Transport.SubscriberApiClient.GetSubscriptionAsync(SubscriptionName);
+        try {
+            await _transport.SubscriberApiClient.GetSubscriptionAsync(Name);
 
             return true;
         }
@@ -82,52 +78,33 @@ public class PubsubSubscription : PubsubEndpoint, IBrokerQueue {
 
     public ValueTask<Dictionary<string, string>> GetAttributesAsync() => ValueTask.FromResult(new Dictionary<string, string>());
 
-    public override ValueTask TeardownAsync(ILogger logger) {
-        var task = Transport.SubscriberApiClient?.DeleteSubscriptionAsync(SubscriptionName) ?? Task.CompletedTask;
+    public override async ValueTask TeardownAsync(ILogger logger) {
+        if (_transport.SubscriberApiClient is null) return;
 
-        return new ValueTask(task);
+        await _transport.SubscriberApiClient.DeleteSubscriptionAsync(Name);
     }
 
     public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver) {
-        var requeuer = Transport.RetryTopic?.BuildInlineSender(runtime) ?? TopicEndpoint.BuildInlineSender(runtime);
-        var mapper = BuildMapper();
-
         if (Mode == EndpointMode.Inline) return ValueTask.FromResult<IListener>(new InlinePubsubListener(
             this,
-            runtime.LoggerFactory.CreateLogger<InlinePubsubListener>(),
+            _transport,
             receiver,
-            requeuer,
-            mapper
+            runtime
         ));
 
         return ValueTask.FromResult<IListener>(new BatchedPubsubListener(
             this,
-            runtime.LoggerFactory.CreateLogger<BatchedPubsubListener>(),
+            _transport,
             receiver,
-            requeuer,
-            mapper
+            runtime
         ));
     }
 
     protected override ISender CreateSender(IWolverineRuntime runtime) => throw new NotSupportedException();
 
-    internal void ConfigureDeadLetter(Action<PubsubSubscription> configure) {
-        if (Options.DeadLetterName.IsEmpty()) return;
+    // internal void ConfigureDeadLetter(Action<PubsubSubscription> configure) {
+    //     if (Options.DeadLetterName.IsEmpty()) return;
 
-        configure(Transport.Topics[Options.DeadLetterName].FindOrCreateSubscription());
-    }
-
-    public override bool TryBuildDeadLetterSender(IWolverineRuntime runtime, out ISender? deadLetterSender) {
-        if (Options.DeadLetterName.IsEmpty() || Transport.Options.DisableDeadLetter) {
-            deadLetterSender = default;
-
-            return false;
-        }
-
-        var dlTopic = Transport.Topics[Options.DeadLetterName];
-
-        deadLetterSender = new InlinePubsubSender(dlTopic, BuildMapper(), runtime.LoggerFactory.CreateLogger<InlinePubsubSender>(), runtime.Cancellation);
-
-        return true;
-    }
+    //     configure(_transport.Topics[Options.DeadLetterName].FindOrCreateSubscription());
+    // }
 }

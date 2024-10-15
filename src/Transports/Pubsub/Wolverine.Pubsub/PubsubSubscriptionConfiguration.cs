@@ -38,11 +38,11 @@ public class PubsubSubscriptionConfiguration : ListenerConfiguration<PubsubSubsc
     /// Completely disable all Google Cloud Pub/Sub dead lettering for just this subscription
     /// </summary>
     /// <returns></returns>
-    public PubsubSubscriptionConfiguration DisableDeadLettering() {
-        add(e => e.Options.DeadLetterName = null);
+    // public PubsubSubscriptionConfiguration DisableDeadLettering() {
+    //     add(e => e.Options.DeadLetterName = null);
 
-        return this;
-    }
+    //     return this;
+    // }
 
     /// <summary>
     /// Customize the dead lettering for just this subscription
@@ -51,18 +51,18 @@ public class PubsubSubscriptionConfiguration : ListenerConfiguration<PubsubSubsc
     /// <param name="configure">Optionally configure properties of the dead lettering itself</param>
     /// <returns></returns>
     /// <exception cref="ArgumentNullException"></exception>
-    public PubsubSubscriptionConfiguration ConfigureDeadLettering(
-        string deadLetterName,
-        Action<PubsubSubscription>? configure = null
-    ) {
-        add(e => {
-            e.Options.DeadLetterName = e.Transport.SanitizeIdentifier(deadLetterName);
+    // public PubsubSubscriptionConfiguration ConfigureDeadLettering(
+    //     string deadLetterName,
+    //     Action<PubsubSubscription>? configure = null
+    // ) {
+    //     add(e => {
+    //         e.Options.DeadLetterName = deadLetterName;
 
-            if (configure is not null) e.ConfigureDeadLetter(configure);
-        });
+    //         if (configure is not null) e.ConfigureDeadLetter(configure);
+    //     });
 
-        return this;
-    }
+    //     return this;
+    // }
 
     /// <summary>
     /// Utilize custom envelope mapping for Google Cloud Pub/Sub interoperability with external non-Wolverine systems

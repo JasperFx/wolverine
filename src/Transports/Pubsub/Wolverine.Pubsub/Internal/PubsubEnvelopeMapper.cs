@@ -9,11 +9,11 @@ internal class PubsubEnvelopeMapper : EnvelopeMapper<PubsubMessage, PubsubMessag
     public PubsubEnvelopeMapper(Endpoint endpoint) : base(endpoint) {
         MapProperty(
             x => x.ContentType!,
-            (e, m) => e.ContentType = m.Attributes["Content-Type"],
+            (e, m) => e.ContentType = m.Attributes["content-type"],
             (e, m) => {
                 if (e.ContentType is null) return;
 
-                m.Attributes["Content-Type"] = e.ContentType;
+                m.Attributes["content-type"] = e.ContentType;
             }
         );
         MapProperty(
@@ -28,28 +28,28 @@ internal class PubsubEnvelopeMapper : EnvelopeMapper<PubsubMessage, PubsubMessag
         MapProperty(
             x => x.Id,
             (e, m) => {
-                if (Guid.TryParse(m.Attributes["Wolverine-Id"], out var id)) {
+                if (Guid.TryParse(m.Attributes["wolverine-id"], out var id)) {
                     e.Id = id;
                 }
             },
-            (e, m) => m.Attributes["Wolverine-Id"] = e.Id.ToString()
+            (e, m) => m.Attributes["wolverine-id"] = e.Id.ToString()
         );
         MapProperty(
             x => x.CorrelationId!,
-            (e, m) => e.CorrelationId = m.Attributes["Wolverine-Correlation-Id"],
+            (e, m) => e.CorrelationId = m.Attributes["wolverine-correlation-id"],
             (e, m) => {
                 if (e.CorrelationId is null) return;
 
-                m.Attributes["Wolverine-Correlation-Id"] = e.CorrelationId;
+                m.Attributes["wolverine-correlation-id"] = e.CorrelationId;
             }
         );
         MapProperty(
             x => x.MessageType!,
-            (e, m) => e.MessageType = m.Attributes["Wolverine-Message-Type"],
+            (e, m) => e.MessageType = m.Attributes["wolverine-message-type"],
             (e, m) => {
                 if (e.MessageType is null) return;
 
-                m.Attributes["Wolverine-Message-Type"] = e.MessageType;
+                m.Attributes["wolverine-message-type"] = e.MessageType;
             }
         );
         MapProperty(

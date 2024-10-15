@@ -66,11 +66,11 @@ public class PubsubConfiguration : BrokerExpression<
     /// application
     /// </summary>
     /// <returns></returns>
-    public PubsubConfiguration DisableAllNativeDeadLettering() {
-        Transport.Options.DisableDeadLetter = true;
+    // public PubsubConfiguration DisableAllNativeDeadLettering() {
+    //     Transport.Options.DisableDeadLetter = true;
 
-        return this;
-    }
+    //     return this;
+    // }
 
     protected override PubsubSubscriptionConfiguration createListenerExpression(PubsubSubscription subscriberEndpoint) => new(subscriberEndpoint);
     protected override PubsubTopicConfiguration createSubscriberExpression(PubsubTopic topicEndpoint) => new(topicEndpoint);
