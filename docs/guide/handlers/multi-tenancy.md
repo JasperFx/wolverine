@@ -37,3 +37,30 @@ public static async Task publish_by_tenant(IMessageBus bus)
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/MultiTenantedTodoService/MultiTenantedTodoWebService.Tests/end_to_end.cs#L110-L118' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_publish_by_tenant' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+
+## Cascading Messages
+
+As a convenience, you can embed tenant id information into outgoing cascading messages with these helpers:
+
+<!-- snippet: sample_using_tenant_id_and_cascading_messages -->
+<a id='snippet-sample_using_tenant_id_and_cascading_messages'></a>
+```cs
+public static IEnumerable<object> Handle(IncomingMessage message)
+{
+    yield return new Message1().WithTenantId("one");
+    yield return new Message2().WithTenantId("one");
+
+    yield return new Message3().WithDeliveryOptions(new DeliveryOptions
+    {
+        ScheduleDelay = 5.Minutes(),
+        TenantId = "two"
+    });
+    
+    // Long hand
+    yield return new Message4().WithDeliveryOptions(new DeliveryOptions
+    {
+        TenantId = "one"
+    });
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/using_group_ids.cs#L32-L51' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_tenant_id_and_cascading_messages' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->

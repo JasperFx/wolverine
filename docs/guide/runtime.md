@@ -238,11 +238,80 @@ and agent assignments to function.
 The stateful, running "agents" are exposed through an `IAgent`
 interface like so:
 
-snippet: sample_IAgent
+<!-- snippet: sample_IAgent -->
+<a id='snippet-sample_iagent'></a>
+```cs
+/// <summary>
+///     Models a constantly running background process within a Wolverine
+///     node cluster
+/// </summary>
+public interface IAgent : IHostedService
+{
+    /// <summary>
+    ///     Unique identification for this agent within the Wolverine system
+    /// </summary>
+    Uri Uri { get; }
+    
+    AgentStatus Status { get; }
+}
+
+public enum AgentStatus
+{
+    Started,
+    Stopped,
+    Paused
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/Agents/IAgent.cs#L6-L29' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_iagent' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 With related groups of agents built and assigned by IoC-registered implementations of this interface:
 
-snippet: sample_IAgentFamily
+<!-- snippet: sample_IAgentFamily -->
+<a id='snippet-sample_iagentfamily'></a>
+```cs
+/// <summary>
+///     Pluggable model for managing the assignment and execution of stateful, "sticky"
+///     background agents on the various nodes of a running Wolverine cluster
+/// </summary>
+public interface IAgentFamily
+{
+    /// <summary>
+    ///     Uri scheme for this family of agents
+    /// </summary>
+    string Scheme { get; }
+
+    /// <summary>
+    ///     List of all the possible agents by their identity for this family of agents
+    /// </summary>
+    /// <returns></returns>
+    ValueTask<IReadOnlyList<Uri>> AllKnownAgentsAsync();
+
+    /// <summary>
+    ///     Create or resolve the agent for this family
+    /// </summary>
+    /// <param name="uri"></param>
+    /// <param name="wolverineRuntime"></param>
+    /// <returns></returns>
+    ValueTask<IAgent> BuildAgentAsync(Uri uri, IWolverineRuntime wolverineRuntime);
+
+    /// <summary>
+    ///     All supported agent uris by this node instance
+    /// </summary>
+    /// <returns></returns>
+    ValueTask<IReadOnlyList<Uri>> SupportedAgentsAsync();
+
+    /// <summary>
+    ///     Assign agents to the currently running nodes when new nodes are detected or existing
+    ///     nodes are deactivated
+    /// </summary>
+    /// <param name="assignments"></param>
+    /// <returns></returns>
+    ValueTask EvaluateAssignmentsAsync(AssignmentGrid assignments);
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/Agents/IAgentFamily.cs#L16-L58' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_iagentfamily' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 Built in examples of the agent and agent family are:
 

@@ -28,6 +28,17 @@ public abstract record TimeoutMessage(TimeSpan DelayTime) : ISendMyself
 public static class ConfiguredMessageExtensions
 {
     /// <summary>
+    /// Create a cascading message tagged to a specific tenant id
+    /// </summary>
+    /// <param name="message"></param>
+    /// <param name="tenantId"></param>
+    /// <returns></returns>
+    public static DeliveryMessage<T> WithTenantId<T>(this T message, string tenantId)
+    {
+        return new DeliveryMessage<T>(message, new DeliveryOptions { TenantId = tenantId });
+    }
+    
+    /// <summary>
     /// Create a cascading message tagged to a specific group id
     /// </summary>
     /// <param name="message"></param>
