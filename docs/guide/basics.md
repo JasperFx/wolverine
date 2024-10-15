@@ -1,17 +1,13 @@
 # Basics
 
-::: warning
-Heads up, at *this moment*, Wolverine requires the usage of the [Lamar IoC library](https://jasperfx.github.io/lamar) and will
-quietly replace your application's service provider with Lamar. This will hopefully change in Wolverine 3.0, but the limitation
-will likely be Lamar or the built in DI container.
-:::
-
 ![Wolverine Messaging Architecture](/messages.jpeg)
 
-One way or another, Wolverine is all about messages within your system or between systems. Staying inside a single Wolverine system,
-a message is typically just a .NET class (or struct, but reserve that for strictly local usage) or C# record. A message generally
+One way or another, Wolverine is all about messages within your system or between systems (Wolverine considers HTTP to just be a different flavor of message 😃). 
+Staying inside a single Wolverine system, a message is typically just a .NET class or struct or C#/F# record. A message generally
 represents either a "command" that should trigger an operation or an "event" that just lets another part of your system know that 
-something happened. Here's a couple simple samples:
+something happened. Just know that as far as Wolverine is concerned, those are roles and unlike some other messaging frameworks, will have no impact whatsoever on Wolverine's handling or implementation.
+
+Here's a couple simple samples:
 
 <!-- snippet: sample_DebutAccount_command -->
 <a id='snippet-sample_debutaccount_command'></a>
@@ -78,6 +74,8 @@ The diagram above should just say "Message Handler" as Wolverine makes no struct
 * *Endpoint* -- The configuration for a Wolverine connection to some sort of external resource like a Rabbit MQ exchange or an Amazon SQS queue. The [Async API](https://www.asyncapi.com/) specification refers to this as a *channel*, and Wolverine may very well change its nomenclature in the future to be consistent with Async API. 
 * *Sending Agent* -- You won't use this directly in your own code, but Wolverine's internal adapters to publish outgoing messages to transport endpoints
 * *Listening Agent* -- Again, an internal detail of Wolverine that receives messages from external transport endpoints, and mediates between the transports and executing the message handlers
-* *Message Store* -- Database storage for Wolverine's [inbox/outbox persistent messaging](/guide/durability/)
+* *Node* -- Not to be confused with Node.js or Kubernetes "Node", in this documentation, "node" is just meant to be a running instance of your Wolverine application within an application cluster of any sort
+* *Agent* -- Wolverine has a concept of stateful software "agents" that run on a single node, with Wolverine controlling the distribution of the agents. This is mostly used behind the scenes, but just know that it exists
+* *Message Store* -- Database storage for Wolverine's [inbox/outbox persistent messaging](/guide/durability/). A durable message store is necessary for Wolverine to support leader election, node/agent assignments, durable scheduled messaging in most cases, and its [transactional inbox/outbox](/guide/durability/) support
 * *Durability Agent* -- An internal subsystem in Wolverine that runs in a background service to interact with the message store for Wolverine's [transactional inbox/outbox](https://microservices.io/patterns/data/transactional-outbox.html) functionality
 

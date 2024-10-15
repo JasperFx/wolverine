@@ -10,6 +10,10 @@ to the proper handler that can handle that message. Here's some facts about mess
 * Have a string identity for the message type that Wolverine will use as an identification when storing messages
   in either durable message storage or within external transports
 
+The default serialization option is [System.Text.Json](https://learn.microsoft.com/en-us/dotnet/api/system.text.json?view=net-8.0), as this is now mature, seems to work with just about anything now, and sets you up
+for relatively easy integration with a range of external non-Wolverine applications. You also have the option to fall back
+to Newtonsoft.JSON or to use higher performance [MemoryPack](/guide/messages.html#memorypack-serialization) or [MessagePack](/guide/messages.html#messagepack-serialization) integrations with Wolverine.
+
 ## Message Type Name or Alias
 
 Let's say that you have a basic message structure like this:

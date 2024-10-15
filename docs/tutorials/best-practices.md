@@ -55,7 +55,14 @@ logic. For tips on how to create pure functions for your Wolverine message handl
 * [Isolating Side Effects from Wolverine Handlers](https://jeremydmiller.com/2023/04/24/isolating-side-effects-from-wolverine-handlers/)
 
 
-## Only Publish Messages from the Root Handler Method
+## Make All Side Effects Apparent from the Root Message Handler
+
+::: info
+This advice arose from Jeremy's involvement with a legacy system using a Wolverine competitor where a message handler
+had a huge dependency tree of services that depended on other services and deep, deep down the call stack, a service
+published a message through that service bus. The point here is to make your code easy to reason about by being able
+to easily scan and see the side effects and outcomes of the original message.
+:::
 
 Very frequently, you'll need to publish additional messages from either an HTTP endpoint or a message handler. You can technically
 have the current `IMessageBus` for the message injected into your handler's dependencies and have outgoing messages published
@@ -94,6 +101,10 @@ public static SecondMessage? Handle(FirstMessage message, IService1 service1)
 }
 ```
 
+This advice does **not** mean that you have to cascade every possible follow up step from a message handler, just to
+make your code easy to reason about by not hiding "side effect" actions deep in the stack trace underneath the message
+handler. 
+
 Consider this case as an anti-pattern to avoid:
 
 1. Your message handler method calls a method on `IService1`
@@ -104,9 +115,17 @@ In the case above, it can become very easy to lose sight of the workflow of the 
 encountered systems build using other messaging frameworks that suffered from this problem. 
 
 
-
-
 ## Keep Your Call Stacks Short
+
+Honestly, as a follow up to the previous statement, we highly advise you to make your "call stacks" short within message
+handlers to help make your code easier to reason about. And by "call stack," we mean how many other different code files
+or types underneath the message handler will you have to jump through to really understand how a command or event message
+is handled? What we've found in our own development is that for whatever value layering provides for loose coupling, it
+can easily do even more damage for your ability to reason about and modify the code as a whole.
+
+To be blunt, the Wolverine team is not a fan of Onion/Clean Architecture approaches with a lot of layering. Wolverine
+leans hard into that "A-Frame Architecture" idea as a way of creating loose coupling between technical concerns and business
+logic with simpler code than we think you can achieve with more typical layered, hexagonal architecture approaches.
 
 
 ## Attaining IMessageBus
@@ -227,8 +246,12 @@ layered approach.
 See [Low Ceremony Vertical Slice Architecture with Wolverine](https://jeremydmiller.com/2023/07/10/low-ceremony-vertical-slice-architecture-with-wolverine/)
 
 ## Graceful Shutdown of Nodes
-It's important to note that Wolverine operates in `Balanced` mode by default, which enables it to operate as a cluster of nodes.
-The node process must be gracefully shut down to prevent failures when others attempt to communicate with it. A health check process determines stale nodes, but you will see communication failures if the node isn't shut down properly before it can be detected. This underscores the importance of your role in ensuring a smooth shutdown process.
+
+Hey, don't worry about this quite so much anymore. One of the big changes in Wolverine 3.0 was making Wolverine a **lot** more tolerant
+of how the application was shut down. Go forth, debug as needed, and just get things done!
+
+It's helpful to note that Wolverine operates in `Balanced` mode by default, which enables it to operate as a cluster of nodes.
+Ideally, the node process should be gracefully shut down to prevent failures when others attempt to communicate with it. A health check process determines stale nodes
 
 If you are running Wolverine in a container, ensure that the orchestrator correctly sends a TERM signal and that there is enough time before it forcefully kills it.
 For reference, you can check [Pod termination](https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-termination) in Kubernetes.

@@ -1,10 +1,15 @@
 # Message Handlers
 
+To be as clear as possible, **there is zero runtime Reflection happening within the Wolverine execution runtime pipeline**. Like
+all halfway serious frameworks, Wolverine only uses Reflection for configuration and bootstrapping. At actual runtime, Wolverine
+uses code generation (which might by dynamically compiled at runtime) to create the wrapping code that bridges Wolverine to
+your application code. 
+
 ::: tip
 Wolverine's guiding philosophy is to remove code ceremony from a developer's day to day coding, but that comes
 at the cost of using conventions that some developers will decry as "too much magic." If you actually prefer having
 explicit interfaces or base classes or required attributes to direct your code, Wolverine will let you do that too, so don't go 
-anywhere!
+anywhere just yet!
 :::
 
 Since the whole purpose of Wolverine is to connect incoming messages to handling code, most of your time as a user of Wolverine is going to be spent
@@ -24,9 +29,9 @@ public class MyMessageHandler
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerExamples.cs#L69-L79' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_simplest_possible_handler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-If you've used other messaging, command execution, or so called "mediator" tool in .NET, you'll surely notice the absence of any kind of
+If you've used other messaging, command execution, or so-called "mediator" tools in .NET, you'll surely notice the absence of any kind of
 required `IHandler<T>` type interface that frameworks typically require in order to make your custom code executable by the framework. Instead,
-Wolverine intelligently wraps dynamic code around *your* code based on naming conventions so as to
+Wolverine intelligently wraps dynamic code around *your* code based on naming conventions to
 allow *you* to just write plain old .NET code without any framework specific artifacts in your way.
 
 Back to the handler code, at the point which you pass a new message into Wolverine like so:
@@ -108,6 +113,10 @@ public class ValidMessageHandlers
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerExamples.cs#L10-L63' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_validmessagehandlers' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+
+It's also valid to use class instances with constructor arguments for your handlers:
+
+snippet: sample_instance_handler
 
 ## Rules for Message Handlers
 
@@ -269,16 +278,27 @@ So, what can be injected as an argument to your message handler?
 
 ## Cascading Messages from Actions
 
-See [Cascading Messages](/guide/handlers/cascading) for more details on this feature.
+See [Cascading Messages](/guide/handlers/cascading) for more details on this feature. Just know that a message "cascaded" from a handler
+is effectively the same thing as calling `IMessageBus.PublishAsync()` and gets handled independently from the originating
+message.
 
 
 ## "Compound Handlers"
 
+::: info
+Wolverine's "compound handler" feature where handlers can be built from multiple methods that are called one at a time
+by Wolverine was heavily inspired by Jim Shore's writing on the "A-Frame Architecture". See Jeremy's post [A-Frame Architecture with Wolverine](https://jeremydmiller.com/2023/07/19/a-frame-architecture-with-wolverine/)
+for more background on the goals and philosophy behind this approach.
+:::
+
 It's frequently advantageous to split message handling for a single message up into methods that load any necessary data and the business logic that
 transforms the current state or decides to take other actions. Wolverine allows you to use the [conventional middleware naming conventions](/guide/handlers/middleware.html#conventional-middleware) on each handler
-to do exactly this. 
+to do exactly this. The goal here is to use separate methods for different concerns like loading data or validating data so that
+the "main" message handler (or HTTP endpoint method) can be a pure function that is completely focused on domain logic or business
+workflow logic for easy reasoning and effective unit testing. This is Wolverine's way of creating separation of concerns in a vertical slice without incurring the overhead of typical
+Onion/Clean/Hexagonal/Ports and Adapters code organization strategies.
 
-Consider the case of a message handler that is used to initiate the shipment of an order. That handler will ultimately need to load 
+That's a lot of words, so let's consider the case of a message handler that is used to initiate the shipment of an order. That handler will ultimately need to load 
 data for both the order itself and the customer information in order to figure out exactly what to ship out, how to ship it (overnight air? 2 day ground delivery?), and where.
 
 Using Wolverine's compound handler feature, that might look like this: 
@@ -316,6 +336,28 @@ public static class ShipOrderHandler
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CompoundHandlerSamples.cs#L28-L58' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_shiporderhandler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+
+The naming conventions for what Wolverine will consider to be either a "before" or "after" method is shown below:
+
+Here's the conventions:
+
+| Lifecycle                                                | Method Names                |
+|----------------------------------------------------------|-----------------------------|
+| Before the Handler(s)                                    | `Before`, `BeforeAsync`, `Load`, `LoadAsync`, `Validate`, `ValidateAsync` |
+| After the Handler(s)                                     | `After`, `AfterAsync`, `PostProcess`, `PostProcessAsync` |
+| In `finally` blocks after the Handlers & "After" methods | `Finally`, `FinallyAsync`   |
+
+The exact name has no impact on functionality, but the idiom is that `Load/LoadAsync` is used to load input data for 
+the main handler method. These methods can be thought of as "setting the table" for whatever the main handler method
+actually needs to do. `Validate/ValidateAsync` are primarily for validating the incoming command or HTTP request against
+the current system state to "decide" if the message handling or HTTP request should continue. The choice of method name
+is really up to you as a description of what that method actually does.
+
+You can also mark any public method on a message handler or HTTP endpoint class with the Wolverine `[Before]` or `[After]`
+attributes so that you can use more specifically descriptive method names. These methods are mostly ordered from top to 
+bottom depending on the order you define them in your handler class -- but Wolverine will reorder the methods when one method 
+produces an input to another method. In a way, think of the compound handler technique in Wolverine as a cousin to
+[Railway Programming](https://fsharpforfunandprofit.com/rop/).
 
 
 ## Using the Message Envelope

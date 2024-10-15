@@ -1,7 +1,7 @@
 # Wolverine and Serverless
 
 ::: tip
-No telling when this would happen (Spring 2024?), but there is an "ultra efficient" serverless model planned for Wolverine
+No telling when this would happen, but there is an "ultra efficient" serverless model planned for Wolverine
 that will lean even heavier into code generation as a way to optimize its usage within serverless functions. Track that [forthcoming
 work on GitHub](https://github.com/JasperFx/wolverine/issues/34).
 :::

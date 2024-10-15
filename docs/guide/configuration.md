@@ -25,51 +25,11 @@ At this point, Wolverine only supports [IHostBuilder](https://learn.microsoft.co
 model in the future.
 :::
 
-## Replacing ServiceProvider with Lamar
-
-If you run into any trouble whatsoever with code generation after upgrading to Wolverine 3.0, please:
-
-1. Please [raise a GitHub issue in Wolverine](https://github.com/JasperFx/wolverine/issues/new/choose) with some description of the offending message handler or http endpoint
-2. Fall back to Lamar for your IoC tool
-
-To use Lamar, add this Nuget to your main project:
-
-```bash
-dotnet add package Lamar.Microsoft.DependencyInjection
-```
-
-If you're using `IHostBuilder` like you might for a simple console app, it's:
-
-<!-- snippet: sample_use_lamar_with_host_builder -->
-<a id='snippet-sample_use_lamar_with_host_builder'></a>
-```cs
-// With IHostBuilder
-var builder = Host.CreateDefaultBuilder();
-builder.UseLamar();
-```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/DocumentationSamples.cs#L11-L17' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_use_lamar_with_host_builder' title='Start of snippet'>anchor</a></sup>
-<!-- endSnippet -->
-
-In a web application, it's:
-
-```csharp
-var builder = WebApplication.CreateBuilder(args);
-builder.Host.UseLamar();
-```
-
-and with `HostApplicationBuilder`, try:
-
-```csharp
-var builder = Host.CreateApplicationBuilder();
-
-// Little ugly, and Lamar *should* have a helper for this...
-builder.ConfigureContainer<ServiceRegistry>(new LamarServiceProviderFactory());
-```
-
-
-
-
 ## With ASP.NET Core
+
+::: info
+Do note that there's some [additional configuration to use WolverineFx.HTTP](/guide/http/integration) as well.
+:::
 
 Below is a sample of adding Wolverine to an ASP.NET Core application that is bootstrapped with
 `WebApplicationBuilder`:
@@ -199,4 +159,44 @@ await host.StartAsync();
 
 And lastly, you can just use `IServiceCollection.AddWolverine()` by itself.
 
+## Replacing ServiceProvider with Lamar
+
+If you run into any trouble whatsoever with code generation after upgrading to Wolverine 3.0, please:
+
+1. Please [raise a GitHub issue in Wolverine](https://github.com/JasperFx/wolverine/issues/new/choose) with some description of the offending message handler or http endpoint
+2. Fall back to Lamar for your IoC tool
+
+To use Lamar, add this Nuget to your main project:
+
+```bash
+dotnet add package Lamar.Microsoft.DependencyInjection
+```
+
+If you're using `IHostBuilder` like you might for a simple console app, it's:
+
+<!-- snippet: sample_use_lamar_with_host_builder -->
+<a id='snippet-sample_use_lamar_with_host_builder'></a>
+```cs
+// With IHostBuilder
+var builder = Host.CreateDefaultBuilder();
+builder.UseLamar();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/DocumentationSamples.cs#L11-L17' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_use_lamar_with_host_builder' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+In a web application, it's:
+
+```csharp
+var builder = WebApplication.CreateBuilder(args);
+builder.Host.UseLamar();
+```
+
+and with `HostApplicationBuilder`, try:
+
+```csharp
+var builder = Host.CreateApplicationBuilder();
+
+// Little ugly, and Lamar *should* have a helper for this...
+builder.ConfigureContainer<ServiceRegistry>(new LamarServiceProviderFactory());
+```
 

@@ -4,7 +4,7 @@ Wolverine can be configuration intensive, allows for quite a bit of customizatio
 quite a bit of external infrastructure. All of those things can be problematic, so Wolverine tries to provide diagnostic tools
 to unwind what's going on inside the application and the application's configuration. 
 
-Many of the diagnostics explained in this page are part of the [Oakton command line integration](https://jasperfx.github.io/oakton)l As a reminder,
+Many of the diagnostics explained in this page are part of the [Oakton command line integration](https://jasperfx.github.io/oakton). As a reminder,
 to utilize this command line integration, you need to apply Oakton as your command line parser as shown in the last line of the quickstart
 sample `Program.cs` file:
 
@@ -86,6 +86,11 @@ dotnet run -- codegen preview
 ```
 
 ## Environment Checks
+
+::: info
+Wolverine 4.0 will embrace the new [IHealthCheck](https://learn.microsoft.com/en-us/dotnet/api/microsoft.extensions.diagnostics.healthchecks.ihealthcheck?view=net-8.0) model in .NET as a replacement for the older, JasperFx-centric
+environment check model in this section. 
+:::
 
 Wolverine's external messaging transports and the durable inbox/outbox support expose [Oakton's environment checks](https://jasperfx.github.io/oakton/guide/host/environment.html)
 facility to help make your Wolverine applications be self diagnosing on configuration or connectivity issues like:

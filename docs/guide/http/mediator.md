@@ -24,6 +24,8 @@ public class MediatorController : ControllerBase
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Samples/MediatorController.cs#L6-L18' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_as_mediator' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Optimized Minimal API Integration
+
 While that strategy works and doesn't require Wolverine.Http at all, there's an optimized Minimal API approach in
 Wolverine.HTTP to quickly build ASP.Net Core routes with Wolverine message handlers that bypasses some of the 
 performance overhead of "classic mediator" usage.
