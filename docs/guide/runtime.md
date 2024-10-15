@@ -61,6 +61,18 @@ You can, of course, happily publish messages to an external queue and consume th
 same process.
 :::
 
+Wolverine supports asynchronous messaging through both its [local, in-process queueing](/guide/messaging/transports/local) mechanism and through external
+messaging brokers like Kafka, Rabbit MQ, Azure Service Bus, or Amazon SQS. The local queueing is a valuable way to add
+background processing to a system, and can even be durably backed by a database with full-blown transactional inbox/outbox
+support to retain in process work across unexpected system shutdowns or restarts. What the local queue cannot do is share
+work across a cluster of running nodes. In other words, you will have to use external messaging brokers to achieve any
+kind of [competing consumer](https://www.enterpriseintegrationpatterns.com/patterns/messaging/CompetingConsumers.html) work sharing for better scalability. 
+
+::: info
+Wolverine listening agents all support competing consumers out of the box for work distribution across a node cluster -- unless you are purposely opting into [strictly ordered listeners](/guide/messaging/listeners.html#strictly-ordered-listeners) where only one
+node is allowed to handle messages from a given queue or subscription.
+:::
+
 The other main usage of Wolverine is to send messages from your current process to another process through some kind of external transport like a Rabbit MQ/Azure Service Bus/Amazon SQS queue and
 have Wolverine execute that message in another process (or back to the original process):
 
@@ -91,7 +103,6 @@ During the listening process, Wolverine has to:
 5. Call the inner message executor for that message type
 6. Carry out quite a bit of Open Telemetry activity tracing, report metrics, and just plain logging
 7. Evaluate any errors against the error handling policies of the application or the specific message type
-
 
 ## Endpoint Types
 
@@ -208,6 +219,36 @@ that depend on adapter interfaces and copious runtime usage of IoC containers.
 
 See [Code Generation in Wolverine](/guide/codegen) for much more information about this model and how it relates to the execution pipeline.
 
+## Nodes and Agents
+
+![Nodes and Agents](/nodes-and-agents.png)
+
+Wolverine has some ability to distribute "sticky" or stateful work across running nodes in your application. To do so, 
+Wolverine tracks the running "nodes" (just means an executing instance of your Wolverine application) and elects a 
+single leader to distribute and assign "agents" to the running "nodes". Wolverine has built in health monitoring that
+can detect when any node is offline to redistribute working agents to other nodes. Wolverine is also able to "fail over" the
+leader assignment to a different node if the original leader is determined to be down. Likewise, Wolverine will redistribute
+running agent assignments when new nodes are brought online.
+
+::: info
+You will have to have some kind of durable message storage configured for your application for the leader election
+and agent assignments to function.
+:::
+
+The stateful, running "agents" are exposed through an `IAgent`
+interface like so:
+
+snippet: sample_IAgent
+
+With related groups of agents built and assigned by IoC-registered implementations of this interface:
+
+snippet: sample_IAgentFamily
+
+Built in examples of the agent and agent family are:
+
+* Wolverine's built-in durability agent to recover orphaned messages from nodes that are detected to be offline, with one agent per tenant database
+* Wolverine uses the agent assignment for "exclusive" message listeners like the strictly ordered listener option
+* The integrated Marten projection and subscription load distribution
 
 ## IoC Container Integration
 

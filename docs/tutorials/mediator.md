@@ -9,6 +9,12 @@ the actual functionality of web services and applications from the mechanics of 
 a mediator tool allows you to keep MVC Core code ceremony out of your application business logic and service layer. It wasn't the original motivation of the project,
 but Wolverine can be used as a full-featured mediator tool.
 
+Before you run off and use "Wolverine as MediatR", we think you can arrive at lower ceremony and simpler code in most cases by using [WolverineFx.Http](/guide/http/)
+for your web services. If you really just like the approach of separating message handlers underneath ASP.Net Minimal API, there is also a set
+of helpers to more efficiently pipe Minimal API routes to Wolverine message handlers that are a bit more performance optimized than the typical
+usage of pulling `IMessageBus` out of the IoC container on every request. See [Optimized Minimal API Integration](/guide/http/mediator.html#optimized-minimal-api-integration) for more information.
+
+
 ## Mediator Only Wolverine
 
 Wolverine was not originally conceived of as a "mediator" tool per se. Out of the box, Wolverine is optimized for asynchronous
@@ -38,11 +44,14 @@ using var host = await Host.CreateDefaultBuilder()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/DurabilityModes.cs#L38-L58' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_the_mediator_mode' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+::: warning
+Using the `MediatorOnly` mode completely disables all asynchronous messaging, including the local queueing as well
+:::
+
 The `MediatorOnly` mode sharply reduces the overhead of using Wolverine you don't care about or need if Wolverine is only
 being used as a mediator tool. 
 
 ## Starting with Wolverine as Mediator
-
 
 Let's jump into a sample project. Let's say that your system creates and tracks *Items* of some sort. One of the API requirements is to expose an HTTP
 endpoint that can accept an input that will create and persist a new `Item`, while also publishing an `ItemCreated` event message to any other system
