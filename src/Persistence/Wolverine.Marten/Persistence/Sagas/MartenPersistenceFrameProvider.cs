@@ -38,10 +38,7 @@ internal class MartenPersistenceFrameProvider : IPersistenceFrameProvider
                 saveChanges.CommentText = "Commit any outstanding Marten changes";
                 chain.Postprocessors.Add(saveChanges);
 
-                var methodCall = MethodCall.For<MessageContext>(x => x.FlushOutgoingMessagesAsync());
-                methodCall.CommentText = "Have to flush outgoing messages just in case Marten did nothing because of https://github.com/JasperFx/wolverine/issues/536";
-
-                chain.Postprocessors.Add(methodCall);
+                chain.Postprocessors.Add(new FlushOutgoingMessages());
             }
         }
     }

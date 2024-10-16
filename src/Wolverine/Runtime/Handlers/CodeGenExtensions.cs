@@ -6,13 +6,36 @@ using Wolverine.Configuration;
 
 namespace Wolverine.Runtime.Handlers;
 
-public static class VariableExtensions
+public static class CodeGenExtensions
 {
     internal static readonly string ReturnActionKey = "ReturnAction";
 
     public static bool HasReturnAction(this Variable variable)
     {
         return variable.Properties.ContainsKey(ReturnActionKey);
+    }
+
+    /// <summary>
+    /// Does this frame possibly send any kind of cascading messages?
+    /// </summary>
+    /// <param name="frame"></param>
+    /// <returns></returns>
+    public static bool MaySendMessages(this Frame frame)
+    {
+        if (frame is CaptureCascadingMessages) return true;
+        if (frame is MethodCall call)
+        {
+            if (call.Method.GetParameters().Any(x =>
+                    x.ParameterType == typeof(IMessageBus) || x.ParameterType == typeof(MessageContext) ||
+                    x.ParameterType == typeof(IMessageContext)))
+            {
+                return true;
+            }
+
+            if (call.CreatesNewOf<OutgoingMessages>()) return true;
+        }
+
+        return false;
     }
     
     /// <summary>

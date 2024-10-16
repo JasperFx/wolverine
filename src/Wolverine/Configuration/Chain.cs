@@ -256,12 +256,15 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
             }
 
             var afters = MiddlewarePolicy.FilterMethods<WolverineAfterAttribute>(handlerType.GetMethods(),
-                MiddlewarePolicy.AfterMethodNames);
+                MiddlewarePolicy.AfterMethodNames).ToArray();
 
-            foreach (var after in afters)
+            if (afters.Any())
             {
-                var frame = new MethodCall(handlerType, after);
-                Postprocessors.Add(frame);
+                for (int i = 0; i < afters.Length; i++)
+                {
+                    var frame = new MethodCall(handlerType, afters[i]);
+                    Postprocessors.Insert(i, frame);
+                }
             }
         }
     }

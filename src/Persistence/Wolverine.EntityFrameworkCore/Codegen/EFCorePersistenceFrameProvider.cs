@@ -104,7 +104,7 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         if (chain.RequiresOutbox() && chain.ShouldFlushOutgoingMessages())
         {
 #pragma warning disable CS4014
-            chain.Postprocessors.Add(MethodCall.For<MessageContext>(x => x.FlushOutgoingMessagesAsync()));
+            chain.Postprocessors.Add(new FlushOutgoingMessages());
 #pragma warning restore CS4014
         }
     }

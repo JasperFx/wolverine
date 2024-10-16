@@ -12,6 +12,7 @@ using Wolverine.Attributes;
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
 using Wolverine.Logging;
+using Wolverine.Persistence;
 using Wolverine.Runtime.Routing;
 using Wolverine.Transports.Local;
 using Wolverine.Transports.Stub;
@@ -404,8 +405,6 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         {
             methodCall.TryReplaceVariableCreationWithAssignment(messageVariable);
         }
-        
-        
 
         // The Enqueue cascading needs to happen before the post processors because of the
         // transactional & outbox support
