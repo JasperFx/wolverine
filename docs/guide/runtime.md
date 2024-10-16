@@ -181,7 +181,7 @@ opts.ListenToAzureServiceBusQueue("incoming")
 opts.PublishAllMessages().ToAzureServiceBusQueue("outgoing")
     .UseDurableOutbox();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L205-L215' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_durable_endpoint' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L236-L246' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_durable_endpoint' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Or use policies to do this in one fell swoop (which may not be what you actually want, but you could do this!):
