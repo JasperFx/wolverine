@@ -51,4 +51,20 @@ public class PubsubTransportTests {
         endpoints.ShouldContain(x => x.Name.SubscriptionId == PubsubTransport.SanitizePubsubName(PubsubTransport.DeadLetterName));
         endpoints.ShouldContain(x => x.Name.SubscriptionId == PubsubTransport.SanitizePubsubName("two-dead-letter"));
     }
+
+    [Fact]
+    public void findEndpointByUri_should_correctly_find_by_queuename() {
+        string queueNameInPascalCase = "TestQueue";
+        string queueNameLowerCase = "testqueue";
+
+        var transport = new PubsubTransport("wolverine");
+        var abc = transport.Topics[queueNameInPascalCase];
+        var xzy = transport.Topics[queueNameLowerCase];
+
+        var result = transport.GetOrCreateEndpoint(new Uri($"{PubsubTransport.ProtocolName}://{queueNameInPascalCase}"));
+
+        transport.Topics.Count.ShouldBe(2);
+
+        result.EndpointName.ShouldBe(queueNameInPascalCase);
+    }
 }

@@ -91,24 +91,20 @@ public class PubsubTransport : BrokerTransport<PubsubEndpoint>, IAsyncDisposable
     protected override PubsubEndpoint findEndpointByUri(Uri uri) {
         if (uri.Scheme != Protocol) throw new ArgumentOutOfRangeException(nameof(uri));
 
-        var topicName = uri.Host;
-
         if (uri.Segments.Length == 2) {
-            var subscription = Subscriptions.FirstOrDefault(x => x.Uri == uri);
+            var existing = Subscriptions.FirstOrDefault(x => x.Uri.OriginalString == uri.OriginalString);
 
-            if (subscription != null) return subscription;
+            if (existing is not null) return existing;
 
-            var subscriptionName = uri.Segments.Last().TrimEnd('/');
-            var topic = Topics[topicName];
-
-            subscription = new PubsubSubscription(subscriptionName, topic, this);
+            var topic = Topics[uri.OriginalString.Split("//")[1].TrimEnd('/')];
+            var subscription = new PubsubSubscription(uri.OriginalString.Split("/").Last(), topic, this);
 
             Subscriptions.Add(subscription);
 
             return subscription;
         }
 
-        return Topics[topicName];
+        return Topics.FirstOrDefault(x => x.Uri.OriginalString == uri.OriginalString) ?? Topics[uri.OriginalString.Split("//")[1].TrimEnd('/')];
     }
 
     protected override void tryBuildSystemEndpoints(IWolverineRuntime runtime) {
