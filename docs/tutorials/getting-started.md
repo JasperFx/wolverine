@@ -42,13 +42,21 @@ a POST from the client that...
 
 The two *commands* for the POST endpoints are below:
 
-<!-- snippet: sample_Quickstart_commands -->
 <a id='#region sample_Quickstart_commands_CreateIssue'></a>
-<a id='#region sample_Quickstart_commands_AssignIssue'></a>
 ```cs
 public record CreateIssue(Guid OriginatorId, string Title, string Description);
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Quickstart/CreateIssue.cs#L3-L7' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_quickstart_commands' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+and
+
+<!-- snippet: sample_Quickstart_commands_AssignIssue -->
+<a id='snippet-sample_quickstart_commands_assignissue'></a>
+```cs
+public record AssignIssue(Guid IssueId, Guid AssigneeId);
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Quickstart/AssignIssue.cs#L3-L7' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_quickstart_commands_assignissue' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Let's jump right into the `Program.cs` file of our new web service:
