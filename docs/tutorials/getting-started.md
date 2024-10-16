@@ -6,7 +6,7 @@ can be used as:
 
 1. An [inline "mediator" pipeline](/tutorials/mediator) for executing commands
 2. A [local message bus](/guide/messaging/transports/local) for in-application communication
-3. A full fledged [asynchronous messaging framework](/guide/messaging/introduction) for robust communication and interaction between services when used in conjunction with low level messaging infrastructure tools like RabbitMQ
+3. A full-fledged [asynchronous messaging framework](/guide/messaging/introduction) for robust communication and interaction between services when used in conjunction with low level messaging infrastructure tools like RabbitMQ
 4. With the [WolverineFx.Http](/guide/http/) library, Wolverine's execution pipeline can be used directly as an alternative ASP.Net Core Endpoint provider
 
 Wolverine tries very hard to be a good citizen within the .NET ecosystem. Even when used in
@@ -43,7 +43,8 @@ a POST from the client that...
 The two *commands* for the POST endpoints are below:
 
 <!-- snippet: sample_Quickstart_commands -->
-<a id='snippet-sample_quickstart_commands'></a>
+<a id='#region sample_Quickstart_commands_CreateIssue'></a>
+<a id='#region sample_Quickstart_commands_AssignIssue'></a>
 ```cs
 public record CreateIssue(Guid OriginatorId, string Title, string Description);
 ```
@@ -214,7 +215,7 @@ public static class IssueCreatedHandler
 
 Now, you'll notice that Wolverine is happy to allow you to use static methods as
 handler actions. And also notice that the `Handle()` method takes in an argument
-for `IssueRepository`. Wolverine always assumes that the first argument of an handler
+for `IssueRepository`. Wolverine always assumes that the first argument of a handler
 method is the message type, but other arguments are inferred to be services from the
 system's underlying IoC container. By supporting [method injection](https://www.tatvasoft.com/outsourcing/2023/11/dependency-injection-in-csharp.html#Method) like this, Wolverine
 is able to cut down on even more of the typical cruft code forced upon you by other .NET tools.
