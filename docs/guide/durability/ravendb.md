@@ -144,6 +144,48 @@ public static class RecordTeamHandler
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/RavenDbTests/transactional_middleware.cs#L47-L59' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_ravendb_side_effects' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## System Control Queues
+
+The RavenDb integration to Wolverine does not yet come with a built in database control queue
+mechanism, so you will need to add that from external messaging brokers as in this example
+using Azure Service Bus:
+
+<!-- snippet: sample_enabling_azure_service_bus_control_queues -->
+<a id='snippet-sample_enabling_azure_service_bus_control_queues'></a>
+```cs
+var builder = Host.CreateApplicationBuilder();
+builder.UseWolverine(opts =>
+{
+    // One way or another, you're probably pulling the Azure Service Bus
+    // connection string out of configuration
+    var azureServiceBusConnectionString = builder
+        .Configuration
+        .GetConnectionString("azure-service-bus")!;
+
+    // Connect to the broker in the simplest possible way
+    opts.UseAzureServiceBus(azureServiceBusConnectionString)
+        .AutoProvision()
+        
+        // This enables Wolverine to use temporary Azure Service Bus
+        // queues created at runtime for communication between
+        // Wolverine nodes
+        .EnableWolverineControlQueues();
+
+});
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L193-L216' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_enabling_azure_service_bus_control_queues' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+For local development, there is also an option to let Wolverine just use its TCP transport
+as a control endpoint with this configuration option:
+
+```csharp
+WolverineOptions.UseTcpForControlEndpoint();
+```
+
+In the option above, Wolverine is just looking for an unused port, and assigning that found port
+as the listener for the node being bootstrapped. 
+
 ## RavenOps Side Effects
 
 The `RavenOps` static class can be used as a convenience for RavenDb integration with Wolverine:

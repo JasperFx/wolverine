@@ -188,6 +188,37 @@ public class DocumentationSamples
         await host.StartAsync();
     }
 
+    public async Task configure_control_queues()
+    {
+        #region sample_enabling_azure_service_bus_control_queues
+
+        var builder = Host.CreateApplicationBuilder();
+        builder.UseWolverine(opts =>
+        {
+            // One way or another, you're probably pulling the Azure Service Bus
+            // connection string out of configuration
+            var azureServiceBusConnectionString = builder
+                .Configuration
+                .GetConnectionString("azure-service-bus")!;
+
+            // Connect to the broker in the simplest possible way
+            opts.UseAzureServiceBus(azureServiceBusConnectionString)
+                .AutoProvision()
+                
+                // This enables Wolverine to use temporary Azure Service Bus
+                // queues created at runtime for communication between
+                // Wolverine nodes
+                .EnableWolverineControlQueues();
+
+
+        });
+
+        #endregion
+
+        using var host = builder.Build();
+        await host.StartAsync();
+    }
+
     public async Task configure_durable_listener()
     {
         var builder = Host.CreateApplicationBuilder();

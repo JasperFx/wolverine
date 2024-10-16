@@ -1,5 +1,7 @@
 using Azure.Messaging.ServiceBus.Administration;
+using JasperFx.Core;
 using Wolverine.AzureServiceBus.Internal;
+using Wolverine.Configuration;
 using Wolverine.Transports;
 
 namespace Wolverine.AzureServiceBus;
@@ -88,6 +90,30 @@ public class AzureServiceBusConfiguration : BrokerExpression<AzureServiceBusTran
     public AzureServiceBusConfiguration SystemQueuesAreEnabled(bool enabled)
     {
         Transport.SystemQueuesEnabled = enabled;
+        return this;
+    }
+    
+    /// <summary>
+    /// Utilize an Azure Service Bus queue as the control queue between Wolverine nodes
+    /// This is more efficient than the built in Wolverine database control
+    /// queues if Azure Service Bus is an option
+    /// </summary>
+    /// <returns></returns>
+    public AzureServiceBusConfiguration EnableWolverineControlQueues()
+    {
+        var queueName = "wolverine.control." + Options.Durability.AssignedNodeNumber;
+        
+        var queue = Transport.Queues[queueName];
+
+        queue.Options.AutoDeleteOnIdle = 5.Minutes();
+        queue.Mode = EndpointMode.BufferedInMemory;
+        queue.IsListener = true;
+        queue.EndpointName = "Control";
+        queue.IsUsedForReplies = true;
+        queue.Role = EndpointRole.System;
+
+        Options.Transports.NodeControlEndpoint = queue;
+
         return this;
     }
 }
