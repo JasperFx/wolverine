@@ -1,17 +1,17 @@
 # Getting Started
 
-Wolverine is a toolset for command execution and message handling within .NET Core applications.
+Wolverine is a toolset for command execution and message handling within .NET applications.
 The killer feature of Wolverine (we think) is its very efficient command execution pipeline that
 can be used as:
 
 1. An [inline "mediator" pipeline](/tutorials/mediator) for executing commands
-2. A [local message bus](/guide/messaging/transports/local) within .NET applications
-3. A full fledged [asynchronous messaging framework](/guide/messaging/introduction) for robust communication and interaction between services when used in conjunction with low level messaging infrastructure tools like RabbitMQ, 
+2. A [local message bus](/guide/messaging/transports/local) for in-application communication
+3. A full fledged [asynchronous messaging framework](/guide/messaging/introduction) for robust communication and interaction between services when used in conjunction with low level messaging infrastructure tools like RabbitMQ
 4. With the [WolverineFx.Http](/guide/http/) library, Wolverine's execution pipeline can be used directly as an alternative ASP.Net Core Endpoint provider
 
-Wolverine tries very hard to be a good citizen within the .NET ecosystem and even when used in
-"headless" services, uses the idiomatic elements of .NET (logging, configuration, bootstrapping, hosted services)
-rather than try to reinvent something new. Wolverine utilizes the .NET Generic Host for bootstrapping and application teardown.
+Wolverine tries very hard to be a good citizen within the .NET ecosystem. Even when used in
+"headless" services, it uses the idiomatic elements of .NET (logging, configuration, bootstrapping, hosted services)
+rather than try to reinvent something new. Wolverine utilizes the [.NET Generic Host](https://learn.microsoft.com/en-us/dotnet/core/extensions/generic-host) for bootstrapping and application teardown.
 This makes Wolverine relatively easy to use in combination with many of the most popular .NET tools.
 
 ## Your First Wolverine Application
@@ -20,7 +20,7 @@ Also see the full [quickstart code](https://github.com/JasperFx/wolverine/tree/m
 
 For a first application, let's say that we're building a very simple issue tracking system for
 our own usage. If you're reading this web page, it's a pretty safe bet you spend quite a bit of time
-working with an issue tracking system:)
+working with an issue tracking system. :)
 
 Ignoring any discussion of the user interface or even a backing database, let's
 start a new web api project for this new system with:
@@ -103,11 +103,11 @@ return await app.RunOaktonCommands(args);
 registers `IMessageBus` as a scoped service inside your application's DI container as part of the `UseWolverine()` mechanism.
 :::
 
-Alright, let's talk about what's going on up above:
+Alright, let's talk about what we wrote up above:
 
-1. I integrated Wolverine into the new system through the call to `IHostBuilder.UseWolverine()`
-2. I registered the `UserRepository` and `IssueRepository` services
-3. I created a couple [Minimal API](https://docs.microsoft.com/en-us/aspnet/core/fundamentals/minimal-apis?view=aspnetcore-6.0) endpoints
+1. We integrated Wolverine into the new system through the call to `IHostBuilder.UseWolverine()`
+2. We registered the `UserRepository` and `IssueRepository` services
+3. We created a couple [Minimal API](https://docs.microsoft.com/en-us/aspnet/core/fundamentals/minimal-apis?view=aspnetcore-6.0) endpoints
 
 See also: [Wolverine as Command Bus](/guide/in-memory-bus)
 
@@ -157,7 +157,7 @@ public class CreateIssueHandler
 Hopefully that code is simple enough, but let's talk what you do not see in this code or
 the initial `Program` code up above.
 
-Wolverine uses a naming convention to automatically discover message handler actions in your
+Wolverine uses a [naming convention](/guide/handlers/#rules-for-message-handlers) to automatically discover message handler actions in your
 application assembly, so at no point did we have to explicitly register the
 `CreateIssueHandler` in any way.
 
@@ -168,8 +168,13 @@ in any of the quick start samples, but Wolverine message handler methods can be 
 well as synchronous, depending on what makes sense in each handler. So no littering your code
 with extraneous `return Task.Completed;` code like you'd have to with other .NET tools.
 
-As I mentioned earlier, we want our API to create an email whenever a new issue is created. In
-this case I'm opting to have that email generation and email sending happen in a second
+::: info
+These conventions are just some of the ways Wolverine keeps out of the way of your application code whilst
+enabling developers to write more concise, decoupled code.
+:::
+
+As mentioned earlier, we want our API to create an email whenever a new issue is created. In
+this case we're opting to have that email generation and email sending happen in a second
 message handler that will run after the initial command. You might also notice that the `CreateIssueHandler.Handle()` method returns an `IssueCreated` event.
 When Wolverine sees that a handler creates what we call a [cascading message](/guide/handlers/cascading), Wolverine will
 publish the `IssueCreated` event to an in memory
@@ -215,9 +220,10 @@ system's underlying IoC container. By supporting [method injection](https://www.
 is able to cut down on even more of the typical cruft code forced upon you by other .NET tools.
 
 *You might be saying that this sounds like the behavior of the conventional method injection
-behavior of Minimal API in .NET 6, and it is. But I'd like to point out that Wolverine had this
-years before the ASP.NET team got around to it:-)*
+behavior of Minimal API in .NET 6, and it is. But we'd like to point out that Wolverine had this
+years before the ASP.NET team got around to it. :-)*
 
 This page introduced the basic usage of Wolverine, how to wire Wolverine
-into .NET applications, and some rudimentary `Handler` usage. There's much more
-of course, so learn more about [Handlers and Messages](/guide/handlers/).
+into .NET applications, and some rudimentary `Handler` usage. Of course, this all was
+local with in memory usage and Wolverine can do so much more. Dive deeper and 
+learn more about its other [Handlers and Messages](/guide/handlers/) capabilities.
