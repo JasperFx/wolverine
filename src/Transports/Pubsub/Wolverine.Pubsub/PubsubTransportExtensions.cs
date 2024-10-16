@@ -33,12 +33,12 @@ public static class PubsubTransportExtensions {
 	/// <param name="configure"></param>
 	/// <returns></returns>
 	/// <exception cref="ArgumentNullException"></exception>
-	public static PubsubConfiguration UsePubsub(this WolverineOptions endpoints, string projectId, Action<PubsubTransportOptions>? configure = null) {
+	public static PubsubConfiguration UsePubsub(this WolverineOptions endpoints, string projectId, Action<PubsubTransport>? configure = null) {
 		var transport = endpoints.PubsubTransport();
 
 		transport.ProjectId = projectId ?? throw new ArgumentNullException(nameof(projectId));
 
-		configure?.Invoke(transport.Options);
+		configure?.Invoke(transport);
 
 		return new PubsubConfiguration(transport, endpoints);
 	}

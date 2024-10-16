@@ -23,8 +23,8 @@ public class BatchedPubsubListener : PubsubListener {
         await streamingPull.WriteAsync(new() {
             SubscriptionAsSubscriptionName = _endpoint.Name,
             StreamAckDeadlineSeconds = 20,
-            MaxOutstandingMessages = _endpoint.Options.MaxOutstandingMessages ?? 0,
-            MaxOutstandingBytes = _endpoint.Options.MaxOutstandingByteCount ?? 0,
+            MaxOutstandingMessages = _endpoint.PubsubOptions.MaxOutstandingMessages ?? 0,
+            MaxOutstandingBytes = _endpoint.PubsubOptions.MaxOutstandingByteCount ?? 0,
         });
 
         await using var stream = streamingPull.GetResponseStream();
@@ -40,12 +40,7 @@ public class BatchedPubsubListener : PubsubListener {
         try {
             await listenForMessagesAsync(async () => {
                 while (await stream.MoveNextAsync(_cancellation.Token)) {
-                    var response = stream.Current;
-
-                    await handleMessagesAsync(
-                        response.ReceivedMessages,
-                        (envelopes) => _complete.PostAsync(envelopes.ToArray())
-                    );
+                    await handleMessagesAsync(stream.Current.ReceivedMessages);
                 }
             });
         }

@@ -5,14 +5,15 @@ using Google.Cloud.PubSub.V1;
 using JasperFx.Core;
 using Wolverine.Configuration;
 using Spectre.Console;
+using Google.Api.Gax;
 
 namespace Wolverine.Pubsub;
 
 public class PubsubTransport : BrokerTransport<PubsubEndpoint>, IAsyncDisposable {
     public const char Separator = '-';
     public const string ProtocolName = "pubsub";
-    public const string ResponseEndpointName = "wlvrn-responses";
-    public const string DeadLetterEndpointName = "wlvrn-dead-letter";
+    public const string ResponseName = "wlvrn-responses";
+    public const string DeadLetterName = "wlvrn-dead-letter";
 
     public static string SanitizePubsubName(string identifier) => (!identifier.StartsWith("wlvrn-") ? $"wlvrn-{identifier}" : identifier).ToLowerInvariant().Replace('.', Separator);
 
@@ -20,36 +21,34 @@ public class PubsubTransport : BrokerTransport<PubsubEndpoint>, IAsyncDisposable
     internal SubscriberServiceApiClient? SubscriberApiClient = null;
 
 
-    public string ProjectId = string.Empty;
-    public readonly PubsubTransportOptions Options = new();
     public readonly LightweightCache<string, PubsubTopic> Topics;
     public readonly List<PubsubSubscription> Subscriptions = new();
+
+    public string ProjectId = string.Empty;
+    public EmulatorDetection EmulatorDetection = EmulatorDetection.None;
+    public bool EnableDeadLettering = false;
 
     /// <summary>
     /// Is this transport connection allowed to build and use response and retry queues
     /// for just this node?
     /// </summary>
-    public bool SystemEndpointsEnabled { get; set; } = true;
+    public bool SystemEndpointsEnabled = false;
 
     public PubsubTransport() : base(ProtocolName, "Google Cloud Pub/Sub") {
         IdentifierDelimiter = "-";
-
         Topics = new(name => new(name, this));
     }
 
-    public PubsubTransport(string projectId, PubsubTransportOptions? options = null) : this() {
+    public PubsubTransport(string projectId) : this() {
         ProjectId = projectId;
-        Options = options ?? Options;
     }
-
-    public override string SanitizeIdentifier(string identifier) => SanitizePubsubName(identifier);
 
     public override async ValueTask ConnectAsync(IWolverineRuntime runtime) {
         var pubBuilder = new PublisherServiceApiClientBuilder {
-            EmulatorDetection = Options.EmulatorDetection
+            EmulatorDetection = EmulatorDetection
         };
         var subBuilder = new SubscriberServiceApiClientBuilder {
-            EmulatorDetection = Options.EmulatorDetection,
+            EmulatorDetection = EmulatorDetection,
         };
 
         if (string.IsNullOrWhiteSpace(ProjectId)) throw new InvalidOperationException("Google Cloud Pub/Sub project id must be set before connecting");
@@ -79,11 +78,11 @@ public class PubsubTransport : BrokerTransport<PubsubEndpoint>, IAsyncDisposable
     }
 
     protected override IEnumerable<PubsubEndpoint> endpoints() {
-        // if (!Options.DisableDeadLetter) {
-        //     var dlNames = Subscriptions.Select(x => x.Options.DeadLetterName).Where(x => x.IsNotEmpty()).Distinct().ToArray();
+        if (EnableDeadLettering) {
+            var dlNames = Subscriptions.Select(x => x.DeadLetterName).Where(x => x.IsNotEmpty()).Distinct().ToArray();
 
-        //     foreach (var dlName in dlNames) Topics[dlName!].FindOrCreateSubscription();
-        // }
+            foreach (var dlName in dlNames) Topics[dlName!].FindOrCreateSubscription();
+        }
 
         foreach (var topic in Topics) yield return topic;
         foreach (var subscription in Subscriptions) yield return subscription;
@@ -115,12 +114,12 @@ public class PubsubTransport : BrokerTransport<PubsubEndpoint>, IAsyncDisposable
     protected override void tryBuildSystemEndpoints(IWolverineRuntime runtime) {
         if (!SystemEndpointsEnabled) return;
 
-        var responseName = SanitizeIdentifier($"{ResponseEndpointName}-{Math.Abs(runtime.DurabilitySettings.AssignedNodeNumber)}");
+        var responseName = SanitizeIdentifier($"{ResponseName}-{Math.Abs(runtime.DurabilitySettings.AssignedNodeNumber)}");
         var responseTopic = new PubsubTopic(responseName, this, EndpointRole.System);
         var responseSubscription = new PubsubSubscription(responseName, responseTopic, this, EndpointRole.System);
 
         responseSubscription.Mode = EndpointMode.BufferedInMemory;
-        responseSubscription.EndpointName = ResponseEndpointName;
+        responseSubscription.EndpointName = ResponseName;
         responseSubscription.IsUsedForReplies = true;
 
         Topics[responseName] = responseTopic;

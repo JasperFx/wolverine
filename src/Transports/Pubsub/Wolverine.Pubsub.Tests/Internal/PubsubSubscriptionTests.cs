@@ -10,18 +10,17 @@ using Xunit;
 namespace Wolverine.Pubsub.Tests.Internal;
 
 public class PubsubSubscriptionTests {
-    private PubsubTransport createTransport() => new("wolverine", new() {
-        EmulatorDetection = EmulatorDetection.EmulatorOnly
-    }) {
+    private PubsubTransport createTransport() => new("wolverine") {
         PublisherApiClient = Substitute.For<PublisherServiceApiClient>(),
-        SubscriberApiClient = Substitute.For<SubscriberServiceApiClient>()
+        SubscriberApiClient = Substitute.For<SubscriberServiceApiClient>(),
+        EmulatorDetection = EmulatorDetection.EmulatorOnly,
     };
 
-    // [Fact]
-    // public void default_dead_letter_name_is_transport_default() {
-    //     new PubsubTopic("foo", createTransport()).FindOrCreateSubscription("bar")
-    //         .Options.DeadLetterName.ShouldBe(PubsubTransport.DeadLetterEndpointName);
-    // }
+    [Fact]
+    public void default_dead_letter_name_is_transport_default() {
+        new PubsubTopic("foo", createTransport()).FindOrCreateSubscription("bar")
+            .DeadLetterName.ShouldBe(PubsubTransport.DeadLetterName);
+    }
 
     [Fact]
     public void default_mode_is_buffered() {

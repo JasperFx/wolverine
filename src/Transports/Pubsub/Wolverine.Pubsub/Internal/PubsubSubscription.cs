@@ -1,5 +1,6 @@
 using Google.Cloud.PubSub.V1;
 using Grpc.Core;
+using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
@@ -10,8 +11,17 @@ namespace Wolverine.Pubsub.Internal;
 
 public class PubsubSubscription : PubsubEndpoint, IBrokerQueue {
     public readonly SubscriptionName Name;
-    public readonly PubsubSubscriptionOptions Options;
     public readonly PubsubTopic Topic;
+
+    public int MaxRetryCount = 5;
+    public int RetryDelay = 1000;
+
+    /// <summary>
+    /// Name of the dead letter queue for this SQS queue where failed messages will be moved
+    /// </summary>
+    public string? DeadLetterName = PubsubTransport.DeadLetterName;
+
+    public PubsubSubscriptionOptions PubsubOptions = new PubsubSubscriptionOptions();
 
     public PubsubSubscription(
         string subscriptionName,
@@ -21,9 +31,6 @@ public class PubsubSubscription : PubsubEndpoint, IBrokerQueue {
     ) : base(new($"{transport.Protocol}://{topic.EndpointName}/{subscriptionName}"), transport, role) {
         Name = new(transport.ProjectId, $"{PubsubTransport.SanitizePubsubName(subscriptionName)}");
         Topic = topic;
-        Options = new PubsubSubscriptionOptions() {
-            // DeadLetterName = PubsubTransport.DeadLetterEndpointName
-        };
         EndpointName = subscriptionName;
         IsListener = true;
     }
@@ -35,13 +42,17 @@ public class PubsubSubscription : PubsubEndpoint, IBrokerQueue {
             var request = new Subscription {
                 SubscriptionName = Name,
                 TopicAsTopicName = Topic.Name,
+                AckDeadlineSeconds = PubsubOptions.AckDeadlineSeconds,
+                EnableExactlyOnceDelivery = PubsubOptions.EnableExactlyOnceDelivery,
+                EnableMessageOrdering = PubsubOptions.EnableMessageOrdering,
+                RetainAckedMessages = PubsubOptions.RetainAckedMessages
             };
 
-            // if (Options.DeadLetterName.IsNotEmpty() && !_transport.Options.DisableDeadLetter)
-            //     request.DeadLetterPolicy = new DeadLetterPolicy {
-            //         DeadLetterTopic = new TopicName(_transport.ProjectId, Options.DeadLetterName).ToString(),
-            //         MaxDeliveryAttempts = Options.DeadLetterMaxDeliveryAttempts
-            //     };
+            if (PubsubOptions.DeadLetterPolicy is not null) request.DeadLetterPolicy = PubsubOptions.DeadLetterPolicy;
+            if (PubsubOptions.ExpirationPolicy is not null) request.ExpirationPolicy = PubsubOptions.ExpirationPolicy;
+            if (PubsubOptions.Filter is not null) request.Filter = PubsubOptions.Filter;
+            if (PubsubOptions.MessageRetentionDuration is not null) request.MessageRetentionDuration = PubsubOptions.MessageRetentionDuration;
+            if (PubsubOptions.RetryPolicy is not null) request.RetryPolicy = PubsubOptions.RetryPolicy;
 
             await _transport.SubscriberApiClient.CreateSubscriptionAsync(request);
         }
@@ -100,11 +111,25 @@ public class PubsubSubscription : PubsubEndpoint, IBrokerQueue {
         ));
     }
 
+    public override bool TryBuildDeadLetterSender(IWolverineRuntime runtime, out ISender? deadLetterSender) {
+        if (DeadLetterName.IsNotEmpty() && _transport.EnableDeadLettering) {
+            var dl = _transport.Topics[DeadLetterName];
+
+            deadLetterSender = new InlinePubsubSender(dl, runtime);
+
+            return true;
+        }
+
+        deadLetterSender = default;
+
+        return false;
+    }
+
     protected override ISender CreateSender(IWolverineRuntime runtime) => throw new NotSupportedException();
 
-    // internal void ConfigureDeadLetter(Action<PubsubSubscription> configure) {
-    //     if (Options.DeadLetterName.IsEmpty()) return;
+    internal void ConfigureDeadLetter(Action<PubsubSubscription> configure) {
+        if (DeadLetterName.IsEmpty()) return;
 
-    //     configure(_transport.Topics[Options.DeadLetterName].FindOrCreateSubscription());
-    // }
+        configure(_transport.Topics[DeadLetterName].FindOrCreateSubscription());
+    }
 }

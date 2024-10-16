@@ -28,8 +28,8 @@ public class PubsubSubscriptionConfiguration : ListenerConfiguration<PubsubSubsc
     /// </summary>
     /// <param name="configure"></param>
     /// <returns></returns>
-    public PubsubSubscriptionConfiguration ConfigureSubscription(Action<PubsubSubscriptionOptions> configure) {
-        add(e => configure(e.Options));
+    public PubsubSubscriptionConfiguration ConfigureSubscription(Action<PubsubSubscription> configure) {
+        add(s => configure(s));
 
         return this;
     }
@@ -38,11 +38,11 @@ public class PubsubSubscriptionConfiguration : ListenerConfiguration<PubsubSubsc
     /// Completely disable all Google Cloud Pub/Sub dead lettering for just this subscription
     /// </summary>
     /// <returns></returns>
-    // public PubsubSubscriptionConfiguration DisableDeadLettering() {
-    //     add(e => e.Options.DeadLetterName = null);
+    public PubsubSubscriptionConfiguration DisableDeadLettering() {
+        add(e => e.DeadLetterName = null);
 
-    //     return this;
-    // }
+        return this;
+    }
 
     /// <summary>
     /// Customize the dead lettering for just this subscription
@@ -51,18 +51,18 @@ public class PubsubSubscriptionConfiguration : ListenerConfiguration<PubsubSubsc
     /// <param name="configure">Optionally configure properties of the dead lettering itself</param>
     /// <returns></returns>
     /// <exception cref="ArgumentNullException"></exception>
-    // public PubsubSubscriptionConfiguration ConfigureDeadLettering(
-    //     string deadLetterName,
-    //     Action<PubsubSubscription>? configure = null
-    // ) {
-    //     add(e => {
-    //         e.Options.DeadLetterName = deadLetterName;
+    public PubsubSubscriptionConfiguration ConfigureDeadLettering(
+        string deadLetterName,
+        Action<PubsubSubscription>? configure = null
+    ) {
+        add(e => {
+            e.DeadLetterName = deadLetterName;
 
-    //         if (configure is not null) e.ConfigureDeadLetter(configure);
-    //     });
+            if (configure is not null) e.ConfigureDeadLetter(configure);
+        });
 
-    //     return this;
-    // }
+        return this;
+    }
 
     /// <summary>
     /// Utilize custom envelope mapping for Google Cloud Pub/Sub interoperability with external non-Wolverine systems

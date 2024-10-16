@@ -20,9 +20,6 @@ public class InlinePubsubListener : PubsubListener {
             _cancellation.Token
         );
 
-        await handleMessagesAsync(
-            response.ReceivedMessages,
-            (envelopes) => _complete.PostAsync(envelopes.ToArray())
-        );
+        await handleMessagesAsync(response.ReceivedMessages);
     });
 }

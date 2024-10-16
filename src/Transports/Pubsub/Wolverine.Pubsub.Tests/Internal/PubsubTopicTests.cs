@@ -10,11 +10,10 @@ using Xunit;
 namespace Wolverine.Pubsub.Tests.Internal;
 
 public class PubsubTopicTests {
-    private PubsubTransport createTransport() => new("wolverine", new() {
-        EmulatorDetection = EmulatorDetection.EmulatorOnly
-    }) {
+    private PubsubTransport createTransport() => new("wolverine") {
         PublisherApiClient = Substitute.For<PublisherServiceApiClient>(),
-        SubscriberApiClient = Substitute.For<SubscriberServiceApiClient>()
+        SubscriberApiClient = Substitute.For<SubscriberServiceApiClient>(),
+        EmulatorDetection = EmulatorDetection.EmulatorOnly
     };
 
     [Fact]

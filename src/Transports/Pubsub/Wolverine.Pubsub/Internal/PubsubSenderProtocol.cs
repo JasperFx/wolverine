@@ -9,7 +9,6 @@ namespace Wolverine.Pubsub.Internal;
 internal class PubsubSenderProtocol : ISenderProtocol {
     private readonly PubsubTopic _topic;
     private readonly PublisherServiceApiClient _client;
-    private readonly IWolverineRuntime _runtime;
     private readonly ILogger<PubsubSenderProtocol> _logger;
 
     public PubsubSenderProtocol(
@@ -19,7 +18,6 @@ internal class PubsubSenderProtocol : ISenderProtocol {
     ) {
         _topic = topic;
         _client = client;
-        _runtime = runtime;
         _logger = runtime.LoggerFactory.CreateLogger<PubsubSenderProtocol>();
     }
 
@@ -50,7 +48,7 @@ internal class PubsubSenderProtocol : ISenderProtocol {
             await _client.PublishAsync(new() {
                 TopicAsTopicName = _topic.Name,
                 Messages = { messages }
-            }, _runtime.Cancellation);
+            });
 
             await callback.MarkSuccessfulAsync(new OutgoingMessageBatch(batch.Destination, successes));
 

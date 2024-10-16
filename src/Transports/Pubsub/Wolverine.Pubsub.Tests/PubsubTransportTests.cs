@@ -24,28 +24,31 @@ public class PubsubTransportTests {
     }
 
     [Fact]
-    public void retry_and_response_queues_are_enabled_by_default() {
+    public void response_subscriptions_are_disabled_by_default() {
         var transport = new PubsubTransport("wolverine");
 
-        transport.SystemEndpointsEnabled.ShouldBeTrue();
+        transport.SystemEndpointsEnabled.ShouldBeFalse();
     }
 
     [Fact]
     public void return_all_endpoints_gets_dead_letter_subscription_too() {
-        var transport = new PubsubTransport("wolverine");
+        var transport = new PubsubTransport("wolverine") {
+            EnableDeadLettering = true
+        };
         var one = transport.Topics["one"].FindOrCreateSubscription();
         var two = transport.Topics["two"].FindOrCreateSubscription();
         var three = transport.Topics["three"].FindOrCreateSubscription();
 
-        // one.Options.DeadLetterName = null;
-        // two.Options.DeadLetterName = "two-dead-letter";
+        one.DeadLetterName = null;
+        two.DeadLetterName = "two-dead-letter";
 
         var endpoints = transport.Endpoints().OfType<PubsubSubscription>().ToArray();
 
-        // endpoints.ShouldContain(x => x.Name.SubscriptionId == PubsubTransport.SanitizePubsubName(PubsubTransport.DeadLetterEndpointName));
-        // endpoints.ShouldContain(x => x.Name.SubscriptionId == PubsubTransport.SanitizePubsubName("two-dead-letter"));
         endpoints.ShouldContain(x => x.Name.SubscriptionId == PubsubTransport.SanitizePubsubName("one"));
         endpoints.ShouldContain(x => x.Name.SubscriptionId == PubsubTransport.SanitizePubsubName("two"));
         endpoints.ShouldContain(x => x.Name.SubscriptionId == PubsubTransport.SanitizePubsubName("three"));
+
+        endpoints.ShouldContain(x => x.Name.SubscriptionId == PubsubTransport.SanitizePubsubName(PubsubTransport.DeadLetterName));
+        endpoints.ShouldContain(x => x.Name.SubscriptionId == PubsubTransport.SanitizePubsubName("two-dead-letter"));
     }
 }

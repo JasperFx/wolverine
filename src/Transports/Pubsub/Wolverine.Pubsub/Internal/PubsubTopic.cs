@@ -77,18 +77,14 @@ public class PubsubTopic : PubsubEndpoint {
     public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver) => throw new NotSupportedException();
 
     protected override ISender CreateSender(IWolverineRuntime runtime) {
-        if (Mode == EndpointMode.Inline) return new InlinePubsubSender(this, runtime);
-
         if (_transport.PublisherApiClient is null) throw new WolverinePubsubTransportNotConnectedException();
+
+        if (Mode == EndpointMode.Inline) return new InlinePubsubSender(this, runtime);
 
         return new BatchedSender(
             this,
-            new PubsubSenderProtocol(
-                this,
-                _transport.PublisherApiClient,
-                runtime
-            ),
-            runtime.Cancellation,
+            new PubsubSenderProtocol(this, _transport.PublisherApiClient, runtime),
+            runtime.DurabilitySettings.Cancellation,
             runtime.LoggerFactory.CreateLogger<PubsubSenderProtocol>()
         );
     }

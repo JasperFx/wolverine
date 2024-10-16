@@ -62,15 +62,15 @@ public class PubsubConfiguration : BrokerExpression<
     }
 
     /// <summary>
-    /// Globally disable all native dead lettering with Google Cloud Pub/Sub within this entire
+    /// Globally enable all native dead lettering with Google Cloud Pub/Sub within this entire
     /// application
     /// </summary>
     /// <returns></returns>
-    // public PubsubConfiguration DisableAllNativeDeadLettering() {
-    //     Transport.Options.DisableDeadLetter = true;
+    public PubsubConfiguration EnableAllNativeDeadLettering() {
+        Transport.EnableDeadLettering = true;
 
-    //     return this;
-    // }
+        return this;
+    }
 
     protected override PubsubSubscriptionConfiguration createListenerExpression(PubsubSubscription subscriberEndpoint) => new(subscriberEndpoint);
     protected override PubsubTopicConfiguration createSubscriberExpression(PubsubTopic topicEndpoint) => new(topicEndpoint);
