@@ -108,6 +108,11 @@ builder.Services.AddWolverineHttp();
 
 Also for Wolverine.Http users, the `[Document]` attribute behavior in the Marten integration is now "required by default."
 
+### Azure Service Bus
+
+The Azure Service Bus will now "sanitize" any queue/subscription names to be all lower case. This may impact your usage of
+conventional routing. Please report any problems with this to GitHub.
+
 ### Messaging
 
 The behavior of `IMessageBus.InvokeAsync<T>(message)` changed in 3.0 such that the `T` response **is not also published as a 
