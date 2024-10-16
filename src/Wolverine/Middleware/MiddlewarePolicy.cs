@@ -58,9 +58,17 @@ public class MiddlewarePolicy : IChainPolicy
             chain.Middleware.Insert(i, befores[i]);
         }
 
-        var afters = applications.ToArray().Reverse().SelectMany(x => x.BuildAfterCalls(chain, rules));
-
-        chain.Postprocessors.AddRange(afters);
+        var afters = applications.ToArray().Reverse().SelectMany(x => x.BuildAfterCalls(chain, rules)).ToArray();
+        
+        if (afters.Any())
+        {
+            for (int i = 0; i < afters.Length; i++)
+            {
+                chain.Postprocessors.Insert(i, afters[i]);
+            }
+            
+            //chain.Postprocessors.AddRange(afters);
+        }
     }
 
     public Application AddType(Type middlewareType, Func<IChain, bool>? filter = null)

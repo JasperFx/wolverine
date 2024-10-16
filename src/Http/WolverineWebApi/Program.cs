@@ -62,6 +62,7 @@ builder.Services.AddMarten(opts =>
 {
     opts.Connection(Servers.PostgresConnectionString);
     opts.DatabaseSchemaName = "http";
+    opts.DisableNpgsqlLogging = true;
 }).IntegrateWithWolverine();
 
 

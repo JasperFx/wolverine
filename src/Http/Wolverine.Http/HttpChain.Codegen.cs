@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Routing;
 using Wolverine.Http.CodeGen;
 using Wolverine.Http.Resources;
 using Wolverine.Logging;
+using Wolverine.Persistence;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
 
@@ -145,19 +146,19 @@ public partial class HttpChain
             .Select(x => x.ReturnAction(this)).SelectMany(x => x.Frames()).ToArray();
         foreach (var frame in actionsOnOtherReturnValues) yield return frame;
 
-        foreach (var frame in Postprocessors) yield return frame;
-
-        if (!Postprocessors.OfType<MethodCall>().Any(x =>
-                x.HandlerType == typeof(MessageContext) &&
-                x.Method.Name == nameof(MessageContext.EnqueueCascadingAsync)))
+        if (Postprocessors.Any(x => x.MaySendMessages()))
         {
-            if (actionsOnOtherReturnValues.OfType<CaptureCascadingMessages>().Any() && !Postprocessors.OfType<MethodCall>().Any(x => x.Method.Name == nameof(MessageContext.FlushOutgoingMessagesAsync)))
+            var flush = Postprocessors.OfType<FlushOutgoingMessages>().FirstOrDefault();
+            if (flush != null)
             {
-                var flush = MethodCall.For<MessageContext>(x => x.FlushOutgoingMessagesAsync());
-                flush.CommentText = "Making sure there is at least one call to flush outgoing, cascading messages";
-                yield return flush;
+                Postprocessors.Remove(flush);
             }
+
+            flush ??= new FlushOutgoingMessages();
+            Postprocessors.Add(flush);
         }
+        
+        foreach (var frame in Postprocessors) yield return frame;
     }
 
     private string determineFileName()
