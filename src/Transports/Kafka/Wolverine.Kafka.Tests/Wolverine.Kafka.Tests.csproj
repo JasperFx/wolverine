@@ -3,6 +3,7 @@
     <PropertyGroup>
         <IsPackable>false</IsPackable>
         <IsTestProject>true</IsTestProject>
+        <TargetFrameworks>net8.0</TargetFrameworks>
     </PropertyGroup>
 
     <ItemGroup>
@@ -21,6 +22,7 @@
 
     <ItemGroup>
         <ProjectReference Include="..\..\..\Testing\Wolverine.ComplianceTests\Wolverine.ComplianceTests.csproj" />
+        <ProjectReference Include="..\BatchMessaging\BatchMessaging.csproj" />
         <ProjectReference Include="..\Wolverine.Kafka\Wolverine.Kafka.csproj"/>
     </ItemGroup>
 
@@ -28,6 +30,10 @@
         <Compile Include="..\..\..\Servers.cs">
             <Link>Servers.cs</Link>
         </Compile>
+    </ItemGroup>
+
+    <ItemGroup Condition="'$(TargetFramework)' == 'net8.0'">
+      <PackageReference Include="Alba" Version="8.0.0" />
     </ItemGroup>
 
 </Project>
