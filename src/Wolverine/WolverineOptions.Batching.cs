@@ -35,6 +35,9 @@ public sealed partial class WolverineOptions
         {
             throw new ArgumentNullException(nameof(elementType));
         }
+        
+        // GH-1076
+        HandlerGraph.RegisterMessageType(elementType);
 
         var options = new BatchingOptions(elementType);
         var localQueue = Transports.GetOrCreate<LocalTransport>().FindQueueForMessageType(elementType);
