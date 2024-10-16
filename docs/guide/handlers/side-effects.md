@@ -5,6 +5,11 @@ For easier unit testing, it's often valuable to separate responsibilities of "de
 effect facility in Wolverine is an example of this strategy.
 :::
 
+::: info
+Unlike [cascading messages](/guide/handlers/cascading), "side effects" are processed inline with the originating message and within the same logical
+transaction.
+:::
+
 At times, you may with to make Wolverine message handlers (or HTTP endpoints) be [pure functions](https://en.wikipedia.org/wiki/Pure_function)
 as a way of making the handler code itself easier to test or even just to understand. All the same, your application
 will almost certainly be interacting with the outside world of databases, file systems, and external infrastructure of all types.

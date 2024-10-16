@@ -7,6 +7,11 @@ note that Wolverine makes some performance optimizations around the `ServiceLife
 for validation that can be valuable in terms of performance.
 :::
 
+::: tip
+There is also an HTTP specific middleware for WolverineFx.Http that uses the `ProblemDetails` specification. See
+[Fluent Validation Middleware for HTTP](/guide/http/fluentvalidation) for more information.
+:::
+
 You will frequently want or need to validate the messages coming into your Wolverine system for correctness
 or at least the presence of vital information. To that end, Wolverine has support for integrating the
 popular [Fluent Validation](https://docs.fluentvalidation.net/en/latest/) library via an unobtrusive middleware strategy

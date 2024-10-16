@@ -1,9 +1,8 @@
 # Getting Started with Wolverine as Message Bus
 
 ::: tip
-While today it is perfectly possible to use multiple transport types in a single Wolverine application, each
-separate transport can only connect to a single message broker. This may change in the future depending
-on user demand.
+As of Wolverine 3.0, you can now connect to multiple Rabbit MQ brokers from one application. We will extend this support
+to other message broker types in the future.
 :::
 
 There's certainly some value in Wolverine just being a command bus running inside of a single process, but now
