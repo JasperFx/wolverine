@@ -14,6 +14,6 @@ public static class TestingExtensions
 
         var connectionString = File.ReadAllText(path).Trim();
 
-        return options.UseAzureServiceBus(connectionString);
+        return options.UseAzureServiceBus(connectionString).AutoProvision();
     }
 }

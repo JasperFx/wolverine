@@ -63,6 +63,16 @@ to notice that in the Azure Portal.
 
 And also see the next section. 
 
+## Wolverine Control Queues
+
+You can opt into using temporary Azure Service Bus queues for intra-node communication
+that Wolverine needs for leader election and background worker distribution. Using Azure
+Service Bus for this feature is more efficient than the built in database control
+queues that Wolverine uses otherwise, and is necessary for message storage options like
+RavenDb that do not have a built in control queue mechanism.
+
+snippet: sample_enabling_azure_service_bus_control_queues
+
 ## Disabling System Queues
 
 If your application will not have permissions to create temporary queues in Azure Service Bus, you will probably want
