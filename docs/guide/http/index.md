@@ -5,13 +5,32 @@ Wolverine.Http is strictly designed for building web services, but you can happi
 match Wolverine HTTP endpoints with ASP.Net Core MVC handling Razor views. 
 :::
 
+::: warning
+If you are moving to Wolverine.Http from 2.* or earlier, just know that there is now a required `IServiceCollection.AddWolverineHttp()`
+call in your `Program.Main()` bootstrapping. Wolverine.Http will "remind" you on startup by throwing an exception if the extra service registration is missing. This was a side effect
+of the change to support `ServiceProvider` and other IoC tools. 
+:::
+
 Server side applications are frequently built with some mixture of HTTP web services, asynchronous processing, and
 asynchronous messaging. Wolverine by itself can help you with the asynchronous processing through its [local queue functionality](/guide/messaging/transports/local),
 and it certainly covers all common [asynchronous messaging](/guide/messaging/introduction) requirements. 
 
+Wolverine also has its Wolverine.Http library
+that utilizes Wolverine's execution pipeline for ASP.Net Core web services. Besides generally being a lower code ceremony
+option to MVC Core or Minimal API, Wolverine.HTTP provides very strong integration with Wolverine's transactional inbox/outbox 
+support for durable messaging (something that has in the past been very poorly supported if at all by older .NET messaging tools) as a very effective
+tooling solution for Event Driven Architectures that include HTTP services. 
+
+Moreover, Wolverine.HTTP's coding model is conducive to "vertical slice architecture" approaches with significantly lower
+code ceremony than other .NET web frameworks. Lastly, Wolverine.HTTP can help you create code where the business or workflow
+logic is easily unit tested in isolation without having to resort to complicated layering in code or copious usage of mock
+objects in your test code.
+
 For a simplistic example, let's say that we're inevitably building a "Todo" application where we want a web service
 endpoint that allows our application to create a new `Todo` entity, save it to a database, and raise an `TodoCreated` event
 that will be handled later and off to the side by Wolverine.
+
+## Getting Started
 
 Even in this simple example usage, that endpoint *should* be developed such that the creation of the new `Todo` entity
 and the corresponding `TodoCreated` event message either succeed or fail together to avoid putting the system into an 

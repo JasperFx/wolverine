@@ -1,5 +1,11 @@
 # Middleware
 
+::: tip
+One of the big advantages of Wolverine's middleware model as compared to almost any other .NET application framework is that middleware can be selectively applied to only certain
+message handlers or HTTP endpoints. When you craft your middleware, try to take advantage of this to avoid unnecessary runtime logic in middleware (i.e., for example, don't use Reflection or optional
+IoC service registrations to "decide" if middleware applies to the current HTTP request or message).
+:::
+
 Wolverine supports the "Russian Doll" model of middleware, similar in concept to ASP.NET Core but very different in implementation. 
 Wolverine's middleware uses runtime code generation and compilation with [JasperFx.CodeGeneration](https://github.com/jasperfx/jasperfx.codegeneration) (which is also used by [Marten](https://martendb.io)). 
 What this means is that "middleware" in Wolverine is code that is woven right into the message and route handlers. The end result is a much more efficient runtime pipeline

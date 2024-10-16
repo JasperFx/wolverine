@@ -44,6 +44,12 @@ await publisher.BroadcastToTopicAsync("color.purple", new Message1());
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/send_by_topics.cs#L258-L265' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_send_to_topic-1' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+
+::: warning
+If you wish to use this functionality, you have to configure at least one sending endpoint subscription like a Rabbit MQ
+topic exchange in your application. Wolverine has to know how to send messages with your topic.
+:::
+
 ## Topic Sending as Cascading Message
 
 Wolverine is pretty serious about enabling as many message handlers or HTTP endpoints as possible to be [pure functions](https://en.wikipedia.org/wiki/Pure_function)

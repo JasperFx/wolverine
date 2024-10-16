@@ -1,5 +1,11 @@
 # Cascading Messages
 
+::: tip
+Cascading messages are just the equivalent of `IMessageBus.PublishAsync()`. Just know that unlike [Side Effects](/guide/handlers/side-effects),
+cascaded messages are handled separately in a later thread and with a completely independent "retry loop" from the 
+originating message.
+:::
+
 ::: info
 One of Wolverine's advantages over previous .NET messaging frameworks is the ability to express many message
 handlers as pure functions for better testability and hopefully more self-explanatory code. Cascading messages are

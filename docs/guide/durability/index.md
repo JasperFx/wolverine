@@ -1,9 +1,20 @@
-# Durable Inbox and Outbox Messaging
+# Durable Messaging
 
-::: tip
-As of 1.0, Wolverine will happily build out the necessary database tables and functions to support durable storage 
-automatically for a quicker "getting started" story. See the [Managing Message Storage](./managing) for more detail.
+::: info
+A major goal of Wolverine 4.0 is to bring the EF Core integration capabilities (including multi-tenancy support) up to match the current integration
+with Marten, add event sourcing support for SQL Server, and at least envelope storage integration with CosmosDb.
 :::
+
+Wolverine can integrate with several database engines and persistence tools for:
+
+* Durable messaging through the transactional inbox and outbox pattern
+* Transactional middleware to simplify your application code
+* Saga persistence
+* Durable, scheduled message handling
+* Durable & replayable dead letter queueing
+* Node and agent assignment persistence that is necessary for Wolverine to do agent assignments (its virtual actor capability)
+
+## Transactional Inbox/Outbox
 
 See the blog post [Transactional Outbox/Inbox with Wolverine and why you care](https://jeremydmiller.com/2022/12/15/transactional-outbox-inbox-with-wolverine-and-why-you-care/) for more context.
 
@@ -72,7 +83,7 @@ storage and processed when the system is restarted. Wolverine does this through 
 [IHostedService](https://docs.microsoft.com/en-us/aspnet/core/fundamentals/host/hosted-services?view=aspnetcore-6.0&tabs=visual-studio) runtime that is automatically registered in your system through the `UseWolverine()` extension method.
 
 ::: tip
-At the moment, Wolverine only supports Postgresql or Sql Server as the underlying database and either [Marten](/guide/durability/marten) or
+At the moment, Wolverine only supports Postgresql, Sql Server, and RavenDb as the underlying database and either [Marten](/guide/durability/marten) or
 [Entity Framework Core](/guide/durability/efcore) as the application persistence framework.
 :::
 
@@ -193,98 +204,3 @@ using var host = await Host.CreateDefaultBuilder()
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L104-L126' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_durable_local_queues' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
-
-## Using Sql Server for Message Storage
-
-To utilize Sql Server as the message storage, first add the `WolverineFx.SqlServer` Nuget to your project. Next,
-you need to call the `WolverineOptions.PersistMessagesWithSqlServer()` in your application bootstrapping as
-shown below in part of a `Program` file from a .NET web api project:
-
-<!-- snippet: sample_setup_sqlserver_storage -->
-<a id='snippet-sample_setup_sqlserver_storage'></a>
-```cs
-var builder = WebApplication.CreateBuilder(args);
-var connectionString = builder.Configuration.GetConnectionString("sqlserver");
-
-builder.Host.UseWolverine(opts =>
-{
-    // Setting up Sql Server-backed message storage
-    // This requires a reference to Wolverine.SqlServer
-    opts.PersistMessagesWithSqlServer(connectionString);
-
-    // Other Wolverine configuration
-});
-
-// This is rebuilding the persistent storage database schema on startup
-// and also clearing any persisted envelope state
-builder.Host.UseResourceSetupOnStartup();
-
-var app = builder.Build();
-
-// Other ASP.Net Core configuration...
-
-// Using Oakton opens up command line utilities for managing
-// the message storage
-return await app.RunOaktonCommands(args);
-```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L131-L157' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setup_sqlserver_storage' title='Start of snippet'>anchor</a></sup>
-<!-- endSnippet -->
-
-
-## Using Postgresql for Message Storage 
-
-::: tip
-Note that using the Marten integration through `IntegrateWithWolverine()` sets up the Wolverine database requirements for
-Postgresql as well. The syntax below is only necessary when using Postgresql with EF Core or accessing Postgresql directly
-through the Npgsql library.
-:::
-
-To utilize Postgresql as the message storage, first add the `WolverineFx.Postgresql` Nuget to your project. Next,
-you need to call the `WolverineOptions.PersistMessagesWithPostgresql()` in your application bootstrapping as
-shown below in part of a `Program` file from a .NET web api project:
-
-<!-- snippet: sample_setup_postgresql_storage -->
-<a id='snippet-sample_setup_postgresql_storage'></a>
-```cs
-var builder = WebApplication.CreateBuilder(args);
-var connectionString = builder.Configuration.GetConnectionString("postgres");
-
-builder.Host.UseWolverine(opts =>
-{
-    // Setting up Postgresql-backed message storage
-    // This requires a reference to Wolverine.Postgresql
-    opts.PersistMessagesWithPostgresql(connectionString);
-
-    // Other Wolverine configuration
-});
-
-// This is rebuilding the persistent storage database schema on startup
-// and also clearing any persisted envelope state
-builder.Host.UseResourceSetupOnStartup();
-
-var app = builder.Build();
-
-// Other ASP.Net Core configuration...
-
-// Using Oakton opens up command line utilities for managing
-// the message storage
-return await app.RunOaktonCommands(args);
-```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L162-L188' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setup_postgresql_storage' title='Start of snippet'>anchor</a></sup>
-<!-- endSnippet -->
-
-## Database Schema Objects
-
-Regardless of database engine, Wolverine will add these database tables:
-
-1. `wolverine_incoming_envelopes` - stores incoming and scheduled envelopes until they are successfully processed
-1. `wolverine_outgoing_envelopes` - stores outgoing envelopes until they are successfully sent through the transports
-1. `wolverine_dead_letters` - stores "dead letter" envelopes that could not be processed when using the local transport or any other kind of transport that does not natively support dead letter queues.
-
-In the case of Sql Server, you'll see extra functions for the durability agent:
-
-1. `uspDeleteIncomingEnvelopes`
-1. `uspDeleteOutgoingEnvelopes`
-1. `uspDiscardAndReassignOutgoing`
-1. `uspMarkIncomingOwnership`
-1. `uspMarkOutgoingOwnership`
