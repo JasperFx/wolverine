@@ -59,6 +59,13 @@ The RabbitMq transport recieved a significant overhaul for 3.0.
 
 The RabbitMq .NET client has been updated to v7, bringing with it an internal rewrite to support async I/O and vastly improved memory usage & throughput. This version also supports OTEL out of the box.
 
+::: warning
+`rabbitmq-dotnet-client` v7 is currently marked as an RC release and suitable for testing in pre-production environments.
+`Wolverine.RabbitMq` will continue to be marked as an RC release until rabbitmq-dotnet v7 is fully stable.
+
+If you use another RabbitMQ wrapper in your application, hold off on upgrading until it also supports v7.
+:::
+
 #### Conventional Routing Improvements
 - Queue bindings can now be manually overridden on a per-message basis via `BindToExchange`, this is useful for scenarios where you wish to use conventional naming between different applications but need other exchange types apart from `FanOut`. This should make conventional routing the default usage in the majority of situations. See [Conventional Routing](/guide/messaging/transports/rabbitmq/conventional-routing) for more information.
 - Conventional routing entity creation has been split between the sender and receive side. Previously the sender would generate all exchange and queue bindings, but now if the sender has no handlers for a specific message, the queues will not be created.
