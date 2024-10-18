@@ -4,16 +4,12 @@ using Wolverine.Http;
 
 namespace MultiTenantedTodoWebService;
 
-#region sample_Todo
-
 public class Todo
 {
     public int Id { get; set; }
     public string? Name { get; set; }
     public bool IsComplete { get; set; }
 }
-
-#endregion
 
 public record CreateTodo(string Name);
 
