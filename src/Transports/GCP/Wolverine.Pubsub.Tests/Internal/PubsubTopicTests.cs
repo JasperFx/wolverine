@@ -20,7 +20,7 @@ public class PubsubTopicTests {
     public void create_uri() {
         var topic = new PubsubTopic("top1", createTransport());
 
-        topic.Uri.ShouldBe(new Uri($"{PubsubTransport.ProtocolName}://top1"));
+        topic.Uri.ShouldBe(new Uri($"{PubsubTransport.ProtocolName}://wolverine/top1"));
     }
 
     [Fact]

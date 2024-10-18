@@ -8,19 +8,19 @@ public class PubsubTransportTests {
     [Fact]
     public void find_topic_by_uri() {
         var transport = new PubsubTransport("wolverine");
-        var topic = transport.GetOrCreateEndpoint(new Uri($"{PubsubTransport.ProtocolName}://one")).ShouldBeOfType<PubsubTopic>();
+        var topic = transport.GetOrCreateEndpoint(new Uri($"{PubsubTransport.ProtocolName}://wolverine/one")).ShouldBeOfType<PubsubTopic>();
 
-        topic.Name.TopicId.ShouldBe(PubsubTransport.SanitizePubsubName("one"));
+        topic.Name.TopicId.ShouldBe("one");
     }
 
     [Fact]
     public void find_subscription_by_uri() {
         var transport = new PubsubTransport("wolverine");
         var subscription = transport
-            .GetOrCreateEndpoint(new Uri($"{PubsubTransport.ProtocolName}://one/red"))
+            .GetOrCreateEndpoint(new Uri($"{PubsubTransport.ProtocolName}://wolverine/one/red"))
             .ShouldBeOfType<PubsubSubscription>();
 
-        subscription.Name.SubscriptionId.ShouldBe(PubsubTransport.SanitizePubsubName("red"));
+        subscription.Name.SubscriptionId.ShouldBe("red");
     }
 
     [Fact]
@@ -44,12 +44,12 @@ public class PubsubTransportTests {
 
         var endpoints = transport.Endpoints().OfType<PubsubSubscription>().ToArray();
 
-        endpoints.ShouldContain(x => x.Name.SubscriptionId == PubsubTransport.SanitizePubsubName("one"));
-        endpoints.ShouldContain(x => x.Name.SubscriptionId == PubsubTransport.SanitizePubsubName("two"));
-        endpoints.ShouldContain(x => x.Name.SubscriptionId == PubsubTransport.SanitizePubsubName("three"));
+        endpoints.ShouldContain(x => x.Name.SubscriptionId == "sub.one");
+        endpoints.ShouldContain(x => x.Name.SubscriptionId == "sub.two");
+        endpoints.ShouldContain(x => x.Name.SubscriptionId == "sub.three");
 
-        endpoints.ShouldContain(x => x.Name.SubscriptionId == PubsubTransport.SanitizePubsubName(PubsubTransport.DeadLetterName));
-        endpoints.ShouldContain(x => x.Name.SubscriptionId == PubsubTransport.SanitizePubsubName("two-dead-letter"));
+        endpoints.ShouldContain(x => x.Name.SubscriptionId == $"sub.{PubsubTransport.DeadLetterName}");
+        endpoints.ShouldContain(x => x.Name.SubscriptionId == "sub.two-dead-letter");
     }
 
     [Fact]
@@ -61,7 +61,7 @@ public class PubsubTransportTests {
         var abc = transport.Topics[queueNameInPascalCase];
         var xzy = transport.Topics[queueNameLowerCase];
 
-        var result = transport.GetOrCreateEndpoint(new Uri($"{PubsubTransport.ProtocolName}://{queueNameInPascalCase}"));
+        var result = transport.GetOrCreateEndpoint(new Uri($"{PubsubTransport.ProtocolName}://{transport.ProjectId}/{queueNameInPascalCase}"));
 
         transport.Topics.Count.ShouldBe(2);
 

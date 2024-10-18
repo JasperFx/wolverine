@@ -8,15 +8,15 @@ using Xunit;
 namespace Wolverine.Pubsub.Tests;
 
 public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifetime {
-	public BufferedComplianceFixture() : base(new Uri($"{PubsubTransport.ProtocolName}://buffered-receiver"), 120) { }
+	public BufferedComplianceFixture() : base(new Uri($"{PubsubTransport.ProtocolName}://wolverine/buffered-receiver"), 120) { }
 
 	public async Task InitializeAsync() {
 		Environment.SetEnvironmentVariable("PUBSUB_EMULATOR_HOST", "[::1]:8085");
 		Environment.SetEnvironmentVariable("PUBSUB_PROJECT_ID", "wolverine");
 
-		var topicName = Guid.NewGuid().ToString();
+		var topicName = $"test.{Guid.NewGuid()}";
 
-		OutboundAddress = new Uri($"{PubsubTransport.ProtocolName}://" + topicName);
+		OutboundAddress = new Uri($"{PubsubTransport.ProtocolName}://wolverine/{topicName}");
 
 		await SenderIs(opts => {
 			opts

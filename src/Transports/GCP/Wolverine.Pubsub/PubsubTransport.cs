@@ -6,16 +6,16 @@ using JasperFx.Core;
 using Wolverine.Configuration;
 using Spectre.Console;
 using Google.Api.Gax;
+using System.Text.RegularExpressions;
 
 namespace Wolverine.Pubsub;
 
 public class PubsubTransport : BrokerTransport<PubsubEndpoint>, IAsyncDisposable {
-    public const char Separator = '-';
     public const string ProtocolName = "pubsub";
-    public const string ResponseName = "wlvrn-responses";
-    public const string DeadLetterName = "wlvrn-dead-letter";
+    public const string ResponseName = "wlvrn.responses";
+    public const string DeadLetterName = "wlvrn.dead-letter";
 
-    public static string SanitizePubsubName(string identifier) => (!identifier.StartsWith("wlvrn-") ? $"wlvrn-{identifier}" : identifier).ToLowerInvariant().Replace('.', Separator);
+    public static Regex NameRegex = new("^(?!goog)[A-Za-z][A-Za-z0-9\\-_.~+%]{2,254}$");
 
     internal PublisherServiceApiClient? PublisherApiClient = null;
     internal SubscriberServiceApiClient? SubscriberApiClient = null;
@@ -35,7 +35,7 @@ public class PubsubTransport : BrokerTransport<PubsubEndpoint>, IAsyncDisposable
     public bool SystemEndpointsEnabled = false;
 
     public PubsubTransport() : base(ProtocolName, "Google Cloud Pub/Sub") {
-        IdentifierDelimiter = "-";
+        IdentifierDelimiter = ".";
         Topics = new(name => new(name, this));
     }
 
@@ -58,16 +58,15 @@ public class PubsubTransport : BrokerTransport<PubsubEndpoint>, IAsyncDisposable
     }
 
     public override Endpoint? ReplyEndpoint() {
-        var replies = base.ReplyEndpoint();
+        var endpoint = base.ReplyEndpoint();
 
-        if (replies is PubsubTopic) return replies;
+        if (endpoint is PubsubSubscription e) return e.Topic;
 
         return null;
     }
 
     public override IEnumerable<PropertyColumn> DiagnosticColumns() {
-        yield return new PropertyColumn("Subscription name", "name");
-        yield return new PropertyColumn("Messages", "count", Justify.Right);
+        yield break;
     }
 
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
@@ -81,7 +80,12 @@ public class PubsubTransport : BrokerTransport<PubsubEndpoint>, IAsyncDisposable
         if (EnableDeadLettering) {
             var dlNames = Subscriptions.Select(x => x.DeadLetterName).Where(x => x.IsNotEmpty()).Distinct().ToArray();
 
-            foreach (var dlName in dlNames) Topics[dlName!].FindOrCreateSubscription();
+            foreach (var dlName in dlNames) {
+                var dlSubscription = Topics[dlName!].FindOrCreateSubscription($"sub.{dlName}");
+
+                dlSubscription.DeadLetterName = null;
+                dlSubscription.PubsubOptions.DeadLetterPolicy = null;
+            }
         }
 
         foreach (var topic in Topics) yield return topic;
@@ -91,31 +95,29 @@ public class PubsubTransport : BrokerTransport<PubsubEndpoint>, IAsyncDisposable
     protected override PubsubEndpoint findEndpointByUri(Uri uri) {
         if (uri.Scheme != Protocol) throw new ArgumentOutOfRangeException(nameof(uri));
 
-        if (uri.Segments.Length == 2) {
+        if (uri.Segments.Length == 3) {
             var existing = Subscriptions.FirstOrDefault(x => x.Uri.OriginalString == uri.OriginalString);
 
             if (existing is not null) return existing;
 
-            var topic = Topics[uri.OriginalString.Split("//")[1].TrimEnd('/')];
-            var subscription = new PubsubSubscription(uri.OriginalString.Split("/").Last(), topic, this);
+            var topic = Topics[uri.Segments[1].TrimEnd('/')];
+            var subscription = new PubsubSubscription(uri.Segments[2].TrimEnd('/'), topic, this);
 
             Subscriptions.Add(subscription);
 
             return subscription;
         }
 
-        return Topics.FirstOrDefault(x => x.Uri.OriginalString == uri.OriginalString) ?? Topics[uri.OriginalString.Split("//")[1].TrimEnd('/')];
+        return Topics.FirstOrDefault(x => x.Uri.OriginalString == uri.OriginalString) ?? Topics[uri.Segments[1].TrimEnd('/')];
     }
 
     protected override void tryBuildSystemEndpoints(IWolverineRuntime runtime) {
         if (!SystemEndpointsEnabled) return;
 
-        var responseName = SanitizeIdentifier($"{ResponseName}-{Math.Abs(runtime.DurabilitySettings.AssignedNodeNumber)}");
+        var responseName = $"{ResponseName}.{Math.Abs(runtime.DurabilitySettings.AssignedNodeNumber)}";
         var responseTopic = new PubsubTopic(responseName, this, EndpointRole.System);
-        var responseSubscription = new PubsubSubscription(responseName, responseTopic, this, EndpointRole.System);
+        var responseSubscription = new PubsubSubscription($"sub.{responseName}", responseTopic, this, EndpointRole.System);
 
-        responseSubscription.Mode = EndpointMode.BufferedInMemory;
-        responseSubscription.EndpointName = ResponseName;
         responseSubscription.IsUsedForReplies = true;
 
         Topics[responseName] = responseTopic;
