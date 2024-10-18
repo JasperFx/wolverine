@@ -13,12 +13,35 @@ services:
       - POSTGRES_DATABASE=postgres
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
+
+  gcp-pubsub:
+    image: gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators
+    ports:
+      - "8085:8085"
+    command:
+      [
+        "gcloud",
+        "--quiet",
+        "beta",
+        "emulators",
+        "pubsub",
+        "start",
+        "--host-port",
+        "0.0.0.0:8085",
+        "--project",
+        "wolverine",
+        "--verbosity",
+        "debug",
+        "--log-http",
+        "--user-output-enabled",
+      ]
   
   rabbitmq:
     image: "rabbitmq:management"
     ports:
       - "5672:5672"
       - "15672:15672"
+
   sqlserver:
     image: "mcr.microsoft.com/azure-sql-edge"
     ports:
@@ -27,13 +50,13 @@ services:
       - "ACCEPT_EULA=Y"
       - "SA_PASSWORD=P@55w0rd"
       - "MSSQL_PID=Developer"
+
   pulsar:
     image: "apachepulsar/pulsar:latest"
     ports:
       - "6650:6650"
       - "8080:8080"
     command: bin/pulsar standalone
-
 
   localstack:
     image: localstack/localstack:stable
