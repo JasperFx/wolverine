@@ -7,6 +7,12 @@ changes.
 
 ### Lamar Removal
 
+::: tip
+Lamar is more "forgiving" than the built in `ServiceProvider`. If after converting to Wolverine 3.0, you receive
+messages from `ServiceProvider` about not being able to resolve this, that, or the other, just go back to Lamar with
+the steps in this guide.
+:::
+
 The biggest change is that Wolverine is no longer directly coupled to the [Lamar IoC library](https://jasperfx.github.io/lamar) and
 Wolverine will no longer automatically replace the built in `ServiceProvider` with Lamar. At this point it is theoretically
 possible to use Wolverine with any IoC library that fully supports the ASP.Net Core DI conformance behavior, but Wolverine
@@ -74,6 +80,7 @@ If you use another RabbitMQ wrapper in your application, hold off on upgrading u
 - Added support for Headers exchange
 - Queues now apply bindings instead of exchanges. This is an internal change and shouldn't result in any obvious differences for users.
 - The configuration model has expanded flexibility with Queues now bindable to Exchanges, alongside the existing model of Exchanges binding to Queues.
+- The previous `BindExchange()` syntax was renamed to `DeclareExchange()` to better reflect Rabbit MQ operations
 
 ### Sagas
 
