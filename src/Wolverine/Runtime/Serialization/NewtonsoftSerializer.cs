@@ -11,7 +11,7 @@ internal class NewtonsoftSerializer : IMessageSerializer
     private readonly JsonArrayPool<char> _jsonCharPool;
 
     private readonly JsonSerializer _serializer;
-    private int _bufferSize = 1024;
+    private int _bufferSize = 2048;
 
     public NewtonsoftSerializer(JsonSerializerSettings settings)
     {

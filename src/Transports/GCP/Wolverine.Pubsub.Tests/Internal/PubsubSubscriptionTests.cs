@@ -33,7 +33,7 @@ public class PubsubSubscriptionTests {
         var topic = new PubsubTopic("top1", createTransport());
         var subscription = topic.FindOrCreateSubscription("sub1");
 
-        subscription.Uri.ShouldBe(new Uri($"{PubsubTransport.ProtocolName}://top1/sub1"));
+        subscription.Uri.ShouldBe(new Uri($"{PubsubTransport.ProtocolName}://wolverine/top1/sub1"));
     }
 
     [Fact]

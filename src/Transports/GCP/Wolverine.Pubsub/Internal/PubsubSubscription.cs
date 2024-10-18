@@ -17,7 +17,7 @@ public class PubsubSubscription : PubsubEndpoint, IBrokerQueue {
     public int RetryDelay = 1000;
 
     /// <summary>
-    /// Name of the dead letter queue for this SQS queue where failed messages will be moved
+    /// Name of the dead letter for this Google Cloud Pub/Sub subcription where failed messages will be moved
     /// </summary>
     public string? DeadLetterName = PubsubTransport.DeadLetterName;
 
@@ -28,8 +28,10 @@ public class PubsubSubscription : PubsubEndpoint, IBrokerQueue {
         PubsubTopic topic,
         PubsubTransport transport,
         EndpointRole role = EndpointRole.Application
-    ) : base(new($"{transport.Protocol}://{topic.EndpointName}/{subscriptionName}"), transport, role) {
-        Name = new(transport.ProjectId, $"{PubsubTransport.SanitizePubsubName(subscriptionName)}");
+    ) : base(new($"{transport.Protocol}://{transport.ProjectId}/{topic.Name.TopicId}/{subscriptionName}"), transport, role) {
+        if (!PubsubTransport.NameRegex.IsMatch(subscriptionName)) throw new WolverinePubsubInvalidEndpointNameException(subscriptionName);
+
+        Name = new(transport.ProjectId, subscriptionName);
         Topic = topic;
         EndpointName = subscriptionName;
         IsListener = true;
@@ -130,6 +132,6 @@ public class PubsubSubscription : PubsubEndpoint, IBrokerQueue {
     internal void ConfigureDeadLetter(Action<PubsubSubscription> configure) {
         if (DeadLetterName.IsEmpty()) return;
 
-        configure(_transport.Topics[DeadLetterName].FindOrCreateSubscription());
+        configure(_transport.Topics[DeadLetterName].FindOrCreateSubscription($"sub.{DeadLetterName}"));
     }
 }
