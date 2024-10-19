@@ -1,3 +1,4 @@
+using Google.Api.Gax;
 using Wolverine.Pubsub.Internal;
 using Wolverine.Transports;
 
@@ -5,28 +6,25 @@ namespace Wolverine.Pubsub;
 
 public class PubsubConfiguration : BrokerExpression<
     PubsubTransport,
-    PubsubSubscription,
-    PubsubTopic,
-    PubsubSubscriptionConfiguration,
-    PubsubTopicConfiguration,
+    PubsubEndpoint,
+    PubsubEndpoint,
+    PubsubTopicListenerConfiguration,
+    PubsubTopicSubscriberConfiguration,
     PubsubConfiguration
 > {
     public PubsubConfiguration(PubsubTransport transport, WolverineOptions options) : base(transport, options) { }
 
     /// <summary>
-    /// Opt into using conventional message routing using topics and
-    /// subscriptions based on message type names
+    ///     Set emulator detection for the Google Cloud Pub/Sub transport
     /// </summary>
+    /// <remarks>
+    ///     Remember to set the environment variable `PUBSUB_EMULATOR_HOST` to the emulator's host and port
+    ///     and the eniviroment variable `PUBSUB_PROJECT_ID` to a project id
+    /// </remarks>
     /// <param name="configure"></param>
     /// <returns></returns>
-    public PubsubConfiguration UseTopicAndSubscriptionConventionalRouting(
-        Action<PubsubTopicBroadcastingRoutingConvention>? configure = null
-    ) {
-        var routing = new PubsubTopicBroadcastingRoutingConvention();
-
-        configure?.Invoke(routing);
-
-        Options.RouteWith(routing);
+    public PubsubConfiguration UseEmulatorDetection(EmulatorDetection emulatorDetection = EmulatorDetection.EmulatorOrProduction) {
+        Transport.EmulatorDetection = emulatorDetection;
 
         return this;
     }
@@ -72,6 +70,6 @@ public class PubsubConfiguration : BrokerExpression<
         return this;
     }
 
-    protected override PubsubSubscriptionConfiguration createListenerExpression(PubsubSubscription subscriberEndpoint) => new(subscriberEndpoint);
-    protected override PubsubTopicConfiguration createSubscriberExpression(PubsubTopic topicEndpoint) => new(topicEndpoint);
+    protected override PubsubTopicListenerConfiguration createListenerExpression(PubsubEndpoint listenerEndpoint) => new(listenerEndpoint);
+    protected override PubsubTopicSubscriberConfiguration createSubscriberExpression(PubsubEndpoint subscriberEndpoint) => new(subscriberEndpoint);
 }

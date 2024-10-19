@@ -8,15 +8,15 @@ using Xunit;
 namespace Wolverine.Pubsub.Tests;
 
 public class PrefixedComplianceFixture : TransportComplianceFixture, IAsyncLifetime {
-    public PrefixedComplianceFixture() : base(new Uri($"{PubsubTransport.ProtocolName}://wolverine/foo.buffered-receiver"), 120) { }
+    public PrefixedComplianceFixture() : base(new Uri($"{PubsubTransport.ProtocolName}://wolverine/foo.receiver"), 120) { }
 
     public async Task InitializeAsync() {
         Environment.SetEnvironmentVariable("PUBSUB_EMULATOR_HOST", "[::1]:8085");
         Environment.SetEnvironmentVariable("PUBSUB_PROJECT_ID", "wolverine");
 
-        var topicName = $"test.{Guid.NewGuid()}";
+        var id = Guid.NewGuid().ToString();
 
-        OutboundAddress = new Uri($"{PubsubTransport.ProtocolName}://wolverine/foo.{topicName}");
+        OutboundAddress = new Uri($"{PubsubTransport.ProtocolName}://wolverine/foo.receiver.{id}");
 
         await SenderIs(opts => {
             opts.UsePubsubTesting()
@@ -25,6 +25,9 @@ public class PrefixedComplianceFixture : TransportComplianceFixture, IAsyncLifet
                 .SystemEndpointsAreEnabled(true)
                 .AutoProvision();
 
+            opts
+                .ListenToPubsubTopic($"foo.sender.{id}")
+                .Named("sender");
         });
 
         await ReceiverIs(opts => {
@@ -34,7 +37,9 @@ public class PrefixedComplianceFixture : TransportComplianceFixture, IAsyncLifet
                 .SystemEndpointsAreEnabled(true)
                 .AutoProvision();
 
-            opts.ListenToPubsubTopic(topicName).Named("receiver");
+            opts
+                .ListenToPubsubTopic($"foo.receiver.{id}")
+                .Named("receiver");
         });
     }
 
@@ -45,11 +50,20 @@ public class PrefixedComplianceFixture : TransportComplianceFixture, IAsyncLifet
 
 public class PrefixedSendingAndReceivingCompliance : TransportCompliance<PrefixedComplianceFixture> {
     [Fact]
-    public void prefix_was_applied_to_queues_for_the_receiver() {
+    public void prefix_was_applied_to_endpoint_for_the_receiver() {
         var runtime = theReceiver.Services.GetRequiredService<IWolverineRuntime>();
+        var endpoint = runtime.Endpoints.EndpointByName("receiver");
 
-        runtime.Endpoints.EndpointByName("receiver")
-            .ShouldBeOfType<PubsubSubscription>()
-            .Name.SubscriptionId.ShouldStartWith("foo.");
+        endpoint
+            .ShouldBeOfType<PubsubEndpoint>()
+            .Server.Topic.Name.TopicId.ShouldStartWith("foo.");
+
+        endpoint
+            .ShouldBeOfType<PubsubEndpoint>()
+            .Server.Subscription.Name.SubscriptionId.ShouldStartWith("foo.");
+
+        endpoint
+            .ShouldBeOfType<PubsubEndpoint>()
+            .Uri.Segments.Last().ShouldStartWith("foo.");
     }
 }

@@ -9,7 +9,7 @@ namespace Wolverine.Pubsub.Internal;
 
 public class BatchedPubsubListener : PubsubListener {
     public BatchedPubsubListener(
-        PubsubSubscription endpoint,
+        PubsubEndpoint endpoint,
         PubsubTransport transport,
         IReceiver receiver,
         IWolverineRuntime runtime
@@ -21,10 +21,10 @@ public class BatchedPubsubListener : PubsubListener {
         using var streamingPull = _transport.SubscriberApiClient.StreamingPull(CallSettings.FromCancellationToken(_cancellation.Token));
 
         await streamingPull.WriteAsync(new() {
-            SubscriptionAsSubscriptionName = _endpoint.Name,
+            SubscriptionAsSubscriptionName = _endpoint.Server.Subscription.Name,
             StreamAckDeadlineSeconds = 20,
-            MaxOutstandingMessages = _endpoint.PubsubOptions.MaxOutstandingMessages,
-            MaxOutstandingBytes = _endpoint.PubsubOptions.MaxOutstandingByteCount,
+            MaxOutstandingMessages = _endpoint.Client.MaxOutstandingMessages,
+            MaxOutstandingBytes = _endpoint.Client.MaxOutstandingByteCount,
         });
 
         await using var stream = streamingPull.GetResponseStream();

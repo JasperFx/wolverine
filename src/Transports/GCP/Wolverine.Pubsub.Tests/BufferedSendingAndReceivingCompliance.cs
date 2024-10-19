@@ -8,36 +8,36 @@ using Xunit;
 namespace Wolverine.Pubsub.Tests;
 
 public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifetime {
-	public BufferedComplianceFixture() : base(new Uri($"{PubsubTransport.ProtocolName}://wolverine/buffered-receiver"), 120) { }
+	public BufferedComplianceFixture() : base(new Uri($"{PubsubTransport.ProtocolName}://wolverine/receiver"), 120) { }
 
 	public async Task InitializeAsync() {
 		Environment.SetEnvironmentVariable("PUBSUB_EMULATOR_HOST", "[::1]:8085");
 		Environment.SetEnvironmentVariable("PUBSUB_PROJECT_ID", "wolverine");
 
-		var topicName = $"test.{Guid.NewGuid()}";
+		var id = Guid.NewGuid().ToString();
 
-		OutboundAddress = new Uri($"{PubsubTransport.ProtocolName}://wolverine/{topicName}");
+		OutboundAddress = new Uri($"{PubsubTransport.ProtocolName}://wolverine/receiver.{id}");
 
 		await SenderIs(opts => {
 			opts
 				.UsePubsubTesting()
 				.AutoProvision()
+				.AutoPurgeOnStartup()
 				.EnableAllNativeDeadLettering()
 				.SystemEndpointsAreEnabled(true);
-			opts
-				.PublishAllMessages()
-				.ToPubsubTopic(topicName);
+
+			opts.ListenToPubsubTopic($"sender.{id}");
 		});
 
 		await ReceiverIs(opts => {
 			opts
 				.UsePubsubTesting()
 				.AutoProvision()
+				.AutoPurgeOnStartup()
 				.EnableAllNativeDeadLettering()
 				.SystemEndpointsAreEnabled(true);
-			opts
-				.ListenToPubsubTopic(topicName)
-				.BufferedInMemory();
+
+			opts.ListenToPubsubTopic($"receiver.{id}").BufferedInMemory();
 		});
 	}
 
@@ -59,12 +59,12 @@ public class BufferedSendingAndReceivingCompliance : TransportCompliance<Buffere
 		var runtime = theReceiver.Services.GetRequiredService<IWolverineRuntime>();
 
 		var transport = runtime.Options.Transports.GetOrCreate<PubsubTransport>();
-		var dlSubscription = transport.Topics[PubsubTransport.DeadLetterName].FindOrCreateSubscription();
+		var topic = transport.Topics[PubsubTransport.DeadLetterName];
 
-		await dlSubscription.InitializeAsync(NullLogger.Instance);
+		await topic.InitializeAsync(NullLogger.Instance);
 
 		var pullResponse = await transport.SubscriberApiClient!.PullAsync(
-			dlSubscription.Name,
+			topic.Server.Subscription.Name,
 			maxMessages: 5
 		);
 

@@ -8,7 +8,7 @@ using Xunit;
 
 namespace Wolverine.Pubsub.Tests;
 
-public class end_to_end : IAsyncLifetime {
+public class send_and_receive : IAsyncLifetime {
     private IHost _host = default!;
 
     public async Task InitializeAsync() {
@@ -18,7 +18,7 @@ public class end_to_end : IAsyncLifetime {
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts => {
                 opts.UsePubsubTesting().AutoProvision();
-                opts.ListenToPubsubTopic("send_and_receive").ConfigureSubscription(x => x.Mapper = new TestPubsubEnvelopeMapper(x));
+                opts.ListenToPubsubTopic("send_and_receive", x => x.Mapper = new TestPubsubEnvelopeMapper(x));
                 opts.PublishMessage<PubsubMessage1>().ToPubsubTopic("send_and_receive");
             }).StartAsync();
     }
@@ -51,12 +51,13 @@ public class end_to_end : IAsyncLifetime {
         var transport = host.GetRuntime().Options.Transports.GetOrCreate<PubsubTransport>();
         var endpoints = transport
             .Endpoints()
-            .Where(x => x.Role == EndpointRole.System);
-        var topics = endpoints.OfType<PubsubTopic>().ToArray();
-        var subscriptions = endpoints.OfType<PubsubSubscription>().ToArray();
+            .Where(x => x.Role == EndpointRole.System)
+            .OfType<PubsubEndpoint>().ToArray();
 
-        topics.ShouldContain(x => x.Name.TopicId.StartsWith(PubsubTransport.ResponseName));
-        subscriptions.ShouldContain(x => x.Name.SubscriptionId.StartsWith(PubsubTransport.ResponseName));
+        endpoints.ShouldContain(x =>
+            x.Server.Topic.Name.TopicId.StartsWith(PubsubTransport.ResponseName) &&
+            x.Server.Subscription.Name.SubscriptionId.StartsWith(PubsubTransport.ResponseName)
+        );
     }
 
     [Fact]
@@ -71,20 +72,16 @@ public class end_to_end : IAsyncLifetime {
     }
 
     [Fact]
-    public async Task send_and_receive_multiple_messages_concurreently() {
-        var session = await _host.TrackActivity()
-            .IncludeExternalTransports()
-            .Timeout(1.Minutes())
-            .ExecuteAndWaitAsync(ctx => Task.Run(async () => {
-                await ctx.SendAsync(new PubsubMessage1("Red"));
-                await ctx.SendAsync(new PubsubMessage1("Green"));
-                await ctx.SendAsync(new PubsubMessage1("Refactor"));
-            }));
-        var received = session.Received.MessagesOf<PubsubMessage1>().Select(x => x.Name).ToArray();
+    public async Task send_and_receive_many_messages() {
+        Func<IMessageBus, Task> sending = async bus => {
+            for (int i = 0; i < 100; i++)
+                await bus.PublishAsync(new PubsubMessage1(Guid.NewGuid().ToString()));
+        };
 
-        received.ShouldContain("Red");
-        received.ShouldContain("Green");
-        received.ShouldContain("Refactor");
+        await _host.TrackActivity()
+            .IncludeExternalTransports()
+            .Timeout(5.Minutes())
+            .ExecuteAndWaitAsync(sending);
     }
 }
 

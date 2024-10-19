@@ -1,14 +1,18 @@
+using IntegrationTests;
+using Marten;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using Oakton.Resources;
 using Shouldly;
 using Wolverine.ComplianceTests.Compliance;
+using Wolverine.Marten;
 using Wolverine.Runtime;
 using Xunit;
 
 namespace Wolverine.Pubsub.Tests;
 
-public class InlineComplianceFixture : TransportComplianceFixture, IAsyncLifetime {
-    public InlineComplianceFixture() : base(new Uri($"{PubsubTransport.ProtocolName}://wolverine/receiver"), 120) { }
+public class DurableComplianceFixture : TransportComplianceFixture, IAsyncLifetime {
+    public DurableComplianceFixture() : base(new Uri($"{PubsubTransport.ProtocolName}://wolverine/receiver"), 120) { }
 
     public async Task InitializeAsync() {
         Environment.SetEnvironmentVariable("PUBSUB_EMULATOR_HOST", "[::1]:8085");
@@ -23,16 +27,22 @@ public class InlineComplianceFixture : TransportComplianceFixture, IAsyncLifetim
                 .UsePubsubTesting()
                 .AutoProvision()
                 .EnableAllNativeDeadLettering()
-                .SystemEndpointsAreEnabled(true);
+                .SystemEndpointsAreEnabled(true)
+                .ConfigureListeners(x => x.UseDurableInbox())
+                .ConfigureListeners(x => x.UseDurableInbox());
+
+            opts.Services
+                .AddMarten(store => {
+                    store.Connection(Servers.PostgresConnectionString);
+                    store.DatabaseSchemaName = "sender";
+                })
+                .IntegrateWithWolverine(x => x.MessageStorageSchemaName = "sender");
+
+            opts.Services.AddResourceSetupOnStartup();
 
             opts
                 .ListenToPubsubTopic($"sender.{id}")
                 .Named("sender");
-
-            opts
-                .PublishAllMessages()
-                .To(OutboundAddress)
-                .SendInline();
         });
 
         await ReceiverIs(opts => {
@@ -40,12 +50,20 @@ public class InlineComplianceFixture : TransportComplianceFixture, IAsyncLifetim
                 .UsePubsubTesting()
                 .AutoProvision()
                 .EnableAllNativeDeadLettering()
-                .SystemEndpointsAreEnabled(true);
+                .SystemEndpointsAreEnabled(true)
+                .ConfigureListeners(x => x.UseDurableInbox())
+                .ConfigureListeners(x => x.UseDurableInbox());
+
+            opts.Services.AddMarten(store => {
+                store.Connection(Servers.PostgresConnectionString);
+                store.DatabaseSchemaName = "receiver";
+            }).IntegrateWithWolverine(x => x.MessageStorageSchemaName = "receiver");
+
+            opts.Services.AddResourceSetupOnStartup();
 
             opts
                 .ListenToPubsubTopic($"receiver.{id}")
-                .Named("receiver")
-                .ProcessInline();
+                .Named("receiver");
         });
     }
 
@@ -54,7 +72,7 @@ public class InlineComplianceFixture : TransportComplianceFixture, IAsyncLifetim
     }
 }
 
-public class InlineSendingAndReceivingCompliance : TransportCompliance<InlineComplianceFixture> {
+public class DurableSendingAndReceivingCompliance : TransportCompliance<DurableComplianceFixture> {
     [Fact]
     public virtual async Task dl_mechanics() {
         throwOnAttempt<DivideByZeroException>(1);

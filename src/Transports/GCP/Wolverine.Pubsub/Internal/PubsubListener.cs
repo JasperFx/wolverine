@@ -10,13 +10,13 @@ using Wolverine.Util.Dataflow;
 namespace Wolverine.Pubsub.Internal;
 
 public abstract class PubsubListener : IListener, ISupportDeadLetterQueue {
-    protected readonly PubsubSubscription _endpoint;
+    protected readonly PubsubEndpoint _endpoint;
     protected readonly PubsubTransport _transport;
     protected readonly IReceiver _receiver;
     protected readonly ILogger _logger;
-    protected readonly PubsubTopic? _deadLetterTopic;
+    protected readonly PubsubEndpoint? _deadLetterTopic;
     protected readonly RetryBlock<Envelope> _resend;
-    protected readonly RetryBlock<Envelope>? _deadLetter;
+    protected readonly RetryBlock<Envelope> _deadLetter;
     protected readonly CancellationTokenSource _cancellation = new();
 
     protected RetryBlock<PubsubEnvelope[]> _complete;
@@ -26,7 +26,7 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue {
     public Uri Address => _endpoint.Uri;
 
     public PubsubListener(
-        PubsubSubscription endpoint,
+        PubsubEndpoint endpoint,
         PubsubTransport transport,
         IReceiver receiver,
         IWolverineRuntime runtime
@@ -39,10 +39,10 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue {
         _logger = runtime.LoggerFactory.CreateLogger<PubsubListener>();
 
         _resend = new RetryBlock<Envelope>(async (envelope, _) => {
-            await _endpoint.Topic.SendMessageAsync(envelope, _logger);
+            await _endpoint.SendMessageAsync(envelope, _logger);
         }, _logger, runtime.Cancellation);
 
-        if (_endpoint.DeadLetterName.IsNotEmpty() && !transport.EnableDeadLettering) {
+        if (_endpoint.DeadLetterName.IsNotEmpty() && transport.EnableDeadLettering) {
             NativeDeadLetterQueueEnabled = true;
             _deadLetterTopic = _transport.Topics[_endpoint.DeadLetterName];
         }
@@ -57,7 +57,7 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue {
             async (e, _) => {
                 if (transport.SubscriberApiClient is null) throw new WolverinePubsubTransportNotConnectedException();
 
-                await transport.SubscriberApiClient.AcknowledgeAsync(_endpoint.Name, e.Select(x => x.AckId));
+                await transport.SubscriberApiClient.AcknowledgeAsync(_endpoint.Server.Subscription.Name, e.Select(x => x.AckId));
             },
             _logger,
             _cancellation.Token
@@ -74,7 +74,7 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue {
         if (envelope is PubsubEnvelope e) await _resend.PostAsync(e);
     }
 
-    public Task MoveToErrorsAsync(Envelope envelope, Exception exception) => _deadLetter?.PostAsync(envelope) ?? Task.CompletedTask;
+    public Task MoveToErrorsAsync(Envelope envelope, Exception exception) => _deadLetter.PostAsync(envelope) ?? Task.CompletedTask;
 
     public async Task<bool> TryRequeueAsync(Envelope envelope) {
         if (envelope is PubsubEnvelope) {
@@ -97,7 +97,7 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue {
         _task.SafeDispose();
         _complete.SafeDispose();
         _resend.SafeDispose();
-        _deadLetter?.SafeDispose();
+        _deadLetter.SafeDispose();
 
         return ValueTask.CompletedTask;
     }
@@ -122,7 +122,7 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue {
             catch (Exception ex) {
                 retryCount++;
 
-                if (retryCount > _endpoint.MaxRetryCount) {
+                if (retryCount > _endpoint.Client.RetryPolicy.MaxRetryCount) {
                     _logger.LogError(ex, "{Uri}: Max retry attempts reached, unable to restart listener.", _endpoint.Uri);
 
                     throw;
@@ -133,10 +133,10 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue {
                     "{Uri}: Error while trying to retrieve messages from Google Cloud Pub/Sub, attempting to restart stream ({RetryCount}/{MaxRetryCount})...",
                     _endpoint.Uri,
                     retryCount,
-                    _endpoint.MaxRetryCount
+                    _endpoint.Client.RetryPolicy.MaxRetryCount
                 );
 
-                int retryDelay = (int) Math.Pow(2, retryCount) * _endpoint.RetryDelay;
+                int retryDelay = (int) Math.Pow(2, retryCount) * _endpoint.Client.RetryPolicy.RetryDelay;
 
                 await Task.Delay(retryDelay, _cancellation.Token);
             }

@@ -5,32 +5,24 @@ namespace Wolverine.Pubsub;
 
 public class PubsubMessageRoutingConvention : MessageRoutingConvention<
     PubsubTransport,
-    PubsubSubscriptionConfiguration,
-    PubsubTopicConfiguration,
+    PubsubTopicListenerConfiguration,
+    PubsubTopicSubscriberConfiguration,
     PubsubMessageRoutingConvention
 > {
-    protected override (PubsubSubscriptionConfiguration, Endpoint) FindOrCreateListenerForIdentifier(
-        string identifier,
-        PubsubTransport transport,
-        Type messageType
-    ) {
+    protected override (PubsubTopicListenerConfiguration, Endpoint) FindOrCreateListenerForIdentifier(string identifier, PubsubTransport transport, Type messageType) {
         var topic = transport.Topics[identifier];
-        var subscription = topic.FindOrCreateSubscription();
 
-        return (new PubsubSubscriptionConfiguration(subscription), subscription);
+        return (new PubsubTopicListenerConfiguration(topic), topic);
     }
 
-    protected override (PubsubTopicConfiguration, Endpoint) FindOrCreateSubscriber(
-        string identifier,
-        PubsubTransport transport
-    ) {
+    protected override (PubsubTopicSubscriberConfiguration, Endpoint) FindOrCreateSubscriber(string identifier, PubsubTransport transport) {
         var topic = transport.Topics[identifier];
 
-        return (new PubsubTopicConfiguration(topic), topic);
+        return (new PubsubTopicSubscriberConfiguration(topic), topic);
     }
 
     /// <summary>
-    ///     Specify naming rules for the subscribing topic for message types
+    ///     Alternative syntax to specify the name for the queue that each message type will be sent
     /// </summary>
     /// <param name="namingRule"></param>
     /// <returns></returns>
