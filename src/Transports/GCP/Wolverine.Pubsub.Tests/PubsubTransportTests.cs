@@ -8,19 +8,10 @@ public class PubsubTransportTests {
     [Fact]
     public void find_topic_by_uri() {
         var transport = new PubsubTransport("wolverine");
-        var topic = transport.GetOrCreateEndpoint(new Uri($"{PubsubTransport.ProtocolName}://wolverine/one")).ShouldBeOfType<PubsubTopic>();
+        var topic = transport.GetOrCreateEndpoint(new Uri($"{PubsubTransport.ProtocolName}://wolverine/one")).ShouldBeOfType<PubsubEndpoint>();
 
-        topic.Name.TopicId.ShouldBe("one");
-    }
-
-    [Fact]
-    public void find_subscription_by_uri() {
-        var transport = new PubsubTransport("wolverine");
-        var subscription = transport
-            .GetOrCreateEndpoint(new Uri($"{PubsubTransport.ProtocolName}://wolverine/one/red"))
-            .ShouldBeOfType<PubsubSubscription>();
-
-        subscription.Name.SubscriptionId.ShouldBe("red");
+        topic.Server.Topic.Name.TopicId.ShouldBe("one");
+        topic.Server.Subscription.Name.SubscriptionId.ShouldBe("one");
     }
 
     [Fact]
@@ -35,21 +26,23 @@ public class PubsubTransportTests {
         var transport = new PubsubTransport("wolverine") {
             EnableDeadLettering = true
         };
-        var one = transport.Topics["one"].FindOrCreateSubscription();
-        var two = transport.Topics["two"].FindOrCreateSubscription();
-        var three = transport.Topics["three"].FindOrCreateSubscription();
+        var one = transport.Topics["one"];
+        var two = transport.Topics["two"];
+        var three = transport.Topics["three"];
 
         one.DeadLetterName = null;
         two.DeadLetterName = "two-dead-letter";
+        two.IsListener = true;
+        three.IsListener = true;
 
-        var endpoints = transport.Endpoints().OfType<PubsubSubscription>().ToArray();
+        var endpoints = transport.Endpoints().OfType<PubsubEndpoint>().ToArray();
 
-        endpoints.ShouldContain(x => x.Name.SubscriptionId == "sub.one");
-        endpoints.ShouldContain(x => x.Name.SubscriptionId == "sub.two");
-        endpoints.ShouldContain(x => x.Name.SubscriptionId == "sub.three");
+        endpoints.ShouldContain(x => x.EndpointName == "one");
+        endpoints.ShouldContain(x => x.EndpointName == "two");
+        endpoints.ShouldContain(x => x.EndpointName == "three");
 
-        endpoints.ShouldContain(x => x.Name.SubscriptionId == $"sub.{PubsubTransport.DeadLetterName}");
-        endpoints.ShouldContain(x => x.Name.SubscriptionId == "sub.two-dead-letter");
+        endpoints.ShouldContain(x => x.EndpointName == PubsubTransport.DeadLetterName);
+        endpoints.ShouldContain(x => x.EndpointName == "two-dead-letter");
     }
 
     [Fact]

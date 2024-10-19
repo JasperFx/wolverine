@@ -21,15 +21,14 @@ public class PubsubTransport : BrokerTransport<PubsubEndpoint>, IAsyncDisposable
     internal SubscriberServiceApiClient? SubscriberApiClient = null;
 
 
-    public readonly LightweightCache<string, PubsubTopic> Topics;
-    public readonly List<PubsubSubscription> Subscriptions = new();
+    public readonly LightweightCache<string, PubsubEndpoint> Topics;
 
     public string ProjectId = string.Empty;
     public EmulatorDetection EmulatorDetection = EmulatorDetection.None;
     public bool EnableDeadLettering = false;
 
     /// <summary>
-    /// Is this transport connection allowed to build and use response and retry queues
+    /// Is this transport connection allowed to build and use response topic and subscription
     /// for just this node?
     /// </summary>
     public bool SystemEndpointsEnabled = false;
@@ -60,7 +59,7 @@ public class PubsubTransport : BrokerTransport<PubsubEndpoint>, IAsyncDisposable
     public override Endpoint? ReplyEndpoint() {
         var endpoint = base.ReplyEndpoint();
 
-        if (endpoint is PubsubSubscription e) return e.Topic;
+        if (endpoint is PubsubEndpoint) return endpoint;
 
         return null;
     }
@@ -71,42 +70,26 @@ public class PubsubTransport : BrokerTransport<PubsubEndpoint>, IAsyncDisposable
 
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
-    protected override IEnumerable<Endpoint> explicitEndpoints() {
-        foreach (var topic in Topics) yield return topic;
-        foreach (var subscription in Subscriptions) yield return subscription;
-    }
+    protected override IEnumerable<Endpoint> explicitEndpoints() => Topics;
 
     protected override IEnumerable<PubsubEndpoint> endpoints() {
         if (EnableDeadLettering) {
-            var dlNames = Subscriptions.Select(x => x.DeadLetterName).Where(x => x.IsNotEmpty()).Distinct().ToArray();
+            var dlNames = Topics.Select(x => x.DeadLetterName).Where(x => x.IsNotEmpty()).Distinct().ToArray();
 
             foreach (var dlName in dlNames) {
-                var dlSubscription = Topics[dlName!].FindOrCreateSubscription($"sub.{dlName}");
+                var dlTopic = Topics[dlName!];
 
-                dlSubscription.DeadLetterName = null;
-                dlSubscription.PubsubOptions.DeadLetterPolicy = null;
+                dlTopic.DeadLetterName = null;
+                dlTopic.Server.Subscription.Options.DeadLetterPolicy = null;
+                dlTopic.IsListener = true;
             }
         }
 
-        foreach (var topic in Topics) yield return topic;
-        foreach (var subscription in Subscriptions) yield return subscription;
+        return Topics;
     }
 
     protected override PubsubEndpoint findEndpointByUri(Uri uri) {
         if (uri.Scheme != Protocol) throw new ArgumentOutOfRangeException(nameof(uri));
-
-        if (uri.Segments.Length == 3) {
-            var existing = Subscriptions.FirstOrDefault(x => x.Uri.OriginalString == uri.OriginalString);
-
-            if (existing is not null) return existing;
-
-            var topic = Topics[uri.Segments[1].TrimEnd('/')];
-            var subscription = new PubsubSubscription(uri.Segments[2].TrimEnd('/'), topic, this);
-
-            Subscriptions.Add(subscription);
-
-            return subscription;
-        }
 
         return Topics.FirstOrDefault(x => x.Uri.OriginalString == uri.OriginalString) ?? Topics[uri.Segments[1].TrimEnd('/')];
     }
@@ -115,12 +98,10 @@ public class PubsubTransport : BrokerTransport<PubsubEndpoint>, IAsyncDisposable
         if (!SystemEndpointsEnabled) return;
 
         var responseName = $"{ResponseName}.{Math.Abs(runtime.DurabilitySettings.AssignedNodeNumber)}";
-        var responseTopic = new PubsubTopic(responseName, this, EndpointRole.System);
-        var responseSubscription = new PubsubSubscription($"sub.{responseName}", responseTopic, this, EndpointRole.System);
+        var responseTopic = new PubsubEndpoint(responseName, this, EndpointRole.System);
 
-        responseSubscription.IsUsedForReplies = true;
+        responseTopic.IsListener = responseTopic.IsUsedForReplies = true;
 
         Topics[responseName] = responseTopic;
-        Subscriptions.Add(responseSubscription);
     }
 }

@@ -7,22 +7,22 @@ using Wolverine.Transports.Sending;
 namespace Wolverine.Pubsub.Internal;
 
 internal class PubsubSenderProtocol : ISenderProtocol {
-    private readonly PubsubTopic _topic;
+    private readonly PubsubEndpoint _endpoint;
     private readonly PublisherServiceApiClient _client;
     private readonly ILogger<PubsubSenderProtocol> _logger;
 
     public PubsubSenderProtocol(
-        PubsubTopic topic,
+        PubsubEndpoint endpoint,
         PublisherServiceApiClient client,
         IWolverineRuntime runtime
     ) {
-        _topic = topic;
+        _endpoint = endpoint;
         _client = client;
         _logger = runtime.LoggerFactory.CreateLogger<PubsubSenderProtocol>();
     }
 
     public async Task SendBatchAsync(ISenderCallback callback, OutgoingMessageBatch batch) {
-        await _topic.InitializeAsync(_logger);
+        await _endpoint.InitializeAsync(_logger);
 
         var messages = new List<PubsubMessage>();
         var successes = new List<Envelope>();
@@ -32,13 +32,13 @@ internal class PubsubSenderProtocol : ISenderProtocol {
             try {
                 var message = new PubsubMessage();
 
-                _topic.Mapper.MapEnvelopeToOutgoing(envelope, message);
+                _endpoint.Mapper.MapEnvelopeToOutgoing(envelope, message);
 
                 messages.Add(message);
                 successes.Add(envelope);
             }
             catch (Exception ex) {
-                _logger.LogError(ex, "{Uril}: Error while mapping envelope \"{Envelope}\" to a PubsubMessage object.", _topic.Uri, envelope);
+                _logger.LogError(ex, "{Uril}: Error while mapping envelope \"{Envelope}\" to a PubsubMessage object.", _endpoint.Uri, envelope);
 
                 fails.Add(envelope);
             }
@@ -46,7 +46,7 @@ internal class PubsubSenderProtocol : ISenderProtocol {
 
         try {
             await _client.PublishAsync(new() {
-                TopicAsTopicName = _topic.Name,
+                TopicAsTopicName = _endpoint.Server.Topic.Name,
                 Messages = { messages }
             });
 

@@ -1,4 +1,3 @@
-using Google.Cloud.PubSub.V1;
 using Microsoft.Extensions.Logging;
 using Wolverine.Runtime;
 using Wolverine.Transports.Sending;
@@ -6,17 +5,17 @@ using Wolverine.Transports.Sending;
 namespace Wolverine.Pubsub.Internal;
 
 public class InlinePubsubSender : ISender {
-    private readonly PubsubTopic _topic;
+    private readonly PubsubEndpoint _endpoint;
     private readonly ILogger _logger;
 
     public bool SupportsNativeScheduledSend => false;
-    public Uri Destination => _topic.Uri;
+    public Uri Destination => _endpoint.Uri;
 
     public InlinePubsubSender(
-        PubsubTopic topic,
+        PubsubEndpoint endpoint,
         IWolverineRuntime runtime
     ) {
-        _topic = topic;
+        _endpoint = endpoint;
         _logger = runtime.LoggerFactory.CreateLogger<InlinePubsubSender>();
     }
 
@@ -33,5 +32,5 @@ public class InlinePubsubSender : ISender {
         }
     }
 
-    public async ValueTask SendAsync(Envelope envelope) => await _topic.SendMessageAsync(envelope, _logger);
+    public async ValueTask SendAsync(Envelope envelope) => await _endpoint.SendMessageAsync(envelope, _logger);
 }

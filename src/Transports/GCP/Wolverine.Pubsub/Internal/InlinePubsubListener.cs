@@ -5,21 +5,25 @@ namespace Wolverine.Pubsub.Internal;
 
 public class InlinePubsubListener : PubsubListener {
     public InlinePubsubListener(
-        PubsubSubscription endpoint,
+        PubsubEndpoint endpoint,
         PubsubTransport transport,
         IReceiver receiver,
         IWolverineRuntime runtime
     ) : base(endpoint, transport, receiver, runtime) { }
 
-    public override Task StartAsync() => listenForMessagesAsync(async () => {
+    public override async Task StartAsync() {
         if (_transport.SubscriberApiClient is null) throw new WolverinePubsubTransportNotConnectedException();
 
-        var response = await _transport.SubscriberApiClient.PullAsync(
-            _endpoint.Name,
-            maxMessages: 1,
-            _cancellation.Token
-        );
+        await listenForMessagesAsync(async () => {
+            if (_transport.SubscriberApiClient is null) throw new WolverinePubsubTransportNotConnectedException();
 
-        await handleMessagesAsync(response.ReceivedMessages);
-    });
+            var response = await _transport.SubscriberApiClient.PullAsync(
+                _endpoint.Server.Subscription.Name,
+                maxMessages: 1,
+                _cancellation.Token
+            );
+
+            await handleMessagesAsync(response.ReceivedMessages);
+        });
+    }
 }
