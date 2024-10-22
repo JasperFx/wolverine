@@ -245,9 +245,7 @@ public class PubsubEndpoint : Endpoint, IBrokerQueue {
 
         if (!_hasInitialized) await InitializeAsync(logger);
 
-        var message = new PubsubMessage {
-            Data = ByteString.CopyFrom(EnvelopeSerializer.Serialize(envelope))
-        };
+        var message = new PubsubMessage();
 
         Mapper.MapEnvelopeToOutgoing(envelope, message);
 

@@ -12,7 +12,6 @@ namespace Wolverine.Pubsub;
 
 public class PubsubTransport : BrokerTransport<PubsubEndpoint>, IAsyncDisposable {
     public const string ProtocolName = "pubsub";
-    public const string AckIdHeader = "pubsub.ack-id";
     public const string ResponseName = "wlvrn.responses";
     public const string DeadLetterName = "wlvrn.dead-letter";
 

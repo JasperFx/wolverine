@@ -1,11 +1,9 @@
-// namespace Wolverine.Pubsub.Internal;
+namespace Wolverine.Pubsub.Internal;
 
-// public class PubsubEnvelope : Envelope {
-//     public readonly Envelope Envelope;
-//     public readonly string AckId;
+public class PubsubEnvelope : Envelope {
+    public readonly string AckId;
 
-//     public PubsubEnvelope(Envelope envelope, string ackId) {
-//         Envelope = envelope;
-//         AckId = ackId;
-//     }
-// }
+    public PubsubEnvelope(string ackId) {
+        AckId = ackId;
+    }
+}

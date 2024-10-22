@@ -22,9 +22,7 @@ public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifet
 			opts
 				.UsePubsubTesting()
 				.AutoProvision()
-				.AutoPurgeOnStartup()
-				.EnableAllNativeDeadLettering()
-				.SystemEndpointsAreEnabled(true);
+				.AutoPurgeOnStartup();
 		});
 
 		await ReceiverIs(opts => {

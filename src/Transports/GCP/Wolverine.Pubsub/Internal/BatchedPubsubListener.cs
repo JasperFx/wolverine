@@ -1,5 +1,4 @@
 using Google.Api.Gax.Grpc;
-using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Wolverine.Runtime;
 using Wolverine.Transports;
@@ -28,19 +27,9 @@ public class BatchedPubsubListener : PubsubListener {
 
         await using var stream = streamingPull.GetResponseStream();
 
-        _complete = new(
-            (envelopes, _) => streamingPull.WriteAsync(new() {
-                AckIds = {
-                    envelopes
-                        .Select(x => x.Headers[PubsubTransport.AckIdHeader])
-                        .Where(x => !string.IsNullOrEmpty(x))
-                        .Distinct()
-                        .ToArray()
-                }
-            }),
-            _logger,
-            _cancellation.Token
-        );
+        _acknowledge = ackIds => streamingPull.WriteAsync(new() {
+            AckIds = { ackIds }
+        });
 
         try {
             await listenForMessagesAsync(async () => {
