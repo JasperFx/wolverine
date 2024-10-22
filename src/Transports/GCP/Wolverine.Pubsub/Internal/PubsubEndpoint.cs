@@ -1,13 +1,11 @@
 using Google.Api.Gax;
 using Google.Api.Gax.Grpc;
 using Google.Cloud.PubSub.V1;
-using Google.Protobuf;
 using Grpc.Core;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
-using Wolverine.Runtime.Serialization;
 using Wolverine.Transports;
 using Wolverine.Transports.Sending;
 
@@ -21,6 +19,7 @@ public class PubsubEndpoint : Endpoint, IBrokerQueue {
 
     public PubsubServerOptions Server = new();
     public PubsubClientOptions Client = new();
+    public bool IsDeadLetter = false;
 
     /// <summary>
     /// Name of the dead letter for this Google Cloud Pub/Sub subcription where failed messages will be moved
@@ -85,12 +84,10 @@ public class PubsubEndpoint : Endpoint, IBrokerQueue {
         if (_transport.PublisherApiClient is null) throw new WolverinePubsubTransportNotConnectedException();
 
         try {
-            var request = new Topic {
+            await _transport.PublisherApiClient.CreateTopicAsync(new Topic {
                 TopicName = Server.Topic.Name,
                 MessageRetentionDuration = Server.Topic.Options.MessageRetentionDuration
-            };
-
-            await _transport.PublisherApiClient.CreateTopicAsync(request);
+            });
         }
         catch (RpcException ex) {
             if (ex.StatusCode != StatusCode.AlreadyExists) {
@@ -107,13 +104,14 @@ public class PubsubEndpoint : Endpoint, IBrokerQueue {
             throw;
         }
 
-        if (!IsListener) return;
+        if (!IsListener && !IsDeadLetter) return;
 
         if (_transport.SubscriberApiClient is null) throw new WolverinePubsubTransportNotConnectedException();
 
-        Server.Subscription.Name = Server.Subscription.Name.WithAssignedNodeNumber(_transport.AssignedNodeNumber);
 
         try {
+            if (!IsDeadLetter) Server.Subscription.Name = Server.Subscription.Name.WithAssignedNodeNumber(_transport.AssignedNodeNumber);
+
             var request = new Subscription {
                 SubscriptionName = Server.Subscription.Name,
                 TopicAsTopicName = Server.Topic.Name,
@@ -262,7 +260,7 @@ public class PubsubEndpoint : Endpoint, IBrokerQueue {
 
         dl.DeadLetterName = null;
         dl.Server.Subscription.Options.DeadLetterPolicy = null;
-        dl.IsListener = true;
+        dl.IsDeadLetter = true;
 
         configure(dl);
     }

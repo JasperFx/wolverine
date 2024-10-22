@@ -23,14 +23,17 @@ public class PrefixedComplianceFixture : TransportComplianceFixture, IAsyncLifet
                 .AutoProvision()
                 .AutoPurgeOnStartup()
                 .PrefixIdentifiers("foo")
-                .EnableAllNativeDeadLettering();
+                .EnableAllNativeDeadLettering()
+                .SystemEndpointsAreEnabled(true);
         });
 
         await ReceiverIs(opts => {
             opts.UsePubsubTesting()
                 .AutoProvision()
                 .AutoPurgeOnStartup()
-                .PrefixIdentifiers("foo");
+                .PrefixIdentifiers("foo")
+                .EnableAllNativeDeadLettering()
+                .SystemEndpointsAreEnabled(true);
 
             opts
                 .ListenToPubsubTopic($"receiver.{id}")

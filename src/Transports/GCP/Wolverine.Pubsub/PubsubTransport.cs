@@ -79,11 +79,11 @@ public class PubsubTransport : BrokerTransport<PubsubEndpoint>, IAsyncDisposable
             var dlNames = Topics.Select(x => x.DeadLetterName).Where(x => x.IsNotEmpty()).Distinct().ToArray();
 
             foreach (var dlName in dlNames) {
-                var dlTopic = Topics[dlName!];
+                var dl = Topics[dlName!];
 
-                dlTopic.DeadLetterName = null;
-                dlTopic.Server.Subscription.Options.DeadLetterPolicy = null;
-                dlTopic.IsListener = true;
+                dl.DeadLetterName = null;
+                dl.Server.Subscription.Options.DeadLetterPolicy = null;
+                dl.IsDeadLetter = true;
             }
         }
 
