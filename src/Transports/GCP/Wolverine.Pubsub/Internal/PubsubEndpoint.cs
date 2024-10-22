@@ -108,7 +108,6 @@ public class PubsubEndpoint : Endpoint, IBrokerQueue {
 
         if (_transport.SubscriberApiClient is null) throw new WolverinePubsubTransportNotConnectedException();
 
-
         try {
             if (!IsDeadLetter) Server.Subscription.Name = Server.Subscription.Name.WithAssignedNodeNumber(_transport.AssignedNodeNumber);
 
@@ -131,43 +130,36 @@ public class PubsubEndpoint : Endpoint, IBrokerQueue {
         }
         catch (RpcException ex) {
             if (ex.StatusCode != StatusCode.AlreadyExists) {
-                logger.LogError(
-                    ex,
-                    "{Uri}: Error trying to initialize Google Cloud Pub/Sub subscription \"{Subscription}\" to topic \"{Topic}\"",
-                    Uri,
-                    Server.Subscription.Name,
-                    Server.Topic.Name
-                );
+                logger.LogError(ex, "{Uri}: Error trying to initialize Google Cloud Pub/Sub subscription \"{Subscription}\" to topic \"{Topic}\"", Uri, Server.Subscription.Name, Server.Topic.Name);
 
                 throw;
             }
 
-            logger.LogInformation(
-                "{Uri}: Google Cloud Pub/Sub subscription \"{Subscription}\" already exists",
-                Uri,
-                Server.Subscription.Name
-            );
+            logger.LogInformation("{Uri}: Google Cloud Pub/Sub subscription \"{Subscription}\" already exists", Uri, Server.Subscription.Name);
         }
         catch (Exception ex) {
-            logger.LogError(
-                ex,
-                "{Uri}: Error trying to initialize Google Cloud Pub/Sub subscription \"{Subscription}\" to topic \"{Topic}\"",
-                Uri,
-                Server.Subscription.Name,
-                Server.Topic.Name
-            );
+            logger.LogError(ex, "{Uri}: Error trying to initialize Google Cloud Pub/Sub subscription \"{Subscription}\" to topic \"{Topic}\"", Uri, Server.Subscription.Name, Server.Topic.Name);
 
             throw;
         }
     }
 
-    public ValueTask<bool> CheckAsync() {
+    public async ValueTask<bool> CheckAsync() {
         if (
             _transport.PublisherApiClient is null ||
             _transport.SubscriberApiClient is null
-        ) return ValueTask.FromResult(false);
+        ) return false;
 
-        return ValueTask.FromResult(_hasInitialized);
+        try {
+            await _transport.PublisherApiClient.GetTopicAsync(Server.Topic.Name);
+
+            if (IsListener || IsDeadLetter) await _transport.SubscriberApiClient.GetSubscriptionAsync(Server.Subscription.Name);
+
+            return true;
+        }
+        catch {
+            return false;
+        }
     }
 
     public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver) {
