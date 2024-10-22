@@ -14,13 +14,15 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue {
     protected readonly PubsubEndpoint _endpoint;
     protected readonly PubsubTransport _transport;
     protected readonly IReceiver _receiver;
+    protected readonly IWolverineRuntime _runtime;
     protected readonly ILogger _logger;
     protected readonly PubsubEndpoint? _deadLetterTopic;
-    protected readonly RetryBlock<Envelope> _resend;
     protected readonly RetryBlock<Envelope> _deadLetter;
+    protected readonly RetryBlock<Envelope> _requeue;
+    protected readonly RetryBlock<Envelope[]> _complete;
     protected readonly CancellationTokenSource _cancellation = new();
 
-    protected RetryBlock<Envelope[]> _complete;
+    protected Func<string[], Task> _acknowledge;
     protected Task _task;
 
     public bool NativeDeadLetterQueueEnabled { get; } = false;
@@ -37,32 +39,52 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue {
         _endpoint = endpoint;
         _transport = transport;
         _receiver = receiver;
+        _runtime = runtime;
         _logger = runtime.LoggerFactory.CreateLogger<PubsubListener>();
 
-        _resend = new(async (envelope, _) => {
-            await _endpoint.SendMessageAsync(envelope, _logger);
-        }, _logger, runtime.Cancellation);
-
         if (_endpoint.DeadLetterName.IsNotEmpty() && transport.EnableDeadLettering) {
-            NativeDeadLetterQueueEnabled = true;
             _deadLetterTopic = _transport.Topics[_endpoint.DeadLetterName];
+
+            NativeDeadLetterQueueEnabled = true;
         }
+
+        _acknowledge = async ackIds => {
+            if (transport.SubscriberApiClient is null) throw new WolverinePubsubTransportNotConnectedException();
+
+            if (ackIds.Any()) await transport.SubscriberApiClient.AcknowledgeAsync(
+                _endpoint.Server.Subscription.Name,
+                ackIds
+            );
+        };
 
         _deadLetter = new(async (e, _) => {
             if (_deadLetterTopic is null) return;
 
+            if (e is PubsubEnvelope pubsubEnvelope) await _acknowledge([pubsubEnvelope.AckId]);
+
             await _deadLetterTopic.SendMessageAsync(e, _logger);
         }, _logger, runtime.Cancellation);
 
-        _complete = new(async (e, _) => {
+        _requeue = new(async (e, _) => {
+            if (e is PubsubEnvelope pubsubEnvelope) await _acknowledge([pubsubEnvelope.AckId]);
+
+            await _endpoint.SendMessageAsync(e, _logger);
+        }, _logger, runtime.Cancellation);
+
+        _complete = new(async (envelopes, _) => {
+            var pubsubEnvelopes = envelopes.OfType<PubsubEnvelope>().ToArray();
+
+            if (!pubsubEnvelopes.Any()) return;
+
             if (transport.SubscriberApiClient is null) throw new WolverinePubsubTransportNotConnectedException();
 
-            await transport.SubscriberApiClient.AcknowledgeAsync(
-                _endpoint.Server.Subscription.Name,
-                e.Select(x => x.Headers[PubsubTransport.AckIdHeader])
-                    .Where(x => !string.IsNullOrEmpty(x))
-                    .Distinct()
-            );
+            var ackIds = pubsubEnvelopes
+                .Select(e => e.AckId)
+                .Where(x => !string.IsNullOrEmpty(x))
+                .Distinct()
+                .ToArray();
+
+            if (ackIds.Any()) await _acknowledge(ackIds);
         }, _logger, _cancellation.Token);
 
         _task = StartAsync();
@@ -70,22 +92,20 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue {
 
     public abstract Task StartAsync();
 
-    public virtual ValueTask CompleteAsync(Envelope envelope) => ValueTask.CompletedTask;
-
-    public async ValueTask DeferAsync(Envelope envelope) {
-        if (envelope.Headers.ContainsKey(PubsubTransport.AckIdHeader)) await _resend.PostAsync(envelope);
+    public async ValueTask CompleteAsync(Envelope envelope) {
+        await _complete.PostAsync([envelope]);
     }
 
-    public Task MoveToErrorsAsync(Envelope envelope, Exception exception) => _deadLetter.PostAsync(envelope) ?? Task.CompletedTask;
+    public async ValueTask DeferAsync(Envelope envelope) {
+        await _requeue.PostAsync(envelope);
+    }
+
+    public Task MoveToErrorsAsync(Envelope envelope, Exception exception) => _deadLetter.PostAsync(envelope);
 
     public async Task<bool> TryRequeueAsync(Envelope envelope) {
-        if (envelope.Headers.ContainsKey(PubsubTransport.AckIdHeader)) {
-            await _resend.PostAsync(envelope);
+        await _requeue.PostAsync(envelope);
 
-            return true;
-        }
-
-        return false;
+        return true;
     }
 
     public ValueTask StopAsync() {
@@ -98,7 +118,7 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue {
         _cancellation.Cancel();
         _task.SafeDispose();
         _complete.SafeDispose();
-        _resend.SafeDispose();
+        _requeue.SafeDispose();
         _deadLetter.SafeDispose();
 
         return ValueTask.CompletedTask;
@@ -146,15 +166,23 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue {
     }
 
     protected async Task handleMessagesAsync(RepeatedField<ReceivedMessage> messages) {
-        var envelopes = new List<Envelope>(messages.Count);
+        var envelopes = new List<PubsubEnvelope>(messages.Count);
 
         foreach (var message in messages) {
+            if (message.Message.Attributes.Keys.Contains("batched")) {
+                var batched = EnvelopeSerializer.ReadMany(message.Message.Data.ToByteArray());
+
+                if (batched.Any()) await _receiver.ReceivedAsync(this, batched);
+
+                await _complete.PostAsync([new(message.AckId)]);
+
+                continue;
+            }
+
             try {
-                var envelope = EnvelopeSerializer.Deserialize(message.Message.Data.ToByteArray());
+                var envelope = new PubsubEnvelope(message.AckId);
 
                 _endpoint.Mapper.MapIncomingToEnvelope(envelope, message.Message);
-
-                envelope.Headers.Add(PubsubTransport.AckIdHeader, message.AckId);
 
                 if (envelope.IsPing()) {
                     try {

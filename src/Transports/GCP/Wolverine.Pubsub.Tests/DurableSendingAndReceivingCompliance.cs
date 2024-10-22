@@ -1,4 +1,3 @@
-using Google.Cloud.PubSub.V1;
 using IntegrationTests;
 using Marten;
 using Microsoft.Extensions.DependencyInjection;

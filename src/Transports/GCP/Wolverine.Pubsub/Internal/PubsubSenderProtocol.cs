@@ -2,7 +2,6 @@ using Google.Cloud.PubSub.V1;
 using Google.Protobuf;
 using Microsoft.Extensions.Logging;
 using Wolverine.Runtime;
-using Wolverine.Runtime.Serialization;
 using Wolverine.Transports;
 using Wolverine.Transports.Sending;
 
@@ -26,38 +25,20 @@ internal class PubsubSenderProtocol : ISenderProtocol {
     public async Task SendBatchAsync(ISenderCallback callback, OutgoingMessageBatch batch) {
         await _endpoint.InitializeAsync(_logger);
 
-        var messages = new List<PubsubMessage>();
-        var successes = new List<Envelope>();
-        var fails = new List<Envelope>();
-
-        foreach (var envelope in batch.Messages) {
-            try {
-                var message = new PubsubMessage {
-                    Data = ByteString.CopyFrom(EnvelopeSerializer.Serialize(envelope))
-                };
-
-                _endpoint.Mapper.MapEnvelopeToOutgoing(envelope, message);
-
-                messages.Add(message);
-                successes.Add(envelope);
-            }
-            catch (Exception ex) {
-                _logger.LogError(ex, "{Uril}: Error while mapping envelope \"{Envelope}\" to a PubsubMessage object.", _endpoint.Uri, envelope);
-
-                fails.Add(envelope);
-            }
-        }
-
         try {
+            var message = new PubsubMessage {
+                Data = ByteString.CopyFrom(batch.Data)
+            };
+
+            message.Attributes["destination"] = batch.Destination.ToString();
+            message.Attributes["batched"] = string.Empty;
+
             await _client.PublishAsync(new() {
                 TopicAsTopicName = _endpoint.Server.Topic.Name,
-                Messages = { messages }
+                Messages = { message }
             });
 
-            await callback.MarkSuccessfulAsync(new OutgoingMessageBatch(batch.Destination, successes));
-
-            if (fails.Any())
-                await callback.MarkProcessingFailureAsync(new OutgoingMessageBatch(batch.Destination, fails));
+            await callback.MarkSuccessfulAsync(batch);
         }
         catch (Exception ex) {
             await callback.MarkProcessingFailureAsync(batch, ex);
