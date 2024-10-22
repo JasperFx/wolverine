@@ -10,17 +10,16 @@ public class PubsubServerOptions {
 
 public class PubsubTopicOptions {
 	public TopicName Name { get; set; } = default!;
+	public CreateTopicOptions Options = new();
+}
+
+public class CreateTopicOptions {
+	public Duration MessageRetentionDuration = Duration.FromTimeSpan(TimeSpan.FromMinutes(10));
 }
 
 public class PubsubSubscriptionOptions {
 	public SubscriptionName Name { get; set; } = default!;
 	public CreateSubscriptionOptions Options = new();
-}
-
-public class PubsubClientOptions {
-	public long MaxOutstandingMessages = 1000;
-	public long MaxOutstandingByteCount = 100 * 1024 * 1024;
-	public PubsubRetryPolicy RetryPolicy = new();
 }
 
 public class CreateSubscriptionOptions {
@@ -36,6 +35,12 @@ public class CreateSubscriptionOptions {
 		MinimumBackoff = Duration.FromTimeSpan(TimeSpan.FromSeconds(10)),
 		MaximumBackoff = Duration.FromTimeSpan(TimeSpan.FromSeconds(600))
 	};
+}
+
+public class PubsubClientOptions {
+	public long MaxOutstandingMessages = 1000;
+	public long MaxOutstandingByteCount = 100 * 1024 * 1024;
+	public PubsubRetryPolicy RetryPolicy = new();
 }
 
 public class PubsubRetryPolicy {

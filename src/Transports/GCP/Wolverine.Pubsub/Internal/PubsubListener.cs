@@ -4,6 +4,7 @@ using Grpc.Core;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Wolverine.Runtime;
+using Wolverine.Runtime.Serialization;
 using Wolverine.Transports;
 using Wolverine.Util.Dataflow;
 
@@ -19,7 +20,7 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue {
     protected readonly RetryBlock<Envelope> _deadLetter;
     protected readonly CancellationTokenSource _cancellation = new();
 
-    protected RetryBlock<PubsubEnvelope[]> _complete;
+    protected RetryBlock<Envelope[]> _complete;
     protected Task _task;
 
     public bool NativeDeadLetterQueueEnabled { get; } = false;
@@ -38,7 +39,7 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue {
         _receiver = receiver;
         _logger = runtime.LoggerFactory.CreateLogger<PubsubListener>();
 
-        _resend = new RetryBlock<Envelope>(async (envelope, _) => {
+        _resend = new(async (envelope, _) => {
             await _endpoint.SendMessageAsync(envelope, _logger);
         }, _logger, runtime.Cancellation);
 
@@ -47,21 +48,22 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue {
             _deadLetterTopic = _transport.Topics[_endpoint.DeadLetterName];
         }
 
-        _deadLetter = new RetryBlock<Envelope>(async (e, _) => {
+        _deadLetter = new(async (e, _) => {
             if (_deadLetterTopic is null) return;
 
             await _deadLetterTopic.SendMessageAsync(e, _logger);
         }, _logger, runtime.Cancellation);
 
-        _complete = new RetryBlock<PubsubEnvelope[]>(
-            async (e, _) => {
-                if (transport.SubscriberApiClient is null) throw new WolverinePubsubTransportNotConnectedException();
+        _complete = new(async (e, _) => {
+            if (transport.SubscriberApiClient is null) throw new WolverinePubsubTransportNotConnectedException();
 
-                await transport.SubscriberApiClient.AcknowledgeAsync(_endpoint.Server.Subscription.Name, e.Select(x => x.AckId));
-            },
-            _logger,
-            _cancellation.Token
-        );
+            await transport.SubscriberApiClient.AcknowledgeAsync(
+                _endpoint.Server.Subscription.Name,
+                e.Select(x => x.Headers[PubsubTransport.AckIdHeader])
+                    .Where(x => !string.IsNullOrEmpty(x))
+                    .Distinct()
+            );
+        }, _logger, _cancellation.Token);
 
         _task = StartAsync();
     }
@@ -71,13 +73,13 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue {
     public virtual ValueTask CompleteAsync(Envelope envelope) => ValueTask.CompletedTask;
 
     public async ValueTask DeferAsync(Envelope envelope) {
-        if (envelope is PubsubEnvelope e) await _resend.PostAsync(e);
+        if (envelope.Headers.ContainsKey(PubsubTransport.AckIdHeader)) await _resend.PostAsync(envelope);
     }
 
     public Task MoveToErrorsAsync(Envelope envelope, Exception exception) => _deadLetter.PostAsync(envelope) ?? Task.CompletedTask;
 
     public async Task<bool> TryRequeueAsync(Envelope envelope) {
-        if (envelope is PubsubEnvelope) {
+        if (envelope.Headers.ContainsKey(PubsubTransport.AckIdHeader)) {
             await _resend.PostAsync(envelope);
 
             return true;
@@ -144,13 +146,15 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue {
     }
 
     protected async Task handleMessagesAsync(RepeatedField<ReceivedMessage> messages) {
-        var envelopes = new List<PubsubEnvelope>(messages.Count);
+        var envelopes = new List<Envelope>(messages.Count);
 
         foreach (var message in messages) {
             try {
-                var envelope = new PubsubEnvelope(message.AckId);
+                var envelope = EnvelopeSerializer.Deserialize(message.Message.Data.ToByteArray());
 
                 _endpoint.Mapper.MapIncomingToEnvelope(envelope, message.Message);
+
+                envelope.Headers.Add(PubsubTransport.AckIdHeader, message.AckId);
 
                 if (envelope.IsPing()) {
                     try {

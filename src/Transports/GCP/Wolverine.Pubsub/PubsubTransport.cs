@@ -12,11 +12,13 @@ namespace Wolverine.Pubsub;
 
 public class PubsubTransport : BrokerTransport<PubsubEndpoint>, IAsyncDisposable {
     public const string ProtocolName = "pubsub";
+    public const string AckIdHeader = "pubsub.ack-id";
     public const string ResponseName = "wlvrn.responses";
     public const string DeadLetterName = "wlvrn.dead-letter";
 
     public static Regex NameRegex = new("^(?!goog)[A-Za-z][A-Za-z0-9\\-_.~+%]{2,254}$");
 
+    internal int AssignedNodeNumber = 0;
     internal PublisherServiceApiClient? PublisherApiClient = null;
     internal SubscriberServiceApiClient? SubscriberApiClient = null;
 
@@ -52,6 +54,7 @@ public class PubsubTransport : BrokerTransport<PubsubEndpoint>, IAsyncDisposable
 
         if (string.IsNullOrWhiteSpace(ProjectId)) throw new InvalidOperationException("Google Cloud Pub/Sub project id must be set before connecting");
 
+        AssignedNodeNumber = runtime.DurabilitySettings.AssignedNodeNumber;
         PublisherApiClient = await pubBuilder.BuildAsync();
         SubscriberApiClient = await subBuilder.BuildAsync();
     }

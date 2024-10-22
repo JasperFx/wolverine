@@ -1,4 +1,3 @@
-using Google.Api.Gax;
 using JasperFx.Core.Reflection;
 using Wolverine.Configuration;
 using Wolverine.Pubsub.Internal;
@@ -77,13 +76,16 @@ public static class PubsubTransportExtensions {
 	/// <returns></returns>
 	public static PubsubTopicSubscriberConfiguration ToPubsubTopic(
 		this IPublishToExpression publishing,
-		string topicName
+		string topicName,
+		Action<PubsubEndpoint>? configure = null
 	) {
 		var transports = publishing.As<PublishingExpression>().Parent.Transports;
 		var transport = transports.GetOrCreate<PubsubTransport>();
 		var topic = transport.Topics[transport.MaybeCorrectName(topicName)];
 
 		topic.EndpointName = topicName;
+
+		configure?.Invoke(topic);
 
 		// This is necessary unfortunately to hook up the subscription rules
 		publishing.To(topic.Uri);

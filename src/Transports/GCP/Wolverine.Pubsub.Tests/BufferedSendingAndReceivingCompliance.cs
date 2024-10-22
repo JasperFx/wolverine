@@ -8,7 +8,7 @@ using Xunit;
 namespace Wolverine.Pubsub.Tests;
 
 public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifetime {
-	public BufferedComplianceFixture() : base(new Uri($"{PubsubTransport.ProtocolName}://wolverine/receiver"), 120) { }
+	public BufferedComplianceFixture() : base(new Uri($"{PubsubTransport.ProtocolName}://wolverine/buffered-receiver"), 120) { }
 
 	public async Task InitializeAsync() {
 		Environment.SetEnvironmentVariable("PUBSUB_EMULATOR_HOST", "[::1]:8085");
@@ -16,7 +16,7 @@ public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifet
 
 		var id = Guid.NewGuid().ToString();
 
-		OutboundAddress = new Uri($"{PubsubTransport.ProtocolName}://wolverine/receiver.{id}");
+		OutboundAddress = new Uri($"{PubsubTransport.ProtocolName}://wolverine/buffered-receiver.{id}");
 
 		await SenderIs(opts => {
 			opts
@@ -25,8 +25,6 @@ public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifet
 				.AutoPurgeOnStartup()
 				.EnableAllNativeDeadLettering()
 				.SystemEndpointsAreEnabled(true);
-
-			opts.ListenToPubsubTopic($"sender.{id}");
 		});
 
 		await ReceiverIs(opts => {
@@ -37,7 +35,9 @@ public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifet
 				.EnableAllNativeDeadLettering()
 				.SystemEndpointsAreEnabled(true);
 
-			opts.ListenToPubsubTopic($"receiver.{id}").BufferedInMemory();
+			opts
+				.ListenToPubsubTopic($"buffered-receiver.{id}")
+				.BufferedInMemory();
 		});
 	}
 
@@ -57,15 +57,14 @@ public class BufferedSendingAndReceivingCompliance : TransportCompliance<Buffere
 		await shouldMoveToErrorQueueOnAttempt(1);
 
 		var runtime = theReceiver.Services.GetRequiredService<IWolverineRuntime>();
-
 		var transport = runtime.Options.Transports.GetOrCreate<PubsubTransport>();
-		var topic = transport.Topics[PubsubTransport.DeadLetterName];
+		var dl = transport.Topics[PubsubTransport.DeadLetterName];
 
-		await topic.InitializeAsync(NullLogger.Instance);
+		await dl.InitializeAsync(NullLogger.Instance);
 
 		var pullResponse = await transport.SubscriberApiClient!.PullAsync(
-			topic.Server.Subscription.Name,
-			maxMessages: 5
+			dl.Server.Subscription.Name,
+			maxMessages: 1
 		);
 
 		pullResponse.ReceivedMessages.ShouldNotBeEmpty();
