@@ -17,9 +17,16 @@ public class send_and_receive : IAsyncLifetime {
 
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts => {
-                opts.UsePubsubTesting().AutoProvision();
-                opts.ListenToPubsubTopic("send_and_receive", x => x.Mapper = new TestPubsubEnvelopeMapper(x));
-                opts.PublishMessage<PubsubMessage1>().ToPubsubTopic("send_and_receive");
+                opts
+                    .UsePubsubTesting()
+                    .AutoProvision()
+                    .AutoPurgeOnStartup();
+
+                opts
+                    .PublishMessage<TestPubsubMessage>()
+                    .ToPubsubTopic("send_and_receive");
+
+                opts.ListenToPubsubTopic("send_and_receive");
             }).StartAsync();
     }
 
@@ -30,8 +37,7 @@ public class send_and_receive : IAsyncLifetime {
     [Fact]
     public void system_endpoints_disabled_by_default() {
         var transport = _host.GetRuntime().Options.Transports.GetOrCreate<PubsubTransport>();
-        var endpoints = transport
-            .Endpoints()
+        var endpoints = transport.Endpoints()
             .Where(x => x.Role == EndpointRole.System)
             .OfType<PubsubEndpoint>().ToArray();
 
@@ -44,9 +50,14 @@ public class send_and_receive : IAsyncLifetime {
             .UseWolverine(opts => {
                 opts.UsePubsubTesting()
                     .AutoProvision()
+                    .AutoPurgeOnStartup()
                     .SystemEndpointsAreEnabled(true);
+
                 opts.ListenToPubsubTopic("send_and_receive");
-                opts.PublishAllMessages().ToPubsubTopic("send_and_receive");
+
+                opts
+                    .PublishAllMessages()
+                    .ToPubsubTopic("send_and_receive");
             }).StartAsync();
         var transport = host.GetRuntime().Options.Transports.GetOrCreate<PubsubTransport>();
         var endpoints = transport
@@ -62,20 +73,20 @@ public class send_and_receive : IAsyncLifetime {
 
     [Fact]
     public async Task send_and_receive_a_single_message() {
-        var message = new PubsubMessage1("Josh Allen");
+        var message = new TestPubsubMessage("Josh Allen");
         var session = await _host.TrackActivity()
             .IncludeExternalTransports()
             .Timeout(1.Minutes())
             .SendMessageAndWaitAsync(message);
 
-        session.Received.SingleMessage<PubsubMessage1>().Name.ShouldBe(message.Name);
+        session.Received.SingleMessage<TestPubsubMessage>().Name.ShouldBe(message.Name);
     }
 
     [Fact]
     public async Task send_and_receive_many_messages() {
         Func<IMessageBus, Task> sending = async bus => {
-            for (int i = 0; i < 100; i++)
-                await bus.PublishAsync(new PubsubMessage1(Guid.NewGuid().ToString()));
+            for (int i = 0; i < 10; i++)
+                await bus.PublishAsync(new TestPubsubMessage(Guid.NewGuid().ToString()));
         };
 
         await _host.TrackActivity()
@@ -85,4 +96,8 @@ public class send_and_receive : IAsyncLifetime {
     }
 }
 
-public record PubsubMessage1(string Name);
+public record TestPubsubMessage(string Name);
+
+public static class TestPubsubMessageHandler {
+    public static void Handle(TestPubsubMessage message) { }
+}

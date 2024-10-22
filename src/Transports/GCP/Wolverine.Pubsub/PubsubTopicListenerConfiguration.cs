@@ -89,4 +89,15 @@ public class PubsubTopicListenerConfiguration : ListenerConfiguration<PubsubTopi
 
         return this;
     }
+
+    /// <summary>
+    /// Utilize custom envelope mapping for Google Cloud Pub/Sub interoperability with external non-Wolverine systems
+    /// </summary>
+    /// <param name="mapper"></param>
+    /// <returns></returns>
+    public PubsubTopicListenerConfiguration InteropWith(Func<PubsubEndpoint, IPubsubEnvelopeMapper> mapper) {
+        add(e => e.Mapper = mapper(e));
+
+        return this;
+    }
 }

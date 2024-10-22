@@ -20,34 +20,30 @@ public class PrefixedComplianceFixture : TransportComplianceFixture, IAsyncLifet
 
         await SenderIs(opts => {
             opts.UsePubsubTesting()
+                .AutoProvision()
+                .AutoPurgeOnStartup()
                 .PrefixIdentifiers("foo")
-                .EnableAllNativeDeadLettering()
-                .SystemEndpointsAreEnabled(true)
-                .AutoProvision();
-
-            opts
-                .ListenToPubsubTopic($"foo.sender.{id}")
-                .Named("sender");
+                .EnableAllNativeDeadLettering();
         });
 
         await ReceiverIs(opts => {
             opts.UsePubsubTesting()
-                .PrefixIdentifiers("foo")
-                .EnableAllNativeDeadLettering()
-                .SystemEndpointsAreEnabled(true)
-                .AutoProvision();
+                .AutoProvision()
+                .AutoPurgeOnStartup()
+                .PrefixIdentifiers("foo");
 
             opts
-                .ListenToPubsubTopic($"foo.receiver.{id}")
+                .ListenToPubsubTopic($"receiver.{id}")
                 .Named("receiver");
         });
     }
 
-    public new Task DisposeAsync() {
-        return Task.CompletedTask;
+    public new async Task DisposeAsync() {
+        await DisposeAsync();
     }
 }
 
+[Collection("acceptance")]
 public class PrefixedSendingAndReceivingCompliance : TransportCompliance<PrefixedComplianceFixture> {
     [Fact]
     public void prefix_was_applied_to_endpoint_for_the_receiver() {

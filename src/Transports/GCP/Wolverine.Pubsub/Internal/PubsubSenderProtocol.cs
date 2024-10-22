@@ -1,6 +1,8 @@
 using Google.Cloud.PubSub.V1;
+using Google.Protobuf;
 using Microsoft.Extensions.Logging;
 using Wolverine.Runtime;
+using Wolverine.Runtime.Serialization;
 using Wolverine.Transports;
 using Wolverine.Transports.Sending;
 
@@ -30,7 +32,9 @@ internal class PubsubSenderProtocol : ISenderProtocol {
 
         foreach (var envelope in batch.Messages) {
             try {
-                var message = new PubsubMessage();
+                var message = new PubsubMessage {
+                    Data = ByteString.CopyFrom(EnvelopeSerializer.Serialize(envelope))
+                };
 
                 _endpoint.Mapper.MapEnvelopeToOutgoing(envelope, message);
 

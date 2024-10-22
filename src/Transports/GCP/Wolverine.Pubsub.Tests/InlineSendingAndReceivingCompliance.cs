@@ -1,3 +1,4 @@
+using Google.Cloud.PubSub.V1;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Shouldly;
@@ -8,7 +9,7 @@ using Xunit;
 namespace Wolverine.Pubsub.Tests;
 
 public class InlineComplianceFixture : TransportComplianceFixture, IAsyncLifetime {
-    public InlineComplianceFixture() : base(new Uri($"{PubsubTransport.ProtocolName}://wolverine/receiver"), 120) { }
+    public InlineComplianceFixture() : base(new Uri($"{PubsubTransport.ProtocolName}://wolverine/inline-receiver"), 120) { }
 
     public async Task InitializeAsync() {
         Environment.SetEnvironmentVariable("PUBSUB_EMULATOR_HOST", "[::1]:8085");
@@ -16,18 +17,15 @@ public class InlineComplianceFixture : TransportComplianceFixture, IAsyncLifetim
 
         var id = Guid.NewGuid().ToString();
 
-        OutboundAddress = new Uri($"{PubsubTransport.ProtocolName}://wolverine/receiver.{id}");
+        OutboundAddress = new Uri($"{PubsubTransport.ProtocolName}://wolverine/inline-receiver.{id}");
 
         await SenderIs(opts => {
             opts
                 .UsePubsubTesting()
                 .AutoProvision()
+                .AutoPurgeOnStartup()
                 .EnableAllNativeDeadLettering()
                 .SystemEndpointsAreEnabled(true);
-
-            opts
-                .ListenToPubsubTopic($"sender.{id}")
-                .Named("sender");
 
             opts
                 .PublishAllMessages()
@@ -39,12 +37,12 @@ public class InlineComplianceFixture : TransportComplianceFixture, IAsyncLifetim
             opts
                 .UsePubsubTesting()
                 .AutoProvision()
+                .AutoPurgeOnStartup()
                 .EnableAllNativeDeadLettering()
                 .SystemEndpointsAreEnabled(true);
 
             opts
-                .ListenToPubsubTopic($"receiver.{id}")
-                .Named("receiver")
+                .ListenToPubsubTopic($"inline-receiver.{id}")
                 .ProcessInline();
         });
     }
@@ -54,6 +52,8 @@ public class InlineComplianceFixture : TransportComplianceFixture, IAsyncLifetim
     }
 }
 
+
+[Collection("acceptance")]
 public class InlineSendingAndReceivingCompliance : TransportCompliance<InlineComplianceFixture> {
     [Fact]
     public virtual async Task dl_mechanics() {
@@ -64,15 +64,14 @@ public class InlineSendingAndReceivingCompliance : TransportCompliance<InlineCom
         await shouldMoveToErrorQueueOnAttempt(1);
 
         var runtime = theReceiver.Services.GetRequiredService<IWolverineRuntime>();
-
         var transport = runtime.Options.Transports.GetOrCreate<PubsubTransport>();
-        var topic = transport.Topics[PubsubTransport.DeadLetterName];
+        var dl = transport.Topics[PubsubTransport.DeadLetterName];
 
-        await topic.InitializeAsync(NullLogger.Instance);
+        await dl.InitializeAsync(NullLogger.Instance);
 
         var pullResponse = await transport.SubscriberApiClient!.PullAsync(
-            topic.Server.Subscription.Name,
-            maxMessages: 5
+            dl.Server.Subscription.Name,
+            maxMessages: 1
         );
 
         pullResponse.ReceivedMessages.ShouldNotBeEmpty();

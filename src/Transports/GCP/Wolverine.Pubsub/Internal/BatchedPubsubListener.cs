@@ -3,7 +3,6 @@ using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Wolverine.Runtime;
 using Wolverine.Transports;
-using Wolverine.Util.Dataflow;
 
 namespace Wolverine.Pubsub.Internal;
 
@@ -29,10 +28,16 @@ public class BatchedPubsubListener : PubsubListener {
 
         await using var stream = streamingPull.GetResponseStream();
 
-        _complete = new RetryBlock<PubsubEnvelope[]>(
-            async (envelopes, _) => {
-                await streamingPull.WriteAsync(new() { AckIds = { envelopes.Select(x => x.AckId).ToArray() } });
-            },
+        _complete = new(
+            (envelopes, _) => streamingPull.WriteAsync(new() {
+                AckIds = {
+                    envelopes
+                        .Select(x => x.Headers[PubsubTransport.AckIdHeader])
+                        .Where(x => !string.IsNullOrEmpty(x))
+                        .Distinct()
+                        .ToArray()
+                }
+            }),
             _logger,
             _cancellation.Token
         );

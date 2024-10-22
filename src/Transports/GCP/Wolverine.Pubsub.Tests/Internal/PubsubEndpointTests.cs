@@ -30,7 +30,7 @@ public class PubsubEndpointTests {
     }
 
     [Fact]
-    public void default_endpoint_name_is_queue_name() {
+    public void default_endpoint_name_is_topic_name() {
         new PubsubEndpoint("top1", createTransport())
             .EndpointName.ShouldBe("top1");
     }
@@ -63,6 +63,9 @@ public class PubsubEndpointTests {
 
         await topic.InitializeAsync(NullLogger.Instance);
 
-        await transport.PublisherApiClient!.Received().CreateTopicAsync(Arg.Is(topic.Server.Topic.Name));
+        await transport.PublisherApiClient!.Received().CreateTopicAsync(Arg.Is(new Topic {
+            TopicName = topic.Server.Topic.Name,
+            MessageRetentionDuration = topic.Server.Topic.Options.MessageRetentionDuration,
+        }));
     }
 }

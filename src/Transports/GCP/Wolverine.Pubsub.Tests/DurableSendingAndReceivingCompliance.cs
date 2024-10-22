@@ -1,3 +1,4 @@
+using Google.Cloud.PubSub.V1;
 using IntegrationTests;
 using Marten;
 using Microsoft.Extensions.DependencyInjection;
@@ -12,7 +13,7 @@ using Xunit;
 namespace Wolverine.Pubsub.Tests;
 
 public class DurableComplianceFixture : TransportComplianceFixture, IAsyncLifetime {
-    public DurableComplianceFixture() : base(new Uri($"{PubsubTransport.ProtocolName}://wolverine/receiver"), 120) { }
+    public DurableComplianceFixture() : base(new Uri($"{PubsubTransport.ProtocolName}://wolverine/durable-receiver"), 120) { }
 
     public async Task InitializeAsync() {
         Environment.SetEnvironmentVariable("PUBSUB_EMULATOR_HOST", "[::1]:8085");
@@ -20,12 +21,13 @@ public class DurableComplianceFixture : TransportComplianceFixture, IAsyncLifeti
 
         var id = Guid.NewGuid().ToString();
 
-        OutboundAddress = new Uri($"{PubsubTransport.ProtocolName}://wolverine/receiver.{id}");
+        OutboundAddress = new Uri($"{PubsubTransport.ProtocolName}://wolverine/durable-receiver.{id}");
 
         await SenderIs(opts => {
             opts
                 .UsePubsubTesting()
                 .AutoProvision()
+                .AutoPurgeOnStartup()
                 .EnableAllNativeDeadLettering()
                 .SystemEndpointsAreEnabled(true)
                 .ConfigureListeners(x => x.UseDurableInbox())
@@ -39,16 +41,13 @@ public class DurableComplianceFixture : TransportComplianceFixture, IAsyncLifeti
                 .IntegrateWithWolverine(x => x.MessageStorageSchemaName = "sender");
 
             opts.Services.AddResourceSetupOnStartup();
-
-            opts
-                .ListenToPubsubTopic($"sender.{id}")
-                .Named("sender");
         });
 
         await ReceiverIs(opts => {
             opts
                 .UsePubsubTesting()
                 .AutoProvision()
+                .AutoPurgeOnStartup()
                 .EnableAllNativeDeadLettering()
                 .SystemEndpointsAreEnabled(true)
                 .ConfigureListeners(x => x.UseDurableInbox())
@@ -61,9 +60,7 @@ public class DurableComplianceFixture : TransportComplianceFixture, IAsyncLifeti
 
             opts.Services.AddResourceSetupOnStartup();
 
-            opts
-                .ListenToPubsubTopic($"receiver.{id}")
-                .Named("receiver");
+            opts.ListenToPubsubTopic($"durable-receiver.{id}");
         });
     }
 
@@ -72,6 +69,7 @@ public class DurableComplianceFixture : TransportComplianceFixture, IAsyncLifeti
     }
 }
 
+[Collection("acceptance")]
 public class DurableSendingAndReceivingCompliance : TransportCompliance<DurableComplianceFixture> {
     [Fact]
     public virtual async Task dl_mechanics() {
@@ -82,15 +80,14 @@ public class DurableSendingAndReceivingCompliance : TransportCompliance<DurableC
         await shouldMoveToErrorQueueOnAttempt(1);
 
         var runtime = theReceiver.Services.GetRequiredService<IWolverineRuntime>();
-
         var transport = runtime.Options.Transports.GetOrCreate<PubsubTransport>();
-        var topic = transport.Topics[PubsubTransport.DeadLetterName];
+        var dl = transport.Topics[PubsubTransport.DeadLetterName];
 
-        await topic.InitializeAsync(NullLogger.Instance);
+        await dl.InitializeAsync(NullLogger.Instance);
 
         var pullResponse = await transport.SubscriberApiClient!.PullAsync(
-            topic.Server.Subscription.Name,
-            maxMessages: 5
+            dl.Server.Subscription.Name,
+            maxMessages: 1
         );
 
         pullResponse.ReceivedMessages.ShouldNotBeEmpty();
