@@ -12,16 +12,13 @@ public class end_to_end_with_conventional_routing_with_prefix : IDisposable {
     private readonly IHost _sender;
 
     public end_to_end_with_conventional_routing_with_prefix() {
-        Environment.SetEnvironmentVariable("PUBSUB_EMULATOR_HOST", "[::1]:8085");
-        Environment.SetEnvironmentVariable("PUBSUB_PROJECT_ID", "wolverine");
-
         _sender = WolverineHost.For(opts => {
             opts
                 .UsePubsubTesting()
                 .AutoProvision()
                 .AutoPurgeOnStartup()
-                .EnableAllNativeDeadLettering()
-                .SystemEndpointsAreEnabled(true)
+                .EnableDeadLettering()
+                .EnableSystemEndpoints()
                 .PrefixIdentifiers("shazaam")
                 .UseConventionalRouting();
 
@@ -35,8 +32,8 @@ public class end_to_end_with_conventional_routing_with_prefix : IDisposable {
                 .UsePubsubTesting()
                 .AutoProvision()
                 .AutoPurgeOnStartup()
-                .EnableAllNativeDeadLettering()
-                .SystemEndpointsAreEnabled(true)
+                .EnableDeadLettering()
+                .EnableSystemEndpoints()
                 .PrefixIdentifiers("shazaam")
                 .UseConventionalRouting();
 

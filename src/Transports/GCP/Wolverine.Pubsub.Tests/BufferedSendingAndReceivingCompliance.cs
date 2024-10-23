@@ -11,9 +11,6 @@ public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifet
 	public BufferedComplianceFixture() : base(new Uri($"{PubsubTransport.ProtocolName}://wolverine/buffered-receiver"), 120) { }
 
 	public async Task InitializeAsync() {
-		Environment.SetEnvironmentVariable("PUBSUB_EMULATOR_HOST", "[::1]:8085");
-		Environment.SetEnvironmentVariable("PUBSUB_PROJECT_ID", "wolverine");
-
 		var id = Guid.NewGuid().ToString();
 
 		OutboundAddress = new Uri($"{PubsubTransport.ProtocolName}://wolverine/buffered-receiver.{id}");
@@ -23,8 +20,8 @@ public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifet
 				.UsePubsubTesting()
 				.AutoProvision()
 				.AutoPurgeOnStartup()
-				.EnableAllNativeDeadLettering()
-				.SystemEndpointsAreEnabled(true);
+				.EnableDeadLettering()
+				.EnableSystemEndpoints();
 		});
 
 		await ReceiverIs(opts => {
@@ -32,8 +29,8 @@ public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifet
 				.UsePubsubTesting()
 				.AutoProvision()
 				.AutoPurgeOnStartup()
-				.EnableAllNativeDeadLettering()
-				.SystemEndpointsAreEnabled(true);
+				.EnableDeadLettering()
+				.EnableSystemEndpoints();
 
 			opts
 				.ListenToPubsubTopic($"buffered-receiver.{id}")

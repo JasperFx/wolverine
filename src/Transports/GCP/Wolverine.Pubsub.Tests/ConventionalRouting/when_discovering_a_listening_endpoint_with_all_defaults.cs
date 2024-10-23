@@ -1,6 +1,5 @@
 using JasperFx.Core;
 using Shouldly;
-using Wolverine.Pubsub.Internal;
 using Wolverine.Configuration;
 using Xunit;
 

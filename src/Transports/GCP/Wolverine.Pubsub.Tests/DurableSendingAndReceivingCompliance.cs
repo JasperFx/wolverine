@@ -15,9 +15,6 @@ public class DurableComplianceFixture : TransportComplianceFixture, IAsyncLifeti
     public DurableComplianceFixture() : base(new Uri($"{PubsubTransport.ProtocolName}://wolverine/durable-receiver"), 120) { }
 
     public async Task InitializeAsync() {
-        Environment.SetEnvironmentVariable("PUBSUB_EMULATOR_HOST", "[::1]:8085");
-        Environment.SetEnvironmentVariable("PUBSUB_PROJECT_ID", "wolverine");
-
         var id = Guid.NewGuid().ToString();
 
         OutboundAddress = new Uri($"{PubsubTransport.ProtocolName}://wolverine/durable-receiver.{id}");
@@ -27,8 +24,8 @@ public class DurableComplianceFixture : TransportComplianceFixture, IAsyncLifeti
                 .UsePubsubTesting()
                 .AutoProvision()
                 .AutoPurgeOnStartup()
-                .EnableAllNativeDeadLettering()
-                .SystemEndpointsAreEnabled(true)
+                .EnableDeadLettering()
+                .EnableSystemEndpoints()
                 .ConfigureListeners(x => x.UseDurableInbox())
                 .ConfigureListeners(x => x.UseDurableInbox());
 
@@ -47,8 +44,8 @@ public class DurableComplianceFixture : TransportComplianceFixture, IAsyncLifeti
                 .UsePubsubTesting()
                 .AutoProvision()
                 .AutoPurgeOnStartup()
-                .EnableAllNativeDeadLettering()
-                .SystemEndpointsAreEnabled(true)
+                .EnableDeadLettering()
+                .EnableSystemEndpoints()
                 .ConfigureListeners(x => x.UseDurableInbox())
                 .ConfigureListeners(x => x.UseDurableInbox());
 

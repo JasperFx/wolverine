@@ -1,4 +1,3 @@
-using Google.Cloud.PubSub.V1;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Shouldly;
@@ -12,9 +11,6 @@ public class InlineComplianceFixture : TransportComplianceFixture, IAsyncLifetim
     public InlineComplianceFixture() : base(new Uri($"{PubsubTransport.ProtocolName}://wolverine/inline-receiver"), 120) { }
 
     public async Task InitializeAsync() {
-        Environment.SetEnvironmentVariable("PUBSUB_EMULATOR_HOST", "[::1]:8085");
-        Environment.SetEnvironmentVariable("PUBSUB_PROJECT_ID", "wolverine");
-
         var id = Guid.NewGuid().ToString();
 
         OutboundAddress = new Uri($"{PubsubTransport.ProtocolName}://wolverine/inline-receiver.{id}");
@@ -24,8 +20,8 @@ public class InlineComplianceFixture : TransportComplianceFixture, IAsyncLifetim
                 .UsePubsubTesting()
                 .AutoProvision()
                 .AutoPurgeOnStartup()
-                .EnableAllNativeDeadLettering()
-                .SystemEndpointsAreEnabled(true);
+                .EnableDeadLettering()
+                .EnableSystemEndpoints();
 
             opts
                 .PublishAllMessages()
@@ -38,8 +34,8 @@ public class InlineComplianceFixture : TransportComplianceFixture, IAsyncLifetim
                 .UsePubsubTesting()
                 .AutoProvision()
                 .AutoPurgeOnStartup()
-                .EnableAllNativeDeadLettering()
-                .SystemEndpointsAreEnabled(true);
+                .EnableDeadLettering()
+                .EnableSystemEndpoints();
 
             opts
                 .ListenToPubsubTopic($"inline-receiver.{id}")

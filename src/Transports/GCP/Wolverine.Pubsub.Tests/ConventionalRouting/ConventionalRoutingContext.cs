@@ -12,15 +12,12 @@ public abstract class ConventionalRoutingContext : IDisposable {
 
     internal IWolverineRuntime theRuntime {
         get {
-            Environment.SetEnvironmentVariable("PUBSUB_EMULATOR_HOST", "[::1]:8085");
-            Environment.SetEnvironmentVariable("PUBSUB_PROJECT_ID", "wolverine");
-
             _host ??= WolverineHost.For(opts => opts
                 .UsePubsubTesting()
                 .AutoProvision()
                 .AutoPurgeOnStartup()
-                .EnableAllNativeDeadLettering()
-                .SystemEndpointsAreEnabled(true)
+                .EnableDeadLettering()
+                .EnableSystemEndpoints()
                 .UseConventionalRouting()
             );
 
@@ -33,9 +30,6 @@ public abstract class ConventionalRoutingContext : IDisposable {
     }
 
     internal void ConfigureConventions(Action<PubsubMessageRoutingConvention> configure) {
-        Environment.SetEnvironmentVariable("PUBSUB_EMULATOR_HOST", "[::1]:8085");
-		Environment.SetEnvironmentVariable("PUBSUB_PROJECT_ID", "wolverine");
-
         _host = Host
             .CreateDefaultBuilder()
             .UseWolverine(opts => {
@@ -43,8 +37,8 @@ public abstract class ConventionalRoutingContext : IDisposable {
                     .UsePubsubTesting()
                     .AutoProvision()
                     .AutoPurgeOnStartup()
-                    .EnableAllNativeDeadLettering()
-                    .SystemEndpointsAreEnabled(true)
+                    .EnableDeadLettering()
+                    .EnableSystemEndpoints()
                     .UseConventionalRouting(configure);
             }).Start();
     }

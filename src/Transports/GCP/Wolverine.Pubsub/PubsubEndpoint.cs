@@ -5,26 +5,28 @@ using Grpc.Core;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
+using Wolverine.Pubsub.Internal;
 using Wolverine.Runtime;
 using Wolverine.Transports;
 using Wolverine.Transports.Sending;
 
-namespace Wolverine.Pubsub.Internal;
+namespace Wolverine.Pubsub;
 
 public class PubsubEndpoint : Endpoint, IBrokerQueue {
     private IPubsubEnvelopeMapper? _mapper;
     private readonly PubsubTransport _transport;
 
     private bool _hasInitialized = false;
+    
+    internal bool IsDeadLetter = false;
 
     public PubsubServerOptions Server = new();
     public PubsubClientOptions Client = new();
-    public bool IsDeadLetter = false;
 
     /// <summary>
     /// Name of the dead letter for this Google Cloud Pub/Sub subcription where failed messages will be moved
     /// </summary>
-    public string? DeadLetterName = PubsubTransport.DeadLetterName;
+    public string? DeadLetterName = null;
 
     /// <summary>
     ///     Pluggable strategy for interoperability with non-Wolverine systems. Customizes how the incoming Google Cloud Pub/Sub messages
@@ -64,6 +66,8 @@ public class PubsubEndpoint : Endpoint, IBrokerQueue {
                 : topicName
         );
         EndpointName = topicName;
+
+        if (transport.DeadLetter.Enabled) DeadLetterName = PubsubTransport.DeadLetterName;
     }
 
     public override async ValueTask InitializeAsync(ILogger logger) {
@@ -179,7 +183,7 @@ public class PubsubEndpoint : Endpoint, IBrokerQueue {
     }
 
     public override bool TryBuildDeadLetterSender(IWolverineRuntime runtime, out ISender? deadLetterSender) {
-        if (DeadLetterName.IsNotEmpty() && _transport.EnableDeadLettering) {
+        if (DeadLetterName.IsNotEmpty()) {
             var dl = _transport.Topics[DeadLetterName];
 
             deadLetterSender = new InlinePubsubSender(dl, runtime);
@@ -193,8 +197,6 @@ public class PubsubEndpoint : Endpoint, IBrokerQueue {
     }
 
     public ValueTask<Dictionary<string, string>> GetAttributesAsync() => ValueTask.FromResult(new Dictionary<string, string>());
-
-    // public ValueTask PurgeAsync(ILogger logger) => ValueTask.CompletedTask;
 
     public async ValueTask PurgeAsync(ILogger logger) {
         if (_transport.SubscriberApiClient is null || !IsListener) return;
@@ -248,13 +250,19 @@ public class PubsubEndpoint : Endpoint, IBrokerQueue {
     internal void ConfigureDeadLetter(Action<PubsubEndpoint> configure) {
         if (DeadLetterName.IsEmpty()) return;
 
+        var initialized = !_transport.Topics.Contains(DeadLetterName);
         var dl = _transport.Topics[DeadLetterName];
+
+        if (initialized) {
+            dl.Server.Topic.Options = _transport.DeadLetter.Topic;
+            dl.Server.Subscription.Options = _transport.DeadLetter.Subscription;
+        }
+
+        configure(dl);
 
         dl.DeadLetterName = null;
         dl.Server.Subscription.Options.DeadLetterPolicy = null;
         dl.IsDeadLetter = true;
-
-        configure(dl);
     }
 
     protected override ISender CreateSender(IWolverineRuntime runtime) {

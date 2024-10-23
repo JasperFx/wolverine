@@ -42,7 +42,7 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue {
         _runtime = runtime;
         _logger = runtime.LoggerFactory.CreateLogger<PubsubListener>();
 
-        if (_endpoint.DeadLetterName.IsNotEmpty() && transport.EnableDeadLettering) {
+        if (_endpoint.DeadLetterName.IsNotEmpty()) {
             _deadLetterTopic = _transport.Topics[_endpoint.DeadLetterName];
 
             NativeDeadLetterQueueEnabled = true;
@@ -180,9 +180,9 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue {
             }
 
             try {
-                var envelope = new PubsubEnvelope(message.AckId);
+                var envelope = new PubsubEnvelope();
 
-                _endpoint.Mapper.MapIncomingToEnvelope(envelope, message.Message);
+                _endpoint.Mapper.MapIncomingToEnvelope(envelope, message);
 
                 if (envelope.IsPing()) {
                     try {

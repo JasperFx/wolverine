@@ -1,5 +1,4 @@
 using Google.Cloud.PubSub.V1;
-using Google.Protobuf;
 using Microsoft.Extensions.Logging;
 using Wolverine.Runtime;
 using Wolverine.Transports;
@@ -26,12 +25,9 @@ internal class PubsubSenderProtocol : ISenderProtocol {
         await _endpoint.InitializeAsync(_logger);
 
         try {
-            var message = new PubsubMessage {
-                Data = ByteString.CopyFrom(batch.Data)
-            };
-
-            message.Attributes["destination"] = batch.Destination.ToString();
-            message.Attributes["batched"] = string.Empty;
+            var message = new PubsubMessage();
+            
+            _endpoint.Mapper.MapOutgoingToMessage(batch, message);
 
             await _client.PublishAsync(new() {
                 TopicAsTopicName = _endpoint.Server.Topic.Name,

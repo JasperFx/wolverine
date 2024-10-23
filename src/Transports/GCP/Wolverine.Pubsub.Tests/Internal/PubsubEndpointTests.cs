@@ -5,7 +5,6 @@ using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using Shouldly;
 using Wolverine.Configuration;
-using Wolverine.Pubsub.Internal;
 using Xunit;
 
 namespace Wolverine.Pubsub.Tests.Internal;

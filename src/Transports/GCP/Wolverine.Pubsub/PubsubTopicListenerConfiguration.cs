@@ -1,4 +1,3 @@
-using Wolverine.Pubsub.Internal;
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
 
@@ -23,24 +22,35 @@ public class PubsubTopicListenerConfiguration : ListenerConfiguration<PubsubTopi
     }
 
     /// <summary>
-    ///     Configure the underlying Google Cloud Pub/Sub topic and subscription. This is only applicable when
-    ///     Wolverine is creating the topic and subscription
+    ///     Configure the underlying Google Cloud Pub/Sub topic. This is only applicable when
+    ///     Wolverine is creating the topic.
     /// </summary>
     /// <param name="configure"></param>
     /// <returns></returns>
-    public PubsubTopicListenerConfiguration ConfigureServer(Action<PubsubServerOptions> configure) {
-        add(e => configure(e.Server));
+    public PubsubTopicListenerConfiguration ConfigurePubsubTopic(Action<CreateTopicOptions> configure) {
+        add(e => configure(e.Server.Topic.Options));
 
         return this;
     }
 
     /// <summary>
-    ///     Configure the underlying Google Cloud Pub/Sub subscriber client. This is only applicable when
-    ///     Wolverine is creating the subscriber client
+    ///     Configure the underlying Google Cloud Pub/Sub subscription. This is only applicable when
+    ///     Wolverine is creating the subscription.
     /// </summary>
     /// <param name="configure"></param>
     /// <returns></returns>
-    public PubsubTopicListenerConfiguration ConfigureClient(Action<PubsubClientOptions> configure) {
+    public PubsubTopicListenerConfiguration ConfigurePubsubSubscription(Action<CreateSubscriptionOptions> configure) {
+        add(e => configure(e.Server.Subscription.Options));
+
+        return this;
+    }
+
+    /// <summary>
+    ///     Configure the underlying Google Cloud Pub/Sub subscriber.
+    /// </summary>
+    /// <param name="configure"></param>
+    /// <returns></returns>
+    public PubsubTopicListenerConfiguration ConfigureListener(Action<PubsubClientOptions> configure) {
         add(e => configure(e.Client));
 
         return this;
@@ -63,7 +73,7 @@ public class PubsubTopicListenerConfiguration : ListenerConfiguration<PubsubTopi
     /// Customize the dead lettering for just this endpoint
     /// </summary>
     /// <param name="deadLetterName"></param>
-    /// <param name="configure">Optionally configure properties of the dead lettering itself</param>
+    /// <param name="configure">Optionally configure properties of the dead letter itself</param>
     /// <returns></returns>
     /// <exception cref="ArgumentNullException"></exception>
     public PubsubTopicListenerConfiguration ConfigureDeadLettering(
