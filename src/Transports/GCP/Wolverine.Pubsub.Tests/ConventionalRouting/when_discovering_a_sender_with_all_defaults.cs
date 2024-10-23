@@ -1,6 +1,5 @@
 using JasperFx.Core.Reflection;
 using Shouldly;
-using Wolverine.Pubsub.Internal;
 using Wolverine.Configuration;
 using Wolverine.Runtime.Routing;
 using Xunit;

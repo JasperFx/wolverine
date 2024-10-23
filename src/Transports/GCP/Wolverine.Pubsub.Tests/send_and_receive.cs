@@ -12,9 +12,6 @@ public class send_and_receive : IAsyncLifetime {
     private IHost _host = default!;
 
     public async Task InitializeAsync() {
-        Environment.SetEnvironmentVariable("PUBSUB_EMULATOR_HOST", "[::1]:8085");
-        Environment.SetEnvironmentVariable("PUBSUB_PROJECT_ID", "wolverine");
-
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts => {
                 opts
@@ -51,7 +48,7 @@ public class send_and_receive : IAsyncLifetime {
                 opts.UsePubsubTesting()
                     .AutoProvision()
                     .AutoPurgeOnStartup()
-                    .SystemEndpointsAreEnabled(true);
+                    .EnableSystemEndpoints();
 
                 opts.ListenToPubsubTopic("send_and_receive");
 

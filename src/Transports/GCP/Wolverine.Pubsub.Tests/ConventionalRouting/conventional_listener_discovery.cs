@@ -1,7 +1,6 @@
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Shouldly;
-using Wolverine.Pubsub.Internal;
 using Wolverine.ComplianceTests.Compliance;
 using Wolverine.Configuration;
 using Wolverine.Runtime.Routing;

@@ -12,9 +12,6 @@ public class discover_with_naming_prefix : IDisposable {
     private readonly ITestOutputHelper _output;
 
     public discover_with_naming_prefix(ITestOutputHelper output) {
-        Environment.SetEnvironmentVariable("PUBSUB_EMULATOR_HOST", "[::1]:8085");
-        Environment.SetEnvironmentVariable("PUBSUB_PROJECT_ID", "wolverine");
-
         _output = output;
         _host = Host
             .CreateDefaultBuilder()
@@ -23,8 +20,8 @@ public class discover_with_naming_prefix : IDisposable {
                     .UsePubsubTesting()
                     .AutoProvision()
                     .AutoPurgeOnStartup()
-                    .EnableAllNativeDeadLettering()
-                    .SystemEndpointsAreEnabled(true)
+                    .EnableDeadLettering()
+                    .EnableSystemEndpoints()
                     .PrefixIdentifiers("zztop")
                     .UseConventionalRouting();
             }).Start();

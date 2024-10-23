@@ -1,6 +1,5 @@
 using JasperFx.Core.Reflection;
 using Wolverine.Configuration;
-using Wolverine.Pubsub.Internal;
 
 namespace Wolverine.Pubsub;
 
@@ -49,7 +48,7 @@ public static class PubsubTransportExtensions {
 	/// <param name="endpoints"></param>
 	/// <param name="topicName">The name of the Google Cloud Pub/Sub topic</param>
 	/// <param name="configure">
-	///     Optional configuration for this Google Cloud Pub/Sub endpoint if being initialized by Wolverine.
+	///     Optional configuration for this Google Cloud Pub/Sub endpoint.
 	/// </param>
 	/// <returns></returns>
 	public static PubsubTopicListenerConfiguration ListenToPubsubTopic(
@@ -73,6 +72,9 @@ public static class PubsubTransportExtensions {
 	/// </summary>
 	/// <param name="publishing"></param>
 	/// <param name="topicName"></param>
+	/// <param name="configure">
+	///     Optional configuration for this Google Cloud Pub/Sub endpoint.
+	/// </param>
 	/// <returns></returns>
 	public static PubsubTopicSubscriberConfiguration ToPubsubTopic(
 		this IPublishToExpression publishing,

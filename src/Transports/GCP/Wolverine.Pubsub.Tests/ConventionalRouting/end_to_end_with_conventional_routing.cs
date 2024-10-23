@@ -13,9 +13,6 @@ public class end_to_end_with_conventional_routing : IAsyncLifetime {
     private IHost _sender = default!;
 
     public async Task InitializeAsync() {
-        Environment.SetEnvironmentVariable("PUBSUB_EMULATOR_HOST", "[::1]:8085");
-        Environment.SetEnvironmentVariable("PUBSUB_PROJECT_ID", "wolverine");
-
         _sender = await Host
             .CreateDefaultBuilder()
             .UseWolverine(opts => {
@@ -23,8 +20,8 @@ public class end_to_end_with_conventional_routing : IAsyncLifetime {
                     .UsePubsubTesting()
                     .AutoProvision()
                     .AutoPurgeOnStartup()
-                    .EnableAllNativeDeadLettering()
-                    .SystemEndpointsAreEnabled(true)
+                    .EnableDeadLettering()
+                    .EnableSystemEndpoints()
                     .UseConventionalRouting();
 
                 opts.DisableConventionalDiscovery();
@@ -41,8 +38,8 @@ public class end_to_end_with_conventional_routing : IAsyncLifetime {
                     .UsePubsubTesting()
                     .AutoProvision()
                     .AutoPurgeOnStartup()
-                    .EnableAllNativeDeadLettering()
-                    .SystemEndpointsAreEnabled(true)
+                    .EnableDeadLettering()
+                    .EnableSystemEndpoints()
                     .UseConventionalRouting();
 
                 opts.ServiceName = "Receiver";

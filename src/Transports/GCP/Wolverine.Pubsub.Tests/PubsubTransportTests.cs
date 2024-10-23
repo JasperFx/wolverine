@@ -1,5 +1,4 @@
 using Shouldly;
-using Wolverine.Pubsub.Internal;
 using Xunit;
 
 namespace Wolverine.Pubsub.Tests;
@@ -23,9 +22,10 @@ public class PubsubTransportTests {
 
     [Fact]
     public void return_all_endpoints_gets_dead_letter_subscription_too() {
-        var transport = new PubsubTransport("wolverine") {
-            EnableDeadLettering = true
-        };
+        var transport = new PubsubTransport("wolverine");
+
+        transport.DeadLetter.Enabled = true;
+
         var one = transport.Topics["one"];
         var two = transport.Topics["two"];
         var three = transport.Topics["three"];

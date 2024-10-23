@@ -47,3 +47,9 @@ public class PubsubRetryPolicy {
 	public int MaxRetryCount = 5;
 	public int RetryDelay = 1000;
 }
+
+public class PubsubDeadLetterOptions {
+	public bool Enabled = false;
+	public CreateTopicOptions Topic = new();
+	public CreateSubscriptionOptions Subscription = new();
+}

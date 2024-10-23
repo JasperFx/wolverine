@@ -8,9 +8,6 @@ namespace Wolverine.Pubsub.Tests;
 
 public class StatefulResourceSmokeTests {
     private IHostBuilder ConfigureBuilder(bool autoProvision, int starting = 1) {
-        Environment.SetEnvironmentVariable("PUBSUB_EMULATOR_HOST", "[::1]:8085");
-        Environment.SetEnvironmentVariable("PUBSUB_PROJECT_ID", "wolverine");
-
         return Host
             .CreateDefaultBuilder()
             .UseWolverine(opts => {

@@ -1,5 +1,4 @@
 using Wolverine.Transports;
-using Wolverine.Pubsub.Internal;
 using Wolverine.Runtime;
 using Google.Cloud.PubSub.V1;
 using JasperFx.Core;
@@ -11,22 +10,21 @@ using System.Text.RegularExpressions;
 namespace Wolverine.Pubsub;
 
 public class PubsubTransport : BrokerTransport<PubsubEndpoint>, IAsyncDisposable {
+    internal static Regex NameRegex = new("^(?!goog)[A-Za-z][A-Za-z0-9\\-_.~+%]{2,254}$");
+
     public const string ProtocolName = "pubsub";
     public const string ResponseName = "wlvrn.responses";
     public const string DeadLetterName = "wlvrn.dead-letter";
-
-    public static Regex NameRegex = new("^(?!goog)[A-Za-z][A-Za-z0-9\\-_.~+%]{2,254}$");
 
     internal int AssignedNodeNumber = 0;
     internal PublisherServiceApiClient? PublisherApiClient = null;
     internal SubscriberServiceApiClient? SubscriberApiClient = null;
 
-
     public readonly LightweightCache<string, PubsubEndpoint> Topics;
 
     public string ProjectId = string.Empty;
     public EmulatorDetection EmulatorDetection = EmulatorDetection.None;
-    public bool EnableDeadLettering = false;
+    public PubsubDeadLetterOptions DeadLetter = new();
 
     /// <summary>
     /// Is this transport connection allowed to build and use response topic and subscription
@@ -75,16 +73,18 @@ public class PubsubTransport : BrokerTransport<PubsubEndpoint>, IAsyncDisposable
     protected override IEnumerable<Endpoint> explicitEndpoints() => Topics;
 
     protected override IEnumerable<PubsubEndpoint> endpoints() {
-        if (EnableDeadLettering) {
-            var dlNames = Topics.Select(x => x.DeadLetterName).Where(x => x.IsNotEmpty()).Distinct().ToArray();
+        var dlNames = Topics.Select(x => x.DeadLetterName).Where(x => x.IsNotEmpty()).Distinct().ToArray();
 
-            foreach (var dlName in dlNames) {
-                var dl = Topics[dlName!];
+        foreach (var dlName in dlNames) {
+            if (dlName.IsEmpty()) continue;
 
-                dl.DeadLetterName = null;
-                dl.Server.Subscription.Options.DeadLetterPolicy = null;
-                dl.IsDeadLetter = true;
-            }
+            var dl = Topics[dlName];
+
+            dl.DeadLetterName = null;
+            dl.Server.Subscription.Options.DeadLetterPolicy = null;
+            dl.IsDeadLetter = true;
+            dl.Server.Topic.Options = DeadLetter.Topic;
+            dl.Server.Subscription.Options = DeadLetter.Subscription;
         }
 
         return Topics;
