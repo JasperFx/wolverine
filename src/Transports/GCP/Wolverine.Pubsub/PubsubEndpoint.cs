@@ -184,7 +184,17 @@ public class PubsubEndpoint : Endpoint, IBrokerQueue {
 
     public override bool TryBuildDeadLetterSender(IWolverineRuntime runtime, out ISender? deadLetterSender) {
         if (DeadLetterName.IsNotEmpty()) {
+            var initialized = _transport.Topics.Contains(DeadLetterName);
             var dl = _transport.Topics[DeadLetterName];
+
+            if (!initialized) {
+                dl.Server.Topic.Options = _transport.DeadLetter.Topic;
+                dl.Server.Subscription.Options = _transport.DeadLetter.Subscription;
+            }
+
+            dl.DeadLetterName = null;
+            dl.Server.Subscription.Options.DeadLetterPolicy = null;
+            dl.IsDeadLetter = true;
 
             deadLetterSender = new InlinePubsubSender(dl, runtime);
 
@@ -250,10 +260,10 @@ public class PubsubEndpoint : Endpoint, IBrokerQueue {
     internal void ConfigureDeadLetter(Action<PubsubEndpoint> configure) {
         if (DeadLetterName.IsEmpty()) return;
 
-        var initialized = !_transport.Topics.Contains(DeadLetterName);
+        var initialized = _transport.Topics.Contains(DeadLetterName);
         var dl = _transport.Topics[DeadLetterName];
 
-        if (initialized) {
+        if (!initialized) {
             dl.Server.Topic.Options = _transport.DeadLetter.Topic;
             dl.Server.Subscription.Options = _transport.DeadLetter.Subscription;
         }
