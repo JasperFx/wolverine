@@ -14,7 +14,7 @@ public class PubsubConfiguration : BrokerExpression<
     public PubsubConfiguration(PubsubTransport transport, WolverineOptions options) : base(transport, options) { }
 
     /// <summary>
-    ///     Set emulator detection for the Google Cloud Pub/Sub transport
+    ///     Set emulator detection for the Google Cloud Platform Pub/Sub transport
     /// </summary>
     /// <remarks>
     ///     Remember to set the environment variable `PUBSUB_EMULATOR_HOST` to the emulator's host and port
@@ -58,7 +58,7 @@ public class PubsubConfiguration : BrokerExpression<
     }
 
     /// <summary>
-    /// Enable dead lettering with Google Cloud Pub/Sub within this entire
+    /// Enable dead lettering with Google Cloud Platform Pub/Sub within this entire
     /// application
     /// </summary>
     /// <param name="configure"></param>

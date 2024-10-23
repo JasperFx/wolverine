@@ -6,7 +6,7 @@ public class PubsubTopicSubscriberConfiguration : SubscriberConfiguration<Pubsub
     public PubsubTopicSubscriberConfiguration(PubsubEndpoint endpoint) : base(endpoint) { }
 
     /// <summary>
-    ///     Configure the underlying Google Cloud Pub/Sub topic. This is only applicable when
+    ///     Configure the underlying Google Cloud Platform Pub/Sub topic. This is only applicable when
     ///     Wolverine is creating the topic.
     /// </summary>
     /// <param name="configure"></param>
@@ -18,7 +18,7 @@ public class PubsubTopicSubscriberConfiguration : SubscriberConfiguration<Pubsub
     }
 
     /// <summary>
-    /// Utilize custom envelope mapping for Google Cloud Pub/Sub interoperability with external non-Wolverine systems
+    /// Utilize custom envelope mapping for Google Cloud Platform Pub/Sub interoperability with external non-Wolverine systems
     /// </summary>
     /// <param name="mapper"></param>
     /// <returns></returns>
@@ -29,7 +29,7 @@ public class PubsubTopicSubscriberConfiguration : SubscriberConfiguration<Pubsub
     }
 
     /// <summary>
-    /// Utilize custom envelope mapping for Google Cloud Pub/Sub interoperability with external non-Wolverine systems
+    /// Utilize custom envelope mapping for Google Cloud Platform Pub/Sub interoperability with external non-Wolverine systems
     /// </summary>
     /// <param name="mapper"></param>
     /// <returns></returns>

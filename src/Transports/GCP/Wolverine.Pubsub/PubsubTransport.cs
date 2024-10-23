@@ -32,7 +32,7 @@ public class PubsubTransport : BrokerTransport<PubsubEndpoint>, IAsyncDisposable
     /// </summary>
     public bool SystemEndpointsEnabled = false;
 
-    public PubsubTransport() : base(ProtocolName, "Google Cloud Pub/Sub") {
+    public PubsubTransport() : base(ProtocolName, "Google Cloud Platform Pub/Sub") {
         IdentifierDelimiter = ".";
         Topics = new(name => new(name, this));
     }
@@ -49,7 +49,7 @@ public class PubsubTransport : BrokerTransport<PubsubEndpoint>, IAsyncDisposable
             EmulatorDetection = EmulatorDetection,
         };
 
-        if (string.IsNullOrWhiteSpace(ProjectId)) throw new InvalidOperationException("Google Cloud Pub/Sub project id must be set before connecting");
+        if (string.IsNullOrWhiteSpace(ProjectId)) throw new InvalidOperationException("Google Cloud Platform Pub/Sub project id must be set before connecting");
 
         AssignedNodeNumber = runtime.DurabilitySettings.AssignedNodeNumber;
         PublisherApiClient = await pubBuilder.BuildAsync();

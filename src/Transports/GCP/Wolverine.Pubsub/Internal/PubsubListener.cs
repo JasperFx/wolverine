@@ -152,7 +152,7 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue {
 
                 _logger.LogError(
                     ex,
-                    "{Uri}: Error while trying to retrieve messages from Google Cloud Pub/Sub, attempting to restart stream ({RetryCount}/{MaxRetryCount})...",
+                    "{Uri}: Error while trying to retrieve messages from Google Cloud Platform Pub/Sub, attempting to restart stream ({RetryCount}/{MaxRetryCount})...",
                     _endpoint.Uri,
                     retryCount,
                     _endpoint.Client.RetryPolicy.MaxRetryCount
@@ -189,7 +189,7 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue {
                         await _complete.PostAsync([envelope]);
                     }
                     catch (Exception ex) {
-                        _logger.LogError(ex, "{Uri}: Error while acknowledging Google Cloud Pub/Sub ping message \"{AckId}\".", _endpoint.Uri, message.AckId);
+                        _logger.LogError(ex, "{Uri}: Error while acknowledging Google Cloud Platform Pub/Sub ping message \"{AckId}\".", _endpoint.Uri, message.AckId);
                     }
 
                     continue;
@@ -198,7 +198,7 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue {
                 envelopes.Add(envelope);
             }
             catch (Exception ex) {
-                _logger.LogError(ex, "{Uri}: Error while mapping Google Cloud Pub/Sub message {AckId}.", _endpoint.Uri, message.AckId);
+                _logger.LogError(ex, "{Uri}: Error while mapping Google Cloud Platform Pub/Sub message {AckId}.", _endpoint.Uri, message.AckId);
             }
         }
 

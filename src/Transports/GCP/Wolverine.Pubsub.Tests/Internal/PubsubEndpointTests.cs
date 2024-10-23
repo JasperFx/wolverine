@@ -17,9 +17,9 @@ public class PubsubEndpointTests {
     };
 
     [Fact]
-    public void default_dead_letter_name_is_transport_default() {
+    public void default_dead_letter_name_is_null() {
         new PubsubEndpoint("foo", createTransport())
-            .DeadLetterName.ShouldBe(PubsubTransport.DeadLetterName);
+            .DeadLetterName.ShouldBeNull();
     }
 
     [Fact]
