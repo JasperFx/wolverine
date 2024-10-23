@@ -43,7 +43,9 @@ internal class LoadDocumentFrame : AsyncFrame
         if (Saga.VariableType.CanBeCastTo<IRevisioned>())
         {
             writer.WriteComment($"{Saga.VariableType.FullNameInCode()} implements {typeof(IRevisioned).FullNameInCode()}, so Wolverine will try to update based on the revision as a concurrency protection");
+            writer.WriteLine($"BLOCK:if ({Saga.Usage} != null)");
             writer.WriteLine($"var {ExpectedSagaRevision} = {Saga.Usage}.{nameof(IRevisioned.Version)} + 1;");
+            writer.FinishBlock();
         }
         
         Next?.GenerateCode(method, writer);
