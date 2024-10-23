@@ -24,13 +24,13 @@ public class PubsubEndpoint : Endpoint, IBrokerQueue {
     public PubsubClientOptions Client = new();
 
     /// <summary>
-    /// Name of the dead letter for this Google Cloud Pub/Sub subcription where failed messages will be moved
+    /// Name of the dead letter for this Google Cloud Platform Pub/Sub subcription where failed messages will be moved
     /// </summary>
     public string? DeadLetterName = null;
 
     /// <summary>
-    ///     Pluggable strategy for interoperability with non-Wolverine systems. Customizes how the incoming Google Cloud Pub/Sub messages
-    ///     are read and how outgoing messages are written to Google Cloud Pub/Sub.
+    ///     Pluggable strategy for interoperability with non-Wolverine systems. Customizes how the incoming Google Cloud Platform Pub/Sub messages
+    ///     are read and how outgoing messages are written to Google Cloud Platform Pub/Sub.
     /// </summary>
     public IPubsubEnvelopeMapper Mapper {
         get {
@@ -78,7 +78,7 @@ public class PubsubEndpoint : Endpoint, IBrokerQueue {
             if (_transport.AutoPurgeAllQueues) await PurgeAsync(logger);
         }
         catch (Exception ex) {
-            throw new WolverinePubsubTransportException($"{Uri}: Error trying to initialize Google Cloud Pub/Sub endpoint", ex);
+            throw new WolverinePubsubTransportException($"{Uri}: Error trying to initialize Google Cloud Platform Pub/Sub endpoint", ex);
         }
 
         _hasInitialized = true;
@@ -95,15 +95,15 @@ public class PubsubEndpoint : Endpoint, IBrokerQueue {
         }
         catch (RpcException ex) {
             if (ex.StatusCode != StatusCode.AlreadyExists) {
-                logger.LogError(ex, "{Uri}: Error trying to initialize Google Cloud Pub/Sub topic \"{Topic}\"", Uri, Server.Topic.Name);
+                logger.LogError(ex, "{Uri}: Error trying to initialize Google Cloud Platform Pub/Sub topic \"{Topic}\"", Uri, Server.Topic.Name);
 
                 throw;
             }
 
-            logger.LogInformation("{Uri}: Google Cloud Pub/Sub topic \"{Topic}\" already exists", Uri, Server.Topic.Name);
+            logger.LogInformation("{Uri}: Google Cloud Platform Pub/Sub topic \"{Topic}\" already exists", Uri, Server.Topic.Name);
         }
         catch (Exception ex) {
-            logger.LogError(ex, "{Uri}: Error trying to initialize Google Cloud Pub/Sub topic \"{Topic}\"", Uri, Server.Topic.Name);
+            logger.LogError(ex, "{Uri}: Error trying to initialize Google Cloud Platform Pub/Sub topic \"{Topic}\"", Uri, Server.Topic.Name);
 
             throw;
         }
@@ -134,15 +134,15 @@ public class PubsubEndpoint : Endpoint, IBrokerQueue {
         }
         catch (RpcException ex) {
             if (ex.StatusCode != StatusCode.AlreadyExists) {
-                logger.LogError(ex, "{Uri}: Error trying to initialize Google Cloud Pub/Sub subscription \"{Subscription}\" to topic \"{Topic}\"", Uri, Server.Subscription.Name, Server.Topic.Name);
+                logger.LogError(ex, "{Uri}: Error trying to initialize Google Cloud Platform Pub/Sub subscription \"{Subscription}\" to topic \"{Topic}\"", Uri, Server.Subscription.Name, Server.Topic.Name);
 
                 throw;
             }
 
-            logger.LogInformation("{Uri}: Google Cloud Pub/Sub subscription \"{Subscription}\" already exists", Uri, Server.Subscription.Name);
+            logger.LogInformation("{Uri}: Google Cloud Platform Pub/Sub subscription \"{Subscription}\" already exists", Uri, Server.Subscription.Name);
         }
         catch (Exception ex) {
-            logger.LogError(ex, "{Uri}: Error trying to initialize Google Cloud Pub/Sub subscription \"{Subscription}\" to topic \"{Topic}\"", Uri, Server.Subscription.Name, Server.Topic.Name);
+            logger.LogError(ex, "{Uri}: Error trying to initialize Google Cloud Platform Pub/Sub subscription \"{Subscription}\" to topic \"{Topic}\"", Uri, Server.Subscription.Name, Server.Topic.Name);
 
             throw;
         }
@@ -218,7 +218,7 @@ public class PubsubEndpoint : Endpoint, IBrokerQueue {
         catch (Exception ex) {
             logger.LogDebug(
                 ex,
-                "{Uri}: Error trying to purge Google Cloud Pub/Sub subscription {Subscription}",
+                "{Uri}: Error trying to purge Google Cloud Platform Pub/Sub subscription {Subscription}",
                 Uri,
                 Server.Subscription.Name
             );

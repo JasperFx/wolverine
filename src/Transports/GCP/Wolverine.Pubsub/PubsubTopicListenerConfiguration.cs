@@ -22,7 +22,7 @@ public class PubsubTopicListenerConfiguration : ListenerConfiguration<PubsubTopi
     }
 
     /// <summary>
-    ///     Configure the underlying Google Cloud Pub/Sub topic. This is only applicable when
+    ///     Configure the underlying Google Cloud Platform Pub/Sub topic. This is only applicable when
     ///     Wolverine is creating the topic.
     /// </summary>
     /// <param name="configure"></param>
@@ -34,7 +34,7 @@ public class PubsubTopicListenerConfiguration : ListenerConfiguration<PubsubTopi
     }
 
     /// <summary>
-    ///     Configure the underlying Google Cloud Pub/Sub subscription. This is only applicable when
+    ///     Configure the underlying Google Cloud Platform Pub/Sub subscription. This is only applicable when
     ///     Wolverine is creating the subscription.
     /// </summary>
     /// <param name="configure"></param>
@@ -46,7 +46,7 @@ public class PubsubTopicListenerConfiguration : ListenerConfiguration<PubsubTopi
     }
 
     /// <summary>
-    ///     Configure the underlying Google Cloud Pub/Sub subscriber.
+    ///     Configure the underlying Google Cloud Platform Pub/Sub subscriber.
     /// </summary>
     /// <param name="configure"></param>
     /// <returns></returns>
@@ -57,7 +57,7 @@ public class PubsubTopicListenerConfiguration : ListenerConfiguration<PubsubTopi
     }
 
     /// <summary>
-    /// Completely disable all Google Cloud Pub/Sub dead lettering for just this endpoint
+    /// Completely disable all Google Cloud Platform Pub/Sub dead lettering for just this endpoint
     /// </summary>
     /// <returns></returns>
     public PubsubTopicListenerConfiguration DisableDeadLettering() {
@@ -90,7 +90,7 @@ public class PubsubTopicListenerConfiguration : ListenerConfiguration<PubsubTopi
     }
 
     /// <summary>
-    /// Utilize custom envelope mapping for Google Cloud Pub/Sub interoperability with external non-Wolverine systems
+    /// Utilize custom envelope mapping for Google Cloud Platform Pub/Sub interoperability with external non-Wolverine systems
     /// </summary>
     /// <param name="mapper"></param>
     /// <returns></returns>
@@ -101,7 +101,7 @@ public class PubsubTopicListenerConfiguration : ListenerConfiguration<PubsubTopi
     }
 
     /// <summary>
-    /// Utilize custom envelope mapping for Google Cloud Pub/Sub interoperability with external non-Wolverine systems
+    /// Utilize custom envelope mapping for Google Cloud Platform Pub/Sub interoperability with external non-Wolverine systems
     /// </summary>
     /// <param name="mapper"></param>
     /// <returns></returns>

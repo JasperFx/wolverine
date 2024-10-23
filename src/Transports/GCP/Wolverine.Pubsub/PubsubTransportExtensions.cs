@@ -6,7 +6,7 @@ namespace Wolverine.Pubsub;
 public static class PubsubTransportExtensions {
 
 	/// <summary>
-	/// 	Quick access to the Google Cloud Pub/Sub Transport within this application.
+	/// 	Quick access to the Google Cloud Platform Pub/Sub Transport within this application.
 	/// 	This is for advanced usage.
 	/// </summary>
 	/// <param name="endpoints"></param>
@@ -18,14 +18,14 @@ public static class PubsubTransportExtensions {
 	}
 
 	/// <summary>
-	/// 	Additive configuration to the Google Cloud Pub/Sub integration for this Wolverine application.
+	/// 	Additive configuration to the Google Cloud Platform Pub/Sub integration for this Wolverine application.
 	/// </summary>
 	/// <param name="endpoints"></param>
 	/// <returns></returns>
 	public static PubsubConfiguration ConfigurePubsub(this WolverineOptions endpoints) => new PubsubConfiguration(endpoints.PubsubTransport(), endpoints);
 
 	/// <summary>
-	/// 	Connect to Google Cloud Pub/Sub with a project id.
+	/// 	Connect to Google Cloud Platform Pub/Sub with a project id.
 	/// </summary>
 	/// <param name="endpoints"></param>
 	/// <param name="projectId"></param>
@@ -43,12 +43,12 @@ public static class PubsubTransportExtensions {
 	}
 
 	/// <summary>
-	/// 	Listen for incoming messages at the designated Google Cloud Pub/Sub topic by name.
+	/// 	Listen for incoming messages at the designated Google Cloud Platform Pub/Sub topic by name.
 	/// </summary>
 	/// <param name="endpoints"></param>
-	/// <param name="topicName">The name of the Google Cloud Pub/Sub topic</param>
+	/// <param name="topicName">The name of the Google Cloud Platform Pub/Sub topic</param>
 	/// <param name="configure">
-	///     Optional configuration for this Google Cloud Pub/Sub endpoint.
+	///     Optional configuration for this Google Cloud Platform Pub/Sub endpoint.
 	/// </param>
 	/// <returns></returns>
 	public static PubsubTopicListenerConfiguration ListenToPubsubTopic(
@@ -68,12 +68,12 @@ public static class PubsubTransportExtensions {
 	}
 
 	/// <summary>
-	/// 	Publish the designated messages to a Google Cloud Pub/Sub topic.
+	/// 	Publish the designated messages to a Google Cloud Platform Pub/Sub topic.
 	/// </summary>
 	/// <param name="publishing"></param>
 	/// <param name="topicName"></param>
 	/// <param name="configure">
-	///     Optional configuration for this Google Cloud Pub/Sub endpoint.
+	///     Optional configuration for this Google Cloud Platform Pub/Sub endpoint.
 	/// </param>
 	/// <returns></returns>
 	public static PubsubTopicSubscriberConfiguration ToPubsubTopic(

@@ -2,7 +2,7 @@
 
     <PropertyGroup>
         <PackageId>WolverineFx.Pubsub</PackageId>
-        <Description>Google Cloud Pub/Sub transport for Wolverine applications</Description>
+        <Description>Google Cloud Platform Pub/Sub transport for Wolverine applications</Description>
     </PropertyGroup>
 
     <ItemGroup>

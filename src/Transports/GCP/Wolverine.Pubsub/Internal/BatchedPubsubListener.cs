@@ -43,7 +43,7 @@ public class BatchedPubsubListener : PubsubListener {
                 await streamingPull.WriteCompleteAsync();
             }
             catch (Exception ex) {
-                _logger.LogError(ex, "{Uri}: Error while completing the Google Cloud Pub/Sub streaming pull.", _endpoint.Uri);
+                _logger.LogError(ex, "{Uri}: Error while completing the Google Cloud Platform Pub/Sub streaming pull.", _endpoint.Uri);
             }
         }
     }
