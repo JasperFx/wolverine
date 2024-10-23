@@ -11,19 +11,15 @@ public class InlinePubsubListener : PubsubListener {
         IWolverineRuntime runtime
     ) : base(endpoint, transport, receiver, runtime) { }
 
-    public override async Task StartAsync() {
+    public override async Task StartAsync() => await listenForMessagesAsync(async () => {
         if (_transport.SubscriberApiClient is null) throw new WolverinePubsubTransportNotConnectedException();
 
-        await listenForMessagesAsync(async () => {
-            if (_transport.SubscriberApiClient is null) throw new WolverinePubsubTransportNotConnectedException();
+        var response = await _transport.SubscriberApiClient.PullAsync(
+            _endpoint.Server.Subscription.Name,
+            maxMessages: 1,
+            _cancellation.Token
+        );
 
-            var response = await _transport.SubscriberApiClient.PullAsync(
-                _endpoint.Server.Subscription.Name,
-                maxMessages: 1,
-                _cancellation.Token
-            );
-
-            await handleMessagesAsync(response.ReceivedMessages);
-        });
-    }
+        await handleMessagesAsync(response.ReceivedMessages);
+    });
 }
