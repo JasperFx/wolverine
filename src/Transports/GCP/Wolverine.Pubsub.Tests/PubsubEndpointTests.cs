@@ -7,7 +7,7 @@ using Shouldly;
 using Wolverine.Configuration;
 using Xunit;
 
-namespace Wolverine.Pubsub.Tests.Internal;
+namespace Wolverine.Pubsub.Tests;
 
 public class PubsubEndpointTests {
     private PubsubTransport createTransport() => new("wolverine") {
