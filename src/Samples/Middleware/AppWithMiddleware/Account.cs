@@ -73,6 +73,8 @@ public static class CreditAccountHandler
 #endregion
 
 
+public record InvalidAccount(Guid AccountId);
+
 #region sample_AccountLookupMiddleware
 
 // This is *a* way to build middleware in Wolverine by basically just
@@ -82,7 +84,7 @@ public static class AccountLookupMiddleware
 {
     // The message *has* to be first in the parameter list
     // Before or BeforeAsync tells Wolverine this method should be called before the actual action
-    public static async Task<(HandlerContinuation, Account?)> LoadAsync(
+    public static async Task<(HandlerContinuation, Account?, OutgoingMessages)> LoadAsync(
         IAccountCommand command,
         ILogger logger,
 
@@ -91,13 +93,18 @@ public static class AccountLookupMiddleware
 
         CancellationToken cancellation)
     {
+        var messages = new OutgoingMessages();
         var account = await session.LoadAsync<Account>(command.AccountId, cancellation);
         if (account == null)
         {
             logger.LogInformation("Unable to find an account for {AccountId}, aborting the requested operation", command.AccountId);
+
+            messages.RespondToSender(new InvalidAccount(command.AccountId));
+            return (HandlerContinuation.Stop, null, messages);
         }
 
-        return (account == null ? HandlerContinuation.Stop : HandlerContinuation.Continue, account);
+        // messages would be empty here
+        return (HandlerContinuation.Continue, account, messages);
     }
 }
 
