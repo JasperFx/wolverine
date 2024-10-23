@@ -19,7 +19,7 @@ public class when_discovering_a_sender_with_all_defaults : ConventionalRoutingCo
     }
 
     [Fact]
-    public void routed_to_azure_service_bus_queue() {
+    public void routed_to_pubsub_endpoint() {
         var endpoint = theRoute.Sender.Endpoint.ShouldBeOfType<PubsubEndpoint>();
 
         endpoint.Server.Topic.Name.TopicId.ShouldBe("published-message");
