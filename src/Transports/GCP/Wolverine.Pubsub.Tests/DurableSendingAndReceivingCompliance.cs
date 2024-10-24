@@ -27,7 +27,7 @@ public class DurableComplianceFixture : TransportComplianceFixture, IAsyncLifeti
                 .EnableDeadLettering()
                 .EnableSystemEndpoints()
                 .ConfigureListeners(x => x.UseDurableInbox())
-                .ConfigureListeners(x => x.UseDurableInbox());
+                .ConfigureSenders(x => x.UseDurableOutbox());
 
             opts.Services
                 .AddMarten(store => {
@@ -47,7 +47,7 @@ public class DurableComplianceFixture : TransportComplianceFixture, IAsyncLifeti
                 .EnableDeadLettering()
                 .EnableSystemEndpoints()
                 .ConfigureListeners(x => x.UseDurableInbox())
-                .ConfigureListeners(x => x.UseDurableInbox());
+                .ConfigureSenders(x => x.UseDurableOutbox());
 
             opts.Services.AddMarten(store => {
                 store.Connection(Servers.PostgresConnectionString);
