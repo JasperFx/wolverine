@@ -35,7 +35,7 @@ public class InMemorySagaPersistor
         if (id == null)
         {
             throw new InvalidOperationException(
-                $"Type {typeof(T).FullNameInCode()} Id must be set to a non-null value.");
+                $"Type {typeof(T).FullNameInCode()} Id property must be set to a non-null value.");
         }
 
         var key = ToKey(typeof(T), id);
