@@ -136,6 +136,17 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue {
 
                 break;
             }
+            // This is a know issue at the moment:
+            // https://github.com/googleapis/google-cloud-java/issues/4220
+            // https://stackoverflow.com/questions/60012138/google-cloud-function-pulling-from-pub-sub-subscription-throws-exception-deadl
+            catch (RpcException ex) when (ex.StatusCode == StatusCode.DeadlineExceeded) {
+                _logger.LogError(ex, "{Uri}: Google Cloud Platform Pub/Sub returned \"DEADLINE_EXCEEDED\", attempting to restart listener.", _endpoint.Uri);
+
+                _task.SafeDispose();
+                _task = StartAsync();
+
+                break;
+            }
             catch (RpcException ex) when (ex.StatusCode == StatusCode.Cancelled) {
                 _logger.LogInformation("{Uri}: Listener canceled, shutting down listener...", _endpoint.Uri);
 
@@ -152,7 +163,7 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue {
 
                 _logger.LogError(
                     ex,
-                    "{Uri}: Error while trying to retrieve messages from Google Cloud Platform Pub/Sub, attempting to restart stream ({RetryCount}/{MaxRetryCount})...",
+                    "{Uri}: Error while trying to retrieve messages from Google Cloud Platform Pub/Sub, attempting to restart listener ({RetryCount}/{MaxRetryCount})...",
                     _endpoint.Uri,
                     retryCount,
                     _endpoint.Client.RetryPolicy.MaxRetryCount
