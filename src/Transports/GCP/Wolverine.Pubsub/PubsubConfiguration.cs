@@ -53,7 +53,7 @@ public class PubsubConfiguration : BrokerExpression<
     }
 
     /// <summary>
-    ///     Enable WOlverine to create system endpoints automatically for responses and retries. This
+    ///     Enable Wolverine to create system endpoints automatically for responses and retries. This
     ///     should probably be set if the application does have permissions to create topcis and subscriptions
     /// </summary>
     /// <returns></returns>
