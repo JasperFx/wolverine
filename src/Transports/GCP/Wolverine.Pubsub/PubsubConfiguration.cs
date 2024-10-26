@@ -10,8 +10,11 @@ public class PubsubConfiguration : BrokerExpression<
     PubsubTopicListenerConfiguration,
     PubsubTopicSubscriberConfiguration,
     PubsubConfiguration
-> {
-    public PubsubConfiguration(PubsubTransport transport, WolverineOptions options) : base(transport, options) { }
+>
+{
+    public PubsubConfiguration(PubsubTransport transport, WolverineOptions options) : base(transport, options)
+    {
+    }
 
     /// <summary>
     ///     Set emulator detection for the Google Cloud Platform Pub/Sub transport
@@ -22,21 +25,24 @@ public class PubsubConfiguration : BrokerExpression<
     /// </remarks>
     /// <param name="configure"></param>
     /// <returns></returns>
-    public PubsubConfiguration UseEmulatorDetection(EmulatorDetection emulatorDetection = EmulatorDetection.EmulatorOrProduction) {
+    public PubsubConfiguration UseEmulatorDetection(
+        EmulatorDetection emulatorDetection = EmulatorDetection.EmulatorOrProduction)
+    {
         Transport.EmulatorDetection = emulatorDetection;
 
         return this;
     }
 
     /// <summary>
-    /// Opt into using conventional message routing using
-    /// queues based on message type names
+    ///     Opt into using conventional message routing using
+    ///     queues based on message type names
     /// </summary>
     /// <param name="configure"></param>
     /// <returns></returns>
     public PubsubConfiguration UseConventionalRouting(
         Action<PubsubMessageRoutingConvention>? configure = null
-    ) {
+    )
+    {
         var routing = new PubsubMessageRoutingConvention();
 
         configure?.Invoke(routing);
@@ -47,23 +53,25 @@ public class PubsubConfiguration : BrokerExpression<
     }
 
     /// <summary>
-    /// Enable WOlverine to create system endpoints automatically for responses and retries. This
-    /// should probably be set if the application does have permissions to create topcis and subscriptions
+    ///     Enable WOlverine to create system endpoints automatically for responses and retries. This
+    ///     should probably be set if the application does have permissions to create topcis and subscriptions
     /// </summary>
     /// <returns></returns>
-    public PubsubConfiguration EnableSystemEndpoints() {
+    public PubsubConfiguration EnableSystemEndpoints()
+    {
         Transport.SystemEndpointsEnabled = true;
 
         return this;
     }
 
     /// <summary>
-    /// Enable dead lettering with Google Cloud Platform Pub/Sub within this entire
-    /// application
+    ///     Enable dead lettering with Google Cloud Platform Pub/Sub within this entire
+    ///     application
     /// </summary>
     /// <param name="configure"></param>
     /// <returns></returns>
-    public PubsubConfiguration EnableDeadLettering(Action<PubsubDeadLetterOptions>? configure = null) {
+    public PubsubConfiguration EnableDeadLettering(Action<PubsubDeadLetterOptions>? configure = null)
+    {
         Transport.DeadLetter.Enabled = true;
 
         configure?.Invoke(Transport.DeadLetter);
@@ -71,6 +79,13 @@ public class PubsubConfiguration : BrokerExpression<
         return this;
     }
 
-    protected override PubsubTopicListenerConfiguration createListenerExpression(PubsubEndpoint listenerEndpoint) => new(listenerEndpoint);
-    protected override PubsubTopicSubscriberConfiguration createSubscriberExpression(PubsubEndpoint subscriberEndpoint) => new(subscriberEndpoint);
+    protected override PubsubTopicListenerConfiguration createListenerExpression(PubsubEndpoint listenerEndpoint)
+    {
+        return new PubsubTopicListenerConfiguration(listenerEndpoint);
+    }
+
+    protected override PubsubTopicSubscriberConfiguration createSubscriberExpression(PubsubEndpoint subscriberEndpoint)
+    {
+        return new PubsubTopicSubscriberConfiguration(subscriberEndpoint);
+    }
 }

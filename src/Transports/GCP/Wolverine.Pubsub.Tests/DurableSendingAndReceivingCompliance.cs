@@ -11,15 +11,21 @@ using Xunit;
 
 namespace Wolverine.Pubsub.Tests;
 
-public class DurableComplianceFixture : TransportComplianceFixture, IAsyncLifetime {
-    public DurableComplianceFixture() : base(new Uri($"{PubsubTransport.ProtocolName}://wolverine/durable-receiver"), 120) { }
+public class DurableComplianceFixture : TransportComplianceFixture, IAsyncLifetime
+{
+    public DurableComplianceFixture() : base(new Uri($"{PubsubTransport.ProtocolName}://wolverine/durable-receiver"),
+        120)
+    {
+    }
 
-    public async Task InitializeAsync() {
+    public async Task InitializeAsync()
+    {
         var id = Guid.NewGuid().ToString();
 
         OutboundAddress = new Uri($"{PubsubTransport.ProtocolName}://wolverine/durable-receiver.{id}");
 
-        await SenderIs(opts => {
+        await SenderIs(opts =>
+        {
             opts
                 .UsePubsubTesting()
                 .AutoProvision()
@@ -30,7 +36,8 @@ public class DurableComplianceFixture : TransportComplianceFixture, IAsyncLifeti
                 .ConfigureSenders(x => x.UseDurableOutbox());
 
             opts.Services
-                .AddMarten(store => {
+                .AddMarten(store =>
+                {
                     store.Connection(Servers.PostgresConnectionString);
                     store.DatabaseSchemaName = "sender";
                 })
@@ -39,7 +46,8 @@ public class DurableComplianceFixture : TransportComplianceFixture, IAsyncLifeti
             opts.Services.AddResourceSetupOnStartup();
         });
 
-        await ReceiverIs(opts => {
+        await ReceiverIs(opts =>
+        {
             opts
                 .UsePubsubTesting()
                 .AutoProvision()
@@ -49,7 +57,8 @@ public class DurableComplianceFixture : TransportComplianceFixture, IAsyncLifeti
                 .ConfigureListeners(x => x.UseDurableInbox())
                 .ConfigureSenders(x => x.UseDurableOutbox());
 
-            opts.Services.AddMarten(store => {
+            opts.Services.AddMarten(store =>
+            {
                 store.Connection(Servers.PostgresConnectionString);
                 store.DatabaseSchemaName = "receiver";
             }).IntegrateWithWolverine(x => x.MessageStorageSchemaName = "receiver");
@@ -60,15 +69,18 @@ public class DurableComplianceFixture : TransportComplianceFixture, IAsyncLifeti
         });
     }
 
-    public new async Task DisposeAsync() {
+    public new async Task DisposeAsync()
+    {
         await DisposeAsync();
     }
 }
 
 [Collection("acceptance")]
-public class DurableSendingAndReceivingCompliance : TransportCompliance<DurableComplianceFixture> {
+public class DurableSendingAndReceivingCompliance : TransportCompliance<DurableComplianceFixture>
+{
     [Fact]
-    public virtual async Task dl_mechanics() {
+    public virtual async Task dl_mechanics()
+    {
         throwOnAttempt<DivideByZeroException>(1);
         throwOnAttempt<DivideByZeroException>(2);
         throwOnAttempt<DivideByZeroException>(3);
@@ -83,7 +95,7 @@ public class DurableSendingAndReceivingCompliance : TransportCompliance<DurableC
 
         var pullResponse = await transport.SubscriberApiClient!.PullAsync(
             dl.Server.Subscription.Name,
-            maxMessages: 1
+            1
         );
 
         pullResponse.ReceivedMessages.ShouldNotBeEmpty();

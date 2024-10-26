@@ -25,7 +25,6 @@ public class DocumentationSamples
                     // Optionally purge all subscriptions on application startup.
                     // Warning though, this is potentially slow
                     .AutoPurgeOnStartup();
-
             }).StartAsync();
 
         #endregion
@@ -44,7 +43,6 @@ public class DocumentationSamples
                     // to EmulatorDetection.EmulatorOrProduction. But you can
                     // supply your own, like EmulatorDetection.EmulatorOnly
                     .UseEmulatorDetection();
-
             }).StartAsync();
 
         #endregion
@@ -59,7 +57,6 @@ public class DocumentationSamples
             {
                 opts.UsePubsub("your-project-id")
                     .EnableSystemEndpoints();
-
             }).StartAsync();
 
         #endregion
@@ -81,21 +78,20 @@ public class DocumentationSamples
                     // You can optimize the throughput by running multiple listeners
                     // in parallel
                     .ListenerCount(5)
-
                     .ConfigurePubsubSubscription(options =>
                     {
-
                         // Optionally configure the subscription itself
-                        options.DeadLetterPolicy = new() {
+                        options.DeadLetterPolicy = new DeadLetterPolicy
+                        {
                             DeadLetterTopic = "errors",
                             MaxDeliveryAttempts = 5
                         };
                         options.AckDeadlineSeconds = 60;
-                        options.RetryPolicy = new() {
+                        options.RetryPolicy = new RetryPolicy
+                        {
                             MinimumBackoff = Duration.FromTimeSpan(TimeSpan.FromSeconds(1)),
                             MaximumBackoff = Duration.FromTimeSpan(TimeSpan.FromSeconds(10))
                         };
-
                     });
             }).StartAsync();
 
@@ -138,7 +134,6 @@ public class DocumentationSamples
                 opts.UsePubsub("your-project-id")
                     .UseConventionalRouting(convention =>
                     {
-
                         // Optionally override the default queue naming scheme
                         convention.TopicNameForSender(t => t.Namespace)
 
@@ -163,7 +158,6 @@ public class DocumentationSamples
                                 // Similarly, use the message type and/or wolverine runtime
                                 // to customize the message sending
                             });
-
                     });
             }).StartAsync();
 
@@ -181,18 +175,16 @@ public class DocumentationSamples
 
                     // Enable dead lettering for all Wolverine endpoints
                     .EnableDeadLettering(
-
                         // Optionally configure how the GCP Pub/Sub dead letter itself
                         // is created by Wolverine
                         options =>
                         {
                             options.Topic.MessageRetentionDuration =
                                 Duration.FromTimeSpan(TimeSpan.FromDays(14));
-                                
+
                             options.Subscription.MessageRetentionDuration =
                                 Duration.FromTimeSpan(TimeSpan.FromDays(14));
                         }
-
                     );
             }).StartAsync();
 
@@ -220,11 +212,7 @@ public class DocumentationSamples
 
                         // Optionally configure how the dead letter itself
                         // is built by Wolverine
-                        e =>
-                        {
-                            e.TelemetryEnabled = true;
-                        }
-
+                        e => { e.TelemetryEnabled = true; }
                     );
             }).StartAsync();
 
@@ -252,7 +240,9 @@ public class DocumentationSamples
 
 public class CustomPubsubMapper : EnvelopeMapper<ReceivedMessage, PubsubMessage>, IPubsubEnvelopeMapper
 {
-    public CustomPubsubMapper(PubsubEndpoint endpoint) : base(endpoint) { }
+    public CustomPubsubMapper(PubsubEndpoint endpoint) : base(endpoint)
+    {
+    }
 
     public void MapIncomingToEnvelope(PubsubEnvelope envelope, ReceivedMessage incoming)
     {
@@ -263,7 +253,6 @@ public class CustomPubsubMapper : EnvelopeMapper<ReceivedMessage, PubsubMessage>
         // or by telling Wolverine separately what the default message type
         // is for a listening endpoint
         envelope.MessageType = typeof(Message1).ToMessageTypeName();
-
     }
 
     public void MapOutgoingToMessage(OutgoingMessageBatch outgoing, PubsubMessage message)
@@ -278,16 +267,19 @@ public class CustomPubsubMapper : EnvelopeMapper<ReceivedMessage, PubsubMessage>
 
     protected override void writeIncomingHeaders(ReceivedMessage incoming, Envelope envelope)
     {
-        if (incoming.Message.Attributes is null) return;
+        if (incoming.Message.Attributes is null)
+        {
+            return;
+        }
 
-        foreach (var pair in incoming.Message.Attributes) envelope.Headers[pair.Key] = pair.Value?.ToString();
+        foreach (var pair in incoming.Message.Attributes) envelope.Headers[pair.Key] = pair.Value;
     }
 
     protected override bool tryReadIncomingHeader(ReceivedMessage incoming, string key, out string? value)
     {
         if (incoming.Message.Attributes.TryGetValue(key, out var header))
         {
-            value = header.ToString();
+            value = header;
 
             return true;
         }

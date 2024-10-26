@@ -3,16 +3,21 @@ using Wolverine.ErrorHandling;
 
 namespace Wolverine.Pubsub;
 
-public class PubsubTopicListenerConfiguration : ListenerConfiguration<PubsubTopicListenerConfiguration, PubsubEndpoint> {
-    public PubsubTopicListenerConfiguration(PubsubEndpoint endpoint) : base(endpoint) { }
+public class PubsubTopicListenerConfiguration : ListenerConfiguration<PubsubTopicListenerConfiguration, PubsubEndpoint>
+{
+    public PubsubTopicListenerConfiguration(PubsubEndpoint endpoint) : base(endpoint)
+    {
+    }
 
     /// <summary>
     ///     Add circuit breaker exception handling to this listener
     /// </summary>
     /// <param name="configure"></param>
     /// <returns></returns>
-    public PubsubTopicListenerConfiguration CircuitBreaker(Action<CircuitBreakerOptions>? configure = null) {
-        add(e => {
+    public PubsubTopicListenerConfiguration CircuitBreaker(Action<CircuitBreakerOptions>? configure = null)
+    {
+        add(e =>
+        {
             e.CircuitBreakerOptions = new CircuitBreakerOptions();
 
             configure?.Invoke(e.CircuitBreakerOptions);
@@ -27,7 +32,8 @@ public class PubsubTopicListenerConfiguration : ListenerConfiguration<PubsubTopi
     /// </summary>
     /// <param name="configure"></param>
     /// <returns></returns>
-    public PubsubTopicListenerConfiguration ConfigurePubsubTopic(Action<CreateTopicOptions> configure) {
+    public PubsubTopicListenerConfiguration ConfigurePubsubTopic(Action<CreateTopicOptions> configure)
+    {
         add(e => configure(e.Server.Topic.Options));
 
         return this;
@@ -39,7 +45,8 @@ public class PubsubTopicListenerConfiguration : ListenerConfiguration<PubsubTopi
     /// </summary>
     /// <param name="configure"></param>
     /// <returns></returns>
-    public PubsubTopicListenerConfiguration ConfigurePubsubSubscription(Action<CreateSubscriptionOptions> configure) {
+    public PubsubTopicListenerConfiguration ConfigurePubsubSubscription(Action<CreateSubscriptionOptions> configure)
+    {
         add(e => configure(e.Server.Subscription.Options));
 
         return this;
@@ -50,18 +57,21 @@ public class PubsubTopicListenerConfiguration : ListenerConfiguration<PubsubTopi
     /// </summary>
     /// <param name="configure"></param>
     /// <returns></returns>
-    public PubsubTopicListenerConfiguration ConfigureListener(Action<PubsubClientOptions> configure) {
+    public PubsubTopicListenerConfiguration ConfigureListener(Action<PubsubClientOptions> configure)
+    {
         add(e => configure(e.Client));
 
         return this;
     }
 
     /// <summary>
-    /// Completely disable all Google Cloud Platform Pub/Sub dead lettering for just this endpoint
+    ///     Completely disable all Google Cloud Platform Pub/Sub dead lettering for just this endpoint
     /// </summary>
     /// <returns></returns>
-    public PubsubTopicListenerConfiguration DisableDeadLettering() {
-        add(e => {
+    public PubsubTopicListenerConfiguration DisableDeadLettering()
+    {
+        add(e =>
+        {
             e.DeadLetterName = null;
             e.Server.Subscription.Options.DeadLetterPolicy = null;
         });
@@ -70,7 +80,7 @@ public class PubsubTopicListenerConfiguration : ListenerConfiguration<PubsubTopi
     }
 
     /// <summary>
-    /// Customize the dead lettering for just this endpoint
+    ///     Customize the dead lettering for just this endpoint
     /// </summary>
     /// <param name="deadLetterName"></param>
     /// <param name="configure">Optionally configure properties of the dead letter itself</param>
@@ -79,33 +89,42 @@ public class PubsubTopicListenerConfiguration : ListenerConfiguration<PubsubTopi
     public PubsubTopicListenerConfiguration ConfigureDeadLettering(
         string deadLetterName,
         Action<PubsubEndpoint>? configure = null
-    ) {
-        add(e => {
+    )
+    {
+        add(e =>
+        {
             e.DeadLetterName = deadLetterName;
 
-            if (configure is not null) e.ConfigureDeadLetter(configure);
+            if (configure is not null)
+            {
+                e.ConfigureDeadLetter(configure);
+            }
         });
 
         return this;
     }
 
     /// <summary>
-    /// Utilize custom envelope mapping for Google Cloud Platform Pub/Sub interoperability with external non-Wolverine systems
+    ///     Utilize custom envelope mapping for Google Cloud Platform Pub/Sub interoperability with external non-Wolverine
+    ///     systems
     /// </summary>
     /// <param name="mapper"></param>
     /// <returns></returns>
-    public PubsubTopicListenerConfiguration InteropWith(IPubsubEnvelopeMapper mapper) {
+    public PubsubTopicListenerConfiguration InteropWith(IPubsubEnvelopeMapper mapper)
+    {
         add(e => e.Mapper = mapper);
 
         return this;
     }
 
     /// <summary>
-    /// Utilize custom envelope mapping for Google Cloud Platform Pub/Sub interoperability with external non-Wolverine systems
+    ///     Utilize custom envelope mapping for Google Cloud Platform Pub/Sub interoperability with external non-Wolverine
+    ///     systems
     /// </summary>
     /// <param name="mapper"></param>
     /// <returns></returns>
-    public PubsubTopicListenerConfiguration InteropWith(Func<PubsubEndpoint, IPubsubEnvelopeMapper> mapper) {
+    public PubsubTopicListenerConfiguration InteropWith(Func<PubsubEndpoint, IPubsubEnvelopeMapper> mapper)
+    {
         add(e => e.Mapper = mapper(e));
 
         return this;

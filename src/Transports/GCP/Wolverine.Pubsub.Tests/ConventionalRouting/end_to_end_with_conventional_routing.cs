@@ -8,14 +8,17 @@ using Xunit;
 
 namespace Wolverine.Pubsub.Tests.ConventionalRouting;
 
-public class end_to_end_with_conventional_routing : IAsyncLifetime {
+public class end_to_end_with_conventional_routing : IAsyncLifetime
+{
     private IHost _receiver = default!;
     private IHost _sender = default!;
 
-    public async Task InitializeAsync() {
+    public async Task InitializeAsync()
+    {
         _sender = await Host
             .CreateDefaultBuilder()
-            .UseWolverine(opts => {
+            .UseWolverine(opts =>
+            {
                 opts
                     .UsePubsubTesting()
                     .AutoProvision()
@@ -33,7 +36,8 @@ public class end_to_end_with_conventional_routing : IAsyncLifetime {
 
         _receiver = await Host
             .CreateDefaultBuilder()
-            .UseWolverine(opts => {
+            .UseWolverine(opts =>
+            {
                 opts
                     .UsePubsubTesting()
                     .AutoProvision()
@@ -43,18 +47,20 @@ public class end_to_end_with_conventional_routing : IAsyncLifetime {
                     .UseConventionalRouting();
 
                 opts.ServiceName = "Receiver";
-                
+
                 opts.Services.AddResourceSetupOnStartup();
             }).StartAsync();
     }
 
-    public async Task DisposeAsync() {
+    public async Task DisposeAsync()
+    {
         await _sender.StopAsync();
         await _receiver.StopAsync();
     }
 
     [Fact]
-    public async Task send_from_one_node_to_another_all_with_conventional_routing() {
+    public async Task send_from_one_node_to_another_all_with_conventional_routing()
+    {
         var session = await _sender
             .TrackActivity()
             .AlsoTrack(_receiver)

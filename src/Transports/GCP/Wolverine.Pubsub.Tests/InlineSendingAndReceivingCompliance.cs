@@ -7,15 +7,20 @@ using Xunit;
 
 namespace Wolverine.Pubsub.Tests;
 
-public class InlineComplianceFixture : TransportComplianceFixture, IAsyncLifetime {
-    public InlineComplianceFixture() : base(new Uri($"{PubsubTransport.ProtocolName}://wolverine/inline-receiver"), 120) { }
+public class InlineComplianceFixture : TransportComplianceFixture, IAsyncLifetime
+{
+    public InlineComplianceFixture() : base(new Uri($"{PubsubTransport.ProtocolName}://wolverine/inline-receiver"), 120)
+    {
+    }
 
-    public async Task InitializeAsync() {
+    public async Task InitializeAsync()
+    {
         var id = Guid.NewGuid().ToString();
 
         OutboundAddress = new Uri($"{PubsubTransport.ProtocolName}://wolverine/inline-receiver.{id}");
 
-        await SenderIs(opts => {
+        await SenderIs(opts =>
+        {
             opts
                 .UsePubsubTesting()
                 .AutoProvision()
@@ -29,7 +34,8 @@ public class InlineComplianceFixture : TransportComplianceFixture, IAsyncLifetim
                 .SendInline();
         });
 
-        await ReceiverIs(opts => {
+        await ReceiverIs(opts =>
+        {
             opts
                 .UsePubsubTesting()
                 .AutoProvision()
@@ -43,16 +49,18 @@ public class InlineComplianceFixture : TransportComplianceFixture, IAsyncLifetim
         });
     }
 
-    public new async Task DisposeAsync() {
+    public new async Task DisposeAsync()
+    {
         await DisposeAsync();
     }
 }
 
-
 [Collection("acceptance")]
-public class InlineSendingAndReceivingCompliance : TransportCompliance<InlineComplianceFixture> {
+public class InlineSendingAndReceivingCompliance : TransportCompliance<InlineComplianceFixture>
+{
     [Fact]
-    public virtual async Task dl_mechanics() {
+    public virtual async Task dl_mechanics()
+    {
         throwOnAttempt<DivideByZeroException>(1);
         throwOnAttempt<DivideByZeroException>(2);
         throwOnAttempt<DivideByZeroException>(3);
@@ -67,7 +75,7 @@ public class InlineSendingAndReceivingCompliance : TransportCompliance<InlineCom
 
         var pullResponse = await transport.SubscriberApiClient!.PullAsync(
             dl.Server.Subscription.Name,
-            maxMessages: 1
+            1
         );
 
         pullResponse.ReceivedMessages.ShouldNotBeEmpty();

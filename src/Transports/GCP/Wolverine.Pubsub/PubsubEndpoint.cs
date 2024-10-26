@@ -12,53 +12,38 @@ using Wolverine.Transports.Sending;
 
 namespace Wolverine.Pubsub;
 
-public class PubsubEndpoint : Endpoint, IBrokerQueue {
-    private IPubsubEnvelopeMapper? _mapper;
+public class PubsubEndpoint : Endpoint, IBrokerQueue
+{
     private readonly PubsubTransport _transport;
 
-    private bool _hasInitialized = false;
-    
-    internal bool IsDeadLetter = false;
-
-    public PubsubServerOptions Server = new();
+    private bool _hasInitialized;
+    private IPubsubEnvelopeMapper? _mapper;
     public PubsubClientOptions Client = new();
 
     /// <summary>
-    /// Name of the dead letter for this Google Cloud Platform Pub/Sub subcription where failed messages will be moved
+    ///     Name of the dead letter for this Google Cloud Platform Pub/Sub subcription where failed messages will be moved
     /// </summary>
-    public string? DeadLetterName = null;
+    public string? DeadLetterName;
 
-    /// <summary>
-    ///     Pluggable strategy for interoperability with non-Wolverine systems. Customizes how the incoming Google Cloud Platform Pub/Sub messages
-    ///     are read and how outgoing messages are written to Google Cloud Platform Pub/Sub.
-    /// </summary>
-    public IPubsubEnvelopeMapper Mapper {
-        get {
-            if (_mapper is not null) return _mapper;
+    internal bool IsDeadLetter;
 
-            var mapper = new PubsubEnvelopeMapper(this);
-
-            // Important for interoperability
-            if (MessageType != null) mapper.ReceivesMessage(MessageType);
-
-            _mapper = mapper;
-
-            return _mapper;
-        }
-        set => _mapper = value;
-    }
+    public PubsubServerOptions Server = new();
 
     public PubsubEndpoint(
         string topicName,
         PubsubTransport transport,
         EndpointRole role = EndpointRole.Application
-    ) : base(new($"{transport.Protocol}://{transport.ProjectId}/{topicName}"), role) {
-        if (!PubsubTransport.NameRegex.IsMatch(topicName)) throw new WolverinePubsubInvalidEndpointNameException(topicName);
+    ) : base(new Uri($"{transport.Protocol}://{transport.ProjectId}/{topicName}"), role)
+    {
+        if (!PubsubTransport.NameRegex.IsMatch(topicName))
+        {
+            throw new WolverinePubsubInvalidEndpointNameException(topicName);
+        }
 
         _transport = transport;
 
-        Server.Topic.Name = new(transport.ProjectId, topicName);
-        Server.Subscription.Name = new(
+        Server.Topic.Name = new TopicName(transport.ProjectId, topicName);
+        Server.Subscription.Name = new SubscriptionName(
             transport.ProjectId,
             _transport.IdentifierPrefix.IsNotEmpty() &&
             topicName.StartsWith($"{_transport.IdentifierPrefix}.")
@@ -67,55 +52,97 @@ public class PubsubEndpoint : Endpoint, IBrokerQueue {
         );
         EndpointName = topicName;
 
-        if (transport.DeadLetter.Enabled) DeadLetterName = PubsubTransport.DeadLetterName;
+        if (transport.DeadLetter.Enabled)
+        {
+            DeadLetterName = PubsubTransport.DeadLetterName;
+        }
     }
 
-    public override async ValueTask InitializeAsync(ILogger logger) {
-        if (_hasInitialized) return;
+    /// <summary>
+    ///     Pluggable strategy for interoperability with non-Wolverine systems. Customizes how the incoming Google Cloud
+    ///     Platform Pub/Sub messages
+    ///     are read and how outgoing messages are written to Google Cloud Platform Pub/Sub.
+    /// </summary>
+    public IPubsubEnvelopeMapper Mapper
+    {
+        get
+        {
+            if (_mapper is not null)
+            {
+                return _mapper;
+            }
 
-        try {
-            if (_transport.AutoProvision) await SetupAsync(logger);
-            if (_transport.AutoPurgeAllQueues) await PurgeAsync(logger);
-        }
-        catch (Exception ex) {
-            throw new WolverinePubsubTransportException($"{Uri}: Error trying to initialize Google Cloud Platform Pub/Sub endpoint", ex);
-        }
+            var mapper = new PubsubEnvelopeMapper(this);
 
-        _hasInitialized = true;
+            // Important for interoperability
+            if (MessageType != null)
+            {
+                mapper.ReceivesMessage(MessageType);
+            }
+
+            _mapper = mapper;
+
+            return _mapper;
+        }
+        set => _mapper = value;
     }
 
-    public async ValueTask SetupAsync(ILogger logger) {
-        if (_transport.PublisherApiClient is null) throw new WolverinePubsubTransportNotConnectedException();
+    public async ValueTask SetupAsync(ILogger logger)
+    {
+        if (_transport.PublisherApiClient is null)
+        {
+            throw new WolverinePubsubTransportNotConnectedException();
+        }
 
-        try {
-            await _transport.PublisherApiClient.CreateTopicAsync(new Topic {
+        try
+        {
+            await _transport.PublisherApiClient.CreateTopicAsync(new Topic
+            {
                 TopicName = Server.Topic.Name,
                 MessageRetentionDuration = Server.Topic.Options.MessageRetentionDuration
             });
         }
-        catch (RpcException ex) {
-            if (ex.StatusCode != StatusCode.AlreadyExists) {
-                logger.LogError(ex, "{Uri}: Error trying to initialize Google Cloud Platform Pub/Sub topic \"{Topic}\"", Uri, Server.Topic.Name);
+        catch (RpcException ex)
+        {
+            if (ex.StatusCode != StatusCode.AlreadyExists)
+            {
+                logger.LogError(ex, "{Uri}: Error trying to initialize Google Cloud Platform Pub/Sub topic \"{Topic}\"",
+                    Uri, Server.Topic.Name);
 
                 throw;
             }
 
-            logger.LogInformation("{Uri}: Google Cloud Platform Pub/Sub topic \"{Topic}\" already exists", Uri, Server.Topic.Name);
+            logger.LogInformation("{Uri}: Google Cloud Platform Pub/Sub topic \"{Topic}\" already exists", Uri,
+                Server.Topic.Name);
         }
-        catch (Exception ex) {
-            logger.LogError(ex, "{Uri}: Error trying to initialize Google Cloud Platform Pub/Sub topic \"{Topic}\"", Uri, Server.Topic.Name);
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "{Uri}: Error trying to initialize Google Cloud Platform Pub/Sub topic \"{Topic}\"",
+                Uri, Server.Topic.Name);
 
             throw;
         }
 
-        if (!IsListener && !IsDeadLetter) return;
+        if (!IsListener && !IsDeadLetter)
+        {
+            return;
+        }
 
-        if (_transport.SubscriberApiClient is null) throw new WolverinePubsubTransportNotConnectedException();
+        if (_transport.SubscriberApiClient is null)
+        {
+            throw new WolverinePubsubTransportNotConnectedException();
+        }
 
-        try {
-            if (!IsDeadLetter) Server.Subscription.Name = Server.Subscription.Name.WithAssignedNodeNumber(_transport.AssignedNodeNumber);
+        try
+        {
+            if (!IsDeadLetter)
+            {
+                Server.Subscription.Name =
+                    Server.Subscription.Name.WithAssignedNodeNumber(_transport.AssignedNodeNumber);
+            }
 
-            var request = new Subscription {
+            var request = new Subscription
+            {
                 SubscriptionName = Server.Subscription.Name,
                 TopicAsTopicName = Server.Topic.Name,
                 AckDeadlineSeconds = Server.Subscription.Options.AckDeadlineSeconds,
@@ -126,53 +153,167 @@ public class PubsubEndpoint : Endpoint, IBrokerQueue {
                 RetryPolicy = Server.Subscription.Options.RetryPolicy
             };
 
-            if (Server.Subscription.Options.DeadLetterPolicy is not null) request.DeadLetterPolicy = Server.Subscription.Options.DeadLetterPolicy;
-            if (Server.Subscription.Options.ExpirationPolicy is not null) request.ExpirationPolicy = Server.Subscription.Options.ExpirationPolicy;
-            if (Server.Subscription.Options.Filter is not null) request.Filter = Server.Subscription.Options.Filter;
+            if (Server.Subscription.Options.DeadLetterPolicy is not null)
+            {
+                request.DeadLetterPolicy = Server.Subscription.Options.DeadLetterPolicy;
+            }
+
+            if (Server.Subscription.Options.ExpirationPolicy is not null)
+            {
+                request.ExpirationPolicy = Server.Subscription.Options.ExpirationPolicy;
+            }
+
+            if (Server.Subscription.Options.Filter is not null)
+            {
+                request.Filter = Server.Subscription.Options.Filter;
+            }
 
             await _transport.SubscriberApiClient.CreateSubscriptionAsync(request);
         }
-        catch (RpcException ex) {
-            if (ex.StatusCode != StatusCode.AlreadyExists) {
-                logger.LogError(ex, "{Uri}: Error trying to initialize Google Cloud Platform Pub/Sub subscription \"{Subscription}\" to topic \"{Topic}\"", Uri, Server.Subscription.Name, Server.Topic.Name);
+        catch (RpcException ex)
+        {
+            if (ex.StatusCode != StatusCode.AlreadyExists)
+            {
+                logger.LogError(ex,
+                    "{Uri}: Error trying to initialize Google Cloud Platform Pub/Sub subscription \"{Subscription}\" to topic \"{Topic}\"",
+                    Uri, Server.Subscription.Name, Server.Topic.Name);
 
                 throw;
             }
 
-            logger.LogInformation("{Uri}: Google Cloud Platform Pub/Sub subscription \"{Subscription}\" already exists", Uri, Server.Subscription.Name);
+            logger.LogInformation("{Uri}: Google Cloud Platform Pub/Sub subscription \"{Subscription}\" already exists",
+                Uri, Server.Subscription.Name);
         }
-        catch (Exception ex) {
-            logger.LogError(ex, "{Uri}: Error trying to initialize Google Cloud Platform Pub/Sub subscription \"{Subscription}\" to topic \"{Topic}\"", Uri, Server.Subscription.Name, Server.Topic.Name);
+        catch (Exception ex)
+        {
+            logger.LogError(ex,
+                "{Uri}: Error trying to initialize Google Cloud Platform Pub/Sub subscription \"{Subscription}\" to topic \"{Topic}\"",
+                Uri, Server.Subscription.Name, Server.Topic.Name);
 
             throw;
         }
     }
 
-    public async ValueTask<bool> CheckAsync() {
+    public async ValueTask<bool> CheckAsync()
+    {
         if (
             _transport.PublisherApiClient is null ||
             _transport.SubscriberApiClient is null
-        ) return false;
+        )
+        {
+            return false;
+        }
 
-        try {
+        try
+        {
             await _transport.PublisherApiClient.GetTopicAsync(Server.Topic.Name);
 
-            if (IsListener || IsDeadLetter) await _transport.SubscriberApiClient.GetSubscriptionAsync(Server.Subscription.Name);
+            if (IsListener || IsDeadLetter)
+            {
+                await _transport.SubscriberApiClient.GetSubscriptionAsync(Server.Subscription.Name);
+            }
 
             return true;
         }
-        catch {
+        catch
+        {
             return false;
         }
     }
 
-    public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver) {
-        if (Mode == EndpointMode.Inline) return ValueTask.FromResult<IListener>(new InlinePubsubListener(
-            this,
-            _transport,
-            receiver,
-            runtime
-        ));
+    public ValueTask<Dictionary<string, string>> GetAttributesAsync()
+    {
+        return ValueTask.FromResult(new Dictionary<string, string>());
+    }
+
+    public async ValueTask PurgeAsync(ILogger logger)
+    {
+        if (_transport.SubscriberApiClient is null || !IsListener)
+        {
+            return;
+        }
+
+        try
+        {
+            var response = await _transport.SubscriberApiClient.PullAsync(
+                Server.Subscription.Name,
+                50,
+                CallSettings.FromExpiration(Expiration.FromTimeout(TimeSpan.FromSeconds(2)))
+            );
+
+            if (!response.ReceivedMessages.Any())
+            {
+                return;
+            }
+
+            await _transport.SubscriberApiClient.AcknowledgeAsync(
+                Server.Subscription.Name,
+                response.ReceivedMessages.Select(x => x.AckId)
+            );
+        }
+        catch (Exception ex)
+        {
+            logger.LogDebug(
+                ex,
+                "{Uri}: Error trying to purge Google Cloud Platform Pub/Sub subscription {Subscription}",
+                Uri,
+                Server.Subscription.Name
+            );
+        }
+    }
+
+    public async ValueTask TeardownAsync(ILogger logger)
+    {
+        if (_transport.SubscriberApiClient is not null && IsListener)
+        {
+            await _transport.SubscriberApiClient.DeleteSubscriptionAsync(Server.Subscription.Name);
+        }
+
+        if (_transport.PublisherApiClient is not null)
+        {
+            await _transport.PublisherApiClient.DeleteTopicAsync(Server.Topic.Name);
+        }
+    }
+
+    public override async ValueTask InitializeAsync(ILogger logger)
+    {
+        if (_hasInitialized)
+        {
+            return;
+        }
+
+        try
+        {
+            if (_transport.AutoProvision)
+            {
+                await SetupAsync(logger);
+            }
+
+            if (_transport.AutoPurgeAllQueues)
+            {
+                await PurgeAsync(logger);
+            }
+        }
+        catch (Exception ex)
+        {
+            throw new WolverinePubsubTransportException(
+                $"{Uri}: Error trying to initialize Google Cloud Platform Pub/Sub endpoint", ex);
+        }
+
+        _hasInitialized = true;
+    }
+
+    public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
+    {
+        if (Mode == EndpointMode.Inline)
+        {
+            return ValueTask.FromResult<IListener>(new InlinePubsubListener(
+                this,
+                _transport,
+                receiver,
+                runtime
+            ));
+        }
 
         return ValueTask.FromResult<IListener>(new BatchedPubsubListener(
             this,
@@ -182,12 +323,15 @@ public class PubsubEndpoint : Endpoint, IBrokerQueue {
         ));
     }
 
-    public override bool TryBuildDeadLetterSender(IWolverineRuntime runtime, out ISender? deadLetterSender) {
-        if (DeadLetterName.IsNotEmpty()) {
+    public override bool TryBuildDeadLetterSender(IWolverineRuntime runtime, out ISender? deadLetterSender)
+    {
+        if (DeadLetterName.IsNotEmpty())
+        {
             var initialized = _transport.Topics.Contains(DeadLetterName);
             var dl = _transport.Topics[DeadLetterName];
 
-            if (!initialized) {
+            if (!initialized)
+            {
                 dl.Server.Topic.Options = _transport.DeadLetter.Topic;
                 dl.Server.Subscription.Options = _transport.DeadLetter.Subscription;
             }
@@ -206,64 +350,41 @@ public class PubsubEndpoint : Endpoint, IBrokerQueue {
         return false;
     }
 
-    public ValueTask<Dictionary<string, string>> GetAttributesAsync() => ValueTask.FromResult(new Dictionary<string, string>());
-
-    public async ValueTask PurgeAsync(ILogger logger) {
-        if (_transport.SubscriberApiClient is null || !IsListener) return;
-
-        try {
-            var response = await _transport.SubscriberApiClient.PullAsync(
-                Server.Subscription.Name,
-                maxMessages: 50,
-                CallSettings.FromExpiration(Expiration.FromTimeout(TimeSpan.FromSeconds(2)))
-            );
-
-            if (!response.ReceivedMessages.Any()) return;
-
-            await _transport.SubscriberApiClient.AcknowledgeAsync(
-                Server.Subscription.Name,
-                response.ReceivedMessages.Select(x => x.AckId)
-            );
+    internal async Task SendMessageAsync(Envelope envelope, ILogger logger)
+    {
+        if (_transport.PublisherApiClient is null)
+        {
+            throw new WolverinePubsubTransportNotConnectedException();
         }
-        catch (Exception ex) {
-            logger.LogDebug(
-                ex,
-                "{Uri}: Error trying to purge Google Cloud Platform Pub/Sub subscription {Subscription}",
-                Uri,
-                Server.Subscription.Name
-            );
+
+        if (!_hasInitialized)
+        {
+            await InitializeAsync(logger);
         }
-    }
-
-    public async ValueTask TeardownAsync(ILogger logger) {
-        if (_transport.SubscriberApiClient is not null && IsListener)
-            await _transport.SubscriberApiClient.DeleteSubscriptionAsync(Server.Subscription.Name);
-
-        if (_transport.PublisherApiClient is not null) await _transport.PublisherApiClient.DeleteTopicAsync(Server.Topic.Name);
-    }
-
-    internal async Task SendMessageAsync(Envelope envelope, ILogger logger) {
-        if (_transport.PublisherApiClient is null) throw new WolverinePubsubTransportNotConnectedException();
-
-        if (!_hasInitialized) await InitializeAsync(logger);
 
         var message = new PubsubMessage();
 
         Mapper.MapEnvelopeToOutgoing(envelope, message);
 
-        await _transport.PublisherApiClient.PublishAsync(new() {
+        await _transport.PublisherApiClient.PublishAsync(new PublishRequest
+        {
             TopicAsTopicName = Server.Topic.Name,
             Messages = { message }
         });
     }
 
-    internal void ConfigureDeadLetter(Action<PubsubEndpoint> configure) {
-        if (DeadLetterName.IsEmpty()) return;
+    internal void ConfigureDeadLetter(Action<PubsubEndpoint> configure)
+    {
+        if (DeadLetterName.IsEmpty())
+        {
+            return;
+        }
 
         var initialized = _transport.Topics.Contains(DeadLetterName);
         var dl = _transport.Topics[DeadLetterName];
 
-        if (!initialized) {
+        if (!initialized)
+        {
             dl.Server.Topic.Options = _transport.DeadLetter.Topic;
             dl.Server.Subscription.Options = _transport.DeadLetter.Subscription;
         }
@@ -275,10 +396,17 @@ public class PubsubEndpoint : Endpoint, IBrokerQueue {
         dl.IsDeadLetter = true;
     }
 
-    protected override ISender CreateSender(IWolverineRuntime runtime) {
-        if (_transport.PublisherApiClient is null) throw new WolverinePubsubTransportNotConnectedException();
+    protected override ISender CreateSender(IWolverineRuntime runtime)
+    {
+        if (_transport.PublisherApiClient is null)
+        {
+            throw new WolverinePubsubTransportNotConnectedException();
+        }
 
-        if (Mode == EndpointMode.Inline) return new InlinePubsubSender(this, runtime);
+        if (Mode == EndpointMode.Inline)
+        {
+            return new InlinePubsubSender(this, runtime);
+        }
 
         return new BatchedSender(
             this,
@@ -288,5 +416,8 @@ public class PubsubEndpoint : Endpoint, IBrokerQueue {
         );
     }
 
-    protected override bool supportsMode(EndpointMode mode) => true;
+    protected override bool supportsMode(EndpointMode mode)
+    {
+        return true;
+    }
 }

@@ -9,39 +9,49 @@ using Xunit;
 
 namespace Wolverine.Pubsub.Tests;
 
-public class PubsubEndpointTests {
-    private PubsubTransport createTransport() => new("wolverine") {
-        PublisherApiClient = Substitute.For<PublisherServiceApiClient>(),
-        SubscriberApiClient = Substitute.For<SubscriberServiceApiClient>(),
-        EmulatorDetection = EmulatorDetection.EmulatorOnly,
-    };
+public class PubsubEndpointTests
+{
+    private PubsubTransport createTransport()
+    {
+        return new PubsubTransport("wolverine")
+        {
+            PublisherApiClient = Substitute.For<PublisherServiceApiClient>(),
+            SubscriberApiClient = Substitute.For<SubscriberServiceApiClient>(),
+            EmulatorDetection = EmulatorDetection.EmulatorOnly
+        };
+    }
 
     [Fact]
-    public void default_dead_letter_name_is_null() {
+    public void default_dead_letter_name_is_null()
+    {
         new PubsubEndpoint("foo", createTransport())
             .DeadLetterName.ShouldBeNull();
     }
 
     [Fact]
-    public void default_mode_is_buffered() {
+    public void default_mode_is_buffered()
+    {
         new PubsubEndpoint("foo", createTransport())
             .Mode.ShouldBe(EndpointMode.BufferedInMemory);
     }
 
     [Fact]
-    public void default_endpoint_name_is_topic_name() {
+    public void default_endpoint_name_is_topic_name()
+    {
         new PubsubEndpoint("top1", createTransport())
             .EndpointName.ShouldBe("top1");
     }
 
     [Fact]
-    public void uri() {
+    public void uri()
+    {
         new PubsubEndpoint("top1", createTransport())
             .Uri.ShouldBe(new Uri($"{PubsubTransport.ProtocolName}://wolverine/top1"));
     }
 
     [Fact]
-    public async Task initialize_with_no_auto_provision() {
+    public async Task initialize_with_no_auto_provision()
+    {
         var transport = createTransport();
         var topic = new PubsubEndpoint("foo", transport);
 
@@ -51,7 +61,8 @@ public class PubsubEndpointTests {
     }
 
     [Fact]
-    public async Task initialize_with_auto_provision() {
+    public async Task initialize_with_auto_provision()
+    {
         var transport = createTransport();
 
         transport.AutoProvision = true;
@@ -62,9 +73,10 @@ public class PubsubEndpointTests {
 
         await topic.InitializeAsync(NullLogger.Instance);
 
-        await transport.PublisherApiClient!.Received().CreateTopicAsync(Arg.Is(new Topic {
+        await transport.PublisherApiClient!.Received().CreateTopicAsync(Arg.Is(new Topic
+        {
             TopicName = topic.Server.Topic.Name,
-            MessageRetentionDuration = topic.Server.Topic.Options.MessageRetentionDuration,
+            MessageRetentionDuration = topic.Server.Topic.Options.MessageRetentionDuration
         }));
     }
 }

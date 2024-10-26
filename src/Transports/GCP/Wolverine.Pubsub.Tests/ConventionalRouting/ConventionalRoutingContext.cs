@@ -7,11 +7,14 @@ using Wolverine.Runtime.Routing;
 
 namespace Wolverine.Pubsub.Tests.ConventionalRouting;
 
-public abstract class ConventionalRoutingContext : IDisposable {
+public abstract class ConventionalRoutingContext : IDisposable
+{
     private IHost _host = default!;
 
-    internal IWolverineRuntime theRuntime {
-        get {
+    internal IWolverineRuntime theRuntime
+    {
+        get
+        {
             _host ??= WolverineHost.For(opts => opts
                 .UsePubsubTesting()
                 .AutoProvision()
@@ -25,14 +28,17 @@ public abstract class ConventionalRoutingContext : IDisposable {
         }
     }
 
-    public void Dispose() {
+    public void Dispose()
+    {
         _host?.Dispose();
     }
 
-    internal void ConfigureConventions(Action<PubsubMessageRoutingConvention> configure) {
+    internal void ConfigureConventions(Action<PubsubMessageRoutingConvention> configure)
+    {
         _host = Host
             .CreateDefaultBuilder()
-            .UseWolverine(opts => {
+            .UseWolverine(opts =>
+            {
                 opts
                     .UsePubsubTesting()
                     .AutoProvision()
@@ -43,15 +49,18 @@ public abstract class ConventionalRoutingContext : IDisposable {
             }).Start();
     }
 
-    internal IMessageRouter RoutingFor<T>() {
+    internal IMessageRouter RoutingFor<T>()
+    {
         return theRuntime.RoutingFor(typeof(T));
     }
 
-    internal void AssertNoRoutes<T>() {
+    internal void AssertNoRoutes<T>()
+    {
         RoutingFor<T>().ShouldBeOfType<EmptyMessageRouter<T>>();
     }
 
-    internal IMessageRoute[] PublishingRoutesFor<T>() {
+    internal IMessageRoute[] PublishingRoutesFor<T>()
+    {
         return RoutingFor<T>().ShouldBeOfType<MessageRouter<T>>().Routes;
     }
 }

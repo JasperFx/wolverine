@@ -6,11 +6,11 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\..\..\Wolverine\Wolverine.csproj" />
+        <ProjectReference Include="..\..\..\Wolverine\Wolverine.csproj"/>
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="Google.Cloud.PubSub.V1" Version="3.18.0" />
+        <PackageReference Include="Google.Cloud.PubSub.V1" Version="3.18.0"/>
     </ItemGroup>
 
 </Project>

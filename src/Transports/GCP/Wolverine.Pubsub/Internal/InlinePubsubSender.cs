@@ -4,33 +4,41 @@ using Wolverine.Transports.Sending;
 
 namespace Wolverine.Pubsub.Internal;
 
-public class InlinePubsubSender : ISender {
+public class InlinePubsubSender : ISender
+{
     private readonly PubsubEndpoint _endpoint;
     private readonly ILogger _logger;
-
-    public bool SupportsNativeScheduledSend => false;
-    public Uri Destination => _endpoint.Uri;
 
     public InlinePubsubSender(
         PubsubEndpoint endpoint,
         IWolverineRuntime runtime
-    ) {
+    )
+    {
         _endpoint = endpoint;
         _logger = runtime.LoggerFactory.CreateLogger<InlinePubsubSender>();
     }
 
-    public async Task<bool> PingAsync() {
+    public bool SupportsNativeScheduledSend => false;
+    public Uri Destination => _endpoint.Uri;
+
+    public async Task<bool> PingAsync()
+    {
         var envelope = Envelope.ForPing(Destination);
 
-        try {
+        try
+        {
             await SendAsync(envelope);
 
             return true;
         }
-        catch (Exception) {
+        catch (Exception)
+        {
             return false;
         }
     }
 
-    public async ValueTask SendAsync(Envelope envelope) => await _endpoint.SendMessageAsync(envelope, _logger);
+    public async ValueTask SendAsync(Envelope envelope)
+    {
+        await _endpoint.SendMessageAsync(envelope, _logger);
+    }
 }

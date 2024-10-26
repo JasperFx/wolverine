@@ -1,19 +1,21 @@
 using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
-using Wolverine.Pubsub.Internal;
 using Wolverine.Configuration;
 using Wolverine.Tracking;
 using Xunit;
 
 namespace Wolverine.Pubsub.Tests;
 
-public class send_and_receive : IAsyncLifetime {
+public class send_and_receive : IAsyncLifetime
+{
     private IHost _host = default!;
 
-    public async Task InitializeAsync() {
+    public async Task InitializeAsync()
+    {
         _host = await Host.CreateDefaultBuilder()
-            .UseWolverine(opts => {
+            .UseWolverine(opts =>
+            {
                 opts
                     .UsePubsubTesting()
                     .AutoProvision()
@@ -27,12 +29,14 @@ public class send_and_receive : IAsyncLifetime {
             }).StartAsync();
     }
 
-    public async Task DisposeAsync() {
+    public async Task DisposeAsync()
+    {
         await _host.StopAsync();
     }
 
     [Fact]
-    public void system_endpoints_disabled_by_default() {
+    public void system_endpoints_disabled_by_default()
+    {
         var transport = _host.GetRuntime().Options.Transports.GetOrCreate<PubsubTransport>();
         var endpoints = transport.Endpoints()
             .Where(x => x.Role == EndpointRole.System)
@@ -42,9 +46,11 @@ public class send_and_receive : IAsyncLifetime {
     }
 
     [Fact]
-    public async Task builds_system_endpoints() {
+    public async Task builds_system_endpoints()
+    {
         var host = await Host.CreateDefaultBuilder()
-            .UseWolverine(opts => {
+            .UseWolverine(opts =>
+            {
                 opts.UsePubsubTesting()
                     .AutoProvision()
                     .AutoPurgeOnStartup()
@@ -69,7 +75,8 @@ public class send_and_receive : IAsyncLifetime {
     }
 
     [Fact]
-    public async Task send_and_receive_a_single_message() {
+    public async Task send_and_receive_a_single_message()
+    {
         var message = new TestPubsubMessage("Josh Allen");
         var session = await _host.TrackActivity()
             .IncludeExternalTransports()
@@ -80,10 +87,14 @@ public class send_and_receive : IAsyncLifetime {
     }
 
     [Fact]
-    public async Task send_and_receive_many_messages() {
-        Func<IMessageBus, Task> sending = async bus => {
-            for (int i = 0; i < 10; i++)
+    public async Task send_and_receive_many_messages()
+    {
+        Func<IMessageBus, Task> sending = async bus =>
+        {
+            for (var i = 0; i < 10; i++)
+            {
                 await bus.PublishAsync(new TestPubsubMessage(Guid.NewGuid().ToString()));
+            }
         };
 
         await _host.TrackActivity()
@@ -95,6 +106,9 @@ public class send_and_receive : IAsyncLifetime {
 
 public record TestPubsubMessage(string Name);
 
-public static class TestPubsubMessageHandler {
-    public static void Handle(TestPubsubMessage message) { }
+public static class TestPubsubMessageHandler
+{
+    public static void Handle(TestPubsubMessage message)
+    {
+    }
 }
