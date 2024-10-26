@@ -1,8 +1,9 @@
+using Marten.Metadata;
 using Wolverine.Persistence.Sagas;
 
 namespace MartenTests.Saga;
 
-public class UserRegistrationSaga : Wolverine.Saga
+public class UserRegistrationSaga : Wolverine.Saga, IRevisioned
 {
     public string? Id { get; set; }
 
