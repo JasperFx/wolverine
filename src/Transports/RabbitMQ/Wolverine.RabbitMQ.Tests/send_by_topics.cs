@@ -8,6 +8,7 @@ using Wolverine.ComplianceTests;
 using Wolverine.ComplianceTests.Compliance;
 using Wolverine.Attributes;
 using Wolverine.Marten;
+using Wolverine.Runtime.Routing;
 using Wolverine.Tracking;
 using Xunit;
 
@@ -68,6 +69,20 @@ public class send_by_topics : IDisposable
         theGreenReceiver?.Dispose();
         theBlueReceiver?.Dispose();
         theThirdReceiver?.Dispose();
+    }
+
+    [Fact]
+    public void topic_name_needs_to_be_set_on_envelope_as_part_of_routing()
+    {
+        // Really a global Wolverine behavior test, but using Rabbit MQ as the subject
+        // Caused by https://github.com/JasperFx/wolverine/issues/1100
+        var runtime = theSender.GetRuntime();
+
+        var router = runtime.RoutingFor(typeof(PurpleMessage));
+        var envelopes = router.RouteForPublish(new PurpleMessage(), null);
+
+        var envelope = envelopes.Single();
+        envelope.TopicName.ShouldBe(TopicRouting.DetermineTopicName(typeof(PurpleMessage)));
     }
 
     internal async Task send_by_topic_sample()

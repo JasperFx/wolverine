@@ -85,6 +85,12 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
         // Delivery options win
         options?.Override(envelope);
 
+        // Will need the topic persisted, see https://github.com/JasperFx/wolverine/issues/1100
+        if (Sender.Endpoint.RoutingType == RoutingMode.ByTopic && envelope.TopicName.IsEmpty())
+        {
+            envelope.TopicName = TopicRouting.DetermineTopicName(envelope);
+        }
+
         if (envelope.IsScheduledForLater(DateTimeOffset.UtcNow))
         {
             if (IsLocal)
