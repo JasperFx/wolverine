@@ -1,7 +1,7 @@
 # Using Google Cloud Platform (GCP) Pub/Sub
 
 ::: tip
-Wolverine.AzureServiceBus is able to support inline, buffered, or durable endpoints.
+Wolverine.Pubsub is able to support inline, buffered, or durable endpoints.
 :::
 
 Wolverine supports [GCP Pub/Sub](https://cloud.google.com/pubsub) as a messaging transport through the WolverineFx.Pubsub package.
