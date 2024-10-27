@@ -116,6 +116,8 @@ public class PublishingExpression : IPublishToExpression
     /// <returns></returns>
     public PublishingExpression MessagesFromNamespace(string @namespace)
     {
+        AutoAddSubscriptions = true;
+        
         _subscriptions.Add(new Subscription
         {
             Match = @namespace,
@@ -144,6 +146,7 @@ public class PublishingExpression : IPublishToExpression
     public PublishingExpression MessagesFromAssembly(Assembly assembly)
     {
         _subscriptions.Add(new Subscription(assembly));
+        AutoAddSubscriptions = true;
         return this;
     }
 

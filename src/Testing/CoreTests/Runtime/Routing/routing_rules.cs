@@ -1,6 +1,8 @@
 using System.Diagnostics;
+using JasperFx.Core.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Module2;
 using Wolverine.ComplianceTests;
 using Wolverine.Attributes;
 using Wolverine.Configuration;
@@ -13,7 +15,7 @@ using Xunit;
 
 namespace CoreTests.Runtime.Routing;
 
-public class routing_precedence
+public class routing_rules
 {
     [Fact]
     public async Task local_routing_is_applied_automatically()
@@ -205,6 +207,25 @@ public class routing_precedence
         var collection = host.Services.GetRequiredService<IWolverineRuntime>();
         collection.FindInvoker(typeof(RedMessage))
             .ShouldBeOfType<NoHandlerExecutor>();
+    }
+
+    // This one is for https://github.com/JasperFx/wolverine/issues/1099
+    [Fact]
+    public async Task route_with_fluent_interface()
+    {
+        var port = PortFinder.GetAvailablePort();
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                //opts.Discovery.IncludeAssembly(typeof(Module2Message1).Assembly);
+                opts.Publish().MessagesFromAssembly(typeof(Module2Message1).Assembly).ToPort(port);
+
+            }).StartAsync();
+        
+        var bus = host.MessageBus();
+        var envelopes = bus.PreviewSubscriptions(new Module2Message1());
+        
+        envelopes.Single().Destination.ShouldBe(new Uri("tcp://localhost:" + port));
     }
 }
 
