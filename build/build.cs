@@ -137,6 +137,7 @@ end
             "./src/Transports/MQTT/Wolverine.MQTT",
             "./src/Transports/Kafka/Wolverine.Kafka",
             "./src/Transports/Pulsar/Wolverine.Pulsar",
+            "./src/Transports/GCP/Wolverine.Pubsub",
             "./src/Persistence/Wolverine.RDBMS",
             "./src/Persistence/Wolverine.Postgresql",
             "./src/Persistence/Wolverine.EntityFrameworkCore",
