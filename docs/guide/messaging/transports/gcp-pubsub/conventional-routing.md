@@ -17,7 +17,6 @@ var host = await Host.CreateDefaultBuilder()
         opts.UsePubsub("your-project-id")
             .UseConventionalRouting(convention =>
             {
-
                 // Optionally override the default queue naming scheme
                 convention.TopicNameForSender(t => t.Namespace)
 
@@ -42,9 +41,8 @@ var host = await Host.CreateDefaultBuilder()
                         // Similarly, use the message type and/or wolverine runtime
                         // to customize the message sending
                     });
-                    
             });
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/DocumentationSamples.cs#L135-L168' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conventional_routing_for_pubsub' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/DocumentationSamples.cs#L129-L164' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conventional_routing_for_pubsub' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->

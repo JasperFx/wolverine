@@ -26,10 +26,9 @@ var host = await Host.CreateDefaultBuilder()
             // Optionally purge all subscriptions on application startup.
             // Warning though, this is potentially slow
             .AutoPurgeOnStartup();
-
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/DocumentationSamples.cs#L17-L29' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_basic_setup_to_pubsub' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/DocumentationSamples.cs#L15-L30' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_basic_setup_to_pubsub' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 If you'd like to connect to a GCP Pub/Sub emulator running on your development box,
@@ -47,10 +46,9 @@ var host = await Host.CreateDefaultBuilder()
             // to EmulatorDetection.EmulatorOrProduction. But you can
             // supply your own, like EmulatorDetection.EmulatorOnly
             .UseEmulatorDetection();
-
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/DocumentationSamples.cs#L38-L48' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_connect_to_pubsub_emulator' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/DocumentationSamples.cs#L35-L48' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_connect_to_pubsub_emulator' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Request/Reply
@@ -67,14 +65,9 @@ If your application has permissions to create topics and subscriptions in GCP Pu
 var host = await Host.CreateDefaultBuilder()
     .UseWolverine(opts =>
     {
-        opts.UseAzureServiceBusTesting()
-            .AutoProvision().AutoPurgeOnStartup()
+        opts.UsePubsub("your-project-id")
             .EnableSystemEndpoints();
-
-        opts.ListenToAzureServiceBusQueue("send_and_receive");
-
-        opts.PublishAllMessages().ToAzureServiceBusQueue("send_and_receive");
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/DocumentationSamples.cs#L57-L63' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_enable_system_endpoints_in_pubsub' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/DocumentationSamples.cs#L53-L62' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_enable_system_endpoints_in_pubsub' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->

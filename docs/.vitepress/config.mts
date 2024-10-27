@@ -149,6 +149,13 @@ const config: UserConfig<DefaultTheme.Config> = {
                                         {text: 'Interoperability', link:'/guide/messaging/transports/sqs/interoperability'}
                                     ]},
                                 {text: 'TCP', link: '/guide/messaging/transports/tcp'},
+                                {text: 'Google PubSub', link: '/guide/messaging/transports/gcp-pubsub/', items: [
+                                        {text: 'Publishing', link:'/guide/messaging/transports/gcp-pubsub/publishing'},
+                                        {text: 'Listening', link:'/guide/messaging/transports/gcp-pubsub/listening'},
+                                        {text: 'Dead Letter Queues', link:'/guide/messaging/transports/gcp-pubsub/deadlettering'},
+                                        {text: 'Conventional Routing', link:'/guide/messaging/transports/gcp-pubsub/conventional-routing'},
+                                        {text: 'Interoperability', link:'/guide/messaging/transports/gcp-pubsub/interoperability'}
+                                    ]},
                                 {text: 'Sql Server', link: '/guide/messaging/transports/sqlserver'},
                                 {text: 'PostgreSQL', link: '/guide/messaging/transports/postgresql'},
                                 {text: 'MQTT', link: '/guide/messaging/transports/mqtt'},

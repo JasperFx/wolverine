@@ -17,23 +17,22 @@ var host = await Host.CreateDefaultBuilder()
             // You can optimize the throughput by running multiple listeners
             // in parallel
             .ListenerCount(5)
-
             .ConfigurePubsubSubscription(options =>
             {
-
                 // Optionally configure the subscription itself
-                options.DeadLetterPolicy = new() {
+                options.DeadLetterPolicy = new DeadLetterPolicy
+                {
                     DeadLetterTopic = "errors",
                     MaxDeliveryAttempts = 5
                 };
                 options.AckDeadlineSeconds = 60;
-                options.RetryPolicy = new() {
+                options.RetryPolicy = new RetryPolicy
+                {
                     MinimumBackoff = Duration.FromTimeSpan(TimeSpan.FromSeconds(1)),
                     MaximumBackoff = Duration.FromTimeSpan(TimeSpan.FromSeconds(10))
                 };
-
             });
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/DocumentationSamples.cs#L72-L100' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_listen_to_pubsub_topic' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/DocumentationSamples.cs#L67-L98' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_listen_to_pubsub_topic' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->

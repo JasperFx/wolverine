@@ -11,7 +11,9 @@ as shown in the following sample:
 ```cs
 public class CustomPubsubMapper : EnvelopeMapper<ReceivedMessage, PubsubMessage>, IPubsubEnvelopeMapper
 {
-    public CustomPubsubMapper(PubsubEndpoint endpoint) : base(endpoint) { }
+    public CustomPubsubMapper(PubsubEndpoint endpoint) : base(endpoint)
+    {
+    }
 
     public void MapIncomingToEnvelope(PubsubEnvelope envelope, ReceivedMessage incoming)
     {
@@ -22,7 +24,6 @@ public class CustomPubsubMapper : EnvelopeMapper<ReceivedMessage, PubsubMessage>
         // or by telling Wolverine separately what the default message type
         // is for a listening endpoint
         envelope.MessageType = typeof(Message1).ToMessageTypeName();
-
     }
 
     public void MapOutgoingToMessage(OutgoingMessageBatch outgoing, PubsubMessage message)
@@ -37,16 +38,19 @@ public class CustomPubsubMapper : EnvelopeMapper<ReceivedMessage, PubsubMessage>
 
     protected override void writeIncomingHeaders(ReceivedMessage incoming, Envelope envelope)
     {
-        if (incoming.Message.Attributes is null) return;
+        if (incoming.Message.Attributes is null)
+        {
+            return;
+        }
 
-        foreach (var pair in incoming.Message.Attributes) envelope.Headers[pair.Key] = pair.Value?.ToString();
+        foreach (var pair in incoming.Message.Attributes) envelope.Headers[pair.Key] = pair.Value;
     }
 
     protected override bool tryReadIncomingHeader(ReceivedMessage incoming, string key, out string? value)
     {
         if (incoming.Message.Attributes.TryGetValue(key, out var header))
         {
-            value = header.ToString();
+            value = header;
 
             return true;
         }
@@ -57,7 +61,7 @@ public class CustomPubsubMapper : EnvelopeMapper<ReceivedMessage, PubsubMessage>
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/DocumentationSamples.cs#L253-L299' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_custom_pubsub_mapper' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/DocumentationSamples.cs#L239-L293' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_custom_pubsub_mapper' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 To apply that mapper to specific endpoints, use this syntax on any type of GCP Pub/Sub endpoint:
@@ -74,5 +78,5 @@ using var host = await Host.CreateDefaultBuilder()
             .ConfigureSenders(s => s.InteropWith(e => new CustomPubsubMapper(e)));
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/DocumentationSamples.cs#L238-L245' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_custom_envelope_mapper_for_pubsub' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/DocumentationSamples.cs#L224-L235' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_custom_envelope_mapper_for_pubsub' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->

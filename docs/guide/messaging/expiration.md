@@ -99,5 +99,5 @@ on the message type as in this sample:
 [DeliverWithin(5)]
 public record AccountUpdated(Guid AccountId, decimal Balance);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Middleware/AppWithMiddleware/Account.cs#L157-L164' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_deliver_within_attribute' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Middleware/AppWithMiddleware/Account.cs#L164-L171' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_deliver_within_attribute' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
