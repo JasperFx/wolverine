@@ -13,6 +13,7 @@ public class PubsubTopicOptions
 {
     public CreateTopicOptions Options = new();
     public TopicName Name { get; set; } = default!;
+	public Func<Envelope, string?> OrderBy = e => null;
 }
 
 public class CreateTopicOptions

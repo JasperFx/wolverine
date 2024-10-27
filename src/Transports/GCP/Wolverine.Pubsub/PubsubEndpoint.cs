@@ -363,8 +363,11 @@ public class PubsubEndpoint : Endpoint, IBrokerQueue
         }
 
         var message = new PubsubMessage();
+        var orderBy = Server.Topic.OrderBy(envelope);
 
         Mapper.MapEnvelopeToOutgoing(envelope, message);
+
+        message.OrderingKey = envelope.GroupId ?? orderBy ?? message.OrderingKey;
 
         await _transport.PublisherApiClient.PublishAsync(new PublishRequest
         {
