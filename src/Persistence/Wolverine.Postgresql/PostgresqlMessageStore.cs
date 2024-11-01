@@ -47,8 +47,15 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>, IData
 
 
     public PostgresqlMessageStore(DatabaseSettings databaseSettings, DurabilitySettings settings, NpgsqlDataSource dataSource,
-        ILogger<PostgresqlMessageStore> logger) : this(databaseSettings, settings, dataSource, logger, Array.Empty<SagaTableDefinition>())
+        ILogger<PostgresqlMessageStore> logger) : this(databaseSettings, settings, GetPrimaryNpgsqlNodeIfPossible(dataSource), logger, Array.Empty<SagaTableDefinition>())
     {
+    }
+
+    private static NpgsqlDataSource GetPrimaryNpgsqlNodeIfPossible(NpgsqlDataSource dataSource)
+    {
+        if (dataSource is NpgsqlMultiHostDataSource multiHost)
+            return multiHost.WithTargetSession(TargetSessionAttributes.Primary);
+        return dataSource;
     }
 
     public PostgresqlMessageStore(DatabaseSettings databaseSettings, DurabilitySettings settings, NpgsqlDataSource dataSource,
