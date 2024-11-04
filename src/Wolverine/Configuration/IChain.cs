@@ -1,4 +1,5 @@
 using System.Reflection;
+using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
@@ -98,6 +99,8 @@ public interface IChain
     /// </summary>
     /// <param name="type"></param>
     public void AddDependencyType(Type type);
+
+    void ApplyImpliedMiddlewareFromHandlers(GenerationRules generationRules);
 }
 
 #endregion

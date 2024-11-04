@@ -114,7 +114,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
         applyAttributesAndConfigureMethods(_parent.Rules, _parent.Container);
 
         // Add Before/After methods from the current handler
-        applyImpliedMiddlewareFromHandlers(_parent.Rules);
+        ApplyImpliedMiddlewareFromHandlers(_parent.Rules);
 
         foreach (var call in Middleware.OfType<MethodCall>().ToArray())
         {

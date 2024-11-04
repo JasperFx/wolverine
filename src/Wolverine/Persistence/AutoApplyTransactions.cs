@@ -18,6 +18,7 @@ internal class AutoApplyTransactions : IChainPolicy
 
         foreach (var chain in chains.Where(x => !x.HasAttribute<TransactionalAttribute>()))
         {
+            chain.ApplyImpliedMiddlewareFromHandlers(rules);
             var potentials = providers.Where(x => x.CanApply(chain, container)).ToArray();
             if (potentials.Length == 1)
             {
