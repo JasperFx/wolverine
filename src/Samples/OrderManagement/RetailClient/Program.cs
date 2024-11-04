@@ -9,6 +9,7 @@ using Microsoft.Extensions.Hosting;
 using RetailClient;
 using RetailClient.Data;
 using Wolverine;
+using Wolverine.Marten;
 using Wolverine.RabbitMQ;
 
 var host = Host.CreateDefaultBuilder(args)
@@ -23,8 +24,9 @@ var host = Host.CreateDefaultBuilder(args)
                 {
                     options.Connection(Servers.PostgresConnectionString);
                     options.Events.StreamIdentity = StreamIdentity.AsString;
+                    options.DisableNpgsqlLogging = true;
                 }
-            ).InitializeWith(new InitialData(InitialDatasets.Customers));
+            ).InitializeWith(new InitialData(InitialDatasets.Customers)).IntegrateWithWolverine();
         }
     )
     .UseWolverine(

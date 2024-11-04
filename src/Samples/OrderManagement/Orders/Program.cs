@@ -10,6 +10,7 @@ using Microsoft.Extensions.Hosting;
 using Npgsql;
 using Orders;
 using Wolverine;
+using Wolverine.Marten;
 using Wolverine.RabbitMQ;
 
 var hostBuilder = Host.CreateDefaultBuilder(args);
@@ -25,14 +26,15 @@ hostBuilder.ConfigureServices(
                     options.DisableNpgsqlLogging = true;
                 }
             )
-            .UseLightweightSessions();
-        // .IntegrateWithWolverine();
+            .UseLightweightSessions().IntegrateWithWolverine();
     }
 );
 hostBuilder
     .UseWolverine(
         options =>
         {
+            options.Policies.AutoApplyTransactions();
+            
             options
                 .ListenToRabbitQueue(
                     "new-orders",
