@@ -26,7 +26,20 @@ internal class JsonOnlyMapper : IKafkaEnvelopeMapper
     public void MapEnvelopeToOutgoing(Envelope envelope, Message<string, string> outgoing)
     {
         outgoing.Key = envelope.GroupId;
-        outgoing.Value = JsonSerializer.Serialize(envelope.Message, _options);
+
+        if (envelope.Data != null && envelope.Data.Any())
+        {
+            outgoing.Value = Encoding.Default.GetString(envelope.Data);
+        }
+        else if (envelope.Message != null)
+        {
+            outgoing.Value = JsonSerializer.Serialize(envelope.Message, _options);
+        }
+        else
+        {
+            throw new InvalidOperationException(
+                $"Envelope {envelope.Id} has neither {nameof(envelope.Data)} nor {nameof(Envelope.Message)}");
+        }
     }
 
     public void MapIncomingToEnvelope(Envelope envelope, Message<string, string> incoming)
