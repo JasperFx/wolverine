@@ -11,11 +11,13 @@ using Weasel.Core;
 using Weasel.SqlServer;
 using Weasel.SqlServer.Tables;
 using Wolverine;
+using Wolverine.Attributes;
 using Wolverine.EntityFrameworkCore;
 using Wolverine.EntityFrameworkCore.Internals;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
 using Wolverine.SqlServer;
+using Wolverine.Tracking;
 using Wolverine.Transports;
 
 namespace EfCoreTests;
@@ -35,7 +37,7 @@ public class EFCorePersistenceContext : BaseContext
                 options.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString);
                 options.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
                 options.UseEntityFrameworkCoreTransactions();
-
+                
                 options.Policies.ConfigureConventionalLocalRouting()
                     .CustomizeQueues((_, q) => q.UseDurableInbox());
             });
@@ -43,6 +45,7 @@ public class EFCorePersistenceContext : BaseContext
         ItemsTable = new Table("items");
         ItemsTable.AddColumn<Guid>("Id").AsPrimaryKey();
         ItemsTable.AddColumn<string>("Name");
+        ItemsTable.AddColumn<bool>("Approved");
     }
 
     public Table ItemsTable { get; }
@@ -60,6 +63,40 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
     public Table ItemsTable { get; }
 
     public IHost Host { get; }
+    
+    
+    [Fact]
+    public async Task using_dbcontext_in_middleware()
+    {
+        await withItemsTable();
+        
+        var item = new Item { Id = Guid.NewGuid(), Name = "Hey"};
+        await saveItem(item);
+
+        await Host.InvokeMessageAndWaitAsync(new ApproveItem(item.Id));
+
+        var existing = await loadItem(item.Id);
+        existing.Approved.ShouldBeTrue();
+    }
+
+    private async Task<Item> loadItem(Guid id)
+    {
+        using var nested = Host.Services.CreateScope();
+
+        var context = nested.ServiceProvider.GetRequiredService<SampleDbContext>();
+        var item = await context.Items.FindAsync(id);
+
+        return item;
+    }
+
+    private async Task saveItem(Item item)
+    {
+        using var nested = Host.Services.CreateScope();
+
+        var context = nested.ServiceProvider.GetRequiredService<SampleDbContext>();
+        context.Items.Add(item);
+        await context.SaveChangesAsync();
+    }
 
     [Fact]
     public void service_registrations()
@@ -459,6 +496,7 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
         loadedEnvelope.OwnerId.ShouldBe(envelope.OwnerId);
         loadedEnvelope.Attempts.ShouldBe(envelope.Attempts);
     }
+
 }
 
 public class PassRecorder
@@ -492,4 +530,20 @@ public class Pass
 {
     public string From { get; set; }
     public string To { get; set; }
+}
+
+public record ApproveItem(Guid Id);
+
+public static class ApproveItemHandler
+{
+    public static ValueTask<Item> LoadAsync(ApproveItem command, SampleDbContext dbContext)
+    {
+        return dbContext.Items.FindAsync(command.Id);
+    }
+
+    [Transactional]
+    public static void Handle(ApproveItem command, Item item)
+    {
+        item.Approved = true;
+    }
 }

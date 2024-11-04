@@ -21,6 +21,7 @@ public class SampleDbContext : DbContext
             map.ToTable("items");
             map.HasKey(x => x.Id);
             map.Property(x => x.Name);
+            map.Property(x => x.Approved);
         });
     }
 }

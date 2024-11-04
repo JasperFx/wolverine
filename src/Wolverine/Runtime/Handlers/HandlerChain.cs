@@ -416,6 +416,8 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         if (!_hasConfiguredFrames)
         {
             _hasConfiguredFrames = true;
+            
+            
 
             applyAttributesAndConfigureMethods(rules, container);
 
@@ -427,7 +429,7 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
                          .OfType<ModifyChainAttribute>()) attribute.Modify(this, rules, container);
         }
 
-        applyImpliedMiddlewareFromHandlers(rules);
+        ApplyImpliedMiddlewareFromHandlers(rules);
     }
 
     protected IEnumerable<Frame> determineHandlerReturnValueFrames()

@@ -14,6 +14,7 @@ public class TransactionalAttribute : ModifyChainAttribute
 {
     public override void Modify(IChain chain, GenerationRules rules, IServiceContainer container)
     {
+        chain.ApplyImpliedMiddlewareFromHandlers(rules);
         var transactionFrameProvider = rules.As<GenerationRules>().GetPersistenceProviders(chain, container);
         transactionFrameProvider.ApplyTransactionSupport(chain, container);
     }

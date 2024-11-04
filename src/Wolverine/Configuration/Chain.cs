@@ -125,7 +125,9 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
         var genericMethodAtts = handlers.SelectMany(x => x.Method.GetCustomAttributes<ModifyChainAttribute>());
 
         foreach (var attribute in genericHandlerAtts.Concat(genericMethodAtts))
+        {
             attribute.Modify(this, rules, container);
+        }
     }
 
     private static Type[] _typesToIgnore = new Type[]
@@ -223,8 +225,13 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
         }
     }
 
-    protected void applyImpliedMiddlewareFromHandlers(GenerationRules generationRules)
+    private bool _appliedImpliedMiddleware;
+    
+    public void ApplyImpliedMiddlewareFromHandlers(GenerationRules generationRules)
     {
+        if (_appliedImpliedMiddleware) return;
+        _appliedImpliedMiddleware = true;
+        
         var handlerTypes = HandlerCalls().Select(x => x.HandlerType).Distinct();
         foreach (var handlerType in handlerTypes)
         {
