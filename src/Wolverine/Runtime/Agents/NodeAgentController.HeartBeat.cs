@@ -92,7 +92,8 @@ public partial class NodeAgentController
 
     private async Task ejectStaleNodes(IReadOnlyList<WolverineNode> staleNodes)
     {
-        foreach (var staleNode in staleNodes)
+        // As per GH-1116, don't delete yourself!
+        foreach (var staleNode in staleNodes.Where(x => x.AssignedNodeNumber != _runtime.DurabilitySettings.AssignedNodeNumber))
         {
             await _persistence.DeleteAsync(staleNode.NodeId, staleNode.AssignedNodeNumber);
         }
