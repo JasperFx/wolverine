@@ -112,10 +112,7 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue
                 .Distinct()
                 .ToArray();
 
-            if (ackIds.Any())
-            {
-                await _acknowledge(ackIds);
-            }
+            await _acknowledge(ackIds);
         }, _logger, _cancellation.Token);
 
         _task = StartAsync();
@@ -245,7 +242,7 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue
                     await _receiver.ReceivedAsync(this, batched);
                 }
 
-                await _complete.PostAsync([new Envelope(message.AckId)]);
+                await _acknowledge([message.AckId]);
 
                 continue;
             }
