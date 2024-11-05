@@ -23,7 +23,7 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue
     protected readonly IWolverineRuntime _runtime;
     protected readonly PubsubTransport _transport;
 
-    protected Func<string[], Task> _acknowledge;
+    protected RetryBlock<string[]> _acknowledge;
     protected Task _task;
 
     public PubsubListener(
@@ -51,7 +51,7 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue
             NativeDeadLetterQueueEnabled = true;
         }
 
-        _acknowledge = async ackIds =>
+        _acknowledge = new RetryBlock<string[]>(async (ackIds, _) =>
         {
             if (transport.SubscriberApiClient is null)
             {
@@ -65,7 +65,7 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue
                     ackIds
                 );
             }
-        };
+        }, _logger, runtime.Cancellation);
 
         _deadLetter = new RetryBlock<Envelope>(async (e, _) =>
         {
@@ -76,7 +76,7 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue
 
             if (e is PubsubEnvelope pubsubEnvelope)
             {
-                await _acknowledge([pubsubEnvelope.AckId]);
+                await _acknowledge.PostAsync([pubsubEnvelope.AckId]);
             }
 
             await _deadLetterTopic.SendMessageAsync(e, _logger);
@@ -86,7 +86,7 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue
         {
             if (e is PubsubEnvelope pubsubEnvelope)
             {
-                await _acknowledge([pubsubEnvelope.AckId]);
+                await _acknowledge.PostAsync([pubsubEnvelope.AckId]);
             }
 
             await _endpoint.SendMessageAsync(e, _logger);
@@ -112,7 +112,7 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue
                 .Distinct()
                 .ToArray();
 
-            await _acknowledge(ackIds);
+            await _acknowledge.PostAsync(ackIds);
         }, _logger, _cancellation.Token);
 
         _task = StartAsync();
@@ -242,7 +242,7 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue
                     await _receiver.ReceivedAsync(this, batched);
                 }
 
-                await _acknowledge([message.AckId]);
+                await _acknowledge.PostAsync([message.AckId]);
 
                 continue;
             }

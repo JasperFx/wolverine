@@ -3,6 +3,7 @@ using Google.Cloud.PubSub.V1;
 using Microsoft.Extensions.Logging;
 using Wolverine.Runtime;
 using Wolverine.Transports;
+using Wolverine.Util.Dataflow;
 
 namespace Wolverine.Pubsub.Internal;
 
@@ -37,10 +38,10 @@ public class BatchedPubsubListener : PubsubListener
 
         await using var stream = streamingPull.GetResponseStream();
 
-        _acknowledge = ackIds => streamingPull.WriteAsync(new StreamingPullRequest
+        _acknowledge = new RetryBlock<string[]>((ackIds, _) => streamingPull.WriteAsync(new StreamingPullRequest
         {
             AckIds = { ackIds }
-        });
+        }), _logger, _runtime.Cancellation);
 
         try
         {
