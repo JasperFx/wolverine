@@ -18,7 +18,7 @@ public static ArithmeticResults PostJson(Question question)
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/TestEndpoints.cs#L83-L95' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_simple_wolverine_http_endpoint' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-In the method signature above, `Question` is the "request" type (the payload sent from the client to the server) and `Answer` is the "resource" type (what is being returned to the client).
+In the method signature above, `Question` is the "request" type (the payload sent from the client to the server) and `ArithmeticResults` is the "resource" type (what is being returned to the client).
 If instead that method were asynchronous like this:
 
 <!-- snippet: sample_simple_wolverine_http_endpoint_async -->
@@ -39,8 +39,8 @@ public static Task<ArithmeticResults> PostJsonAsync(Question question)
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/TestEndpoints.cs#L97-L111' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_simple_wolverine_http_endpoint_async' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-The resource type is still `Answer`. Likewise, if an endpoint returns `ValueTask<Answer>`, the resource type
-is also `Answer`, and Wolverine will worry about the asynchronous (or `return Task.CompletedTask;`) mechanisms
+The resource type is still `ArithmeticResults`. Likewise, if an endpoint returns `ValueTask<ArithmeticResults>`, the resource type
+is also `ArithmeticResults`, and Wolverine will worry about the asynchronous (or `return Task.CompletedTask;`) mechanisms
 for you in the generated code.
 
 ## Legal Endpoint Signatures
