@@ -156,6 +156,7 @@ const config: UserConfig<DefaultTheme.Config> = {
                                         {text: 'Conventional Routing', link:'/guide/messaging/transports/gcp-pubsub/conventional-routing'},
                                         {text: 'Interoperability', link:'/guide/messaging/transports/gcp-pubsub/interoperability'}
                                     ]},
+                                {text: 'Apache Pulsar', link: '/guide/messaging/transports/pulsar'},
                                 {text: 'Sql Server', link: '/guide/messaging/transports/sqlserver'},
                                 {text: 'PostgreSQL', link: '/guide/messaging/transports/postgresql'},
                                 {text: 'MQTT', link: '/guide/messaging/transports/mqtt'},
