@@ -128,7 +128,7 @@ The code up above is very close to a functional equivalent to our early Minimal 
 couple differences:
 
 1. In this case the HTTP endpoint will return a status code of `200` instead of the slightly more correct `201` that denotes
-   a creation. **Most of use aren't really going to care, but we'll come back to this a little later**
+   a creation. **Most of us aren't really going to care, but we'll come back to this a little later**
 2. In the call to `MapPostToWolverine()`, Wolverine.HTTP is able to make a couple performance optimizations that completely
    eliminates any usage of the application's IoC container at runtime and bypasses some dictionary lookups and object allocation
    that would have to occur in the simple "mediator" approach
