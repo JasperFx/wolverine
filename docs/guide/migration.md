@@ -66,10 +66,7 @@ The RabbitMq transport recieved a significant overhaul for 3.0.
 The RabbitMq .NET client has been updated to v7, bringing with it an internal rewrite to support async I/O and vastly improved memory usage & throughput. This version also supports OTEL out of the box.
 
 ::: warning
-`rabbitmq-dotnet-client` v7 is currently marked as an RC release and suitable for testing in pre-production environments.
-`Wolverine.RabbitMq` will continue to be marked as an RC release until rabbitmq-dotnet v7 is fully stable.
-
-If you use another RabbitMQ wrapper in your application, hold off on upgrading until it also supports v7.
+RabbitMq v7 is newly released. If you use another RabbitMQ wrapper/bus in your application, hold off on upgrading until it also supports v7.
 :::
 
 #### Conventional Routing Improvements
