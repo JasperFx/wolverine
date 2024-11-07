@@ -1,3 +1,4 @@
+using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
 using Wolverine.Configuration;
@@ -27,7 +28,22 @@ internal class RabbitMqSender : RabbitMqChannelAgent, ISender
         _exchangeName = new CachedString(endpoint.ExchangeName);
         _key = endpoint.RoutingKey();
 
-        _toRoutingKey = routingType == RoutingMode.Static ? _ => new CachedString(_key) : x => new CachedString(TopicRouting.DetermineTopicName(x));
+        _toRoutingKey = routingType == RoutingMode.Static ? _ => new CachedString(_key) : x =>
+        {
+            if (x.TopicName.IsEmpty() && x.Message == null)
+            {
+                try
+                {
+                    runtime.Pipeline.TryDeserializeEnvelope(x, out var _);
+                }
+                catch (Exception e)
+                {
+                    Logger.LogError(e, "Error trying to deserialize an envelope in order to determine the topic name");
+                }
+            }
+            
+            return new CachedString(TopicRouting.DetermineTopicName(x));
+        };
 
         _mapper = endpoint.BuildMapper(runtime);
         _endpoint = endpoint;
