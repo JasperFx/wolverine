@@ -96,7 +96,7 @@ public class Invoice
     public int Version { get; set; }
 }
 
-public record BadCommand(Guid Id);
+public record BadCommand(Guid XId);
 
 public record InvoiceApproved;
 

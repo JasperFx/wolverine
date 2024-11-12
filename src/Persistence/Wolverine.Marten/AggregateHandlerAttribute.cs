@@ -220,7 +220,7 @@ public class AggregateHandlerAttribute : ModifyChainAttribute
     {
         var conventionalMemberName = $"{aggregateType.Name}Id";
         var member = commandType.GetMembers().FirstOrDefault(x =>
-            x.HasAttribute<IdentityAttribute>() || x.Name.EqualsIgnoreCase(conventionalMemberName));
+            x.HasAttribute<IdentityAttribute>() || x.Name.EqualsIgnoreCase(conventionalMemberName) || x.Name.EqualsIgnoreCase("Id"));
 
         if (member == null)
         {
