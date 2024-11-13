@@ -224,16 +224,16 @@ public class StartStream<T> : IStartStream where T : class
     IReadOnlyList<object> IStartStream.Events => Events;
 }
 
-public class StoreDoc<T> : IMartenOp where T : notnull
+public class StoreDoc<T> : DocumentOp where T : notnull
 {
     private readonly T[] _documents;
 
-    public StoreDoc(params T[] documents)
+    public StoreDoc(params T[] documents) : base(documents)
     {
         _documents = documents;
     }
 
-    public void Execute(IDocumentSession session)
+    public override void Execute(IDocumentSession session)
     {
         session.Store(_documents);
     }
@@ -286,11 +286,11 @@ public class DeleteDoc<T> : DocumentOp where T : notnull
 
 public abstract class DocumentOp : IMartenOp
 {
-    public object Document { get; }
+    public object[] Documents { get; }
 
-    protected DocumentOp(object document)
+    protected DocumentOp(params object[] documents)
     {
-        Document = document;
+        Documents = documents;
     }
 
     public abstract void Execute(IDocumentSession session);
