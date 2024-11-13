@@ -24,18 +24,18 @@ public static class MartenOps
     /// <summary>
     /// Return a side effect of storing the specified document in Marten
     /// </summary>
-    /// <param name="document"></param>
+    /// <param name="documents"></param>
     /// <typeparam name="T"></typeparam>
     /// <returns></returns>
     /// <exception cref="ArgumentNullException"></exception>
-    public static StoreDoc<T> Store<T>(T document) where T : notnull
+    public static StoreDoc<T> Store<T>(params T[] documents) where T : notnull
     {
-        if (document == null)
+        if (documents == null)
         {
-            throw new ArgumentNullException(nameof(document));
+            throw new ArgumentNullException(nameof(documents));
         }
 
-        return new StoreDoc<T>(document);
+        return new StoreDoc<T>(documents);
     }
 
     /// <summary>
@@ -224,18 +224,18 @@ public class StartStream<T> : IStartStream where T : class
     IReadOnlyList<object> IStartStream.Events => Events;
 }
 
-public class StoreDoc<T> : DocumentOp where T : notnull
+public class StoreDoc<T> : IMartenOp where T : notnull
 {
-    private readonly T _document;
+    private readonly T[] _documents;
 
-    public StoreDoc(T document) : base(document)
+    public StoreDoc(params T[] documents)
     {
-        _document = document;
+        _documents = documents;
     }
 
-    public override void Execute(IDocumentSession session)
+    public void Execute(IDocumentSession session)
     {
-        session.Store(_document);
+        session.Store(_documents);
     }
 }
 
