@@ -357,7 +357,8 @@ public class multi_tenancy_detection_and_integration : IAsyncDisposable, IDispos
             x.WithRequestHeader("tenant", "green");
         });
 
-        var activity = result.Context.Features.Get<IHttpActivityFeature>()?.Activity;
+        var feature = result.Context.Features.Get<IHttpActivityFeature>();
+        var activity = feature?.Activity;
         activity.ShouldNotBeNull();
         activity.Tags.ShouldContain(x => x.Key == "tenant.id" && x.Value == "green");
     }
