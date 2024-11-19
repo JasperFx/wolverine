@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Security.Claims;
 using Alba;
 using Alba.Security;
@@ -357,7 +358,7 @@ public class multi_tenancy_detection_and_integration : IAsyncDisposable, IDispos
             x.WithRequestHeader("tenant", "green");
         });
 
-        var feature = result.Context.Features.Get<IHttpActivityFeature>();
+        var feature = result.Context.Features.Get<CustomActivityFeature>();
         var activity = feature?.Activity;
         activity.ShouldNotBeNull();
         activity.Tags.ShouldContain(x => x.Key == "tenant.id" && x.Value == "green");
@@ -373,8 +374,12 @@ public static class TenantedEndpoints
     }
 
     [WolverineGet("/tenant")]
-    public static string GetTenantIdFromWhatever(IMessageBus bus)
+    public static string GetTenantIdFromWhatever(IMessageBus bus, HttpContext httpContext)
     {
+        // IHttpActivityFeature.Activity is set to null after the request, so to access the
+        // Activity in the test we capture the Activity into a custom Feature 
+        httpContext.Features.Set(CustomActivityFeature.FromHttpContext(httpContext));
+
         return bus.TenantId;
     }
 
@@ -452,4 +457,17 @@ public class TenantTodo : ITenanted
     public string Id { get; set; }
     public string Description { get; set; }
     public string TenantId { get; set; }
+}
+
+// Custom HttpContext Feature used to capture the Activity
+// from IHttpActivityFeature.Activity, which is set to null by
+// the runtime (HostingApplication) so the activity instance can
+// be recycled.
+public record CustomActivityFeature(Activity? Activity)
+{
+    public static CustomActivityFeature FromHttpContext(HttpContext httpContext)
+    {
+        var activity = httpContext.Features.Get<IHttpActivityFeature>()?.Activity;
+        return new CustomActivityFeature(activity);
+    }
 }
