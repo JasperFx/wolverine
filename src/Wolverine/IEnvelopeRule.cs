@@ -1,3 +1,5 @@
+using Wolverine.Util;
+
 namespace Wolverine;
 
 /// <summary>
@@ -7,6 +9,48 @@ namespace Wolverine;
 public interface IEnvelopeRule
 {
     void Modify(Envelope envelope);
+}
+
+internal class MessageTypeRule : IEnvelopeRule
+{
+    private readonly Type _messageType;
+    private readonly string _messageTypeName;
+
+    public MessageTypeRule(Type messageType)
+    {
+        _messageType = messageType;
+        _messageTypeName = messageType.ToMessageTypeName();
+    }
+
+    public void Modify(Envelope envelope)
+    {
+        envelope.MessageType = _messageTypeName;
+    }
+
+    public override string ToString()
+    {
+        return $"{nameof(_messageType)} is {_messageType}, with MessageTypeName: {_messageTypeName}";
+    }
+}
+
+internal class TenantIdRule : IEnvelopeRule
+{
+    public string TenantId { get; }
+
+    public TenantIdRule(string tenantId)
+    {
+        TenantId = tenantId;
+    }
+
+    public void Modify(Envelope envelope)
+    {
+        envelope.TenantId = TenantId;
+    }
+
+    public override string ToString()
+    {
+        return $"{nameof(TenantId)}: {TenantId}";
+    }
 }
 
 internal class DeliverWithinRule : IEnvelopeRule
