@@ -216,6 +216,32 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
     public bool IsUsedForReplies { get; set; }
 
     public IList<IEnvelopeRule> OutgoingRules { get; } = new List<IEnvelopeRule>();
+    public IList<IEnvelopeRule> IncomingRules { get; } = new List<IEnvelopeRule>();
+
+    /// <summary>
+    /// In some cases, you may want to tell Wolverine that any message
+    /// coming into this endpoint are automatically tagged to a certain
+    /// tenant id
+    /// </summary>
+    public virtual string? TenantId { get; set; }
+    
+    internal IEnumerable<IEnvelopeRule> RulesForIncoming()
+    {
+        foreach (var rule in IncomingRules)
+        {
+            yield return rule;
+        }
+
+        if (MessageType != null)
+        {
+            yield return new MessageTypeRule(MessageType);
+        }
+
+        if (TenantId.IsNotEmpty())
+        {
+            yield return new TenantIdRule(TenantId);
+        }
+    }
 
     internal ISendingAgent? Agent { get; set; }
 
