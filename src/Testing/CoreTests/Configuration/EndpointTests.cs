@@ -1,3 +1,4 @@
+using NSubstitute;
 using Wolverine.ComplianceTests;
 using Wolverine.ComplianceTests.Compliance;
 using Wolverine.Configuration;
@@ -78,6 +79,34 @@ public class EndpointTests
         }
         
         envelope.TenantId.ShouldBe("one");
+    }
+
+    [Fact]
+    public void maybe_wrap_receiver_no_rules()
+    {
+        var endpoint = new TestEndpoint(EndpointRole.System);
+        endpoint.RulesForIncoming().Any().ShouldBeFalse();
+
+        var inner = Substitute.For<IReceiver>();
+        
+        endpoint.MaybeWrapReceiver(inner)
+            .ShouldBeSameAs(inner);
+    }
+
+    [Fact]
+    public void maybe_wrap_receiver_with_rules()
+    {
+        var endpoint = new TestEndpoint(EndpointRole.System);
+        endpoint.TenantId = "one";
+        
+        var inner = Substitute.For<IReceiver>();
+
+        var wrapped = endpoint.MaybeWrapReceiver(inner)
+            .ShouldBeOfType<ReceiverWithRules>();
+        
+        wrapped.Inner.ShouldBeSameAs(inner);
+        wrapped.Rules.Single().ShouldBeOfType<TenantIdRule>();
+
     }
 }
 

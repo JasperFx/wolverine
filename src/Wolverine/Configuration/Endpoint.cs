@@ -387,6 +387,12 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
     /// <returns></returns>
     public abstract ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver);
 
+    internal IReceiver MaybeWrapReceiver(IReceiver inner)
+    {
+        var rules = RulesForIncoming().ToArray();
+        return rules.Any() ? new ReceiverWithRules(inner, rules) : inner;
+    }
+    
     /// <summary>
     ///     Create new sending agent for this
     /// </summary>
