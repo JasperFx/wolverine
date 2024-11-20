@@ -10,41 +10,42 @@ public interface IReceiver : IDisposable
 
 internal class ReceiverWithRules : IReceiver
 {
-    private readonly IReceiver _inner;
-    private readonly IEnvelopeRule[] _rules;
-
     public ReceiverWithRules(IReceiver inner, IEnumerable<IEnvelopeRule> rules)
     {
-        _inner = inner;
-        _rules = rules.ToArray();
+        Inner = inner;
+        Rules = rules.ToArray();
     }
+
+    public IReceiver Inner { get; }
+
+    public IEnvelopeRule[] Rules { get; }
 
     public void Dispose()
     {
-        _inner.Dispose();
+        Inner.Dispose();
     }
 
     public ValueTask ReceivedAsync(IListener listener, Envelope[] messages)
     {
         foreach (var envelope in messages)
         {
-            foreach (var rule in _rules)
+            foreach (var rule in Rules)
             {
                 rule.Modify(envelope);
             }
         }
 
-        return _inner.ReceivedAsync(listener, messages);
+        return Inner.ReceivedAsync(listener, messages);
     }
 
     public ValueTask ReceivedAsync(IListener listener, Envelope envelope)
     {
-        foreach (var rule in _rules)
+        foreach (var rule in Rules)
         {
             rule.Modify(envelope);
         }
 
-        return _inner.ReceivedAsync(listener, envelope);
+        return Inner.ReceivedAsync(listener, envelope);
     }
 
     public async ValueTask DrainAsync()
