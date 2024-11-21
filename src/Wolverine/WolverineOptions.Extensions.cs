@@ -24,7 +24,21 @@ public sealed partial class WolverineOptions
 
         foreach (var extension in extensions)
         {
-            extension.Configure(this);
+            try
+            {
+                extension.Configure(this);
+            }
+            catch (InvalidOperationException e)
+            {
+                if (e.Message.Contains("The service collection cannot be modified because it is read-only."))
+                {
+                    throw new InvalidOperationException(
+                        "As of Wolverine 3.0, it's no longer supported to alter IoC service registrations through Wolverine extensions that are themselves registered in the IoC container",
+                        e);
+                }
+                
+                throw;
+            }
             AppliedExtensions.Add(extension);
         }
 

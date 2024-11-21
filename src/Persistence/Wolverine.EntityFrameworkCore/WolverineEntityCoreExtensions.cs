@@ -45,6 +45,9 @@ public static class WolverineEntityCoreExtensions
         }, ServiceLifetime.Scoped, ServiceLifetime.Singleton);
 
         services.AddSingleton<IWolverineExtension, EntityFrameworkCoreBackedPersistence>();
+        
+        services.AddScoped(typeof(IDbContextOutbox<>), typeof(DbContextOutbox<>));
+        services.AddScoped<IDbContextOutbox, DbContextOutbox>();
 
         services.AddSingleton<WolverineDbContextCustomizationOptions>(_ =>
             string.IsNullOrEmpty(wolverineDatabaseSchema)
@@ -61,6 +64,19 @@ public static class WolverineEntityCoreExtensions
     /// <param name="options"></param>
     public static void UseEntityFrameworkCoreTransactions(this WolverineOptions options)
     {
+        try
+        {
+            options.Services.AddScoped(typeof(IDbContextOutbox<>), typeof(DbContextOutbox<>));
+            options.Services.AddScoped<IDbContextOutbox, DbContextOutbox>();
+        }
+        catch (InvalidOperationException e)
+        {
+            if (!e.Message.Contains("The service collection cannot be modified because it is read-only."))
+            {
+                throw;
+            }
+        }
+        
         options.Include<EntityFrameworkCoreBackedPersistence>();
     }
 
