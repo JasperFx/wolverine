@@ -1,7 +1,7 @@
 using System.Globalization;
 using Marten;
-using Microsoft.AspNetCore.Mvc;
 using Wolverine.Http;
+using JasperFx.Core;
 
 namespace WolverineWebApi;
 
@@ -136,28 +136,8 @@ public static class QuerystringCollectionEndpoints
     {
         return string.Join(",", collection);
     }
-}
-
-public static class QuerystringEndpoints
-{
-
-    [WolverineGet("/querystring/enum")]
-    public static string UsingEnumQuerystring(Direction direction)
-    {
-        return direction.ToString();
-    }
-
-    [WolverineGet("/querystring/explicit")]
-    public static string UsingEnumQuerystring([FromQuery(Name = "name")]string value)
-    {
-        return value ?? "";
-    }
-
-    [WolverineGet("/querystring/enum/nullable")]
-    public static string UsingNullableEnumQuerystring(Direction? direction)
-    {
-        return direction?.ToString() ?? "none";
-    }
+    
+    
 }
 
 public class ArithmeticResults

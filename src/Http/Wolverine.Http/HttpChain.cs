@@ -317,6 +317,14 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
             if (parameter.ParameterType == typeof(string))
             {
                 variable = new ReadStringQueryStringValue(key).Variable;
+                variable.Name = key;
+                _querystringVariables.Add(variable);
+            }
+
+            if (parameter.ParameterType == typeof(string[]))
+            {
+                variable = new ParsedArrayQueryStringValue(parameter).Variable;
+                variable.Name = key;
                 _querystringVariables.Add(variable);
             }
 
@@ -330,10 +338,18 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
                     _querystringVariables.Add(variable);
                 }
             }
+            
+            if (parameter.ParameterType.IsArray && RouteParameterStrategy.CanParse(parameter.ParameterType.GetElementType()))
+            {
+                variable = new ParsedArrayQueryStringValue(parameter).Variable;
+                variable.Name = key;
+                _querystringVariables.Add(variable);
+            }
 
             if (ParsedCollectionQueryStringValue.CanParse(parameter.ParameterType))
             {
                 variable = new ParsedCollectionQueryStringValue(parameter).Variable;
+                variable.Name = key;
                 _querystringVariables.Add(variable);
             }
 
