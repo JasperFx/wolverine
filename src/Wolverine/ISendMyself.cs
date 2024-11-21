@@ -39,6 +39,18 @@ public static class ConfiguredMessageExtensions
     }
     
     /// <summary>
+    /// Create a cascading message tagged to a specific tenant id
+    /// </summary>
+    /// <param name="message"></param>
+    /// <param name="tenantId"></param>
+    /// <returns></returns>
+    public static DeliveryMessage<T> WithTenantId<T>(this DeliveryMessage<T> message, string tenantId)
+    {
+        message.Options.TenantId = tenantId;
+        return message;
+    }
+    
+    /// <summary>
     /// Create a cascading message tagged to a specific group id
     /// </summary>
     /// <param name="message"></param>
@@ -48,6 +60,19 @@ public static class ConfiguredMessageExtensions
     public static DeliveryMessage<T> WithGroupId<T>(this T message, string groupId)
     {
         return new DeliveryMessage<T>(message, new DeliveryOptions { GroupId = groupId });
+    }
+    
+    /// <summary>
+    /// Create a cascading message tagged to a specific group id
+    /// </summary>
+    /// <param name="message"></param>
+    /// <param name="groupId"></param>
+    /// <typeparam name="T"></typeparam>
+    /// <returns></returns>
+    public static DeliveryMessage<T> WithGroupId<T>(this DeliveryMessage<T> message, string groupId)
+    {
+        message.Options.GroupId = groupId;
+        return message;
     }
 
     /// <summary>
@@ -99,6 +124,18 @@ public static class ConfiguredMessageExtensions
     {
         return new ScheduledMessage<T>(message, time);
     }
+    
+    /// <summary>
+    ///     Schedule the inner outgoing message to be sent at the specified time
+    /// </summary>
+    /// <param name="message"></param>
+    /// <param name="time"></param>
+    /// <returns></returns>
+    public static DeliveryMessage<T> ScheduledAt<T>(this DeliveryMessage<T> message, DateTimeOffset time)
+    {
+        message.Options.ScheduledTime = time;
+        return message;
+    }
 
     /// <summary>
     ///     Schedule the inner outgoing message to be sent after the specified delay
@@ -106,9 +143,21 @@ public static class ConfiguredMessageExtensions
     /// <param name="message"></param>
     /// <param name="delay"></param>
     /// <returns></returns>
-    public static DelayedMessage<T> DelayedFor<T>(this T message, TimeSpan delay)
+    public static DeliveryMessage<T> DelayedFor<T>(this T message, TimeSpan delay)
     {
-        return new DelayedMessage<T>(message, delay);
+        return new DeliveryMessage<T>(message, new DeliveryOptions{ScheduleDelay = delay});
+    }
+    
+    /// <summary>
+    ///     Schedule the inner outgoing message to be sent after the specified delay
+    /// </summary>
+    /// <param name="message"></param>
+    /// <param name="delay"></param>
+    /// <returns></returns>
+    public static DeliveryMessage<T> DelayedFor<T>(this DeliveryMessage<T> message, TimeSpan delay)
+    {
+        message.Options.ScheduleDelay = delay;
+        return message;
     }
 
     /// <summary>
@@ -121,7 +170,18 @@ public static class ConfiguredMessageExtensions
     {
         return new RoutedToEndpointMessage<T>(endpointName, message, options);
     }
-
+    
+    /// <summary>
+    /// Send a message directly to the named endpoint as a cascading message
+    /// </summary>
+    /// <param name="message"></param>
+    /// <param name="endpointName"></param>
+    /// <returns></returns>
+    public static RoutedToEndpointMessage<T> ToEndpoint<T>(this DeliveryMessage<T> message, string endpointName)
+    {
+        return new RoutedToEndpointMessage<T>(endpointName, message.Message, message.Options);
+    }
+    
     /// <summary>
     /// Send a message directly to the specific destination as a cascading message
     /// </summary>
@@ -131,6 +191,17 @@ public static class ConfiguredMessageExtensions
     public static RoutedToEndpointMessage<T> ToDestination<T>(this T message, Uri destination, DeliveryOptions? options = null)
     {
         return new RoutedToEndpointMessage<T>(destination, message, options);
+    }
+
+    /// <summary>
+    /// Send a message directly to the specific destination as a cascading message
+    /// </summary>
+    /// <param name="message"></param>
+    /// <param name="destination"></param>
+    /// <returns></returns>
+    public static RoutedToEndpointMessage<T> ToDestination<T>(this DeliveryMessage<T> message, Uri destination)
+    {
+        return new RoutedToEndpointMessage<T>(destination, message.Message, message.Options);
     }
 
     /// <summary>
@@ -145,6 +216,19 @@ public static class ConfiguredMessageExtensions
     {
         return new TopicMessage<T>(message, topic, options);
     }
+    
+    /// <summary>
+    /// Send a message to the supplied topic
+    /// </summary>
+    /// <param name="message"></param>
+    /// <param name="topic">The topic name for the underlying message broker</param>
+    /// <param name="options">Optional delivery options</param>
+    /// <typeparam name="T"></typeparam>
+    /// <returns></returns>
+    public static TopicMessage<T> ToTopic<T>(this DeliveryMessage<T> message, string topic)
+    {
+        return new TopicMessage<T>(message.Message, topic, message.Options);
+    }
 }
 
 public record TopicMessage<T>(T Message, string Topic, DeliveryOptions? Options) : ISendMyself
@@ -152,16 +236,6 @@ public record TopicMessage<T>(T Message, string Topic, DeliveryOptions? Options)
     ValueTask ISendMyself.ApplyAsync(IMessageContext context)
     {
         return context.BroadcastToTopicAsync(Topic, Message!, Options);
-    }
-}
-
-/// <summary>
-///     Wrapper for a cascading message that has delayed delivery
-/// </summary>
-public class DelayedMessage<T> : DeliveryMessage<T>
-{
-    public DelayedMessage(T message, TimeSpan delay) : base(message, new DeliveryOptions { ScheduleDelay = delay })
-    {
     }
 }
 
