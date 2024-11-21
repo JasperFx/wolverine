@@ -1,4 +1,8 @@
+using JasperFx.CodeGeneration.Frames;
 using Shouldly;
+using Wolverine.Http.CodeGen;
+using Wolverine.Runtime;
+using WolverineWebApi;
 
 namespace Wolverine.Http.Tests;
 
@@ -198,6 +202,68 @@ public class using_querystring_parameters : IntegrationContext
         body.ReadAsText().ShouldBe($"North,East,South");
     }
 
+    [Fact]
+    public async Task using_string_array_completely_hit()
+    {
+        var body = await Scenario(x =>
+        {
+            x.Get
+                .Url("/querystring/stringarray")
+                .QueryString("values", "foo")
+                .QueryString("values", "bar")
+                .QueryString("values", "baz");
+
+            x.Header("content-type").SingleValueShouldEqual("text/plain");
+        });
+
+        body.ReadAsText().ShouldBe("foo,bar,baz");
+    }
+    
+    [Fact]
+    public async Task using_string_array_completely_miss()
+    {
+        var body = await Scenario(x =>
+        {
+            x.Get
+                .Url("/querystring/stringarray");
+
+            x.Header("content-type").SingleValueShouldEqual("text/plain");
+        });
+
+        body.ReadAsText().ShouldBe("none");
+    }
+    
+    [Fact]
+    public async Task using_int_array_completely_hit()
+    {
+        var body = await Scenario(x =>
+        {
+            x.Get
+                .Url("/querystring/intarray")
+                .QueryString("values", "4")
+                .QueryString("values", "2")
+                .QueryString("values", "1");
+
+            x.Header("content-type").SingleValueShouldEqual("text/plain");
+        });
+
+        body.ReadAsText().ShouldBe("1,2,4");
+    }
+    
+    [Fact]
+    public async Task using_int_array_completely_miss()
+    {
+        var body = await Scenario(x =>
+        {
+            x.Get
+                .Url("/querystring/intarray");
+
+            x.Header("content-type").SingleValueShouldEqual("text/plain");
+        });
+
+        body.ReadAsText().ShouldBe("none");
+    }
+
     #region sample_query_string_usage
 
     [Fact]
@@ -238,4 +304,16 @@ public class using_querystring_parameters : IntegrationContext
     }
 
     #endregion
+
+    [Fact]
+    public void trouble_shoot_querystring_matching()
+    {
+        var method = new MethodCall(typeof(QuerystringEndpoints), "IntArray");
+        var chain = new HttpChain(method, new HttpGraph(new WolverineOptions(), ServiceContainer.Empty()));
+
+        var parameter = method.Method.GetParameters().Single();
+
+        var variable = chain.TryFindOrCreateQuerystringValue(parameter);
+        variable.Creator.ShouldBeOfType<ParsedArrayQueryStringValue>();
+    }
 }
