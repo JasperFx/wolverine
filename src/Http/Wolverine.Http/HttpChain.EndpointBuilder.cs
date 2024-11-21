@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Reflection;
 using JasperFx.CodeGeneration;
 using JasperFx.Core;
@@ -78,6 +79,11 @@ public partial class HttpChain : IEndpointConventionBuilder
         foreach (var parameter in Method.Method.GetParameters())
         {
             tryApplyAsEndpointMetadataProvider(parameter.ParameterType, builder);
+        }
+
+        foreach (var created in Middleware.SelectMany(x => x.Creates))
+        {
+            tryApplyAsEndpointMetadataProvider(created.VariableType, builder);
         }
 
         // Set up OpenAPI data for ProblemDetails with status code 400 if not already exists

@@ -168,3 +168,9 @@ Any endpoint that returns `CreationResponse` or a sub class will automatically e
 processing to denote resource creation instead of the generic `200`. Same goes for the built-in `AcceptResponse` type, but returning `202` status. Your own custom implementations of the `IHttpAware`
 interface would apply the metadata declarations at configuration time so that those customizations would be part of the
 exported Swashbuckle documentation of the system.
+
+As of Wolverine 3.4, Wolverine will also apply OpenAPI metadata from any value created by compound handler middleware
+or other middleware that implements the `IEndpointMetadataProvider` interface -- which many `IResult` implementations
+from within ASP.Net Core middleware do. Consider this example from the tests:
+
+snippet: sample_using_optional_iresult_with_openapi_metadata

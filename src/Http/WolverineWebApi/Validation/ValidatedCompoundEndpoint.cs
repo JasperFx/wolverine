@@ -1,4 +1,6 @@
 using FluentValidation;
+using JasperFx.Core;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Wolverine.Http;
 
 namespace WolverineWebApi.Validation;
@@ -28,7 +30,38 @@ public class ValidatedCompoundEndpoint
     }
 }
 
+#region sample_using_optional_iresult_with_openapi_metadata
+
+public class ValidatedCompoundEndpoint2
+{
+    public static User? Load(BlockUser2 cmd)
+    {
+        return cmd.UserId.IsNotEmpty() ? new User(cmd.UserId) : null;
+    }
+
+    // This method would be called, and if the NotFound value is
+    // not null, will stop the rest of the processing
+    // Likewise, Wolverine will use the NotFound type to add
+    // OpenAPI metadata
+    public static NotFound? Validate(User? user)
+    {
+        if (user == null)
+            return (NotFound?)Results.NotFound<User>(user);
+
+        return null;
+    }
+
+    [WolverineDelete("/optional/result")]
+    public static  string Handle(BlockUser2 cmd, User user)
+    {
+        return "Ok - user blocked";
+    }
+}
+
+#endregion
+
 public record BlockUser(string? UserId);
+public record BlockUser2(string? UserId);
 
 public class BlockUserValidator : AbstractValidator<BlockUser>
 {

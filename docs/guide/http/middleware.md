@@ -82,6 +82,11 @@ public static async Task<IResult> ExecuteOne<T>(IValidator<T> validator, IProble
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.FluentValidation/Internals/FluentValidationHttpExecutor.cs#L9-L29' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_fluentvalidationhttpexecutor_executeone' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+Likewise, you can also just return a `null` from middleware for `IResult` and Wolverine will interpret that as
+"just continue" as shown in this sample:
+
+snippet: sample_using_optional_iresult_with_openapi_metadata
+
 ## Using Configure(chain) Methods
 
 You can make explicit modifications to HTTP processing for middleware or OpenAPI metadata for a single endpoint (really all
