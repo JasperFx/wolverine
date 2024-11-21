@@ -165,8 +165,7 @@ internal class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
         }
 
         _receiver ??= Endpoint.MaybeWrapReceiver(await buildReceiverAsync());
-
-
+        
         if (Endpoint.ListenerCount > 1)
         {
             var listeners = new List<IListener>(Endpoint.ListenerCount);
