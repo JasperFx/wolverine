@@ -1,4 +1,5 @@
 using Shouldly;
+using WolverineWebApi.Validation;
 
 namespace Wolverine.Http.Tests;
 
@@ -30,5 +31,27 @@ public class using_IResult_in_endpoints : IntegrationContext
         });
 
         result.ReadAsText().ShouldBe("Hello from async result");
+    }
+
+    [Fact]
+    public async Task using_optional_result_in_middleware_when_result_is_null()
+    {
+        var result = await Scenario(x =>
+        {
+            x.Delete.Json(new BlockUser2("one")).ToUrl("/optional/result");
+            x.Header("content-type").SingleValueShouldEqual("text/plain");
+        });
+        
+        result.ReadAsText().ShouldBe("Ok - user blocked");
+    }
+    
+    [Fact]
+    public async Task using_optional_result_in_middleware_when_result_is_not_null()
+    {
+        var result = await Scenario(x =>
+        {
+            x.Delete.Json(new BlockUser2(null)).ToUrl("/optional/result");
+            x.StatusCodeShouldBe(404);
+        });
     }
 }

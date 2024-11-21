@@ -16,4 +16,6 @@ public class ResultEndpoints
         var result = Microsoft.AspNetCore.Http.Results.Content("Hello from async result", "text/plain");
         return Task.FromResult(result);
     }
+    
+    
 }
