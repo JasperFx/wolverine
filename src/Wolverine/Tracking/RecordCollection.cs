@@ -12,6 +12,24 @@ public class RecordCollection
         _messageEventType = eventType;
         _parent = parent;
     }
+    
+    public EnvelopeRecord SingleRecord<T>()
+    {
+        var records = RecordsInOrder().Where(x => x.Message is T).ToArray();
+        switch (records.Length)
+        {
+            case 0:
+                throw new Exception(
+                    _parent.BuildActivityMessage($"No messages of type {typeof(T).FullNameInCode()} were received"));
+
+            case 1:
+                return records.Single();
+
+            default:
+                throw new Exception(_parent.BuildActivityMessage(
+                    $"Received {records.Length} messages of type {typeof(T).FullNameInCode()}"));
+        }
+    }
 
     public T SingleMessage<T>()
     {

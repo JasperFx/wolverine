@@ -90,11 +90,6 @@ public class RabbitMqExchange : RabbitMqEndpoint, IRabbitMqExchange
             return;
         }
 
-        if (HasDeclared)
-        {
-            return;
-        }
-
         var exchangeTypeName = ExchangeType.ToString().ToLower();
         await channel.ExchangeDeclareAsync(DeclaredName, exchangeTypeName, IsDurable, AutoDelete, Arguments);
         logger.LogInformation(
