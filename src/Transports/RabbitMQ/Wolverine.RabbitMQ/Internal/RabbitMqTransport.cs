@@ -116,6 +116,11 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IAsy
         {
             await queue.DisposeAsync();
         }
+
+        foreach (var tenant in Tenants)
+        {
+            await tenant.Transport.DisposeAsync();
+        }
     }
 
     public override async ValueTask ConnectAsync(IWolverineRuntime runtime)
@@ -138,6 +143,11 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IAsy
         {
             _sendingConnection = BuildConnection(ConnectionRole.Sending);
             await _sendingConnection.ConnectAsync();
+        }
+
+        foreach (var tenant in Tenants)
+        {
+            await tenant.ConnectAsync(this, runtime);
         }
     }
 
