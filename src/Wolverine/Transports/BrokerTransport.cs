@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Oakton.Resources;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
+using Wolverine.Transports.Sending;
 
 namespace Wolverine.Transports;
 
@@ -16,6 +17,15 @@ public abstract class BrokerTransport<TEndpoint> : TransportBase<TEndpoint>, IBr
     protected BrokerTransport(string protocol, string name) : base(protocol, name)
     {
     }
+    
+    
+    /// <summary>
+    /// In the case of using multi-tenancy support at the transport level (generally, a separate message broker or namespace or whatever per tenant),
+    /// this governs the behavior of message sending in regards to a tenant id. Default behavior is to fall back to the default
+    /// connection in the case of no tenant id
+    /// </summary>
+    public TenantedIdBehavior TenantedIdBehavior { get; set; } = TenantedIdBehavior.FallbackToDefault;
+
 
     /// <summary>
     ///     Used as a separator for prefixed identifiers
