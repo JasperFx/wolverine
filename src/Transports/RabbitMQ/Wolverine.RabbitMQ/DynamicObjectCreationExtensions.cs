@@ -42,11 +42,7 @@ public static class DynamicObjectCreationExtensions
     public static async Task UnBindRabbitMqQueue(this IWolverineRuntime runtime, string queueName, string exchangeName, string routingKey)
     {
         var transport = runtime.Options.Transports.GetOrCreate<RabbitMqTransport>();
-        using var model = await transport.CreateAdminChannelAsync();
-
-        await model.QueueUnbindAsync(queueName, exchangeName, routingKey);
-
-        await model.CloseAsync();
+        await transport.WithAdminChannelAsync(model => model.QueueUnbindAsync(queueName, exchangeName, routingKey));
     }
 }
 
@@ -95,23 +91,22 @@ public class RabbitMqObjects
 
     internal async Task DeclareAllAsync()
     {
-        using var model = await _transport.CreateAdminChannelAsync();
-
-        foreach (var exchange in _exchanges)
+        await _transport.WithAdminChannelAsync(async model =>
         {
-            await exchange.DeclareAsync(model, _logger);
-        }
-
-        foreach (var queue in _queues)
-        {
-            await queue.DeclareAsync(model, _logger);
-            
-            foreach (var binding in queue.Bindings())
+            foreach (var exchange in _exchanges)
             {
-                await binding.DeclareAsync(model, _logger);
+                await exchange.DeclareAsync(model, _logger);
             }
-        }
 
-        await model.CloseAsync();
+            foreach (var queue in _queues)
+            {
+                await queue.DeclareAsync(model, _logger);
+            
+                foreach (var binding in queue.Bindings())
+                {
+                    await binding.DeclareAsync(model, _logger);
+                }
+            }
+        });
     }
 }

@@ -54,18 +54,20 @@ public abstract partial class RabbitMqEndpoint : Endpoint, IBrokerEndpoint, IAsy
         return ResolveSender(runtime);
     }
 
-    private RabbitMqSender? _sender;
+    private ISender? _sender;
 
-    internal RabbitMqSender ResolveSender(IWolverineRuntime runtime)
+    internal ISender ResolveSender(IWolverineRuntime runtime)
     {
-        _sender ??= new RabbitMqSender(this, _parent, RoutingType, runtime);
+        _sender ??= _parent.BuildSender(this, RoutingType, runtime);
         return _sender;
     }
 
     public async ValueTask DisposeAsync()
     {
-        if(_sender is not null)
-            await _sender.DisposeAsync();
+        if(_sender is IAsyncDisposable ad)
+        {
+            await ad.DisposeAsync();
+        }
     }
 
     internal IRabbitMqEnvelopeMapper BuildMapper(IWolverineRuntime runtime)

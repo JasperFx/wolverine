@@ -5,6 +5,7 @@ using RabbitMQ.Client;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
 using Wolverine.Transports;
+using Wolverine.Transports.Sending;
 using Wolverine.Util.Dataflow;
 
 namespace Wolverine.RabbitMQ.Internal;
@@ -52,7 +53,7 @@ internal class RabbitMqListener : RabbitMqChannelAgent, IListener, ISupportDeadL
     private readonly IWolverineRuntime _runtime;
     private readonly RabbitMqTransport _transport;
     private readonly IReceiver _receiver;
-    private readonly Lazy<RabbitMqSender> _sender;
+    private readonly Lazy<ISender> _sender;
 
     public RabbitMqListener(IWolverineRuntime runtime,
         RabbitMqQueue queue, RabbitMqTransport transport, IReceiver receiver) : base(transport.UseSenderConnectionOnly ? transport.SendingConnection : transport.ListeningConnection,
@@ -61,7 +62,7 @@ internal class RabbitMqListener : RabbitMqChannelAgent, IListener, ISupportDeadL
         Queue = queue;
         Address = queue.Uri;
 
-        _sender = new Lazy<RabbitMqSender>(() => Queue.ResolveSender(runtime));
+        _sender = new Lazy<ISender>(() => Queue.ResolveSender(runtime));
         _cancellation.Register(() =>
         {
             _ = teardownChannel();
@@ -144,9 +145,9 @@ internal class RabbitMqListener : RabbitMqChannelAgent, IListener, ISupportDeadL
         _receiver.Dispose();
         await base.DisposeAsync();
 
-        if (_sender.IsValueCreated)
+        if (_sender.IsValueCreated && _sender.Value is IAsyncDisposable ad)
         {
-            await _sender.Value.DisposeAsync();
+            await ad.DisposeAsync();
         }
     }
 
