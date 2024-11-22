@@ -12,50 +12,6 @@ using Wolverine.Transports.Sending;
 
 namespace Wolverine.RabbitMQ.Internal;
 
-internal class RabbitMqTenant
-{
-    public RabbitMqTenant(string tenantId, string virtualHostName)
-    {
-        TenantId = tenantId;
-        VirtualHostName = virtualHostName ?? throw new ArgumentNullException(nameof(virtualHostName));
-    }
-
-    public RabbitMqTenant(string tenantId, RabbitMqTransport transport)
-    {
-        TenantId = tenantId;
-        Transport = transport ?? throw new ArgumentNullException(nameof(transport));
-    }
-
-    public string TenantId { get; }
-    public RabbitMqTransport? Transport { get; }
-    public string? VirtualHostName { get; set; }
-
-    public RabbitMqTransport BuildTransport(RabbitMqTransport parent)
-    {
-        if (VirtualHostName.IsNotEmpty())
-        {
-            var transport = new RabbitMqTransport();
-            var props = typeof(ConnectionFactory).GetProperties();
-            
-            transport.ConfigureFactory(f =>
-            {
-                foreach (var prop in props)
-                {
-                    if (!prop.CanWrite) continue;
-                
-                    prop.SetValue(f, prop.GetValue(parent.ConnectionFactory));
-                }
-
-                f.VirtualHost = VirtualHostName;
-            });
-
-            return transport;
-        }
-
-        return Transport!;
-    }
-}
-
 public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IAsyncDisposable
 {
     public const string ProtocolName = "rabbitmq";
