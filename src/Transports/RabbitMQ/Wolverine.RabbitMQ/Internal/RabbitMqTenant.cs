@@ -1,5 +1,7 @@
 using JasperFx.Core;
 using RabbitMQ.Client;
+using Spectre.Console;
+using Wolverine.Runtime;
 
 namespace Wolverine.RabbitMQ.Internal;
 
@@ -44,5 +46,11 @@ internal class RabbitMqTenant
         }
 
         return Transport!;
+    }
+
+    public Task ConnectAsync(RabbitMqTransport parent, IWolverineRuntime runtime)
+    {
+        Compile(parent);
+        return Transport.ConnectAsync(runtime).AsTask();
     }
 }
