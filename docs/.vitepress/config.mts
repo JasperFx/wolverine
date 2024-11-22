@@ -127,7 +127,8 @@ const config: UserConfig<DefaultTheme.Config> = {
                                         {text: 'Queue, Topic, and Binding Management', link:'/guide/messaging/transports/rabbitmq/object-management'},
                                         {text: 'Topics', link:'/guide/messaging/transports/rabbitmq/topics'},
                                         {text: 'Interoperability', link:'/guide/messaging/transports/rabbitmq/interoperability'},
-                                        {text: 'Connecting to Multiple Brokers', link: '/guide/messaging/transports/rabbitmq/multiple-brokers'}
+                                        {text: 'Connecting to Multiple Brokers', link: '/guide/messaging/transports/rabbitmq/multiple-brokers'},
+                                        {text: 'Multi-Tenancy', link: '/guide/messaging/transports/rabbitmq/multi-tenancy'}
                                     ]},
                                 {text: 'Azure Service Bus', link: '/guide/messaging/transports/azureservicebus/', items:[
                                         {text: 'Publishing', link:'/guide/messaging/transports/azureservicebus/publishing'},
