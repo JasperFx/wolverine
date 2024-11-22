@@ -12,3 +12,4 @@ public interface ISender
     Task<bool> PingAsync();
     ValueTask SendAsync(Envelope envelope);
 }
+
