@@ -1,6 +1,7 @@
 using RabbitMQ.Client;
 using Wolverine.Configuration;
 using Wolverine.Transports;
+using Wolverine.Transports.Sending;
 
 namespace Wolverine.RabbitMQ.Internal;
 
@@ -19,6 +20,48 @@ public class RabbitMqTransportExpression : BrokerExpression<RabbitMqTransport, R
     public RabbitMqTransportExpression AutoPingListeners()
     {
         Transport.AutoPingListeners = true;
+        return this;
+    }
+
+    /// <summary>
+    /// Override the sending logic behavior for unknown or missing tenant ids when
+    /// using multi-tenanted brokers / virtual hosts
+    /// </summary>
+    /// <param name="tenantedIdBehavior"></param>
+    /// <returns></returns>
+    public RabbitMqTransportExpression TenantIdBehavior(TenantedIdBehavior tenantedIdBehavior)
+    {
+        Transport.TenantedIdBehavior = tenantedIdBehavior;
+        return this;
+    }
+
+    /// <summary>
+    /// Add a separate Rabbit MQ connection for a specific tenant to a separate virtual
+    /// host
+    /// </summary>
+    /// <param name="tenantId"></param>
+    /// <param name="virtualHostName"></param>
+    /// <returns></returns>
+    /// <exception cref="NotImplementedException"></exception>
+    public RabbitMqTransportExpression AddTenant(string tenantId, string virtualHostName)
+    {
+        Transport.Tenants[tenantId] = new RabbitMqTenant(tenantId, virtualHostName);
+        return this;
+    }
+
+    public RabbitMqTransportExpression AddTenant(string tenantId, Uri connectionUri)
+    {
+        var transport = new RabbitMqTransport();
+        transport.ConfigureFactory(f => f.Uri = connectionUri);
+        Transport.Tenants[tenantId] = new RabbitMqTenant(tenantId, transport);
+        return this;
+    }
+
+    public RabbitMqTransportExpression AddTenant(string tenantId, Action<ConnectionFactory> configure)
+    {
+        var transport = new RabbitMqTransport();
+        transport.ConfigureFactory(configure);
+        Transport.Tenants[tenantId] = new RabbitMqTenant(tenantId, transport);
         return this;
     }
 
