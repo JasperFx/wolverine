@@ -177,7 +177,7 @@ public class SampleMappedDbContext : DbContext
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests/SampleDbContext.cs#L50-L76' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_mapping_envelope_storage_to_dbcontext' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests/SampleDbContext.cs#L51-L77' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_mapping_envelope_storage_to_dbcontext' title='Start of snippet'>anchor</a></sup>
 <a id='snippet-sample_mapping_envelope_storage_to_dbcontext-1'></a>
 ```cs
 public class SampleMappedDbContext : DbContext

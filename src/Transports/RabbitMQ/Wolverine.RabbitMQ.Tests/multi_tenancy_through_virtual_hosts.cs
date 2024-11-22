@@ -1,12 +1,14 @@
 using System.Diagnostics;
 using System.Net;
 using JasperFx.Core;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using NSubstitute.ReceivedExtensions;
 using Oakton.Resources;
 using Shouldly;
 using Wolverine.ComplianceTests.Compliance;
 using Wolverine.Tracking;
+using Wolverine.Transports.Sending;
 using Xunit;
 
 namespace Wolverine.RabbitMQ.Tests;
@@ -149,4 +151,70 @@ public class multi_tenancy_through_virtual_hosts : IClassFixture<MultiTenantedRa
         response.Envelope.Message.ShouldBeOfType<MultiTenantResponse>()
             .Id.ShouldBe(message.Id);
     }
+}
+
+public static class MultiTenantedRabbitMqSamples
+{
+    public static async Task Configure()
+    {
+        #region sample_configuring_rabbit_mq_for_tenancy
+
+        var builder = Host.CreateApplicationBuilder();
+
+        builder.UseWolverine(opts =>
+        {
+            // At this point, you still have to have a *default* broker connection to be used for 
+            // messaging. 
+            opts.UseRabbitMq(new Uri(builder.Configuration.GetConnectionString("main")))
+                
+                // This will be respected across *all* the tenant specific
+                // virtual hosts and separate broker connections
+                .AutoProvision()
+
+                // This is the default, if there is no tenant id on an outgoing message,
+                // use the default broker
+                .TenantIdBehavior(TenantedIdBehavior.FallbackToDefault)
+
+                // Or tell Wolverine instead to just quietly ignore messages sent
+                // to unrecognized tenant ids
+                .TenantIdBehavior(TenantedIdBehavior.IgnoreUnknownTenants)
+
+                // Or be draconian and make Wolverine assert and throw an exception
+                // if an outgoing message does not have a tenant id
+                .TenantIdBehavior(TenantedIdBehavior.TenantIdRequired)
+
+                // Add specific tenants for separate virtual host names
+                // on the same broker as the default connection
+                .AddTenant("one", "vh1")
+                .AddTenant("two", "vh2")
+                .AddTenant("three", "vh3")
+
+                // Or, you can add a broker connection to something completel
+                // different for a tenant
+                .AddTenant("four", new Uri(builder.Configuration.GetConnectionString("rabbit_four")));
+
+            // This Wolverine application would be listening to a queue
+            // named "incoming" on all virtual hosts and/or tenant specific message
+            // brokers
+            opts.ListenToRabbitQueue("incoming");
+
+            // More on this in the docs....
+            opts.PublishMessage<Message1>()
+                .ToRabbitQueue("outgoing");
+        });
+
+        #endregion
+        
+        
+    }
+
+    #region sample_send_message_to_specific_tenant
+
+    public static async Task send_message_to_specific_tenant(IMessageBus bus)
+    {
+        // Send a message tagged to a specific tenant id
+        await bus.PublishAsync(new Message1(), new DeliveryOptions { TenantId = "two" });
+    }
+
+    #endregion
 }
