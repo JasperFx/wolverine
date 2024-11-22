@@ -7,7 +7,7 @@
     <ItemGroup>
         <PackageReference Include="MassTransit" Version="8.0.6"/>
         <PackageReference Include="MassTransit.RabbitMQ" Version="8.0.6"/>
-        <PackageReference Include="Microsoft.Extensions.Hosting" Version="6.0.1"/>
+        <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.1"/>
     </ItemGroup>
 
     <ItemGroup>
