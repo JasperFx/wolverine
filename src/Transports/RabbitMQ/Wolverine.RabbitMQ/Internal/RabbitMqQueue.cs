@@ -261,11 +261,6 @@ public partial class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQu
 
     internal async Task DeclareAsync(IChannel channel, ILogger logger)
     {
-        if (HasDeclared)
-        {
-            return;
-        }
-
         if (DeadLetterQueue != null && DeadLetterQueue.Mode == DeadLetterQueueMode.Native)
         {
             Arguments[RabbitMqTransport.DeadLetterQueueHeader] = DeadLetterQueue.ExchangeName;
