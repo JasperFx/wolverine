@@ -46,11 +46,14 @@ public class interoperability_specs : IAsyncLifetime
         var session = await _host.TrackActivity()
             .WaitForMessageToBeReceivedAt<NumberMessage>(_host)
             .ExecuteAndWaitAsync(async Task (m) =>
-        {
-            using var channel = await transport.CreateAdminChannelAsync();
-            var props = new BasicProperties();
+            {
+                await transport.WithAdminChannelAsync(async channel =>
+                {
+                    var props = new BasicProperties();
             
-            await channel.BasicPublishAsync(string.Empty, theQueueName, true, props, data);
+                    await channel.BasicPublishAsync(string.Empty, theQueueName, true, props, data);
+                });
+
         });
 
         session.Received.SingleEnvelope<NumberMessage>()

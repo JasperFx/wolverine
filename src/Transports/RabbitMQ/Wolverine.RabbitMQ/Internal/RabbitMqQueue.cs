@@ -69,8 +69,7 @@ public partial class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQu
 
         try
         {
-            using var channel = await _parent.CreateAdminChannelAsync();
-            await channel.QueueDeclarePassiveAsync(QueueName);
+            await _parent.WithAdminChannelAsync(channel => channel.QueueDeclarePassiveAsync(QueueName));
             return true;
         }
         catch (Exception)
@@ -87,14 +86,17 @@ public partial class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQu
             return;
         }
 
-        using var channel = await _parent.CreateAdminChannelAsync();
-        foreach (var binding in _bindings)
+        await _parent.WithAdminChannelAsync(async channel =>
         {
-            logger.LogInformation("Removing binding {Key} from exchange {Exchange} to queue {Queue}",
-                binding.BindingKey, binding.ExchangeName, binding.Queue);
-            await binding.TeardownAsync(channel);
-        }
-        await channel.QueueDeleteAsync(QueueName, false, false, true);
+            foreach (var binding in _bindings)
+            {
+                logger.LogInformation("Removing binding {Key} from exchange {Exchange} to queue {Queue}",
+                    binding.BindingKey, binding.ExchangeName, binding.Queue);
+                await binding.TeardownAsync(channel);
+            }
+
+            await channel.QueueDeleteAsync(QueueName, false, false, true);
+        });
     }
 
     public override async ValueTask SetupAsync(ILogger logger)
@@ -104,8 +106,7 @@ public partial class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQu
             return;
         }
 
-        using var channel = await _parent.CreateAdminChannelAsync();
-        await DeclareAsync(channel, logger);
+        await _parent.WithAdminChannelAsync(channel => DeclareAsync(channel, logger));
     }
 
     public async ValueTask PurgeAsync(ILogger logger)
@@ -114,11 +115,10 @@ public partial class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQu
         {
             return;
         }
-
-        using var channel = await _parent.CreateAdminChannelAsync();
+        
         try
         {
-            await channel.QueuePurgeAsync(QueueName);
+            await _parent.WithAdminChannelAsync(channel => channel.QueuePurgeAsync(QueueName));
         }
         catch (Exception e)
         {
@@ -135,12 +135,15 @@ public partial class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQu
 
     public async ValueTask<Dictionary<string, string>> GetAttributesAsync()
     {
-        using var channel = await _parent.CreateAdminChannelAsync();
-
-        var result = await channel.QueueDeclarePassiveAsync(QueueName);
+        long messageCount = 0;
+        await _parent.WithAdminChannelAsync(async channel =>
+        {
+            var result = await channel.QueueDeclarePassiveAsync(QueueName);
+            messageCount += result.MessageCount;
+        });
 
         var dict = new Dictionary<string, string>
-            { { "name", QueueName }, { "count", result.MessageCount.ToString() } };
+            { { "name", QueueName }, { "count", messageCount.ToString() } };
 
         return dict;
     }
@@ -190,10 +193,14 @@ public partial class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQu
     /// <returns></returns>
     public async Task<long> QueuedCountAsync()
     {
-        using var channel = await _parent.CreateAdminChannelAsync();
+        long messageCount = 0;
+        await _parent.WithAdminChannelAsync(async channel =>
+        {
+            var result = await channel.QueueDeclarePassiveAsync(QueueName);
+            messageCount += result.MessageCount;
+        });
 
-        var result = await channel.QueueDeclarePassiveAsync(QueueName);
-        return result.MessageCount;
+        return messageCount;
     }
 
     public override async ValueTask InitializeAsync(ILogger logger)
@@ -205,9 +212,7 @@ public partial class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQu
 
         try
         {
-            using var channel = await _parent.CreateAdminChannelAsync();
-
-            await InitializeAsync(channel, logger);
+            await _parent.WithAdminChannelAsync(channel => InitializeAsync(channel, logger).AsTask());
         }
         finally
         {
@@ -327,22 +332,7 @@ public partial class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQu
     {
         await InitializeAsync(runtime.LoggerFactory.CreateLogger<RabbitMqQueue>());
 
-        if (ListenerCount > 1)
-        {
-            var listeners = new List<RabbitMqListener>(ListenerCount);
-            for (var i = 0; i < ListenerCount; i++)
-            {
-                var listener = new RabbitMqListener(runtime, this, _parent, receiver);
-                await listener.CreateAsync();
-                listeners.Add(listener);
-            }
-
-            return new ParallelListener(Uri, listeners);
-        }
-
-        var singleListener = new RabbitMqListener(runtime, this, _parent, receiver);
-        await singleListener.CreateAsync();
-        return singleListener;
+        return await _parent.BuildListenerAsync(runtime, receiver, this);
     }
 
     public override bool TryBuildDeadLetterSender(IWolverineRuntime runtime, out ISender? deadLetterSender)

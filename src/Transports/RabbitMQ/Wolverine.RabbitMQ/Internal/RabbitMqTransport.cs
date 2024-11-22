@@ -8,6 +8,7 @@ using Spectre.Console;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
 using Wolverine.Transports;
+using Wolverine.Transports.Sending;
 
 namespace Wolverine.RabbitMQ.Internal;
 
@@ -291,10 +292,43 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IAsy
         yield return new PropertyColumn("Message Count", "count", Justify.Right);
     }
 
-    public Task<IChannel> CreateAdminChannelAsync()
+    private Task<IChannel> createAdminChannelAsync()
     {
         if (_listenerConnection != null) return _listenerConnection.CreateChannelAsync();
         if (_sendingConnection != null) return _sendingConnection.CreateChannelAsync();
         throw new InvalidOperationException("Rabbit MQ Transport has not been initialized");
+    }
+
+    public async Task WithAdminChannelAsync(Func<IChannel, Task> operation)
+    {
+        await using var channel = await createAdminChannelAsync();
+        await operation(channel);
+        await channel.CloseAsync();
+    }
+
+    public ISender BuildSender(RabbitMqEndpoint endpoint, RoutingMode routingType, IWolverineRuntime runtime)
+    {
+        // TODO -- gets fancier with multi-tenancy
+        return new RabbitMqSender(endpoint, this, routingType, runtime);
+    }
+
+    public async ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver, RabbitMqQueue queue)
+    {
+        if (queue.ListenerCount > 1)
+        {
+            var listeners = new List<RabbitMqListener>(queue.ListenerCount);
+            for (var i = 0; i < queue.ListenerCount; i++)
+            {
+                var listener = new RabbitMqListener(runtime, queue, this, receiver);
+                await listener.CreateAsync();
+                listeners.Add(listener);
+            }
+
+            return new ParallelListener(queue.Uri, listeners);
+        }
+
+        var singleListener = new RabbitMqListener(runtime, queue, this, receiver);
+        await singleListener.CreateAsync();
+        return singleListener;
     }
 }
