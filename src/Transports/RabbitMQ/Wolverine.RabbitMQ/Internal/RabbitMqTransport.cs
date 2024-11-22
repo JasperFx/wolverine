@@ -315,15 +315,55 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IAsy
         await using var channel = await createAdminChannelAsync();
         await operation(channel);
         await channel.CloseAsync();
+
+        foreach (var tenant in Tenants)
+        {
+            await tenant.Transport.WithAdminChannelAsync(operation);
+        }
     }
 
     public ISender BuildSender(RabbitMqEndpoint endpoint, RoutingMode routingType, IWolverineRuntime runtime)
     {
-        // TODO -- gets fancier with multi-tenancy
-        return new RabbitMqSender(endpoint, this, routingType, runtime);
+        var rabbitMqSender = new RabbitMqSender(endpoint, this, routingType, runtime);
+        
+        if (Tenants.Any())
+        {
+            var tenantedSender = new TenantedSender(endpoint.Uri, TenantedIdBehavior, rabbitMqSender);
+            foreach (var tenant in Tenants)
+            {
+                var sender = new RabbitMqSender(endpoint, tenant.Transport, routingType, runtime);
+                tenantedSender.RegisterSender(tenant.TenantId, sender);
+            }
+
+            return tenantedSender;
+        }
+        
+        return rabbitMqSender;
     }
 
     public async ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver, RabbitMqQueue queue)
+    {
+        var listener = await buildListener(runtime, receiver, queue);
+        if (Tenants.Any())
+        {
+            var compound = new CompoundListener(queue.Uri);
+            compound.Inner.Add(listener);
+
+            foreach (var tenant in Tenants)
+            {
+                var rule = new TenantIdRule(tenant.TenantId);
+                var wrapped = new ReceiverWithRules(receiver, [rule]);
+                var tenantListener = await tenant.Transport.buildListener(runtime, wrapped, queue);
+                compound.Inner.Add(tenantListener);
+            }
+
+            return compound;
+        }
+
+        return listener;
+    }
+
+    private async Task<IListener> buildListener(IWolverineRuntime runtime, IReceiver receiver, RabbitMqQueue queue)
     {
         if (queue.ListenerCount > 1)
         {
