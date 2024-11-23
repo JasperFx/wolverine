@@ -36,66 +36,69 @@ public class AzureServiceBusQueue : AzureServiceBusEndpoint, IBrokerQueue
 
     public override Task<ServiceBusSessionReceiver> AcceptNextSessionAsync(CancellationToken cancellationToken)
     {
-        return Parent.BusClient.AcceptNextSessionAsync(QueueName, cancellationToken: cancellationToken);
+        return Parent.AcceptNextSessionAsync(this, cancellationToken: cancellationToken);
     }
 
     public override async ValueTask<bool> CheckAsync()
     {
-        var client = Parent.ManagementClient;
+        var exists = true;
 
-        return await client.QueueExistsAsync(QueueName);
+        await Parent.WithManagementClientAsync(async c => exists = exists && await c.QueueExistsAsync(QueueName));
+
+        return exists;
     }
 
-    public override ValueTask TeardownAsync(ILogger logger)
+    public override async ValueTask TeardownAsync(ILogger logger)
     {
-        var task = Parent.ManagementClient.DeleteQueueAsync(QueueName);
-        return new ValueTask(task);
+        await Parent.WithManagementClientAsync(c => c.DeleteQueueAsync(QueueName));
     }
 
     public override async ValueTask SetupAsync(ILogger logger)
     {
-        var client = Parent.ManagementClient;
-
-        var exists = await client.QueueExistsAsync(QueueName);
-        if (!exists.Value)
+        await Parent.WithManagementClientAsync(async client =>
         {
-            Options.Name = QueueName;
+            var exists = await client.QueueExistsAsync(QueueName);
+            if (!exists.Value)
+            {
+                Options.Name = QueueName;
 
-            try
-            {
-                await client.CreateQueueAsync(Options);
-            }
-            catch (ServiceBusException e)
-            {
-                if (e.Reason == ServiceBusFailureReason.MessagingEntityAlreadyExists)
+                try
                 {
-                    return;
+                    await client.CreateQueueAsync(Options);
                 }
+                catch (ServiceBusException e)
+                {
+                    if (e.Reason == ServiceBusFailureReason.MessagingEntityAlreadyExists)
+                    {
+                        return;
+                    }
                 
-                throw;
+                    throw;
+                }
             }
-        }
+        });
     }
 
     public async ValueTask PurgeAsync(ILogger logger)
     {
-        var client = Parent.BusClient;
-
-        try
+        await Parent.WithServiceBusClientAsync(async client =>
         {
-            if (Options.RequiresSession)
+            try
             {
-                await purgeWithSessions(client);
+                if (Options.RequiresSession)
+                {
+                    await purgeWithSessions(client);
+                }
+                else
+                {
+                    await purgeWithoutSessions(client);
+                }
             }
-            else
+            catch (Exception e)
             {
-                await purgeWithoutSessions(client);
+                logger.LogDebug(e, "Error trying to purge Azure Service Bus queue {Queue}", QueueName);
             }
-        }
-        catch (Exception e)
-        {
-            logger.LogDebug(e, "Error trying to purge Azure Service Bus queue {Queue}", QueueName);
-        }
+        });
     }
 
     private async Task purgeWithSessions(ServiceBusClient client)
@@ -141,13 +144,18 @@ public class AzureServiceBusQueue : AzureServiceBusEndpoint, IBrokerQueue
 
     public async ValueTask<Dictionary<string, string>> GetAttributesAsync()
     {
-        var client = Parent.ManagementClient;
-        QueueProperties props = await client.GetQueueAsync(QueueName);
-        return new Dictionary<string, string>
+        var dict = new Dictionary<string, string>
         {
-            { "Name", QueueName },
-            { nameof(QueueProperties.Status), props.Status.ToString() }
+            { "Name", QueueName }
         };
+        
+        await Parent.WithManagementClientAsync(async client =>
+        {
+            var props = await client.GetQueueAsync(QueueName);
+            dict[nameof(QueueProperties.Status)] = props.Value.Status.ToString();
+        });
+
+        return dict;
     }
 
     public override async ValueTask InitializeAsync(ILogger logger)
@@ -170,64 +178,19 @@ public class AzureServiceBusQueue : AzureServiceBusEndpoint, IBrokerQueue
         _hasInitialized = true;
     }
 
-    public override async ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
+    public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
     {
-        var mapper = BuildMapper(runtime);
-
-        var requeue = BuildInlineSender(runtime);
-
-        if (Options.RequiresSession)
-        {
-            return new AzureServiceBusSessionListener(this, receiver, mapper,
-                runtime.LoggerFactory.CreateLogger<AzureServiceBusSessionListener>(), requeue);
-        }
-
-        if (Mode == EndpointMode.Inline)
-        {
-            var messageProcessor = Parent.BusClient.CreateProcessor(QueueName);
-
-            var inlineListener = new InlineAzureServiceBusListener(this,
-                runtime.LoggerFactory.CreateLogger<InlineAzureServiceBusListener>(), messageProcessor, receiver,
-                mapper,
-                requeue);
-
-            await inlineListener.StartAsync();
-
-            return inlineListener;
-        }
-
-        var messageReceiver = Parent.BusClient.CreateReceiver(QueueName);
-        var logger = runtime.LoggerFactory.CreateLogger<BatchedAzureServiceBusListener>();
-        var listener = new BatchedAzureServiceBusListener(this, logger, receiver, messageReceiver, mapper, requeue);
-
-        return listener;
+        return Parent.BuildListenerAsync(runtime, receiver, this);
     }
 
     internal ISender BuildInlineSender(IWolverineRuntime runtime)
     {
-        var mapper = BuildMapper(runtime);
-        var sender = Parent.BusClient.CreateSender(QueueName);
-        return new InlineAzureServiceBusSender(this, mapper, sender,
-            runtime.LoggerFactory.CreateLogger<InlineAzureServiceBusSender>(), runtime.Cancellation);
-
+        return Parent.BuildInlineSender(runtime, this);
     }
 
     protected override ISender CreateSender(IWolverineRuntime runtime)
     {
-        var mapper = BuildMapper(runtime);
-        var sender = Parent.BusClient.CreateSender(QueueName);
-
-        if (Mode == EndpointMode.Inline)
-        {
-            var inlineSender = new InlineAzureServiceBusSender(this, mapper, sender,
-                runtime.LoggerFactory.CreateLogger<InlineAzureServiceBusSender>(), runtime.Cancellation);
-
-            return inlineSender;
-        }
-
-        var protocol = new AzureServiceBusSenderProtocol(runtime, this, mapper, sender);
-
-        return new BatchedSender(this, protocol, runtime.DurabilitySettings.Cancellation, runtime.LoggerFactory.CreateLogger<AzureServiceBusSenderProtocol>());
+        return Parent.BuildSender(runtime, this);
     }
 
     /// <summary>
