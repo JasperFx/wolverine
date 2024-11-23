@@ -45,38 +45,12 @@ public class AzureServiceBusSubscription : AzureServiceBusEndpoint, IBrokerQueue
 
     public override Task<ServiceBusSessionReceiver> AcceptNextSessionAsync(CancellationToken cancellationToken)
     {
-        return Parent.BusClient.AcceptNextSessionAsync(Topic.TopicName, SubscriptionName,
-            cancellationToken: cancellationToken);
+        return Parent.AcceptNextSessionAsync(this, cancellationToken: cancellationToken);
     }
 
-    public override async ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
+    public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
     {
-        var requeue = Parent.RetryQueue != null ? Parent.RetryQueue.BuildInlineSender(runtime) : Topic.BuildInlineSender(runtime);
-        var mapper = BuildMapper(runtime);
-
-        if (Options.RequiresSession)
-        {
-            return new AzureServiceBusSessionListener(this, receiver, mapper,
-                runtime.LoggerFactory.CreateLogger<AzureServiceBusSessionListener>(), requeue);
-        }
-
-        if (Mode == EndpointMode.Inline)
-        {
-            var messageProcessor = Parent.BusClient.CreateProcessor(Topic.TopicName, SubscriptionName);
-            var inlineListener = new InlineAzureServiceBusListener(this,
-                runtime.LoggerFactory.CreateLogger<InlineAzureServiceBusListener>(), messageProcessor, receiver, mapper,  requeue
-            );
-
-            await inlineListener.StartAsync();
-
-            return inlineListener;
-        }
-
-        var messageReceiver = Parent.BusClient.CreateReceiver(Topic.TopicName, SubscriptionName);
-
-        var listener = new BatchedAzureServiceBusListener(this, runtime.LoggerFactory.CreateLogger<BatchedAzureServiceBusListener>(), receiver, messageReceiver, mapper, requeue);
-
-        return listener;
+        return Parent.BuildListenerAsync(runtime, receiver, this);
     }
 
     protected override ISender CreateSender(IWolverineRuntime runtime)
@@ -86,21 +60,23 @@ public class AzureServiceBusSubscription : AzureServiceBusEndpoint, IBrokerQueue
 
     public override async ValueTask<bool> CheckAsync()
     {
-        var client = Parent.ManagementClient;
+        var exists = true;
 
-        return await client.SubscriptionExistsAsync(Topic.TopicName, SubscriptionName);
+        await Parent.WithManagementClientAsync(async client =>
+            exists = exists && await client.SubscriptionExistsAsync(Topic.TopicName, SubscriptionName));
+
+        return exists;
     }
 
-    public override async ValueTask TeardownAsync(ILogger logger)
+    public override ValueTask TeardownAsync(ILogger logger)
     {
-        var client = Parent.ManagementClient;
-        await client.DeleteSubscriptionAsync(Topic.TopicName, SubscriptionName);
+        return new ValueTask(Parent.WithManagementClientAsync(client =>
+            client.DeleteSubscriptionAsync(Topic.TopicName, SubscriptionName)));
     }
 
-    public override ValueTask SetupAsync(ILogger logger)
+    public override async ValueTask SetupAsync(ILogger logger)
     {
-        var client = Parent.ManagementClient;
-        return SetupAsync(client, logger);
+        await Parent.WithManagementClientAsync(client => SetupAsync(client, logger).AsTask());
     }
 
     internal async ValueTask SetupAsync(ServiceBusAdministrationClient client, ILogger logger)
@@ -151,20 +127,23 @@ public class AzureServiceBusSubscription : AzureServiceBusEndpoint, IBrokerQueue
     {
         try
         {
-            var receiver = Parent.BusClient.CreateReceiver(Topic.TopicName, SubscriptionName);
-
-            var stopwatch = new Stopwatch();
-            stopwatch.Start();
-            while (stopwatch.ElapsedMilliseconds < 2000)
+            await Parent.WithServiceBusClientAsync(async client =>
             {
-                var messages = await receiver.ReceiveMessagesAsync(25, 1.Seconds());
-                if (!messages.Any())
-                {
-                    return;
-                }
+                var receiver = client.CreateReceiver(Topic.TopicName, SubscriptionName);
 
-                foreach (var message in messages) await receiver.CompleteMessageAsync(message);
-            }
+                var stopwatch = new Stopwatch();
+                stopwatch.Start();
+                while (stopwatch.ElapsedMilliseconds < 2000)
+                {
+                    var messages = await receiver.ReceiveMessagesAsync(25, 1.Seconds());
+                    if (!messages.Any())
+                    {
+                        return;
+                    }
+
+                    foreach (var message in messages) await receiver.CompleteMessageAsync(message);
+                }
+            });
         }
         catch (Exception e)
         {
@@ -174,15 +153,19 @@ public class AzureServiceBusSubscription : AzureServiceBusEndpoint, IBrokerQueue
 
     public async ValueTask<Dictionary<string, string>> GetAttributesAsync()
     {
-        var client = Parent.ManagementClient;
-        var props = await client.GetSubscriptionAsync(Topic.TopicName, SubscriptionName);
-        return new Dictionary<string, string>
+        var dict = new Dictionary<string, string>
         {
             { "TopicName", Topic.TopicName },
-            { "SubscriptionName", SubscriptionName },
-
-            { nameof(SubscriptionProperties.Status), props.Value.Status.ToString() },
+            { "SubscriptionName", SubscriptionName }
         };
+
+        await Parent.WithManagementClientAsync(async client =>
+        {
+            var props = await client.GetSubscriptionAsync(Topic.TopicName, SubscriptionName);
+            dict[nameof(SubscriptionProperties.Status)] = props.Value.Status.ToString();
+        });
+        
+        return dict;
     }
 
     public override async ValueTask InitializeAsync(ILogger logger)
@@ -192,8 +175,7 @@ public class AzureServiceBusSubscription : AzureServiceBusEndpoint, IBrokerQueue
             return;
         }
 
-        var client = Parent.ManagementClient;
-        await InitializeAsync(client, logger);
+        await Parent.WithManagementClientAsync(client => InitializeAsync(client, logger).AsTask());
 
         _hasInitialized = true;
     }

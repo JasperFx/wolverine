@@ -1,5 +1,6 @@
 using Azure.Messaging.ServiceBus;
 using Azure.Messaging.ServiceBus.Administration;
+using JasperFx.CodeGeneration;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
@@ -38,53 +39,34 @@ public class AzureServiceBusTopic : AzureServiceBusEndpoint
 
     protected override ISender CreateSender(IWolverineRuntime runtime)
     {
-        var mapper = BuildMapper(runtime);
-        var sender = Parent.BusClient.CreateSender(TopicName);
-
-        if (Mode == EndpointMode.Inline)
-        {
-            var inlineSender = new InlineAzureServiceBusSender(this, mapper, sender,
-                runtime.LoggerFactory.CreateLogger<InlineAzureServiceBusSender>(), runtime.Cancellation);
-
-            return inlineSender;
-        }
-
-        var protocol = new AzureServiceBusSenderProtocol(runtime, this, mapper, sender);
-
-        return new BatchedSender(this, protocol, runtime.DurabilitySettings.Cancellation, runtime.LoggerFactory.CreateLogger<AzureServiceBusSenderProtocol>());
-    }
-
-    internal ISender BuildInlineSender(IWolverineRuntime runtime)
-    {
-        var mapper = BuildMapper(runtime);
-        var sender = Parent.BusClient.CreateSender(TopicName);
-        return new InlineAzureServiceBusSender(this, mapper, sender,
-            runtime.LoggerFactory.CreateLogger<InlineAzureServiceBusSender>(), runtime.Cancellation);
-
+        return Parent.CreateSender(runtime, this);
     }
 
     public override async ValueTask<bool> CheckAsync()
     {
-        var client = Parent.ManagementClient;
+        var exists = true;
 
-        return (await client.TopicExistsAsync(TopicName)).Value;
+        await Parent.WithManagementClientAsync(async client =>
+        {
+            exists = exists && (await client.TopicExistsAsync(TopicName)).Value;
+        });
+
+        return exists;
     }
 
     public override ValueTask TeardownAsync(ILogger logger)
     {
-        var task = Parent.ManagementClient.DeleteTopicAsync(TopicName);
-        return new ValueTask(task);
+        return new ValueTask(Parent.WithManagementClientAsync(client => client.DeleteTopicAsync(TopicName)));
     }
 
     public CreateTopicOptions Options { get; }
 
     public override ValueTask SetupAsync(ILogger logger)
     {
-        var client = Parent.ManagementClient;
-        return SetupAsync(client, logger);
+        return new ValueTask(Parent.WithManagementClientAsync(c => SetupAsync(c, logger)));
     }
 
-    internal async ValueTask SetupAsync(ServiceBusAdministrationClient client, ILogger logger)
+    internal async Task SetupAsync(ServiceBusAdministrationClient client, ILogger logger)
     {
         var exists = await client.TopicExistsAsync(TopicName, CancellationToken.None);
         if (!exists)
@@ -109,8 +91,7 @@ public class AzureServiceBusTopic : AzureServiceBusEndpoint
             return;
         }
 
-        var client = Parent.ManagementClient;
-        await InitializeAsync(client, logger);
+        await Parent.WithManagementClientAsync(client => InitializeAsync(client, logger).AsTask());
 
         _hasInitialized = true;
     }
@@ -119,7 +100,7 @@ public class AzureServiceBusTopic : AzureServiceBusEndpoint
     {
         if (Parent.AutoProvision)
         {
-            return SetupAsync(client, logger);
+            return new ValueTask(SetupAsync(client, logger));
         }
 
         return ValueTask.CompletedTask;

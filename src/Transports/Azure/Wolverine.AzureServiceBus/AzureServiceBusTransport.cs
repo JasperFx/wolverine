@@ -3,10 +3,12 @@ using Azure.Core;
 using Azure.Messaging.ServiceBus;
 using Azure.Messaging.ServiceBus.Administration;
 using JasperFx.Core;
+using Microsoft.Extensions.Logging;
 using Wolverine.AzureServiceBus.Internal;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
 using Wolverine.Transports;
+using Wolverine.Transports.Sending;
 
 namespace Wolverine.AzureServiceBus;
 
@@ -59,9 +61,157 @@ public class AzureServiceBusTransport : BrokerTransport<AzureServiceBusEndpoint>
         TransportType = ServiceBusTransportType.AmqpTcp
     };
 
-    public ServiceBusAdministrationClient ManagementClient => _managementClient.Value;
+    public async Task WithManagementClientAsync(Func<ServiceBusAdministrationClient, Task> action)
+    {
+        // TODO -- gets fancier later with multi-tenancy
+        await action(_managementClient.Value);
+    }
 
+    public async Task WithServiceBusClientAsync(Func<ServiceBusClient, Task> action)
+    {
+        // TODO -- gets fancier later with multi-tenancy
+        await action(BusClient);
+    }
+    
     public ServiceBusClient BusClient => _busClient.Value;
+
+    internal ISender CreateSender(IWolverineRuntime runtime, AzureServiceBusTopic topic)
+    {
+        // TODO -- gets fancier later with multi-tenancy
+        
+        var mapper = topic.BuildMapper(runtime);
+        
+        var sender = BusClient.CreateSender(topic.TopicName);
+
+        if (topic.Mode == EndpointMode.Inline)
+        {
+            var inlineSender = new InlineAzureServiceBusSender(topic, mapper, sender,
+                runtime.LoggerFactory.CreateLogger<InlineAzureServiceBusSender>(), runtime.Cancellation);
+
+            return inlineSender;
+        }
+
+        var protocol = new AzureServiceBusSenderProtocol(runtime, topic, mapper, sender);
+
+        return new BatchedSender(topic, protocol, runtime.DurabilitySettings.Cancellation, runtime.LoggerFactory.CreateLogger<AzureServiceBusSenderProtocol>());
+    }
+
+    internal ISender BuildInlineSender(IWolverineRuntime runtime, AzureServiceBusTopic topic)
+    {
+        // TODO -- gets fancier with multi-tenancy
+        var mapper = topic.BuildMapper(runtime);
+        var sender = BusClient.CreateSender(topic.TopicName);
+        return new InlineAzureServiceBusSender(topic, mapper, sender,
+            runtime.LoggerFactory.CreateLogger<InlineAzureServiceBusSender>(), runtime.Cancellation);
+
+    }
+    
+    internal ISender BuildInlineSender(IWolverineRuntime runtime, AzureServiceBusQueue queue)
+    {
+        // TODO -- gets fancier with multi-tenancy
+        var mapper = queue.BuildMapper(runtime);
+        var sender = BusClient.CreateSender(queue.QueueName);
+        return new InlineAzureServiceBusSender(queue, mapper, sender,
+            runtime.LoggerFactory.CreateLogger<InlineAzureServiceBusSender>(), runtime.Cancellation);
+
+    }
+    
+    internal ISender BuildSender(IWolverineRuntime runtime, AzureServiceBusQueue queue)
+    {
+        // TODO -- get fancier for multi-tenancy
+        var mapper = queue.BuildMapper(runtime);
+        var sender = BusClient.CreateSender(queue.QueueName);
+
+        if (queue.Mode == EndpointMode.Inline)
+        {
+            var inlineSender = new InlineAzureServiceBusSender(queue, mapper, sender,
+                runtime.LoggerFactory.CreateLogger<InlineAzureServiceBusSender>(), runtime.Cancellation);
+
+            return inlineSender;
+        }
+
+        var protocol = new AzureServiceBusSenderProtocol(runtime, queue, mapper, sender);
+
+        return new BatchedSender(queue, protocol, runtime.DurabilitySettings.Cancellation, runtime.LoggerFactory.CreateLogger<AzureServiceBusSenderProtocol>());
+    }
+    
+    internal Task<ServiceBusSessionReceiver> AcceptNextSessionAsync(AzureServiceBusQueue queue, CancellationToken cancellationToken)
+    {
+        return BusClient.AcceptNextSessionAsync(queue.QueueName, cancellationToken: cancellationToken);
+    }
+    
+    internal Task<ServiceBusSessionReceiver> AcceptNextSessionAsync(AzureServiceBusSubscription subscription, CancellationToken cancellationToken)
+    {
+        return BusClient.AcceptNextSessionAsync(subscription.Topic.TopicName, subscription.SubscriptionName,
+            cancellationToken: cancellationToken);
+    }
+    
+    internal async ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver, AzureServiceBusQueue queue)
+    {
+        // TODO -- gets fancier with multi-tenancy
+        
+        var mapper = queue.BuildMapper(runtime);
+
+        var requeue = queue.BuildInlineSender(runtime);
+
+        if (queue.Options.RequiresSession)
+        {
+            return new AzureServiceBusSessionListener(queue, receiver, mapper,
+                runtime.LoggerFactory.CreateLogger<AzureServiceBusSessionListener>(), requeue);
+        }
+
+        if (queue.Mode == EndpointMode.Inline)
+        {
+            var messageProcessor = BusClient.CreateProcessor(queue.QueueName);
+
+            var inlineListener = new InlineAzureServiceBusListener(queue,
+                runtime.LoggerFactory.CreateLogger<InlineAzureServiceBusListener>(), messageProcessor, receiver,
+                mapper,
+                requeue);
+
+            await inlineListener.StartAsync();
+
+            return inlineListener;
+        }
+
+        var messageReceiver = BusClient.CreateReceiver(queue.QueueName);
+        var logger = runtime.LoggerFactory.CreateLogger<BatchedAzureServiceBusListener>();
+        var listener = new BatchedAzureServiceBusListener(queue, logger, receiver, messageReceiver, mapper, requeue);
+
+        return listener;
+    }
+    
+    public async ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver, AzureServiceBusSubscription subscription)
+    {
+        var requeue = RetryQueue != null ? RetryQueue.BuildInlineSender(runtime) : BuildInlineSender(runtime, subscription.Topic);
+        var mapper = subscription.BuildMapper(runtime);
+
+        if (subscription.Options.RequiresSession)
+        {
+            return new AzureServiceBusSessionListener(subscription, receiver, mapper,
+                runtime.LoggerFactory.CreateLogger<AzureServiceBusSessionListener>(), requeue);
+        }
+
+        if (subscription.Mode == EndpointMode.Inline)
+        {
+            var messageProcessor = BusClient.CreateProcessor(subscription.Topic.TopicName, subscription.SubscriptionName);
+            var inlineListener = new InlineAzureServiceBusListener(subscription,
+                runtime.LoggerFactory.CreateLogger<InlineAzureServiceBusListener>(), messageProcessor, receiver, mapper,  requeue
+            );
+
+            await inlineListener.StartAsync();
+
+            return inlineListener;
+        }
+
+        var messageReceiver = BusClient.CreateReceiver(subscription.Topic.TopicName, subscription.SubscriptionName);
+
+        var listener = new BatchedAzureServiceBusListener(subscription, runtime.LoggerFactory.CreateLogger<BatchedAzureServiceBusListener>(), receiver, messageReceiver, mapper, requeue);
+
+        return listener;
+    }
+
+    public ServiceBusAdministrationClient ManagementClient => _managementClient.Value;
 
     public ValueTask DisposeAsync()
     {
@@ -214,4 +364,6 @@ public class AzureServiceBusTransport : BrokerTransport<AzureServiceBusEndpoint>
 
         return new ServiceBusAdministrationClient(ConnectionString);
     }
+
+
 }
