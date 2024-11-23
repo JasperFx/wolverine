@@ -7,5 +7,6 @@ public enum RoutingScope
     Type,
     TypeName,
     All,
-    Implements
+    Implements,
+    Attribute
 }
