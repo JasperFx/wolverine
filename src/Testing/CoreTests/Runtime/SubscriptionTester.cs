@@ -46,6 +46,17 @@ public class SubscriptionTester
     }
 
     [Fact]
+    public void description_of_attribute_rule()
+    {
+        var rule = new Subscription
+        {
+            BaseOrAttributeType = typeof(RandomClassAttribute),
+            Scope = RoutingScope.Attribute
+        };
+        rule.ToString().ShouldBe("Message type is decorated with 'CoreTests.Runtime.RandomClassAttribute' or a derived type");
+    }
+
+    [Fact]
     public void description_of_all_types()
     {
         var rule = Subscription.All();
@@ -86,6 +97,20 @@ public class SubscriptionTester
     }
 
     [Fact]
+    public void negative_attribute_test()
+    {
+        var rule = new Subscription
+        {
+            Scope = RoutingScope.Attribute,
+            BaseOrAttributeType = typeof(GreenAttribute)
+        };
+
+        rule.Matches(typeof(GreenMessage1)).ShouldBeFalse();
+        rule.Matches(typeof(GreenMessage2)).ShouldBeFalse();
+        rule.Matches(typeof(GreenMessage3)).ShouldBeFalse();
+    }
+
+    [Fact]
     public void positive_namespace_test()
     {
         var rule = new Subscription
@@ -98,6 +123,23 @@ public class SubscriptionTester
         rule.Matches(typeof(RedMessage2)).ShouldBeTrue();
         rule.Matches(typeof(RedMessage3)).ShouldBeTrue();
     }
+
+    [Fact]
+    public void positive_attribute_test()
+    {
+        var rule = new Subscription
+        {
+            Scope = RoutingScope.Attribute,
+            BaseOrAttributeType = typeof(RedAttribute)
+        };
+
+        rule.Matches(typeof(RedMessage1)).ShouldBeTrue();
+        rule.Matches(typeof(RedMessage2)).ShouldBeTrue();
+        rule.Matches(typeof(RedMessage3)).ShouldBeTrue();
+    }
 }
 
+[RandomClass]
 public class RandomClass;
+
+public class RandomClassAttribute : Attribute;

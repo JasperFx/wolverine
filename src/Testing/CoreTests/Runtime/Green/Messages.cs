@@ -5,3 +5,5 @@ public class GreenMessage1;
 public class GreenMessage2;
 
 public class GreenMessage3;
+
+public class GreenAttribute : Attribute;
