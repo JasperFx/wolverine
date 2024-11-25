@@ -71,9 +71,6 @@ public abstract class AzureServiceBusEndpoint : Endpoint, IBrokerEndpoint, IAzur
         return mapper;
     }
 
-    public abstract Task<ServiceBusSessionReceiver> AcceptNextSessionAsync(CancellationToken cancellationToken);
-
-
     /// <summary>
     /// If specified, applies a custom envelope mapper to this endp[oint
     /// </summary>

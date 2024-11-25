@@ -43,14 +43,9 @@ public class AzureServiceBusSubscription : AzureServiceBusEndpoint, IBrokerQueue
 
     public AzureServiceBusTopic Topic { get; }
 
-    public override Task<ServiceBusSessionReceiver> AcceptNextSessionAsync(CancellationToken cancellationToken)
-    {
-        return Parent.AcceptNextSessionAsync(this, cancellationToken: cancellationToken);
-    }
-
     public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
     {
-        return Parent.BuildListenerAsync(runtime, receiver, this);
+        return Parent.BuildListenerForSubscription(runtime, receiver, this);
     }
 
     protected override ISender CreateSender(IWolverineRuntime runtime)
