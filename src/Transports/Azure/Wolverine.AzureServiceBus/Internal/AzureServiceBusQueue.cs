@@ -34,11 +34,6 @@ public class AzureServiceBusQueue : AzureServiceBusEndpoint, IBrokerQueue
 
     public string QueueName { get; }
 
-    public override Task<ServiceBusSessionReceiver> AcceptNextSessionAsync(CancellationToken cancellationToken)
-    {
-        return Parent.AcceptNextSessionAsync(this, cancellationToken: cancellationToken);
-    }
-
     public override async ValueTask<bool> CheckAsync()
     {
         var exists = true;
@@ -180,17 +175,12 @@ public class AzureServiceBusQueue : AzureServiceBusEndpoint, IBrokerQueue
 
     public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
     {
-        return Parent.BuildListenerAsync(runtime, receiver, this);
-    }
-
-    internal ISender BuildInlineSender(IWolverineRuntime runtime)
-    {
-        return Parent.BuildInlineSender(runtime, this);
+        return Parent.BuildListenerForQueue(runtime, receiver, this);
     }
 
     protected override ISender CreateSender(IWolverineRuntime runtime)
     {
-        return Parent.BuildSender(runtime, this);
+        return Parent.BuildSenderForQueue(runtime, this);
     }
 
     /// <summary>
@@ -204,13 +194,13 @@ public class AzureServiceBusQueue : AzureServiceBusEndpoint, IBrokerQueue
         var dlq = Parent.Queues[DeadLetterQueueName];
         configure(dlq);
     }
-
+    
     public override bool TryBuildDeadLetterSender(IWolverineRuntime runtime, out ISender? deadLetterSender)
     {
         if (DeadLetterQueueName.IsNotEmpty())
         {
             var dlq = Parent.Queues[DeadLetterQueueName];
-            deadLetterSender = dlq.BuildInlineSender(runtime);
+            deadLetterSender = Parent.BuildInlineSenderForQueue(runtime, dlq);
             return true;
         }
 

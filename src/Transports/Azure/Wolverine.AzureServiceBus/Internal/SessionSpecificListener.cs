@@ -12,6 +12,7 @@ namespace Wolverine.AzureServiceBus.Internal;
 
 internal class AzureServiceBusSessionListener : IListener
 {
+    private readonly AzureServiceBusTransport _transport;
     private readonly AzureServiceBusEndpoint _endpoint;
     private readonly IReceiver _receiver;
     private readonly IEnvelopeMapper<ServiceBusReceivedMessage, ServiceBusMessage> _mapper;
@@ -20,9 +21,12 @@ internal class AzureServiceBusSessionListener : IListener
     private readonly CancellationTokenSource _cancellation = new();
 
     private readonly List<Task> _tasks = new();
-
-    public AzureServiceBusSessionListener(AzureServiceBusEndpoint endpoint, IReceiver receiver, IEnvelopeMapper<ServiceBusReceivedMessage, ServiceBusMessage> mapper, ILogger logger,  ISender requeue)
+    
+    public AzureServiceBusSessionListener(AzureServiceBusTransport transport, AzureServiceBusEndpoint endpoint,
+        IReceiver receiver, IEnvelopeMapper<ServiceBusReceivedMessage, ServiceBusMessage> mapper, ILogger logger,
+        ISender requeue)
     {
+        _transport = transport;
         _endpoint = endpoint;
         _receiver = receiver;
         _mapper = mapper;
@@ -47,7 +51,7 @@ internal class AzureServiceBusSessionListener : IListener
         {
             try
             {
-                await using var sessionReceiver = await _endpoint.AcceptNextSessionAsync(_cancellation.Token);
+                await using var sessionReceiver = await _transport.AcceptNextSessionAsync(_endpoint, _cancellation.Token);
                 var sessionListener =
                     new SessionSpecificListener(sessionReceiver, _endpoint, _receiver, _mapper, _logger, _requeue);
                 var count = await sessionListener.ExecuteAsync(_cancellation.Token);

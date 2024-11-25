@@ -1,6 +1,5 @@
 using JasperFx.Core;
 using RabbitMQ.Client;
-using Spectre.Console;
 using Wolverine.Runtime;
 
 namespace Wolverine.RabbitMQ.Internal;
@@ -23,8 +22,6 @@ internal class RabbitMqTenant
     public string TenantId { get; }
     public RabbitMqTransport Transport { get; private set; }
     public string? VirtualHostName { get; set; }
-
-    internal LightweightCache<string, RabbitMqTransport> Tenants { get; } = new();
 
     public RabbitMqTransport Compile(RabbitMqTransport parent)
     {

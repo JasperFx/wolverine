@@ -25,11 +25,6 @@ public class AzureServiceBusTopic : AzureServiceBusEndpoint
         Options = new CreateTopicOptions(TopicName);
     }
 
-    public override Task<ServiceBusSessionReceiver> AcceptNextSessionAsync(CancellationToken cancellationToken)
-    {
-        throw new NotSupportedException();
-    }
-
     public string TopicName { get; }
 
     public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
