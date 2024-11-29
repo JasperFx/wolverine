@@ -63,6 +63,13 @@ public interface ISubscriberConfiguration<T> : IEndpointConfiguration<T> where T
     /// </summary>
     /// <returns></returns>
     T SendInline();
+
+    /// <summary>
+    /// In the case of being part of tenancy aware group of message transports, this
+    /// setting makes this listening endpoint a "global" endpoint that does not conform to the tenant-specific topology. 
+    /// </summary>
+    /// <returns></returns>
+    public T GlobalSender();
 }
 
 public interface ISubscriberConfiguration : ISubscriberConfiguration<ISubscriberConfiguration>;

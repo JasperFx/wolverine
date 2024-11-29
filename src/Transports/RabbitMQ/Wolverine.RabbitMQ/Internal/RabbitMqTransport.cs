@@ -326,7 +326,7 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IAsy
     {
         var rabbitMqSender = new RabbitMqSender(endpoint, this, routingType, runtime);
         
-        if (Tenants.Any())
+        if (Tenants.Any() && endpoint.TenancyBehavior == TenancyBehavior.TenantAware)
         {
             var tenantedSender = new TenantedSender(endpoint.Uri, TenantedIdBehavior, rabbitMqSender);
             foreach (var tenant in Tenants)
@@ -344,7 +344,7 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IAsy
     public async ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver, RabbitMqQueue queue)
     {
         var listener = await buildListener(runtime, receiver, queue);
-        if (Tenants.Any())
+        if (Tenants.Any() && queue.TenancyBehavior == TenancyBehavior.TenantAware)
         {
             var compound = new CompoundListener(queue.Uri);
             compound.Inner.Add(listener);

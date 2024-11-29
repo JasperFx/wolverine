@@ -34,7 +34,7 @@ public partial class AzureServiceBusTransport
 
         var listener = await buildListenerForQueue(runtime, receiver, queue, mapper);
 
-        if (Tenants.Any())
+        if (Tenants.Any() && queue.TenancyBehavior == TenancyBehavior.TenantAware)
         {
             var compound = new CompoundListener(queue.Uri);
             compound.Inner.Add(listener);
@@ -89,7 +89,7 @@ public partial class AzureServiceBusTransport
     {
         var mapper = subscription.BuildMapper(runtime);
         var listener = await buildListenerForSubscription(runtime, receiver, subscription, mapper);
-        if (Tenants.Any())
+        if (Tenants.Any() && subscription.TenancyBehavior == TenancyBehavior.TenantAware)
         {
             var compound = new CompoundListener(subscription.Uri);
             compound.Inner.Add(listener);
