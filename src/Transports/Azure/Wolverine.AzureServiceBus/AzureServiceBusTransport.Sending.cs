@@ -14,7 +14,7 @@ public partial class AzureServiceBusTransport
 
         var defaultSender = buildSenderForTopic(runtime, topic, mapper);
 
-        if (Tenants.Any())
+        if (Tenants.Any() && topic.TenancyBehavior == TenancyBehavior.TenantAware)
         {
             var tenantedSender = new TenantedSender(topic.Uri, TenantedIdBehavior, defaultSender);
             foreach (var tenant in Tenants)
@@ -53,7 +53,7 @@ public partial class AzureServiceBusTransport
         
         var defaultSender = buildInlineSenderForTopic(runtime, topic, mapper);
         
-        if (Tenants.Any())
+        if (Tenants.Any() && topic.TenancyBehavior == TenancyBehavior.TenantAware)
         {
             var tenantedSender = new TenantedSender(topic.Uri, TenantedIdBehavior, defaultSender);
             foreach (var tenant in Tenants)
@@ -81,7 +81,7 @@ public partial class AzureServiceBusTransport
         var mapper = queue.BuildMapper(runtime);
         var defaultSender = buildInlineSenderForQueue(runtime, queue, mapper);
 
-        if (Tenants.Any())
+        if (Tenants.Any() && queue.TenancyBehavior == TenancyBehavior.TenantAware)
         {
             var tenantedSender = new TenantedSender(queue.Uri, TenantedIdBehavior, defaultSender);
             foreach (var tenant in Tenants)
@@ -109,7 +109,7 @@ public partial class AzureServiceBusTransport
         var mapper = queue.BuildMapper(runtime);
         var defaultSender = buildSenderForQueue(runtime, queue, mapper);
 
-        if (Tenants.Any())
+        if (Tenants.Any() && queue.TenancyBehavior == TenancyBehavior.TenantAware)
         {
             var tenantedSender = new TenantedSender(queue.Uri, TenantedIdBehavior, defaultSender);
             foreach (var tenant in Tenants)

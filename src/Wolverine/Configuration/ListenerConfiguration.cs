@@ -28,6 +28,18 @@ public class ListenerConfiguration<TSelf, TEndpoint> : DelayedEndpointConfigurat
         add(e => e.IsListener = true);
     }
 
+    /// <summary>
+    /// In the case of being part of tenancy aware group of message transports, this
+    /// setting makes this listening endpoint a "global" endpoint rather than a tenant id
+    /// aware endpoint that spans multiple message brokers. 
+    /// </summary>
+    /// <returns></returns>
+    public TSelf GlobalListener()
+    {
+        add(e => e.TenancyBehavior = TenancyBehavior.Global);
+        return this.As<TSelf>();
+    }
+
     public TSelf ListenWithStrictOrdering(string? endpointName = null)
     {
         add(e =>

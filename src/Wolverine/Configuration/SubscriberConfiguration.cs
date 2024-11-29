@@ -41,6 +41,12 @@ public class SubscriberConfiguration<T, TEndpoint> : DelayedEndpointConfiguratio
         return this.As<T>();
     }
 
+    public T GlobalSender()
+    {
+        add(e => e.TenancyBehavior = TenancyBehavior.Global);
+        return this.As<T>();
+    }
+
     public T Named(string name)
     {
         add(e => e.EndpointName = name);

@@ -24,6 +24,21 @@ public interface IDatabaseBackedEndpoint
     Task ScheduleRetryAsync(Envelope envelope, CancellationToken cancellation);
 }
 
+public enum TenancyBehavior
+{
+    /// <summary>
+    /// In the case of being used within a multi-tenancy aware transport setup,
+    /// this endpoint is tenant specific
+    /// </summary>
+    TenantAware,
+    
+    /// <summary>
+    /// In the case of being used within a multi-tenancy aware transport setup,
+    /// this endpoint is global across all tenants
+    /// </summary>
+    Global
+}
+
 /// <summary>
 ///     Defines how message listening or sending functions
 ///     at runtime
@@ -102,9 +117,15 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
     }
 
     /// <summary>
-    /// In the case of using 
+    /// In the case of using "sticky handlers"
     /// </summary>
     public List<Type> StickyHandlers { get; } = new();
+
+    /// <summary>
+    /// Governs whether this endpoint should be "per tenant" or global in the case of using
+    /// a broker per tenant
+    /// </summary>
+    public TenancyBehavior TenancyBehavior { get; set; } = TenancyBehavior.TenantAware;
 
     /// <summary>
     /// If a listener, what is the scope of the
