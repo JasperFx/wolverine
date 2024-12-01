@@ -3,11 +3,15 @@ using System.Net;
 using JasperFx.Core;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
+using NSubstitute;
 using NSubstitute.ReceivedExtensions;
 using Oakton.Resources;
 using Shouldly;
 using Wolverine.ComplianceTests.Compliance;
+using Wolverine.Configuration;
+using Wolverine.RabbitMQ.Internal;
 using Wolverine.Tracking;
+using Wolverine.Transports;
 using Wolverine.Transports.Sending;
 using Xunit;
 
@@ -48,6 +52,14 @@ public class MultiTenantedRabbitFixture : IAsyncLifetime
 
                 // Listen for multiples
                 opts.ListenToRabbitQueue("multi_response");
+
+                opts.ListenToRabbitQueue("global_response").GlobalListener();
+
+                // Really just using this to test the construction of senders and listeners
+                opts.PublishMessage<Message1>().ToRabbitQueue("message1");
+                opts.PublishMessage<Message2>().ToRabbitQueue("message2").GlobalSender();
+                opts.PublishMessage<Message3>().ToRabbitExchange("message3");
+                opts.PublishMessage<Message4>().ToRabbitExchange("message4").GlobalSender();
 
                 opts.PublishMessage<MultiTenantMessage>().ToRabbitQueue("multi_incoming");
 
@@ -151,6 +163,90 @@ public class multi_tenancy_through_virtual_hosts : IClassFixture<MultiTenantedRa
         response.Envelope.Message.ShouldBeOfType<MultiTenantResponse>()
             .Id.ShouldBe(message.Id);
     }
+    
+    /*
+
+       opts.PublishMessage<Message3>().ToRabbitExchange("message3");
+       opts.PublishMessage<Message4>().ToRabbitExchange("message4").GlobalSender();
+     */
+
+    [Fact]
+    public void build_compound_sender_for_tenant_aware_exchange()
+    {
+        var runtime = _fixture.Main.GetRuntime();
+        var transport = runtime.Options.Transports.GetOrCreate<RabbitMqTransport>();
+        var exchange = transport.Exchanges["message3"];
+        exchange.TenancyBehavior.ShouldBe(TenancyBehavior.TenantAware);
+
+        var sender = exchange.ResolveSender(runtime);
+        sender.ShouldBeOfType<TenantedSender>();
+    }
+    
+    [Fact]
+    public void build_simple_sender_for_global_exchange()
+    {
+        var runtime = _fixture.Main.GetRuntime();
+        var transport = runtime.Options.Transports.GetOrCreate<RabbitMqTransport>();
+        var exchange = transport.Exchanges["message4"];
+        exchange.TenancyBehavior.ShouldBe(TenancyBehavior.Global);
+
+        var sender = exchange.ResolveSender(runtime);
+        sender.ShouldBeOfType<RabbitMqSender>();
+    }
+
+    [Fact]
+    public void build_compound_sender_for_tenant_aware_queue()
+    {
+        var runtime = _fixture.Main.GetRuntime();
+        var transport = runtime.Options.Transports.GetOrCreate<RabbitMqTransport>();
+        var queue = transport.Queues["message1"];
+        queue.TenancyBehavior.ShouldBe(TenancyBehavior.TenantAware);
+
+        var sender = queue.ResolveSender(runtime);
+        sender.ShouldBeOfType<TenantedSender>();
+    }
+    
+    [Fact]
+    public void build_simple_sender_for_global_queue()
+    {
+        var runtime = _fixture.Main.GetRuntime();
+        var transport = runtime.Options.Transports.GetOrCreate<RabbitMqTransport>();
+        var queue = transport.Queues["message2"];
+        queue.TenancyBehavior.ShouldBe(TenancyBehavior.Global);
+
+        var sender = queue.ResolveSender(runtime);
+        sender.ShouldBeOfType<RabbitMqSender>();
+    }
+
+    [Fact]
+    public async Task opt_into_global_listener_for_queue()
+    {
+        var runtime = _fixture.Main.GetRuntime();
+        var transport = runtime.Options.Transports.GetOrCreate<RabbitMqTransport>();
+        var queue = transport.Queues["global_response"];
+        queue.TenancyBehavior.ShouldBe(TenancyBehavior.Global);
+
+        var receiver = Substitute.For<IReceiver>();
+        var listener = await queue.BuildListenerAsync(runtime, receiver);
+        
+        // Not parallel
+        listener.ShouldBeOfType<RabbitMqListener>();
+    }
+
+    [Fact]
+    public async Task use_tenanted_for_listener_when_appropriate()
+    {
+        var runtime = _fixture.Main.GetRuntime();
+        var transport = runtime.Options.Transports.GetOrCreate<RabbitMqTransport>();
+        var queue = transport.Queues["multi_response"];
+        queue.TenancyBehavior.ShouldBe(TenancyBehavior.TenantAware);
+
+        var receiver = Substitute.For<IReceiver>();
+        var listener = await queue.BuildListenerAsync(runtime, receiver);
+        
+        // Not parallel
+        listener.ShouldBeOfType<CompoundListener>();
+    }
 }
 
 public static class MultiTenantedRabbitMqSamples
@@ -197,6 +293,13 @@ public static class MultiTenantedRabbitMqSamples
             // named "incoming" on all virtual hosts and/or tenant specific message
             // brokers
             opts.ListenToRabbitQueue("incoming");
+
+            opts.ListenToRabbitQueue("incoming_global")
+                
+                // This opts this queue out from being per-tenant, such that
+                // there will only be the single "incoming_global" queue for the default
+                // broker connection
+                .GlobalListener();
 
             // More on this in the docs....
             opts.PublishMessage<Message1>()
