@@ -3,6 +3,7 @@ using JasperFx.Core;
 using Wolverine.AzureServiceBus.Internal;
 using Wolverine.Configuration;
 using Wolverine.Transports;
+using Wolverine.Transports.Sending;
 
 namespace Wolverine.AzureServiceBus;
 
@@ -25,6 +26,43 @@ public class AzureServiceBusConfiguration : BrokerExpression<AzureServiceBusTran
         AzureServiceBusQueue subscriberEndpoint)
     {
         return new AzureServiceBusQueueSubscriberConfiguration(subscriberEndpoint);
+    }
+    
+    /// <summary>
+    /// Override the sending logic behavior for unknown or missing tenant ids when
+    /// using multi-tenanted namespaces
+    /// </summary>
+    /// <param name="tenantedIdBehavior"></param>
+    /// <returns></returns>
+    public AzureServiceBusConfiguration TenantIdBehavior(TenantedIdBehavior tenantedIdBehavior)
+    {
+        Transport.TenantedIdBehavior = tenantedIdBehavior;
+        return this;
+    }
+
+    /// <summary>
+    /// Add a connection to a different Azure Service Bus broker for the named tenant using a fully
+    /// qualified namespace
+    /// </summary>
+    /// <param name="tenantId"></param>
+    /// <param name="fullyQualifiedNamespace"></param>
+    /// <returns></returns>
+    public AzureServiceBusConfiguration AddTenantByNamespace(string tenantId, string fullyQualifiedNamespace)
+    {
+        Transport.Tenants[tenantId].Transport.FullyQualifiedNamespace = fullyQualifiedNamespace;
+        return this;
+    }
+
+    /// <summary>
+    /// Add a connection to a different Azure Service Bus broker for the named tenant using a connection string
+    /// </summary>
+    /// <param name="tenantId"></param>
+    /// <param name="connectionString"></param>
+    /// <returns></returns>
+    public AzureServiceBusConfiguration AddTenantByConnectionString(string tenantId, string connectionString)
+    {
+        Transport.Tenants[tenantId].Transport.ConnectionString = connectionString;
+        return this;
     }
 
     /// <summary>
