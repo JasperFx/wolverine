@@ -42,7 +42,6 @@ public class RabbitMqTransportExpression : BrokerExpression<RabbitMqTransport, R
     /// <param name="tenantId"></param>
     /// <param name="virtualHostName"></param>
     /// <returns></returns>
-    /// <exception cref="NotImplementedException"></exception>
     public RabbitMqTransportExpression AddTenant(string tenantId, string virtualHostName)
     {
         Transport.Tenants[tenantId] = new RabbitMqTenant(tenantId, virtualHostName);

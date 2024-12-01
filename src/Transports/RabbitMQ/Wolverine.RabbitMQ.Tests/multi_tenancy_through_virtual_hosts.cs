@@ -303,7 +303,7 @@ public static class MultiTenantedRabbitMqSamples
 
             // More on this in the docs....
             opts.PublishMessage<Message1>()
-                .ToRabbitQueue("outgoing");
+                .ToRabbitQueue("outgoing").GlobalSender();
         });
 
         #endregion

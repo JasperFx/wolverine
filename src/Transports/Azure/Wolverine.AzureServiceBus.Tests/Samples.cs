@@ -1,9 +1,12 @@
 using Azure.Messaging.ServiceBus;
 using JasperFx.Core;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Oakton.Resources;
 using Wolverine.ComplianceTests.Compliance;
+using Wolverine.Transports.Sending;
 using Wolverine.Util;
+using Xunit;
 
 namespace Wolverine.AzureServiceBus.Tests;
 
@@ -115,6 +118,74 @@ public class Samples
 
         #endregion
     }
+    
+public class multi_tenanted_brokers
+{
+    [Fact]
+    public void show_bootstrapping()
+    {
+        #region sample_configuring_azure_service_bus_for_multi_tenancy
+
+        var builder = Host.CreateApplicationBuilder();
+
+        builder.UseWolverine(opts =>
+        {
+            // One way or another, you're probably pulling the Azure Service Bus
+            // connection string out of configuration
+            var azureServiceBusConnectionString = builder
+                .Configuration
+                .GetConnectionString("azure-service-bus");
+
+            // Connect to the broker in the simplest possible way
+            opts.UseAzureServiceBus(azureServiceBusConnectionString)
+
+                // This is the default, if there is no tenant id on an outgoing message,
+                // use the default broker
+                .TenantIdBehavior(TenantedIdBehavior.FallbackToDefault)
+
+                // Or tell Wolverine instead to just quietly ignore messages sent
+                // to unrecognized tenant ids
+                .TenantIdBehavior(TenantedIdBehavior.IgnoreUnknownTenants)
+
+                // Or be draconian and make Wolverine assert and throw an exception
+                // if an outgoing message does not have a tenant id
+                .TenantIdBehavior(TenantedIdBehavior.TenantIdRequired)
+
+                // Add new tenants by registering the tenant id and a separate fully qualified namespace
+                // to a different Azure Service Bus connection
+                .AddTenantByNamespace("one", builder.Configuration.GetValue<string>("asb_ns_one"))
+                .AddTenantByNamespace("two", builder.Configuration.GetValue<string>("asb_ns_two"))
+                .AddTenantByNamespace("three", builder.Configuration.GetValue<string>("asb_ns_three"))
+
+                // OR, instead, add tenants by registering the tenant id and a separate connection string
+                // to a different Azure Service Bus connection
+                .AddTenantByConnectionString("four", builder.Configuration.GetConnectionString("asb_four"))
+                .AddTenantByConnectionString("five", builder.Configuration.GetConnectionString("asb_five"))
+                .AddTenantByConnectionString("six", builder.Configuration.GetConnectionString("asb_six"));
+            
+            // This Wolverine application would be listening to a queue
+            // named "incoming" on all Azure Service Bus connections, including the default
+            opts.ListenToAzureServiceBusQueue("incoming");
+
+            // This Wolverine application would listen to a single queue
+            // at the default connection regardless of tenant
+            opts.ListenToAzureServiceBusQueue("incoming_global")
+                .GlobalListener();
+            
+            // Likewise, you can override the queue, subscription, and topic behavior
+            // to be "global" for all tenants with this syntax:
+            opts.PublishMessage<Message1>()
+                .ToAzureServiceBusQueue("message1")
+                .GlobalSender();
+
+            opts.PublishMessage<Message2>()
+                .ToAzureServiceBusTopic("message2")
+                .GlobalSender();
+        });
+
+        #endregion
+    }
+}
 }
 
 #region sample_custom_azure_service_bus_mapper
