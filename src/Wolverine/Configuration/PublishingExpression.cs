@@ -160,35 +160,6 @@ public class PublishingExpression : IPublishToExpression
         return MessagesFromAssembly(typeof(T).Assembly);
     }
 
-    /// <summary>
-    ///	    Create a publishing rule for all messages decorated with the specified attribute type or a derived type
-    /// </summary>
-    /// <param name="attributeType"></param>
-    /// <returns></returns>
-    public PublishingExpression MessagesDecoratedWith(Type attributeType)
-    {
-        AutoAddSubscriptions = true;
-
-        _subscriptions.Add(new Subscription()
-        {
-            Scope = RoutingScope.Attribute,
-            BaseOrAttributeType = attributeType,
-        });
-
-        return this;
-    }
-
-    /// <summary>
-    ///	    Create a publishing rule for all messages decorated with the attribute of type T or a derived type
-    /// </summary>
-    /// <typeparam name="T"></typeparam>
-    /// <returns></returns>
-    public PublishingExpression MessagesDecoratedWith<T>()
-        where T : Attribute
-    {
-        return MessagesDecoratedWith(typeof(T));
-    }
-
     internal void AttachSubscriptions()
     {
         if (!_endpoints.Any())
@@ -211,6 +182,6 @@ public class PublishingExpression : IPublishToExpression
     /// <typeparam name="T"></typeparam>
     public void MessagesImplementing<T>()
     {
-        _subscriptions.Add(new Subscription { BaseOrAttributeType = typeof(T), Scope = RoutingScope.Implements });
+        _subscriptions.Add(new Subscription { BaseType = typeof(T), Scope = RoutingScope.Implements });
     }
 }
