@@ -43,10 +43,7 @@ public class Subscription
     /// </summary>
     public string Match { get; init; } = string.Empty;
 
-    /// <summary>
-    ///     A base type if matching on implementation or an attribute type if matching on decoration
-    /// </summary>
-    public Type? BaseOrAttributeType { get; init; }
+    public Type? BaseType { get; init; }
 
     /// <summary>
     ///     Create a subscription for a specific message type
@@ -83,8 +80,7 @@ public class Subscription
             RoutingScope.Type => type.Name.EqualsIgnoreCase(Match) || type.FullName!.EqualsIgnoreCase(Match) ||
                                  type.ToMessageTypeName().EqualsIgnoreCase(Match),
             RoutingScope.TypeName => type.ToMessageTypeName().EqualsIgnoreCase(Match),
-            RoutingScope.Implements => type.CanBeCastTo(BaseOrAttributeType!),
-            RoutingScope.Attribute => type.IsDefined(BaseOrAttributeType!, inherit: false),
+            RoutingScope.Implements => type.CanBeCastTo(BaseType!),
             _ => !type.CanBeCastTo<IAgentCommand>()
         };
     }
@@ -144,9 +140,6 @@ public class Subscription
 
             case RoutingScope.TypeName:
                 return $"Message name is '{Match}'";
-
-            case RoutingScope.Attribute:
-                return $"Message type is decorated with '{BaseOrAttributeType?.FullName}' or a derived type";
         }
 
         throw new ArgumentOutOfRangeException();
