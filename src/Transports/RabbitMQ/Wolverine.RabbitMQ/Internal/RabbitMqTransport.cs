@@ -365,19 +365,6 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IAsy
 
     private async Task<IListener> buildListener(IWolverineRuntime runtime, IReceiver receiver, RabbitMqQueue queue)
     {
-        if (queue.ListenerCount > 1)
-        {
-            var listeners = new List<RabbitMqListener>(queue.ListenerCount);
-            for (var i = 0; i < queue.ListenerCount; i++)
-            {
-                var listener = new RabbitMqListener(runtime, queue, this, receiver);
-                await listener.CreateAsync();
-                listeners.Add(listener);
-            }
-
-            return new ParallelListener(queue.Uri, listeners);
-        }
-
         var singleListener = new RabbitMqListener(runtime, queue, this, receiver);
         await singleListener.CreateAsync();
         return singleListener;
