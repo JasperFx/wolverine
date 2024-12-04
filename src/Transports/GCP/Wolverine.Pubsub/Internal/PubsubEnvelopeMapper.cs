@@ -47,7 +47,7 @@ internal class PubsubEnvelopeMapper : EnvelopeMapper<ReceivedMessage, PubsubMess
     {
         message.Data = ByteString.CopyFrom(outgoing.Data);
         message.Attributes["destination"] = outgoing.Destination.ToString();
-        message.Attributes["batched"] = string.Empty;
+        message.Attributes["batched"] = "1";
     }
 
     protected override void writeOutgoingHeader(PubsubMessage outgoing, string key, string value)
