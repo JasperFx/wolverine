@@ -24,18 +24,35 @@ public static class MartenOps
     /// <summary>
     /// Return a side effect of storing the specified document in Marten
     /// </summary>
+    /// <param name="document"></param>
+    /// <typeparam name="T"></typeparam>
+    /// <returns></returns>
+    /// <exception cref="ArgumentNullException"></exception>
+    public static StoreDoc<T> Store<T>(T document) where T : notnull
+    {
+        if (document == null)
+        {
+            throw new ArgumentNullException(nameof(document));
+        }
+
+        return new StoreDoc<T>(document);
+    }
+
+    /// <summary>
+    /// Return a side effect of storing many documents of a specific document type in Marten
+    /// </summary>
     /// <param name="documents"></param>
     /// <typeparam name="T"></typeparam>
     /// <returns></returns>
     /// <exception cref="ArgumentNullException"></exception>
-    public static StoreDoc<T> Store<T>(params T[] documents) where T : notnull
+    public static StoreManyDocs<T> StoreMany<T>(params T[] documents) where T : notnull
     {
         if (documents == null)
         {
             throw new ArgumentNullException(nameof(documents));
         }
 
-        return new StoreDoc<T>(documents);
+        return new StoreManyDocs<T>(documents);
     }
 
     /// <summary>
@@ -226,9 +243,24 @@ public class StartStream<T> : IStartStream where T : class
 
 public class StoreDoc<T> : DocumentOp where T : notnull
 {
+    private readonly T _document;
+
+    public StoreDoc(T document) : base(document)
+    {
+        _document = document;
+    }
+
+    public override void Execute(IDocumentSession session)
+    {
+        session.Store(_document);
+    }
+}
+
+public class StoreManyDocs<T> : DocumentsOp where T : notnull
+{
     private readonly T[] _documents;
 
-    public StoreDoc(params T[] documents) : base(documents)
+    public StoreManyDocs(T[] documents) : base(documents)
     {
         _documents = documents;
     }
@@ -286,9 +318,21 @@ public class DeleteDoc<T> : DocumentOp where T : notnull
 
 public abstract class DocumentOp : IMartenOp
 {
+    public object Document { get; }
+
+    protected DocumentOp(object document)
+    {
+        Document = document;
+    }
+
+    public abstract void Execute(IDocumentSession session);
+}
+
+public abstract class DocumentsOp : IMartenOp
+{
     public object[] Documents { get; }
 
-    protected DocumentOp(params object[] documents)
+    protected DocumentsOp(params object[] documents)
     {
         Documents = documents;
     }
