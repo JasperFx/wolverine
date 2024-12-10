@@ -260,9 +260,9 @@ public class StoreManyDocs<T> : DocumentsOp where T : notnull
 {
     private readonly T[] _documents;
 
-    public StoreManyDocs(T[] documents) : base(documents)
+    public StoreManyDocs(IEnumerable<T> documents) : base(documents.Cast<object>())
     {
-        _documents = documents;
+        _documents = documents.ToArray();
     }
 
     public override void Execute(IDocumentSession session)
@@ -332,9 +332,9 @@ public abstract class DocumentsOp : IMartenOp
 {
     public object[] Documents { get; }
 
-    protected DocumentsOp(params object[] documents)
+    protected DocumentsOp(IEnumerable<object> documents)
     {
-        Documents = documents;
+        Documents = documents.ToArray();
     }
 
     public abstract void Execute(IDocumentSession session);
