@@ -65,6 +65,10 @@ public class AggregateAttribute : HttpChainParameterAttribute
             throw new InvalidOperationException(
                 "Cannot determine an identity variable for this aggregate from the route arguments");
         }
+        
+        // Store information about the aggregate handling in the chain just in
+        // case they're using LatestAggregate
+        new AggregateHandling(AggregateType, IdVariable).Store(chain);
 
         VersionVariable = findVersionVariable(chain);
         CommandType = chain.InputType();
