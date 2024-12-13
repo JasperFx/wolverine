@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using System.Reflection;
+using JasperFx.CodeGeneration.Frames;
 using JasperFx.Core.Reflection;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Metadata;
@@ -117,6 +118,11 @@ public partial class HttpChain
         }
 
         return apiDescription;
+    }
+
+    public override void UseForResponse(MethodCall methodCall)
+    {
+        throw new NotImplementedException();
     }
 
     private sealed record NormalizedResponseMetadata(int StatusCode, Type? Type, IEnumerable<string> ContentTypes)

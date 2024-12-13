@@ -33,7 +33,7 @@ internal class ResponsePolicy : IHandlerPolicy
                 if (method == null)
                 {
                     throw new InvalidCustomResponseException(
-                        $"Invalid Wolverine side effect exception for {response.VariableType.FullNameInCode()}, no public {SyncMethod}/{AsyncMethod} method found");
+                        $"Invalid Wolverine response exception for {response.VariableType.FullNameInCode()}, no public {SyncMethod}/{AsyncMethod} method found");
                 }
 
                 foreach (var parameter in method.GetParameters()) chain.AddDependencyType(parameter.ParameterType);
@@ -76,7 +76,7 @@ public class InvalidCustomResponseException : Exception
     }
 }
 
-public interface IResponseAware
+public interface IResponseAware : IWolverineReturnType
 {
     static abstract void ConfigureResponse(IChain chain);
 }
