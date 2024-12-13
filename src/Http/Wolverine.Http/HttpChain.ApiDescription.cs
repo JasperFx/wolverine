@@ -122,7 +122,14 @@ public partial class HttpChain
 
     public override void UseForResponse(MethodCall methodCall)
     {
-        throw new NotImplementedException();
+        if (methodCall.ReturnVariable == null)
+            throw new ArgumentOutOfRangeException(nameof(methodCall),
+                $"Method {methodCall} is invalid in this usage. Only a method that returns a single value (not tuples) can be used here.");
+
+        ResourceType = methodCall.ReturnVariable.VariableType;
+        
+        Postprocessors.Add(methodCall);
+        ResourceVariable = methodCall.ReturnVariable;
     }
 
     private sealed record NormalizedResponseMetadata(int StatusCode, Type? Type, IEnumerable<string> ContentTypes)

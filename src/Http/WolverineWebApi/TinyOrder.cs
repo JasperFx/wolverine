@@ -1,13 +1,13 @@
 namespace WolverineWebApi;
 
-public class Order
+public class TinyOrder
 {
-    public Order(int orderId)
+    public TinyOrder(int orderId)
     {
         OrderId = orderId;
     }
 
-    public Order()
+    public TinyOrder()
     {
     }
 

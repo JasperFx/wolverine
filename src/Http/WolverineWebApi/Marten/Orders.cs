@@ -33,6 +33,9 @@ public class Item
 
 public class Order
 {
+    // For JSON serialization
+    public Order(){}
+    
     public Order(OrderCreated created)
     {
         foreach (var item in created.Items) Items[item.Name] = item;
@@ -61,6 +64,13 @@ public class Order
     {
         Items[ready.Name].Ready = true;
     }
+
+    public void Apply(OrderConfirmed confirmed)
+    {
+        IsConfirmed = true;
+    }
+
+    public bool IsConfirmed { get; set; }
 
     public bool IsReadyToShip()
     {
@@ -251,6 +261,16 @@ public static class MarkItemEndpoint
     {
         return (
             new AcceptResponse($"/orders/{order.Id}"),
+            [new OrderConfirmed()]
+        );
+    }
+    
+    [AggregateHandler]
+    [WolverinePost("/orders/{id}/confirm2")]
+    public static (UpdatedAggregate, Events) ConfirmDifferent(ConfirmOrder command, Order order)
+    {
+        return (
+            new UpdatedAggregate(),
             [new OrderConfirmed()]
         );
     }
