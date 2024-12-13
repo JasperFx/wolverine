@@ -305,6 +305,17 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         return MessageType;
     }
 
+    public override void UseForResponse(MethodCall methodCall)
+    {
+        var response = methodCall.ReturnVariable;
+        response.OverrideName("response_of_" + response.Usage);
+
+        Postprocessors.Add(methodCall);
+        
+        var cascading = new CaptureCascadingMessages(response);
+        Postprocessors.Add(cascading);
+    }
+
     public IEnumerable<Type> PublishedTypes()
     {
         var ignoredTypes = new[]
@@ -416,9 +427,7 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         if (!_hasConfiguredFrames)
         {
             _hasConfiguredFrames = true;
-            
-            
-
+ 
             applyAttributesAndConfigureMethods(rules, container);
 
             foreach (var attribute in MessageType

@@ -82,17 +82,6 @@ public interface IChain
     void Audit(MemberInfo member, string? heading = null);
 
     /// <summary>
-    ///     Find all variables returned by any handler call in this chain
-    ///     that can be cast to T
-    /// </summary>
-    /// <typeparam name="T"></typeparam>
-    /// <returns></returns>
-    public IEnumerable<Variable> ReturnVariablesOfType<T>()
-    {
-        return HandlerCalls().SelectMany(x => x.Creates).Where(x => x.VariableType.CanBeCastTo<T>());
-    }
-
-    /// <summary>
     ///     Help out the code generation a little bit by telling this chain
     ///     about a service dependency that will be used. Helps connect
     ///     transactional middleware
@@ -101,6 +90,29 @@ public interface IChain
     public void AddDependencyType(Type type);
 
     void ApplyImpliedMiddlewareFromHandlers(GenerationRules generationRules);
+    
+    /// <summary>
+    /// Special usage to make the single result of this method call be the actual response type
+    /// for the chain. For HTTP, this becomes the resource type written to the response. For message handlers,
+    /// this could be part of InvokeAsync<T>() or just a cascading message
+    /// </summary>
+    /// <param name="methodCall"></param>
+    void UseForResponse(MethodCall methodCall);
+
+    /// <summary>
+    ///     Find all variables returned by any handler call in this chain
+    ///     that can be cast to T
+    /// </summary>
+    /// <typeparam name="T"></typeparam>
+    /// <returns></returns>
+    IEnumerable<Variable> ReturnVariablesOfType<T>();
+
+    /// <summary>
+    ///     Find all variables returned by any handler call in this chain
+    ///     that can be cast to the supplied type
+    /// </summary>
+    /// <returns></returns>
+    IEnumerable<Variable> ReturnVariablesOfType(Type interfaceType);
 }
 
 #endregion

@@ -30,6 +30,8 @@ public class aggregate_handler_workflow: PostgresqlContext, IAsyncLifetime
                     {
                         m.Connection(Servers.PostgresConnectionString);
                         m.Projections.Snapshot<LetterAggregate>(SnapshotLifecycle.Inline);
+
+                        m.DisableNpgsqlLogging = true;
                     })
                     .UseLightweightSessions()
                     .IntegrateWithWolverine();
@@ -219,6 +221,25 @@ public class aggregate_handler_workflow: PostgresqlContext, IAsyncLifetime
             events.OfType<IEvent<OutgoingMessages>>().Any().ShouldBeFalse();
         }
     }
+
+    [Fact]
+    public async Task using_updated_aggregate_as_response()
+    {
+        var streamId = Guid.NewGuid();
+        using (var session = theStore.LightweightSession())
+        {
+            session.Events.StartStream<Aggregate>(streamId, new AEvent(), new BEvent());
+            await session.SaveChangesAsync();
+        }
+
+        var (tracked, updated) 
+            = await theHost.InvokeMessageAndWaitAsync<LetterAggregate>(new Raise(streamId, 2, 3));
+        
+        tracked.Sent.AllMessages().ShouldBeEmpty();
+        
+        updated.ACount.ShouldBe(3);
+        updated.BCount.ShouldBe(4);
+    }
 }
 
 public record Event1(Guid AggregateId);
@@ -325,7 +346,25 @@ public static class RaiseLetterHandler
         yield return new CEvent();
         yield return new CEvent();
     }
+
+    public static (UpdatedAggregate, Events) Handle(Raise command, LetterAggregate aggregate)
+    {
+        var events = new Events();
+        for (int i = 0; i < command.A; i++)
+        {
+            events.Add(new AEvent());
+        }
+        
+        for (int i = 0; i < command.B; i++)
+        {
+            events.Add(new BEvent());
+        }
+
+        return (new UpdatedAggregate(), events);
+    }
 }
+
+public record Raise(Guid LetterAggregateId, int A, int B);
 
 public record RaiseLotsAsync(Guid LetterAggregateId);
 
