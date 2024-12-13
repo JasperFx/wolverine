@@ -62,6 +62,11 @@ builder.Services.AddMarten(opts =>
     opts.Connection(Servers.PostgresConnectionString);
     opts.DatabaseSchemaName = "http";
     opts.DisableNpgsqlLogging = true;
+
+    // Use this setting to get the very best performance out
+    // of the UpdatedAggregate workflow and aggregate handler
+    // workflow over all
+    opts.Events.UseIdentityMapForAggregates = true;
 }).IntegrateWithWolverine();
 
 
