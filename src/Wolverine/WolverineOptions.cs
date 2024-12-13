@@ -51,8 +51,9 @@ public sealed partial class WolverineOptions
 
         Policies.Add<SagaPersistenceChainPolicy>();
         Policies.Add<SideEffectPolicy>();
+        Policies.Add<ResponsePolicy>();
         Policies.Add<OutgoingMessagesPolicy>();
-    }
+    } 
 
     public Guid UniqueNodeId { get; } = Guid.NewGuid();
 
