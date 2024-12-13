@@ -100,7 +100,7 @@ public class AggregateHandlerAttribute : ModifyChainAttribute
 
         chain.Postprocessors.Add(MethodCall.For<IDocumentSession>(x => x.SaveChangesAsync(default)));
         
-        new AggregateHandling(AggregateType, new MessageMemberVariable(AggregateIdMember, CommandType)).Store(chain);
+        new AggregateHandling(AggregateType, new Variable(AggregateIdMember.GetRawMemberType(), "aggregateId")).Store(chain);
     }
 
     internal static void DetermineEventCaptureHandling(IChain chain, MethodCall firstCall, Type aggregateType)

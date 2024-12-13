@@ -60,6 +60,12 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
     private readonly List<QuerystringVariable> _querystringVariables = [];
 
     public string OperationId { get; set; }
+    
+    /// <summary>
+    /// This may be overridden by some IResponseAware policies in place of the first
+    /// create variable of the method call
+    /// </summary>
+    public Variable? ResourceVariable { get; set; }
 
     // Make the assumption that the route argument has to match the parameter name
     private GeneratedType? _generatedType;
@@ -157,7 +163,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
 
     public IEnumerable<string> HttpMethods => _httpMethods;
 
-    public Type? ResourceType { get; }
+    public Type? ResourceType { get; private set; }
 
     internal void MapToRoute(string method, string url, int? order = null, string? displayName = null)
     {

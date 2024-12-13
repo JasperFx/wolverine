@@ -130,13 +130,7 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
             attribute.Modify(this, rules, container);
         }
 
-        var responseAwares = ReturnVariablesOfType(typeof(IResponseAware)).ToArray();
-        if (responseAwares.Length == 0) return;
-        if (responseAwares.Length > 1)
-            throw new InvalidOperationException(
-                $"Cannot use more than one IResponseAware policy per chain. Chain {this} has {responseAwares.Select(x => x.ToString()).Join(", ")}");
-        
-        ApplyResponseAware(responseAwares[0].VariableType);
+        tryApplyResponseAware();
     }
     
 
@@ -309,9 +303,15 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
 
     public abstract void UseForResponse(MethodCall methodCall);
 
-    protected internal void ApplyResponseAware(Type responseAwareType)
+    protected internal void tryApplyResponseAware()
     {
-        typeof(Applier<>).CloseAndBuildAs<IApplier>(this, responseAwareType).Apply();
+        var responseAwares = ReturnVariablesOfType(typeof(IResponseAware)).ToArray();
+        if (responseAwares.Length == 0) return;
+        if (responseAwares.Length > 1)
+            throw new InvalidOperationException(
+                $"Cannot use more than one IResponseAware policy per chain. Chain {this} has {responseAwares.Select(x => x.ToString()).Join(", ")}");
+
+        typeof(Applier<>).CloseAndBuildAs<IApplier>(this, responseAwares[0].VariableType).Apply();
     }
 }
 

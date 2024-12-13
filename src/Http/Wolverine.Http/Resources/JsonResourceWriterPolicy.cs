@@ -9,7 +9,7 @@ internal class JsonResourceWriterPolicy : IResourceWriterPolicy
     {
         if (chain.HasResourceType())
         {
-            var resourceVariable = chain.Method.Creates.First();
+            var resourceVariable = chain.ResourceVariable ?? chain.Method.Creates.First();
             resourceVariable.OverrideName(resourceVariable.Usage + "_response");
 
             if (Usage == JsonUsage.SystemTextJson)
