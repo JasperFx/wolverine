@@ -6,11 +6,13 @@ using JasperFx.Core.Reflection;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
 using Weasel.Core;
+using Weasel.Core.Migrations;
 using Weasel.SqlServer;
 using Weasel.SqlServer.Tables;
 using Wolverine.Logging;
 using Wolverine.RDBMS;
 using Wolverine.RDBMS.Sagas;
+using Wolverine.RDBMS.Transport;
 using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.WorkerQueues;
 using Wolverine.SqlServer.Sagas;
@@ -27,6 +29,8 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>, IDatabaseSa
     private readonly string _moveToDeadLetterStorageSql;
     private readonly string _scheduledLockId;
     private ImHashMap<Type, ISagaStorage> _sagaStorage = ImHashMap<Type, ISagaStorage>.Empty;
+    
+    private readonly List<ISchemaObject> _externalTables = new();
 
 
     public SqlServerMessageStore(DatabaseSettings database, DurabilitySettings settings,
@@ -238,6 +242,89 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>, IDatabaseSa
         builder.Append(';');
     }
 
+    public override async Task MigrateExternalMessageTable(ExternalMessageTable definition)
+    {
+        var table = (Table)AddExternalMessageTable(definition);
+        await using var conn = CreateConnection();
+        await conn.OpenAsync();
+        await table.MigrateAsync(conn);
+        await conn.CloseAsync();
+    }
+
+    public override async Task PublishMessageToExternalTableAsync(ExternalMessageTable table, string messageTypeName, byte[] json,
+        CancellationToken token)
+    {
+        await using var conn = CreateConnection();
+        await conn.OpenAsync(token);
+
+        if (table.MessageTypeColumnName.IsEmpty())
+        {
+            await conn.CreateCommand(
+                    $"insert into {table.TableName.QualifiedName} ({table.IdColumnName}, {table.JsonBodyColumnName}) values (@id, @json)")
+                .With("id", Guid.NewGuid())
+                .With("json", json)
+                .ExecuteNonQueryAsync(token);
+        }
+        else
+        {
+            await conn.CreateCommand(
+                    $"insert into {table.TableName.QualifiedName} ({table.IdColumnName}, {table.JsonBodyColumnName}, {table.MessageTypeColumnName}) values (@id, @json, @message)")
+                .With("id", Guid.NewGuid())
+                .With("json", json)
+                .With("message", messageTypeName)
+                .ExecuteNonQueryAsync(token);
+        }
+        
+        await conn.CloseAsync();
+    }
+
+    public override ISchemaObject AddExternalMessageTable(ExternalMessageTable definition)
+    {
+        var table = new Table(definition.TableName);
+        table.AddColumn<Guid>(definition.IdColumnName).AsPrimaryKey();
+        table.AddColumn(definition.JsonBodyColumnName, "varbinary(max)").NotNull();
+        if (definition.TimestampColumnName.IsNotEmpty())
+        {
+            table.AddColumn<DateTimeOffset>("timestamp").DefaultValueByExpression("SYSDATETIMEOFFSET()");
+        }
+
+        if (definition.MessageTypeColumnName.IsNotEmpty())
+        {
+            table.AddColumn("message_type", "varchar(250)");
+        }
+
+        return table;
+    }
+
+    protected override Task deleteMany(DbTransaction tx, Guid[] ids, DbObjectName tableName, string idColumnName)
+    {
+        var builder = new CommandBuilder();
+
+        foreach (var id in ids)
+        {
+            builder.Append($"delete from {tableName.QualifiedName} where {idColumnName} = ");
+            builder.AppendParameter(id);
+            builder.Append(";");
+        }
+
+        var command = builder.Compile();
+        command.Connection = (SqlConnection)tx.Connection;
+        command.Transaction = (SqlTransaction)tx;
+
+        return command.ExecuteNonQueryAsync();
+    }
+
+    protected override Task<bool> TryAttainLockAsync(int lockId, SqlConnection connection, CancellationToken token)
+    {
+        return connection.TryGetGlobalLock(lockId.ToString(), token);
+    }
+
+    protected override DbCommand buildFetchSql(SqlConnection conn, DbObjectName tableName, string[] columnNames, int maxRecords)
+    {
+        return conn.CreateCommand($"select top(@limit) {columnNames.Join(", ")} from {tableName.QualifiedName}")
+            .With("limit", maxRecords);
+    }
+
     public override async Task PollForScheduledMessagesAsync(ILocalReceiver localQueue,
         ILogger logger,
         DurabilitySettings durabilitySettings, CancellationToken cancellationToken)
@@ -304,8 +391,12 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>, IDatabaseSa
         yield return new WolverineStoredProcedure("uspDiscardAndReassignOutgoing.sql", this);
         yield return new WolverineStoredProcedure("uspMarkIncomingOwnership.sql", this);
         yield return new WolverineStoredProcedure("uspMarkOutgoingOwnership.sql", this);
-
-
+        
+        foreach (var table in _externalTables)
+        {
+            yield return table;
+        }
+        
         if (_settings.IsMaster)
         {
             var nodeTable = new Table(new DbObjectName(SchemaName, DatabaseConstants.NodeTableName));
