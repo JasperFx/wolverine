@@ -162,7 +162,8 @@ const config: UserConfig<DefaultTheme.Config> = {
                                 {text: 'Sql Server', link: '/guide/messaging/transports/sqlserver'},
                                 {text: 'PostgreSQL', link: '/guide/messaging/transports/postgresql'},
                                 {text: 'MQTT', link: '/guide/messaging/transports/mqtt'},
-                                {text: 'Kafka', link: '/guide/messaging/transports/kafka'}
+                                {text: 'Kafka', link: '/guide/messaging/transports/kafka'},
+                                {text: 'External Database Tables', link: '/guide/messaging/transports/external-tables'}
                             ]
                         },
                         {text: 'Endpoint Specific Operations', link: '/guide/messaging/endpoint-operations'},

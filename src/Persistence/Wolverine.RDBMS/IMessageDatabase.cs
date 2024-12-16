@@ -4,7 +4,10 @@ using Weasel.Core;
 using Wolverine.Logging;
 using Wolverine.Persistence.Durability;
 using Wolverine.RDBMS.Polling;
+using Wolverine.RDBMS.Transport;
+using Wolverine.Runtime;
 using Wolverine.Runtime.WorkerQueues;
+using Wolverine.Transports;
 using DbCommandBuilder = Weasel.Core.DbCommandBuilder;
 
 namespace Wolverine.RDBMS;
@@ -41,4 +44,13 @@ public interface IMessageDatabase : IMessageStore
     void Enqueue(IDatabaseOperation operation);
     
     IAdvisoryLock AdvisoryLock { get; }
+
+    Task PollForMessagesFromExternalTablesAsync(IListener listener,
+        IWolverineRuntime settings, ExternalMessageTable externalTable,
+        IReceiver receiver,
+        CancellationToken token);
+
+    Task MigrateExternalMessageTable(ExternalMessageTable messageTable);
+
+    Task PublishMessageToExternalTableAsync(ExternalMessageTable table, string messageTypeName, byte[] json, CancellationToken token);
 }

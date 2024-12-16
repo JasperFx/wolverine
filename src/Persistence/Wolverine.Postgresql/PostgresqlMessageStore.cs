@@ -14,6 +14,7 @@ using Wolverine.Postgresql.Schema;
 using Wolverine.Postgresql.Util;
 using Wolverine.RDBMS;
 using Wolverine.RDBMS.Sagas;
+using Wolverine.RDBMS.Transport;
 using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.WorkerQueues;
 using Wolverine.Transports;
@@ -42,6 +43,8 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>, IData
     private readonly string _discardAndReassignOutgoingSql;
     private readonly string _findAtLargeEnvelopesSql;
     private readonly string _reassignIncomingSql;
+
+    private readonly List<ISchemaObject> _externalTables = new();
     
     private ImHashMap<Type, ISagaStorage> _sagaStorage = ImHashMap<Type, ISagaStorage>.Empty;
 
@@ -104,6 +107,52 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>, IData
         }
 
         return false;
+    }
+
+    public override ISchemaObject AddExternalMessageTable(ExternalMessageTable definition)
+    {
+        var table = new Table(definition.TableName);
+        table.AddColumn<Guid>(definition.IdColumnName).AsPrimaryKey();
+        table.AddColumn(definition.JsonBodyColumnName, "jsonb").NotNull();
+        if (definition.TimestampColumnName.IsNotEmpty())
+        {
+            table.AddColumn<DateTimeOffset>("timestamp").DefaultValueByExpression("((now() at time zone 'utc'))");
+        }
+
+        if (definition.MessageTypeColumnName.IsNotEmpty())
+        {
+            table.AddColumn<string>("message_type");
+        }
+        
+        return table;
+    }
+    
+    public override async Task MigrateExternalMessageTable(ExternalMessageTable definition)
+    {
+        var table = (Table)AddExternalMessageTable(definition);
+        await using var conn = CreateConnection();
+        await conn.OpenAsync();
+        await table.MigrateAsync(conn);
+        await conn.CloseAsync();
+    }
+
+    protected override Task deleteMany(DbTransaction tx, Guid[] ids, DbObjectName tableName,
+        string idColumnName)
+    {
+        return tx.CreateCommand($"delete from {tableName.QualifiedName} where {idColumnName} = ANY(@ids)")
+            .As<NpgsqlCommand>().With("ids", ids).ExecuteNonQueryAsync();
+
+    }
+
+    protected override async Task<bool> TryAttainLockAsync(int lockId, NpgsqlConnection connection, CancellationToken token)
+    {
+        return await connection.TryGetGlobalLock(lockId, cancellation: token) == AttainLockResult.Success;
+    }
+
+    protected override DbCommand buildFetchSql(NpgsqlConnection conn, DbObjectName tableName, string[] columnNames, int maxRecords)
+    {
+        return conn.CreateCommand($"select {columnNames.Join(", ")} from {tableName.QualifiedName} LIMIT :limit")
+            .With("limit", maxRecords);
     }
 
     public override async Task<PersistedCounts> FetchCountsAsync()
@@ -335,11 +384,43 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>, IData
         }
     }
 
+    public override async Task PublishMessageToExternalTableAsync(ExternalMessageTable table, string messageTypeName, byte[] json,
+        CancellationToken token)
+    {
+        await using var conn = CreateConnection();
+        await conn.OpenAsync(token);
+
+        if (table.MessageTypeColumnName.IsEmpty())
+        {
+            await conn.CreateCommand(
+                    $"insert into {table.TableName.QualifiedName} ({table.IdColumnName}, {table.JsonBodyColumnName}) values (@id, @json)")
+                .With("id", Guid.NewGuid())
+                .With("json", json, NpgsqlDbType.Jsonb)
+                .ExecuteNonQueryAsync(token);
+        }
+        else
+        {
+            await conn.CreateCommand(
+                    $"insert into {table.TableName.QualifiedName} ({table.IdColumnName}, {table.JsonBodyColumnName}, {table.MessageTypeColumnName}) values (@id, @json, @message)")
+                .With("id", Guid.NewGuid())
+                .With("json", json, NpgsqlDbType.Jsonb)
+                .With("message", messageTypeName)
+                .ExecuteNonQueryAsync(token);
+        }
+        
+        await conn.CloseAsync();
+    }
+
     public override IEnumerable<ISchemaObject> AllObjects()
     {
         yield return new OutgoingEnvelopeTable(SchemaName);
         yield return new IncomingEnvelopeTable(SchemaName);
         yield return new DeadLettersTable(SchemaName);
+
+        foreach (var table in _externalTables)
+        {
+            yield return table;
+        }
 
         if (_settings.IsMaster)
         {
