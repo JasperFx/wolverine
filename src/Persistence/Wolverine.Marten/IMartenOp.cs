@@ -274,32 +274,25 @@ public class StoreDoc<T> : DocumentOp where T : notnull
 
 public class StoreManyDocs<T> : DocumentsOp where T : notnull
 {
-    private readonly T[] _documents;
-
-    public StoreManyDocs(params T[] documents) : base(documents.Cast<object>().ToArray())
-    {
-        _documents = documents;
-    }
+    public StoreManyDocs(params T[] documents) : base(documents.Cast<object>().ToArray()) { }
 
     public StoreManyDocs(IList<T> documents) : this(documents.ToArray()) { }
 
     public StoreManyDocs<T> With(T[] documents)
     {
         Documents.AddRange(documents.Cast<object>());
-        _documents.AddRange(documents);
         return this;
     }
 
     public StoreManyDocs<T> With(T document)
     {
-        Documents.Append(document);
-        _documents.Append(document);
+        Documents.Add(document);
         return this;
     }
 
     public override void Execute(IDocumentSession session)
     {
-        session.Store(_documents);
+        session.Store(Documents.Cast<T>());
     }
 }
 
@@ -317,7 +310,7 @@ public class StoreObjects : DocumentsOp
 
     public StoreObjects With(object document)
     {
-        Documents.Append(document);
+        Documents.Add(document);
         return this;
     }
 
@@ -384,14 +377,21 @@ public abstract class DocumentOp : IMartenOp
     public abstract void Execute(IDocumentSession session);
 }
 
-public abstract class DocumentsOp : IMartenOp
+public interface IDocumentsOp : IMartenOp
 {
-    public object[] Documents { get; }
+    IReadOnlyList<object> Documents { get; }
+}
+
+public abstract class DocumentsOp : IDocumentsOp
+{
+    public List<object> Documents { get; } = new();
 
     protected DocumentsOp(params object[] documents)
     {
-        Documents = documents;
+        Documents.AddRange(documents);
     }
 
     public abstract void Execute(IDocumentSession session);
+
+    IReadOnlyList<object> IDocumentsOp.Documents => Documents;
 }
