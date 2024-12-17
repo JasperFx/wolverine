@@ -283,6 +283,20 @@ public class StoreManyDocs<T> : DocumentsOp where T : notnull
 
     public StoreManyDocs(IList<T> documents) : this(documents.ToArray()) { }
 
+    public StoreManyDocs<T> With(T[] documents)
+    {
+        Documents.AddRange(documents.Cast<object>());
+        _documents.AddRange(documents);
+        return this;
+    }
+
+    public StoreManyDocs<T> With(T document)
+    {
+        Documents.Append(document);
+        _documents.Append(document);
+        return this;
+    }
+
     public override void Execute(IDocumentSession session)
     {
         session.Store(_documents);
@@ -294,6 +308,18 @@ public class StoreObjects : DocumentsOp
     public StoreObjects(params object[] documents) : base(documents) { }
 
     public StoreObjects(IList<object> documents) : this(documents.ToArray()) { }
+
+    public StoreObjects With(object[] documents)
+    {
+        Documents.AddRange(documents);
+        return this;
+    }
+
+    public StoreObjects With(object document)
+    {
+        Documents.Append(document);
+        return this;
+    }
 
     public override void Execute(IDocumentSession session)
     {
