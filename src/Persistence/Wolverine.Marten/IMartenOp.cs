@@ -56,6 +56,22 @@ public static class MartenOps
     }
 
     /// <summary>
+    /// Return a side effect of storing an enumerable of potentially mixed documents in Marten
+    /// </summary>
+    /// <param name="documents"></param>
+    /// <returns></returns>
+    /// <exception cref="ArgumentNullException"></exception>
+    public static StoreObjects StoreObjects(params object[] documents)
+    {
+        if (documents == null)
+        {
+            throw new ArgumentNullException(nameof(documents));
+        }
+
+        return new StoreObjects(documents);
+    }
+
+    /// <summary>
     /// Return a side effect of inserting the specified document in Marten
     /// </summary>
     /// <param name="document"></param>
@@ -270,6 +286,18 @@ public class StoreManyDocs<T> : DocumentsOp where T : notnull
     public override void Execute(IDocumentSession session)
     {
         session.Store(_documents);
+    }
+}
+
+public class StoreObjects : DocumentsOp
+{
+    public StoreObjects(params object[] documents) : base(documents) { }
+
+    public StoreObjects(IList<object> documents) : this(documents.ToArray()) { }
+
+    public override void Execute(IDocumentSession session)
+    {
+        session.StoreObjects(Documents);
     }
 }
 
