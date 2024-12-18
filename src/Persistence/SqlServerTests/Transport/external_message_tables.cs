@@ -149,6 +149,33 @@ public class external_message_tables : IAsyncLifetime
         envelope.Destination.ShouldBe(new Uri("external-table://outgoing.incoming1/"));
     }
 
+    [Fact]
+    public async Task end_to_end_default_variable_message_types_customize_table_in_every_possible_way()
+    {
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.UseSqlServerPersistenceAndTransport(Servers.SqlServerConnectionString, "outside");
+
+                opts.ListenForMessagesFromExternalDatabaseTable("outside", "incoming1", table =>
+                {
+                    table.IdColumnName = "pk";
+                    table.TimestampColumnName = "added";
+                    table.JsonBodyColumnName = "message_body";
+                    table.MessageTypeColumnName = "message_kind";
+                    
+                    table.PollingInterval = 1.Seconds();
+                });
+
+            }).StartAsync();
+
+        var tracked = await host.TrackActivity().Timeout(1.Minutes()).WaitForMessageToBeReceivedAt<Message2>(host).ExecuteAndWaitAsync(
+            _ => host.SendMessageThroughExternalTable("outside.incoming1", new Message2()));
+
+        var envelope = tracked.Received.SingleEnvelope<Message2>();
+        envelope.Destination.ShouldBe(new Uri("external-table://outside.incoming1/"));
+    }
+    
 }
 
 public static class Message1Handler

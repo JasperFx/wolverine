@@ -285,12 +285,12 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>, IDatabaseSa
         table.AddColumn(definition.JsonBodyColumnName, "varbinary(max)").NotNull();
         if (definition.TimestampColumnName.IsNotEmpty())
         {
-            table.AddColumn<DateTimeOffset>("timestamp").DefaultValueByExpression("SYSDATETIMEOFFSET()");
+            table.AddColumn<DateTimeOffset>(definition.TimestampColumnName).DefaultValueByExpression("SYSDATETIMEOFFSET()");
         }
 
         if (definition.MessageTypeColumnName.IsNotEmpty())
         {
-            table.AddColumn("message_type", "varchar(250)");
+            table.AddColumn(definition.MessageTypeColumnName, "varchar(250)");
         }
 
         return table;
