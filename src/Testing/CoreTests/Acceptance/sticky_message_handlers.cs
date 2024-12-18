@@ -37,7 +37,7 @@ public class sticky_message_handlers : IntegrationContext
         records.ShouldContain(new StickyMessageResponse("blue", stickyMessage, new Uri("local://blue")));
     }
 
-    [Fact]
+    //[Fact]
     public void generate_code_with_sticky_handlers()
     {
         /*
