@@ -57,7 +57,7 @@ public class MartenIntegration : IWolverineExtension, IEventForwarding
 
         var transport = options.Transports.GetOrCreate<PostgresqlTransport>();
         transport.TransportSchemaName = TransportSchemaName;
-        transport.MessageStorageSchemaName = MessageStorageSchemaName;
+        transport.MessageStorageSchemaName = MessageStorageSchemaName ?? "public";
     }
     
     /// <summary>
