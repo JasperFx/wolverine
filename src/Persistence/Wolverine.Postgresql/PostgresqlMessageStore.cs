@@ -116,12 +116,12 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>, IData
         table.AddColumn(definition.JsonBodyColumnName, "jsonb").NotNull();
         if (definition.TimestampColumnName.IsNotEmpty())
         {
-            table.AddColumn<DateTimeOffset>("timestamp").DefaultValueByExpression("((now() at time zone 'utc'))");
+            table.AddColumn<DateTimeOffset>(definition.TimestampColumnName).DefaultValueByExpression("((now() at time zone 'utc'))");
         }
 
         if (definition.MessageTypeColumnName.IsNotEmpty())
         {
-            table.AddColumn<string>("message_type");
+            table.AddColumn<string>(definition.MessageTypeColumnName);
         }
         
         return table;
