@@ -462,7 +462,11 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
     {
         base.TrackEnvelopeCorrelation(outbound, activity);
         outbound.SagaId = _sagaId?.ToString() ?? Envelope?.SagaId ?? outbound.SagaId;
-        outbound.ConversationId = ConversationId;
+
+        if (ConversationId != Guid.Empty)
+        {
+            outbound.ConversationId = ConversationId;
+        }
 
         if (Envelope != null)
         {
