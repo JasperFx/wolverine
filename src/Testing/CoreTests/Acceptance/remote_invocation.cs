@@ -291,8 +291,7 @@ public class remote_invocation : IAsyncLifetime
     [Fact]
     public async Task timeout_on_send_and_wait_with_auto_routing()
     {
-        using var nested = _sender.Services.CreateScope();
-        var publisher = nested.ServiceProvider.GetRequiredService<IMessageBus>();
+        var publisher = _sender.MessageBus();
 
         var ex = await Should.ThrowAsync<TimeoutException>(async () =>
         {
@@ -305,8 +304,7 @@ public class remote_invocation : IAsyncLifetime
     [Fact]
     public async Task sad_path_request_and_reply_with_no_handler()
     {
-        using var nested = _sender.Services.CreateScope();
-        var publisher = nested.ServiceProvider.GetRequiredService<IMessageBus>();
+        var publisher = _sender.MessageBus();
 
         var ex = await Should.ThrowAsync<WolverineRequestReplyException>(async () =>
         {
@@ -320,8 +318,7 @@ public class remote_invocation : IAsyncLifetime
     [Fact]
     public async Task sad_path_send_and_wait_with_no_handler()
     {
-        using var nested = _sender.Services.CreateScope();
-        var publisher = nested.ServiceProvider.GetRequiredService<IMessageBus>();
+        var publisher = _sender.MessageBus();
 
         var ex = await Should.ThrowAsync<WolverineRequestReplyException>(async () =>
         {
@@ -335,8 +332,7 @@ public class remote_invocation : IAsyncLifetime
     [Fact]
     public async Task sad_path_send_and_wait_with_no_subscription()
     {
-        using var nested = _sender.Services.CreateScope();
-        var publisher = nested.ServiceProvider.GetRequiredService<IMessageBus>();
+        var publisher = _sender.MessageBus();
 
         await Should.ThrowAsync<IndeterminateRoutesException>(() => publisher.InvokeAsync(new RequestWithNoHandler()));
     }
