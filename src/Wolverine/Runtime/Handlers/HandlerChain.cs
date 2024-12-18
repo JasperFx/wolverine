@@ -65,6 +65,18 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         Handlers.Add(call);
     }
 
+    internal HandlerChain(MethodCall call, HandlerGraph parent, Endpoint[] endpoints) : this(call, parent)
+    {
+        foreach (var endpoint in endpoints)
+        {
+            RegisterEndpoint(endpoint);
+        }
+        
+        TypeName = call.HandlerType.ToSuffixedTypeName(HandlerSuffix).Replace("[]", "Array");
+
+        Description = $"Message Handler for {MessageType.FullNameInCode()} using {call}";
+    }
+
     public HandlerChain(WolverineOptions options, IGrouping<Type, HandlerCall> grouping, HandlerGraph parent) : this(grouping.Key, parent)
     {
         Handlers.AddRange(grouping);
@@ -111,11 +123,7 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
                 stub.Subscriptions.Add(Subscription.ForType(MessageType));
             }
             
-            var chain = new HandlerChain(handlerCall, options.HandlerGraph);
-            foreach (var endpoint in endpoints)
-            {
-                chain.RegisterEndpoint(endpoint);
-            }
+            var chain = new HandlerChain(handlerCall, options.HandlerGraph, endpoints);
 
             Handlers.Remove(handlerCall);
             
@@ -199,7 +207,7 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
     /// <summary>
     ///     Wolverine's string identification for this message type
     /// </summary>
-    public string TypeName { get; }
+    public string TypeName { get; private set; }
 
     internal MessageHandler? Handler { get; private set; }
 

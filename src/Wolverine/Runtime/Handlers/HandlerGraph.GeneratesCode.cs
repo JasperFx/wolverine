@@ -10,6 +10,25 @@ public partial class HandlerGraph
 
     IReadOnlyList<ICodeFile> ICodeFileCollection.BuildFiles()
     {
-        return Chains.ToList();
+
+        return explodeAllFiles().ToList();
+    }
+
+    private IEnumerable<ICodeFile> explodeAllFiles()
+    {
+        foreach (var chain in Chains)
+        {
+            if (chain.Handlers.Any())
+            {
+                yield return chain;
+            }
+            else
+            {
+                foreach (var handlerChain in chain.ByEndpoint)
+                {
+                    yield return handlerChain;
+                }
+            }
+        }
     }
 }
