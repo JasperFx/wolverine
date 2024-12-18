@@ -1,7 +1,9 @@
 using System.Collections;
 using JasperFx.CodeGeneration;
+using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Wolverine.ComplianceTests;
@@ -33,6 +35,28 @@ public class sticky_message_handlers : IntegrationContext
         records.Length.ShouldBe(2);
         records.ShouldContain(new StickyMessageResponse("green", stickyMessage, new Uri("local://green")));
         records.ShouldContain(new StickyMessageResponse("blue", stickyMessage, new Uri("local://blue")));
+    }
+
+    [Fact]
+    public void generate_code_with_sticky_handlers()
+    {
+        /*
+         * Steps -->
+         * HandlerChain needs to have some kind of suffix added to the generated handler type to mark by the endpoint. Use the full handler type name maybe
+         * HandlerChain if sticky needs to disambiguate the file name too
+         * HandlerGraph implementation of the getting files needs to change
+         * 
+         */
+        
+        
+        var collections = Host.Services.GetServices<ICodeFileCollection>().ToArray();
+
+        var builder = new DynamicCodeBuilder(Host.Services, collections)
+        {
+            ServiceVariableSource = Host.Services.GetService<IServiceVariableSource>()
+        };
+
+        builder.GenerateAllCode();
     }
 
     public class FakeChainPolicy : IChainPolicy
