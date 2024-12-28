@@ -20,10 +20,10 @@ internal class Build
         Target("compile", DependsOn("restore"), () =>
         {
             Run("dotnet",
-                "build wolverine.sln --no-restore --framework net8.0");
+                "build wolverine.sln --no-restore --framework net9.0");
         });
 
-        Target("clean", () => { Run("dotnet", "clean wolverine.sln --framework net8.0"); });
+        Target("clean", () => { Run("dotnet", "clean wolverine.sln --framework net9.0"); });
 
         TestTarget("test-core", "CoreTests");
         TestTarget("test-policy", "PolicyTests");
@@ -198,7 +198,7 @@ end
 
     private static void RunCurrentProject(string args)
     {
-        Run("dotnet", $"run  --framework net8.0 --no-build --no-restore -- {args}");
+        Run("dotnet", $"run  --framework net9.0 --no-build --no-restore -- {args}");
     }
 
     private static void CopyFilesRecursively(string sourcePath, string targetPath)
@@ -262,7 +262,7 @@ end
         }
 
 
-        Run("dotnet", "test --no-build --no-restore --logger GitHubActions --framework net8.0 " + path);
+        Run("dotnet", "test --no-build --no-restore --logger GitHubActions --framework net9.0 " + path);
     }
 
     private static string GetEnvironmentVariable(string variableName)
