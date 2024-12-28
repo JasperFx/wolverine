@@ -69,7 +69,7 @@ public class end_to_end
                 x.Post.Json(command).ToUrl("/items/create4");
                 x.StatusCodeShouldBe(204);
             });
-        });
+        }); 
 
         tracked.FindSingleTrackedMessageOfType<ItemCreated>()
             .ShouldNotBeNull();
