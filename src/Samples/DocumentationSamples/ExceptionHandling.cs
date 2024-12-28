@@ -54,6 +54,12 @@ public static class AppWithErrorHandling
                     // Or instead you could just discard the message and stop
                     // all processing too!
                     .Then.Discard().AndPauseProcessing(5.Minutes());
+
+                // Obviously use this with caution, but this allows you
+                // to tell Wolverine to requeue an exception on failures no
+                // matter how many attempts have been made already
+                opts.OnException<NotReadyException>()
+                    .RequeueIndefinitely();
             }).StartAsync();
 
         #endregion
@@ -89,3 +95,5 @@ public static class AppWithErrorHandling
 }
 
 public class SqlException : Exception;
+
+public class NotReadyException : Exception;

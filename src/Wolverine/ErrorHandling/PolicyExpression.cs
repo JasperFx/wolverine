@@ -130,11 +130,22 @@ internal class FailureActions : IAdditionalActions, IFailureActions
 
     public IAdditionalActions Requeue(int maxAttempts = 3)
     {
+        if (maxAttempts > 25)
+            throw new ArgumentOutOfRangeException(nameof(maxAttempts),
+                "Wolverine allows a maximum of 25 attempts, see the RequeueIndefinitely() option");
+        
         for (var i = 0; i < maxAttempts - 1; i++)
         {
             var slot = _rule.AddSlot(RequeueContinuation.Instance);
             _slots.Add(slot);
         }
+
+        return this;
+    }
+    
+    public IAdditionalActions RequeueIndefinitely()
+    {
+        _rule.InfiniteSource = RequeueContinuation.Instance;
 
         return this;
     }
@@ -159,6 +170,10 @@ internal class FailureActions : IAdditionalActions, IFailureActions
         {
             throw new InvalidOperationException("You must specify at least one delay time");
         }
+        
+        if (delays.Length > 25)
+            throw new ArgumentOutOfRangeException(nameof(delays),
+                "Wolverine allows a maximum of 25 attempts, see the ScheduleRetryIndefinitely() option");
 
         for (var i = 0; i < delays.Length; i++)
         {
@@ -200,6 +215,10 @@ internal class FailureActions : IAdditionalActions, IFailureActions
         {
             throw new ArgumentOutOfRangeException(nameof(attempts));
         }
+        
+        if (attempts > 25)
+            throw new ArgumentOutOfRangeException(nameof(attempts),
+                "Wolverine allows a maximum of 25 attempts, maybe see one of the indefinite requeue or reschedule policies");
 
         for (var i = 0; i < attempts; i++)
         {
@@ -216,6 +235,11 @@ internal class FailureActions : IAdditionalActions, IFailureActions
         {
             throw new InvalidOperationException("You must specify at least one delay time");
         }
+        
+        if (delays.Length > 25)
+            throw new ArgumentOutOfRangeException(nameof(delays),
+                "Wolverine allows a maximum of 25 attempts, maybe see one of the indefinite requeue or reschedule policies");
+
 
         for (var i = 0; i < delays.Length; i++)
         {
@@ -279,6 +303,13 @@ public interface IFailureActions
     /// </summary>
     /// <param name="maxAttempts">The maximum number of attempts to process the message. The default is 3</param>
     IAdditionalActions Requeue(int maxAttempts = 3);
+
+    /// <summary>
+    /// Requeue the message back to the incoming transport no matter how many times
+    /// the message has failed. Use with caution obviously!!!!!
+    /// </summary>
+    /// <returns></returns>
+    IAdditionalActions RequeueIndefinitely();
 
     /// <summary>
     ///     Discard the message without any further attempt to process the message
@@ -363,6 +394,11 @@ public class PolicyExpression : IFailureActions
     public IAdditionalActions Requeue(int maxAttempts = 3)
     {
         return new FailureActions(_match, _parent).Requeue(maxAttempts);
+    }
+
+    public IAdditionalActions RequeueIndefinitely()
+    {
+        return new FailureActions(_match, _parent).RequeueIndefinitely();
     }
 
     /// <summary>
