@@ -146,7 +146,7 @@ public partial class HttpChain
             .Select(x => x.ReturnAction(this)).SelectMany(x => x.Frames()).ToArray();
         foreach (var frame in actionsOnOtherReturnValues) yield return frame;
 
-        if (Postprocessors.Any(x => x.MaySendMessages()))
+        if (Postprocessors.Concat(actionsOnOtherReturnValues).Any(x => x.MaySendMessages()))
         {
             var flush = Postprocessors.OfType<FlushOutgoingMessages>().FirstOrDefault();
             if (flush != null)
