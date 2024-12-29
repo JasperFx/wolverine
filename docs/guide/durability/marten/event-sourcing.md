@@ -477,4 +477,13 @@ to consume Wolverine + Marten commands within Hot Chocolate mutations and always
 the projected aggregate being updated to the user interface.
 :::
 
+### Passing the Aggregate to Before/Validate/Load Methods
+
+The "[compound handler](/guide/handlers/#compound-handlers)" feature is a valuable way in Wolverine to organize your handler code, and fully supported
+within the aggregate handler workflow as well. If you have a command handler method marked with `[AggregateHandler]` or
+the `[Aggregate]` attribute in HTTP usage, you can also pass the aggregate type as an argument to any `Before` / `LoadAsync` / `Validate`
+method on that handler to do validation before the main handler method. Here's a sample from the tests of doing just that:
+
+snippet: sample_passing_aggregate_into_validate_method
+
 
