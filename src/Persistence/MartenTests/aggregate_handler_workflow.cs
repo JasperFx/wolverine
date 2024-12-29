@@ -240,6 +240,33 @@ public class aggregate_handler_workflow: PostgresqlContext, IAsyncLifetime
         updated.ACount.ShouldBe(3);
         updated.BCount.ShouldBe(4);
     }
+
+    [Fact]
+    public async Task using_the_aggregate_in_a_before_method()
+    {
+        var streamId = Guid.NewGuid();
+        var streamId2 = Guid.NewGuid();
+        using (var session = theStore.LightweightSession())
+        {
+            session.Events.StartStream<Aggregate>(streamId, new AEvent(), new CEvent());
+            session.Events.StartStream<Aggregate>(streamId2, new CEvent(), new CEvent());
+            await session.SaveChangesAsync();
+        }
+        
+        await theHost.InvokeMessageAndWaitAsync(new RaiseIfValidated(streamId));
+        await theHost.InvokeMessageAndWaitAsync(new RaiseIfValidated(streamId2));
+        
+        using (var session = theStore.LightweightSession())
+        {
+            // Should not apply anything new if there is a value for ACount
+            var existing1 = await session.LoadAsync<LetterAggregate>(streamId);
+            existing1.BCount.ShouldBe(0);
+            
+            // Should apply anything new if there was no value for ACount
+            var existing2 = await session.LoadAsync<LetterAggregate>(streamId2);
+            existing2.BCount.ShouldBe(1);
+        }
+    }
 }
 
 public record Event1(Guid AggregateId);
@@ -375,6 +402,24 @@ public record RaiseAAA(Guid LetterAggregateId);
 public record RaiseAABCC(Guid LetterAggregateId);
 
 public record RaiseBBCCC(Guid LetterAggregateId);
+
+#region sample_passing_aggregate_into_validate_method
+
+public record RaiseIfValidated(Guid LetterAggregateId);
+
+public static class RaiseIfValidatedHandler
+{
+    public static HandlerContinuation Validate(LetterAggregate aggregate) =>
+        aggregate.ACount == 0 ? HandlerContinuation.Continue : HandlerContinuation.Stop;
+    
+    [AggregateHandler]
+    public static IEnumerable<object> Handle(RaiseIfValidated command, LetterAggregate aggregate)
+    {
+        yield return new BEvent();
+    }
+}
+
+#endregion
 
 public class Response
 {
