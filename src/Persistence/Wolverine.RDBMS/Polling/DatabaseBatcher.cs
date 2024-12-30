@@ -78,12 +78,19 @@ public class DatabaseBatcher : IAsyncDisposable
 
     public async Task DrainAsync()
     {
-        _internalCancellation.Cancel();
+        try
+        {
+            _internalCancellation.Cancel();
 
-        _batchingBlock.Complete();
-        await _batchingBlock.Completion;
+            _batchingBlock.Complete();
+            await _batchingBlock.Completion;
 
-        _executingBlock.Complete();
-        await _executingBlock.Completion;
+            _executingBlock.Complete();
+            await _executingBlock.Completion;
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Error trying to drain the current database batcher");
+        }
     }
 }

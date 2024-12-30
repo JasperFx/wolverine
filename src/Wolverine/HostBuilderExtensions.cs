@@ -378,6 +378,20 @@ public static class HostBuilderExtensions
     }
 
     #endregion
+    
+    /// <summary>
+    /// Disable all Wolverine message persistence bootstrapping and durability agents. This
+    /// was built for the case of needing to run the application for OpenAPI generation when
+    /// the database might not be available
+    /// </summary>
+    /// <param name="services"></param>
+    /// <returns></returns>
+    public static IServiceCollection DisableAllWolverineMessagePersistence(this IServiceCollection services)
+    {
+        services.AddSingleton<IMessageStore, NullMessageStore>();
+        services.AddSingleton<IWolverineExtension, DisablePersistence>();
+        return services;
+    }
 
     #region sample_DisableExternalTransports
 
@@ -390,6 +404,15 @@ public static class HostBuilderExtensions
     }
 
     #endregion
+    
+    internal class DisablePersistence : IWolverineExtension
+    {
+        public void Configure(WolverineOptions options)
+        {
+            options.Durability.DurabilityMetricsEnabled = false;
+            options.Durability.DurabilityAgentEnabled = false;
+        }
+    }
     
     /// <summary>
     /// Override the durability mode of Wolverine to be "Solo". This is valuable in automated

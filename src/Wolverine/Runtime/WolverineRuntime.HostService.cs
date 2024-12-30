@@ -25,9 +25,12 @@ public partial class WolverineRuntime
 
             await ApplyAsyncExtensions();
 
-            foreach (var configuresRuntime in Options.Transports.OfType<ITransportConfiguresRuntime>().ToArray())
+            if (!Options.ExternalTransportsAreStubbed)
             {
-                await configuresRuntime.ConfigureAsync(this);
+                foreach (var configuresRuntime in Options.Transports.OfType<ITransportConfiguresRuntime>().ToArray())
+                {
+                    await configuresRuntime.ConfigureAsync(this);
+                }
             }
 
             // Build up the message handlers

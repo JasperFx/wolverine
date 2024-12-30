@@ -165,3 +165,25 @@ If you just want to export the SQL to create the necessary database objects, you
 dotnet run -- db-dump export.sql
 ```
 where `export.sql` should be a file name.
+
+## Disabling All Persistence <Badge type="tip" text="3.6" />
+
+Let's say that you want to use the command line tooling to generate OpenAPI documentation, but do so
+without Wolverine being able to connect to any external databases (or transports, and you'll have to disable both for this to work).
+You can now do that with the option shown below as part of an [Alba](https://jasperfx.github.io/alba) test:
+
+<!-- snippet: sample_bootstrap_with_no_persistence -->
+<a id='snippet-sample_bootstrap_with_no_persistence'></a>
+```cs
+using var host = await AlbaHost.For<Program>(builder =>
+{
+    builder.ConfigureServices(services =>
+    {
+        // You probably have to do both
+        services.DisableAllExternalWolverineTransports();
+        services.DisableAllWolverineMessagePersistence();
+    });
+});
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/bootstrap_with_no_persistence.cs#L14-L26' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrap_with_no_persistence' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
