@@ -468,7 +468,7 @@ public static Task<Order> update_and_get_latest(IMessageBus bus, MarkItemReady c
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/OrderEventSourcingSample/Alternatives/Signatures.cs#L103-L113' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_updatedaggregate_with_invoke_async' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
-
+]
 Likewise, you can use `UpdatedAggregate` as the response body of an HTTP endpoint with Wolverine.HTTP [as shown here](/guide/http/marten.html#responding-with-the-updated-aggregate~~~~).
 
 ::: info
@@ -484,6 +484,24 @@ within the aggregate handler workflow as well. If you have a command handler met
 the `[Aggregate]` attribute in HTTP usage, you can also pass the aggregate type as an argument to any `Before` / `LoadAsync` / `Validate`
 method on that handler to do validation before the main handler method. Here's a sample from the tests of doing just that:
 
-snippet: sample_passing_aggregate_into_validate_method
+<!-- snippet: sample_passing_aggregate_into_validate_method -->
+<a id='snippet-sample_passing_aggregate_into_validate_method'></a>
+```cs
+public record RaiseIfValidated(Guid LetterAggregateId);
+
+public static class RaiseIfValidatedHandler
+{
+    public static HandlerContinuation Validate(LetterAggregate aggregate) =>
+        aggregate.ACount == 0 ? HandlerContinuation.Continue : HandlerContinuation.Stop;
+    
+    [AggregateHandler]
+    public static IEnumerable<object> Handle(RaiseIfValidated command, LetterAggregate aggregate)
+    {
+        yield return new BEvent();
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/aggregate_handler_workflow.cs#L406-L422' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_passing_aggregate_into_validate_method' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 

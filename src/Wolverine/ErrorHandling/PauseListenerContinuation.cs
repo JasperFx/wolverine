@@ -31,6 +31,7 @@ internal class PauseListenerContinuation : IContinuation, IContinuationSource
 
         if (agent != null)
         {
+            activity?.AddTag(WolverineTracing.EndpointAddress, agent.Endpoint.Uri);
             activity?.AddEvent(new ActivityEvent(WolverineTracing.PausedListener));
 
             return agent.PauseAsync(PauseTime);

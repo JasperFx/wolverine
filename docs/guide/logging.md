@@ -254,6 +254,107 @@ using var host = await Host.CreateDefaultBuilder()
 Note that this `TelemetryEnabled()` method is available on all possible subscriber and listener types within Wolverine.
 This flag applies to all messages sent, received, or executed at a particular endpoint.
 
+Wolverine endeavors to publish OpenTelemetry spans or activities for meaningful actions within a Wolverine application. Here
+are the specific span names, activity names, and tag names emitted by Wolverine:
+
+<!-- snippet: sample_wolverine_open_telemetry_tracing_spans_and_activities -->
+<a id='snippet-sample_wolverine_open_telemetry_tracing_spans_and_activities'></a>
+```cs
+/// <summary>
+/// ActivityEvent marking when an incoming envelope is discarded
+/// </summary>
+public const string EnvelopeDiscarded = "wolverine.envelope.discarded";
+
+/// <summary>
+/// ActivityEvent marking when an incoming envelope is being moved to the error queue
+/// </summary>
+public const string MovedToErrorQueue = "wolverine.error.queued";
+
+/// <summary>
+/// ActivityEvent marking when an incoming envelope does not have a known message
+/// handler and is being shunted to registered "NoHandler" actions
+/// </summary>
+public const string NoHandler = "wolverine.no.handler";
+
+/// <summary>
+/// ActivityEvent marking when a message failure is configured to pause the message listener
+/// where the message was handled. This is tied to error handling policies
+/// </summary>
+public const string PausedListener = "wolverine.paused.listener";
+
+/// <summary>
+/// Span that is emitted when a listener circuit breaker determines that there are too many
+/// failures and listening should be paused
+/// </summary>
+public const string CircuitBreakerTripped = "wolverine.circuit.breaker.triggered";
+
+/// <summary>
+/// Span emitted when a listening agent is started or restarted
+/// </summary>
+public const string StartingListener = "wolverine.starting.listener";
+
+/// <summary>
+/// Span emitted when a listening agent is stopping
+/// </summary>
+public const string StoppingListener = "wolverine.stopping.listener";
+
+/// <summary>
+/// Span emitted when a listening agent is being paused
+/// </summary>
+public const string PausingListener = "wolverine.pausing.listener";
+
+/// <summary>
+/// ActivityEvent marking that an incoming envelope is being requeued after a message
+/// processing failure
+/// </summary>
+public const string EnvelopeRequeued = "wolverine.envelope.requeued";
+
+/// <summary>
+/// ActivityEvent marking that an incoming envelope is being retried after a message
+/// processing failure
+/// </summary>
+public const string EnvelopeRetry = "wolverine.envelope.retried";
+
+/// <summary>
+/// ActivityEvent marking than an incoming envelope has been rescheduled for later
+/// execution after a failure
+/// </summary>
+public const string ScheduledRetry = "wolverine.envelope.rescheduled";
+
+/// <summary>
+/// Tag name trying to explain why a sender or listener was stopped or paused
+/// </summary>
+public const string StopReason = "wolverine.stop.reason";
+
+/// <summary>
+/// The Wolverine Uri that identifies what sending or listening endpoint the activity
+/// refers to
+/// </summary>
+public const string EndpointAddress = "wolverine.endpoint.address";
+
+/// <summary>
+/// A stop reason when back pressure policies call for a pause in processing in a single endpoint
+/// </summary>
+public const string TooBusy = "TooBusy";
+
+/// <summary>
+/// A span emitted when a sending agent for a specific endpoint is paused
+/// </summary>
+public const string SendingPaused = "wolverine.sending.pausing";
+
+/// <summary>
+/// A span emitted when a sending agent is resuming after having been paused
+/// </summary>
+public const string SendingResumed = "wolverine.sending.resumed";
+
+/// <summary>
+/// A stop reason when sending agents are paused after too many sender failures
+/// </summary>
+public const string TooManySenderFailures = "TooManySenderFailures";
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/WolverineTracing.cs#L25-L119' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_open_telemetry_tracing_spans_and_activities' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
 ## Message Correlation
 
 ::: tip
