@@ -2,6 +2,7 @@ using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
 using Wolverine.Logging;
+using Wolverine.Runtime;
 using Wolverine.Util.Dataflow;
 
 namespace Wolverine.Transports.Sending;
@@ -105,6 +106,9 @@ internal abstract class SendingAgent : ISendingAgent, ISenderCallback, ISenderCi
 
     Task ISenderCircuit.ResumeAsync(CancellationToken cancellationToken)
     {
+        using var activity = WolverineTracing.ActivitySource.StartActivity(WolverineTracing.SendingResumed);
+        activity?.SetTag(WolverineTracing.EndpointAddress, Endpoint.Uri);
+        
         _circuitWatcher?.SafeDispose();
         _circuitWatcher = null;
 
@@ -257,6 +261,10 @@ internal abstract class SendingAgent : ISendingAgent, ISenderCallback, ISenderCi
 
         if (_failureCount >= Endpoint.FailuresBeforeCircuitBreaks)
         {
+            using var activity = WolverineTracing.ActivitySource.StartActivity(WolverineTracing.SendingPaused);
+            activity?.SetTag(WolverineTracing.StopReason, WolverineTracing.TooManySenderFailures);
+            activity?.SetTag(WolverineTracing.EndpointAddress, Endpoint.Uri);
+            
             await LatchAndDrainAsync();
             await EnqueueForRetryAsync(batch);
 
