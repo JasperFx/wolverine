@@ -203,4 +203,26 @@ public class DocumentationSamples
 
         #endregion
     }
+
+    public static async Task configure_persistence_metrics()
+    {
+        #region sample_configuring_persistence_metrics
+
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                // This does assume that you have *some* kind of message
+                // persistence set up
+                
+                // This is enabled by default, but just showing that
+                // you *could* disable it
+                opts.Durability.DurabilityMetricsEnabled = true;
+
+                // The default is 5 seconds, but maybe you want it slower
+                // because this does have to do a non-trivial query
+                opts.Durability.UpdateMetricsPeriod = 10.Seconds();
+            }).StartAsync();
+
+        #endregion
+    }
 }

@@ -120,6 +120,16 @@ public class DurabilitySettings
     /// </summary>
     public TimeSpan TenantCheckPeriod { get; set; } = 5.Seconds();
 
+    /// <summary>
+    /// If using any kind of message persistence, this is the polling time
+    /// to update the metrics on the persisted envelope counts. Default is 5 seconds
+    /// </summary>
+    public TimeSpan UpdateMetricsPeriod { get; set; } = 5.Seconds();
+
+    /// <summary>
+    /// Is the polling for durability metrics enabled? Default is true
+    /// </summary>
+    public bool DurabilityMetricsEnabled { get; set; } = true;
 
     /// <summary>
     ///     Get or set the logical Wolverine service name. By default, this is
