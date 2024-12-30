@@ -5,6 +5,8 @@ using Alba.Security;
 using IntegrationTests;
 using Marten;
 using Marten.Metadata;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
@@ -41,6 +43,7 @@ public class multi_tenancy_detection_and_integration : IAsyncDisposable, IDispos
     protected async Task configure(Action<WolverineHttpOptions> configure)
     {
         var builder = WebApplication.CreateBuilder([]);
+
         builder.Services.AddScoped<IUserService, UserService>();
 
         // Haven't gotten around to it yet, but there'll be some end to
@@ -57,17 +60,21 @@ public class multi_tenancy_detection_and_integration : IAsyncDisposable, IDispos
         });
 
         builder.Services.AddWolverineHttp();
+        builder.Services.AddAuthentication("test");
+        builder.Services.AddAuthorization();
 
         // Setting up Alba stubbed authentication so that we can fake
         // out ClaimsPrincipal data on requests later
-        var securityStub = new AuthenticationStub()
+        var securityStub = new AuthenticationStub("test")
             .With("foo", "bar")
             .With(JwtRegisteredClaimNames.Email, "guy@company.com")
             .WithName("jeremy");
-
+        
         // Spinning up a test application using Alba
         theHost = await AlbaHost.For(builder, app =>
         {
+            app.UseAuthentication();
+            app.UseAuthorization();
             app.MapWolverineEndpoints(configure);
         }, securityStub);
 
@@ -367,12 +374,14 @@ public class multi_tenancy_detection_and_integration : IAsyncDisposable, IDispos
 
 public static class TenantedEndpoints
 {
+    [Authorize]
     [WolverineGet("/tenant/route/{tenant}")]
     public static string GetTenantIdFromRoute(IMessageBus bus)
     {
         return bus.TenantId;
     }
 
+    [Authorize]
     [WolverineGet("/tenant")]
     public static string GetTenantIdFromWhatever(IMessageBus bus, HttpContext httpContext)
     {
@@ -469,5 +478,13 @@ public record CustomActivityFeature(Activity? Activity)
     {
         var activity = httpContext.Features.Get<IHttpActivityFeature>()?.Activity;
         return new CustomActivityFeature(activity);
+    }
+}
+
+public class StubAuthenticationHandlerProvider : IAuthenticationHandlerProvider
+{
+    public Task<IAuthenticationHandler?> GetHandlerAsync(HttpContext context, string authenticationScheme)
+    {
+        throw new NotImplementedException();
     }
 }

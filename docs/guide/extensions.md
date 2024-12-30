@@ -109,7 +109,7 @@ internal class DisableExternalTransports : IWolverineExtension
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/HostBuilderExtensions.cs#L382-L392' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disableexternaltransports' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/HostBuilderExtensions.cs#L396-L406' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disableexternaltransports' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And that extension is just added to the application's IoC container at test bootstrapping time like this:

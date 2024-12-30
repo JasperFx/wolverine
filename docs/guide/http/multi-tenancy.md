@@ -265,7 +265,7 @@ public static string NoTenantNoProblem()
     return "hey";
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/multi_tenancy_detection_and_integration.cs#L421-L430' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_nottenanted' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/multi_tenancy_detection_and_integration.cs#L430-L439' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_nottenanted' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 If the above usage completely disabled all tenant id detection or validation, in the case of an endpoint that *might* be 
@@ -283,7 +283,7 @@ public static string MaybeTenanted(IMessageBus bus)
     return bus.TenantId ?? "none";
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/multi_tenancy_detection_and_integration.cs#L432-L441' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_maybe_tenanted_attribute_usage' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/multi_tenancy_detection_and_integration.cs#L441-L450' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_maybe_tenanted_attribute_usage' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
