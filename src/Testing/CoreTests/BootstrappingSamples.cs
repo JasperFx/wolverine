@@ -18,6 +18,22 @@ public class BootstrappingSamples
 
         #endregion
     }
+
+    public static async Task DisableRemoteInvocation()
+    {
+        #region sample_disabling_remote_invocation
+
+        using var host = Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                // This will disallow Wolverine from making remote calls
+                // through IMessageBus.InvokeAsync() or InvokeAsync<T>()
+                // Instead, Wolverine will throw an InvalidOperationException
+                opts.EnableRemoteInvocation = false;
+            }).StartAsync();
+
+        #endregion
+    }
 }
 
 #region sample_WrapWithSimple

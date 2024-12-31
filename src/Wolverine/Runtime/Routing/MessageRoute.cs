@@ -19,6 +19,7 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
         ImHashMap<Type, IList<IEnvelopeRule>>.Empty;
 
     private readonly IReplyTracker _replyTracker;
+    private readonly Endpoint _endpoint;
 
     public MessageRoute(Type messageType, Endpoint endpoint, IReplyTracker replies)
     {
@@ -42,6 +43,8 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
         Rules.AddRange(RulesForMessageType(messageType));
 
         MessageType = messageType;
+
+        _endpoint = endpoint;
     }
 
     public Type MessageType { get; }
@@ -120,6 +123,12 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
             throw new ArgumentNullException(nameof(message));
         }
 
+        if (!bus.Runtime.Options.EnableRemoteInvocation)
+        {
+            throw new InvalidOperationException(
+                $"Remote invocation is disabled in this application through the {nameof(WolverineOptions)}.{nameof(WolverineOptions.EnableRemoteInvocation)} value. Cannot invoke at requested endpoint {_endpoint.Uri}");
+        }
+        
         bus.Runtime.RegisterMessageType(typeof(T));
 
         timeout ??= 5.Seconds();
