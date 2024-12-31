@@ -249,7 +249,7 @@ public async Task Post(
     await outbox.SaveChangesAndFlushMessagesAsync();
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/EFCoreSample/ItemService/CreateItemController.cs#L10-L40' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_dbcontext_outbox_1' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/EFCoreSample/ItemService/CreateItemController.cs#L12-L42' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_dbcontext_outbox_1' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Or use the `IDbContextOutbox` as shown below, but in this case you will need to explicitly call `Enroll()` on
@@ -291,10 +291,20 @@ public async Task Post3(
     await outbox.SaveChangesAndFlushMessagesAsync();
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/EFCoreSample/ItemService/CreateItemController.cs#L43-L78' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_dbcontext_outbox_2' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/EFCoreSample/ItemService/CreateItemController.cs#L45-L80' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_dbcontext_outbox_2' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## As Saga Storage
 
 There's actually nothing to do other than to make a mapping of the `Saga` subclass that's your stateful saga inside
 a registered `DbContext`.
+
+## Storage Side Effects
+
+This integration includes full support for the [storage action side effects](/guide/handlers/side-effects.html#storage-side-effects)
+model when using EF Core with Wolverine. The only exception is that the `Store` "upsert" operation from the
+side effects translates to an EF Core `DbContext` update. 
+
+## Entity Attribute Loading
+
+The EF Core integration is able to completely support the [Entity attribute usage](/guide/handlers/persistence.html#automatically-loading-entities-to-method-parameters).

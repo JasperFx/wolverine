@@ -1,3 +1,4 @@
+using JasperFx.CodeGeneration.Model;
 using Microsoft.Extensions.DependencyInjection;
 using Oakton;
 using Spectre.Console;
@@ -5,7 +6,7 @@ using Wolverine.Persistence.Durability;
 
 namespace Wolverine.Persistence;
 
-public enum StorageAction
+public enum StorageCommandAction
 {
     clear,
     counts,
@@ -16,7 +17,7 @@ public enum StorageAction
 
 public class StorageInput : NetCoreInput
 {
-    [Description("Choose the action")] public StorageAction Action { get; set; } = StorageAction.counts;
+    [Description("Choose the action")] public StorageCommandAction Action { get; set; } = StorageCommandAction.counts;
 
     [Description("Optional, specify the file where the schema script would be written")]
     public string FileFlag { get; set; } = "storage.sql";
@@ -43,7 +44,7 @@ public class StorageCommand : OaktonAsyncCommand<StorageInput>
 
         switch (input.Action)
         {
-            case StorageAction.counts:
+            case StorageCommandAction.counts:
 
                 var counts = await persistence.Admin.FetchCountsAsync();
                 Console.WriteLine("Persisted Enveloper Counts");
@@ -59,25 +60,25 @@ public class StorageCommand : OaktonAsyncCommand<StorageInput>
 
                 break;
 
-            case StorageAction.clear:
+            case StorageCommandAction.clear:
                 await persistence.Admin.ClearAllAsync();
                 await persistence.Nodes.ClearAllAsync(CancellationToken.None);
                 AnsiConsole.Write("[green]Successfully deleted all persisted envelopes and existing node records[/]");
                 break;
 
-            case StorageAction.rebuild:
+            case StorageCommandAction.rebuild:
                 await persistence.Admin.RebuildAsync();
                 AnsiConsole.Write("[green]Successfully rebuilt the envelope storage[/]");
                 break;
 
-            case StorageAction.release:
+            case StorageCommandAction.release:
                 await persistence.Admin.RebuildAsync();
                 Console.WriteLine("Releasing all ownership of persisted envelopes");
                 await persistence.Admin.ReleaseAllOwnershipAsync();
 
                 break;
 
-            case StorageAction.replay:
+            case StorageCommandAction.replay:
                 var markedCount =
                     await persistence.DeadLetters.MarkDeadLetterEnvelopesAsReplayableAsync(input.ExceptionTypeForReplayFlag);
                 var exceptionType = string.IsNullOrEmpty(input.ExceptionTypeForReplayFlag)

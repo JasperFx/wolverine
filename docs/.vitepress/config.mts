@@ -101,7 +101,8 @@ const config: UserConfig<DefaultTheme.Config> = {
                                 {text: 'Execution Timeouts', link: '/guide/handlers/timeout'},
                                 {text: 'Fluent Validation Middleware', link: '/guide/handlers/fluent-validation'},
                                 {text: 'Sticky Handler to Endpoint Assignments', link: '/guide/handlers/sticky'},
-                                {text: 'Message Batching', link: '/guide/handlers/batching'}
+                                {text: 'Message Batching', link: '/guide/handlers/batching'},
+                                {text: 'Persistence Helpers', link: '/guide/handlers/persistence'}
                             ]
                         },
                     ]

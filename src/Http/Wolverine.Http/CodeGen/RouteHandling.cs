@@ -28,11 +28,21 @@ internal class ParsedRouteArgumentFrame : SyncFrame
 {
     public ParsedRouteArgumentFrame(ParameterInfo parameter)
     {
+        if (parameter.ParameterType == typeof(string))
+        {
+            throw new ArgumentOutOfRangeException(nameof(parameter), "Cannot be used with string parameters");
+        }
+        
         Variable = new Variable(parameter.ParameterType, parameter.Name!, this);
     }
 
     public ParsedRouteArgumentFrame(Type variableType, string parameterName)
     {
+        if (variableType == typeof(string))
+        {
+            throw new ArgumentOutOfRangeException(nameof(variableType), "Cannot be used with string parameters");
+        }
+        
         Variable = new Variable(variableType, parameterName, this);
     }
 

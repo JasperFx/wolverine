@@ -1,7 +1,9 @@
+using JasperFx.Core;
 using Microsoft.AspNetCore.Mvc;
 using Wolverine.Attributes;
 using Wolverine.EntityFrameworkCore;
 using Wolverine.Http;
+using Wolverine.Persistence;
 
 namespace ItemService;
 
@@ -82,21 +84,18 @@ public static class CreateItemEndpoint
 {
     [Transactional]
     [WolverinePost("/items/create4"), EmptyResponse]
-    public static ItemCreated Post(CreateItemCommand command, ItemsDbContext dbContext)
+    public static (ItemCreated, Insert<Item>) Post(CreateItemCommand command)
     {
         // Create a new Item entity
         var item = new Item
         {
-            Name = command.Name
+            Name = command.Name,
+            Id = CombGuidIdGeneration.NewGuid()
         };
 
-        // Add the item to the current
-        // DbContext unit of work
-        dbContext.Items.Add(item);
-
-        return new ItemCreated
-        {
-            Id = item.Id
-        };
+        return (new ItemCreated { Id = item.Id }, Storage.Insert(item));
     }
+
+    [WolverineGet("/api/item/{id}")]
+    public static Item Get([Entity] Item item) => item;
 }

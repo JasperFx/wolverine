@@ -9,9 +9,11 @@ using JasperFx.Core.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Wolverine.Attributes;
+using Wolverine.Codegen;
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
 using Wolverine.Logging;
+using Wolverine.Middleware;
 using Wolverine.Persistence;
 using Wolverine.Runtime.Routing;
 using Wolverine.Transports.Local;
@@ -324,6 +326,33 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         Postprocessors.Add(cascading);
     }
 
+    public override bool TryFindVariable(string valueName, ValueSource source, Type valueType, out Variable variable)
+    {
+        if (source == ValueSource.InputMember || source == ValueSource.Anything)
+        {
+            var member = MessageType.GetProperties()
+                             .FirstOrDefault(x => x.Name.EqualsIgnoreCase(valueName) && x.PropertyType == valueType)
+                         ?? (MemberInfo)MessageType.GetFields()
+                             .FirstOrDefault(x => x.Name.EqualsIgnoreCase(valueName) && x.FieldType == valueType);
+
+            if (member != null)
+            {
+                variable = new MessageMemberVariable(member, MessageType);
+                return true;
+            }
+        }
+
+        variable = default;
+        return false;
+    }
+
+    public override Frame[] AddStopConditionIfNull(Variable variable)
+    {
+        var frame = typeof(EntityIsNotNullGuardFrame<>).CloseAndBuildAs<MethodCall>(variable, variable.VariableType);
+
+        return [frame, new HandlerContinuationFrame(frame)];
+    }
+
     public IEnumerable<Type> PublishedTypes()
     {
         var ignoredTypes = new[]
@@ -444,14 +473,26 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
 
             foreach (var attribute in MessageType.GetCustomAttributes(typeof(ModifyChainAttribute))
                          .OfType<ModifyChainAttribute>()) attribute.Modify(this, rules, container);
+
+            foreach (var handlerCall in HandlerCalls())
+            {
+                WolverineParameterAttribute.TryApply(handlerCall, container, rules, this);
+            }
         }
 
         ApplyImpliedMiddlewareFromHandlers(rules);
+
+        // Use Wolverine Parameter Attribute on any middleware
+        foreach (var methodCall in Middleware.OfType<MethodCall>().ToArray())
+        {
+            WolverineParameterAttribute.TryApply(methodCall, container, rules, this);
+        }
     }
 
     protected IEnumerable<Frame> determineHandlerReturnValueFrames()
     {
         return Handlers.SelectMany(x => x.Creates)
+            .Where( x => x is not MemberAccessVariable)
             .Select(x => x.ReturnAction(this))
             .SelectMany(x => x.Frames());
     }
@@ -492,5 +533,28 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         }
 
         return options.DefaultExecutionTimeout;
+    }
+}
+
+internal class EntityIsNotNullGuardFrame<T> : MethodCall
+{
+    public EntityIsNotNullGuardFrame(Variable variable) : base(typeof(EntityIsNotNullGuard<T>), "Assert")
+    {
+        Arguments[0] = variable;
+        Arguments[2] = Constant.For(variable.Usage);
+    }
+}
+
+public static class EntityIsNotNullGuard<T>
+{
+    public static HandlerContinuation Assert(T entity, ILogger logger, string entityVariableName, Envelope envelope)
+    {
+        if (entity == null)
+        {
+            logger.LogInformation("Not processing envelope {Id} because the required entity {EntityType} ('{VariableName}') cannot be found", envelope.Id, typeof(T).FullNameInCode(), entityVariableName);
+            return HandlerContinuation.Stop;
+        }
+
+        return HandlerContinuation.Continue;
     }
 }

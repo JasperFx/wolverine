@@ -30,6 +30,11 @@ public class RavenDbPersistenceFrameProvider : IPersistenceFrameProvider
         }
     }
 
+    public void ApplyTransactionSupport(IChain chain, IServiceContainer container, Type entityType)
+    {
+        ApplyTransactionSupport(chain, container);
+    }
+
     public bool CanApply(IChain chain, IServiceContainer container)
     {
         if (chain is SagaChain)
@@ -86,7 +91,49 @@ public class RavenDbPersistenceFrameProvider : IPersistenceFrameProvider
     {
         return new DeleteDocumentFrame(saga);
     }
+
+    public Frame DetermineStoreFrame(Variable variable, IServiceContainer container)
+    {
+        return DetermineUpdateFrame(variable, container);
+    }
+
+    public Frame DetermineDeleteFrame(Variable variable, IServiceContainer container)
+    {
+        return new DeleteDocumentFrame(variable);
+    }
+
+    public Frame DetermineStorageActionFrame(Type entityType, Variable action, IServiceContainer container)
+    {
+        var method = typeof(RavenDbStorageActionApplier).GetMethod("ApplyAction")
+            .MakeGenericMethod(entityType);
+
+        var call = new MethodCall(typeof(RavenDbStorageActionApplier), method);
+        call.Arguments[1] = action;
+
+        return call;
+    }
 }
+
+public static class RavenDbStorageActionApplier
+{
+    public static async Task ApplyAction<T>(IAsyncDocumentSession session, IStorageAction<T> action)
+    {
+        if (action.Entity == null) return;
+        
+        switch (action.Action)
+        {
+            case StorageAction.Delete:
+                session.Delete(action.Entity!);
+                break;
+            case StorageAction.Insert:
+            case StorageAction.Store:
+            case StorageAction.Update:
+                await session.StoreAsync(action.Entity);
+                break;
+        }
+    }
+}
+
 
 internal class DeleteDocumentFrame : SyncFrame
 {

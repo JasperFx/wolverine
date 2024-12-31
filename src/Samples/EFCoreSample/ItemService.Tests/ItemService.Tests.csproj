@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
-        <TargetFrameworks>net8.0;net9.0</TargetFrameworks>
+        <TargetFrameworks>net9.0</TargetFrameworks>
     </PropertyGroup>
     
     <PropertyGroup>
@@ -9,6 +9,7 @@
 
     <ItemGroup>
         <PackageReference Include="Alba" Version="7.4.1"/>
+        <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="9.0.0" />
         <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.3.2"/>
         <PackageReference Include="Shouldly" Version="4.1.0"/>
         <PackageReference Include="xunit" Version="2.9.0"/>

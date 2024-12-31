@@ -8,6 +8,7 @@ namespace Wolverine.Persistence;
 public interface IPersistenceFrameProvider
 {
     void ApplyTransactionSupport(IChain chain, IServiceContainer container);
+    void ApplyTransactionSupport(IChain chain, IServiceContainer container, Type entityType);
     bool CanApply(IChain chain, IServiceContainer container);
 
     /// <summary>
@@ -25,6 +26,26 @@ public interface IPersistenceFrameProvider
     Frame CommitUnitOfWorkFrame(Variable saga, IServiceContainer container);
     Frame DetermineUpdateFrame(Variable saga, IServiceContainer container);
     Frame DetermineDeleteFrame(Variable sagaId, Variable saga, IServiceContainer container);
+    
+    /// <summary>
+    /// Create an "upsert" Frame for the variable. Not every persistence provider will be able to support this
+    /// and should throw NotSupportedException if it does not
+    /// </summary>
+    /// <param name="variable"></param>
+    /// <param name="container"></param>
+    /// <returns></returns>
+    Frame DetermineStoreFrame(Variable variable, IServiceContainer container);
+
+    /// <summary>
+    /// Create a delete Frame for the variable, not every persistence provider will be able to support this
+    /// and should throw NotSupportedException if it does not
+    /// </summary>
+    /// <param name="variable"></param>
+    /// <param name="container"></param>
+    /// <returns></returns>
+    Frame DetermineDeleteFrame(Variable variable, IServiceContainer container);
+
+    Frame DetermineStorageActionFrame(Type entityType, Variable action, IServiceContainer container);
 }
 
 public interface ISagaOperation

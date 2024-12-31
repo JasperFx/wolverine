@@ -18,16 +18,10 @@ namespace Internal.Generated.WolverineHandlers
 
         public override async System.Threading.Tasks.Task HandleAsync(Wolverine.Runtime.MessageContext context, System.Threading.CancellationToken cancellation)
         {
+            using var asyncDocumentSession = _documentStore.OpenAsyncSession();
             // The actual message body
             var wildcardStart = (Wolverine.ComplianceTests.Sagas.WildcardStart)context.Envelope.Message;
 
-
-            // Open a new document session 
-            // message context to support the outbox functionality
-            using var asyncDocumentSession = _documentStore.OpenAsyncSession();
-            context.EnlistInOutbox(new Wolverine.RavenDb.Internals.RavenDbEnvelopeTransaction(asyncDocumentSession, context));
-            // Use optimistic concurrency for sagas
-            asyncDocumentSession.Advanced.UseOptimisticConcurrency = true;
             var stringBasicWorkflow = new Wolverine.ComplianceTests.Sagas.StringBasicWorkflow();
             
             // The actual message execution

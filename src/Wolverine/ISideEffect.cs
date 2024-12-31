@@ -1,9 +1,12 @@
 ﻿using System.Reflection;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
+using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Wolverine.Configuration;
+using Wolverine.Persistence;
+using Wolverine.Persistence.Sagas;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
 
@@ -16,6 +19,17 @@ namespace Wolverine;
 /// </summary>
 public interface ISideEffect : IWolverineReturnType;
 
+
+/// <summary>
+/// Static interface that marks a return type that "knows" how to do extra
+/// code generation to handle a side effect
+/// </summary>
+public interface ISideEffectAware : ISideEffect
+{
+    static abstract Frame BuildFrame(IChain chain, Variable variable, GenerationRules rules,
+        IServiceContainer container);
+}
+
 internal class SideEffectPolicy : IChainPolicy
 {
     public const string SyncMethod = "Execute";
@@ -25,30 +39,68 @@ internal class SideEffectPolicy : IChainPolicy
     {
         foreach (var chain in chains)
         {
-            var sideEffects = chain.ReturnVariablesOfType<ISideEffect>();
-            foreach (var effect in sideEffects)
-            {
-                var method = findMethod(effect.VariableType);
-                if (method == null)
-                {
-                    throw new InvalidSideEffectException(
-                        $"Invalid Wolverine side effect exception for {effect.VariableType.FullNameInCode()}, no public {SyncMethod}/{AsyncMethod} method found");
-                }
-
-                foreach (var parameter in method.GetParameters()) chain.AddDependencyType(parameter.ParameterType);
-
-                effect.UseReturnAction(_ =>
-                {
-                    return new IfElseNullGuardFrame.IfNullGuardFrame(
-                        effect,
-                        new MethodCall(effect.VariableType, method)
-                        {
-                            Target = effect,
-                            CommentText = $"Placed by Wolverine's {nameof(ISideEffect)} policy"
-                        });
-                }, "Side Effect Policy");
-            }
+            lookForSingularSideEffects(rules, container, chain);
         }
+    }
+
+    private static void lookForSingularSideEffects(GenerationRules rules, IServiceContainer container, IChain chain)
+    {
+        var sideEffects = chain.ReturnVariablesOfType<ISideEffect>();
+        foreach (var effect in sideEffects.ToArray())
+        {
+            if (effect.VariableType.CanBeCastTo(typeof(ISideEffectAware)))
+            {
+                if (!Storage.TryApply(effect, rules, container, chain))
+                {
+                    var applier = typeof(Applier<>).CloseAndBuildAs<IApplier>(effect.VariableType);
+                    var frame = applier.Apply(chain, effect, rules, container);
+                    effect.UseReturnAction(v => frame);
+                }
+            }
+            else
+            {
+                applySideEffectExecution(effect, chain);
+            }
+
+        }
+    }
+
+    internal interface IApplier
+    {
+        Frame Apply(IChain chain, Variable variable, GenerationRules rules,
+            IServiceContainer container);
+    }
+
+    internal class Applier<T> : IApplier where T : ISideEffectAware
+    {
+        public Frame Apply(IChain chain, Variable variable, GenerationRules rules,
+            IServiceContainer container)
+        {
+            return T.BuildFrame(chain, variable, rules, container);
+        }
+    }
+
+    private static void applySideEffectExecution(Variable effect, IChain chain)
+    {
+        var method = findMethod(effect.VariableType);
+        if (method == null)
+        {
+            throw new InvalidSideEffectException(
+                $"Invalid Wolverine side effect exception for {effect.VariableType.FullNameInCode()}, no public {SyncMethod}/{AsyncMethod} method found");
+        }
+
+        foreach (var parameter in method.GetParameters()) chain.AddDependencyType(parameter.ParameterType);
+
+        effect.UseReturnAction(_ =>
+        {
+            return new IfElseNullGuardFrame.IfNullGuardFrame(
+                effect,
+                new MethodCall(effect.VariableType, method)
+                {
+                    Target = effect,
+                    CommentText = $"Placed by Wolverine's {nameof(ISideEffect)} policy"
+                });
+        }, "Side Effect Policy");
     }
 
     private static MethodInfo? findMethod(Type effectType)
