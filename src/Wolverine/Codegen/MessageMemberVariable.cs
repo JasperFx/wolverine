@@ -9,7 +9,10 @@ namespace Wolverine.Codegen;
 /// </summary>
 public class MessageMemberVariable : Variable
 {
+    public MemberInfo Member { get; }
+
     public MessageMemberVariable(MemberInfo member, Type messageType) : base(member.GetRawMemberType(), $"(({messageType.FullNameInCode()})context.Envelope.Message).{member.Name}")
     {
+        Member = member;
     }
 }

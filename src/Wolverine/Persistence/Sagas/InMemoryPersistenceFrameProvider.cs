@@ -1,4 +1,5 @@
-﻿using JasperFx.CodeGeneration.Frames;
+﻿using System.Reflection;
+using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
 using Wolverine.Configuration;
@@ -9,6 +10,11 @@ namespace Wolverine.Persistence.Sagas;
 public class InMemoryPersistenceFrameProvider : IPersistenceFrameProvider
 {
     public void ApplyTransactionSupport(IChain chain, IServiceContainer container)
+    {
+        // Nothing
+    }
+
+    public void ApplyTransactionSupport(IChain chain, IServiceContainer container, Type entityType)
     {
         // Nothing
     }
@@ -74,6 +80,10 @@ public class InMemoryPersistenceFrameProvider : IPersistenceFrameProvider
     {
         var method = typeof(InMemorySagaPersistor).GetMethod(nameof(InMemorySagaPersistor.Delete))!
             .MakeGenericMethod(saga.VariableType);
+
+        // This guy is pretty limited
+        sagaId ??= new Variable(typeof(object), $"{saga.Usage}.Id");
+        
         var call = new MethodCall(typeof(InMemorySagaPersistor), method)
         {
             Arguments =
@@ -83,5 +93,29 @@ public class InMemoryPersistenceFrameProvider : IPersistenceFrameProvider
         };
 
         return call;
+    }
+
+    public Frame DetermineStoreFrame(Variable variable, IServiceContainer container)
+    {
+        return DetermineInsertFrame(variable, container);
+    }
+
+    public Frame DetermineDeleteFrame(Variable variable, IServiceContainer container)
+    {
+        return DetermineDeleteFrame(null, variable, container);
+    }
+
+    public Frame DetermineStorageActionFrame(Type entityType, Variable action, IServiceContainer container)
+    {
+        var call = typeof(InMemorySagaPersistorStore<>).CloseAndBuildAs<MethodCall>(entityType);
+        call.Arguments[0] = action;
+        return call;
+    }
+}
+
+internal class InMemorySagaPersistorStore<T> : MethodCall
+{
+    public InMemorySagaPersistorStore() : base(typeof(InMemorySagaPersistor), ReflectionHelper.GetMethod<InMemorySagaPersistor>(x => x.StoreAction(Storage.Nothing<T>())))
+    {
     }
 }

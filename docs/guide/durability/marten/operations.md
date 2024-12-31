@@ -5,6 +5,16 @@ You can certainly write your own `IMartenOp` implementations and use them as ret
 handlers
 :::
 
+::: info
+This integration includes full support for the [storage action side effects](/guide/handlers/side-effects.html#storage-side-effects)
+model when using Marten with Wolverine.
+:::
+
+::: tip
+This integration also includes full support for the [storage action side effects](/guide/handlers/side-effects.html#storage-side-effects)
+model when using Marten~~~~ with Wolverine.
+:::
+
 The `Wolverine.Marten` library includes some helpers for Wolverine [side effects](/guide/handlers/side-effects) using
 Marten with the `IMartenOp` interface:
 
@@ -19,7 +29,7 @@ public interface IMartenOp : ISideEffect
     void Execute(IDocumentSession session);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/Wolverine.Marten/IMartenOp.cs#L7-L17' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_imartenop' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/Wolverine.Marten/IMartenOp.cs#L13-L23' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_imartenop' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The built in side effects can all be used from the `MartenOps` static class like this HTTP endpoint example:
@@ -65,6 +75,39 @@ The major advantage of using a Marten side effect is to help keep your Wolverine
 be a pure function that can be easily unit tested through measuring the expected return values. Using `IMartenOp` also
 helps you utilize synchronous methods for your logic, even though at runtime Wolverine itself will be wrapping asynchronous
 code about your simpler, synchronous code.
+
+## Returning Multiple Marten Side Effects <Badge type="tip" text="3.6" />
+
+Due to (somewhat) popular demand, Wolverine lets you return zero to many `IMartenOp` operations as side effects
+from a message handler or HTTP endpoint method like so:
+
+<!-- snippet: sample_using_ienumerable_of_martenop_as_side_effect -->
+<a id='snippet-sample_using_ienumerable_of_martenop_as_side_effect'></a>
+```cs
+// Just keep in mind that this "example" was rigged up for test coverage
+public static IEnumerable<IMartenOp> Handle(AppendManyNamedDocuments command)
+{
+    var number = 1;
+    foreach (var name in command.Names)
+    {
+        yield return MartenOps.Store(new NamedDocument{Id = name, Number = number++});
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/handler_actions_with_implied_marten_operations.cs#L169-L181' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_ienumerable_of_martenop_as_side_effect' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Wolverine will pick up on any return type that can be cast to `IEnumerable<IMartenOp>`, so for example:
+
+* `IEnumerable<IMartenOp>`
+* `IMartenOp[]`
+* `List<IMartenOp>`
+
+And you get the point. Wolverine is not (yet) smart enough to know that an array or enumerable of a concrete
+type of `IMartenOp` is a side effect.
+
+Like any other "side effect", you could technically return this as the main return type of a method or as part of a
+tuple.
 
 
 

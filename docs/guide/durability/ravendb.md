@@ -224,7 +224,14 @@ public static class RavenOps
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/Wolverine.RavenDb/IRavenDbOp.cs#L36-L66' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_ravenops' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-See the Wolverine [side effects](/guide/handlers/side-effects) model for more information. 
+See the Wolverine [side effects](/guide/handlers/side-effects) model for more information.
+
+This integration also includes full support for the [storage action side effects](/guide/handlers/side-effects.html#storage-side-effects)
+model when using RavenDb with Wolverine. 
+
+## Entity Attribute Loading
+
+The RavenDb integration is able to completely support the [Entity attribute usage](/guide/handlers/persistence.html#automatically-loading-entities-to-method-parameters).
 
 
 

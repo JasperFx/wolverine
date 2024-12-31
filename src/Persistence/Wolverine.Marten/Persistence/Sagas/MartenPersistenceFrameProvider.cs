@@ -1,4 +1,5 @@
-﻿using JasperFx.CodeGeneration.Frames;
+﻿using System.Reflection;
+using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
 using Marten;
@@ -28,19 +29,28 @@ internal class MartenPersistenceFrameProvider : IPersistenceFrameProvider
 
     public void ApplyTransactionSupport(IChain chain, IServiceContainer container)
     {
-        if (!chain.Middleware.OfType<TransactionalFrame>().Any())
+        if (!chain.Middleware.OfType<CreateDocumentSessionFrame>().Any())
         {
-            chain.Middleware.Add(new TransactionalFrame(chain));
-
-            if (chain is not SagaChain)
+            chain.Middleware.Add(new CreateDocumentSessionFrame(chain));
+        }
+        
+        if (chain is not SagaChain)
+        {
+            if (!chain.Postprocessors.OfType<DocumentSessionSaveChanges>().Any())
             {
-                var saveChanges = MethodCall.For<IDocumentSession>(x => x.SaveChangesAsync(default));
-                saveChanges.CommentText = "Commit any outstanding Marten changes";
-                chain.Postprocessors.Add(saveChanges);
+                chain.Postprocessors.Add(new DocumentSessionSaveChanges());
+            }
 
+            if (!chain.Postprocessors.OfType<FlushOutgoingMessages>().Any())
+            {
                 chain.Postprocessors.Add(new FlushOutgoingMessages());
             }
         }
+    }
+    
+    public void ApplyTransactionSupport(IChain chain, IServiceContainer container, Type entityType)
+    {
+        ApplyTransactionSupport(chain, container);
     }
 
     public bool CanApply(IChain chain, IServiceContainer container)
@@ -69,9 +79,7 @@ internal class MartenPersistenceFrameProvider : IPersistenceFrameProvider
 
     public Frame CommitUnitOfWorkFrame(Variable saga, IServiceContainer container)
     {
-        var call = MethodCall.For<IDocumentSession>(x => x.SaveChangesAsync(default));
-        call.CommentText = "Commit all pending changes";
-        return call;
+        return new DocumentSessionSaveChanges();
     }
 
     public Frame DetermineUpdateFrame(Variable saga, IServiceContainer container)
@@ -87,5 +95,60 @@ internal class MartenPersistenceFrameProvider : IPersistenceFrameProvider
     public Frame DetermineDeleteFrame(Variable sagaId, Variable saga, IServiceContainer container)
     {
         return new DocumentSessionOperationFrame(saga, nameof(IDocumentSession.Delete));
+    }
+
+    public Frame DetermineStoreFrame(Variable variable, IServiceContainer container)
+    {
+        return new DocumentSessionOperationFrame(variable, nameof(IDocumentSession.Store));
+    }
+
+    public Frame DetermineDeleteFrame(Variable variable, IServiceContainer container)
+    {
+        return new DocumentSessionOperationFrame(variable, nameof(IDocumentSession.Delete));
+    }
+
+    public Frame DetermineStorageActionFrame(Type entityType, Variable action, IServiceContainer container)
+    {
+        var method = typeof(MartenStorageActionApplier).GetMethod("ApplyAction")
+            .MakeGenericMethod(entityType);
+
+        var call = new MethodCall(typeof(MartenStorageActionApplier), method);
+        call.Arguments[1] = action;
+
+        return call;
+    }
+
+}
+
+public static class MartenStorageActionApplier
+{
+    public static void ApplyAction<T>(IDocumentSession session, IStorageAction<T> action)
+    {
+        if (action.Entity == null) return;
+        
+        switch (action.Action)
+        {
+            case StorageAction.Delete:
+                session.Delete(action.Entity!);
+                break;
+            case StorageAction.Insert:
+                session.Insert(action.Entity);
+                break;
+            case StorageAction.Store:
+                session.Store(action.Entity);
+                break;
+            case StorageAction.Update:
+                session.Update(action.Entity);
+                break;
+                
+        }
+    }
+}
+
+internal class DocumentSessionSaveChanges : MethodCall
+{
+    public DocumentSessionSaveChanges() : base(typeof(IDocumentSession), ReflectionHelper.GetMethod<IDocumentSession>(x => x.SaveChangesAsync(default)))
+    {
+        CommentText = "Save all pending changes to this Marten session";
     }
 }

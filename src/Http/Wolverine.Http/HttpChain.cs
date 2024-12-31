@@ -18,6 +18,7 @@ using Wolverine.Codegen;
 using Wolverine.Configuration;
 using Wolverine.Http.CodeGen;
 using Wolverine.Http.Metadata;
+using Wolverine.Http.Policies;
 using Wolverine.Runtime;
 using ServiceContainer = Wolverine.Runtime.ServiceContainer;
 
@@ -272,6 +273,11 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
         return HasRequestType ? RequestType : null;
     }
 
+    public override Frame[] AddStopConditionIfNull(Variable variable)
+    {
+        return [new SetStatusCodeAndReturnIfEntityIsNullFrame(variable)];
+    }
+
     public override string ToString()
     {
         return _fileName!;
@@ -411,14 +417,14 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
     public bool FindRouteVariable(Type variableType, string routeOrParameterName, [NotNullWhen(true)]out Variable? variable)
     {
         var matched =
-            _routeVariables.FirstOrDefault(x => x.VariableType == variableType && x.Usage == routeOrParameterName);
+            _routeVariables.FirstOrDefault(x => x.VariableType == variableType && x.Usage.EqualsIgnoreCase(routeOrParameterName));
         if (matched is not null)
         {
             variable = matched;
             return true;
         }
 
-        var matches = RoutePattern!.Parameters.Any(x => x.Name == routeOrParameterName);
+        var matches = RoutePattern!.Parameters.Any(x => x.Name.EqualsIgnoreCase(routeOrParameterName));
         if (matches)
         {
             if (variableType == typeof(string))
