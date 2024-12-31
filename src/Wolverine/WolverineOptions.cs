@@ -124,6 +124,13 @@ public sealed partial class WolverineOptions
     internal LocalTransport LocalRouting => Transports.GetOrCreate<LocalTransport>();
     internal bool LocalRoutingConventionDisabled { get; set; }
 
+    /// <summary>
+    /// Should remote usages of IMessageBus.InvokeAsync() or IMessageBus.InvokeAsync<T>()
+    /// that ultimately use an external transport be enabled? Default is true, but you
+    /// may want to disable this to avoid surprise network round trips
+    /// </summary>
+    public bool EnableRemoteInvocation { get; set; } = true;
+
     private void deriveServiceName()
     {
         if (GetType() == typeof(WolverineOptions))

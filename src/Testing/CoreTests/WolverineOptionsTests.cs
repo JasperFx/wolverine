@@ -205,6 +205,12 @@ public class WolverineOptionsTests
         transport2.ShouldNotBeSameAs(transport1);
     }
 
+    [Fact]
+    public void enable_remote_invocation_is_true_by_default()
+    {
+        new WolverineOptions().EnableRemoteInvocation.ShouldBeTrue();
+    }
+
     public interface IFoo;
 
     public class Foo : IFoo;
