@@ -7,7 +7,7 @@ using Wolverine.Marten.Publishing;
 
 namespace Wolverine.Marten.Codegen;
 
-internal class TransactionalFrame : Frame
+internal class CreateDocumentSessionFrame : Frame
 {
     private readonly IChain _chain;
     private Variable? _cancellation;
@@ -15,7 +15,7 @@ internal class TransactionalFrame : Frame
     private bool _createsSession;
     private Variable? _factory;
 
-    public TransactionalFrame(IChain chain) : base(true)
+    public CreateDocumentSessionFrame(IChain chain) : base(true)
     {
         _chain = chain;
     }
