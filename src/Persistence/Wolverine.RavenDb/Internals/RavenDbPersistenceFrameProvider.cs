@@ -86,6 +86,16 @@ public class RavenDbPersistenceFrameProvider : IPersistenceFrameProvider
     {
         return new DeleteDocumentFrame(saga);
     }
+
+    public Frame DetermineStoreFrame(Variable variable, IServiceContainer container)
+    {
+        return DetermineUpdateFrame(variable, container);
+    }
+
+    public Frame DetermineDeleteFrame(Variable variable, IServiceContainer container)
+    {
+        throw new NotImplementedException();
+    }
 }
 
 internal class DeleteDocumentFrame : SyncFrame

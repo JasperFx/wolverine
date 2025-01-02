@@ -91,6 +91,16 @@ internal class MartenPersistenceFrameProvider : IPersistenceFrameProvider
     {
         return new DocumentSessionOperationFrame(saga, nameof(IDocumentSession.Delete));
     }
+
+    public Frame DetermineStoreFrame(Variable variable, IServiceContainer container)
+    {
+        return new DocumentSessionOperationFrame(variable, nameof(IDocumentSession.Store));
+    }
+
+    public Frame DetermineDeleteFrame(Variable variable, IServiceContainer container)
+    {
+        return new DocumentSessionOperationFrame(variable, nameof(IDocumentSession.Delete));
+    }
 }
 
 internal class DocumentSessionSaveChanges : MethodCall

@@ -84,4 +84,14 @@ public class InMemoryPersistenceFrameProvider : IPersistenceFrameProvider
 
         return call;
     }
+
+    public Frame DetermineStoreFrame(Variable variable, IServiceContainer container)
+    {
+        return DetermineInsertFrame(variable, container);
+    }
+
+    public Frame DetermineDeleteFrame(Variable variable, IServiceContainer container)
+    {
+        return DetermineDeleteFrame(null, variable, container);
+    }
 }
