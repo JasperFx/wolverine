@@ -1,3 +1,4 @@
+using JasperFx.CodeGeneration.Model;
 using Microsoft.Extensions.DependencyInjection;
 using Oakton;
 using Spectre.Console;

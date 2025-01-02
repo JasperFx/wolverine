@@ -471,6 +471,19 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
 
             foreach (var attribute in MessageType.GetCustomAttributes(typeof(ModifyChainAttribute))
                          .OfType<ModifyChainAttribute>()) attribute.Modify(this, rules, container);
+
+            foreach (var handlerCall in HandlerCalls())
+            {
+                var parameters = handlerCall.Method.GetParameters();
+                for (int i = 0; i < parameters.Length; i++)
+                {
+                    if (parameters[i].TryGetAttribute<WolverineParameterAttribute>(out var att))
+                    {
+                        var variable = att.Modify(this, parameters[i], container, rules);
+                        handlerCall.Arguments[i] = variable;
+                    }
+                }
+            }
         }
 
         ApplyImpliedMiddlewareFromHandlers(rules);
@@ -479,6 +492,7 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
     protected IEnumerable<Frame> determineHandlerReturnValueFrames()
     {
         return Handlers.SelectMany(x => x.Creates)
+            .Where( x => x is not MemberAccessVariable)
             .Select(x => x.ReturnAction(this))
             .SelectMany(x => x.Frames());
     }

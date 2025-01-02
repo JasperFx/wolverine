@@ -33,8 +33,13 @@ public abstract class WolverineParameterAttribute : Attribute
     }
 
     public string ArgumentName { get; set; }
-    public ValueSource ArgumentSource { get; set; } = ValueSource.Anything;
     
+    /// <summary>
+    /// Where should the identity value for resolving this parameter come from?
+    /// Default is a named member on the message type or HTTP request type (if one exists)
+    /// </summary>
+    public ValueSource ValueSource { get; set; } = ValueSource.InputMember;
+
     /// <summary>
     ///     Called by Wolverine during bootstrapping to modify the code generation
     /// for an HTTP endpoint with the decorated parameter
@@ -42,8 +47,9 @@ public abstract class WolverineParameterAttribute : Attribute
     /// <param name="chain"></param>
     /// <param name="parameter"></param>
     /// <param name="container"></param>
+    /// <param name="rules"></param>
     public abstract Variable Modify(IChain chain, ParameterInfo parameter,
-        IServiceContainer container);
+        IServiceContainer container, GenerationRules rules);
 }
 
 public enum ValueSource
