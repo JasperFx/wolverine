@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using System.Reflection;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
+using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Metadata;
@@ -15,6 +16,7 @@ using Microsoft.AspNetCore.Mvc.ModelBinding.Metadata;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.Routing.Patterns;
 using Wolverine.Attributes;
+using Wolverine.Codegen;
 
 namespace Wolverine.Http;
 
@@ -136,7 +138,44 @@ public partial class HttpChain
 
     public override bool TryFindVariable(string valueName, ValueSource source, Type valueType, out Variable variable)
     {
-        throw new NotImplementedException();
+        if (HasRequestType && (source == ValueSource.InputMember || source == ValueSource.Anything))
+        {
+            var requestType = InputType();
+            var member = requestType.GetProperties()
+                             .FirstOrDefault(x => x.Name.EqualsIgnoreCase(valueName) && x.PropertyType == valueType)
+                         ?? (MemberInfo)requestType.GetFields()
+                             .FirstOrDefault(x => x.Name.EqualsIgnoreCase(valueName) && x.FieldType == valueType);
+
+            if (member != null)
+            {
+                if (RequestBodyVariable == null)
+                    throw new InvalidOperationException(
+                        "Requesting member access to the request body, but the request body is not (yet) set.");
+                
+                variable = new MemberAccessVariable(RequestBodyVariable, member);
+                return true;
+            }
+        }
+
+        switch (source)
+        {
+            case ValueSource.RouteValue:
+                return FindRouteVariable(valueType, valueName, out variable);
+            
+            case ValueSource.Anything:
+            case ValueSource.QueryString:
+                variable = TryFindOrCreateQuerystringValue(valueName, valueType);
+                return true;
+            
+            case ValueSource.Header:
+                throw new NotImplementedException("Not done yet.");
+            
+            case ValueSource.Claim:
+                throw new NotImplementedException();
+        }
+
+        variable = default;
+        return false;
     }
 
     private sealed record NormalizedResponseMetadata(int StatusCode, Type? Type, IEnumerable<string> ContentTypes)

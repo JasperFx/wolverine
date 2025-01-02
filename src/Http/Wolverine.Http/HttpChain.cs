@@ -310,63 +310,68 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
     public QuerystringVariable? TryFindOrCreateQuerystringValue(ParameterInfo parameter)
     {
         var key = parameter.Name;
+        var variableType = parameter.ParameterType;
 
         if (parameter.TryGetAttribute<FromQueryAttribute>(out var att) && att.Name.IsNotEmpty())
         {
             key = att.Name;
         }
 
-        var variable = _querystringVariables.FirstOrDefault(x => x.Name == key);
+        return TryFindOrCreateQuerystringValue(key, variableType);
+    }
 
+    public QuerystringVariable? TryFindOrCreateQuerystringValue(string? key, Type variableType)
+    {
+        var variable = _querystringVariables.FirstOrDefault(x => x.Name == key);
         if (variable == null)
         {
-            if (parameter.ParameterType == typeof(string))
+            if (variableType == typeof(string))
             {
                 variable = new ReadStringQueryStringValue(key).Variable;
                 variable.Name = key;
                 _querystringVariables.Add(variable);
             }
 
-            if (parameter.ParameterType == typeof(string[]))
+            if (variableType == typeof(string[]))
             {
-                variable = new ParsedArrayQueryStringValue(parameter).Variable;
+                variable = new ParsedArrayQueryStringValue(key, variableType).Variable;
                 variable.Name = key;
                 _querystringVariables.Add(variable);
             }
 
-            if (parameter.ParameterType.IsNullable())
+            if (variableType.IsNullable())
             {
-                var inner = parameter.ParameterType.GetInnerTypeFromNullable();
+                var inner = variableType.GetInnerTypeFromNullable();
                 if (RouteParameterStrategy.CanParse(inner))
                 {
-                    variable = new ParsedNullableQueryStringValue(parameter).Variable;
+                    variable = new ParsedNullableQueryStringValue(key, variableType).Variable;
                     variable.Name = key;
                     _querystringVariables.Add(variable);
                 }
             }
             
-            if (parameter.ParameterType.IsArray && RouteParameterStrategy.CanParse(parameter.ParameterType.GetElementType()))
+            if (variableType.IsArray && RouteParameterStrategy.CanParse(variableType.GetElementType()))
             {
-                variable = new ParsedArrayQueryStringValue(parameter).Variable;
+                variable = new ParsedArrayQueryStringValue(key, variableType).Variable;
                 variable.Name = key;
                 _querystringVariables.Add(variable);
             }
 
-            if (ParsedCollectionQueryStringValue.CanParse(parameter.ParameterType))
+            if (ParsedCollectionQueryStringValue.CanParse(variableType))
             {
-                variable = new ParsedCollectionQueryStringValue(parameter).Variable;
+                variable = new ParsedCollectionQueryStringValue(key, variableType).Variable;
                 variable.Name = key;
                 _querystringVariables.Add(variable);
             }
 
-            if (RouteParameterStrategy.CanParse(parameter.ParameterType))
+            if (RouteParameterStrategy.CanParse(variableType))
             {
-                variable = new ParsedQueryStringValue(parameter).Variable;
+                variable = new ParsedQueryStringValue(key).Variable;
                 variable.Name = key;
                 _querystringVariables.Add(variable);
             }
         }
-        else if (variable.VariableType != parameter.ParameterType)
+        else if (variable.VariableType != variableType)
         {
             throw new InvalidOperationException(
                 $"The query string parameter '{key}' cannot be used for multiple target types");
