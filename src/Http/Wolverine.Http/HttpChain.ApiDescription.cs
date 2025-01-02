@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using System.Reflection;
 using JasperFx.CodeGeneration.Frames;
+using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Metadata;
@@ -13,6 +14,7 @@ using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Mvc.ModelBinding.Metadata;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.Routing.Patterns;
+using Wolverine.Attributes;
 
 namespace Wolverine.Http;
 
@@ -130,6 +132,11 @@ public partial class HttpChain
         
         Postprocessors.Add(methodCall);
         ResourceVariable = methodCall.ReturnVariable;
+    }
+
+    public override bool TryFindVariable(string valueName, ValueSource source, Type valueType, out Variable variable)
+    {
+        throw new NotImplementedException();
     }
 
     private sealed record NormalizedResponseMetadata(int StatusCode, Type? Type, IEnumerable<string> ContentTypes)
