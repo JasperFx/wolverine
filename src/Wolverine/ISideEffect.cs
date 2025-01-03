@@ -44,11 +44,11 @@ internal class SideEffectPolicy : IChainPolicy
             {
                 if (effect.VariableType.CanBeCastTo(typeof(ISideEffectAware)))
                 {
-                    if (!Storage.TryApply(effect, rules, container))
+                    if (!Storage.TryApply(effect, rules, container, chain))
                     {
                         var applier = typeof(Applier<>).CloseAndBuildAs<IApplier>(effect.VariableType);
-
-                        effect.UseReturnAction(v => applier.Apply(chain, effect, rules, container));
+                        var frame = applier.Apply(chain, effect, rules, container);
+                        effect.UseReturnAction(v => frame);
                     }
                 }
                 else

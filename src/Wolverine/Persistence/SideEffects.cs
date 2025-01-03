@@ -91,7 +91,7 @@ public static class Storage
     public static Delete<T> Delete<T>(T entity) => new Delete<T>(entity);
     public static Nothing<T> Nothing<T>() => new();
 
-    internal static bool TryApply(Variable effect, GenerationRules rules, IServiceContainer container)
+    internal static bool TryApply(Variable effect, GenerationRules rules, IServiceContainer container, IChain chain)
     {
         if (effect.VariableType.Closes(typeof(IStorageAction<>)) &&
             effect.VariableType.GetGenericTypeDefinition() == typeof(IStorageAction<>))
@@ -100,6 +100,7 @@ public static class Storage
             if (rules.TryFindPersistenceFrameProvider(container, entityType, out var provider))
             {
                 effect.UseReturnAction(v => provider.DetermineStorageActionFrame(entityType, effect).WrapIfNotNull(effect));
+                provider.ApplyTransactionSupport(chain, container);
                 return true;
             }
 
@@ -150,6 +151,7 @@ public record Store<T>(T Entity) : ISideEffectAware, IStorageAction<T>
     {
         if (rules.TryFindPersistenceFrameProvider(container, typeof(T), out var provider))
         {
+            provider.ApplyTransactionSupport(chain, container);
             var value = new EntityVariable(variable);
             return provider.DetermineStoreFrame(value, container).WrapIfNotNull(variable);
         }
@@ -167,6 +169,7 @@ public record Delete<T>(T Entity) : ISideEffectAware, IStorageAction<T>
     {
         if (rules.TryFindPersistenceFrameProvider(container, typeof(T), out var provider))
         {
+            provider.ApplyTransactionSupport(chain, container);
             var value = new EntityVariable(variable);
             return provider.DetermineDeleteFrame(value, container).WrapIfNotNull(variable);
         }
@@ -185,6 +188,7 @@ public record Insert<T>(T Entity) : ISideEffectAware, IStorageAction<T>
     {
         if (rules.TryFindPersistenceFrameProvider(container, typeof(T), out var provider))
         {
+            provider.ApplyTransactionSupport(chain, container);
             var value = new EntityVariable(variable);
             return provider.DetermineInsertFrame(value, container).WrapIfNotNull(variable);
         }
@@ -202,6 +206,7 @@ public record Update<T>(T Entity) : ISideEffectAware, IStorageAction<T>
     {
         if (rules.TryFindPersistenceFrameProvider(container, typeof(T), out var provider))
         {
+            provider.ApplyTransactionSupport(chain, container);
             var value = new EntityVariable(variable);
             var frame = provider.DetermineUpdateFrame(value, container).WrapIfNotNull(variable);
             return frame;

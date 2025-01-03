@@ -104,7 +104,39 @@ internal class MartenPersistenceFrameProvider : IPersistenceFrameProvider
 
     public Frame DetermineStorageActionFrame(Type entityType, Variable action)
     {
-        throw new NotImplementedException();
+        var method = typeof(MartenStorageActionApplier).GetMethod("ApplyAction")
+            .MakeGenericMethod(entityType);
+
+        var call = new MethodCall(typeof(MartenStorageActionApplier), method);
+        call.Arguments[1] = action;
+
+        return call;
+    }
+
+}
+
+public static class MartenStorageActionApplier
+{
+    public static void ApplyAction<T>(IDocumentSession session, IStorageAction<T> action)
+    {
+        if (action.Entity == null) return;
+        
+        switch (action.Action)
+        {
+            case StorageAction.Delete:
+                session.Delete(action.Entity!);
+                break;
+            case StorageAction.Insert:
+                session.Insert(action.Entity);
+                break;
+            case StorageAction.Store:
+                session.Store(action.Entity);
+                break;
+            case StorageAction.Update:
+                session.Update(action.Entity);
+                break;
+                
+        }
     }
 }
 
