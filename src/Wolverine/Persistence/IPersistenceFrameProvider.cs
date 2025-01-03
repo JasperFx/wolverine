@@ -43,6 +43,8 @@ public interface IPersistenceFrameProvider
     /// <param name="container"></param>
     /// <returns></returns>
     Frame DetermineDeleteFrame(Variable variable, IServiceContainer container);
+
+    Frame DetermineStorageActionFrame(Type entityType, Variable action);
 }
 
 public interface ISagaOperation

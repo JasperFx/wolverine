@@ -8,6 +8,7 @@ using Wolverine.Attributes;
 using Wolverine.Configuration;
 using Wolverine.Persistence.Sagas;
 using Wolverine.Runtime;
+using Wolverine.Runtime.Handlers;
 using InvalidOperationException = System.InvalidOperationException;
 
 namespace Wolverine.Persistence;
@@ -88,7 +89,25 @@ public static class Storage
     public static Insert<T> Insert<T>(T entity) => new Insert<T>(entity);
     public static Update<T> Update<T>(T entity) => new Update<T>(entity);
     public static Delete<T> Delete<T>(T entity) => new Delete<T>(entity);
-    public static Nothing<T> Nothing<T>(T entity) => new Nothing<T>(entity);
+    public static Nothing<T> Nothing<T>() => new();
+
+    internal static bool TryApply(Variable effect, GenerationRules rules, IServiceContainer container)
+    {
+        if (effect.VariableType.Closes(typeof(IStorageAction<>)) &&
+            effect.VariableType.GetGenericTypeDefinition() == typeof(IStorageAction<>))
+        {
+            var entityType = effect.VariableType.GetGenericArguments()[0];
+            if (rules.TryFindPersistenceFrameProvider(container, entityType, out var provider))
+            {
+                effect.UseReturnAction(v => provider.DetermineStorageActionFrame(entityType, effect));
+                return true;
+            }
+
+            throw new NoMatchingPersistenceProviderException(entityType);
+        }
+
+        return false;
+    }
 }
 
 public class NoMatchingPersistenceProviderException : Exception
@@ -104,7 +123,7 @@ public interface IStorageAction<T> : ISideEffectAware
     T Entity { get; }
 }
 
-public record Nothing<T>(T Entity) : IStorageAction<T>
+public record Nothing<T> : IStorageAction<T>
 {
     public static Frame BuildFrame(IChain chain, Variable variable, GenerationRules rules, IServiceContainer container)
     {
@@ -112,6 +131,7 @@ public record Nothing<T>(T Entity) : IStorageAction<T>
     }
 
     public StorageAction Action => StorageAction.Nothing;
+    public T Entity => default!;
 }
 
 

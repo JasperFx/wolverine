@@ -96,6 +96,11 @@ public class RavenDbPersistenceFrameProvider : IPersistenceFrameProvider
     {
         throw new NotImplementedException();
     }
+
+    public Frame DetermineStorageActionFrame(Type entityType, Variable action)
+    {
+        throw new NotImplementedException();
+    }
 }
 
 internal class DeleteDocumentFrame : SyncFrame

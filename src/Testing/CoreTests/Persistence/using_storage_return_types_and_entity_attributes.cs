@@ -96,6 +96,85 @@ public class using_storage_return_types_and_entity_attributes : IAsyncLifetime
         var todo = persistor.Load<Todo>(command.Id);
         todo.Name.ShouldBe("New name3");
     }
+    
+        
+    [Fact]
+    public async Task use_delete_as_return_value()
+    {
+        var command = new CreateTodo(Guid.NewGuid(), "Write docs");
+        var tracked = await Host.InvokeMessageAndWaitAsync(command);
+
+        // Should NOT be trying to send the entity as a cascading message
+        tracked.NoRoutes.Envelopes().Any().ShouldBeFalse();
+        
+        var tracked2 = await Host.InvokeMessageAndWaitAsync(new DeleteTodo(command.Id));
+        tracked2.NoRoutes.Envelopes().Any().ShouldBeFalse();
+        
+        var persistor = Host.Services.GetRequiredService<InMemorySagaPersistor>();
+
+        var todo = persistor.Load<Todo>(command.Id);
+        
+        todo.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task use_generic_action_as_insert()
+    {
+        var shouldInsert = new MaybeInsertTodo(Guid.NewGuid(), "Pick up milk", true);
+        var shouldDoNothing = new MaybeInsertTodo(Guid.NewGuid(), "Start soup", false);
+
+        await Host.InvokeMessageAndWaitAsync(shouldInsert);
+        await Host.InvokeMessageAndWaitAsync(shouldDoNothing);
+        
+        var persistor = Host.Services.GetRequiredService<InMemorySagaPersistor>();
+        
+        persistor.Load<Todo>(shouldInsert.Id).Name.ShouldBe("Pick up milk");
+        persistor.Load<Todo>(shouldDoNothing.Id).ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task use_generic_action_as_delete()
+    {
+        var command = new CreateTodo(Guid.NewGuid(), "Write docs");
+        await Host.InvokeMessageAndWaitAsync(command);
+
+        await Host.InvokeMessageAndWaitAsync(new AlterTodo(command.Id, "New text", StorageAction.Delete));
+        var persistor = Host.Services.GetRequiredService<InMemorySagaPersistor>();
+        persistor.Load<Todo>(command.Id).ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task use_generic_action_as_update()
+    {
+        var command = new CreateTodo(Guid.NewGuid(), "Write docs");
+        await Host.InvokeMessageAndWaitAsync(command);
+
+        await Host.InvokeMessageAndWaitAsync(new AlterTodo(command.Id, "New text", StorageAction.Update));
+        var persistor = Host.Services.GetRequiredService<InMemorySagaPersistor>();
+        persistor.Load<Todo>(command.Id).Name.ShouldBe("New text");
+    }
+    
+    [Fact]
+    public async Task use_generic_action_as_store()
+    {
+        var command = new CreateTodo(Guid.NewGuid(), "Write docs");
+        await Host.InvokeMessageAndWaitAsync(command);
+
+        await Host.InvokeMessageAndWaitAsync(new AlterTodo(command.Id, "New text", StorageAction.Store));
+        var persistor = Host.Services.GetRequiredService<InMemorySagaPersistor>();
+        persistor.Load<Todo>(command.Id).Name.ShouldBe("New text");
+    }
+
+    [Fact]
+    public async Task do_nothing_as_generic_action()
+    {
+        var command = new CreateTodo(Guid.NewGuid(), "Write docs");
+        await Host.InvokeMessageAndWaitAsync(command);
+
+        await Host.InvokeMessageAndWaitAsync(new AlterTodo(command.Id, "New text", StorageAction.Nothing));
+        var persistor = Host.Services.GetRequiredService<InMemorySagaPersistor>();
+        persistor.Load<Todo>(command.Id).Name.ShouldBe("Write docs");
+    }
 }
 
 public class Todo
@@ -108,9 +187,15 @@ public class Todo
 public record CreateTodo(Guid Id, string Name);
 public record CreateTodo2(Guid Id, string Name);
 
+public record DeleteTodo(Guid Id);
+
 public record RenameTodo(Guid Id, string Name);
 public record RenameTodo2(Guid TodoId, string Name);
 public record RenameTodo3(Guid Identity, string Name);
+
+public record AlterTodo(Guid Id, string Name, StorageAction Action);
+
+public record MaybeInsertTodo(Guid Id, string Name, bool ShouldInsert);
 
 public static class TodoHandler
 {
@@ -157,5 +242,37 @@ public static class TodoHandler
     {
         todo.Name = command.Name;
         return Storage.Update(todo);
+    }
+
+    public static Delete<Todo> Handle(DeleteTodo command, [Entity("Identity")] Todo todo)
+    {
+        return Storage.Delete(todo);
+    }
+    
+    public static IStorageAction<Todo> Handle(AlterTodo command, [Entity("Identity")] Todo todo)
+    {
+        switch (command.Action)
+        {
+            case StorageAction.Delete:
+                return Storage.Delete(todo);
+            case StorageAction.Update:
+                todo.Name = command.Name;
+                return Storage.Update(todo);
+            case StorageAction.Store:
+                todo.Name = command.Name;
+                return Storage.Store(todo);
+            default:
+                return Storage.Nothing<Todo>();
+        }
+    }
+
+    public static IStorageAction<Todo> Handle(MaybeInsertTodo command)
+    {
+        if (command.ShouldInsert)
+        {
+            return Storage.Insert(new Todo { Id = command.Id, Name = command.Name });
+        }
+
+        return Storage.Nothing<Todo>();
     }
 }

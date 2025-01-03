@@ -94,4 +94,9 @@ internal class PostgresqlPersistenceFrameProvider : IPersistenceFrameProvider
     {
         return new SagaOperation(variable, SagaOperationType.DeleteAsync);
     }
+
+    public Frame DetermineStorageActionFrame(Type entityType, Variable action)
+    {
+        throw new NotSupportedException();
+    }
 }

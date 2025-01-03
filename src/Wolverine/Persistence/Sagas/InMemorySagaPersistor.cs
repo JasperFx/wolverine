@@ -47,4 +47,22 @@ public class InMemorySagaPersistor
         var key = ToKey(typeof(T), id);
         _data.TryRemove(key, out _);
     }
+
+    public void StoreAction<T>(IStorageAction<T> action)
+    {
+        switch (action.Action)
+        {
+            case StorageAction.Delete:
+                var idProp = typeof(T).GetProperty("Id");
+                var id = idProp.GetValue(action.Entity);
+                Delete<T>(id);
+                break;
+            
+            case StorageAction.Insert:
+            case StorageAction.Store:
+            case StorageAction.Update:
+                Store(action.Entity);
+                break;
+        }
+    }
 }

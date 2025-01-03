@@ -85,6 +85,11 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         return DetermineDeleteFrame(null, variable, container);
     }
 
+    public Frame DetermineStorageActionFrame(Type entityType, Variable action)
+    {
+        throw new NotSupportedException();
+    }
+
     public Frame DetermineStoreFrame(Variable variable, IServiceContainer container)
     {
         throw new NotSupportedException("This provider only supports Insert() or Update()");

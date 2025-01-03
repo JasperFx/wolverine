@@ -6,6 +6,7 @@ using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Wolverine.Configuration;
 using Wolverine.Persistence;
+using Wolverine.Persistence.Sagas;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
 
@@ -43,21 +44,18 @@ internal class SideEffectPolicy : IChainPolicy
             {
                 if (effect.VariableType.CanBeCastTo(typeof(ISideEffectAware)))
                 {
-                    if (effect.VariableType.Closes(typeof(IStorageAction<>)) &&
-                        effect.VariableType.BaseType == typeof(IStorageAction<>))
-                    {
-                        throw new NotImplementedException("Handle this one next");
-                    }
-                    else
+                    if (!Storage.TryApply(effect, rules, container))
                     {
                         var applier = typeof(Applier<>).CloseAndBuildAs<IApplier>(effect.VariableType);
-                        effect.UseReturnAction(v => applier.Apply(chain, v, rules, container));
+
+                        effect.UseReturnAction(v => applier.Apply(chain, effect, rules, container));
                     }
                 }
                 else
                 {
                     applySideEffectExecution(effect, chain);
                 }
+
             }
         }
     }
