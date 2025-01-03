@@ -175,6 +175,22 @@ public class using_storage_return_types_and_entity_attributes : IAsyncLifetime
         var persistor = Host.Services.GetRequiredService<InMemorySagaPersistor>();
         persistor.Load<Todo>(command.Id).Name.ShouldBe("Write docs");
     }
+
+    [Fact]
+    public async Task do_nothing_if_storage_action_is_null()
+    {
+        // Just a smoke test
+        var command = new ReturnNullInsert();
+        await Host.InvokeMessageAndWaitAsync(command);
+    }
+    
+    [Fact]
+    public async Task do_nothing_if_generic_storage_action_is_null()
+    {
+        // Just a smoke test
+        var command = new ReturnNullStorageAction();
+        await Host.InvokeMessageAndWaitAsync(command);
+    }
 }
 
 public class Todo
@@ -196,6 +212,9 @@ public record RenameTodo3(Guid Identity, string Name);
 public record AlterTodo(Guid Id, string Name, StorageAction Action);
 
 public record MaybeInsertTodo(Guid Id, string Name, bool ShouldInsert);
+
+public record ReturnNullInsert;
+public record ReturnNullStorageAction;
 
 public static class TodoHandler
 {
@@ -275,4 +294,8 @@ public static class TodoHandler
 
         return Storage.Nothing<Todo>();
     }
+
+    public static Insert<Todo>? Handle(ReturnNullInsert command) => null;
+
+    public static IStorageAction<Todo>? Handle(ReturnNullStorageAction command) => null;
 }

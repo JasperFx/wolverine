@@ -99,7 +99,7 @@ public static class Storage
             var entityType = effect.VariableType.GetGenericArguments()[0];
             if (rules.TryFindPersistenceFrameProvider(container, entityType, out var provider))
             {
-                effect.UseReturnAction(v => provider.DetermineStorageActionFrame(entityType, effect));
+                effect.UseReturnAction(v => provider.DetermineStorageActionFrame(entityType, effect).WrapIfNotNull(effect));
                 return true;
             }
 
@@ -151,7 +151,7 @@ public record Store<T>(T Entity) : ISideEffectAware, IStorageAction<T>
         if (rules.TryFindPersistenceFrameProvider(container, typeof(T), out var provider))
         {
             var value = new EntityVariable(variable);
-            return provider.DetermineStoreFrame(value, container);
+            return provider.DetermineStoreFrame(value, container).WrapIfNotNull(variable);
         }
 
         throw new NoMatchingPersistenceProviderException(typeof(T));
@@ -168,7 +168,7 @@ public record Delete<T>(T Entity) : ISideEffectAware, IStorageAction<T>
         if (rules.TryFindPersistenceFrameProvider(container, typeof(T), out var provider))
         {
             var value = new EntityVariable(variable);
-            return provider.DetermineDeleteFrame(value, container);
+            return provider.DetermineDeleteFrame(value, container).WrapIfNotNull(variable);
         }
 
         throw new NoMatchingPersistenceProviderException(typeof(T));
@@ -186,7 +186,7 @@ public record Insert<T>(T Entity) : ISideEffectAware, IStorageAction<T>
         if (rules.TryFindPersistenceFrameProvider(container, typeof(T), out var provider))
         {
             var value = new EntityVariable(variable);
-            return provider.DetermineInsertFrame(value, container);
+            return provider.DetermineInsertFrame(value, container).WrapIfNotNull(variable);
         }
 
         throw new NoMatchingPersistenceProviderException(typeof(T));
@@ -203,7 +203,7 @@ public record Update<T>(T Entity) : ISideEffectAware, IStorageAction<T>
         if (rules.TryFindPersistenceFrameProvider(container, typeof(T), out var provider))
         {
             var value = new EntityVariable(variable);
-            var frame = provider.DetermineUpdateFrame(value, container);
+            var frame = provider.DetermineUpdateFrame(value, container).WrapIfNotNull(variable);
             return frame;
         }
 
