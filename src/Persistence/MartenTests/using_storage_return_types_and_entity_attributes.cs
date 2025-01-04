@@ -20,7 +20,7 @@ public class using_storage_return_types_and_entity_attributes : StorageActionCom
         opts.Policies.AutoApplyTransactions();
     }
 
-    public override async Task<Todo?> Load(Guid id)
+    public override async Task<Todo?> Load(string id)
     {
         var store = Host.DocumentStore();
         await using var session = store.QuerySession();

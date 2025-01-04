@@ -26,7 +26,7 @@ public class RavenDbSagaHost : RavenTestDriver, ISagaHost
                 
                 opts.CodeGeneration.GeneratedCodeOutputPath = AppContext.BaseDirectory.ParentDirectory().ParentDirectory().ParentDirectory().AppendPath("Internal", "Generated");
                 opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
-
+                
                 // Shouldn't be necessary, but apparently is. Type scanning is not working
                 // for some reason across the compliance tests
                 opts.Discovery.IncludeType<StringBasicWorkflow>();

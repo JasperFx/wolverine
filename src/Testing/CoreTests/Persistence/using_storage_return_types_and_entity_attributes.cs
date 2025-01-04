@@ -11,7 +11,7 @@ public class using_storage_return_types_and_entity_attributes : StorageActionCom
         // Nothing, just use the in memory persistor
     }
 
-    public override Task<Todo?> Load(Guid id)
+    public override Task<Todo?> Load(string id)
     {
         return Task.FromResult(Host.Services.GetRequiredService<InMemorySagaPersistor>().Load<Todo>(id));
     }

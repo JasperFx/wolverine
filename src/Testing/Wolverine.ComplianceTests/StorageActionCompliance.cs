@@ -10,6 +10,8 @@ namespace Wolverine.ComplianceTests;
 
 public abstract class StorageActionCompliance : IAsyncLifetime
 {
+    public List<IDisposable> Disposables = new();
+    
     public async Task InitializeAsync()
     {
         Host = await Microsoft.Extensions.Hosting.Host.CreateDefaultBuilder()
@@ -25,6 +27,11 @@ public abstract class StorageActionCompliance : IAsyncLifetime
 
     public async Task DisposeAsync()
     {
+        foreach (var disposable in Disposables)
+        {
+            disposable.Dispose();
+        }
+        
         await Host.StopAsync();
     }
 
@@ -32,14 +39,14 @@ public abstract class StorageActionCompliance : IAsyncLifetime
     public IHost Host { get; set; }
 
     // These two methods will be changed
-    public abstract Task<Todo?> Load(Guid id);
+    public abstract Task<Todo?> Load(string id);
 
     public abstract Task Persist(Todo todo);
 
     [Fact]
     public async Task use_insert_as_return_value()
     {
-        var command = new CreateTodo(Guid.NewGuid(), "Write docs");
+        var command = new CreateTodo(Guid.NewGuid().ToString(), "Write docs");
         var tracked = await Host.InvokeMessageAndWaitAsync(command);
         
         // Should NOT be trying to send the entity as a cascading message
@@ -53,7 +60,7 @@ public abstract class StorageActionCompliance : IAsyncLifetime
     [Fact]
     public async Task use_store_as_return_value()
     {
-        var command = new CreateTodo(Guid.NewGuid(), "Write docs");
+        var command = new CreateTodo(Guid.NewGuid().ToString(), "Write docs");
         var tracked = await Host.InvokeMessageAndWaitAsync(command);
 
         // Should NOT be trying to send the entity as a cascading message
@@ -67,7 +74,7 @@ public abstract class StorageActionCompliance : IAsyncLifetime
     [Fact]
     public async Task use_entity_attribute_with_id()
     {
-        var command = new CreateTodo(Guid.NewGuid(), "Write docs");
+        var command = new CreateTodo(Guid.NewGuid().ToString(), "Write docs");
         await Host.InvokeMessageAndWaitAsync(command);
 
         await Host.InvokeMessageAndWaitAsync(new RenameTodo(command.Id, "New name"));
@@ -79,7 +86,7 @@ public abstract class StorageActionCompliance : IAsyncLifetime
     [Fact]
     public async Task use_entity_attribute_with_entity_id()
     {
-        var command = new CreateTodo(Guid.NewGuid(), "Write docs");
+        var command = new CreateTodo(Guid.NewGuid().ToString(), "Write docs");
         await Host.InvokeMessageAndWaitAsync(command);
 
         await Host.InvokeMessageAndWaitAsync(new RenameTodo2(command.Id, "New name2"));
@@ -91,7 +98,7 @@ public abstract class StorageActionCompliance : IAsyncLifetime
     [Fact]
     public async Task use_entity_attribute_with_explicit_id()
     {
-        var command = new CreateTodo(Guid.NewGuid(), "Write docs");
+        var command = new CreateTodo(Guid.NewGuid().ToString(), "Write docs");
         await Host.InvokeMessageAndWaitAsync(command);
 
         await Host.InvokeMessageAndWaitAsync(new RenameTodo3(command.Id, "New name3"));
@@ -104,7 +111,7 @@ public abstract class StorageActionCompliance : IAsyncLifetime
     [Fact]
     public async Task use_delete_as_return_value()
     {
-        var command = new CreateTodo(Guid.NewGuid(), "Write docs");
+        var command = new CreateTodo(Guid.NewGuid().ToString(), "Write docs");
         var tracked = await Host.InvokeMessageAndWaitAsync(command);
 
         // Should NOT be trying to send the entity as a cascading message
@@ -121,8 +128,8 @@ public abstract class StorageActionCompliance : IAsyncLifetime
     [Fact]
     public async Task use_generic_action_as_insert()
     {
-        var shouldInsert = new MaybeInsertTodo(Guid.NewGuid(), "Pick up milk", true);
-        var shouldDoNothing = new MaybeInsertTodo(Guid.NewGuid(), "Start soup", false);
+        var shouldInsert = new MaybeInsertTodo(Guid.NewGuid().ToString(), "Pick up milk", true);
+        var shouldDoNothing = new MaybeInsertTodo(Guid.NewGuid().ToString(), "Start soup", false);
 
         await Host.InvokeMessageAndWaitAsync(shouldInsert);
         await Host.InvokeMessageAndWaitAsync(shouldDoNothing);
@@ -134,7 +141,7 @@ public abstract class StorageActionCompliance : IAsyncLifetime
     [Fact]
     public async Task use_generic_action_as_delete()
     {
-        var command = new CreateTodo(Guid.NewGuid(), "Write docs");
+        var command = new CreateTodo(Guid.NewGuid().ToString(), "Write docs");
         await Host.InvokeMessageAndWaitAsync(command);
 
         await Host.InvokeMessageAndWaitAsync(new AlterTodo(command.Id, "New text", StorageAction.Delete));
@@ -145,7 +152,7 @@ public abstract class StorageActionCompliance : IAsyncLifetime
     [Fact]
     public async Task use_generic_action_as_update()
     {
-        var command = new CreateTodo(Guid.NewGuid(), "Write docs");
+        var command = new CreateTodo(Guid.NewGuid().ToString(), "Write docs");
         await Host.InvokeMessageAndWaitAsync(command);
 
         await Host.InvokeMessageAndWaitAsync(new AlterTodo(command.Id, "New text", StorageAction.Update));
@@ -156,7 +163,7 @@ public abstract class StorageActionCompliance : IAsyncLifetime
     [Fact]
     public async Task use_generic_action_as_store()
     {
-        var command = new CreateTodo(Guid.NewGuid(), "Write docs");
+        var command = new CreateTodo(Guid.NewGuid().ToString(), "Write docs");
         await Host.InvokeMessageAndWaitAsync(command);
 
         await Host.InvokeMessageAndWaitAsync(new AlterTodo(command.Id, "New text", StorageAction.Store));
@@ -167,7 +174,7 @@ public abstract class StorageActionCompliance : IAsyncLifetime
     [Fact]
     public async Task do_nothing_as_generic_action()
     {
-        var command = new CreateTodo(Guid.NewGuid(), "Write docs");
+        var command = new CreateTodo(Guid.NewGuid().ToString(), "Write docs");
         await Host.InvokeMessageAndWaitAsync(command);
 
         await Host.InvokeMessageAndWaitAsync(new AlterTodo(command.Id, "New text", StorageAction.Nothing));
@@ -195,23 +202,23 @@ public abstract class StorageActionCompliance : IAsyncLifetime
 
 public class Todo
 {
-    public Guid Id { get; set; }
+    public string Id { get; set; }
     public string? Name { get; set; }
     public bool IsComplete { get; set; }
 }
 
-public record CreateTodo(Guid Id, string Name);
-public record CreateTodo2(Guid Id, string Name);
+public record CreateTodo(string Id, string Name);
+public record CreateTodo2(string Id, string Name);
 
-public record DeleteTodo(Guid Id);
+public record DeleteTodo(string Id);
 
-public record RenameTodo(Guid Id, string Name);
-public record RenameTodo2(Guid TodoId, string Name);
-public record RenameTodo3(Guid Identity, string Name);
+public record RenameTodo(string Id, string Name);
+public record RenameTodo2(string TodoId, string Name);
+public record RenameTodo3(string Identity, string Name);
 
-public record AlterTodo(Guid Id, string Name, StorageAction Action);
+public record AlterTodo(string Id, string Name, StorageAction Action);
 
-public record MaybeInsertTodo(Guid Id, string Name, bool ShouldInsert);
+public record MaybeInsertTodo(string Id, string Name, bool ShouldInsert);
 
 public record ReturnNullInsert;
 public record ReturnNullStorageAction;
