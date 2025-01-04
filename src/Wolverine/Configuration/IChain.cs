@@ -3,6 +3,7 @@ using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
+using Wolverine.Attributes;
 using Wolverine.Logging;
 using Wolverine.Runtime;
 
@@ -113,6 +114,17 @@ public interface IChain
     /// </summary>
     /// <returns></returns>
     IEnumerable<Variable> ReturnVariablesOfType(Type interfaceType);
+
+    /// <summary>
+    /// Used by code generation to find a simple value on input types, headers, route values,
+    /// query string, or claims for use in loading other data
+    /// </summary>
+    /// <param name="valueName"></param>
+    /// <param name="source"></param>
+    /// <param name="valueType"></param>
+    /// <param name="variable"></param>
+    /// <returns></returns>
+    bool TryFindVariable(string valueName, ValueSource source, Type valueType, out Variable variable);
 }
 
 #endregion

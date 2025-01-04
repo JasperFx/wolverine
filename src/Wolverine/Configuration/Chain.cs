@@ -155,6 +155,8 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
         return HandlerCalls().SelectMany(x => x.Creates).Where(x => x.VariableType.CanBeCastTo(interfaceType));
     }
 
+    public abstract bool TryFindVariable(string valueName, ValueSource source, Type valueType, out Variable variable);
+
     private static Type[] _typesToIgnore = new Type[]
     {
         typeof(DateOnly),

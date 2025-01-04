@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Raven.Client.Documents;
 using Raven.Client.Documents.Operations;
 using Raven.Client.Documents.Queries;
+using Wolverine.Attributes;
 using Wolverine.Persistence.Durability;
 using Wolverine.Persistence.Sagas;
 using Wolverine.RavenDb.Internals;
@@ -21,6 +22,7 @@ public static class WolverineRavenDbExtensions
         options.Services.AddSingleton<IMessageStore, RavenDbMessageStore>();
         options.CodeGeneration.InsertFirstPersistenceStrategy<RavenDbPersistenceFrameProvider>();
         options.Services.AddHostedService<DeadLetterQueueReplayer>();
+        options.CodeGeneration.ReferenceAssembly(typeof(WolverineRavenDbExtensions).Assembly);
         return options;
     }
 

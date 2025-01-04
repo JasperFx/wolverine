@@ -36,9 +36,9 @@ internal class ReadStringQueryStringValue : SyncFrame
 
 internal class ParsedQueryStringValue : SyncFrame
 {
-    public ParsedQueryStringValue(ParameterInfo parameter)
+    public ParsedQueryStringValue(string key)
     {
-        Variable = new QuerystringVariable(parameter.ParameterType, parameter.Name!, this);
+        Variable = new QuerystringVariable(typeof(string), key, this);
     }
 
     public QuerystringVariable Variable { get; }
@@ -47,8 +47,7 @@ internal class ParsedQueryStringValue : SyncFrame
     {
         var alias = Variable.VariableType.FullNameInCode();
         writer.Write($"{alias} {Variable.Usage} = default;");
-
-
+        
         if (Variable.VariableType.IsEnum)
         {
             writer.Write($"{alias}.TryParse<{alias}>(httpContext.Request.Query[\"{Variable.Name}\"], out {Variable.Usage});");
@@ -71,10 +70,10 @@ internal class ParsedNullableQueryStringValue : SyncFrame
     private readonly string _alias;
     private Type _innerTypeFromNullable;
 
-    public ParsedNullableQueryStringValue(ParameterInfo parameter)
+    public ParsedNullableQueryStringValue(string key, Type variableType)
     {
-        Variable = new QuerystringVariable(parameter.ParameterType, parameter.Name!, this);
-        _innerTypeFromNullable = parameter.ParameterType.GetInnerTypeFromNullable();
+        Variable = new QuerystringVariable(variableType, key, this);
+        _innerTypeFromNullable = variableType.GetInnerTypeFromNullable();
         _alias = _innerTypeFromNullable.FullNameInCode();
     }
 
@@ -107,10 +106,10 @@ internal class ParsedCollectionQueryStringValue : SyncFrame
 {
     private readonly Type _collectionElementType;
 
-    public ParsedCollectionQueryStringValue(ParameterInfo parameter)
+    public ParsedCollectionQueryStringValue(string key, Type variableType)
     {
-        Variable = new QuerystringVariable(parameter.ParameterType, parameter.Name!, this);
-        _collectionElementType = GetCollectionElementType(parameter.ParameterType);
+        Variable = new QuerystringVariable(variableType, key, this);
+        _collectionElementType = GetCollectionElementType(variableType);
     }
 
     public QuerystringVariable Variable { get; }

@@ -83,4 +83,19 @@ internal class SqlServerPersistenceFrameProvider : IPersistenceFrameProvider
     {
         return new SagaOperation(saga, SagaOperationType.DeleteAsync);
     }
+
+    public Frame DetermineStoreFrame(Variable variable, IServiceContainer container)
+    {
+        throw new NotSupportedException("This provider only supports Insert() or Update()");
+    }
+
+    public Frame DetermineDeleteFrame(Variable variable, IServiceContainer container)
+    {
+        return new SagaOperation(variable, SagaOperationType.DeleteAsync);
+    }
+
+    public Frame DetermineStorageActionFrame(Type entityType, Variable action)
+    {
+        throw new NotSupportedException();
+    }
 }

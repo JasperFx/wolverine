@@ -9,6 +9,7 @@ using JasperFx.Core.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Wolverine.Attributes;
+using Wolverine.Codegen;
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
 using Wolverine.Logging;
@@ -324,6 +325,32 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         Postprocessors.Add(cascading);
     }
 
+    public override bool TryFindVariable(string valueName, ValueSource source, Type valueType, out Variable variable)
+    {
+        if (source == ValueSource.InputMember || source == ValueSource.Anything)
+        {
+            var member = MessageType.GetProperties()
+                             .FirstOrDefault(x => x.Name.EqualsIgnoreCase(valueName) && x.PropertyType == valueType)
+                         ?? (MemberInfo)MessageType.GetFields()
+                             .FirstOrDefault(x => x.Name.EqualsIgnoreCase(valueName) && x.FieldType == valueType);
+
+            if (member != null)
+            {
+                variable = new MessageMemberVariable(member, MessageType);
+                return true;
+            }
+        }
+
+        if (source == ValueSource.Anything || source == ValueSource.Header)
+        {
+            variable = new EnvelopeHeaderValueFrame(valueName, valueType).Header;
+            return true;
+        }
+
+        variable = default;
+        return false;
+    }
+
     public IEnumerable<Type> PublishedTypes()
     {
         var ignoredTypes = new[]
@@ -444,6 +471,19 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
 
             foreach (var attribute in MessageType.GetCustomAttributes(typeof(ModifyChainAttribute))
                          .OfType<ModifyChainAttribute>()) attribute.Modify(this, rules, container);
+
+            foreach (var handlerCall in HandlerCalls())
+            {
+                var parameters = handlerCall.Method.GetParameters();
+                for (int i = 0; i < parameters.Length; i++)
+                {
+                    if (parameters[i].TryGetAttribute<WolverineParameterAttribute>(out var att))
+                    {
+                        var variable = att.Modify(this, parameters[i], container, rules);
+                        handlerCall.Arguments[i] = variable;
+                    }
+                }
+            }
         }
 
         ApplyImpliedMiddlewareFromHandlers(rules);
@@ -452,6 +492,7 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
     protected IEnumerable<Frame> determineHandlerReturnValueFrames()
     {
         return Handlers.SelectMany(x => x.Creates)
+            .Where( x => x is not MemberAccessVariable)
             .Select(x => x.ReturnAction(this))
             .SelectMany(x => x.Frames());
     }

@@ -49,6 +49,33 @@ public static class GenerationRulesExtensions
         }
     }
 
+    /// <summary>
+    /// Tries to find a persistence frame provider for the given entityType
+    /// </summary>
+    /// <param name="rules"></param>
+    /// <param name="container"></param>
+    /// <param name="entityType"></param>
+    /// <param name="provider"></param>
+    /// <returns></returns>
+    public static bool TryFindPersistenceFrameProvider(this GenerationRules rules, IServiceContainer container, Type entityType,
+        out IPersistenceFrameProvider provider)
+    {
+        provider = default;
+        var providers = rules.PersistenceProviders();
+        if (providers.Any())
+        {
+            var candidates = providers.Where(x => x.CanPersist(entityType, container, out var _)).ToArray();
+            
+            if (candidates.Any())
+            {
+                provider = candidates.First();
+                return true;
+            }
+        }
+        
+        return false;
+    }
+
     public static List<IPersistenceFrameProvider> PersistenceProviders(this GenerationRules rules)
     {
         if (rules.Properties.TryGetValue(PersistenceKey, out var raw) &&

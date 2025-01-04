@@ -80,6 +80,21 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         return new DbContextOperationFrame(dbContextType, saga, nameof(DbContext.Remove));
     }
 
+    public Frame DetermineDeleteFrame(Variable variable, IServiceContainer container)
+    {
+        return DetermineDeleteFrame(null, variable, container);
+    }
+
+    public Frame DetermineStorageActionFrame(Type entityType, Variable action)
+    {
+        throw new NotSupportedException();
+    }
+
+    public Frame DetermineStoreFrame(Variable variable, IServiceContainer container)
+    {
+        throw new NotSupportedException("This provider only supports Insert() or Update()");
+    }
+
     public void ApplyTransactionSupport(IChain chain, IServiceContainer container)
     {
         if (chain.Tags.ContainsKey(UsingEfCoreTransaction)) return;
