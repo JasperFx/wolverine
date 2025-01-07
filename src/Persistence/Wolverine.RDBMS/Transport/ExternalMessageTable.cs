@@ -75,7 +75,8 @@ public class ExternalMessageTable : Endpoint, IExternalMessageTable
             var envelope = new Envelope
             {
                 Id = id,
-                Data = json
+                Data = json,
+                Destination = Uri
             };
 
             if (MessageTypeColumnName.IsEmpty())
