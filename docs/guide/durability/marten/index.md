@@ -97,7 +97,7 @@ Using the `IntegrateWithWolverine()` extension method behind your call to `AddMa
 
 ## Entity Attribute Loading
 
-The EF Core integration is able to completely support the [Entity attribute usage](/guide/handlers/persistence.html#automatically-loading-entities-to-method-parameters).
+The Marten integration is able to completely support the [Entity attribute usage](/guide/handlers/persistence.html#automatically-loading-entities-to-method-parameters).
 
 ## Marten as Outbox
 
