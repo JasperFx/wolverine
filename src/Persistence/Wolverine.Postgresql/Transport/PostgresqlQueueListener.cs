@@ -180,11 +180,13 @@ SELECT message.{DatabaseConstants.Body} from message;
                 if (messages.Any())
                 {
                     await _receiver.ReceivedAsync(this, messages.ToArray());
+
+                    await Task.Delay(250.Milliseconds());
                 }
                 else
                 {
                     // Slow down if this is a periodically used queue
-                    await Task.Delay(250.Milliseconds());
+                    await Task.Delay(_settings.ScheduledJobPollingTime);
                 }
             }
             catch (Exception e)
