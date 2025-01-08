@@ -119,7 +119,7 @@ internal class SqlServerQueueListener : IListener
                 else
                 {
                     // Slow down if this is a periodically used queue
-                    await Task.Delay(250.Milliseconds());
+                    await Task.Delay(_settings.ScheduledJobPollingTime);
                 }
             }
             catch (Exception e)
