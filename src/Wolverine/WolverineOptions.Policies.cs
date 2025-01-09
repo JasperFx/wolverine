@@ -63,6 +63,11 @@ public sealed partial class WolverineOptions : IPolicies
         HandledTypeRules.Add(rule);
     }
 
+    public void ConventionalLocalRoutingIsAdditive()
+    {
+        InternalRouteSources.OfType<LocalRouting>().Single().IsAdditive = true;
+    }
+
     void IPolicies.UseDurableLocalQueues()
     {
         this.As<IPolicies>().AllLocalQueues(q => q.UseDurableInbox());

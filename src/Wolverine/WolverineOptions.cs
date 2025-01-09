@@ -14,6 +14,22 @@ using Wolverine.Transports.Local;
 
 namespace Wolverine;
 
+public enum MultipleHandlerBehavior
+{
+    /// <summary>
+    /// The "classic" Wolverine behavior where multiple handlers for the same message
+    /// type are combined into a single logical message handler
+    /// </summary>
+    ClassicCombineIntoOneLogicalHandler,
+    
+    /// <summary>
+    /// Force Wolverine to make each individual handler for a message type be
+    /// processed completely independently. This is common when you may be publishing
+    /// an event message to multiple module handlers within the same process
+    /// </summary>
+    Separated
+}
+
 /// <summary>
 ///     Completely defines and configures a Wolverine application
 /// </summary>
@@ -53,7 +69,17 @@ public sealed partial class WolverineOptions
         Policies.Add<SideEffectPolicy>();
         Policies.Add<ResponsePolicy>();
         Policies.Add<OutgoingMessagesPolicy>();
-    } 
+    }
+
+    /// <summary>
+    /// How should Wolverine treat message handlers for the same message type?
+    /// Default is ClassicCombineIntoOneLogicalHandler, but change this if 
+    /// </summary>
+    public MultipleHandlerBehavior MultipleHandlerBehavior
+    {
+        get => HandlerGraph.MultipleHandlerBehavior;
+        set => HandlerGraph.MultipleHandlerBehavior = value;
+    }
 
     public Guid UniqueNodeId { get; } = Guid.NewGuid();
 

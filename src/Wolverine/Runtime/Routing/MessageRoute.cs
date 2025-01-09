@@ -176,4 +176,9 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
 
         return rules;
     }
+
+    public override string ToString()
+    {
+        return $"Send to {Sender.Destination}";
+    }
 }

@@ -113,13 +113,6 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         var endpoints = findStickyEndpoints(handlerCall, options).Distinct().ToArray();
         if (endpoints.Any())
         {
-            // Need to set a publishing rule for this message type to any local
-            // queues
-            foreach (var localQueue in endpoints.OfType<LocalQueue>())
-            {
-                localQueue.Subscriptions.Add(Subscription.ForType(MessageType));
-            }
-            
             foreach (var stub in endpoints.OfType<StubEndpoint>())
             {
                 stub.Subscriptions.Add(Subscription.ForType(MessageType));
@@ -135,10 +128,12 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
 
     private IEnumerable<Endpoint> findStickyEndpoints(HandlerCall call, WolverineOptions options)
     {
+        var foundSticky = false;
         if (call.HandlerType.TryGetAttribute<StickyHandlerAttribute>(out var att))
         {
             foreach (var endpoint in options.FindOrCreateEndpointByName(att.EndpointName))
             {
+                foundSticky = true;
                 yield return endpoint;
             }
         }
@@ -147,12 +142,22 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         {
             foreach (var endpoint in options.FindOrCreateEndpointByName(att.EndpointName))
             {
+                foundSticky = true;
                 yield return endpoint;
             }
         }
 
         foreach (var endpoint in options.FindEndpointsWithHandlerType(call.HandlerType))
         {
+            foundSticky = true;
+            yield return endpoint;
+        }
+
+        // In this case, let's find the right queue
+        if (options.MultipleHandlerBehavior == MultipleHandlerBehavior.Separated && !foundSticky)
+        {
+            var endpoint = options.Transports.GetOrCreate<LocalTransport>()
+                .QueueFor(call.HandlerType.FullNameInCode().ToLowerInvariant());
             yield return endpoint;
         }
     }

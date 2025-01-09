@@ -8,11 +8,26 @@ using Wolverine.Transports.Sending;
 
 namespace Wolverine.Runtime;
 
+#region sample_IMessageRouteSource
+
 public interface IMessageRouteSource
 {
+    /// <summary>
+    /// Given a message type, what message routes if any can this source find?
+    /// </summary>
+    /// <param name="messageType"></param>
+    /// <param name="runtime"></param>
+    /// <returns></returns>
     IEnumerable<IMessageRoute> FindRoutes(Type messageType, IWolverineRuntime runtime);
+    
+    /// <summary>
+    /// If this route source finds matching routes, should Wolverine continue
+    /// to add more routes from the subsequent routing sources?
+    /// </summary>
     bool IsAdditive { get; }
 }
+
+#endregion
 
 internal class AgentMessages : IMessageRouteSource
 {
@@ -69,7 +84,7 @@ internal class LocalRouting : IMessageRouteSource
 
     }
 
-    public bool IsAdditive => false;
+    public bool IsAdditive { get; set; }
 }
 
 internal class MessageRoutingConventions : IMessageRouteSource
