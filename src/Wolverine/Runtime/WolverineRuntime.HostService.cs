@@ -258,7 +258,9 @@ public partial class WolverineRuntime
         if (!Options.ExternalTransportsAreStubbed)
         {
             foreach (var routingConvention in Options.RoutingConventions)
+            {
                 routingConvention.DiscoverListeners(this, handledMessageTypes);
+            }
         }
         else
         {

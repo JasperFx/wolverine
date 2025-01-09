@@ -197,6 +197,11 @@ internal class EventUnwrappingMessageRoute<T> : TransformedMessageRoute<IEvent<T
     public EventUnwrappingMessageRoute(IMessageRoute inner) : base(e => e.Data, inner)
     {
     }
+
+    public override string ToString()
+    {
+        return $"Unwrap event wrapper to " + typeof(T).FullNameInCode();
+    }
 }
 
 public interface IEventForwarding

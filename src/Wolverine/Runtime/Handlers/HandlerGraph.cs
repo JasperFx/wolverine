@@ -67,6 +67,9 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
 
     public FailureRuleCollection Failures { get; set; } = new();
 
+    public MultipleHandlerBehavior MultipleHandlerBehavior { get; set; } =
+        MultipleHandlerBehavior.ClassicCombineIntoOneLogicalHandler;
+
     public void ConfigureHandlerForMessage<T>(Action<HandlerChain> configure)
     {
         ConfigureHandlerForMessage(typeof(T), configure);

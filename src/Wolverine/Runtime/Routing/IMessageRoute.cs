@@ -4,11 +4,19 @@ using Wolverine.Transports.Sending;
 
 namespace Wolverine.Runtime.Routing;
 
+#region sample_IMessageRoute
+
+/// <summary>
+/// Contains all the rules for where and how an outgoing message
+/// should be sent to a single subscriber
+/// </summary>
 public interface IMessageRoute
 {
     Envelope CreateForSending(object message, DeliveryOptions? options, ISendingAgent localDurableQueue,
         WolverineRuntime runtime, string? topicName);
 }
+
+#endregion
 
 internal class TransformedMessageRouteSource : IMessageRouteSource
 {
@@ -37,6 +45,11 @@ internal class TransformedMessageRoute<TSource, TDestination> : IMessageRoute
     {
         var transformed = _transformation((TSource)message);
         return _inner.CreateForSending(transformed!, options, localDurableQueue, runtime, topicName);
+    }
+
+    public override string ToString()
+    {
+        return "Forward message as " + typeof(TDestination).FullNameInCode();
     }
 }
 
@@ -82,5 +95,10 @@ public class TopicRouting<T> : IMessageRouteSource, IMessageRoute
 
         throw new InvalidOperationException(
             $"The message of type {message.GetType().FullNameInCode()} cannot be routed as a message of type {typeof(T).FullNameInCode()}");
+    }
+
+    public override string ToString()
+    {
+        return $"Topic routing to {_topicEndpoint.Uri}";
     }
 }

@@ -20,6 +20,12 @@ public class WolverineOptionsTests
     private readonly WolverineOptions theSettings = new();
 
     [Fact]
+    public void multiple_handler_behavior_is_classic_mode_by_default()
+    {
+        new WolverineOptions().MultipleHandlerBehavior.ShouldBe(MultipleHandlerBehavior.ClassicCombineIntoOneLogicalHandler);
+    }
+    
+    [Fact]
     public void unique_node_id_is_really_unique()
     {
         var options1 = new DurabilitySettings();

@@ -69,6 +69,12 @@ internal class LocalTransport : TransportBase<LocalQueue>, ILocalMessageRoutingC
         return this;
     }
 
+    public ILocalMessageRoutingConvention IsAdditive(bool additive)
+    {
+        
+        return this;
+    }
+
     protected override IEnumerable<LocalQueue> endpoints()
     {
         return _queues;
@@ -153,11 +159,21 @@ internal class LocalTransport : TransportBase<LocalQueue>, ILocalMessageRoutingC
     {
         if (!runtime.Options.LocalRoutingConventionDisabled)
         {
-            foreach (var messageType in handledMessageTypes) FindOrCreateQueueForMessageTypeByConvention(messageType);
+            foreach (var messageType in handledMessageTypes)
+            {
+                var chain = runtime.Options.HandlerGraph.ChainFor(messageType);
+                if (chain.Handlers.Any())
+                {
+                    FindOrCreateQueueForMessageTypeByConvention(messageType);
+                }
+            }
         }
 
         // Apply individual queue configuration
-        foreach (var delayedConfiguration in _delayedConfigurations) delayedConfiguration.Apply();
+        foreach (var delayedConfiguration in _delayedConfigurations)
+        {
+            delayedConfiguration.Apply();
+        }
     }
 
     internal LocalQueue FindOrCreateQueueForMessageTypeByConvention(Type messageType)
@@ -190,9 +206,24 @@ internal class LocalTransport : TransportBase<LocalQueue>, ILocalMessageRoutingC
 
     internal IEnumerable<Endpoint> DiscoverSenders(Type messageType, IWolverineRuntime runtime)
     {
+        var chain = runtime.Options.HandlerGraph.ChainFor(messageType);
+        
+        // This only covers the default message type to local queue routing
         if (Assignments.TryGetValue(messageType, out var queue))
         {
             yield return queue;
+        }
+        
+        // Now do "sticky" assignments too
+
+        if (chain == null)
+        {
+            yield break;
+        }
+        
+        foreach (var endpoint in chain.ByEndpoint.SelectMany(x => x.Endpoints))
+        {
+            yield return endpoint;
         }
     }
 
