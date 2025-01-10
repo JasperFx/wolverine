@@ -5,6 +5,7 @@ using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Wolverine.Configuration;
+using Wolverine.Persistence;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Runtime.Scheduled;
 using Wolverine.Runtime.Serialization;
@@ -51,6 +52,7 @@ public sealed partial class WolverineOptions
 
         CodeGeneration = new GenerationRules("Internal.Generated");
         CodeGeneration.Sources.Add(new NowTimeVariableSource());
+        CodeGeneration.Sources.Add(new TenantIdSource());
         CodeGeneration.Assemblies.Add(GetType().Assembly);
 
         establishApplicationAssembly(assemblyName);
