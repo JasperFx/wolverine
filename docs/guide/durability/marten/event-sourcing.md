@@ -504,4 +504,7 @@ public static class RaiseIfValidatedHandler
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/aggregate_handler_workflow.cs#L406-L422' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_passing_aggregate_into_validate_method' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Archiving Streams
 
+To mark a Marten event stream as archived from a Wolverine aggregate handler, just append the special Marten [Archived](https://martendb.io/events/archiving.html#archived-event)
+event to the stream just like you would in any other aggregate handler. 
