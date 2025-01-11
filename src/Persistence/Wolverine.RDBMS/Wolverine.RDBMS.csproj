@@ -13,17 +13,7 @@
         <ProjectReference Include="..\..\Wolverine\Wolverine.csproj"/>
     </ItemGroup>
 
-    <ItemGroup Label="Patch security vulnerabilities">
-        <!--
-            warning NU1903:
-            Package 'System.Text.RegularExpressions' 4.3.0 has a known high severity vulnerability,
-            https://github.com/advisories/GHSA-cmhx-cq75-c4mj
-        -->
-        <PackageVersion Include="System.Text.RegularExpressions" Version="4.3.1" />
-    </ItemGroup>
-
     <ItemGroup>
-        <PackageReference Include="System.Data.Common" Version="4.3.0"/>
         <PackageReference Include="Weasel.CommandLine" Version="7.12.4"/>
         <PackageReference Include="Weasel.Core" Version="7.12.4"/>
     </ItemGroup>
