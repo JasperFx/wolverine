@@ -13,11 +13,11 @@ public class MartenOps_store
         op.Documents.Count.ShouldBe(1);
         op.Documents[0].ShouldBeOfType<MartenMessage2>();
 
-        op = op.With(new MartenMessage2("Test2"));
+        op.With(new MartenMessage2("Test2"));
 
         op.Documents.Count.ShouldBe(2);
 
-        op = op.With([new MartenMessage2("Test3"), new MartenMessage2("Test4")]);
+        op.With([new MartenMessage2("Test3"), new MartenMessage2("Test4")]);
 
         op.Documents.Count.ShouldBe(4);
 
@@ -38,12 +38,12 @@ public class MartenOps_store
         op.Documents.Count.ShouldBe(1);
         op.Documents[0].ShouldBeOfType<MartenMessage2>();
 
-        op = op.With(new MartenMessage3("Test2"));
+        op.With(new MartenMessage3("Test2"));
 
         op.Documents.Count.ShouldBe(2);
         op.Documents[1].ShouldBeOfType<MartenMessage3>();
 
-        op = op.With([new MartenMessage2("Test3"), new MartenMessage3("Test4")]);
+        op.With([new MartenMessage2("Test3"), new MartenMessage3("Test4")]);
 
         op.Documents.Count.ShouldBe(4);
         op.Documents[2].ShouldBeOfType<MartenMessage2>();
