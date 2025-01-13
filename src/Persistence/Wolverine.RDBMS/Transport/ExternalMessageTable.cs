@@ -15,6 +15,7 @@ public class ExternalMessageTable : Endpoint, IExternalMessageTable
     {
         IsListener = true;
         TableName = tableName;
+        Mode = EndpointMode.Durable;
     }
 
     protected override bool supportsMode(EndpointMode mode)
