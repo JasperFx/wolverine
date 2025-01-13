@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
+using Wolverine.Util;
 
 namespace Wolverine.Runtime.RemoteInvocation;
 
@@ -31,6 +32,8 @@ internal class ReplyTracker : IReplyTracker
         envelope.DeliverWithin = timeout; // Make the message expire so it doesn't cruft up the receivers
         var listener = new ReplyListener<T>(envelope, this, timeout, cancellationToken);
         _listeners.AddOrUpdate(envelope.Id, listener, (_, _) => listener);
+        
+        _logger.LogDebug("Registering a reply listener for message type {MessageType} and conversation id {ConversationId}", typeof(T).ToMessageTypeName(), envelope.ConversationId);
 
         return listener.Task;
     }
@@ -49,6 +52,11 @@ internal class ReplyTracker : IReplyTracker
             if (_listeners.TryGetValue(response.ConversationId, out var listener))
             {
                 listener.Complete(response);
+                _logger.LogDebug("Successfully completed a reply listener for conversation id {ReplyId} with message type {MessageTypeName}", response.ConversationId, response.MessageType);
+            }
+            else
+            {
+                _logger.LogError("Unable to find a registered reply listener for conversation id {ReplyId} with message type {MessageType}. The listener may have previously timed out", response.ConversationId, response.MessageType);
             }
         }
         catch (Exception e)

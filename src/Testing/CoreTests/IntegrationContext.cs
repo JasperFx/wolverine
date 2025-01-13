@@ -1,7 +1,11 @@
-﻿using JasperFx.Core.Reflection;
+﻿using CoreTests.Acceptance;
+using CoreTests.Bugs;
+using JasperFx.Core.Reflection;
 using Lamar.Microsoft.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using NSubstitute;
 using Oakton.Resources;
 using Wolverine.ComplianceTests;
 using Wolverine.ComplianceTests.Compliance;
@@ -25,6 +29,9 @@ public class DefaultApp : IDisposable
                 
                 opts.IncludeType<MessageConsumer>();
                 opts.IncludeType<InvokedMessageHandler>();
+
+                opts.Services.AddSingleton(Substitute.For<IIdentityService>());
+                opts.Services.AddSingleton(Substitute.For<ITrackedTaskRepository>());
             })
             .UseResourceSetupOnStartup(StartupAction.ResetState).Start();
     }

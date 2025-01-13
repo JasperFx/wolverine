@@ -23,9 +23,10 @@ namespace Internal.Generated.WolverineHandlers
 
             await using var documentSession = _outboxedSessionFactory.OpenSession(context);
             var eventStore = documentSession.Events;
+            var aggregateId = incrementA.LetterAggregateId;
             
             // Loading Marten aggregate
-            var eventStream = await eventStore.FetchForWriting<MartenTests.LetterAggregate>(incrementA.LetterAggregateId, cancellation).ConfigureAwait(false);
+            var eventStream = await eventStore.FetchForWriting<MartenTests.LetterAggregate>(aggregateId, cancellation).ConfigureAwait(false);
 
             var letterAggregateHandler = new MartenTests.LetterAggregateHandler();
             

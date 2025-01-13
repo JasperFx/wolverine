@@ -1,6 +1,12 @@
-﻿using JasperFx.Core;
+﻿using JasperFx.CodeGeneration;
+using JasperFx.CodeGeneration.Frames;
+using JasperFx.CodeGeneration.Model;
+using JasperFx.Core;
 using Marten;
-using MassTransit;
+using Wolverine.Configuration;
+using Wolverine.Marten.Persistence.Sagas;
+using Wolverine.Runtime;
+using Wolverine.Runtime.Handlers;
 
 namespace Wolverine.Marten;
 
@@ -15,6 +21,51 @@ public interface IMartenOp : ISideEffect
 }
 
 #endregion
+
+internal class MartenOpPolicy : IChainPolicy
+{
+    public void Apply(IReadOnlyList<IChain> chains, GenerationRules rules, IServiceContainer container)
+    {
+        foreach (var chain in chains)
+        {
+            var candidates = chain.ReturnVariablesOfType<IEnumerable<IMartenOp>>().ToArray();
+            if (candidates.Any())
+            {
+                new MartenPersistenceFrameProvider().ApplyTransactionSupport(chain, container);
+            }
+            
+            foreach (var collection in candidates)
+            {
+                collection.UseReturnAction(v => new ForEachMartenOpFrame(v));
+            }
+        }
+    }
+}
+
+internal class ForEachMartenOpFrame : SyncFrame
+{
+    private readonly Variable _collection;
+    private Variable _session;
+
+    public ForEachMartenOpFrame(Variable collection)
+    {
+        _collection = collection;
+    }
+
+    public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
+    {
+        _session = chain.FindVariable(typeof(IDocumentSession));
+        yield return _session;
+        yield return _collection;
+    }
+
+    public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        writer.WriteComment("Apply each Marten op to the current document session");
+        writer.Write($"foreach (var item_of_{_collection.Usage} in {_collection.Usage}) item_of_{_collection.Usage}.{nameof(IMartenOp.Execute)}({_session.Usage});");
+        Next?.GenerateCode(method, writer);
+    }
+}
 
 /// <summary>
 /// Access to Marten related side effect return values from message handlers

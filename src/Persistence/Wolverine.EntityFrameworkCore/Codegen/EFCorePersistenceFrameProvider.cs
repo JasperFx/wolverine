@@ -80,12 +80,64 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         return new DbContextOperationFrame(dbContextType, saga, nameof(DbContext.Remove));
     }
 
+    public Frame DetermineDeleteFrame(Variable variable, IServiceContainer container)
+    {
+        return DetermineDeleteFrame(null, variable, container);
+    }
+
+    public Frame DetermineStorageActionFrame(Type entityType, Variable action, IServiceContainer container)
+    {
+        var dbContextType = DetermineDbContextType(entityType, container);
+        
+        var method = typeof(EfCoreStorageActionApplier).GetMethod("ApplyAction")
+            .MakeGenericMethod(entityType, dbContextType);
+
+        var call = new MethodCall(typeof(EfCoreStorageActionApplier), method);
+        call.Arguments[1] = action;
+
+        return call;
+    }
+
+    public Frame DetermineStoreFrame(Variable variable, IServiceContainer container)
+    {
+        return DetermineUpdateFrame(variable, container);
+    }
+
     public void ApplyTransactionSupport(IChain chain, IServiceContainer container)
     {
         if (chain.Tags.ContainsKey(UsingEfCoreTransaction)) return;
         chain.Tags.Add(UsingEfCoreTransaction, true);
 
         var dbType = DetermineDbContextType(chain, container);
+
+        chain.Middleware.Insert(0, new EnrollDbContextInTransaction(dbType));
+
+        var saveChangesAsync =
+            dbType.GetMethod(nameof(DbContext.SaveChangesAsync), [typeof(CancellationToken)]);
+
+        var call = new MethodCall(dbType, saveChangesAsync!)
+        {
+            CommentText = "Added by EF Core Transaction Middleware"
+        };
+
+        chain.Postprocessors.Add(call);
+
+        chain.Postprocessors.Add(new CommitDbContextTransactionIfNecessary());
+
+        if (chain.RequiresOutbox() && chain.ShouldFlushOutgoingMessages())
+        {
+#pragma warning disable CS4014
+            chain.Postprocessors.Add(new FlushOutgoingMessages());
+#pragma warning restore CS4014
+        }
+    }
+
+    public void ApplyTransactionSupport(IChain chain, IServiceContainer container, Type entityType)
+    {
+        if (chain.Tags.ContainsKey(UsingEfCoreTransaction)) return;
+        chain.Tags.Add(UsingEfCoreTransaction, true);
+
+        var dbType = DetermineDbContextType(entityType, container);
 
         chain.Middleware.Insert(0, new EnrollDbContextInTransaction(dbType));
 
@@ -172,7 +224,7 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         {
             return DetermineDbContextType(saga.SagaType, container);
         }
-
+// START HERE. Look for any IStorageAction<T>, and use the T
         var contextTypes = chain.ServiceDependencies(container, Type.EmptyTypes).Where(x => x.CanBeCastTo<DbContext>()).ToArray();
 
         if (contextTypes.Length == 0)
@@ -321,5 +373,30 @@ internal class LoadEntityFrame : AsyncFrame
         writer.Write(
             $"var {Saga.Usage} = await {_context!.Usage}.{nameof(DbContext.FindAsync)}<{Saga.VariableType.FullNameInCode()}>({_sagaId.Usage}).ConfigureAwait(false);");
         Next?.GenerateCode(method, writer);
+    }
+}
+
+public static class EfCoreStorageActionApplier
+{
+    public static async Task ApplyAction<TEntity, TDbContext>(TDbContext context, IStorageAction<TEntity> action) where TDbContext : DbContext
+    {
+        if (action.Entity == null) return;
+        
+        switch (action.Action)
+        {
+            case StorageAction.Delete:
+                context.Remove(action.Entity);
+                break;
+            case StorageAction.Insert:
+                await context.AddAsync(action.Entity);
+                break;
+            case StorageAction.Store:
+                context.Update(action.Entity); // Not really correct, but let it go
+                break;
+            case StorageAction.Update:
+                context.Update(action.Entity);
+                break;
+                
+        }
     }
 }

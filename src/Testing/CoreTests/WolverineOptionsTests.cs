@@ -20,6 +20,12 @@ public class WolverineOptionsTests
     private readonly WolverineOptions theSettings = new();
 
     [Fact]
+    public void multiple_handler_behavior_is_classic_mode_by_default()
+    {
+        new WolverineOptions().MultipleHandlerBehavior.ShouldBe(MultipleHandlerBehavior.ClassicCombineIntoOneLogicalHandler);
+    }
+    
+    [Fact]
     public void unique_node_id_is_really_unique()
     {
         var options1 = new DurabilitySettings();
@@ -203,6 +209,12 @@ public class WolverineOptionsTests
         var transport2 = options.Transports.GetOrCreate<FakeTransport>(two);
         transport2.ShouldNotBeSameAs(main);
         transport2.ShouldNotBeSameAs(transport1);
+    }
+
+    [Fact]
+    public void enable_remote_invocation_is_true_by_default()
+    {
+        new WolverineOptions().EnableRemoteInvocation.ShouldBeTrue();
     }
 
     public interface IFoo;

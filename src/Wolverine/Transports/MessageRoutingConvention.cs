@@ -33,28 +33,61 @@ public abstract class MessageRoutingConvention<TTransport, TListener, TSubscribe
 
         foreach (var messageType in handledMessageTypes.Where(t => _typeFilters.Matches(t)))
         {
-            // Can be null, so bail out if there's no queue
-            var queueName = _queueNameForListener(messageType);
-            if (queueName.IsEmpty())
-            {
-                return;
-            }
-
-            var corrected = transport.MaybeCorrectName(queueName);
-
-            var (configuration, endpoint) = FindOrCreateListenerForIdentifier(corrected, transport, messageType);
-            //endpoint.EndpointName = queueName;
-
-            endpoint.IsListener = true;
-
-            var context = new MessageRoutingContext(messageType, runtime);
-
-            _configureListener(configuration, context);
-
-            configuration!.As<IDelayedEndpointConfiguration>().Apply();
+            var chain = runtime.Options.HandlerGraph.ChainFor(messageType);
+            if (chain == null) continue;
             
-            ApplyListenerRoutingDefaults(corrected, transport, messageType);
+            if (runtime.Options.MultipleHandlerBehavior == MultipleHandlerBehavior.ClassicCombineIntoOneLogicalHandler && chain.Handlers.Any())
+            {
+                maybeCreateListenerForMessageOrHandlerType(transport, messageType, runtime);
+            }
+            else if (runtime.Options.MultipleHandlerBehavior == MultipleHandlerBehavior.Separated)
+            {
+                if (chain.Handlers.Any())
+                {
+                    maybeCreateListenerForMessageOrHandlerType(transport, messageType, runtime);
+                }
+                
+                foreach (var handlerChain in chain.ByEndpoint)
+                {
+                    var handlerType = handlerChain.Handlers.First().HandlerType;
+                    var endpoint = maybeCreateListenerForMessageOrHandlerType(transport, handlerType, runtime);
+                    if (endpoint != null)
+                    {
+                        handlerChain.RegisterEndpoint(endpoint);
+                        endpoint.StickyHandlers.Add(handlerType);
+                    }
+                }
+            }
+            
+            
         }
+    }
+
+    private Endpoint? maybeCreateListenerForMessageOrHandlerType(TTransport transport, Type messageOrHandlerType, IWolverineRuntime runtime)
+    {
+        // Can be null, so bail out if there's no queue
+        var queueName = _queueNameForListener(messageOrHandlerType);
+        if (queueName.IsEmpty())
+        {
+            return null;
+        }
+
+        var corrected = transport.MaybeCorrectName(queueName);
+
+        var (configuration, endpoint) = FindOrCreateListenerForIdentifier(corrected, transport, messageOrHandlerType);
+        //endpoint.EndpointName = queueName;
+
+        endpoint.IsListener = true;
+
+        var context = new MessageRoutingContext(messageOrHandlerType, runtime);
+
+        _configureListener(configuration, context);
+
+        configuration!.As<IDelayedEndpointConfiguration>().Apply();
+            
+        ApplyListenerRoutingDefaults(corrected, transport, messageOrHandlerType);
+
+        return endpoint;
     }
 
     IEnumerable<Endpoint> IMessageRoutingConvention.DiscoverSenders(Type messageType, IWolverineRuntime runtime)

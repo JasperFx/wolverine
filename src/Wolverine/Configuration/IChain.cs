@@ -3,6 +3,7 @@ using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
+using Wolverine.Attributes;
 using Wolverine.Logging;
 using Wolverine.Runtime;
 
@@ -82,17 +83,6 @@ public interface IChain
     void Audit(MemberInfo member, string? heading = null);
 
     /// <summary>
-    ///     Find all variables returned by any handler call in this chain
-    ///     that can be cast to T
-    /// </summary>
-    /// <typeparam name="T"></typeparam>
-    /// <returns></returns>
-    public IEnumerable<Variable> ReturnVariablesOfType<T>()
-    {
-        return HandlerCalls().SelectMany(x => x.Creates).Where(x => x.VariableType.CanBeCastTo<T>());
-    }
-
-    /// <summary>
     ///     Help out the code generation a little bit by telling this chain
     ///     about a service dependency that will be used. Helps connect
     ///     transactional middleware
@@ -101,6 +91,46 @@ public interface IChain
     public void AddDependencyType(Type type);
 
     void ApplyImpliedMiddlewareFromHandlers(GenerationRules generationRules);
+    
+    /// <summary>
+    /// Special usage to make the single result of this method call be the actual response type
+    /// for the chain. For HTTP, this becomes the resource type written to the response. For message handlers,
+    /// this could be part of InvokeAsync<T>() or just a cascading message
+    /// </summary>
+    /// <param name="methodCall"></param>
+    void UseForResponse(MethodCall methodCall);
+
+    /// <summary>
+    ///     Find all variables returned by any handler call in this chain
+    ///     that can be cast to T
+    /// </summary>
+    /// <typeparam name="T"></typeparam>
+    /// <returns></returns>
+    IEnumerable<Variable> ReturnVariablesOfType<T>();
+
+    /// <summary>
+    ///     Find all variables returned by any handler call in this chain
+    ///     that can be cast to the supplied type
+    /// </summary>
+    /// <returns></returns>
+    IEnumerable<Variable> ReturnVariablesOfType(Type interfaceType);
+
+    /// <summary>
+    /// Used by code generation to find a simple value on input types, headers, route values,
+    /// query string, or claims for use in loading other data
+    /// </summary>
+    /// <param name="valueName"></param>
+    /// <param name="source"></param>
+    /// <param name="valueType"></param>
+    /// <param name="variable"></param>
+    /// <returns></returns>
+    bool TryFindVariable(string valueName, ValueSource source, Type valueType, out Variable variable);
+
+    /// <summary>
+    /// Used by code generation to add a middleware Frame that aborts the processing if the variable is null
+    /// </summary>
+    /// <param name="variable"></param>
+    Frame[] AddStopConditionIfNull(Variable variable);
 }
 
 #endregion

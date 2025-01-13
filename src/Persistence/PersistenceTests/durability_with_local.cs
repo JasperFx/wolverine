@@ -32,13 +32,14 @@ public class durability_with_local : PostgresqlContext
         // Don't use WolverineHost here because you need the existing persisted state!!!!
         using var host2 = await Host.CreateDefaultBuilder().UseWolverine(opts => opts.ConfigureDurableSender(true, false))
             .StartAsync();
-        var counts2 = await host2.Get<IMessageStore>().Admin.FetchCountsAsync();
+        var messageStore = host2.Get<IMessageStore>();
+        var counts2 = await messageStore.Admin.FetchCountsAsync();
 
         var i = 0;
-        while (counts2.Incoming != 1 && i < 10)
+        while (counts2.Incoming != 1 && i < 100)
         {
             await Task.Delay(100.Milliseconds());
-            counts2 = await host2.Get<IMessageStore>().Admin.FetchCountsAsync();
+            counts2 = await messageStore.Admin.FetchCountsAsync();
             i++;
         }
 
@@ -61,7 +62,11 @@ public static class DurableOptionsConfiguration
             .ToLocalQueue("one")
             .UseDurableInbox();
 
-        opts.Services.AddMarten(Servers.PostgresConnectionString)
+        opts.Services.AddMarten(opts =>
+            {
+                opts.Connection(Servers.PostgresConnectionString);
+                opts.DisableNpgsqlLogging = true;
+            })
             .IntegrateWithWolverine();
 
         opts.Services.AddSingleton(new ReceivingSettings { Latched = latched });
@@ -85,7 +90,7 @@ public class ReceivedMessageHandler
 
     public static void Configure(HandlerChain chain)
     {
-        chain.OnException(e => true).Requeue(1000);
+        chain.OnException(e => true).RequeueIndefinitely();
     }
 }
 

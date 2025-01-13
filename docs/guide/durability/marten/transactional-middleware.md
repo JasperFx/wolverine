@@ -112,7 +112,7 @@ public class CommandsAreTransactional : IHandlerPolicy
         // for each chain
         chains
             .Where(chain => chain.MessageType.Name.EndsWith("Command"))
-            .Each(chain => chain.Middleware.Add(new TransactionalFrame(chain)));
+            .Each(chain => chain.Middleware.Add(new CreateDocumentSessionFrame(chain)));
     }
 }
 ```

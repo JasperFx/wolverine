@@ -6,7 +6,7 @@ using Xunit;
 
 namespace CoreTests.Acceptance;
 
-public class indefinite_scheduled_retires
+public class indefinite_error_handling
 {
     [Fact]
     public async Task should_indefinitively_retry_command()
@@ -26,6 +26,26 @@ public class indefinite_scheduled_retires
         catch (OperationCanceledException) { }
         IndefiniteRetriesHandler.CalledCount.ShouldBe(5);
     }
+    
+    [Fact]
+    public async Task should_indefinitively_requeue_command()
+    {
+        IndefiniteRetriesHandler.CalledCount = 0;
+        using var cts = new CancellationTokenSource(5.Seconds());
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts => opts.Policies.OnException<IndefiniteRetryException>().RequeueIndefinitely())
+            .StartAsync();
+
+        var messageBus = host.MessageBus();
+        await messageBus.SendAsync(new IndefiniteRetriesCommand(cts, SucceedAfterAttempts: 5));
+        try
+        {
+            await Task.Delay(Timeout.Infinite, cts.Token);
+        }
+        catch (OperationCanceledException) { }
+        IndefiniteRetriesHandler.CalledCount.ShouldBe(5);
+    }
+    
     [Fact]
     public async Task should_indefinitively_retry_command_when_given_multiple_delays()
     {

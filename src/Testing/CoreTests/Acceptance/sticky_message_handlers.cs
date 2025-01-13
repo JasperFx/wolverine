@@ -1,7 +1,9 @@
 using System.Collections;
 using JasperFx.CodeGeneration;
+using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Wolverine.ComplianceTests;
@@ -27,7 +29,7 @@ public class sticky_message_handlers : IntegrationContext
     public async Task send_message_is_handled_by_both_handlers_independently_by_attributes()
     {
         var stickyMessage = new StickyMessage();
-        var session = await Host.SendMessageAndWaitAsync(stickyMessage, timeoutInMilliseconds:60000);
+        var session = await Host.SendMessageAndWaitAsync(stickyMessage, timeoutInMilliseconds:5000);
 
         var records = session.Executed.MessagesOf<StickyMessageResponse>().ToArray();
         records.Length.ShouldBe(2);

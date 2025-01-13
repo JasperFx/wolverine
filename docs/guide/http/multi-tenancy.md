@@ -230,6 +230,10 @@ public class GET_todoitems_tenant : Wolverine.Http.HttpHandler
 }
 ```
 
+## Referencing the Tenant Id in Endpoint Methods
+
+See [Referencing the TenantId](/guide/handlers/multi-tenancy.html#referencing-the-tenantid) on using Wolverine's `TenantId` type.
+
 ## Requiring Tenant Id -- or Not!
 
 You can direct Wolverine.HTTP to verify that there is a non-null, non-empty tenant id on all requests with this syntax:
@@ -265,7 +269,7 @@ public static string NoTenantNoProblem()
     return "hey";
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/multi_tenancy_detection_and_integration.cs#L421-L430' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_nottenanted' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/multi_tenancy_detection_and_integration.cs#L440-L449' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_nottenanted' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 If the above usage completely disabled all tenant id detection or validation, in the case of an endpoint that *might* be 
@@ -283,7 +287,7 @@ public static string MaybeTenanted(IMessageBus bus)
     return bus.TenantId ?? "none";
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/multi_tenancy_detection_and_integration.cs#L432-L441' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_maybe_tenanted_attribute_usage' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/multi_tenancy_detection_and_integration.cs#L451-L460' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_maybe_tenanted_attribute_usage' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 

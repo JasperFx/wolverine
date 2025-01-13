@@ -1,6 +1,8 @@
 using System.Diagnostics;
+using CoreTests.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Wolverine.Persistence;
 using Wolverine.Tracking;
 using Xunit;
 
@@ -75,22 +77,44 @@ public record TenantedResult(string TenantId);
 
 public static class TenantedHandler
 {
-    public static (TenantedResult, TenantedMessage2) Handle(TenantedMessage1 message, Envelope envelope, TenantedMessageTracker tracker)
+    public static (TenantedResult, TenantedMessage2) Handle(TenantedMessage1 message, Envelope envelope, TenantedMessageTracker tracker, TenantId tenantId)
     {
+        tenantId.Value.ShouldBe(envelope.TenantId);
+        
         tracker.TrackedOne[message.Id] = envelope.TenantId;
         return (new TenantedResult(envelope.TenantId), new TenantedMessage2(message.Id));
     }
 
-    public static TenantedMessage3 Handle(TenantedMessage2 message, Envelope envelope, TenantedMessageTracker tracker)
+    public static TenantedMessage3 Handle(TenantedMessage2 message, Envelope envelope, TenantedMessageTracker tracker, TenantId tenantId)
     {
+        tenantId.Value.ShouldBe(envelope.TenantId);
+        
         tracker.TrackedTwo[message.Id] = envelope.TenantId;
         return new TenantedMessage3(message.Id);
     }
 
-    public static void Handle(TenantedMessage3 message, Envelope envelope, TenantedMessageTracker tracker)
+    public static void Handle(TenantedMessage3 message, Envelope envelope, TenantedMessageTracker tracker, TenantId tenantId)
     {
+        tenantId.Value.ShouldBe(envelope.TenantId);
+        
         tracker.TrackedThree[message.Id] = envelope.TenantId;
     }
 
     public static void Handle(TenantedResult result) => Debug.WriteLine("Got a tracked result");
 }
+
+public record SomeCommand;
+
+#region sample_injecting_tenant_id
+
+public static class SomeCommandHandler
+{
+    // Wolverine is keying off the type, the parameter name
+    // doesn't really matter
+    public static void Handle(SomeCommand command, TenantId tenantId)
+    {
+        Debug.WriteLine($"I got a command {command} for tenant {tenantId.Value}");
+    }
+}
+
+#endregion

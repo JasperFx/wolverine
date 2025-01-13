@@ -31,7 +31,6 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
 
     // These members are for draining
     private bool _latched;
-    private readonly bool _shouldPersistBeforeProcessing;
 
     public DurableReceiver(Endpoint endpoint, IWolverineRuntime runtime, IHandlerPipeline pipeline)
     {
@@ -42,7 +41,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
 
         Uri = endpoint.Uri;
 
-        _shouldPersistBeforeProcessing = !(endpoint is IDatabaseBackedEndpoint);
+        ShouldPersistBeforeProcessing = !(endpoint is IDatabaseBackedEndpoint);
 
         endpoint.ExecutionOptions.CancellationToken = _settings.Cancellation;
 
@@ -123,6 +122,8 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
             _deadLetterSender = dlq;
         }
     }
+
+    public bool ShouldPersistBeforeProcessing { get; set; }
 
     public Uri Uri { get; }
 
@@ -329,7 +330,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
             return;
         }
 
-        if (_shouldPersistBeforeProcessing && !envelope.IsFromLocalDurableQueue())
+        if (ShouldPersistBeforeProcessing && !envelope.IsFromLocalDurableQueue())
         {
             try
             {
@@ -402,7 +403,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
         }
 
         var batchSucceeded = false;
-        if (_shouldPersistBeforeProcessing)
+        if (ShouldPersistBeforeProcessing)
         {
             try
             {

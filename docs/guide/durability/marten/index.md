@@ -95,6 +95,9 @@ Using the `IntegrateWithWolverine()` extension method behind your call to `AddMa
 * Makes Marten the active [saga storage](/guide/durability/sagas) for Wolverine
 * Adds transactional middleware using Marten to your Wolverine application
 
+## Entity Attribute Loading
+
+The Marten integration is able to completely support the [Entity attribute usage](/guide/handlers/persistence.html#automatically-loading-entities-to-method-parameters).
 
 ## Marten as Outbox
 

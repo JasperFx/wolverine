@@ -57,7 +57,9 @@ public class MartenIntegration : IWolverineExtension, IEventForwarding
 
         var transport = options.Transports.GetOrCreate<PostgresqlTransport>();
         transport.TransportSchemaName = TransportSchemaName;
-        transport.MessageStorageSchemaName = MessageStorageSchemaName;
+        transport.MessageStorageSchemaName = MessageStorageSchemaName ?? "public";
+        
+        options.Policies.Add<MartenOpPolicy>();
     }
     
     /// <summary>
@@ -194,6 +196,11 @@ internal class EventUnwrappingMessageRoute<T> : TransformedMessageRoute<IEvent<T
 {
     public EventUnwrappingMessageRoute(IMessageRoute inner) : base(e => e.Data, inner)
     {
+    }
+
+    public override string ToString()
+    {
+        return $"Unwrap event wrapper to " + typeof(T).FullNameInCode();
     }
 }
 

@@ -56,5 +56,5 @@ using var host = Host.CreateDefaultBuilder()
 
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/ExceptionHandling.cs#L64-L87' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_scheduled_retry' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/ExceptionHandling.cs#L70-L93' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_scheduled_retry' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->

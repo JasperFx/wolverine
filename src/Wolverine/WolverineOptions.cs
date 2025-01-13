@@ -5,6 +5,7 @@ using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Wolverine.Configuration;
+using Wolverine.Persistence;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Runtime.Scheduled;
 using Wolverine.Runtime.Serialization;
@@ -13,6 +14,22 @@ using Wolverine.Transports.Local;
 [assembly: InternalsVisibleTo("Wolverine.Testing")]
 
 namespace Wolverine;
+
+public enum MultipleHandlerBehavior
+{
+    /// <summary>
+    /// The "classic" Wolverine behavior where multiple handlers for the same message
+    /// type are combined into a single logical message handler
+    /// </summary>
+    ClassicCombineIntoOneLogicalHandler,
+    
+    /// <summary>
+    /// Force Wolverine to make each individual handler for a message type be
+    /// processed completely independently. This is common when you may be publishing
+    /// an event message to multiple module handlers within the same process
+    /// </summary>
+    Separated
+}
 
 /// <summary>
 ///     Completely defines and configures a Wolverine application
@@ -35,6 +52,7 @@ public sealed partial class WolverineOptions
 
         CodeGeneration = new GenerationRules("Internal.Generated");
         CodeGeneration.Sources.Add(new NowTimeVariableSource());
+        CodeGeneration.Sources.Add(new TenantIdSource());
         CodeGeneration.Assemblies.Add(GetType().Assembly);
 
         establishApplicationAssembly(assemblyName);
@@ -51,7 +69,18 @@ public sealed partial class WolverineOptions
 
         Policies.Add<SagaPersistenceChainPolicy>();
         Policies.Add<SideEffectPolicy>();
+        Policies.Add<ResponsePolicy>();
         Policies.Add<OutgoingMessagesPolicy>();
+    }
+
+    /// <summary>
+    /// How should Wolverine treat message handlers for the same message type?
+    /// Default is ClassicCombineIntoOneLogicalHandler, but change this if 
+    /// </summary>
+    public MultipleHandlerBehavior MultipleHandlerBehavior
+    {
+        get => HandlerGraph.MultipleHandlerBehavior;
+        set => HandlerGraph.MultipleHandlerBehavior = value;
     }
 
     public Guid UniqueNodeId { get; } = Guid.NewGuid();
@@ -122,6 +151,13 @@ public sealed partial class WolverineOptions
 
     internal LocalTransport LocalRouting => Transports.GetOrCreate<LocalTransport>();
     internal bool LocalRoutingConventionDisabled { get; set; }
+
+    /// <summary>
+    /// Should remote usages of IMessageBus.InvokeAsync() or IMessageBus.InvokeAsync<T>()
+    /// that ultimately use an external transport be enabled? Default is true, but you
+    /// may want to disable this to avoid surprise network round trips
+    /// </summary>
+    public bool EnableRemoteInvocation { get; set; } = true;
 
     private void deriveServiceName()
     {

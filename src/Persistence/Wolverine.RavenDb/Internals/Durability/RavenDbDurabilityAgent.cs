@@ -2,6 +2,7 @@ using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Logging;
 using Raven.Client.Documents;
+using Wolverine.Persistence;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.Handlers;
@@ -9,21 +10,6 @@ using Wolverine.Runtime.WorkerQueues;
 using Wolverine.Transports;
 
 namespace Wolverine.RavenDb.Internals.Durability;
-
-
-// TODO -- use a subscription for replayable dlq messages
-// TODO -- try to use RavenDb's internal document expiry for expired envelopes
-// TODO -- use a subscription on the leader for outgoing messages marked as any node?
-
-/*
-            var operations = new IDatabaseOperation[]
-   {
-       new DeleteExpiredEnvelopesOperation(
-           new DbObjectName(_database.SchemaName, DatabaseConstants.IncomingTable), DateTimeOffset.UtcNow),
-       new MoveReplayableErrorMessagesToIncomingOperation(_database)
-   };
-
- */
 
 public partial class RavenDbDurabilityAgent : IAgent
 {
@@ -40,6 +26,7 @@ public partial class RavenDbDurabilityAgent : IAgent
 
     private readonly CancellationTokenSource _cancellation = new();
     private readonly CancellationTokenSource _combined;
+    private PersistenceMetrics _metrics;
 
     public RavenDbDurabilityAgent(IDocumentStore store, IWolverineRuntime runtime, RavenDbMessageStore parent)
     {
@@ -67,6 +54,13 @@ public partial class RavenDbDurabilityAgent : IAgent
 
     internal void StartTimers()
     {
+        _metrics = new PersistenceMetrics(_runtime.Meter, _settings, null);
+        
+        if (_settings.DurabilityMetricsEnabled)
+        {
+            _metrics.StartPolling(_runtime.LoggerFactory.CreateLogger<PersistenceMetrics>(), _parent);
+        }
+        
         var recoveryStart = _settings.ScheduledJobFirstExecution.Add(new Random().Next(0, 1000).Milliseconds());
 
         _recoveryTask = Task.Run(async () =>
@@ -101,6 +95,11 @@ public partial class RavenDbDurabilityAgent : IAgent
     {
         _cancellation.Cancel();
 
+        if (_metrics != null)
+        {
+            _metrics.SafeDispose();
+        }
+        
         if (_recoveryTask != null)
         {
             _recoveryTask.SafeDispose();

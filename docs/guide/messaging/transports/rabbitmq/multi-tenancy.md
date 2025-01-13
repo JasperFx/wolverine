@@ -55,12 +55,19 @@ builder.UseWolverine(opts =>
     // brokers
     opts.ListenToRabbitQueue("incoming");
 
+    opts.ListenToRabbitQueue("incoming_global")
+        
+        // This opts this queue out from being per-tenant, such that
+        // there will only be the single "incoming_global" queue for the default
+        // broker connection
+        .GlobalListener();
+
     // More on this in the docs....
     opts.PublishMessage<Message1>()
-        .ToRabbitQueue("outgoing");
+        .ToRabbitQueue("outgoing").GlobalSender();
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/multi_tenancy_through_virtual_hosts.cs#L160-L206' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_rabbit_mq_for_tenancy' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/multi_tenancy_through_virtual_hosts.cs#L256-L309' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_rabbit_mq_for_tenancy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: warning
@@ -83,7 +90,7 @@ public static async Task send_message_to_specific_tenant(IMessageBus bus)
     await bus.PublishAsync(new Message1(), new DeliveryOptions { TenantId = "two" });
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/multi_tenancy_through_virtual_hosts.cs#L211-L219' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_send_message_to_specific_tenant' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/multi_tenancy_through_virtual_hosts.cs#L314-L322' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_send_message_to_specific_tenant' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In the case above, in the Wolverine internals, it:

@@ -167,7 +167,7 @@ public static OrderShipped Ship(ShipOrder command, Order order)
     return new OrderShipped();
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L106-L119' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_emptyresponse' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L116-L129' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_emptyresponse' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## JSON Handling
@@ -312,7 +312,7 @@ and register that strategy within our `MapWolverineEndpoints()` set up like so:
 // Customizing parameter handling
 opts.AddParameterHandlingStrategy<NowParameterStrategy>();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L203-L208' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_adding_custom_parameter_handling' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L207-L212' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_adding_custom_parameter_handling' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And lastly, here's the application within an HTTP endpoint for extra context:

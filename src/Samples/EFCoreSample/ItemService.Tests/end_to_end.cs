@@ -69,7 +69,7 @@ public class end_to_end
                 x.Post.Json(command).ToUrl("/items/create4");
                 x.StatusCodeShouldBe(204);
             });
-        });
+        }); 
 
         tracked.FindSingleTrackedMessageOfType<ItemCreated>()
             .ShouldNotBeNull();
@@ -79,5 +79,21 @@ public class end_to_end
 
         var item = await context.Items.FirstOrDefaultAsync(x => x.Name == name);
         item.ShouldNotBeNull();
+    }
+
+    [Fact]
+    public async Task fetch_through_entity_attribute()
+    {
+        var name = Guid.NewGuid().ToString();
+        using var host = await AlbaHost.For<Program>();
+        using var nested = host.Services.CreateScope();
+        var context = nested.ServiceProvider.GetRequiredService<ItemsDbContext>();
+
+        var id = Guid.NewGuid();
+        context.Add(new Item { Id = id, Name = name });
+        await context.SaveChangesAsync();
+
+        var response = await host.GetAsJson<Item>("/api/item/" + id);
+        response.Name.ShouldBe(name);
     }
 }

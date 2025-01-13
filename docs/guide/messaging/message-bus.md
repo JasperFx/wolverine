@@ -165,6 +165,29 @@ public class CreateItemCommandHandler
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/Bugs/Bug_305_invoke_async_with_return_not_publishing_with_tuple_return_value.cs#L39-L60' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_alwayspublishresponse' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Disabling Remote Request/Reply
+
+When you call `IMessageBus.InvokeAsync()` or `IMessageBus.InvokeAsync<T>()`, depending on whether Wolverine has a local message
+handler for the message type or has a configured subscription rule for the message type, Wolverine *might* be making a remote
+call through external messaging transports to execute that message. It's a perfectly valid use case to do the remote
+invocation, but if you don't want this to ever happen or catch a team by surprise when an operation fails, you can completely
+disable all remote request/reply usage through `InvokeAsync()` by changing this setting:
+
+<!-- snippet: sample_disabling_remote_invocation -->
+<a id='snippet-sample_disabling_remote_invocation'></a>
+```cs
+using var host = Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        // This will disallow Wolverine from making remote calls
+        // through IMessageBus.InvokeAsync() or InvokeAsync<T>()
+        // Instead, Wolverine will throw an InvalidOperationException
+        opts.EnableRemoteInvocation = false;
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/BootstrappingSamples.cs#L24-L35' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disabling_remote_invocation' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
 ## Sending or Publishing Messages
 
 [Publish/Subscribe](https://docs.microsoft.com/en-us/azure/architecture/patterns/publisher-subscriber) is a messaging pattern where the senders of messages do not need to specifically know what the specific subscribers are for a given message. In this case, some kind of middleware or infrastructure is responsible for either allowing subscribers to express interest in what messages they need to receive or apply routing rules to send the published messages to the right places. Wolverine's messaging support was largely built to support the publish/subscribe messaging pattern.

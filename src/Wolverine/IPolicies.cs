@@ -140,4 +140,13 @@ public interface IPolicies : IEnumerable<IWolverinePolicy>, IWithFailurePolicies
     /// <param name="interfaceType"></param>
     /// <param name="closedType"></param>
     void MapGenericMessageType(Type interfaceType, Type closedType);
+
+    /// <summary>
+    /// Normally, Wolverine will not apply message routing conventions to message types
+    /// that the current application handles locally if the local routing conventions
+    /// apply subscriptions. Enabling this option will make Wolverine additively create
+    /// subscriptions for a message type both locally and for any external message broker
+    /// routing conventions that are applied to the system
+    /// </summary>
+    void ConventionalLocalRoutingIsAdditive();
 }

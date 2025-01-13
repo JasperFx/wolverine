@@ -13,7 +13,68 @@ Wolverine tracks the tenant id across messages.
 
 Let's just jump straight into a simple example of the configuration:
 
-snippet: sample_configuring_azure_service_bus_for_multi_tenancy
+<!-- snippet: sample_configuring_azure_service_bus_for_multi_tenancy -->
+<a id='snippet-sample_configuring_azure_service_bus_for_multi_tenancy'></a>
+```cs
+var builder = Host.CreateApplicationBuilder();
+
+builder.UseWolverine(opts =>
+{
+    // One way or another, you're probably pulling the Azure Service Bus
+    // connection string out of configuration
+    var azureServiceBusConnectionString = builder
+        .Configuration
+        .GetConnectionString("azure-service-bus");
+
+    // Connect to the broker in the simplest possible way
+    opts.UseAzureServiceBus(azureServiceBusConnectionString)
+
+        // This is the default, if there is no tenant id on an outgoing message,
+        // use the default broker
+        .TenantIdBehavior(TenantedIdBehavior.FallbackToDefault)
+
+        // Or tell Wolverine instead to just quietly ignore messages sent
+        // to unrecognized tenant ids
+        .TenantIdBehavior(TenantedIdBehavior.IgnoreUnknownTenants)
+
+        // Or be draconian and make Wolverine assert and throw an exception
+        // if an outgoing message does not have a tenant id
+        .TenantIdBehavior(TenantedIdBehavior.TenantIdRequired)
+
+        // Add new tenants by registering the tenant id and a separate fully qualified namespace
+        // to a different Azure Service Bus connection
+        .AddTenantByNamespace("one", builder.Configuration.GetValue<string>("asb_ns_one"))
+        .AddTenantByNamespace("two", builder.Configuration.GetValue<string>("asb_ns_two"))
+        .AddTenantByNamespace("three", builder.Configuration.GetValue<string>("asb_ns_three"))
+
+        // OR, instead, add tenants by registering the tenant id and a separate connection string
+        // to a different Azure Service Bus connection
+        .AddTenantByConnectionString("four", builder.Configuration.GetConnectionString("asb_four"))
+        .AddTenantByConnectionString("five", builder.Configuration.GetConnectionString("asb_five"))
+        .AddTenantByConnectionString("six", builder.Configuration.GetConnectionString("asb_six"));
+    
+    // This Wolverine application would be listening to a queue
+    // named "incoming" on all Azure Service Bus connections, including the default
+    opts.ListenToAzureServiceBusQueue("incoming");
+
+    // This Wolverine application would listen to a single queue
+    // at the default connection regardless of tenant
+    opts.ListenToAzureServiceBusQueue("incoming_global")
+        .GlobalListener();
+    
+    // Likewise, you can override the queue, subscription, and topic behavior
+    // to be "global" for all tenants with this syntax:
+    opts.PublishMessage<Message1>()
+        .ToAzureServiceBusQueue("message1")
+        .GlobalSender();
+
+    opts.PublishMessage<Message2>()
+        .ToAzureServiceBusTopic("message2")
+        .GlobalSender();
+});
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/Samples.cs#L127-L186' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_azure_service_bus_for_multi_tenancy' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 ::: warning
 Wolverine has no way of creating new Azure Service Bus namespaces for you
@@ -38,7 +99,7 @@ public static async Task send_message_to_specific_tenant(IMessageBus bus)
     await bus.PublishAsync(new Message1(), new DeliveryOptions { TenantId = "two" });
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/multi_tenancy_through_virtual_hosts.cs#L211-L219' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_send_message_to_specific_tenant' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/multi_tenancy_through_virtual_hosts.cs#L314-L322' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_send_message_to_specific_tenant' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In the case above, in the Wolverine internals, it:

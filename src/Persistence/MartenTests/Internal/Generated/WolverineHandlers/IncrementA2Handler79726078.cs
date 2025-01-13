@@ -8,13 +8,13 @@ namespace Internal.Generated.WolverineHandlers
     // START: IncrementA2Handler79726078
     public class IncrementA2Handler79726078 : Wolverine.Runtime.Handlers.MessageHandler
     {
-        private readonly Microsoft.Extensions.Logging.ILogger<MartenTests.SelfLetteredAggregate> _logger;
         private readonly Wolverine.Marten.Publishing.OutboxedSessionFactory _outboxedSessionFactory;
+        private readonly Microsoft.Extensions.Logging.ILogger<MartenTests.SelfLetteredAggregate> _logger;
 
-        public IncrementA2Handler79726078(Microsoft.Extensions.Logging.ILogger<MartenTests.SelfLetteredAggregate> logger, Wolverine.Marten.Publishing.OutboxedSessionFactory outboxedSessionFactory)
+        public IncrementA2Handler79726078(Wolverine.Marten.Publishing.OutboxedSessionFactory outboxedSessionFactory, Microsoft.Extensions.Logging.ILogger<MartenTests.SelfLetteredAggregate> logger)
         {
-            _logger = logger;
             _outboxedSessionFactory = outboxedSessionFactory;
+            _logger = logger;
         }
 
 
@@ -26,9 +26,10 @@ namespace Internal.Generated.WolverineHandlers
 
             await using var documentSession = _outboxedSessionFactory.OpenSession(context);
             var eventStore = documentSession.Events;
+            var aggregateId = incrementA2.SelfLetteredAggregateId;
             
             // Loading Marten aggregate
-            var eventStream = await eventStore.FetchForWriting<MartenTests.SelfLetteredAggregate>(incrementA2.SelfLetteredAggregateId, cancellation).ConfigureAwait(false);
+            var eventStream = await eventStore.FetchForWriting<MartenTests.SelfLetteredAggregate>(aggregateId, cancellation).ConfigureAwait(false);
 
             if (eventStream.Aggregate == null) throw new Wolverine.Marten.UnknownAggregateException(typeof(MartenTests.SelfLetteredAggregate), incrementA2.SelfLetteredAggregateId);
             var selfLetteredAggregate = new MartenTests.SelfLetteredAggregate();

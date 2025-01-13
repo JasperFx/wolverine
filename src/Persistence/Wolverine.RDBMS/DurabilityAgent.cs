@@ -3,6 +3,7 @@ using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Logging;
 using Weasel.Core;
+using Wolverine.Persistence;
 using Wolverine.RDBMS.Durability;
 using Wolverine.RDBMS.Polling;
 using Wolverine.Runtime;
@@ -24,6 +25,7 @@ internal class DurabilityAgent : IAgent
     private readonly ILogger<DurabilityAgent> _logger;
     private Timer? _scheduledJobTimer;
     private Timer? _recoveryTimer;
+    private PersistenceMetrics _metrics;
 
     public DurabilityAgent(string databaseName, IWolverineRuntime runtime, IMessageDatabase database)
     {
@@ -77,6 +79,13 @@ internal class DurabilityAgent : IAgent
 
     public Task StartAsync(CancellationToken cancellationToken)
     {
+        _metrics = new PersistenceMetrics(_runtime.Meter, _settings, _database.Name);
+        
+        if (_settings.DurabilityMetricsEnabled)
+        {
+            _metrics.StartPolling(_runtime.LoggerFactory.CreateLogger<PersistenceMetrics>(), _database);
+        }
+        
         var recoveryStart = _settings.ScheduledJobFirstExecution.Add(new Random().Next(0, 1000).Milliseconds());
 
         _recoveryTimer = new Timer(_ =>
@@ -112,6 +121,7 @@ internal class DurabilityAgent : IAgent
     public async Task StopAsync(CancellationToken cancellationToken)
     {
         _runningBlock.Complete();
+        _metrics.SafeDispose();
 
         if (_scheduledJobTimer != null)
         {

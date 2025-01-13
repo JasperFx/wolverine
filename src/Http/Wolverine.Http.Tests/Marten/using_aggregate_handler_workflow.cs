@@ -224,4 +224,27 @@ public class using_aggregate_handler_workflow(AppFixture fixture) : IntegrationC
         acceptResponse.ShouldNotBeNull();
         acceptResponse.Url.ShouldBe($"/orders/{status.OrderId}");
     }
+    
+    [Fact]
+    public async Task return_updated_aggregate()
+    {
+        var result = await Scenario(x =>
+        {
+            x.Post.Json(new StartOrder(["Socks", "Shoes", "Shirt"])).ToUrl("/orders/create");
+        });
+
+        var status = result.ReadAsJson<OrderStatus>();
+        status.ShouldNotBeNull();
+
+        result = await Scenario(x =>
+        {
+            x.Post.Json(new ConfirmOrder(status.OrderId)).ToUrl($"/orders/{status.OrderId}/confirm2");
+
+            x.StatusCodeShouldBe(200);
+        });
+
+        var order = await result.ReadAsJsonAsync<Order>();
+        order.IsConfirmed.ShouldBeTrue();
+        
+    }
 }

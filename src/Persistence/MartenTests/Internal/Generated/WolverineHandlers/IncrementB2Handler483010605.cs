@@ -23,9 +23,10 @@ namespace Internal.Generated.WolverineHandlers
 
             await using var documentSession = _outboxedSessionFactory.OpenSession(context);
             var eventStore = documentSession.Events;
+            var aggregateId = incrementB2.SelfLetteredAggregateId;
             
             // Loading Marten aggregate
-            var eventStream = await eventStore.FetchForWriting<MartenTests.SelfLetteredAggregate>(incrementB2.SelfLetteredAggregateId, cancellation).ConfigureAwait(false);
+            var eventStream = await eventStore.FetchForWriting<MartenTests.SelfLetteredAggregate>(aggregateId, cancellation).ConfigureAwait(false);
 
             if (eventStream.Aggregate == null) throw new Wolverine.Marten.UnknownAggregateException(typeof(MartenTests.SelfLetteredAggregate), incrementB2.SelfLetteredAggregateId);
             var selfLetteredAggregate = new MartenTests.SelfLetteredAggregate();

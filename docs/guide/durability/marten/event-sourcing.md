@@ -267,7 +267,7 @@ public static void Handle(OrderEventSourcingSample.MarkItemReady command, IEvent
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/OrderEventSourcingSample/Alternatives/Signatures.cs#L25-L54' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_markitemreadyhandler_with_explicit_stream' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/OrderEventSourcingSample/Alternatives/Signatures.cs#L26-L55' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_markitemreadyhandler_with_explicit_stream' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Just as in other Wolverine [message handlers](/guide/handlers/), you can use
@@ -365,9 +365,146 @@ public class MarkItemReady
     public string ItemName { get; init; }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/OrderEventSourcingSample/Alternatives/Signatures.cs#L8-L19' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_markitemready_with_explicit_identity' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/OrderEventSourcingSample/Alternatives/Signatures.cs#L9-L20' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_markitemready_with_explicit_identity' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Forwarding Events
 
 See [Event Forwarding](./event-forwarding) for more information.
+
+## Returning the Updated Aggregate <Badge type="tip" text="3.5" />
+
+A common use case for the "aggregate handler workflow" has been to respond with the now updated state of the projected
+aggregate that has just been updated by appending new events. Until now, that's effectively meant making a completely separate
+call to the database through Marten to retrieve the latest updates. 
+
+::: info
+To understand more about the inner workings of the next section, see the Marten documentation on its [FetchLatest](https://martendb.io/events/projections/read-aggregates.html#fetchlatest)
+API.
+:::
+
+As a quick tip for performance, assuming that you are *not* mutating the projected documents within your command
+handlers, you can opt for this significant Marten optimization to eliminate extra database round trips while
+using the aggregate handler workflow:
+
+```csharp
+builder.Services.AddMarten(opts =>
+{
+    // Other Marten configuration
+
+    // Use this setting to get the very best performance out
+    // of the UpdatedAggregate workflow and aggregate handler
+    // workflow over all
+    opts.Events.UseIdentityMapForAggregates = true;
+}).IntegrateWithWolverine();
+```
+
+::: info
+The setting above cannot be a default in Marten because it can break some existing code with a very different
+workflow that what the Critter Stack team recommends for the aggregate handler workflow.
+:::
+
+Wolverine.Marten has a special response type for message handlers or HTTP endpoints we can use as a directive to tell Wolverine
+to respond with the latest state of a projected aggregate as part of the command execution. Let's make this concrete by
+taking the `MarkItemReady` command handler we've used earlier in this guide and building a slightly new version that
+produces a response of the latest aggregate:
+
+<!-- snippet: sample_MarkItemReadyHandler_with_response_for_updated_aggregate -->
+<a id='snippet-sample_markitemreadyhandler_with_response_for_updated_aggregate'></a>
+```cs
+[AggregateHandler]
+public static (
+    // Just tells Wolverine to use Marten's FetchLatest API to respond with
+    // the updated version of Order that reflects whatever events were appended
+    // in this command
+    UpdatedAggregate, 
+    
+    // The events that should be appended to the event stream for this order
+    Events) Handle(OrderEventSourcingSample.MarkItemReady command, Order order)
+{
+    var events = new Events();
+    
+    if (order.Items.TryGetValue(command.ItemName, out var item))
+    {
+        // Not doing this in a purist way here, but just
+        // trying to illustrate the Wolverine mechanics
+        item.Ready = true;
+
+        // Mark that the this item is ready
+        events.Add(new ItemReady(command.ItemName));
+    }
+    else
+    {
+        // Some crude validation
+        throw new InvalidOperationException($"Item {command.ItemName} does not exist in this order");
+    }
+
+    // If the order is ready to ship, also emit an OrderReady event
+    if (order.IsReadyToShip())
+    {
+        events.Add(new OrderReady());
+    }
+
+    return (new UpdatedAggregate(), events);
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/OrderEventSourcingSample/Alternatives/Signatures.cs#L63-L101' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_markitemreadyhandler_with_response_for_updated_aggregate' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Note the usage of the `Wolverine.Marten.UpdatedAggregate` response in the handler. That type by itself is just a directive 
+to Wolverine to generate the necessary code to call `FetchLatest` and respond with that. The command handler above allows
+us to use the command in a mediator usage like so:
+
+<!-- snippet: sample_using_UpdatedAggregate_with_invoke_async -->
+<a id='snippet-sample_using_updatedaggregate_with_invoke_async'></a>
+```cs
+public static Task<Order> update_and_get_latest(IMessageBus bus, MarkItemReady command)
+{
+    // This will return the updated version of the Order
+    // aggregate that incorporates whatever events were appended
+    // in the course of processing the command
+    return bus.InvokeAsync<Order>(command);
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/OrderEventSourcingSample/Alternatives/Signatures.cs#L103-L113' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_updatedaggregate_with_invoke_async' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+]
+Likewise, you can use `UpdatedAggregate` as the response body of an HTTP endpoint with Wolverine.HTTP [as shown here](/guide/http/marten.html#responding-with-the-updated-aggregate~~~~).
+
+::: info
+This feature has been more or less requested several times, but was finally brought about because of the need
+to consume Wolverine + Marten commands within Hot Chocolate mutations and always return the current state of
+the projected aggregate being updated to the user interface.
+:::
+
+### Passing the Aggregate to Before/Validate/Load Methods
+
+The "[compound handler](/guide/handlers/#compound-handlers)" feature is a valuable way in Wolverine to organize your handler code, and fully supported
+within the aggregate handler workflow as well. If you have a command handler method marked with `[AggregateHandler]` or
+the `[Aggregate]` attribute in HTTP usage, you can also pass the aggregate type as an argument to any `Before` / `LoadAsync` / `Validate`
+method on that handler to do validation before the main handler method. Here's a sample from the tests of doing just that:
+
+<!-- snippet: sample_passing_aggregate_into_validate_method -->
+<a id='snippet-sample_passing_aggregate_into_validate_method'></a>
+```cs
+public record RaiseIfValidated(Guid LetterAggregateId);
+
+public static class RaiseIfValidatedHandler
+{
+    public static HandlerContinuation Validate(LetterAggregate aggregate) =>
+        aggregate.ACount == 0 ? HandlerContinuation.Continue : HandlerContinuation.Stop;
+    
+    [AggregateHandler]
+    public static IEnumerable<object> Handle(RaiseIfValidated command, LetterAggregate aggregate)
+    {
+        yield return new BEvent();
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/aggregate_handler_workflow.cs#L406-L422' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_passing_aggregate_into_validate_method' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+## Archiving Streams
+
+To mark a Marten event stream as archived from a Wolverine aggregate handler, just append the special Marten [Archived](https://martendb.io/events/archiving.html#archived-event)
+event to the stream just like you would in any other aggregate handler. 

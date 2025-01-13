@@ -25,9 +25,12 @@ public partial class WolverineRuntime
 
             await ApplyAsyncExtensions();
 
-            foreach (var configuresRuntime in Options.Transports.OfType<ITransportConfiguresRuntime>().ToArray())
+            if (!Options.ExternalTransportsAreStubbed)
             {
-                await configuresRuntime.ConfigureAsync(this);
+                foreach (var configuresRuntime in Options.Transports.OfType<ITransportConfiguresRuntime>().ToArray())
+                {
+                    await configuresRuntime.ConfigureAsync(this);
+                }
             }
 
             // Build up the message handlers
@@ -255,7 +258,9 @@ public partial class WolverineRuntime
         if (!Options.ExternalTransportsAreStubbed)
         {
             foreach (var routingConvention in Options.RoutingConventions)
+            {
                 routingConvention.DiscoverListeners(this, handledMessageTypes);
+            }
         }
         else
         {

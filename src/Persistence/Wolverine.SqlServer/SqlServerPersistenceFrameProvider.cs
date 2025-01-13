@@ -31,6 +31,11 @@ internal class SqlServerPersistenceFrameProvider : IPersistenceFrameProvider
         }
     }
 
+    public void ApplyTransactionSupport(IChain chain, IServiceContainer container, Type entityType)
+    {
+        ApplyTransactionSupport(chain, container);
+    }
+
     public bool CanApply(IChain chain, IServiceContainer container)
     {
         if (chain is SagaChain)
@@ -82,5 +87,20 @@ internal class SqlServerPersistenceFrameProvider : IPersistenceFrameProvider
     public Frame DetermineDeleteFrame(Variable sagaId, Variable saga, IServiceContainer container)
     {
         return new SagaOperation(saga, SagaOperationType.DeleteAsync);
+    }
+
+    public Frame DetermineStoreFrame(Variable variable, IServiceContainer container)
+    {
+        throw new NotSupportedException("This provider only supports Insert() or Update()");
+    }
+
+    public Frame DetermineDeleteFrame(Variable variable, IServiceContainer container)
+    {
+        return new SagaOperation(variable, SagaOperationType.DeleteAsync);
+    }
+
+    public Frame DetermineStorageActionFrame(Type entityType, Variable action, IServiceContainer container)
+    {
+        throw new NotSupportedException();
     }
 }

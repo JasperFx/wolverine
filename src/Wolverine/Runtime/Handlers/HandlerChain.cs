@@ -9,9 +9,11 @@ using JasperFx.Core.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Wolverine.Attributes;
+using Wolverine.Codegen;
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
 using Wolverine.Logging;
+using Wolverine.Middleware;
 using Wolverine.Persistence;
 using Wolverine.Runtime.Routing;
 using Wolverine.Transports.Local;
@@ -65,6 +67,18 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         Handlers.Add(call);
     }
 
+    internal HandlerChain(MethodCall call, HandlerGraph parent, Endpoint[] endpoints) : this(call, parent)
+    {
+        foreach (var endpoint in endpoints)
+        {
+            RegisterEndpoint(endpoint);
+        }
+        
+        TypeName = call.HandlerType.ToSuffixedTypeName(HandlerSuffix).Replace("[]", "Array");
+
+        Description = $"Message Handler for {MessageType.FullNameInCode()} using {call}";
+    }
+
     public HandlerChain(WolverineOptions options, IGrouping<Type, HandlerCall> grouping, HandlerGraph parent) : this(grouping.Key, parent)
     {
         Handlers.AddRange(grouping);
@@ -99,23 +113,12 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         var endpoints = findStickyEndpoints(handlerCall, options).Distinct().ToArray();
         if (endpoints.Any())
         {
-            // Need to set a publishing rule for this message type to any local
-            // queues
-            foreach (var localQueue in endpoints.OfType<LocalQueue>())
-            {
-                localQueue.Subscriptions.Add(Subscription.ForType(MessageType));
-            }
-            
             foreach (var stub in endpoints.OfType<StubEndpoint>())
             {
                 stub.Subscriptions.Add(Subscription.ForType(MessageType));
             }
             
-            var chain = new HandlerChain(handlerCall, options.HandlerGraph);
-            foreach (var endpoint in endpoints)
-            {
-                chain.RegisterEndpoint(endpoint);
-            }
+            var chain = new HandlerChain(handlerCall, options.HandlerGraph, endpoints);
 
             Handlers.Remove(handlerCall);
             
@@ -125,10 +128,12 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
 
     private IEnumerable<Endpoint> findStickyEndpoints(HandlerCall call, WolverineOptions options)
     {
+        var foundSticky = false;
         if (call.HandlerType.TryGetAttribute<StickyHandlerAttribute>(out var att))
         {
             foreach (var endpoint in options.FindOrCreateEndpointByName(att.EndpointName))
             {
+                foundSticky = true;
                 yield return endpoint;
             }
         }
@@ -137,12 +142,22 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         {
             foreach (var endpoint in options.FindOrCreateEndpointByName(att.EndpointName))
             {
+                foundSticky = true;
                 yield return endpoint;
             }
         }
 
         foreach (var endpoint in options.FindEndpointsWithHandlerType(call.HandlerType))
         {
+            foundSticky = true;
+            yield return endpoint;
+        }
+
+        // In this case, let's find the right queue
+        if (options.MultipleHandlerBehavior == MultipleHandlerBehavior.Separated && !foundSticky)
+        {
+            var endpoint = options.Transports.GetOrCreate<LocalTransport>()
+                .QueueFor(call.HandlerType.FullNameInCode().ToLowerInvariant());
             yield return endpoint;
         }
     }
@@ -199,7 +214,7 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
     /// <summary>
     ///     Wolverine's string identification for this message type
     /// </summary>
-    public string TypeName { get; }
+    public string TypeName { get; private set; }
 
     internal MessageHandler? Handler { get; private set; }
 
@@ -303,6 +318,44 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
     public override Type InputType()
     {
         return MessageType;
+    }
+
+    public override void UseForResponse(MethodCall methodCall)
+    {
+        var response = methodCall.ReturnVariable;
+        response.OverrideName("response_of_" + response.Usage);
+
+        Postprocessors.Add(methodCall);
+        
+        var cascading = new CaptureCascadingMessages(response);
+        Postprocessors.Add(cascading);
+    }
+
+    public override bool TryFindVariable(string valueName, ValueSource source, Type valueType, out Variable variable)
+    {
+        if (source == ValueSource.InputMember || source == ValueSource.Anything)
+        {
+            var member = MessageType.GetProperties()
+                             .FirstOrDefault(x => x.Name.EqualsIgnoreCase(valueName) && x.PropertyType == valueType)
+                         ?? (MemberInfo)MessageType.GetFields()
+                             .FirstOrDefault(x => x.Name.EqualsIgnoreCase(valueName) && x.FieldType == valueType);
+
+            if (member != null)
+            {
+                variable = new MessageMemberVariable(member, MessageType);
+                return true;
+            }
+        }
+
+        variable = default;
+        return false;
+    }
+
+    public override Frame[] AddStopConditionIfNull(Variable variable)
+    {
+        var frame = typeof(EntityIsNotNullGuardFrame<>).CloseAndBuildAs<MethodCall>(variable, variable.VariableType);
+
+        return [frame, new HandlerContinuationFrame(frame)];
     }
 
     public IEnumerable<Type> PublishedTypes()
@@ -416,9 +469,7 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         if (!_hasConfiguredFrames)
         {
             _hasConfiguredFrames = true;
-            
-            
-
+ 
             applyAttributesAndConfigureMethods(rules, container);
 
             foreach (var attribute in MessageType
@@ -427,14 +478,26 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
 
             foreach (var attribute in MessageType.GetCustomAttributes(typeof(ModifyChainAttribute))
                          .OfType<ModifyChainAttribute>()) attribute.Modify(this, rules, container);
+
+            foreach (var handlerCall in HandlerCalls())
+            {
+                WolverineParameterAttribute.TryApply(handlerCall, container, rules, this);
+            }
         }
 
         ApplyImpliedMiddlewareFromHandlers(rules);
+
+        // Use Wolverine Parameter Attribute on any middleware
+        foreach (var methodCall in Middleware.OfType<MethodCall>().ToArray())
+        {
+            WolverineParameterAttribute.TryApply(methodCall, container, rules, this);
+        }
     }
 
     protected IEnumerable<Frame> determineHandlerReturnValueFrames()
     {
         return Handlers.SelectMany(x => x.Creates)
+            .Where( x => x is not MemberAccessVariable)
             .Select(x => x.ReturnAction(this))
             .SelectMany(x => x.Frames());
     }
@@ -475,5 +538,28 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         }
 
         return options.DefaultExecutionTimeout;
+    }
+}
+
+internal class EntityIsNotNullGuardFrame<T> : MethodCall
+{
+    public EntityIsNotNullGuardFrame(Variable variable) : base(typeof(EntityIsNotNullGuard<T>), "Assert")
+    {
+        Arguments[0] = variable;
+        Arguments[2] = Constant.For(variable.Usage);
+    }
+}
+
+public static class EntityIsNotNullGuard<T>
+{
+    public static HandlerContinuation Assert(T entity, ILogger logger, string entityVariableName, Envelope envelope)
+    {
+        if (entity == null)
+        {
+            logger.LogInformation("Not processing envelope {Id} because the required entity {EntityType} ('{VariableName}') cannot be found", envelope.Id, typeof(T).FullNameInCode(), entityVariableName);
+            return HandlerContinuation.Stop;
+        }
+
+        return HandlerContinuation.Continue;
     }
 }

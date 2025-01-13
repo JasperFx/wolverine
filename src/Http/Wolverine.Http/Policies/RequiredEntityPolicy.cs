@@ -35,11 +35,17 @@ public class SetStatusCodeAndReturnIfEntityIsNullFrame : SyncFrame
 {
     private readonly Type _entityType;
     private Variable _httpResponse;
-    private Variable _entity;
+    private Variable? _entity;
 
     public SetStatusCodeAndReturnIfEntityIsNullFrame(Type entityType)
     {
         _entityType = entityType;
+    }
+
+    public SetStatusCodeAndReturnIfEntityIsNullFrame(Variable entity)
+    {
+        _entity = entity;
+        _entityType = entity.VariableType;
     }
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
@@ -63,7 +69,7 @@ public class SetStatusCodeAndReturnIfEntityIsNullFrame : SyncFrame
 
     public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
     {
-        _entity = chain.FindVariable(_entityType);
+        _entity ??= chain.FindVariable(_entityType);
         yield return _entity;
 
         _httpResponse = chain.FindVariable(typeof(HttpResponse));

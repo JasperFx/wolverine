@@ -20,4 +20,5 @@ public interface ILocalMessageRoutingConvention
     /// <returns></returns>
     /// <exception cref="ArgumentNullException"></exception>
     ILocalMessageRoutingConvention CustomizeQueues(Action<Type, IListenerConfiguration> customization);
+
 }

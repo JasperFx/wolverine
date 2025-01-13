@@ -101,7 +101,8 @@ const config: UserConfig<DefaultTheme.Config> = {
                                 {text: 'Execution Timeouts', link: '/guide/handlers/timeout'},
                                 {text: 'Fluent Validation Middleware', link: '/guide/handlers/fluent-validation'},
                                 {text: 'Sticky Handler to Endpoint Assignments', link: '/guide/handlers/sticky'},
-                                {text: 'Message Batching', link: '/guide/handlers/batching'}
+                                {text: 'Message Batching', link: '/guide/handlers/batching'},
+                                {text: 'Persistence Helpers', link: '/guide/handlers/persistence'}
                             ]
                         },
                     ]
@@ -112,7 +113,7 @@ const config: UserConfig<DefaultTheme.Config> = {
                     items: [
                         {text: 'Introduction to Messaging', link: '/guide/messaging/introduction'},
                         {text: 'Sending Messages', link: '/guide/messaging/message-bus'},
-                        {text: 'Subscriptions & Message Routing', link: '/guide/messaging/subscriptions'},
+                        {text: 'Message Routing', link: '/guide/messaging/subscriptions'},
                         {text: 'Listening Endpoints', link: '/guide/messaging/listeners'},
                         {
                             text: 'Transports',
@@ -162,7 +163,8 @@ const config: UserConfig<DefaultTheme.Config> = {
                                 {text: 'Sql Server', link: '/guide/messaging/transports/sqlserver'},
                                 {text: 'PostgreSQL', link: '/guide/messaging/transports/postgresql'},
                                 {text: 'MQTT', link: '/guide/messaging/transports/mqtt'},
-                                {text: 'Kafka', link: '/guide/messaging/transports/kafka'}
+                                {text: 'Kafka', link: '/guide/messaging/transports/kafka'},
+                                {text: 'External Database Tables', link: '/guide/messaging/transports/external-tables'}
                             ]
                         },
                         {text: 'Endpoint Specific Operations', link: '/guide/messaging/endpoint-operations'},

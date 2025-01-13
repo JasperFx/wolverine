@@ -673,6 +673,47 @@ public class end_to_end
         receiver.Get<ColorHistory>().Name.ShouldBe("Purple");
 
     }
+    
+    
+    [Fact]
+    public async Task request_reply_from_within_handler()
+    {
+        var queueName = RabbitTesting.NextQueueName();
+        using var publisher = WolverineHost.For(opts =>
+        {
+            opts.UseRabbitMq().DisableDeadLetterQueueing().AutoProvision().AutoPurgeOnStartup();
+
+            opts.PublishAllMessages()
+                .ToRabbitQueue(queueName);
+
+            opts.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
+
+            opts.DisableConventionalDiscovery()
+                .IncludeType(typeof(RequestColorsHandler))
+                .IncludeType(typeof(ColorResponseHandler));
+        });
+
+
+        using var receiver = WolverineHost.For(opts =>
+        {
+            opts.DisableConventionalDiscovery()
+                .IncludeType(typeof(ColorRequestHandler));
+            
+            opts.UseRabbitMq().AutoProvision().DisableDeadLetterQueueing();
+
+            opts.ListenToRabbitQueue(queueName);
+        });
+
+        await receiver.ResetResourceState();
+
+        await publisher
+            .TrackActivity()
+            .AlsoTrack(receiver)
+            .Timeout(30.Seconds()) // this one can be slow when it's in a group of tests
+            .InvokeMessageAndWaitAsync(new RequestColors(["red", "green", "blue", "orange"]));
+            //.InvokeMessageAndWaitAsync(new RequestColors(["red"]));
+    }
+
 }
 
 public class SpecialTopicGuy
@@ -775,5 +816,36 @@ public static class PingHandler
         // headers to embed the reply address for exactly
         // this use case
         return context.RespondToSenderAsync(response);
+    }
+}
+
+public record ColorRequest(string Color);
+public record ColorResponse(string Color);
+
+public static class ColorRequestHandler
+{
+    public static async Task<ColorResponse> Handle(ColorRequest request)
+    {
+        await Task.Delay(Random.Shared.Next(0, 500).Milliseconds());
+        return new ColorResponse(request.Color);
+    }
+}
+
+public static class ColorResponseHandler
+{
+    public static void Handle(ColorResponse response) => Debug.WriteLine("Got color response for " + response.Color);
+}
+
+public record RequestColors(string[] Colors);
+
+public static class RequestColorsHandler
+{
+    public static async Task HandleAsync(RequestColors message, IMessageBus bus)
+    {
+        for (int i = 0; i < message.Colors.Length; i++)
+        {
+            var response = await bus.InvokeAsync<ColorResponse>(new ColorRequest(message.Colors[i]), timeout:30.Seconds());
+            response.Color.ShouldBe(message.Colors[i]);
+        }
     }
 }

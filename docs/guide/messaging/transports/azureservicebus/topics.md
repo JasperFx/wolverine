@@ -39,7 +39,7 @@ using var host = await Host.CreateDefaultBuilder()
             });
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/Samples.cs#L14-L49' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_azure_service_bus_subscriptions_and_topics' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/Samples.cs#L17-L52' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_azure_service_bus_subscriptions_and_topics' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 To fully utilize subscription listening, be careful with using [Requeue error handling](/guide/handlers/error-handling) actions. In order to truly make

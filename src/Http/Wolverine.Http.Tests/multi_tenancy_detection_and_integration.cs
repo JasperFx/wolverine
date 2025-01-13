@@ -5,6 +5,8 @@ using Alba.Security;
 using IntegrationTests;
 using Marten;
 using Marten.Metadata;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
@@ -15,6 +17,7 @@ using Shouldly;
 using Wolverine.Http.Runtime.MultiTenancy;
 using Wolverine.Http.Tests.Bugs;
 using Wolverine.Marten;
+using Wolverine.Persistence;
 using Xunit.Abstractions;
 
 namespace Wolverine.Http.Tests;
@@ -41,12 +44,17 @@ public class multi_tenancy_detection_and_integration : IAsyncDisposable, IDispos
     protected async Task configure(Action<WolverineHttpOptions> configure)
     {
         var builder = WebApplication.CreateBuilder([]);
+
         builder.Services.AddScoped<IUserService, UserService>();
 
         // Haven't gotten around to it yet, but there'll be some end to
         // end tests in a bit from the ASP.Net request all the way down
         // to the underlying tenant databases
-        builder.Services.AddMarten(Servers.PostgresConnectionString)
+        builder.Services.AddMarten(m =>
+            {
+                m.Connection(Servers.PostgresConnectionString);
+                m.DisableNpgsqlLogging = true;
+            })
             .IntegrateWithWolverine();
 
         // Defaults are good enough here
@@ -57,17 +65,21 @@ public class multi_tenancy_detection_and_integration : IAsyncDisposable, IDispos
         });
 
         builder.Services.AddWolverineHttp();
+        builder.Services.AddAuthentication("test");
+        builder.Services.AddAuthorization();
 
         // Setting up Alba stubbed authentication so that we can fake
         // out ClaimsPrincipal data on requests later
-        var securityStub = new AuthenticationStub()
+        var securityStub = new AuthenticationStub("test")
             .With("foo", "bar")
             .With(JwtRegisteredClaimNames.Email, "guy@company.com")
             .WithName("jeremy");
-
+        
         // Spinning up a test application using Alba
         theHost = await AlbaHost.For(builder, app =>
         {
+            app.UseAuthentication();
+            app.UseAuthorization();
             app.MapWolverineEndpoints(configure);
         }, securityStub);
 
@@ -367,31 +379,36 @@ public class multi_tenancy_detection_and_integration : IAsyncDisposable, IDispos
 
 public static class TenantedEndpoints
 {
+    [Authorize]
     [WolverineGet("/tenant/route/{tenant}")]
-    public static string GetTenantIdFromRoute(IMessageBus bus)
+    public static string GetTenantIdFromRoute(IMessageBus bus, TenantId tenantId)
     {
+        tenantId.Value.ShouldBe(bus.TenantId);
         return bus.TenantId;
     }
 
+    [Authorize]
     [WolverineGet("/tenant")]
-    public static string GetTenantIdFromWhatever(IMessageBus bus, HttpContext httpContext)
+    public static string GetTenantIdFromWhatever(IMessageBus bus, HttpContext httpContext, TenantId tenantId)
     {
         // IHttpActivityFeature.Activity is set to null after the request, so to access the
         // Activity in the test we capture the Activity into a custom Feature 
         httpContext.Features.Set(CustomActivityFeature.FromHttpContext(httpContext));
-
+        tenantId.Value.ShouldBe(bus.TenantId);
         return bus.TenantId;
     }
 
     [WolverineGet("/todo/{id}")]
-    public static Task<TenantTodo?> Get(string id, IQuerySession session)
+    public static Task<TenantTodo?> Get(string id, IQuerySession session, TenantId tenantId)
     {
+        tenantId.Value.ShouldBe(session.TenantId);
         return session.LoadAsync<TenantTodo>(id);
     }
 
     [WolverinePost("/todo/create")]
-    public static IMartenOp Create(CreateTodo command)
+    public static IMartenOp Create(CreateTodo command, TenantId tenantId)
     {
+        tenantId.IsEmpty().ShouldBeFalse();
         return MartenOps.Insert(new TenantTodo
         {
             Id = command.Id,
@@ -400,19 +417,21 @@ public static class TenantedEndpoints
     }
 
     [WolverineGet("/tenant/bus/{tenant}")]
-    public static string GetTenantWithArgs1(IMessageBus bus)
+    public static string GetTenantWithArgs1(IMessageBus bus, TenantId tenantId)
     {
+        tenantId.Value.ShouldBe(bus.TenantId);
         return bus.TenantId;
     }
 
     [WolverineGet("/tenant/context/{tenant}")]
-    public static string GetTenantWithArgs1(IMessageContext context)
+    public static string GetTenantWithArgs1(IMessageContext context, TenantId tenantId)
     {
+        tenantId.Value.ShouldBe(context.TenantId);
         return context.TenantId;
     }
 
     [WolverineGet("/tenant/both/{tenant}")]
-    public static string GetTenantWithArgs1(IMessageContext context, IMessageBus bus)
+    public static string GetTenantWithArgs1(IMessageContext context, IMessageBus bus, TenantId tenantId)
     {
         bus.TenantId.ShouldBe(context.TenantId);
         return context.TenantId;
@@ -469,5 +488,13 @@ public record CustomActivityFeature(Activity? Activity)
     {
         var activity = httpContext.Features.Get<IHttpActivityFeature>()?.Activity;
         return new CustomActivityFeature(activity);
+    }
+}
+
+public class StubAuthenticationHandlerProvider : IAuthenticationHandlerProvider
+{
+    public Task<IAuthenticationHandler?> GetHandlerAsync(HttpContext context, string authenticationScheme)
+    {
+        throw new NotImplementedException();
     }
 }

@@ -13,3 +13,25 @@ public abstract class ModifyChainAttribute : Attribute
 {
     public abstract void Modify(IChain chain, GenerationRules rules, IServiceContainer container);
 }
+
+#region sample_ValueSource
+
+public enum ValueSource
+{
+    /// <summary>
+    /// This value can be sourced by any mechanism that matches the name. This is the default.
+    /// </summary>
+    Anything,
+    
+    /// <summary>
+    /// The value should be sourced by a property or field on the message type or HTTP request type
+    /// </summary>
+    InputMember,
+    
+    /// <summary>
+    /// The value should be sourced by a route argument of an HTTP request
+    /// </summary>
+    RouteValue
+}
+
+#endregion

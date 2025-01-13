@@ -72,3 +72,41 @@ await host.StartAsync();
 Running your Wolverine application like this means that Wolverine is able to more quickly start the transactional inbox
 and outbox at start up time, and also to immediately recover any persisted incoming or outgoing messages from the previous
 execution of the service on your local development box.
+
+## Metrics <Badge type="tip" text="3.6" />
+
+::: tip
+These metrics can be used to understand when a Wolverine system is distressed when these numbers grow larger
+:::
+
+Wolverine emits observable gauge metrics for the size of the persisted inbox, outbox, and scheduled message counts:
+
+1. `wolverine-inbox-count` - number of persisted, `Incoming` envelopes in the durable inbox
+2. `wolverine-outbox-count` - number of persisted, `Outgoing` envelopes in the durable outbox
+3. `wolverine-scheduled-count` - number of persisted, `Scheduled` envelopes in the durable inbox
+
+In all cases, if you are using some sort of multi-tenancy where envelopes are stored in separate databsases per tenant,
+the metric names above will be suffixed with ".[database name]".
+
+You can disable or modify the polling of these metrics by these settings:
+
+<!-- snippet: sample_configuring_persistence_metrics -->
+<a id='snippet-sample_configuring_persistence_metrics'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        // This does assume that you have *some* kind of message
+        // persistence set up
+        
+        // This is enabled by default, but just showing that
+        // you *could* disable it
+        opts.Durability.DurabilityMetricsEnabled = true;
+
+        // The default is 5 seconds, but maybe you want it slower
+        // because this does have to do a non-trivial query
+        opts.Durability.UpdateMetricsPeriod = 10.Seconds();
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L209-L226' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_persistence_metrics' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->

@@ -21,7 +21,6 @@ using WolverineWebApi;
 using WolverineWebApi.Marten;
 using WolverineWebApi.Samples;
 using WolverineWebApi.WebSockets;
-using Order = WolverineWebApi.Order;
 
 #region sample_adding_http_services
 
@@ -63,6 +62,11 @@ builder.Services.AddMarten(opts =>
     opts.Connection(Servers.PostgresConnectionString);
     opts.DatabaseSchemaName = "http";
     opts.DisableNpgsqlLogging = true;
+
+    // Use this setting to get the very best performance out
+    // of the UpdatedAggregate workflow and aggregate handler
+    // workflow over all
+    opts.Events.UseIdentityMapForAggregates = true;
 }).IntegrateWithWolverine();
 
 
@@ -128,11 +132,11 @@ app.UseAuthorization();
 OpenApiEndpoints.BuildComparisonRoutes(app);
 
 
-app.MapGet("/orders/{orderId}", [Authorize] Results<BadRequest, Ok<Order>>(int orderId)
-    => orderId > 999 ? TypedResults.BadRequest() : TypedResults.Ok(new Order(orderId)));
+app.MapGet("/orders/{orderId}", [Authorize] Results<BadRequest, Ok<TinyOrder>>(int orderId)
+    => orderId > 999 ? TypedResults.BadRequest() : TypedResults.Ok(new TinyOrder(orderId)));
 
-app.MapPost("/orders", Results<BadRequest, Ok<Order>>(CreateOrder command)
-    => command.OrderId > 999 ? TypedResults.BadRequest() : TypedResults.Ok(new Order(command.OrderId)));
+app.MapPost("/orders", Results<BadRequest, Ok<TinyOrder>>(CreateOrder command)
+    => command.OrderId > 999 ? TypedResults.BadRequest() : TypedResults.Ok(new TinyOrder(command.OrderId)));
 
 app.MapHub<BroadcastHub>("/updates");
 

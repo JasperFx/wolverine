@@ -1,4 +1,5 @@
 using System.Reflection;
+using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
@@ -22,13 +23,19 @@ internal class LoadAggregateFrame<T> : MethodCall where T : class
         _command = chain.FindVariable(_att.CommandType!);
         yield return _command;
 
-        Arguments[0] = new MemberAccessVariable(_command, _att.AggregateIdMember!);
+        Arguments[0] = new Variable(_att.AggregateIdMember.GetRawMemberType(),"aggregateId");
         if (_att.LoadStyle == ConcurrencyStyle.Optimistic && _att.VersionMember != null)
         {
             Arguments[1] = new MemberAccessVariable(_command, _att.VersionMember);
         }
 
         foreach (var variable in base.FindVariables(chain)) yield return variable;
+    }
+
+    public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        writer.WriteLine($"var aggregateId = {_command.Usage}.{_att.AggregateIdMember.Name};");
+        base.GenerateCode(method, writer);
     }
 
     internal static MethodInfo FindMethod(AggregateHandlerAttribute att)

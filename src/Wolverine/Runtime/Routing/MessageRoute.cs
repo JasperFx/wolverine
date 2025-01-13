@@ -19,6 +19,7 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
         ImHashMap<Type, IList<IEnvelopeRule>>.Empty;
 
     private readonly IReplyTracker _replyTracker;
+    private readonly Endpoint _endpoint;
 
     public MessageRoute(Type messageType, Endpoint endpoint, IReplyTracker replies)
     {
@@ -42,6 +43,8 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
         Rules.AddRange(RulesForMessageType(messageType));
 
         MessageType = messageType;
+
+        _endpoint = endpoint;
     }
 
     public Type MessageType { get; }
@@ -120,6 +123,12 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
             throw new ArgumentNullException(nameof(message));
         }
 
+        if (!bus.Runtime.Options.EnableRemoteInvocation)
+        {
+            throw new InvalidOperationException(
+                $"Remote invocation is disabled in this application through the {nameof(WolverineOptions)}.{nameof(WolverineOptions.EnableRemoteInvocation)} value. Cannot invoke at requested endpoint {_endpoint.Uri}");
+        }
+        
         bus.Runtime.RegisterMessageType(typeof(T));
 
         timeout ??= 5.Seconds();
@@ -143,6 +152,10 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
         envelope.Sender = Sender;
 
         bus.TrackEnvelopeCorrelation(envelope, Activity.Current);
+        
+        // The request/reply envelope *must* use the envelope id for the conversation id
+        // for proper tracking. See https://github.com/JasperFx/wolverine/issues/1176
+        envelope.ConversationId = envelope.Id;
 
         var waiter = _replyTracker.RegisterListener<T>(envelope, cancellation, timeout.Value);
 
@@ -162,5 +175,10 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
         _rulesByMessageType = _rulesByMessageType.AddOrUpdate(type, rules);
 
         return rules;
+    }
+
+    public override string ToString()
+    {
+        return $"Send to {Sender.Destination}";
     }
 }

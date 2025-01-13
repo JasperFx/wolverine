@@ -135,7 +135,7 @@ public class CreateProjectHandler(IProjectRepository Repository)
 ## Rules for Message Handlers
 
 ::: info
-The naming conventions in Wolverine are descended from a much earlier tool and the exact origins of
+The naming conventions in Wolverine are descended from a much earlier tool (FubuTransportation circa 2013, which was in turn meant to replace and even older tool called Rhino Service Bus) and the exact origins of
 the particular names are lost in the mist of time
 :::
 
@@ -158,6 +158,67 @@ Also see [stateful sagas](/guide/durability/sagas) as they have some additional 
 
 See [return values](./return-values) for much more information about what types can be returned from a handler method and how Wolverine
 would use those values.
+
+## Multiple Handlers for the Same Message Type <Badge type="tip" text="3.6" />
+
+::: tip
+Pay attention to this section if you are trying to utilize a "Modular Monolith" architecture.
+:::
+
+Let's say that you want to take more than one action on a message type published in or to your
+application. In this case you'll probably have more than one handler method for the exact same
+message type. **The original concept for Wolverine was to effectively combine these individual handlers
+into one logical handler that executes together, and in the same logical transaction (if you use transactional middleware).**
+
+This very old decision has turned out to be harmful for folks trying to use Wolverine with newer ideas about "Modular Monolith"
+architectures or "Event Driven Architecture" approaches where you much more frequently take completely independent actions
+on the same message. 
+
+To alleviate this issue of combining handlers, Wolverine first introduced the [Sticky Handler concept](/guide/handlers/sticky) in Wolverine 3.0
+where you're able to explicitly separate handlers for the same message type and "stick" them against different listening endpoints or local queues.
+
+Now though, you can flip this switch in one place to ensure that Wolverine always "separates" handlers for the same message type
+into completely separate Wolverine message handlers and message subscriptions:
+
+<!-- snippet: sample_using_MultipleHandlerBehavior -->
+<a id='snippet-sample_using_multiplehandlerbehavior'></a>
+```cs
+using var host = Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        // Right here, tell Wolverine to make every handler "sticky"
+        opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/MessageRoutingTests/using_separate_handlers.cs#L13-L22' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_multiplehandlerbehavior' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+This makes a couple changes. For example, let's say that you have these handlers for the same message type of `MyApp.Orders.OrderCreated`:
+
+1. `MyApp.Module1.OrderCreatedHandler`
+2. `MyApp.Module2.OrderCreatedHandler`
+3. `MyApp.Module3.OrderCreatedHandler`
+
+In the default `ClassicCombineIntoOneLogicalHandler` mode, Wolverine will combine all of those handlers into one logical
+handler that would be published (using default routing configuration) to a local queue named "MyApp.Orders.OrderCreated".
+By switching to the `Separated` mode, Wolverine will create three completely separate handlers and local subscriptions
+named:
+
+1. "MyApp.Module1.OrderCreatedHandler" with only executes the handler with the same full name
+2. "MyApp.Module2.OrderCreatedHandler" with only executes the handler with the same full name
+3. "MyApp.Module3.OrderCreatedHandler" with only executes the handler with the same full name
+
+Likewise, if you were using conventional routing for an external message broker, using the `Separated` mode
+will create separate listeners for each individual handler type and key the naming off of the handler type.
+So if you were using the baseline Rabbit MQ conventions and `Separated`, you would end up with three
+Rabbit MQ queues that each had a "sticky" relationship to one particular handler like so:
+
+1. Listening to a queue named "MyApp.Module1.OrderCreatedHandler" that executes the `MyApp.Module1.OrderCreatedHandler` handler
+2. And you get the picture...
+
+In all cases, if you are using one of the built in message broker conventional routing approaches, Wolverine will create
+a separate listener for each handler using the handler type to determine the queue / subscription / topic names instead
+of the message type *if* there is more than one handler for that type.
 
 ## Message Handler Parameters
 

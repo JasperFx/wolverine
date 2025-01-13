@@ -97,6 +97,20 @@ public class handler_actions_with_implied_marten_operations : PostgresqlContext,
         var doc = await session.LoadAsync<NamedDocument>("Max");
         doc.ShouldBeNull();
     }
+
+    [Fact]
+    public async Task use_enumerable_of_imartenop_as_return_value()
+    {
+        await _store.Advanced.Clean.DeleteDocumentsByTypeAsync(typeof(NamedDocument));
+
+        await _host.InvokeMessageAndWaitAsync(new AppendManyNamedDocuments(["red", "blue", "green"]));
+
+        using var session = _store.LightweightSession();
+        
+        (await session.LoadAsync<NamedDocument>("red")).Number.ShouldBe(1);
+        (await session.LoadAsync<NamedDocument>("blue")).Number.ShouldBe(2);
+        (await session.LoadAsync<NamedDocument>("green")).Number.ShouldBe(3);
+    }
 }
 
 public record CreateMartenDocument(string Name);
@@ -146,6 +160,25 @@ public static class MartenCommandHandler
     {
         // Nothing yet
     }
+}
+
+public record AppendManyNamedDocuments(string[] Names);
+
+public static class AppendManyNamedDocumentsHandler
+{
+    #region sample_using_ienumerable_of_martenop_as_side_effect
+
+    // Just keep in mind that this "example" was rigged up for test coverage
+    public static IEnumerable<IMartenOp> Handle(AppendManyNamedDocuments command)
+    {
+        var number = 1;
+        foreach (var name in command.Names)
+        {
+            yield return MartenOps.Store(new NamedDocument{Id = name, Number = number++});
+        }
+    }
+
+    #endregion
 }
 
 public class NamedDocument
