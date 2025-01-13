@@ -35,6 +35,10 @@ internal class ExternalMessageTableListener : IListener
         {
             durable.ShouldPersistBeforeProcessing = false;
         }
+        else if (receiver is ReceiverWithRules { Inner: DurableReceiver inner })
+        {
+            inner.ShouldPersistBeforeProcessing = false;
+        }
 
         _cancellation = CancellationTokenSource.CreateLinkedTokenSource(_runtimeOptions.Durability.Cancellation);
 
