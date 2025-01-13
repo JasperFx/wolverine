@@ -1,12 +1,5 @@
 # Message Routing
 
-## TODO
-
-* "Separated" handler behavior, and how that changes message routing conventions
-* Writing your own message convention from scratch. Would nail 1130. Use Rabbit MQ w/ routing keys as example
-
-## Existing Stuff
-
 When you publish a message using `IMessageBus` or `IMessageContext`, Wolverine uses its concept of subscriptions to know how and where to send the message. Consider this code that publishes a
 `PingMessage`:
 
