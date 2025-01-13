@@ -47,6 +47,8 @@ public class external_message_tables : IAsyncLifetime
             .UseWolverine(opts =>
             {
                 opts.UsePostgresqlPersistenceAndTransport(Servers.PostgresConnectionString, "external");
+                
+                opts.Policies.UseDurableLocalQueues();
             }).StartAsync();
 
         var storage = host.Services.GetRequiredService<IMessageStore>()
