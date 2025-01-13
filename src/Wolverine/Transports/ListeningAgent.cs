@@ -168,7 +168,7 @@ internal class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
         }
 
         using var activity = WolverineTracing.ActivitySource.StartActivity(WolverineTracing.StartingListener);
-        activity?.SetTag(WolverineTracing.EndpointAddress, Listener.Address);
+        activity?.SetTag(WolverineTracing.EndpointAddress, Endpoint.Uri);
 
         _receiver ??= Endpoint.MaybeWrapReceiver(await buildReceiverAsync());
         
