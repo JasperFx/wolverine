@@ -23,6 +23,9 @@ public class PostgresqlTransportDurableFixture : TransportComplianceFixture, IAs
 
             opts.ListenToPostgresqlQueue("sender");
             opts.Policies.UseDurableOutboxOnAllSendingEndpoints();
+            
+            opts.Durability.ScheduledJobPollingTime = 250.Milliseconds();
+            opts.Durability.ScheduledJobFirstExecution = 0.Seconds();
         });
 
         await ReceiverIs(opts =>
@@ -30,6 +33,9 @@ public class PostgresqlTransportDurableFixture : TransportComplianceFixture, IAs
             opts.UsePostgresqlPersistenceAndTransport(Servers.PostgresConnectionString, "durable", transportSchema:"durable");
 
             opts.ListenToPostgresqlQueue("receiver").UseDurableInbox();
+            
+            opts.Durability.ScheduledJobPollingTime = 250.Milliseconds();
+            opts.Durability.ScheduledJobFirstExecution = 0.Seconds();
         });
     }
 
@@ -60,6 +66,9 @@ public class PostgresqlTransportBufferedFixture : TransportComplianceFixture, IA
             opts.ListenToPostgresqlQueue("sender").BufferedInMemory();
 
             #endregion
+            
+            opts.Durability.ScheduledJobPollingTime = 250.Milliseconds();
+            opts.Durability.ScheduledJobFirstExecution = 0.Seconds();
 
         });
 
@@ -69,6 +78,9 @@ public class PostgresqlTransportBufferedFixture : TransportComplianceFixture, IA
                 .AutoProvision().AutoPurgeOnStartup().DisableInboxAndOutboxOnAll();
 
             opts.ListenToPostgresqlQueue("receiver").BufferedInMemory();
+            
+            opts.Durability.ScheduledJobPollingTime = 250.Milliseconds();
+            opts.Durability.ScheduledJobFirstExecution = 0.Seconds();
         });
     }
 

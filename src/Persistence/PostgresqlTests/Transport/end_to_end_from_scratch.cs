@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using IntegrationTests;
+using JasperFx.Core;
 using Microsoft.AspNetCore.Mvc.ApiExplorer;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
@@ -58,6 +59,7 @@ public class end_to_end_from_scratch : IAsyncLifetime
         var session = await UI
             .TrackActivity()
             .AlsoTrack(Api)
+            .Timeout(30.Seconds())
             .PublishMessageAndWaitAsync(new ApiRequest("Rey"));
         
         // It's handled in UI

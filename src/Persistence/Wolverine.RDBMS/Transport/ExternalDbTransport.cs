@@ -1,6 +1,7 @@
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Weasel.Core;
+using Wolverine.Configuration;
 using Wolverine.Transports;
 
 namespace Wolverine.RDBMS.Transport;
@@ -20,6 +21,11 @@ public class ExternalDbTransport : TransportBase<ExternalMessageTable>
     protected override IEnumerable<ExternalMessageTable> endpoints()
     {
         return Tables;
+    }
+
+    public override Endpoint? ReplyEndpoint()
+    {
+        return null;
     }
 
     protected override ExternalMessageTable findEndpointByUri(Uri uri)
