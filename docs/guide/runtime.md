@@ -322,13 +322,22 @@ Built in examples of the agent and agent family are:
 ## IoC Container Integration
 
 ::: info
-Lamar started its life as "Blue Milk," and was originally built specifically to support the "Jasper" framework which was eventually renamed 
-and rebooted as "Wolverine." Even though Lamar was released many years before Wolverine, it was always intended to help make Wolverine possible. 
+Wolverine has been tested with both the built in `ServiceProvider` and [Lamar](https://jasperfx.github.io/lamar), which was originally built
+specifically to support what ended up becoming Wolverine. The previous limitation to only supporting Lamar was lifted in Wolverine 3.0.
 :::
 
-Wolverine is only able to use [Lamar](https://jasperfx.github.io/lamar) as its IoC container, and actually quietly registers Lamar with your .NET application within
-any call to `UseWolverine()`. Wolverine actually uses Lamar's configuration model to help build out its dynamically generated code and can mostly go far enough to
-recreate what would be Lamar's "instance plan" with plain old C# as a way of making the runtime operations a little bit leaner.
+Wolverine is a significantly different animal than other .NET frameworks, and uses the IoC container quite differently than most
+.NET application frameworks. For the most part, Wolverine is looking at the IoC container registrations and trying to generate code
+to mimic the IoC behavior in the message handler and HTTP endpoint adapters that Wolverine generates internally. The benefits of this model are:
 
-Wolverine is a significantly different animal than other .NET frameworks, and will not play well with the kind of runtime IoC tricks
-other frameworks rely on for passing state. 
+* The pre-generated code can tell you a lot about how Wolverine is handling your code, including any registered middleware
+* The fastest IoC container is no IoC container
+* Less conditional logic at runtime 
+* Much slimmer exception stack traces when things inevitably go wrong. Wolverine's predecessor tool ([FubuMVC](https://fubumvc.github.io)) use nested objects created on every request or message for its middleware strategy, and the exception messages coming out of handler code could be *epic* with a lot of middleware active.
+
+The downside is that Wolverine does not play well with the kind of runtime IoC tricks
+other frameworks rely on for passing state. For example, because Wolverine.HTTP does not use the ASP.Net Core request services
+to build endpoint types and its dependencies at runtime, it's a little clumsier to pass state from ASP.Net Core middleware
+written into scoped IoC services, with custom multi-tenancy approaches being the usual cause of this. Wolverine certainly has its
+own multi-tenancy support, and we don't think this is really a serious problem for most usages, but it has caused friction for
+some Wolverine users converting from other frameworks.
