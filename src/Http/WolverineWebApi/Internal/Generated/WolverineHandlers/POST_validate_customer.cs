@@ -13,14 +13,14 @@ namespace Internal.Generated.WolverineHandlers
     public class POST_validate_customer : Wolverine.Http.HttpHandler
     {
         private readonly Wolverine.Http.WolverineHttpOptions _wolverineHttpOptions;
-        private readonly Wolverine.Http.FluentValidation.IProblemDetailSource<WolverineWebApi.Validation.CreateCustomer> _problemDetailSource;
         private readonly FluentValidation.IValidator<WolverineWebApi.Validation.CreateCustomer> _validator;
+        private readonly Wolverine.Http.FluentValidation.IProblemDetailSource<WolverineWebApi.Validation.CreateCustomer> _problemDetailSource;
 
-        public POST_validate_customer(Wolverine.Http.WolverineHttpOptions wolverineHttpOptions, Wolverine.Http.FluentValidation.IProblemDetailSource<WolverineWebApi.Validation.CreateCustomer> problemDetailSource, FluentValidation.IValidator<WolverineWebApi.Validation.CreateCustomer> validator) : base(wolverineHttpOptions)
+        public POST_validate_customer(Wolverine.Http.WolverineHttpOptions wolverineHttpOptions, FluentValidation.IValidator<WolverineWebApi.Validation.CreateCustomer> validator, Wolverine.Http.FluentValidation.IProblemDetailSource<WolverineWebApi.Validation.CreateCustomer> problemDetailSource) : base(wolverineHttpOptions)
         {
             _wolverineHttpOptions = wolverineHttpOptions;
-            _problemDetailSource = problemDetailSource;
             _validator = validator;
+            _problemDetailSource = problemDetailSource;
         }
 
 
@@ -44,7 +44,7 @@ namespace Internal.Generated.WolverineHandlers
 
             
             // The actual HTTP request handler execution
-            var result_of_Post = WolverineWebApi.Validation.ValidatedEndpoint.Post(customer);
+            var result_of_Post = WolverineWebApi.Validation.CreateCustomerEndpoint.Post(customer);
 
             await WriteString(httpContext, result_of_Post);
         }
