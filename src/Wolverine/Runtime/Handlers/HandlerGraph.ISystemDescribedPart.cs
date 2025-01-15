@@ -42,21 +42,53 @@ public partial class HandlerGraph : IDescribedSystemPart, IWriteToConsole
 
     private void writeHandlerTable()
     {
+        var hasStickys = Chains.Any(x => x.ByEndpoint.Any());
+        
         var table = new Table();
         table.AddColumn("Message Name");
         table.AddColumn("[bold]Message Type[/]\n  [dim]namespace[/]", c => c.NoWrap = true);
         table.AddColumn("[bold]Handler.Method()[/]\n  [dim]namespace[/]", c => c.NoWrap = true);
         table.AddColumn("Generated Type Name");
 
+        if (hasStickys)
+        {
+            table.AddColumn("Endpoints");
+        }
+
         foreach (var chain in Chains)
         {
             var messageType = $"[bold]{chain.MessageType.NameInCode()}[/]\n  [dim]{chain.MessageType.Namespace}[/]";
+            
+            if (hasStickys)
+            {
+                // Default handlers
+                if (chain.Handlers.Any())
+                {
+                    var handlerType = chain.Handlers.Select(handler =>
+                            $"[bold]{handler.HandlerType.NameInCode()}.{handler.Method.Name}({handler.Method.GetParameters().Select(x => x.Name)!.Join(", ")})[/]\n  [dim]{handler.HandlerType.Namespace}[/]")
+                        .Join("\n");
 
-            var handlerType = chain.Handlers.Select(handler =>
-                    $"[bold]{handler.HandlerType.NameInCode()}.{handler.Method.Name}({handler.Method.GetParameters().Select(x => x.Name)!.Join(", ")})[/]\n  [dim]{handler.HandlerType.Namespace}[/]")
-                .Join("\n");
+                    table.AddRow(chain.MessageType.ToMessageTypeName(), messageType, handlerType, chain.TypeName, "");
+                }
 
-            table.AddRow(chain.MessageType.ToMessageTypeName(), messageType, handlerType, chain.TypeName);
+                foreach (var handlerChain in chain.ByEndpoint)
+                {
+                    var handlerType = handlerChain.Handlers.Select(handler =>
+                            $"[bold]{handler.HandlerType.NameInCode()}.{handler.Method.Name}({handler.Method.GetParameters().Select(x => x.Name)!.Join(", ")})[/]\n  [dim]{handler.HandlerType.Namespace}[/]")
+                        .Join("\n");
+
+                    var endpoints = handlerChain.Endpoints.Select(x => x.Uri.ToString()).Join(", ");
+                    table.AddRow(chain.MessageType.ToMessageTypeName(), messageType, handlerType, handlerChain.TypeName, endpoints);
+                }
+            }
+            else
+            {
+                var handlerType = chain.Handlers.Select(handler =>
+                        $"[bold]{handler.HandlerType.NameInCode()}.{handler.Method.Name}({handler.Method.GetParameters().Select(x => x.Name)!.Join(", ")})[/]\n  [dim]{handler.HandlerType.Namespace}[/]")
+                    .Join("\n");
+
+                table.AddRow(chain.MessageType.ToMessageTypeName(), messageType, handlerType, chain.TypeName);
+            }
         }
 
         AnsiConsole.Render(table);

@@ -13,14 +13,14 @@ namespace Internal.Generated.WolverineHandlers
     public class POST_validate_user : Wolverine.Http.HttpHandler
     {
         private readonly Wolverine.Http.WolverineHttpOptions _wolverineHttpOptions;
-        private readonly System.Collections.Generic.IEnumerable<FluentValidation.IValidator<WolverineWebApi.Validation.CreateUser>> _validatorIEnumerable;
         private readonly Wolverine.Http.FluentValidation.IProblemDetailSource<WolverineWebApi.Validation.CreateUser> _problemDetailSource;
+        private readonly System.Collections.Generic.IEnumerable<FluentValidation.IValidator<WolverineWebApi.Validation.CreateUser>> _validatorIEnumerable;
 
-        public POST_validate_user(Wolverine.Http.WolverineHttpOptions wolverineHttpOptions, System.Collections.Generic.IEnumerable<FluentValidation.IValidator<WolverineWebApi.Validation.CreateUser>> validatorIEnumerable, Wolverine.Http.FluentValidation.IProblemDetailSource<WolverineWebApi.Validation.CreateUser> problemDetailSource) : base(wolverineHttpOptions)
+        public POST_validate_user(Wolverine.Http.WolverineHttpOptions wolverineHttpOptions, Wolverine.Http.FluentValidation.IProblemDetailSource<WolverineWebApi.Validation.CreateUser> problemDetailSource, System.Collections.Generic.IEnumerable<FluentValidation.IValidator<WolverineWebApi.Validation.CreateUser>> validatorIEnumerable) : base(wolverineHttpOptions)
         {
             _wolverineHttpOptions = wolverineHttpOptions;
-            _validatorIEnumerable = validatorIEnumerable;
             _problemDetailSource = problemDetailSource;
+            _validatorIEnumerable = validatorIEnumerable;
         }
 
 
@@ -41,7 +41,7 @@ namespace Internal.Generated.WolverineHandlers
 
             
             // The actual HTTP request handler execution
-            var result_of_Post = WolverineWebApi.Validation.ValidatedEndpoint.Post(user);
+            var result_of_Post = WolverineWebApi.Validation.OtherValidatedEndpoint.Post(user);
 
             await WriteString(httpContext, result_of_Post);
         }
