@@ -164,7 +164,15 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
         var sticky = chain.ByEndpoint.FirstOrDefault(x => x.Endpoints.Contains(endpoint));
         
         // If none, use the default
-        if (sticky == null) return HandlerFor(messageType);
+        if (sticky == null)
+        {
+            if (!chain.Handlers.Any())
+            {
+                throw new NoHandlerForEndpointException(messageType, endpoint.Uri);
+            }
+            
+            return HandlerFor(messageType);
+        }
 
         return resolveHandlerFromChain(messageType, sticky, false);
     }
@@ -211,6 +219,10 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
         if (chain.Handler != null)
         {
             handler = chain.Handler;
+        }
+        else if (!chain.Handlers.Any())
+        {
+            throw new NoHandlerForEndpointException(messageType);
         }
         else
         {

@@ -37,6 +37,21 @@ public class sticky_message_handlers : IntegrationContext
         records.ShouldContain(new StickyMessageResponse("blue", stickyMessage, new Uri("local://blue")));
     }
 
+    [Fact]
+    public async Task get_an_explanatory_message()
+    {
+        var stickyMessage = new StickyMessage();
+
+        Func<IMessageContext, ValueTask> send = c => c.EndpointFor(new Uri("local://maroon")).SendAsync(stickyMessage);
+        
+        var session = await Host.TrackActivity().DoNotAssertOnExceptionsDetected().ExecuteAndWaitAsync(send);
+
+        var ex = session.AllExceptions().OfType<NoHandlerForEndpointException>().FirstOrDefault();
+        ex.ShouldNotBeNull();
+        ex.MessageType.ShouldBe(typeof(StickyMessage));
+        ex.Uri.ShouldBe(new Uri("local://maroon"));
+    }
+
     public class FakeChainPolicy : IChainPolicy
     {
         public List<HandlerChain> Chains = new();
