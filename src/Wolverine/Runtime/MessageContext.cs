@@ -238,6 +238,10 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
         {
             await envelope.StoreAndForwardAsync();
         }
+        catch (NotSupportedException)
+        {
+            // I don't like this, but if this happens, then it should never have been routed to the failure ack
+        }
         catch (Exception e)
         {
             // Should never happen, but still.

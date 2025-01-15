@@ -13,6 +13,7 @@ using Weasel.Postgresql;
 using Weasel.Postgresql.Tables;
 using Wolverine;
 using Wolverine.ComplianceTests.Compliance;
+using Wolverine.ErrorHandling;
 using Wolverine.Marten;
 using Wolverine.Persistence.Durability;
 using Wolverine.Postgresql;
@@ -272,4 +273,11 @@ public static class Message1Handler
         Debug.WriteLine("Got a Message3");
     }
     
+}
+
+public record BlowsUpMessage;
+
+public static class BlowsUpMessageHandler
+{
+    public static void Handle(BlowsUpMessage message) => throw new Exception("You stink!");
 }
