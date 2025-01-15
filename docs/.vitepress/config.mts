@@ -65,7 +65,8 @@ const config: UserConfig<DefaultTheme.Config> = {
                         {text: 'Best Practices', link: '/tutorials/best-practices'},
                         {text: 'Ping/Pong Messaging', link: '/tutorials/ping-pong'},
                         {text: 'Custom Middleware', link: '/tutorials/middleware'},
-                        {text: 'Wolverine and Serverless', link: '/tutorials/serverless'}
+                        {text: 'Wolverine and Serverless', link: '/tutorials/serverless'},
+                        {text: 'Wolverine for MediatR Users', link: '/tutorials/from-mediatr'}
                     ]
                 },
                 {
