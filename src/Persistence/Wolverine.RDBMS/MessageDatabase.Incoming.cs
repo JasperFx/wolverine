@@ -152,7 +152,7 @@ public abstract partial class MessageDatabase<T>
         {
             if (isExceptionFromDuplicateEnvelope(e))
             {
-                throw new DuplicateIncomingEnvelopeException(envelope.Id);
+                throw new DuplicateIncomingEnvelopeException(envelope);
             }
 
             throw;

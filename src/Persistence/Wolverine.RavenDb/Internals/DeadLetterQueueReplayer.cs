@@ -15,12 +15,14 @@ public class DeadLetterQueueReplayer : IHostedService
     private readonly IWolverineRuntime _runtime;
     private Task? _subscriptionTask;
     private readonly ILogger<DeadLetterQueueReplayer> _logger;
+    private readonly RavenDbMessageStore _messageStore;
 
     public DeadLetterQueueReplayer(IDocumentStore store, IWolverineRuntime runtime)
     {
         _store = store;
         _runtime = runtime;
         _logger = _runtime.LoggerFactory.CreateLogger<DeadLetterQueueReplayer>();
+        _messageStore = new RavenDbMessageStore(_store, runtime.Options);
     }
 
     public async Task StartAsync(CancellationToken cancellationToken)
@@ -51,9 +53,10 @@ public class DeadLetterQueueReplayer : IHostedService
                 var deadLetterMessage = item.Result;
                 var envelope = EnvelopeSerializer.Deserialize(deadLetterMessage.Body);
                 envelope.Status = EnvelopeStatus.Incoming;
-                var incoming = new IncomingMessage(envelope)
+                var incoming = new IncomingMessage(envelope, _messageStore)
                 {
-                    OwnerId = 0
+                    OwnerId = 0,
+                    Id = _messageStore.IdentityFor(envelope)
                 };
 
                 await session.StoreAsync(incoming);
