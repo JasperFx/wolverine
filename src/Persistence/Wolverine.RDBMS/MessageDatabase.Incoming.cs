@@ -32,6 +32,7 @@ public abstract partial class MessageDatabase<T>
         return CreateCommand(_markEnvelopeAsHandledById)
             .With("id", envelope.Id)
             .With("keepUntil", keepUntil)
+            .With("uri", envelope.Destination.ToString())
             .ExecuteNonQueryAsync(_cancellation);
     }
 
@@ -47,6 +48,10 @@ public abstract partial class MessageDatabase<T>
         {
             builder.Append($"update {SchemaName}.{DatabaseConstants.IncomingTable} set {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}', {DatabaseConstants.KeepUntil} = @keepUntil where id = ");
             builder.AppendParameter(envelope.Id);
+            builder.Append(" and ");
+            builder.Append(DatabaseConstants.ReceivedAt);
+            builder.Append( " = ");
+            builder.AppendParameter(envelope.Destination.ToString());
             builder.Append(";");
         }
 
@@ -70,6 +75,7 @@ public abstract partial class MessageDatabase<T>
         return CreateCommand(_incrementIncomingEnvelopeAttempts)
             .With("attempts", envelope.Attempts)
             .With("id", envelope.Id)
+            .With("uri", envelope.Destination.ToString())
             .ExecuteNonQueryAsync(_cancellation);
     }
 

@@ -42,9 +42,9 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
         _cancellation = settings.Cancellation;
 
         _markEnvelopeAsHandledById =
-            $"update {SchemaName}.{DatabaseConstants.IncomingTable} set {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}', {DatabaseConstants.KeepUntil} = @keepUntil where id = @id";
+            $"update {SchemaName}.{DatabaseConstants.IncomingTable} set {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}', {DatabaseConstants.KeepUntil} = @keepUntil where id = @id and {DatabaseConstants.ReceivedAt} = @uri";
         _incrementIncomingEnvelopeAttempts =
-            $"update {SchemaName}.{DatabaseConstants.IncomingTable} set attempts = @attempts where id = @id";
+            $"update {SchemaName}.{DatabaseConstants.IncomingTable} set attempts = @attempts where id = @id and {DatabaseConstants.ReceivedAt} = @uri";
 
         // ReSharper disable once VirtualMemberCallInConstructor
         _outgoingEnvelopeSql = determineOutgoingEnvelopeSql(settings);
