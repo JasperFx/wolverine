@@ -38,7 +38,6 @@ internal class PostgresqlMessageStore<T> : PostgresqlMessageStore, IAncillaryMes
 
 internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>, IDatabaseSagaStorage
 {
-    private readonly string _deleteIncomingEnvelopesSql;
     private readonly string _deleteOutgoingEnvelopesSql;
     private readonly string _discardAndReassignOutgoingSql;
     private readonly string _findAtLargeEnvelopesSql;
@@ -65,9 +64,6 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>, IData
         ILogger<PostgresqlMessageStore> logger, IEnumerable<SagaTableDefinition> sagaTypes) : base(databaseSettings, dataSource,
         settings, logger, new PostgresqlMigrator(), "public")
     {
-        _deleteIncomingEnvelopesSql =
-            $"delete from {SchemaName}.{DatabaseConstants.IncomingTable} WHERE id = ANY(@ids);";
-
         _reassignIncomingSql =
             $"update {SchemaName}.{DatabaseConstants.IncomingTable} set owner_id = @owner where id = ANY(@ids)";
         _deleteOutgoingEnvelopesSql =
@@ -196,41 +192,7 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>, IData
 
         return counts;
     }
-
-    public override async Task MoveToDeadLetterStorageAsync(Envelope envelope, Exception? exception)
-    {
-        if (HasDisposed) return;
-
-        try
-        {
-            var builder = ToCommandBuilder();
-            builder.Append(_deleteIncomingEnvelopesSql);
-            var param = (NpgsqlParameter)builder.AddNamedParameter("ids", DBNull.Value);
-            param.Value = new[] { envelope.Id };
-            // ReSharper disable once BitwiseOperatorOnEnumWithoutFlags
-            param.NpgsqlDbType = NpgsqlDbType.Uuid | NpgsqlDbType.Array;
-
-            DatabasePersistence.ConfigureDeadLetterCommands(envelope, exception, builder, this);
-
-            var cmd = builder.Compile();
-            await using var conn = await DataSource.OpenConnectionAsync(_cancellation);
-            cmd.Connection = conn;
-            try
-            {
-                await cmd.ExecuteNonQueryAsync(_cancellation);
-            }
-            finally
-            {
-                await conn.CloseAsync();
-            }
-        }
-        catch (Exception e)
-        {
-            if (isExceptionFromDuplicateEnvelope(e)) return;
-            throw;
-        }
-    }
-
+    
     public override async Task MarkDeadLetterEnvelopesAsReplayableAsync(Guid[] ids, string? tenantId = null)
     {
         var builder = ToCommandBuilder();

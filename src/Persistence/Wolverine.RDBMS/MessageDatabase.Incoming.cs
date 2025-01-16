@@ -38,7 +38,29 @@ public abstract partial class MessageDatabase<T>
         return cmd.ExecuteNonQueryAsync(_cancellation);
     }
 
-    public abstract Task MoveToDeadLetterStorageAsync(Envelope envelope, Exception? exception);
+    public async Task MoveToDeadLetterStorageAsync(Envelope envelope, Exception? exception)
+    {
+        if (HasDisposed) return;
+
+        try
+        {
+            var builder = ToCommandBuilder();
+            builder.Append($"delete from {SchemaName}.{DatabaseConstants.IncomingTable} WHERE id = ");
+            builder.AppendParameter(envelope.Id);
+            builder.Append($" and {DatabaseConstants.ReceivedAt} = ");
+            builder.AppendParameter(envelope.Destination.ToString());
+            builder.Append(';');
+
+            DatabasePersistence.ConfigureDeadLetterCommands(envelope, exception, builder, this);
+
+            await executeCommandBatch(builder);
+        }
+        catch (Exception e)
+        {
+            if (isExceptionFromDuplicateEnvelope(e)) return;
+            throw;
+        }
+    }
 
     public Task MarkIncomingEnvelopeAsHandledAsync(Envelope envelope)
     {
