@@ -6,7 +6,7 @@ namespace Wolverine.Postgresql.Schema;
 
 internal class IncomingEnvelopeTable : Table
 {
-    public IncomingEnvelopeTable(string schemaName) : base(
+    public IncomingEnvelopeTable(DurabilitySettings durability, string schemaName) : base(
         new DbObjectName(schemaName, DatabaseConstants.IncomingTable))
     {
         AddColumn<Guid>(DatabaseConstants.Id).AsPrimaryKey();
@@ -17,7 +17,17 @@ internal class IncomingEnvelopeTable : Table
         AddColumn(DatabaseConstants.Body, "bytea").NotNull();
 
         AddColumn<string>(DatabaseConstants.MessageType).NotNull();
-        AddColumn<string>(DatabaseConstants.ReceivedAt);
+
+        if (durability.MessageIdentity == MessageIdentity.IdOnly)
+        {
+            AddColumn<string>(DatabaseConstants.ReceivedAt);
+        }
+        else
+        {
+            AddColumn<string>(DatabaseConstants.ReceivedAt).AsPrimaryKey();
+        }
+        
+        
         AddColumn<DateTimeOffset>(DatabaseConstants.KeepUntil);
     }
 }

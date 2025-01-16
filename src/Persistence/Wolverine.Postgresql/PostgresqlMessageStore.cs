@@ -368,8 +368,8 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>, IData
     public override IEnumerable<ISchemaObject> AllObjects()
     {
         yield return new OutgoingEnvelopeTable(SchemaName);
-        yield return new IncomingEnvelopeTable(SchemaName);
-        yield return new DeadLettersTable(SchemaName);
+        yield return new IncomingEnvelopeTable(Durability, SchemaName);
+        yield return new DeadLettersTable(Durability, SchemaName);
 
         foreach (var table in _externalTables)
         {

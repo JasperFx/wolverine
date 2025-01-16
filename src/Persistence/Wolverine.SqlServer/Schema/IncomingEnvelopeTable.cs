@@ -6,10 +6,10 @@ namespace Wolverine.SqlServer.Schema;
 
 internal class IncomingEnvelopeTable : Table
 {
-    public IncomingEnvelopeTable(string schemaName) : base(
+    public IncomingEnvelopeTable(DurabilitySettings durability, string schemaName) : base(
         new DbObjectName(schemaName, DatabaseConstants.IncomingTable))
     {
-        AddColumn<Guid>(DatabaseConstants.Id).AsPrimaryKey();
+        AddColumn<Guid>(DatabaseConstants.Id).NotNull().AsPrimaryKey();
         AddColumn("status", "varchar(25)").NotNull();
         AddColumn<int>(DatabaseConstants.OwnerId).NotNull();
         AddColumn<DateTimeOffset>(DatabaseConstants.ExecutionTime).DefaultValueByExpression("NULL");
@@ -17,7 +17,16 @@ internal class IncomingEnvelopeTable : Table
         AddColumn(DatabaseConstants.Body, "varbinary(max)").NotNull();
 
         AddColumn(DatabaseConstants.MessageType, "varchar(250)").NotNull();
-        AddColumn(DatabaseConstants.ReceivedAt, "varchar(250)");
+
+        if (durability.MessageIdentity == MessageIdentity.IdOnly)
+        {
+            AddColumn(DatabaseConstants.ReceivedAt, "varchar(250)").NotNull();
+        }
+        else
+        {
+            AddColumn(DatabaseConstants.ReceivedAt, "varchar(250)").AsPrimaryKey().NotNull();
+        }
+        
         AddColumn<DateTimeOffset>(DatabaseConstants.KeepUntil);
     }
 }
