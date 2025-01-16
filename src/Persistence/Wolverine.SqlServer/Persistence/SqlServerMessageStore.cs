@@ -333,8 +333,8 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>, IDatabaseSa
     public override IEnumerable<ISchemaObject> AllObjects()
     {
         yield return new OutgoingEnvelopeTable(SchemaName);
-        yield return new IncomingEnvelopeTable(SchemaName);
-        yield return new DeadLettersTable(SchemaName);
+        yield return new IncomingEnvelopeTable(Durability, SchemaName);
+        yield return new DeadLettersTable(Durability, SchemaName);
         yield return new EnvelopeIdTable(SchemaName);
         yield return new WolverineStoredProcedure("uspDeleteIncomingEnvelopes.sql", this);
         yield return new WolverineStoredProcedure("uspDeleteOutgoingEnvelopes.sql", this);
