@@ -172,7 +172,7 @@ public abstract class MessageStoreCompliance : IAsyncLifetime
         await thePersistence.Inbox.StoreIncomingAsync(envelope5);
         
         await thePersistence.Inbox.MarkIncomingEnvelopeAsHandledAsync([envelope1, envelope2, envelope3, envelope4]);
-
+        await Task.Delay(5000);
         var counts = await thePersistence.Admin.FetchCountsAsync();
 
         counts.Incoming.ShouldBe(1);

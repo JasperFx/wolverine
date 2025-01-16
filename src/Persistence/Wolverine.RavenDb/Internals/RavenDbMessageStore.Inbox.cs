@@ -141,13 +141,14 @@ public partial class RavenDbMessageStore : IMessageInbox
             }}";
 
 
+        var identities = envelopes.Select(x => _identity(x)).ToArray();
         var operation = new PatchByQueryOperation(new IndexQuery
         {
             Query = query,
             WaitForNonStaleResults = true,
             QueryParameters = new Parameters()
             {
-                {"ids", envelopes.Select(x => x.Id.ToString()).ToArray()},
+                {"ids", identities},
                 {"expire", expirationTime},
                 {"status", EnvelopeStatus.Handled}
             }

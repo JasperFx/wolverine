@@ -10,13 +10,13 @@ namespace Wolverine.RavenDb.Internals;
 public partial class RavenDbMessageStore : IMessageStore
 {
     private readonly IDocumentStore _store;
-    private readonly Func<Envelope, string> _identity = e => $"{e.Id}/{e.Destination}";
+    private readonly Func<Envelope, string> _identity = e => $"{e.Id}/{e.Destination.ToString().Replace(":/", "")}";
 
     public RavenDbMessageStore(IDocumentStore store, WolverineOptions options)
     {
         _identity = options.Durability.MessageIdentity == MessageIdentity.IdOnly
             ? e => e.Id.ToString()
-            : e => $"{e.Id}/{e.Destination}";
+            : e => $"{e.Id}/{e.Destination.ToString().Replace(":/", "").TrimEnd('/')}";
         
         _store = store;
 
