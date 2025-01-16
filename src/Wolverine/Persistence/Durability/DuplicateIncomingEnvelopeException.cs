@@ -2,8 +2,8 @@ namespace Wolverine.Persistence.Durability;
 
 public class DuplicateIncomingEnvelopeException : Exception
 {
-    public DuplicateIncomingEnvelopeException(Guid messageId) : base(
-        $"Duplicate incoming envelope with message id {messageId}")
+    public DuplicateIncomingEnvelopeException(Envelope envelope) : base(
+        $"Duplicate incoming envelope with message id {envelope.Id} at {envelope.Destination}")
     {
     }
 }

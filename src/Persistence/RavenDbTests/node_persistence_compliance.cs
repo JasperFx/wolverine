@@ -1,4 +1,5 @@
 using Raven.Embedded;
+using Wolverine;
 using Wolverine.ComplianceTests;
 using Wolverine.Persistence.Durability;
 using Wolverine.RavenDb.Internals;
@@ -18,6 +19,6 @@ public class node_persistence_compliance : NodePersistenceCompliance
     protected override async Task<IMessageStore> buildCleanMessageStore()
     {
         var store = _fixture.StartRavenStore();
-        return new RavenDbMessageStore(store);
+        return new RavenDbMessageStore(store, new WolverineOptions());
     }
 }
