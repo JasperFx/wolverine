@@ -2,6 +2,7 @@
 using Weasel.Core;
 using Wolverine.Persistence.Durability;
 using Wolverine.Transports;
+using DbCommandBuilder = Weasel.Core.DbCommandBuilder;
 
 namespace Wolverine.RDBMS;
 
@@ -11,7 +12,21 @@ public abstract partial class MessageDatabase<T>
     private readonly string _incrementIncomingEnvelopeAttempts;
 
     public abstract Task<IReadOnlyList<Envelope>> LoadPageOfGloballyOwnedIncomingAsync(Uri listenerAddress, int limit);
-    public abstract Task ReassignIncomingAsync(int ownerId, IReadOnlyList<Envelope> incoming);
+
+    public Task ReassignIncomingAsync(int ownerId, IReadOnlyList<Envelope> incoming)
+    {
+        var builder = ToCommandBuilder();
+        foreach (var envelope in incoming)
+        {
+            builder.Append($"update {SchemaName}.{DatabaseConstants.IncomingTable} set owner_id = ");
+            builder.AppendParameter(ownerId);
+            builder.Append($" and {DatabaseConstants.ReceivedAt} = ");
+            builder.AppendParameter(envelope.Destination.ToString());
+            builder.Append(";");
+        }
+
+        return executeCommandBatch(builder);
+    }
 
     public Task StoreIncomingAsync(DbTransaction tx, Envelope[] envelopes)
     {
@@ -55,6 +70,11 @@ public abstract partial class MessageDatabase<T>
             builder.Append(";");
         }
 
+        await executeCommandBatch(builder);
+    }
+
+    private async Task executeCommandBatch(DbCommandBuilder builder)
+    {
         var cmd = builder.Compile();
 
         await using var conn = await DataSource.OpenConnectionAsync(_cancellation);
