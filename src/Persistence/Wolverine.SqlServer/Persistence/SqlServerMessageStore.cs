@@ -223,17 +223,6 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>, IDatabaseSa
         return new DbCommandBuilder(new SqlCommand());
     }
 
-    public override Task ReassignIncomingAsync(int ownerId, IReadOnlyList<Envelope> incoming)
-    {
-        var cmd = CreateCommand($"{_settings.SchemaName}.uspMarkIncomingOwnership");
-        cmd.CommandType = CommandType.StoredProcedure;
-
-        return cmd
-            .WithIdList(this, incoming)
-            .With("owner", ownerId)
-            .ExecuteNonQueryAsync(_cancellation);
-    }
-
     public override void WriteLoadScheduledEnvelopeSql(DbCommandBuilder builder, DateTimeOffset utcNow)
     {
         builder.Append( $"select TOP {Durability.RecoveryBatchSize} {DatabaseConstants.IncomingFields} from {SchemaName}.{DatabaseConstants.IncomingTable} where status = '{EnvelopeStatus.Scheduled}' and execution_time <= ");

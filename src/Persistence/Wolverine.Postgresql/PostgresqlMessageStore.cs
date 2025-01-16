@@ -316,14 +316,6 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>, IData
         return new DbCommandBuilder(new NpgsqlCommand());
     }
 
-    public override async Task ReassignIncomingAsync(int ownerId, IReadOnlyList<Envelope> incoming)
-    {
-        await CreateCommand(_reassignIncomingSql)
-            .With("owner", ownerId)
-            .With("ids", incoming.Select(x => x.Id).ToArray())
-            .ExecuteNonQueryAsync(_cancellation);
-    }
-
     public override void WriteLoadScheduledEnvelopeSql(DbCommandBuilder builder, DateTimeOffset utcNow)
     {
         builder.Append(
