@@ -206,6 +206,62 @@ using var host = await Host.CreateDefaultBuilder()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/EnqueueSamples.cs#L21-L45' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_local_queues' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Using IConfigureLocalQueue to Configure Local Queues <Badge type="tip" text="3.7" />
+
+::: info
+This feature was added in reaction to the newer "sticky" handler to local queue usage, but it's perfectly usable for
+message types that are happily handled without any "sticky" handler configuration.
+:::
+
+The advent of ["sticky handlers"](/guide/handlers/sticky) or the [separated handler mode](/guide/handlers/#multiple-handlers-for-the-same-message-type) for better Wolverine usage in modular monoliths admittedly
+made it a little harder to fine tune the local queue behavior for different message types or message handlers without understanding
+the Wolverine naming conventions. To get back to leaning more on the type system, Wolverine introduced the static `IConfigureLocalQueue`
+interface that can be implemented on any handler type to configure the local queue where that handler would run:
+
+<!-- snippet: sample_IConfigureLocalQueue -->
+<a id='snippet-sample_iconfigurelocalqueue'></a>
+```cs
+/// <summary>
+/// Helps mark a handler to configure the local queue that its messages
+/// would be routed to. It's probably only useful to use this with "sticky" handlers
+/// that run on an isolated local queue
+/// </summary>
+public interface IConfigureLocalQueue
+{
+    static abstract void Configure(LocalQueueConfiguration configuration);
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Configuration/IConfigureLocalQueue.cs#L5-L17' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_iconfigurelocalqueue' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+::: tip
+Static interfaces can only be used on non-static types, so even if all your message handler *methods* are static, the 
+handler type itself cannot be static. Just a .NET quirk.
+:::
+
+To use this, just implement that interface on any message handler type:
+
+<!-- snippet: sample_using_IConfigureLocalQueue -->
+<a id='snippet-sample_using_iconfigurelocalqueue'></a>
+```cs
+public class MultipleMessage1Handler : IConfigureLocalQueue
+{
+    public static void Handle(MultipleMessage message)
+    {
+        
+    }
+
+    // This method is configuring the local queue that executes this
+    // handler to be strictly ordered
+    public static void Configure(LocalQueueConfiguration configuration)
+    {
+        configuration.Sequential();
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/configuring_local_queues.cs#L102-L119' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_iconfigurelocalqueue' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
 ## Durable Local Messages
 
 The local worker queues can optionally be designated as "durable," meaning that local messages would be persisted until they can be successfully processed to provide a guarantee that the message will be successfully processed in the case of the running application faulting or having been shut down prematurely (assuming that other nodes are running or it's restarted later of course).

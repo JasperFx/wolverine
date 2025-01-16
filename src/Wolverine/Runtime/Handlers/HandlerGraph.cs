@@ -17,6 +17,7 @@ using Wolverine.Runtime.RemoteInvocation;
 using Wolverine.Runtime.Scheduled;
 using Wolverine.Runtime.Serialization;
 using Wolverine.Transports;
+using Wolverine.Transports.Local;
 using Wolverine.Util;
 
 namespace Wolverine.Runtime.Handlers;
@@ -309,6 +310,17 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
         foreach (var configuration in _configurations) configuration();
 
         registerMessageTypes();
+
+        tryApplyLocalQueueConfiguration(options);
+    }
+
+    private void tryApplyLocalQueueConfiguration(WolverineOptions options)
+    {
+        var local = options.Transports.GetOrCreate<LocalTransport>();
+        foreach (var chain in Chains)
+        {
+            local.ApplyConfiguration(chain);
+        }
     }
 
     private void registerMessageTypes()

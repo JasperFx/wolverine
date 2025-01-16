@@ -2,6 +2,8 @@ using Wolverine.Transports.Local;
 
 namespace Wolverine.Configuration;
 
+#region sample_IConfigureLocalQueue
+
 /// <summary>
 /// Helps mark a handler to configure the local queue that its messages
 /// would be routed to. It's probably only useful to use this with "sticky" handlers
@@ -9,5 +11,7 @@ namespace Wolverine.Configuration;
 /// </summary>
 public interface IConfigureLocalQueue
 {
-    static abstract void  Configure(LocalQueueConfiguration configuration);
+    static abstract void Configure(LocalQueueConfiguration configuration);
 }
+
+#endregion
