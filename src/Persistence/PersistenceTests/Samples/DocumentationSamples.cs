@@ -1,5 +1,6 @@
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
+using Marten;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -7,6 +8,7 @@ using Microsoft.Extensions.Hosting;
 using Oakton;
 using Oakton.Resources;
 using Wolverine;
+using Wolverine.Marten;
 using Wolverine.Persistence.Durability;
 using Wolverine.Postgresql;
 using Wolverine.SqlServer;
@@ -222,6 +224,49 @@ public class DocumentationSamples
                 // because this does have to do a non-trivial query
                 opts.Durability.UpdateMetricsPeriod = 10.Seconds();
             }).StartAsync();
+
+        #endregion
+    }
+    
+    
+    public static async Task options_important_for_modular_monolith()
+    {
+        #region sample_important_settings_for_modular_monoliths
+
+        var builder = Host.CreateApplicationBuilder();
+
+        // It's not important that it's Marten here, just that if you have
+        // *any* message persistence configured for the transactional inbox/outbox
+        // support, it's impacted by the MessageIdentity setting
+        builder.Services.AddMarten(opts =>
+            {
+                var connectionString = builder.Configuration.GetConnectionString("marten");
+                opts.Connection(connectionString);
+            })
+            
+            // This line of code is adding a PostgreSQL backed transactional inbox/outbox 
+            // integration using the same database as what Marten is using
+            .IntegrateWithWolverine();
+        
+        builder.UseWolverine(opts =>
+        {
+            // Tell Wolverine that when you have more than one handler for the same
+            // message type, they should be executed separately and automatically
+            // "stuck" to separate local queues
+            opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
+
+
+            // *If* you may be using external message brokers in such a way that they
+            // are "fanning out" a single message sent from an upstream system into
+            // multiple listeners within the same Wolverine process, you'll want to make
+            // this setting to tell Wolverine to treat that as completely different messages
+            // instead of failing by idempotency checks
+            opts.Durability.MessageIdentity = MessageIdentity.IdAndDestination;
+            
+            // Not 100% necessary for "modular monoliths", but this makes the Wolverine durable
+            // inbox/outbox feature a lot easier to use and DRYs up your message handlers
+            opts.Policies.AutoApplyTransactions();
+        });
 
         #endregion
     }

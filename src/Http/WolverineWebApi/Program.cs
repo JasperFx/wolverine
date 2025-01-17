@@ -84,7 +84,10 @@ builder.Host.UseWolverine(opts =>
 
     opts.Durability.Mode = DurabilityMode.Solo;
 
+    // Other Wolverine configuration...
     opts.Policies.AutoApplyTransactions();
+    opts.Policies.UseDurableLocalQueues();
+    
     opts.Policies.OnExceptionOfType(typeof(AlwaysDeadLetterException)).MoveToErrorQueue();
 
     opts.UseFluentValidation();
