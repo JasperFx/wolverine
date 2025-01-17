@@ -25,13 +25,19 @@ public class SqlServerMessageStore_with_IdAndDestination_Identity : MessageStore
 {
     public override async Task<IHost> BuildCleanHost()
     {
+        #region sample_configuring_message_identity_to_use_id_and_destination
+
         var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
                 opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString, "receiver2");
+                
+                // This setting changes the internal message storage identity
                 opts.Durability.MessageIdentity = MessageIdentity.IdAndDestination;
             })
             .StartAsync();
+
+        #endregion
 
         var persistence = (IMessageDatabase)host.Services.GetRequiredService<IMessageStore>();
         await persistence.Admin.ClearAllAsync();

@@ -6,6 +6,8 @@ using Wolverine.RabbitMQ;
 return await Host.CreateDefaultBuilder(args)
     .UseWolverine(opts =>
     {
+        opts.ApplicationAssembly = typeof(Program).Assembly;
+        
         // Going to listen to a queue named "pings", but disregard any messages older than
         // 15 seconds
         opts.ListenToRabbitQueue("pings", queue => queue.TimeToLive(15.Seconds()));

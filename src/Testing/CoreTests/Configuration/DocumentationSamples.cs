@@ -26,4 +26,5 @@ public static class DocumentationSamples
         // Little ugly, and Lamar *should* have a helper for this...
         builder.ConfigureContainer<ServiceRegistry>(new LamarServiceProviderFactory());
     }
+
 }

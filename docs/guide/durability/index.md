@@ -123,7 +123,7 @@ using var host = await Host.CreateDefaultBuilder()
             .UseDurableOutbox();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L66-L78' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_make_specific_subscribers_be_durable' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L68-L80' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_make_specific_subscribers_be_durable' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Or globally through a built in policy:
@@ -139,7 +139,7 @@ using var host = await Host.CreateDefaultBuilder()
         opts.Policies.UseDurableOutboxOnAllSendingEndpoints();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L51-L61' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_make_all_subscribers_be_durable' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L53-L63' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_make_all_subscribers_be_durable' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Using the Inbox for Incoming Messages
@@ -168,7 +168,7 @@ using var host = await Host.CreateDefaultBuilder()
         opts.Policies.UseDurableInboxOnAllListeners();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L83-L99' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_durable_inbox' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L85-L101' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_durable_inbox' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Local Queues
@@ -202,5 +202,42 @@ using var host = await Host.CreateDefaultBuilder()
         });
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L104-L126' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_durable_local_queues' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L106-L128' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_durable_local_queues' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+
+## Message Identity <Badge type="tip" text="3.7" />
+
+Wolverine was originally conceived for a world in which micro-services were all the rage for software architectures. 
+The world changed on us though, as folks are now interested in pursuing [Modular Monolith architectures](/tutorials/modular-monolith) where
+you may be trying to effectively jam what used to be separate micro-services into a single process. 
+
+In the "classic" Wolverine configuration, incoming messages to the Wolverine transactional inboxes use the message id
+of the incoming `Envelope` objects as the primary key in message stores. Which breaks down if you have something like this:
+
+![Receiving Same Message 2 or More Times](/receive-message-twice.png)
+
+In the diagram above, I'm trying to show what might happen (and it has happened) when the same Wolverine message is sent
+through an external broker and delivered more than once to the same downstream Wolverine application. In the "classic"
+mode, Wolverine will treat all but the first message as duplicate messages and reject them -- even though you mean
+these messages to be handled separately by different message handlers in your modular monolith.
+
+Not to worry, you can now opt into this setting to identify an incoming message by the combination of message id *and*
+destination:
+
+<!-- snippet: sample_configuring_message_identity_to_use_id_and_destination -->
+<a id='snippet-sample_configuring_message_identity_to_use_id_and_destination'></a>
+```cs
+var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString, "receiver2");
+        
+        // This setting changes the internal message storage identity
+        opts.Durability.MessageIdentity = MessageIdentity.IdAndDestination;
+    })
+    .StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqlServerTests/Persistence/SqlServerMessageStore_with_IdAndDestination_Identity.cs#L28-L40' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_message_identity_to_use_id_and_destination' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+This might be an important setting for [modular monolith architectures](/tutorials/modular-monolith). 
