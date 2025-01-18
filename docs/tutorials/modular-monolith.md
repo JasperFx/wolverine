@@ -2,19 +2,26 @@
 
 ::: info
 Wolverine's mantra is "low code ceremony," and the modular monolith approach comes with a mountain of temptation
-for a certain kind of software architect to inject a world of potentially harmful high ceremony coding techniques.
+for a certain kind of software architect to try out a world of potentially harmful high ceremony coding techniques.
 The Wolverine team urges you to proceed with caution and allow simplicity to trump architectural theories about coupling between
 application modules.
 :::
 
-Most of use are unhappy with the longer term effects of building the giant monolithic systems of yore. We got systems with slow
-build times that made our IDE tools sluggish and were frequently hard to maintain over time. Formal prescriptive architectural
-approaches like the Clean/Onion/Hexagonal Architecture mostly just worry about layering by technical concerns and don't really
-do anything effective to make a large application maintainable over time. 
+Software development is still a young profession, and we are still figuring out the best ways to build systems, and that means
+the pendulum swings a bit back and forth on what the software community thinks is the best way to build large systems. We saw
+some poor results from the old monolithic applications of your as we got codebases with slow
+build times that made our IDE tools sluggish and were generally just hard to maintain over time. 
 
 Enter micro-services as an attempt to build software in smaller chunks where you might be able to be mostly working on smaller
 codebases with quicker builds, faster tests, and a much easier time upgrading technical infrastructure compared to monolithic applications. 
-Of course there were some massive downsides with the whole distributed development thing, and our industry became disillusioned.
+Of course there were some massive downsides with the whole distributed development thing, and our industry has become disillusioned.
+
+::: tip
+We still think that Wolverine (and Marten) with its relentless focus on low ceremony code and strong support for asynchronous
+messaging makes the "Critter Stack" a great fit for micro-services -- and in some sense, a "modular monolith" can also be
+the first stage of a system architecture that ends up being micro-services after the best service boundaries are proven
+out *before* you try to pull modules into a separate service. 
+:::
 
 While micro-services as a concept might be parked in the [trough of despair](https://tidyfirst.substack.com/p/the-trough-of-despair),
 the new thinking is to use a so called "Modular Monolith" approach is attractive to a lot of folks as a way to have the best of 
@@ -34,12 +41,11 @@ Borrowing heavily from [Milan Jovanović's writing on Modular Monoliths](https:/
 * The ability to adjust transaction boundaries to use native database transactions as it's valuable instead of only having eventual consistency
 
 
-
 ## Important Wolverine Settings 
 
-Wolverine was admittedly conceived of and optimized for a world where Micro-Service architectures was the hot topic, and 
+Wolverine was admittedly conceived of and optimized for a world where micro-service architecture was the hot topic, and 
 we've had to scramble a little bit as a community to make Wolverine be more suitable for how users want to use Wolverine
-for modular monoliths. To avoid making breaking changes, we've put some Modular Monolith-friendly features behind configuration
+for modular monoliths. To avoid making breaking changes, we've put some modular monolith-friendly features behind configuration
 settings so as not to break existing users.
 
 Specifically, Wolverine "classic" has two conceptual problems for modular monoliths with its original model:
@@ -124,24 +130,94 @@ projects just to enforce coupling rules.
 To be honest, the Wolverine team would recommend just keeping your modules segregated in separate namespaces until the initial
 system gets subjectively big enough that you'd want them separated. 
 
-Do note that Wolverine identifies message types by default by the message type's full Type name. You can always override
+Do note that Wolverine identifies message types by default by the message type's full type name ([.NET namespace].[type name]). You can always override
 that explicitly through the [`[MessageIdentity]`](/guide/messages.html#message-type-name-or-alias) attribute, but you might
 try to *not* have to move message types around in the namespace structure. The only real impact is on messages that are in flight
-in either external message queues or message persistence. 
+in either external message queues or message persistence, so it does no harm to change namespaces if you are only in development and have not
+yet deployed to production. 
 
 For handler or HTTP endpoint discovery, you can tell Wolverine to look in additional assemblies. See [Assembly Discovery](/guide/messages.html#message-type-name-or-alias)
-for more information. 
+for more information. As for [pre-generated code](/guide/codegen) with Wolverine, the least friction and idiomatic approach is to just have
+all Wolverine-generated code placed in the entry assembly. That can be overridden if you have to by setting the "Application Assembly" as shown
+in the [Assembly Discovery](/guide/handlers/discovery.html#assembly-discovery) section in the documentation.
 
 ## In Process vs External Messaging
 
 ::: tip
 Just to be clear, we pretty well never recommend calling `IMessageBus.InvokeAsync()` inline in any message handler to another message handler. For the most part,
 we think you can build much more robust and resilient systems by leveraging asynchronous messaging. Using [Wolverine as a "Mediator"](/tutorials/mediator) in MVC controllers, Minimal API functions,
-or maybe Hot Chocolate mutations is an exception case that we fully support. 
+or maybe Hot Chocolate mutations is an exception case that we fully support. We think this advice applies to any mediator tool and the pattern
+in general as well. 
 :::
 
+By and large, the Wolverine community will recommend you do most communication between modules through some sort of asynchronous
+messaging, either locally in process or through external message brokers. Asynchronous messaging will help you keep your modules
+decoupled, and often leads to much more resilient systems as your modules aren't "temporally" coupled and you utilize
+[retry or other error handling policies](/guide/handlers/error-handling) independently on downstream queues.
+
 You can communicate  do any mix of in process messaging and messaging through external messaging brokers like Rabbit MQ or Azure Service Bus.
-Let's say you do have MORE HERE
+Let's start with just using local, in process queueing with Wolverine between your modules as shown below:
+
+![Communicating through local queues](/modular-monolith-local-queues.png)
+
+Now, let's say that you want to publish an `OrderPlaced` event message from the successful processing of a `PlaceOrder`
+command in a message handler something like this:
+
+```csharp
+public static OrderPlaced Handle(PlaceOrder command)
+{
+    // actually do stuff to place a new order...
+    
+    // Returning this from the method will "cascade" this
+    // object as a message. Essentially just publishing
+    // this as a message to any active subscribers in the
+    // Wolverine system
+    return new OrderPlaced(command.OrderId);
+}
+```
+
+and assuming that there's *at least one* known message handler in your application for the `OrderPlaced` event:
+
+```csharp
+public static class OrderPlacedHandler
+{
+    public static void Handle(OrderPlaced @event) 
+        => Debug.WriteLine("got a new order " + @event.OrderId);
+}
+```
+
+then Wolverine -- by default -- will happily publish `OrderPlaced` through [a local queue](/guide/messaging/transports/local) named after the full type name
+of the `OrderPlaced` event. You can even make these local queues durable by having them effectively backed by your application's
+Wolverine message storage (the transactional inbox to be precise), with a couple different approaches to do this shown below:
+
+snippet: sample_durable_local_queues
+
+Using local queues for communication is a simple way to get started, requires less deployment overhead in general, and is potentially
+faster than using external message brokers due to the in process communication.
+
+::: info
+If you are using durable local queues, Wolverine is still serializing the message to put it in the durable transactional inbox storage,
+but the actual message object is used as is when it's passed into the local queue.
+:::
+
+Alternatively, you could instead choose to do all intra-module communication through external message brokers as shown below:
+
+![Communicating through external brokers](/modular-monolith-communication-external-broker.png)
+
+Picking Azure Service Bus for our sample, you could use conventional message routing to publish all messages through your system
+through Azure Service Bus queues like this:
+
+snippet: sample_using_conventional_broker_routing_with_local_routing_turned_off
+
+By using external queues instead of local queues, you are:
+
+* Potentially getting smoother load balanced workloads between running nodes of a clustered application
+* Reducing memory pressure in your applications, especially if there's any risk of a queue getting backed up and growing large in memory
+
+And of course, Wolverine has a wealth of ways to customize message routing for sequencing, grouping, and parallelization. As well
+as allowing you to mix and match local and external broker messaging or durable and non-durable messaging all within the same application.
+
+See the recently updated documentation on [Message Routing in Wolverine](/guide/messaging/subscriptions) to learn more. 
 
 ## Eventual Consistency between Modules
 
