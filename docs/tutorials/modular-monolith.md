@@ -226,14 +226,37 @@ going to be technically simpler to just make all the related changes in a single
 be easier to test and troubleshoot problems if you don't use eventual consistency. Not to mention the challenges with 
 user interfaces getting the right updates and possibly dealing with stale data.
 
-All that being said, there are absolutely good use cases for eventual consistency and Wolverine makes that quite simple.
-
+All that being said, there are absolutely good use cases for eventual consistency and Wolverine makes that quite simple. Just make
+sure that you are using [durable endpoints](/guide/durability) for communication between any two or more actions that are involved for the implied
+eventual consistency transactional boundary. 
 
 ## With EF Core
 
+::: tip
+There is no way to utilize more than one `DbContext` type in a single handler while using the Wolverine transactional middleware.
+You can certainly do that, just with explicit code. 
+:::
+
+For EF Core usage, we would recommend using separate `DbContext` types for different modules that all target a separate
+database schema, but still land in the same physical database. This may change soon, but for right now, Wolverine only
+supports transactional inbox/outbox usage with a single database with EF Core.
+
+To maintain "severability" of modules to separate services later, you probably want to avoid making foreign key relationships
+in your database between tables owned by different modules. And of course, by and large only use one `DbContext` type
+in the code for a single module. Or maybe more accurately, only one module should use one `DbContext`.
+
 ## With Marten
 
-[Marten](https://martendb.io) plays pretty well with modular monoliths. For the most part, you can happily 
+[Marten](https://martendb.io) plays pretty well with modular monoliths. For the most part, you can happily just stick all your documents
+in the same database schema and use the same `IDocumentStore` if you want while still being able to migrate some of those documents 
+later if you choose to sever some modules over into a separate service. With the event sourcing though, all the events for 
+different aggregate types or stream types all go into the same events table. While it's not impossible to separate the events
+through database scripts if you want to move a module into a separate service later, it's probably going to be easier
+if you use [Marten's separate document store](/configuration/hostbuilder.html#working-with-multiple-marten-databases) feature. 
+
+Wolverine has [direct support for Marten's separate or "ancillary" stores](/guide/durability/marten/ancillary-stores) that still enables the usage of all Wolverine + Marten
+integrations. There is currently a limitation that there is only one physical database that shares the Wolverine message storage for
+the transactional inbox/outbox across all modules.
 
 ## Observability
 
