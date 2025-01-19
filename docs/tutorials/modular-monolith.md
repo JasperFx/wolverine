@@ -4,7 +4,7 @@
 Wolverine's mantra is "low code ceremony," and the modular monolith approach comes with a mountain of temptation
 for a certain kind of software architect to try out a world of potentially harmful high ceremony coding techniques.
 The Wolverine team urges you to proceed with caution and allow simplicity to trump architectural theories about coupling between
-application modules.
+application modules. 
 :::
 
 Software development is still a young profession, and we are still figuring out the best ways to build systems, and that means
@@ -23,14 +23,16 @@ the first stage of a system architecture that ends up being micro-services after
 out *before* you try to pull modules into a separate service. 
 :::
 
-While micro-services as a concept might be parked in the [trough of despair](https://tidyfirst.substack.com/p/the-trough-of-despair),
-the new thinking is to use a so called "Modular Monolith" approach is attractive to a lot of folks as a way to have the best of 
-both worlds. Start inside a single process, but try to create more vertical decoupling between logical modules in the system
+While micro-services as a concept might be parked in the [trough of despair](https://tidyfirst.substack.com/p/the-trough-of-despair) for awhile,
+the new thinking is to use a so called "Modular Monolith" approach that splits the difference between monoliths and micro-services.  
+The general idea is to start inside of a single process, but try to create more vertical decoupling between logical modules in the system
 as an alternative to both monoliths and micro-services. 
 
 ![Modular Monolith](/modular-monolith.png)
 
-Borrowing heavily from [Milan Jovanović's writing on Modular Monoliths](https://www.milanjovanovic.tech/blog/what-is-a-modular-monolith), the potential benefits are:
+The hope is that you can more easily reason about the code in a single
+module at a time compared to a monolith, but without having to tackle the extra deployment and management of micro-services
+upfront. Borrowing heavily from [Milan Jovanović's writing on Modular Monoliths](https://www.milanjovanovic.tech/blog/what-is-a-modular-monolith), the potential benefits are:
 
 * Easier deployments than micro-services from simply having less to deploy
 * Improved performance assuming that integration between modules is done in process
@@ -40,12 +42,14 @@ Borrowing heavily from [Milan Jovanović's writing on Modular Monoliths](https:/
   happen with a modular monolith, but hopefully it's a lot easier to correct the boundaries later. We'll talk a lot more about this in the "Severability" section.
 * The ability to adjust transaction boundaries to use native database transactions as it's valuable instead of only having eventual consistency
 
+Another explicitly stated hope for modular monoliths is that you're able to better iterate between modules to find the most
+effective boundaries between logical modules *before* severing modules into separate services later when that is beneficial.
 
 ## Important Wolverine Settings 
 
 Wolverine was admittedly conceived of and optimized for a world where micro-service architecture was the hot topic, and 
-we've had to scramble a little bit as a community to make Wolverine be more suitable for how users want to use Wolverine
-for modular monoliths. To avoid making breaking changes, we've put some modular monolith-friendly features behind configuration
+we've had to scramble a little bit as a community lately to make Wolverine be more suitable for how users now want to use Wolverine
+for modular monoliths. To avoid making breaking changes, we've had to put some modular monolith-friendly features behind configuration
 settings so as not to break existing users.
 
 Specifically, Wolverine "classic" has two conceptual problems for modular monoliths with its original model:
@@ -190,7 +194,31 @@ then Wolverine -- by default -- will happily publish `OrderPlaced` through [a lo
 of the `OrderPlaced` event. You can even make these local queues durable by having them effectively backed by your application's
 Wolverine message storage (the transactional inbox to be precise), with a couple different approaches to do this shown below:
 
-snippet: sample_durable_local_queues
+<!-- snippet: sample_durable_local_queues -->
+<a id='snippet-sample_durable_local_queues'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.Policies.UseDurableLocalQueues();
+
+        // or
+
+        opts.LocalQueue("important").UseDurableInbox();
+
+        // or conventionally, make the local queues for messages in a certain namespace
+        // be durable
+        opts.Policies.ConfigureConventionalLocalRouting().CustomizeQueues((type, queue) =>
+        {
+            if (type.IsInNamespace("MyApp.Commands.Durable"))
+            {
+                queue.UseDurableInbox();
+            }
+        });
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L106-L128' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_durable_local_queues' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 Using local queues for communication is a simple way to get started, requires less deployment overhead in general, and is potentially
 faster than using external message brokers due to the in process communication.
@@ -207,7 +235,33 @@ Alternatively, you could instead choose to do all intra-module communication thr
 Picking Azure Service Bus for our sample, you could use conventional message routing to publish all messages through your system
 through Azure Service Bus queues like this:
 
-snippet: sample_using_conventional_broker_routing_with_local_routing_turned_off
+<!-- snippet: sample_using_conventional_broker_routing_with_local_routing_turned_off -->
+<a id='snippet-sample_using_conventional_broker_routing_with_local_routing_turned_off'></a>
+```cs
+var builder = Host.CreateApplicationBuilder();
+builder.UseWolverine(opts =>
+{
+    // Turn *off* the conventional local routing so that
+    // the messages that this application handles still go
+    // through the external Azure Service Bus broker
+    opts.Policies.DisableConventionalLocalRouting();
+    
+    // One way or another, you're probably pulling the Azure Service Bus
+    // connection string out of configuration
+    var azureServiceBusConnectionString = builder
+        .Configuration
+        .GetConnectionString("azure-service-bus");
+
+    // Connect to the broker in the simplest possible way
+    opts.UseAzureServiceBus(azureServiceBusConnectionString).AutoProvision()
+        .UseConventionalRouting();
+});
+
+using var host = builder.Build();
+await host.StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L370-L394' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_conventional_broker_routing_with_local_routing_turned_off' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 By using external queues instead of local queues, you are:
 
@@ -226,9 +280,118 @@ going to be technically simpler to just make all the related changes in a single
 be easier to test and troubleshoot problems if you don't use eventual consistency. Not to mention the challenges with 
 user interfaces getting the right updates and possibly dealing with stale data.
 
-All that being said, there are absolutely good use cases for eventual consistency and Wolverine makes that quite simple. Just make
+**To be clear though, we strongly recommend using asynchronous communication between modules** and recommend against 
+using `IMessageBus.InvokeAsync()` inline in most cases to synchronously interact with any other module from a message handler. We think
+your most common decision is:
+
+* Would it be easier in the end to combine functionality into one larger module to utilize transactional integrity and avoid the need for eventual
+consistency through asynchronous messaging
+* Or is there a real justification for publishing event messages to other modules to take action later?
+
+Assuming that you do opt for eventual consistency, Wolverine makes that quite simple. Just make
 sure that you are using [durable endpoints](/guide/durability) for communication between any two or more actions that are involved for the implied
-eventual consistency transactional boundary. 
+eventual consistency transactional boundary so that the work does not get lost even in the face of transient errors or unexpected
+system shutdowns.
+
+::: tip
+Look, MediatR is an almost dominant tool in the .NET ecosystem right now, but it doesn't come with any kind of built
+in transactional inbox/outbox support that you need to make asynchronous message passing be resilient. See [MediatR to Wolverine](/tutorials/from-mediatr)
+for information about switching to Wolverine from MediatR.
+:::
+
+## Test Automation Support
+
+::: info
+As a community, we'll most assuredly need to add more convenient API signatures to the tracked sessions specifically
+to deal with the new usages coming out of modular monolith strategies, but we're first waiting for feedback from real projects on what
+would be helpful before doing that.  
+:::
+
+Wolverine's [Tracked Sessions](/guide/testing.html#integration-testing-with-tracked-sessions) feature is purpose built
+for test automation support when you want to write tests that might span the activity of more than one message being handled.
+Consider the case of testing the handling of a `PlaceOrder` command that in turn publishes an `OrderPlaced` event message
+that is handled by one or more other handlers within your modular monolith system. If you want to write a **reliable**
+test that spans the activities of all of these messages, you can utilize Wolverine's "tracked sessions" like this:
+
+<!-- snippet: sample_using_tracked_sessions_end_to_end -->
+<a id='snippet-sample_using_tracked_sessions_end_to_end'></a>
+```cs
+// Personally, I prefer to reuse the IHost between tests and
+// do something to clear off any dirty state, but other folks
+// will spin up an IHost per test to maybe get better test parallelization
+public static async Task run_end_to_end(IHost host)
+{
+    var placeOrder = new PlaceOrder("111", "222", 1000);
+    
+    // This would be the "act" part of your arrange/act/assert
+    // test structure
+    var tracked = await host.InvokeMessageAndWaitAsync(placeOrder);
+    
+    // proceed to test the outcome of handling the original command *and*
+    // any subsequent domain events that are published from the original
+    // command handler
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/DocumentationSamples.cs#L34-L52' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_tracked_sessions_end_to_end' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+In the code sample above, the `InvokeAndMessageAndWaitAsync()` method puts the Wolverine runtime into a "tracked" mode
+where it's able to "know" when all in flight work is complete and allow your integration testing to be reliable by
+waiting until all cascaded messages are also complete (and yes, it works recursively). One of the challenges of testing
+asynchronous code is not doing the *assert* phase of the test until the *act* part is really complete, and "tracked sessions"
+are Wolverine's answer to that problem.
+
+Just to note that there are more options you'll maybe need to use with modular monoliths, this version of 
+tracking activity also includes any outstanding work from messages that are sent to external brokers:
+
+<!-- snippet: sample_using_external_brokers_with_tracked_sessions -->
+<a id='snippet-sample_using_external_brokers_with_tracked_sessions'></a>
+```cs
+public static async Task run_end_to_end_with_external_transports(IHost host)
+{
+    var placeOrder = new PlaceOrder("111", "222", 1000);
+    
+    // This would be the "act" part of your arrange/act/assert
+    // test structure
+    var tracked = await host
+        .TrackActivity()
+        
+        // Direct Wolverine to also track activity coming and going from
+        // external brokers
+        .IncludeExternalTransports()
+        
+        // You'll sadly need to do this sometimes
+        .Timeout(30.Seconds())
+        
+        // You *might* have to do this as well to make
+        // your tests more reliable in the face of async messaging
+        .WaitForMessageToBeReceivedAt<OrderPlaced>(host)
+        
+        .InvokeMessageAndWaitAsync(placeOrder);
+    
+    // proceed to test the outcome of handling the original command *and*
+    // any subsequent domain events that are published from the original
+    // command handler
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/DocumentationSamples.cs#L66-L95' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_external_brokers_with_tracked_sessions' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+And to test the invocation of an event message to a specific handler, we can still do that by sending the message to a specific local queue:
+
+<!-- snippet: sample_test_specific_queue_end_to_end -->
+<a id='snippet-sample_test_specific_queue_end_to_end'></a>
+```cs
+public static async Task test_specific_handler(IHost host)
+{
+    // We're not thrilled with this usage and it's possible there's
+    // syntactic sugar additions to the API soon
+    await host.ExecuteAndWaitAsync(
+        c => c.EndpointFor("local queue name").SendAsync(new OrderPlaced("111")).AsTask());
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/DocumentationSamples.cs#L54-L64' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_test_specific_queue_end_to_end' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 ## With EF Core
 
@@ -267,3 +430,5 @@ Wolverine emits Otel activity spans for all message processing as well as just a
 Wolverine application.
 
 See [the Wolverine Otel support](/guide/logging.html#open-telemetry) for more information.
+
+
