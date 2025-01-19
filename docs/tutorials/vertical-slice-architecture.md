@@ -1,5 +1,11 @@
 # Vertical Slice Architecture
 
+::: info
+This guide is written from the standpoint of a [CQRS Architecture](https://learn.microsoft.com/en-us/azure/architecture/patterns/cqrs).
+While we think a vertical slice architecture (VSA) could be valuable otherwise, vertical slices and
+CQRS are a very natural pairing. 
+:::
+
 Wolverine is well suited for a "Vertical Slice Architecture" approach where, to over simplify things a bit, you
 generally try to organize code by feature or use case rather than by horizontal technical layering. Most of the content
 about "Vertical Slice Architecture" practices in the .NET ecosystem involve the MediatR framework. It's important
@@ -9,6 +15,83 @@ we feel that you'll achieve better results, more testable code, and far simpler 
 ::: tip
 See [Wolverine for MediatR User](/tutorials/from-mediatr) for more information about moving from MediatR to Wolverine. 
 :::
+
+## Wolverine's Philosophy toward Vertical Slice Architecture
+
+Alright, before we potentially make you angry by trashing the current Clean/Onion Architecture approach that's rampant
+in the .NET ecosystem, let's talk about what the Wolverine community thinks is important for achieving good results
+in a long lived, complex software system.
+
+**Effective test coverage is paramount for sustainable development.** More than layering schemes or the right abstractions
+or code structure, we believe that effective automated test coverage does much more to enable sustainable development of a
+system over time. And by "effective" test coverage, we mean an automated test suite that's subjectively fast, reliable, and has
+enough coverage that you feel like it's not risky to change the system code. Designing for testability is a huge
+topic in its own right, but let's just say for now that step one is having your business or workflow logic largely
+decoupled from infrastructure concerns. It's also very helpful to purposely choose technologies that are better behaved
+in integration testing and have a solid local Docker story.
+
+**The code is easy to reason about.** It's relatively easy to identify the system inputs and follow the processing to understand the relationship
+between system inputs and the effects of those inputs including changes to the database, calls to other systems, or messages
+raised by those inputs. We've seen too many enterprise systems that suffer from bugs partially because it's just too hard to
+understand where to make logical changes or to understand what unintended consequences might pop up. We've also seen applications
+with very poor performance due to how the application interacted with its underlying database(s), and inevitably that problem
+is partially caused by excessive layering making it hard to understand how the system is really using the database.
+
+**Ease of iteration.** Some technologies and development techniques allow for much easier iteration and adaptation than other
+tools that might be much more effective as a "write once" approach. For example, using a document database approach leads
+to easier evolutionary changes of persisted types than an ORM would. And an ORM would lead to easier evolution than writing
+SQL by hand.
+
+*Modularity between features.* Technologies change over time, and there's always going to be a reason to want to upgrade
+your current dependencies or even replace dependencies. Our experience in large enterprise systems is that the only things
+that really make it easier to upgrade technologies are effective test coverage to reduce risk and the ability to upgrade
+part of the system at a time instead of having to upgrade an entire technical layer of an entire system. This might very well
+push you toward a micro-service or [modular monolith approach](/tutorials/modular-monolith), but we think that the vertical slice architecture approach is
+helpful in all cases as well.
+
+So now let's talk about how the recommended Wolverine approach will very much differ from a layered Clean/Onion Architecture
+approach or really any modern [Ports and Adapters](https://8thlight.com/insights/a-color-coded-guide-to-ports-and-adapters) approach that emphasizes abstractions and layers for loose coupling.
+
+We're big, big fans of the [A Frame Architecture](https://www.jamesshore.com/v2/projects/nullables/testing-without-mocks#a-frame-arch) idea for code organization to promote testability without just throwing
+in oodles of abstractions and mock objects everywhere (like what happens in many Clean Architecture codebases). Wolverine's
+["compound handler" feature](/guide/handlers/#compound-handlers), its [transactional middleware](/guide/durability/marten/transactional-middleware), and its [cascading message feature](/guide/handlers/cascading) are all examples of built in
+support for "A-Frame" structures.
+
+![A Frame Architecture](/a-frame.png)
+
+With the "A-Frame Architecture" approach, you're trying to isolate behavioral logic from infrastructure by more or
+less dividing the world up into three kinds of responsibilities in code:
+
+1. Actual business logic that makes decisions and decides how to change the state of the application or what next steps to take
+2. Infrastructure services. For example, persistence tools like EF Core's `DbContext` or service gateways to outside web services
+3. Coordination or controller logic sitting on top that's delegating to both the infrastructure and business logic code, but keeping those two areas of the code separate
+
+For more background on the thinking behind the "A Frame Architecture" (which like "Vertical Slice Architecture", is more about code organization than architecture),
+we'll recommend:
+
+* Jeremy's post from 2023 about the [A-Frame Architecture with Wolverine](https://jeremydmiller.com/2023/07/19/a-frame-architecture-with-wolverine/)
+* [Object Role Stereotypes](https://learn.microsoft.com/en-us/archive/msdn-magazine/2008/august/patterns-in-practice-object-role-stereotypes) by Jeremy from
+  the old MSDN Magazine. That article focuses on Object Oriented Programming, but the basic concept applies equally to the
+  functional decomposition that Wolverine + the "A-Frame" leans toward.
+* [A Brief Tour of Responsibility-Driven Design](https://www.wirfs-brock.com/PDFs/A_Brief-Tour-of-RDD.pdf)
+  by Rebecca Wirfs-Brock -- and again, it's focused on OOP, but we think the concepts apply equally to just using functions or methods too
+
+For the most part, Wolverine should enable you to make most handler or HTTP methods be pure functions.
+
+We're more or less going to recommend against wrapping your persistence tooling like Marten or EF Core with any kind of
+repository abstractions and mostly just utilize their APIs directly in your handlers or HTTP endpoint methods. We believe the
+"A-Frame Architecture" approach mitigates any *important* coupling between business or workflow logic and infrastructure.
+
+The ["specification" pattern](https://jeremydmiller.com/2024/12/03/specification-usage-with-marten-for-repository-free-development/) or really even just reusable helper methods from outside of a vertical slice can be used
+to avoid duplication of complex query logic, but for the most part, we find it helpful to see queries that are directly
+related to a vertical slice in the same code file. Which if you're reading this guide, you hopefully see how to do so
+without actually making business logic coupled to infrastructure even if data access and business logic appears in the
+same code file or even the same handler type.
+
+Do utilize Wolverine's
+[side effect](/guide/handlers/side-effects) model and cascading message support to be able to get to pure functions in your handlers.
+
+## Enough navel gazing, show me code already!
 
 Let's just jump into a couple simple examples. First, let's say you're building a message handler that processes a `ProcessOrder`
 command. With this example, I'm going to use [Marten](/guide/durability/marten) for object persistence, but it's just not that different with Wolverine's 
@@ -309,63 +392,6 @@ there's a couple other benefits that are worth calling out:
   middleware like the `Validate` method up above. This will lead to spending less time decorating your code with OpenAPI metadata
   attributes or Minimal API fluent interface calls
 
-## Wolverine's Philosophy toward Vertical Slice Architecture
-
-Alright, before we potentially make you angry by trashing the current Clean/Onion Architecture approach that's rampant
-in the .NET ecosystem, let's talk about what the Wolverine community thinks is important for achieving good results
-in a long lived, complex software system.
-
-**Effective test coverage is paramount for sustainable development.** More than layering schemes or the right abstractions
-or code structure, we believe that effective automated test coverage does much more to enable sustainable development of a 
-system over time. And by "effective" test coverage, we mean an automated test suite that's subjectively fast, reliable, and has
-enough coverage that you feel like it's not risky to change the system code. Designing for testability is a huge
-topic in its own right, but let's just say for now that step one is having your business or workflow logic largely
-decoupled from infrastructure concerns. It's also very helpful to purposely choose technologies that are better behaved
-in integration testing and have a solid local Docker story. 
-
-**The code is easy to reason about.** It's relatively easy to identify the system inputs and follow the processing to understand the relationship
-between system inputs and the effects of those inputs including changes to the database, calls to other systems, or messages
-raised by those inputs. We've seen too many enterprise systems that suffer from bugs partially because it's just too hard to 
-understand where to make logical changes or to understand what unintended consequences might pop up. We've also seen applications
-with very poor performance due to how the application interacted with its underlying database(s), and inevitably that problem
-is partially caused by excessive layering making it hard to understand how the system is really using the database.
-
-**Ease of iteration.** Some technologies and development techniques allow for much easier iteration and adaptation than other 
-tools that might be much more effective as a "write once" approach. For example, using a document database approach leads
-to easier evolutionary changes of persisted types than an ORM would. And an ORM would lead to easier evolution than writing
-SQL by hand. 
-
-*Modularity between features.* Technologies change over time, and there's always going to be a reason to want to upgrade
-your current dependencies or even replace dependencies. Our experience in large enterprise systems is that the only things
-that really make it easier to upgrade technologies are effective test coverage to reduce risk and the ability to upgrade
-part of the system at a time instead of having to upgrade an entire technical layer of an entire system. This might very well
-push you toward a micro-service or [modular monolith approach](/tutorials/modular-monolith), but we think that the vertical slice architecture approach is
-helpful in all cases as well.
-
-So now let's talk about how the recommended Wolverine approach will very much differ from a layered Clean/Onion Architecture
-approach or really any modern [Ports and Adapters](https://8thlight.com/insights/a-color-coded-guide-to-ports-and-adapters) approach that emphasizes abstractions and layers for loose coupling.
-
-We're big, big fans of the [A Frame Architecture](https://www.jamesshore.com/v2/projects/nullables/testing-without-mocks#a-frame-arch) idea for code organization to promote testability without just throwing
-in oodles of abstractions and mock objects everywhere (like what happens in many Clean Architecture codebases). Wolverine's
-"compound handler" feature, its transactional middleware, and its cascading message feature are all examples of built in 
-support for "A-Frame" structures.
-
-For the most part, Wolverine should enable you to make most handler or HTTP methods be pure functions.
-
-::: tip
-The ["specification" pattern](https://jeremydmiller.com/2024/12/03/specification-usage-with-marten-for-repository-free-development/) or really even just reusable helper methods from outside of a vertical slice can be used
-to avoid duplication of complex query logic, but for the most part, we find it helpful to see queries that are directly
-related to a vertical slice in the same code file. Which if you're reading this guide, you hopefully see how to do so
-without actually making business logic coupled to infrastructure even if data access and business logic appears in the
-same code file or even the same handler type.
-:::
-
-We're more or less going to recommend against wrapping your persistence tooling like Marten or EF Core with any kind of 
-repository abstractions and mostly just utilize their APIs directly in your handlers or HTTP endpoint methods. We believe the
-A-Frame approach mitigates any *important* coupling between business or workflow logic and infrastructure. Do utilize Wolverine's
-[side effect](/guide/handlers/side-effects) model and cascading message support to be able to get to pure functions in your handlers. 
-
-Also see Jeremy's post from 2023 about the [A-Frame Architecture with Wolverine](https://jeremydmiller.com/2023/07/19/a-frame-architecture-with-wolverine/).
 
 ## Recommended Layout
 
@@ -416,4 +442,3 @@ team recommends putting any data access code that is **only germane to one verti
 code as a default approach. To be blunt, we are recommending that you largely forgo wrapping any kind of repository abstractions
 around your persistence tooling, but instead, purposely seek to shrink down the call stack depth (how deep do you go in a handler calling
 service A that calls service B that might call repository C that uses persistence tool D to...).
-
