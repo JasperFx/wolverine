@@ -442,3 +442,13 @@ team recommends putting any data access code that is **only germane to one verti
 code as a default approach. To be blunt, we are recommending that you largely forgo wrapping any kind of repository abstractions
 around your persistence tooling, but instead, purposely seek to shrink down the call stack depth (how deep do you go in a handler calling
 service A that calls service B that might call repository C that uses persistence tool D to...).
+
+## What about the query side?
+
+We admittedly don't have nearly as much to say about using Wolverine on the query side, but here are our rough recommendations:
+
+1. If you are able and willing to use Wolverine.HTTP, do not use Wolverine as a "mediator" underneath `GET` query handlers. We realize
+   that is a very common approach for teams that use ASP.Net MVC Core or Minimal API with MediatR, but we believe that is just
+   unnecessary complexity and that will cause you to write more code to satisfy OpenAPI needs
+2. We would probably just use the application's raw persistence tooling directly in `GET` endpoint methods and depend on 
+   integration testing for the query handlers -- maybe through [Alba specifications](https://jasperfx.github.io/alba).
