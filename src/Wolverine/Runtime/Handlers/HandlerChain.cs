@@ -103,12 +103,13 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         {
             foreach (var handlerCall in grouping)
             {
+                // ReSharper disable once VirtualMemberCallInConstructor
                 tryAssignStickyEndpoints(handlerCall, options);
             }
         }
     }
-
-    private void tryAssignStickyEndpoints(HandlerCall handlerCall, WolverineOptions options)
+    
+    protected virtual void tryAssignStickyEndpoints(HandlerCall handlerCall, WolverineOptions options)
     {
         var endpoints = findStickyEndpoints(handlerCall, options).Distinct().ToArray();
         if (endpoints.Any())
