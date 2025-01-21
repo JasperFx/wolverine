@@ -68,7 +68,9 @@ const config: UserConfig<DefaultTheme.Config> = {
                         {text: 'Wolverine and Serverless', link: '/tutorials/serverless'},
                         {text: 'Wolverine for MediatR Users', link: '/tutorials/from-mediatr'},
                         {text: 'Vertical Slice Architecture', link: '/tutorials/vertical-slice-architecture'},
-                        {text: 'Modular Monoliths', link: '/tutorials/modular-monolith'}
+                        {text: 'Modular Monoliths', link: '/tutorials/modular-monolith'},
+                        {text: 'Event Sourcing and CQRS with Marten', link: '/tutorials/cqrs-with-marten'},
+                        {text: 'Railway Programming with Wolverine', link: '/tutorials/railway-programming'}
                     ]
                 },
                 {

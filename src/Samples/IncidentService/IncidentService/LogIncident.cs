@@ -4,6 +4,8 @@ using Wolverine.Marten;
 
 namespace IncidentService;
 
+#region sample_LogIncident
+
 public record LogIncident(
     Guid CustomerId,
     Contact Contact,
@@ -26,3 +28,5 @@ public static class LogIncidentEndpoint
         return (response, start);
     }
 }
+
+#endregion

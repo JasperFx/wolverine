@@ -5,8 +5,9 @@ using Wolverine.Http.Marten;
 
 namespace IncidentService;
 
+#region sample_CategoriseIncident
+
 public record CategoriseIncident(
-    Guid IncidentId,
     IncidentCategory Category,
     Guid CategorisedBy,
     int Version
@@ -14,6 +15,10 @@ public record CategoriseIncident(
 
 public static class CategoriseIncidentEndpoint
 {
+    // This is Wolverine's form of "Railway Programming"
+    // Wolverine will execute this before the main endpoint,
+    // and stop all processing if the ProblemDetails is *not*
+    // "NoProblems"
     public static ProblemDetails Validate(Incident incident)
     {
         return incident.Status == IncidentStatus.Closed 
@@ -23,11 +28,22 @@ public static class CategoriseIncidentEndpoint
             : WolverineContinue.NoProblems;
     }
     
+    // This tells Wolverine that the first "return value" is NOT the response
+    // body
+    [EmptyResponse]
     [WolverinePost("/api/incidents/{incidentId:guid}/category")]
     public static IncidentCategorised Post(
+        // the actual command
         CategoriseIncident command, 
-        [Aggregate("incidentId")] Incident incident, DateTimeOffset now)
+        
+        // Wolverine is generating code to look up the Incident aggregate
+        // data for the event stream with this id
+        [Aggregate("incidentId")] Incident incident)
     {
-        return new IncidentCategorised(command.IncidentId, command.Category, command.CategorisedBy);
+        // This is a simple case where we're just appending a single event to
+        // the stream.
+        return new IncidentCategorised(incident.Id, command.Category, command.CategorisedBy);
     }
 }
+
+#endregion
