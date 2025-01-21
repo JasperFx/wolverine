@@ -337,7 +337,7 @@ As a little tip, I've added this bit of marker code to the very bottom of our `P
 // application in a test harness project. Only a convenience
 public partial class Program{}
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/IncidentService/IncidentService/Program.cs#L64-L70' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_program_marker' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/IncidentService/IncidentService/Program.cs#L68-L74' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_program_marker' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Having that above, I'll switch to the test harness project and create a shared fixture to bootstrap

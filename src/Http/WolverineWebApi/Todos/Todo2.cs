@@ -186,6 +186,8 @@ public static class MarkTaskCompleteIfBrokenHandler
 
 public record ExamineFirst(string Todo2Id);
 
+#region sample_using_continue_result_as_filter
+
 public static class ExamineFirstHandler
 {
     public static bool DidContinue { get; set; }
@@ -198,4 +200,6 @@ public static class ExamineFirstHandler
     [WolverinePost("/api/todo/examinefirst")]
     public static void Handle(ExamineFirst command) => DidContinue = true;
 }
+
+#endregion
 
