@@ -26,6 +26,9 @@ public class SqlTransportDurableFixture : TransportComplianceFixture, IAsyncLife
             opts.Policies.UseDurableOutboxOnAllSendingEndpoints();
 
             opts.Durability.Mode = DurabilityMode.Solo;
+
+            opts.Durability.ScheduledJobPollingTime = 250.Milliseconds();
+            opts.Durability.ScheduledJobFirstExecution = 0.Seconds();
         });
 
         await ReceiverIs(opts =>
@@ -34,6 +37,9 @@ public class SqlTransportDurableFixture : TransportComplianceFixture, IAsyncLife
 
             opts.ListenToSqlServerQueue("receiver").UseDurableInbox();
             opts.Durability.Mode = DurabilityMode.Solo;
+            
+            opts.Durability.ScheduledJobPollingTime = 250.Milliseconds();
+            opts.Durability.ScheduledJobFirstExecution = 0.Seconds();
         });
     }
 
@@ -65,6 +71,9 @@ public class SqlTransportBufferedFixture : TransportComplianceFixture, IAsyncLif
             #endregion
 
             opts.Durability.Mode = DurabilityMode.Solo;
+            
+            opts.Durability.ScheduledJobPollingTime = 250.Milliseconds();
+            opts.Durability.ScheduledJobFirstExecution = 0.Seconds();
 
         });
 
@@ -76,6 +85,9 @@ public class SqlTransportBufferedFixture : TransportComplianceFixture, IAsyncLif
             opts.ListenToSqlServerQueue("receiver").BufferedInMemory();
 
             opts.Durability.Mode = DurabilityMode.Solo;
+            
+            opts.Durability.ScheduledJobPollingTime = 250.Milliseconds();
+            opts.Durability.ScheduledJobFirstExecution = 0.Seconds();
         });
     }
 

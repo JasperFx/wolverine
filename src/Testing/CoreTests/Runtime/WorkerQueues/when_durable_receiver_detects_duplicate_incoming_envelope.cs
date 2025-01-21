@@ -27,7 +27,7 @@ public class when_durable_receiver_detects_duplicate_incoming_envelope : IAsyncL
         theReceiver = new DurableReceiver(stubEndpoint, theRuntime, thePipeline);
 
         theRuntime.Storage.Inbox.StoreIncomingAsync(theEnvelope)
-            .Throws(new DuplicateIncomingEnvelopeException(theEnvelope.Id));
+            .Throws(new DuplicateIncomingEnvelopeException(theEnvelope));
     }
 
     public async Task InitializeAsync()

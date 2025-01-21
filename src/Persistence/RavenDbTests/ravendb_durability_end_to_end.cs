@@ -49,7 +49,7 @@ public class ravendb_durability_end_to_end : RavenTestDriver, IAsyncLifetime
                     opts.Policies.AutoApplyTransactions();
 
                     opts.CodeGeneration.InsertFirstPersistenceStrategy<RavenDbPersistenceFrameProvider>();
-                    opts.Services.AddSingleton<IMessageStore>(new RavenDbMessageStore(_receiverStore));
+                    opts.Services.AddSingleton<IMessageStore>(s => new RavenDbMessageStore(_receiverStore, s.GetRequiredService<WolverineOptions>()));
 
                     // Leave it as a lambda so it doesn't get disposed
                     opts.Services.AddSingleton<IDocumentStore>(s => _receiverStore);
@@ -77,7 +77,7 @@ public class ravendb_durability_end_to_end : RavenTestDriver, IAsyncLifetime
                     opts.UseTcpForControlEndpoint();
                     
                     opts.CodeGeneration.InsertFirstPersistenceStrategy<RavenDbPersistenceFrameProvider>();
-                    opts.Services.AddSingleton<IMessageStore>(new RavenDbMessageStore(_senderStore));
+                    opts.Services.AddSingleton<IMessageStore>(s => new RavenDbMessageStore(_senderStore, s.GetRequiredService<WolverineOptions>()));
                     
                     // Leave it as a lambda so it doesn't get disposed
                     opts.Services.AddSingleton<IDocumentStore>(s => _senderStore);

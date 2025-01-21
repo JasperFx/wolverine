@@ -44,7 +44,7 @@ namespace Internal.Generated.WolverineHandlers
 
             
             // The actual HTTP request handler execution
-            var result_of_Post = WolverineWebApi.Validation.ValidatedEndpoint.Post(customer);
+            var result_of_Post = WolverineWebApi.Validation.CreateCustomerEndpoint.Post(customer);
 
             await WriteString(httpContext, result_of_Post);
         }

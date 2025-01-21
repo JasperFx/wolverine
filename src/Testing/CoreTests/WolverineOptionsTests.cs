@@ -24,6 +24,12 @@ public class WolverineOptionsTests
     {
         new WolverineOptions().MultipleHandlerBehavior.ShouldBe(MultipleHandlerBehavior.ClassicCombineIntoOneLogicalHandler);
     }
+
+    [Fact]
+    public void default_id_behavior_is_id_only()
+    {
+        new WolverineOptions().Durability.MessageIdentity.ShouldBe(MessageIdentity.IdOnly);
+    }
     
     [Fact]
     public void unique_node_id_is_really_unique()

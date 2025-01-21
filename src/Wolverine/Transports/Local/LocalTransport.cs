@@ -4,6 +4,7 @@ using Wolverine.Attributes;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
+using Wolverine.Runtime.Handlers;
 using Wolverine.Runtime.Routing;
 using Wolverine.Util;
 
@@ -234,4 +235,53 @@ internal class LocalTransport : TransportBase<LocalQueue>, ILocalMessageRoutingC
 
         return configuration;
     }
+
+    internal void ApplyConfiguration(HandlerChain chain)
+    {
+        // Gotta go recursive
+        foreach (var handlerChain in chain.ByEndpoint)
+        {
+            ApplyConfiguration(handlerChain);
+        }
+        
+        var configured = chain.Handlers.Select(x => x.HandlerType)
+            .Where(x => x.CanBeCastTo(typeof(IConfigureLocalQueue))).ToArray();
+
+        if (!configured.Any()) return;
+
+        // Is it sticky?
+        if (chain.Endpoints.OfType<LocalQueue>().Any())
+        {
+            foreach (var handlerType in configured)
+            {
+                var applier = typeof(Applier<>).CloseAndBuildAs<IApplier>(handlerType);
+                foreach (var localQueue in chain.Endpoints.OfType<LocalQueue>())
+                {
+                    applier.Apply(new LocalQueueConfiguration(localQueue));
+                }
+            }
+        }
+        else
+        {
+            var configuration = ConfigureQueueFor(chain.MessageType);
+            foreach (var handlerType in configured)
+            {
+                typeof(Applier<>).CloseAndBuildAs<IApplier>(handlerType).Apply(configuration);
+            }
+        }
+    }
+
+    private interface IApplier
+    {
+        void Apply(LocalQueueConfiguration configuration);
+    }
+
+    private class Applier<T> : IApplier where T : IConfigureLocalQueue
+    {
+        public void Apply(LocalQueueConfiguration configuration)
+        {
+            T.Configure(configuration);
+        }
+    }
+        
 }

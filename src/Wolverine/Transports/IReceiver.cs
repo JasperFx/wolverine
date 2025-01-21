@@ -48,8 +48,8 @@ internal class ReceiverWithRules : IReceiver
         return Inner.ReceivedAsync(listener, envelope);
     }
 
-    public async ValueTask DrainAsync()
+    public ValueTask DrainAsync()
     {
-        throw new NotImplementedException();
+        return Inner.DrainAsync();
     }
 }

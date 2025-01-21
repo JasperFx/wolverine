@@ -4,20 +4,7 @@ using Wolverine.Http;
 
 namespace WolverineWebApi.Validation;
 
-public class ValidatedEndpoint
-{
-    [WolverinePost("/validate/customer")]
-    public static string Post(CreateCustomer customer)
-    {
-        return "Got a new customer";
-    }
-
-    [WolverinePost("/validate/user")]
-    public static string Post(CreateUser user)
-    {
-        return "Got a new user";
-    }
-}
+#region sample_CreateCustomer_endpoint_with_validation
 
 public record CreateCustomer
 (
@@ -34,6 +21,26 @@ public record CreateCustomer
             RuleFor(x => x.LastName).NotNull();
             RuleFor(x => x.PostalCode).NotNull();
         }
+    }
+}
+
+public static class CreateCustomerEndpoint
+{
+    [WolverinePost("/validate/customer")]
+    public static string Post(CreateCustomer customer)
+    {
+        return "Got a new customer";
+    }
+}
+
+#endregion
+
+public static class OtherValidatedEndpoint
+{
+    [WolverinePost("/validate/user")]
+    public static string Post(CreateUser user)
+    {
+        return "Got a new user";
     }
 }
 

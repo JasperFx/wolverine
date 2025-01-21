@@ -365,6 +365,35 @@ public class DocumentationSamples
         #endregion
     }
 
+    public async Task conventional_routing_no_local_routing()
+    {
+        #region sample_using_conventional_broker_routing_with_local_routing_turned_off
+
+        var builder = Host.CreateApplicationBuilder();
+        builder.UseWolverine(opts =>
+        {
+            // Turn *off* the conventional local routing so that
+            // the messages that this application handles still go
+            // through the external Azure Service Bus broker
+            opts.Policies.DisableConventionalLocalRouting();
+            
+            // One way or another, you're probably pulling the Azure Service Bus
+            // connection string out of configuration
+            var azureServiceBusConnectionString = builder
+                .Configuration
+                .GetConnectionString("azure-service-bus");
+
+            // Connect to the broker in the simplest possible way
+            opts.UseAzureServiceBus(azureServiceBusConnectionString).AutoProvision()
+                .UseConventionalRouting();
+        });
+
+        using var host = builder.Build();
+        await host.StartAsync();
+
+        #endregion
+    }
+
     public async Task conventional_routing()
     {
         #region sample_conventional_routing_for_azure_service_bus

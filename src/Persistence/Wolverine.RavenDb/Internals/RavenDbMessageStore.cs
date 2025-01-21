@@ -10,15 +10,21 @@ namespace Wolverine.RavenDb.Internals;
 public partial class RavenDbMessageStore : IMessageStore
 {
     private readonly IDocumentStore _store;
-    
+    private readonly Func<Envelope, string> _identity = e => $"{e.Id}/{e.Destination.ToString().Replace(":/", "")}";
 
-    public RavenDbMessageStore(IDocumentStore store)
+    public RavenDbMessageStore(IDocumentStore store, WolverineOptions options)
     {
+        _identity = options.Durability.MessageIdentity == MessageIdentity.IdOnly
+            ? e => e.Id.ToString()
+            : e => $"{e.Id}/{e.Destination.ToString().Replace(":/", "").TrimEnd('/')}";
+        
         _store = store;
 
         _leaderLockId = "wolverine/leader";
         _scheduledLockId = "wolverine/scheduled";
     }
+
+    public string IdentityFor(Envelope envelope) => _identity(envelope);
 
     public ValueTask DisposeAsync()
     {
@@ -82,7 +88,7 @@ public partial class RavenDbMessageStore : IMessageStore
         using var session = _store.OpenAsyncSession();
         foreach (var envelope in incoming)
         {
-            session.Advanced.Patch<IncomingMessage, int>(envelope.Id.ToString(), x => x.OwnerId, ownerId);
+            session.Advanced.Patch<IncomingMessage, int>(_identity(envelope), x => x.OwnerId, ownerId);
         }
 
         await session.SaveChangesAsync();
