@@ -3,7 +3,9 @@
 ::: info
 Sadly enough, what's now Wolverine was mostly an abandoned project during the COVID years. It was
 rescued and rebooted specifically to form a full blown CQRS with Event Sourcing stack in combination
-with Marten using what we now call the "aggregate handler workflow."
+with Marten using what we now call the "aggregate handler workflow." At this point, the "Critter Stack" team
+firmly believes that this is the very most robust and productive tooling for CQRS with Event Sourcing in the 
+entire .NET ecosystem.
 :::
 
 ::: tip
@@ -768,3 +770,10 @@ pull it into Wolverine core.
 Wolverine has the ability to distribute the asynchronous projections and subscriptions to Marten events evenly across
 an application cluster for better scalability. See [Projection/Subscription Distribution](/guide/durability/marten/distribution) for more information.
 
+## Observability
+
+Both Marten and Wolverine have strong support for [OpenTelemetry](https://opentelemetry.io/) (Otel) tracing as well as emitting performance 
+metrics that can be used in conjunction with tools like Prometheus or Grafana to monitor and troubleshoot systems in 
+production. 
+
+See [Wolverine's Otel and Metrics](/guide/logging.html#open-telemetry) support and [Marten's Otel and Metrics](https://martendb.io/otel.html#open-telemetry-and-metrics) support for more information.
