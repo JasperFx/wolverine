@@ -11,12 +11,11 @@ public record CloseIncident(
     int Version
 );
 
-public static class CloseIncidentHandler
+public static class CloseIncidentEndpoint
 {
     [WolverinePost("/api/incidents/close/{id}")]
     public static (UpdatedAggregate, Events, OutgoingMessages) Handle(
         CloseIncident command, 
-        
         [Aggregate]
         Incident incident)
     {
@@ -49,3 +48,4 @@ public static class CloseIncidentHandler
             [new ArchiveIncident(incident.Id).DelayedFor(3.Days())]);
     }
 }
+

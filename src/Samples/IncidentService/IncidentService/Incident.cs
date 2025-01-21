@@ -2,6 +2,8 @@ using Marten.Events;
 
 namespace IncidentService;
 
+#region sample_incident_events
+
 public record IncidentLogged(
     Guid CustomerId,
     Contact Contact,
@@ -21,6 +23,12 @@ public record IncidentPrioritised(
     Guid PrioritisedBy,
     DateTimeOffset PrioritisedAt
 );
+
+public record IncidentClosed(
+    Guid ClosedBy
+);
+
+#endregion
 
 public record AgentAssignedToIncident(
     Guid IncidentId,
@@ -53,9 +61,7 @@ public record ResolutionAcknowledgedByCustomer(
     DateTimeOffset AcknowledgedAt
 );
 
-public record IncidentClosed(
-    Guid ClosedBy
-);
+
 
 public enum IncidentStatus
 {
@@ -65,30 +71,40 @@ public enum IncidentStatus
     Closed = 32
 }
 
-public record Incident(
-    Guid Id,
-    IncidentStatus Status,
-    bool HasOutstandingResponseToCustomer = false
-)
+#region sample_Incident_aggregate
+
+public class Incident
 {
-    public static Incident Create(IEvent<IncidentLogged> logged) =>
-        new(logged.StreamId, IncidentStatus.Pending);
+    public Guid Id { get; set; }
+    
+    // THIS IS IMPORTANT! Marten will set this itself, and you
+    // can use this to communicate the current version to clients
+    // as a way to opt into optimistic concurrency checks to prevent
+    // problems from concurrent access
+    public int Version { get; set; }
+    public IncidentStatus Status { get; set; } = IncidentStatus.Pending;
+    public IncidentCategory? Category { get; set; }
+    public bool HasOutstandingResponseToCustomer { get; set; } = false;
 
-    public Incident Apply(AgentRespondedToIncident agentResponded) =>
-        this with { HasOutstandingResponseToCustomer = false };
+    // Make serialization easy
+    public Incident()
+    {
+    }
 
-    public Incident Apply(CustomerRespondedToIncident customerResponded) =>
-        this with { HasOutstandingResponseToCustomer = true };
+    public void Apply(AgentRespondedToIncident _) => HasOutstandingResponseToCustomer = false;
 
-    public Incident Apply(IncidentResolved resolved) =>
-        this with { Status = IncidentStatus.Resolved };
+    public void Apply(CustomerRespondedToIncident _) => HasOutstandingResponseToCustomer = true;
 
-    public Incident Apply(ResolutionAcknowledgedByCustomer acknowledged) =>
-        this with { Status = IncidentStatus.ResolutionAcknowledgedByCustomer };
+    public void Apply(IncidentResolved _) => Status = IncidentStatus.Resolved;
 
-    public Incident Apply(IncidentClosed closed) =>
-        this with { Status = IncidentStatus.Closed };
+    public void Apply(ResolutionAcknowledgedByCustomer _) => Status = IncidentStatus.ResolutionAcknowledgedByCustomer;
+
+    public void Apply(IncidentClosed _) => Status = IncidentStatus.Closed;
+
+    public bool ShouldDelete(Archived @event) => true;
 }
+
+#endregion
 
 public enum IncidentCategory
 {
