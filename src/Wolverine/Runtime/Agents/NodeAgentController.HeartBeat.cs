@@ -33,8 +33,8 @@ public partial class NodeAgentController
         
         using var activity = WolverineTracing.ActivitySource.StartActivity("wolverine_node_assignments");
 
-        // write health check regardless
-        await _persistence.MarkHealthCheckAsync(_runtime.Options.UniqueNodeId);
+        // write health check regardless, and due to GH-1232, pass in the whole node so you can do an upsert
+        await _persistence.MarkHealthCheckAsync(WolverineNode.For(_runtime.Options), _cancellation.Token);
 
         var nodes = await _persistence.LoadAllNodesAsync(_cancellation.Token);
 

@@ -36,7 +36,8 @@ public class WolverineNode
         return new WolverineNode
         {
             NodeId = options.UniqueNodeId,
-            ControlUri = options.Transports.NodeControlEndpoint?.Uri
+            ControlUri = options.Transports.NodeControlEndpoint?.Uri,
+            LastHealthCheck = DateTimeOffset.UtcNow
         };
     }
 

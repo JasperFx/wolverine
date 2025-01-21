@@ -20,6 +20,8 @@ public abstract partial class MessageDatabase<T>
         {
             builder.Append($"update {SchemaName}.{DatabaseConstants.IncomingTable} set owner_id = ");
             builder.AppendParameter(ownerId);
+            builder.Append($" where {DatabaseConstants.Id} = ");
+            builder.AppendParameter(envelope.Id);
             builder.Append($" and {DatabaseConstants.ReceivedAt} = ");
             builder.AppendParameter(envelope.Destination.ToString());
             builder.Append(";");

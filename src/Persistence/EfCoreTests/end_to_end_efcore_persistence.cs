@@ -419,7 +419,8 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
             Status = EnvelopeStatus.Scheduled,
             Attempts = 2,
             MessageType = "foo",
-            ContentType = EnvelopeConstants.JsonContentType
+            ContentType = EnvelopeConstants.JsonContentType,
+            Destination = TransportConstants.DurableLocalUri
         };
 
         var container = Host.Services.GetRequiredService<IServiceContainer>();
@@ -465,7 +466,8 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
             Status = EnvelopeStatus.Scheduled,
             Attempts = 2,
             MessageType = "foo",
-            ContentType = EnvelopeConstants.JsonContentType
+            ContentType = EnvelopeConstants.JsonContentType,
+            Destination = TransportConstants.DurableLocalUri
         };
 
         var container = Host.Services.GetRequiredService<IServiceContainer>();

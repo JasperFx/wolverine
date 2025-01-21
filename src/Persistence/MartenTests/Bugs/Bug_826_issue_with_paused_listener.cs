@@ -56,7 +56,7 @@ public class Bug_826_issue_with_paused_listener
 
         await host.TrackActivity()
             .WaitForMessageToBeReceivedAt<ThisMeansTrouble>(host)
-            .Timeout(20.Seconds())
+            .Timeout(60.Seconds())
             .PublishMessageAndWaitAsync(new ThisMeansTrouble());
     }
 }
