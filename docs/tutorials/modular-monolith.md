@@ -421,6 +421,12 @@ Wolverine has [direct support for Marten's separate or "ancillary" stores](/guid
 integrations. There is currently a limitation that there is only one physical database that shares the Wolverine message storage for
 the transactional inbox/outbox across all modules.
 
+Also note that the Wolverine + Marten "Critter Stack" combination is a great fit for "Event Driven Architecture" approaches
+where you depend on reliably publishing event messages to interested listeners in your application -- which is essentially 
+how a lot of folks want to build their modular monoliths. 
+
+See the introduction to [event subscriptions from Marten](/tutorials/cqrs-with-marten.html#publishing-or-handling-events). 
+
 ## Observability
 
 If you're going to opt into using asynchronous message passing within your application between modules or even just really
