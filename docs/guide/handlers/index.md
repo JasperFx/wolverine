@@ -165,6 +165,10 @@ would use those values.
 Pay attention to this section if you are trying to utilize a "Modular Monolith" architecture.
 :::
 
+::: warning
+The `Separated` setting is ignored by `Saga` handlers
+:::
+
 Let's say that you want to take more than one action on a message type published in or to your
 application. In this case you'll probably have more than one handler method for the exact same
 message type. **The original concept for Wolverine was to effectively combine these individual handlers
