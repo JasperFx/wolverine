@@ -4,6 +4,9 @@
 This guide is written from the standpoint of a [CQRS Architecture](https://learn.microsoft.com/en-us/azure/architecture/patterns/cqrs).
 While we think a vertical slice architecture (VSA) could be valuable otherwise, vertical slices and
 CQRS are a very natural pairing. 
+
+And also, we think the full "Critter Stack" of Wolverine + [Marten](https://martendb.io) is a killer combination
+for a very robust and productive development experience using [CQRS with Event Sourcing](./cqrs-with-marten).
 :::
 
 Wolverine is well suited for a "Vertical Slice Architecture" approach where, to over simplify things a bit, you

@@ -6,6 +6,11 @@ rescued and rebooted specifically to form a full blown CQRS with Event Sourcing 
 with Marten using what we now call the "aggregate handler workflow."
 :::
 
+::: tip
+This guide assumes some familiarity with Event Sourcing nomenclature, but if you're relative new to that style
+of development, see [Understanding Event Sourcing with Marten](https://martendb.io/events/learning.html) from the Marten documentation.
+:::
+
 Let's get the entire "Critter Stack" (Wolverine + [Marten](https://martendb.io)) assembled and build a system using CQRS with Event Sourcing!
 
 We'll be using the [IncidentService](https://github.com/jasperfx/wolverine/tree/main/src/Samples/IncidentService) example service to show an example of using Wolverine with Marten in a headless
@@ -728,7 +733,38 @@ public static class GetIncidentEndpoint
 The `Events.FetchLatest()` API in Marten will also wallpaper over the actual projection lifecycle
 of the `Incident` projection, but does it in a lighter weight "read only" way compared to `FetchForWriting()`.
 
+## Publishing or Handling Events
 
+With an [Event Driven Architecture](https://learn.microsoft.com/en-us/azure/architecture/guide/architecture-styles/event-driven) approach, 
+you may want to do work against the events that are persisted to Marten. You can always explicitly publish messages through Wolverine
+at the same time you are appending events, but what if it's just easier to use the events themselves as messages to other message handlers
+or even to other services?
 
+The Wolverine + Marten combination comes with two main ways to do exactly that:
 
+[Event Forwarding](/guide/durability/marten/event-forwarding) is a lightweight way to immediately publish events that are appended to
+Marten within a Wolverine message handler through Wolverine's messaging infrastructure. Events can be handled either in process through
+local queues or published to external message brokers depending on the [message routing subscriptions](/guide/messaging/subscriptions) for that event type. Just
+note that event forwarding comes with **no ordering guarantees**.
+
+[Event Subscriptions](/guide/durability/marten/subscriptions) utilizes a **strictly ordered mechanism** to read in and process event data from the Marten event store.
+Wolverine supports three modes of event subscriptions from Marten:
+
+1. Executing each event with a known Wolverine message handler (either the event type itself or wrapped in the Marten `IEvent<T>` envelope)
+   in strict order. This is essentially just calling [`IMessageBus.InvokeAsync()`](/guide/messaging/message-bus.html#invoking-message-execution) event by event in strict order from the Marten event store. 
+2. Publishing the events as messages through Wolverine. Essentially calling [`IMessageBus.PublishAsync()`](/guide/messaging/message-bus.html#sending-or-publishing-messages) on each event in strict order.
+3. User defined operations on a batch of events at a time, again in strict order that the events are appended to the Marten event store.
+
+In all cases, the Event Subscriptions are running in a background process managed either by Marten itself with its [Async Daemon](/events/projections/async-daemon)
+or the [Projection/Subscription Distribution](/guide/durability/marten/distribution) feature in Wolverine. 
+
+## Scaling Marten Projections
+
+::: info
+The feature in this section was originally intended to be a commercial add on, but we decided to 
+pull it into Wolverine core.
+:::
+
+Wolverine has the ability to distribute the asynchronous projections and subscriptions to Marten events evenly across
+an application cluster for better scalability. See [Projection/Subscription Distribution](/guide/durability/marten/distribution) for more information.
 
