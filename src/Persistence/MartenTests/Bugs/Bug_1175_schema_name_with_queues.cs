@@ -52,10 +52,13 @@ public class Bug_1175_schema_name_with_queues
                 opts.ListenToPostgresqlQueue("request").MaximumParallelMessages(14, ProcessingOrder.UnOrdered);
                 opts.PublishMessage<ColorResponse>().ToPostgresqlQueue("response");
 
-                opts.Services.AddMarten(opt =>
+                opts.Durability.ScheduledJobPollingTime = 250.Milliseconds();
+
+                opts.Services.AddMarten(m =>
                     {
-                        opt.Connection(Servers.PostgresConnectionString);
-                        opt.Events.TenancyStyle = TenancyStyle.Conjoined;
+                        m.Connection(Servers.PostgresConnectionString);
+                        m.Events.TenancyStyle = TenancyStyle.Conjoined;
+                        m.DisableNpgsqlLogging = true;
                     })
                     .UseLightweightSessions()
                     .IntegrateWithWolverine(options =>

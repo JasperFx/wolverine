@@ -47,6 +47,15 @@ internal class SqlServerNodePersistence : DatabaseConstants, INodeAgentPersisten
         await using var conn = new SqlConnection(_settings.ConnectionString);
         await conn.OpenAsync(cancellationToken);
 
+        var raw = await persistNode(conn, node, cancellationToken);
+
+        await conn.CloseAsync();
+
+        return (int)raw;
+    }
+
+    private async Task<object> persistNode(SqlConnection conn, WolverineNode node, CancellationToken cancellationToken)
+    {
         var strings = node.Capabilities.Select(x => x.ToString()).Join(",");
 
         var cmd = conn.CreateCommand($"insert into {_nodeTable} (id, uri, capabilities, description) OUTPUT Inserted.node_number values (@id, @uri, @capabilities, @description) ")
@@ -55,10 +64,7 @@ internal class SqlServerNodePersistence : DatabaseConstants, INodeAgentPersisten
             .With("capabilities", strings);
 
         var raw = await cmd.ExecuteScalarAsync(cancellationToken);
-
-        await conn.CloseAsync();
-
-        return (int)raw;
+        return raw;
     }
 
     public async Task DeleteAsync(Guid nodeId, int assignedNodeNumber)
@@ -156,6 +162,22 @@ internal class SqlServerNodePersistence : DatabaseConstants, INodeAgentPersisten
 
         await conn.CreateCommand($"update {_nodeTable} set health_check = GETUTCDATE() where id = @id")
             .With("id", nodeId).ExecuteNonQueryAsync();
+
+        await conn.CloseAsync();
+    }
+
+    public async Task MarkHealthCheckAsync(WolverineNode node, CancellationToken cancellationToken)
+    {
+        await using var conn = new SqlConnection(_settings.ConnectionString);
+        await conn.OpenAsync(cancellationToken);
+
+        var count = await conn.CreateCommand($"update {_nodeTable} set health_check = GETUTCDATE() where id = @id")
+            .With("id", node.NodeId).ExecuteNonQueryAsync(cancellationToken);
+
+        if (count == 0)
+        {
+            await persistNode(conn, node, cancellationToken);
+        }
 
         await conn.CloseAsync();
     }

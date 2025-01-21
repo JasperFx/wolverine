@@ -81,6 +81,10 @@ public class HandlerPipeline : IHandlerPipeline
                 var continuation = await executeAsync(context, envelope, activity);
                 await continuation.ExecuteAsync(context, _runtime, DateTimeOffset.Now, activity);
             }
+            catch (ObjectDisposedException)
+            {
+                // It's shutting down, get out of here
+            }
             catch (Exception e)
             {
                 await channel.CompleteAsync(envelope);
