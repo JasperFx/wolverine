@@ -267,7 +267,12 @@ public partial class Envelope
             MessageType = PingMessageType,
             Data = [1, 2, 3, 4],
             ContentType = "wolverine/ping",
-            Destination = destination
+            Destination = destination,
+            
+            // According to both AWS SQS & Azure Service Bus docs, it does no
+            // harm to send a session identifier to a non-FIFO queue, and it's 
+            // most certainly needed for FIFO queues
+            GroupId = Guid.NewGuid().ToString()
         };
     }
 
