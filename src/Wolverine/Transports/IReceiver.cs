@@ -1,4 +1,6 @@
-﻿namespace Wolverine.Transports;
+﻿using Wolverine.Runtime.WorkerQueues;
+
+namespace Wolverine.Transports;
 
 public interface IReceiver : IDisposable
 {
@@ -8,7 +10,7 @@ public interface IReceiver : IDisposable
     ValueTask DrainAsync();
 }
 
-internal class ReceiverWithRules : IReceiver
+internal class ReceiverWithRules : IReceiver, ILocalQueue
 {
     public ReceiverWithRules(IReceiver inner, IEnumerable<IEnvelopeRule> rules)
     {
@@ -52,4 +54,20 @@ internal class ReceiverWithRules : IReceiver
     {
         return Inner.DrainAsync();
     }
+
+    public void Enqueue(Envelope envelope)
+    {
+        if (Inner is ILocalQueue queue)
+        {
+            queue.Enqueue(envelope);
+        }
+        else
+        {
+            throw new InvalidOperationException("There is no active, local queue for this listening endpoint at " +
+                                                envelope.Destination);
+        }
+    }
+
+    public int QueueCount => Inner is ILocalQueue q ? q.QueueCount : 0;
+    public Uri Uri => Inner is ILocalQueue q ? q.Uri : new Uri("none://none");
 }
