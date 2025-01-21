@@ -37,6 +37,9 @@ public abstract partial class MessageDatabase<T>
                 {
                     envelope.Status = EnvelopeStatus.Incoming;
                     envelope.OwnerId = runtime.DurabilitySettings.AssignedNodeNumber;
+                    
+                    // Fix for GH-1225
+                    envelope.Source = externalTable.TableName.QualifiedName;
                 }
 
                 var tx = await conn.BeginTransactionAsync(token);

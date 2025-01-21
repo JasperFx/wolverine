@@ -3,6 +3,7 @@ using JasperFx.Core;
 using Weasel.Core;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
+using Wolverine.Runtime.WorkerQueues;
 using Wolverine.Transports;
 using Wolverine.Transports.Sending;
 using Wolverine.Util;
