@@ -145,6 +145,6 @@ public static class ExamineFirstHandler
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Todos/Todo2.cs#L189-L204' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_continue_result_as_filter' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-In this case, the "special" value `WolverineContinue.Results()` tells Wolverine to keep going, otherwise, Wolverine will 
+In this case, the "special" value `WolverineContinue.Result()` tells Wolverine to keep going, otherwise, Wolverine will 
 execute the `IResult` returned from one of these filter methods and stop all other processing for the HTTP request.
 
