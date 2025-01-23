@@ -166,6 +166,13 @@ public partial class RavenDbMessageStore : INodeAgentPersistence
         await session.SaveChangesAsync();
     }
 
+    public async Task MarkHealthCheckAsync(WolverineNode node, CancellationToken cancellationToken)
+    {
+        using var session = _store.OpenAsyncSession();
+        session.Advanced.AddOrPatch(node.NodeId.ToString(), node, x => x.LastHealthCheck, DateTimeOffset.UtcNow);
+        await session.SaveChangesAsync(cancellationToken);
+    }
+
     public async Task OverwriteHealthCheckTimeAsync(Guid nodeId, DateTimeOffset lastHeartbeatTime)
     {
         using var session = _store.OpenAsyncSession();

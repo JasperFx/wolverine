@@ -289,6 +289,11 @@ internal class NullNodeAgentPersistence : INodeAgentPersistence
         return Task.CompletedTask;
     }
 
+    public Task MarkHealthCheckAsync(WolverineNode node, CancellationToken cancellationToken)
+    {
+        return Task.CompletedTask;
+    }
+
     public Task OverwriteHealthCheckTimeAsync(Guid nodeId, DateTimeOffset lastHeartbeatTime)
     {
         return Task.CompletedTask;

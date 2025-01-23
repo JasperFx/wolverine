@@ -44,7 +44,7 @@ var app = builder.Build();
 // the message storage
 return await app.RunOaktonCommands(args);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L162-L188' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setup_postgresql_storage' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L164-L190' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setup_postgresql_storage' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## PostgreSQL Messaging Transport <Badge type="tip" text="2.5" />
@@ -117,7 +117,7 @@ that they are utilizing the transactional inbox and outbox. The PostgreSQL queue
 ```cs
 opts.ListenToPostgresqlQueue("sender").BufferedInMemory();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PostgresqlTests/Transport/compliance_tests.cs#L58-L62' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setting_postgres_queue_to_buffered' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PostgresqlTests/Transport/compliance_tests.cs#L64-L68' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setting_postgres_queue_to_buffered' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Using this option just means that the PostgreSQL queues can be used for both sending or receiving with no integration

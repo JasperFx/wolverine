@@ -13,10 +13,12 @@ using Weasel.Postgresql;
 using Weasel.Postgresql.Tables;
 using Wolverine;
 using Wolverine.ComplianceTests.Compliance;
+using Wolverine.ErrorHandling;
 using Wolverine.Marten;
 using Wolverine.Persistence.Durability;
 using Wolverine.Postgresql;
 using Wolverine.RDBMS.Transport;
+using Wolverine.Runtime.Handlers;
 using Wolverine.Tracking;
 
 namespace PostgresqlTests.Transport;
@@ -47,6 +49,8 @@ public class external_message_tables : IAsyncLifetime
             .UseWolverine(opts =>
             {
                 opts.UsePostgresqlPersistenceAndTransport(Servers.PostgresConnectionString, "external");
+                
+                opts.Policies.UseDurableLocalQueues();
             }).StartAsync();
 
         var storage = host.Services.GetRequiredService<IMessageStore>()
@@ -178,6 +182,47 @@ public class external_message_tables : IAsyncLifetime
         envelope.Destination.ShouldBe(new Uri("external-table://external.incoming1/"));
     }
 
+    [Fact]
+    public async Task pull_in_message_that_goes_to_dead_letter_queue_and_replay_it()
+    {
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.Durability.Mode = DurabilityMode.Solo;
+                opts.Durability.ScheduledJobPollingTime = 1.Seconds();
+                
+                opts.UsePostgresqlPersistenceAndTransport(Servers.PostgresConnectionString, "external");
+
+                opts.ListenForMessagesFromExternalDatabaseTable("external", "incoming4", table =>
+                {
+                    table.IdColumnName = "pk";
+                    table.TimestampColumnName = "added";
+                    table.JsonBodyColumnName = "message_body";
+                    table.MessageType = typeof(BlowsUpMessage);
+                    table.PollingInterval = 1.Seconds();
+                });
+
+            }).StartAsync();
+
+        // Rig it up to fail
+        var waiter = BlowsUpMessageHandler.WaiterForCall(true);
+
+        await host.SendMessageThroughExternalTable("external.incoming4", new BlowsUpMessage());
+        var storage = host.GetRuntime().Storage;
+        Guid[] ids = new Guid[0];
+        while (!ids.Any())
+        {
+            var queued = await storage.DeadLetters.QueryDeadLetterEnvelopesAsync(new DeadLetterEnvelopeQueryParameters());
+            ids = queued.DeadLetterEnvelopes.Select(x => x.Envelope.Id).ToArray();
+        }
+        
+        // need to reset it
+        var dlq = BlowsUpMessageHandler.WaiterForCall(false);
+        await storage.DeadLetters.MarkDeadLetterEnvelopesAsReplayableAsync(ids);
+        await dlq;
+        BlowsUpMessageHandler.LastReceived.ShouldNotBeNull();
+    }
+
 }
 
 public static class Bootstrapping
@@ -270,4 +315,39 @@ public static class Message1Handler
         Debug.WriteLine("Got a Message3");
     }
     
+}
+
+public record BlowsUpMessage;
+
+public static class BlowsUpMessageHandler
+{
+    public static TaskCompletionSource Waiter { get; private set; } = new();
+    
+    public static void Configure(HandlerChain chain)
+    {
+        chain.OnAnyException().MoveToErrorQueue();
+    }
+    
+    public static bool WillBlowUp { get; set; } = true;
+
+    public static Task WaiterForCall(bool shouldThrow)
+    {
+        LastReceived = null;
+        WillBlowUp = shouldThrow;
+        Waiter = new TaskCompletionSource();
+        return Waiter.Task;
+    }
+
+    public static void Handle(BlowsUpMessage message)
+    {
+        if (WillBlowUp)
+        {
+            throw new Exception("You stink!");
+        }
+        
+        LastReceived = message;
+        Waiter.SetResult();
+    }
+
+    public static BlowsUpMessage LastReceived { get; set; }
 }

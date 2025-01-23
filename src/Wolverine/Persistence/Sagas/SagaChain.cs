@@ -43,6 +43,11 @@ public class SagaChain : HandlerChain
         SagaIdMember = DetermineSagaIdMember(MessageType, SagaType);
     }
 
+    protected override void tryAssignStickyEndpoints(HandlerCall handlerCall, WolverineOptions options)
+    {
+        // nope, don't do this with saga chains 
+    }
+
     public Type SagaType { get; }
 
     public MemberInfo? SagaIdMember { get; set; }

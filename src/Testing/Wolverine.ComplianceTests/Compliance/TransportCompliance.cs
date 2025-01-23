@@ -335,8 +335,9 @@ public abstract class TransportCompliance<T> : IAsyncLifetime where T : Transpor
     {
         var request = new Request { Name = "Nick Bolton" };
 
-        var (session, response) = await theSender.TrackActivity(Fixture.DefaultTimeout)
+        var (session, response) = await theSender.TrackActivity()
             .AlsoTrack(theReceiver)
+            .Timeout(30.Seconds())
             .InvokeAndWaitAsync<Response>(request);
 
         response.Name.ShouldBe(request.Name);

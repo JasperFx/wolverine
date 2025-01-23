@@ -17,6 +17,7 @@ using Wolverine.Runtime.RemoteInvocation;
 using Wolverine.Runtime.Scheduled;
 using Wolverine.Runtime.Serialization;
 using Wolverine.Transports;
+using Wolverine.Transports.Local;
 using Wolverine.Util;
 
 namespace Wolverine.Runtime.Handlers;
@@ -164,7 +165,15 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
         var sticky = chain.ByEndpoint.FirstOrDefault(x => x.Endpoints.Contains(endpoint));
         
         // If none, use the default
-        if (sticky == null) return HandlerFor(messageType);
+        if (sticky == null)
+        {
+            if (!chain.Handlers.Any())
+            {
+                throw new NoHandlerForEndpointException(messageType, endpoint.Uri);
+            }
+            
+            return HandlerFor(messageType);
+        }
 
         return resolveHandlerFromChain(messageType, sticky, false);
     }
@@ -211,6 +220,10 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
         if (chain.Handler != null)
         {
             handler = chain.Handler;
+        }
+        else if (!chain.Handlers.Any())
+        {
+            throw new NoHandlerForEndpointException(messageType);
         }
         else
         {
@@ -297,6 +310,17 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
         foreach (var configuration in _configurations) configuration();
 
         registerMessageTypes();
+
+        tryApplyLocalQueueConfiguration(options);
+    }
+
+    private void tryApplyLocalQueueConfiguration(WolverineOptions options)
+    {
+        var local = options.Transports.GetOrCreate<LocalTransport>();
+        foreach (var chain in Chains)
+        {
+            local.ApplyConfiguration(chain);
+        }
     }
 
     private void registerMessageTypes()

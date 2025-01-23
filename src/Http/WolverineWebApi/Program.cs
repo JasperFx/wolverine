@@ -1,5 +1,6 @@
 using IntegrationTests;
 using JasperFx.CodeGeneration;
+using JasperFx.Core;
 using Marten;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -78,13 +79,19 @@ builder.Services.AddSingleton<Recorder>();
 // Need this.
 builder.Host.UseWolverine(opts =>
 {
+    // I'm speeding this up a lot for faster tests
+    opts.Durability.ScheduledJobPollingTime = 250.Milliseconds(); 
+    
     // Set up Entity Framework Core as the support
     // for Wolverine's transactional middleware
     opts.UseEntityFrameworkCoreTransactions();
 
     opts.Durability.Mode = DurabilityMode.Solo;
 
+    // Other Wolverine configuration...
     opts.Policies.AutoApplyTransactions();
+    opts.Policies.UseDurableLocalQueues();
+    
     opts.Policies.OnExceptionOfType(typeof(AlwaysDeadLetterException)).MoveToErrorQueue();
 
     opts.UseFluentValidation();

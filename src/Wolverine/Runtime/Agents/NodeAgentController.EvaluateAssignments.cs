@@ -10,6 +10,14 @@ public partial class NodeAgentController
     public async Task<AgentCommands> EvaluateAssignmentsAsync(IReadOnlyList<WolverineNode> nodes)
     {
         using var activity = WolverineTracing.ActivitySource.StartActivity("wolverine_node_assignments");
+
+        // Not sure how this *could* happen, but we had a report of it happening in production
+        // probably because someone messed w/ the database though
+        if (!nodes.Any())
+        {
+            // At least use the current node
+            nodes = new List<WolverineNode> { WolverineNode.For(_runtime.Options) };
+        }
         
         var grid = new AssignmentGrid();
 

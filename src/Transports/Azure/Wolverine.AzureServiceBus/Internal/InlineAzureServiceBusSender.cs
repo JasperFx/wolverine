@@ -27,6 +27,11 @@ public class InlineAzureServiceBusSender : ISender
     public async Task<bool> PingAsync()
     {
         var envelope = Envelope.ForPing(Destination);
+        
+        // For GH-1230, and according to Azure Service Bus docs, it does not harm
+        // to send a session identifier to a non-FIFO queue, so just do this by default
+        envelope.GroupId = Guid.NewGuid().ToString();
+        
         try
         {
             await SendAsync(envelope);

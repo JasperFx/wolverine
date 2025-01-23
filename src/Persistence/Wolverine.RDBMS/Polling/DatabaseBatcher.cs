@@ -88,6 +88,10 @@ public class DatabaseBatcher : IAsyncDisposable
             _executingBlock.Complete();
             await _executingBlock.Completion;
         }
+        catch (TaskCanceledException)
+        {
+            // it just timed out, let it go
+        }
         catch (Exception e)
         {
             _logger.LogError(e, "Error trying to drain the current database batcher");

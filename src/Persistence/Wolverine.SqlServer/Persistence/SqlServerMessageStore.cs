@@ -1,12 +1,10 @@
 ﻿using System.Data;
 using System.Data.Common;
-using System.Runtime.InteropServices;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
 using Weasel.Core;
-using Weasel.Core.Migrations;
 using Weasel.SqlServer;
 using Weasel.SqlServer.Tables;
 using Wolverine.Logging;
@@ -109,43 +107,6 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>, IDatabaseSa
     /// </summary>
     public string DatabasePrincipal { get; set; } = "dbo";
 
-    public override async Task MoveToDeadLetterStorageAsync(Envelope envelope, Exception? exception)
-    {
-        if (HasDisposed) return;
-
-        var table = new DataTable();
-        table.Columns.Add(new DataColumn("ID", typeof(Guid)));
-        table.Rows.Add(envelope.Id);
-
-        var builder = ToCommandBuilder();
-
-        var list = builder.AddNamedParameter("IDLIST", table).As<SqlParameter>();
-        list.SqlDbType = SqlDbType.Structured;
-        list.TypeName = $"{SchemaName}.EnvelopeIdList";
-
-        builder.Append(_moveToDeadLetterStorageSql);
-
-        DatabasePersistence.ConfigureDeadLetterCommands(envelope, exception, builder, this);
-
-        var cmd = builder.Compile();
-        await using var conn = await DataSource.OpenConnectionAsync(_cancellation);
-        cmd.Connection = conn;
-
-        try
-        {
-            await cmd.ExecuteNonQueryAsync(_cancellation);
-        }
-        catch (Exception e)
-        {
-            if (isExceptionFromDuplicateEnvelope(e)) return;
-            throw;
-        }
-        finally
-        {
-            await conn.CloseAsync();
-        }
-    }
-
     public override Task MarkDeadLetterEnvelopesAsReplayableAsync(Guid[] ids, string? tenantId = null)
     {
         var table = new DataTable();
@@ -221,17 +182,6 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>, IDatabaseSa
     public override DbCommandBuilder ToCommandBuilder()
     {
         return new DbCommandBuilder(new SqlCommand());
-    }
-
-    public override Task ReassignIncomingAsync(int ownerId, IReadOnlyList<Envelope> incoming)
-    {
-        var cmd = CreateCommand($"{_settings.SchemaName}.uspMarkIncomingOwnership");
-        cmd.CommandType = CommandType.StoredProcedure;
-
-        return cmd
-            .WithIdList(this, incoming)
-            .With("owner", ownerId)
-            .ExecuteNonQueryAsync(_cancellation);
     }
 
     public override void WriteLoadScheduledEnvelopeSql(DbCommandBuilder builder, DateTimeOffset utcNow)
@@ -383,8 +333,8 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>, IDatabaseSa
     public override IEnumerable<ISchemaObject> AllObjects()
     {
         yield return new OutgoingEnvelopeTable(SchemaName);
-        yield return new IncomingEnvelopeTable(SchemaName);
-        yield return new DeadLettersTable(SchemaName);
+        yield return new IncomingEnvelopeTable(Durability, SchemaName);
+        yield return new DeadLettersTable(Durability, SchemaName);
         yield return new EnvelopeIdTable(SchemaName);
         yield return new WolverineStoredProcedure("uspDeleteIncomingEnvelopes.sql", this);
         yield return new WolverineStoredProcedure("uspDeleteOutgoingEnvelopes.sql", this);

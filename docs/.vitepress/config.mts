@@ -65,7 +65,12 @@ const config: UserConfig<DefaultTheme.Config> = {
                         {text: 'Best Practices', link: '/tutorials/best-practices'},
                         {text: 'Ping/Pong Messaging', link: '/tutorials/ping-pong'},
                         {text: 'Custom Middleware', link: '/tutorials/middleware'},
-                        {text: 'Wolverine and Serverless', link: '/tutorials/serverless'}
+                        {text: 'Wolverine and Serverless', link: '/tutorials/serverless'},
+                        {text: 'Wolverine for MediatR Users', link: '/tutorials/from-mediatr'},
+                        {text: 'Vertical Slice Architecture', link: '/tutorials/vertical-slice-architecture'},
+                        {text: 'Modular Monoliths', link: '/tutorials/modular-monolith'},
+                        {text: 'Event Sourcing and CQRS with Marten', link: '/tutorials/cqrs-with-marten'},
+                        {text: 'Railway Programming with Wolverine', link: '/tutorials/railway-programming'}
                     ]
                 },
                 {

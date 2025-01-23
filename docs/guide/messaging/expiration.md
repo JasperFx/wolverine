@@ -47,7 +47,7 @@ public async Task message_expiration(IMessageBus bus)
     await bus.SendAsync(new StatusUpdate("Okay"), new DeliveryOptions { DeliverBy = DateTime.Today.AddHours(15) });
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L418-L430' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_message_expiration_by_message' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L447-L459' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_message_expiration_by_message' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## By Subscriber

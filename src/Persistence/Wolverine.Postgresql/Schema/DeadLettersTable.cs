@@ -6,7 +6,7 @@ namespace Wolverine.Postgresql.Schema;
 
 internal class DeadLettersTable : Table
 {
-    public DeadLettersTable(string schemaName) : base(new DbObjectName(schemaName, DatabaseConstants.DeadLetterTable))
+    public DeadLettersTable(DurabilitySettings durability, string schemaName) : base(new DbObjectName(schemaName, DatabaseConstants.DeadLetterTable))
     {
         AddColumn<Guid>(DatabaseConstants.Id).AsPrimaryKey();
 
@@ -14,7 +14,15 @@ internal class DeadLettersTable : Table
         AddColumn(DatabaseConstants.Body, "bytea").NotNull();
 
         AddColumn<string>(DatabaseConstants.MessageType).NotNull();
-        AddColumn<string>(DatabaseConstants.ReceivedAt);
+        
+        if (durability.MessageIdentity == MessageIdentity.IdOnly)
+        {
+            AddColumn<string>(DatabaseConstants.ReceivedAt);
+        }
+        else
+        {
+            AddColumn<string>(DatabaseConstants.ReceivedAt).AsPrimaryKey();
+        }
 
         AddColumn<string>(DatabaseConstants.Source);
         AddColumn<string>(DatabaseConstants.ExceptionType);

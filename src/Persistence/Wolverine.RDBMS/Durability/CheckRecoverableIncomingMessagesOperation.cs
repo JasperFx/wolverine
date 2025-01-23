@@ -50,9 +50,12 @@ internal class CheckRecoverableIncomingMessagesOperation : IDatabaseOperation
 
     public IEnumerable<IAgentCommand> PostProcessingCommands()
     {
+        if (_settings.Cancellation.IsCancellationRequested) yield break;
+        
         foreach (var incoming in _incoming)
         {
             var listener = _endpoints.FindListenerCircuit(incoming.Destination);
+            if (listener == null) continue; // This *might* happen during shutdown
 
             if (listener.Status == ListeningStatus.Accepting)
             {

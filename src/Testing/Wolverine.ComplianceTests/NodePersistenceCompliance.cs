@@ -244,9 +244,15 @@ public abstract class NodePersistenceCompliance : IAsyncLifetime
 
         await _database.Nodes.PersistAsync(node1, CancellationToken.None);
         await _database.Nodes.PersistAsync(node2, CancellationToken.None);
-        await _database.Nodes.PersistAsync(node3, CancellationToken.None);
+        //await _database.Nodes.PersistAsync(node3, CancellationToken.None);
 
-        await _database.Nodes.MarkHealthCheckAsync(node1.NodeId);
+        await _database.Nodes.MarkHealthCheckAsync(node1, CancellationToken.None);
+        await _database.Nodes.MarkHealthCheckAsync(node2, CancellationToken.None);
+        await _database.Nodes.MarkHealthCheckAsync(node3, CancellationToken.None);
+
+        // Proving the upsert behavior
+        var nodes = await _database.Nodes.LoadAllNodesAsync(CancellationToken.None);
+        nodes.Any(x => x.NodeId == node3.NodeId).ShouldBeTrue();
     }
 
 }

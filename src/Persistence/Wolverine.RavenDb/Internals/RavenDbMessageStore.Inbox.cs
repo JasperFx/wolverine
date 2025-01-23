@@ -28,7 +28,7 @@ public partial class RavenDbMessageStore : IMessageInbox
             WaitForNonStaleResults = true,
             QueryParameters = new Parameters()
             {
-                {"id", envelope.Id.ToString()},
+                {"id", _identity(envelope)},
                 {"attempts", envelope.Attempts},
                 {"status", EnvelopeStatus.Scheduled},
                 {"time", envelope.ScheduledTime}
@@ -42,7 +42,7 @@ public partial class RavenDbMessageStore : IMessageInbox
     public async Task MoveToDeadLetterStorageAsync(Envelope envelope, Exception? exception)
     {
         using var session = _store.OpenAsyncSession();
-        session.Delete(envelope.Id.ToString());
+        session.Delete(_identity(envelope));
         var dlq = new DeadLetterMessage(envelope, exception);
         await session.StoreAsync(dlq);
         await session.SaveChangesAsync();
@@ -51,7 +51,7 @@ public partial class RavenDbMessageStore : IMessageInbox
     public async Task IncrementIncomingEnvelopeAttemptsAsync(Envelope envelope)
     {
         using var session = _store.OpenAsyncSession();
-        session.Advanced.Patch<IncomingMessage, int>(envelope.Id.ToString(), x => x.Attempts, envelope.Attempts);
+        session.Advanced.Patch<IncomingMessage, int>(_identity(envelope), x => x.Attempts, envelope.Attempts);
         await session.SaveChangesAsync();
     }
 
@@ -60,7 +60,7 @@ public partial class RavenDbMessageStore : IMessageInbox
         using var session = _store.OpenAsyncSession();
         session.Advanced.UseOptimisticConcurrency = true;
         
-        var incoming = new IncomingMessage(envelope);
+        var incoming = new IncomingMessage(envelope, this);
 
         try
         {
@@ -69,7 +69,7 @@ public partial class RavenDbMessageStore : IMessageInbox
         }
         catch (ConcurrencyException)
         {
-            throw new DuplicateIncomingEnvelopeException(envelope.Id);
+            throw new DuplicateIncomingEnvelopeException(envelope);
         }
     }
 
@@ -80,7 +80,7 @@ public partial class RavenDbMessageStore : IMessageInbox
         
         foreach (var envelope in envelopes)
         {
-            var incoming = new IncomingMessage(envelope);
+            var incoming = new IncomingMessage(envelope, this);
             await session.StoreAsync(incoming);
         }
 
@@ -117,7 +117,7 @@ public partial class RavenDbMessageStore : IMessageInbox
             WaitForNonStaleResults = true,
             QueryParameters = new Parameters()
             {
-                {"id", envelope.Id.ToString()},
+                {"id", _identity(envelope)},
                 {"expire", expirationTime},
                 {"status", EnvelopeStatus.Handled}
             }
@@ -141,13 +141,14 @@ public partial class RavenDbMessageStore : IMessageInbox
             }}";
 
 
+        var identities = envelopes.Select(x => _identity(x)).ToArray();
         var operation = new PatchByQueryOperation(new IndexQuery
         {
             Query = query,
             WaitForNonStaleResults = true,
             QueryParameters = new Parameters()
             {
-                {"ids", envelopes.Select(x => x.Id.ToString()).ToArray()},
+                {"ids", identities},
                 {"expire", expirationTime},
                 {"status", EnvelopeStatus.Handled}
             }

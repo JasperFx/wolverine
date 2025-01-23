@@ -234,6 +234,17 @@ internal class PostgresqlNodePersistence : DatabaseConstants, INodeAgentPersiste
             .With("id", nodeId).ExecuteNonQueryAsync();
     }
 
+    public async Task MarkHealthCheckAsync(WolverineNode node, CancellationToken token)
+    {
+        var count = await _dataSource.CreateCommand($"update {_nodeTable} set health_check = now() where id = :id")
+            .With("id", node.NodeId).ExecuteNonQueryAsync(token);
+
+        if (count == 0)
+        {
+            await PersistAsync(node, token);
+        }
+    }
+
     public async Task<IReadOnlyList<int>> LoadAllNodeAssignedIdsAsync()
     {
         return await _dataSource.CreateCommand($"select node_number from {_nodeTable}")

@@ -65,6 +65,15 @@ public static class ConfirmReservationHandler
     }
 }
 
+public static class ReservationConfirmed2Handler
+{
+    [StickyHandler("confirmed2")]
+    public static void Handle(ReservationConfirmed confirmed)
+    {
+        Console.WriteLine("Just needed a second handler for ReservationConfirmed");
+    }
+}
+
 // Just assume this service is in the IoC container
 public interface IRestaurantProxy
 {

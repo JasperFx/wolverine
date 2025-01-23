@@ -136,7 +136,7 @@ internal class TrackedSession : ITrackedSession
     public IReadOnlyList<Exception> AllExceptions()
     {
         return _envelopes.SelectMany(x => x.Records)
-            .Select(x => x.Exception).Where(x => x != null)
+            .Select(x => x.Exception).Where(x => x != null).Concat(_exceptions)
             .Distinct().ToList()!;
     }
 

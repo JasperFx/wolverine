@@ -1,7 +1,10 @@
+using NSubstitute;
+using Raven.Client.Documents;
 using Shouldly;
 using Wolverine;
 using Wolverine.ComplianceTests;
 using Wolverine.RavenDb.Internals;
+using Wolverine.Runtime.Routing;
 
 namespace RavenDbTests.Internals;
 
@@ -19,7 +22,7 @@ public class IncomingMessage_mapping
         theEnvelope.Attempts = 2;
         theEnvelope.Status = EnvelopeStatus.Handled;
         
-        var message = new IncomingMessage(theEnvelope);
+        var message = new IncomingMessage(theEnvelope, new RavenDbMessageStore(Substitute.For<IDocumentStore>(), new WolverineOptions()));
         theMappedEnvelope = message.Read();
     }
 

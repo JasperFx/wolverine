@@ -8,9 +8,9 @@ public class IncomingMessage
     {
     }
 
-    public IncomingMessage(Envelope envelope)
+    public IncomingMessage(Envelope envelope, RavenDbMessageStore store)
     {
-        Id = envelope.Id.ToString();
+        Id = store.IdentityFor(envelope);
         EnvelopeId = envelope.Id;
         Status = envelope.Status;
         OwnerId = envelope.OwnerId;

@@ -19,7 +19,12 @@ public interface INodeAgentPersistence
     [Obsolete("Kill this in 3.0")]
     Task<Guid?> MarkNodeAsLeaderAsync(Guid? originalLeader, Guid id);
     Task<WolverineNode?> LoadNodeAsync(Guid nodeId, CancellationToken cancellationToken);
+    
+    // TODO -- make this take WolverineNode instead
+    [Obsolete("Will be removed in 4.0")]
     Task MarkHealthCheckAsync(Guid nodeId);
+
+    Task MarkHealthCheckAsync(WolverineNode node, CancellationToken cancellationToken);
     
     Task OverwriteHealthCheckTimeAsync(Guid nodeId, DateTimeOffset lastHeartbeatTime);
     

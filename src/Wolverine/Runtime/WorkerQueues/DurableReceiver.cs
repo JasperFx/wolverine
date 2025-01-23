@@ -125,7 +125,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
 
     public bool ShouldPersistBeforeProcessing { get; set; }
 
-    public Uri Uri { get; }
+    public Uri Uri { get; set; }
 
     public async ValueTask DisposeAsync()
     {
