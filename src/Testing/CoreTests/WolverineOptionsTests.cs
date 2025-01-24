@@ -20,6 +20,12 @@ public class WolverineOptionsTests
     private readonly WolverineOptions theSettings = new();
 
     [Fact]
+    public void failure_acks_are_enabled_by_default()
+    {
+        new WolverineOptions().EnableAutomaticFailureAcks.ShouldBeTrue();
+    }
+    
+    [Fact]
     public void multiple_handler_behavior_is_classic_mode_by_default()
     {
         new WolverineOptions().MultipleHandlerBehavior.ShouldBe(MultipleHandlerBehavior.ClassicCombineIntoOneLogicalHandler);

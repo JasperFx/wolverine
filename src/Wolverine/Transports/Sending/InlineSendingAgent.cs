@@ -39,6 +39,10 @@ internal class InlineSendingAgent : ISendingAgent, IDisposable
             await _sender.SendAsync(e);
             _messageLogger.Sent(e);
         }
+        catch (NotSupportedException)
+        {
+            // ignore it
+        }
         finally
         {
             activity?.Stop();

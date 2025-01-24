@@ -235,6 +235,10 @@ internal abstract class SendingAgent : ISendingAgent, ISenderCallback, ISenderCi
 
             await MarkSuccessfulAsync(envelope);
         }
+        catch (NotSupportedException)
+        {
+            // Ignore it, most likely a failure ack that should not have been sent
+        }
         catch (Exception e)
         {
             try
