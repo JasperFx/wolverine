@@ -159,6 +159,12 @@ public sealed partial class WolverineOptions
     /// </summary>
     public bool EnableRemoteInvocation { get; set; } = true;
 
+    /// <summary>
+    /// Should message failures automatically try to send a failure acknowledgement message back to the
+    /// original caller. Default is true.
+    /// </summary>
+    public bool EnableAutomaticFailureAcks { get; set; } = true;
+
     private void deriveServiceName()
     {
         if (GetType() == typeof(WolverineOptions))
