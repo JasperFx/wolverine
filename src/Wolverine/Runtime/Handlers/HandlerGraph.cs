@@ -456,4 +456,17 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
         _messageTypes = _messageTypes.AddOrUpdate(messageType.ToMessageTypeName(), messageType);
         _replyTypes = _replyTypes.Add(messageType);
     }
+
+    public IEnumerable<HandlerChain> AllChains()
+    {
+        foreach (var chain in Chains)
+        {
+            if (chain.Handlers.Any()) yield return chain;
+
+            foreach (var handlerChain in chain.ByEndpoint)
+            {
+                yield return handlerChain;
+            }
+        }
+    }
 }
