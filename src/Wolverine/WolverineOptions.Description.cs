@@ -1,3 +1,4 @@
+using JasperFx.Core.Descriptions;
 using JasperFx.Core.Reflection;
 using Oakton.Descriptions;
 using Spectre.Console;
@@ -5,7 +6,7 @@ using Wolverine.Runtime.Serialization;
 
 namespace Wolverine;
 
-public partial class WolverineOptions : IDescribedSystemPart, IWriteToConsole
+public partial class WolverineOptions : IDescribedSystemPart, IWriteToConsole, IDescribeMyself
 {
     async Task IDescribedSystemPart.Write(TextWriter writer)
     {
@@ -92,5 +93,23 @@ public partial class WolverineOptions : IDescribedSystemPart, IWriteToConsole
     internal Dictionary<string, IMessageSerializer> ToSerializerDictionary()
     {
         return _serializers.ToDictionary(x => x.Key, x => x.Value);
+    }
+
+    public OptionsDescription ToDescription()
+    {
+        var description = new OptionsDescription(this);
+        description.AddValue("Version", GetType().Assembly.GetName().Version?.ToString());
+
+        description.AddChildSet("Transports", Transports);
+        description.AddChildSet("Endpoints", Transports.SelectMany(x => x.Endpoints()));
+        description.AddChildSet("Handlers", HandlerGraph.AllChains());
+        
+        // TODO -- add application assembly
+        // TODO -- add handler assemblies
+        // TODO -- add handlers, correlated to sticky endpoints as necessary
+        // TODO -- add transports
+        // TODO -- add endpoints underneath each transport
+
+        return description;
     }
 }
