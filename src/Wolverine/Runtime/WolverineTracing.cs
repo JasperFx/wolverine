@@ -15,6 +15,8 @@ internal static class WolverineTracing
     public const string MessagingSystem = "messaging.system"; // Use the destination Uri scheme
     public const string MessagingDestination = "messaging.destination"; // Use the destination Uri
 
+    public const string MessageHandler = "message.handler";
+
     public const string
         MessagingDestinationKind =
             "messaging.destination_kind"; // Not sure this is going to be helpful. queue or topic. Maybe port if TCP basically.

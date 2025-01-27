@@ -29,8 +29,10 @@ public class AuditToActivityFrame : SyncFrame
     {
         writer.WriteComment("Application-specific Open Telemetry auditing");
         foreach (var member in _members)
+        {
             writer.WriteLine(
                 $"{typeof(Activity).FullNameInCode()}.{nameof(Activity.Current)}?.{nameof(Activity.SetTag)}(\"{member.OpenTelemetryName}\", {_input!.Usage}.{member.Member.Name});");
+        }
 
         Next?.GenerateCode(method, writer);
     }
