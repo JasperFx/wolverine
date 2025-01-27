@@ -12,6 +12,7 @@ internal class LogStartingActivity : SyncFrame
 {
     private readonly Type _inputType;
     private readonly LogLevel _level;
+    private readonly IChain _chain;
     private readonly List<AuditedMember> _members;
     private Variable? _envelope;
     private Variable? _input;
@@ -20,6 +21,7 @@ internal class LogStartingActivity : SyncFrame
     public LogStartingActivity(LogLevel level, IChain chain)
     {
         _level = level;
+        _chain = chain;
         _inputType = chain.InputType()!;
         _members = chain.AuditedMembers;
     }
@@ -50,6 +52,7 @@ internal class LogStartingActivity : SyncFrame
 
         writer.WriteLine(
             $"{_logger!.Usage}.{nameof(ILogger.Log)}({typeof(LogLevel).FullNameInCode()}.{_level.ToString()}, \"{template}\", {args.Join(", ")});");
+        
         Next?.GenerateCode(method, writer);
     }
 }

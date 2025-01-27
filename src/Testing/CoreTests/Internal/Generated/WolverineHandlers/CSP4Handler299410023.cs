@@ -22,6 +22,7 @@ namespace Internal.Generated.WolverineHandlers
             // The actual message body
             var csp4 = (CoreTests.Compilation.CSP4)context.Envelope.Message;
 
+            System.Diagnostics.Activity.Current?.SetTag("message.handler", "CoreTests.Compilation.CSP4Handler");
             var csp4Handler = new CoreTests.Compilation.CSP4Handler();
             
             // The actual message execution
