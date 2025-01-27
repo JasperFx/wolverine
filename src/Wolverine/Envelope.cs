@@ -43,6 +43,7 @@ public partial class Envelope
     public Envelope(object message)
     {
         Message = message ?? throw new ArgumentNullException(nameof(message));
+        MessageType = message?.GetType().ToMessageTypeName();
     }
     
     /// <summary>

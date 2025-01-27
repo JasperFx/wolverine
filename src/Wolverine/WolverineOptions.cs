@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
+using JasperFx.Core.Descriptions;
 using Microsoft.Extensions.DependencyInjection;
 using Wolverine.Configuration;
 using Wolverine.Persistence;
@@ -83,11 +84,13 @@ public sealed partial class WolverineOptions
         set => HandlerGraph.MultipleHandlerBehavior = value;
     }
 
+    [IgnoreDescription]
     public Guid UniqueNodeId { get; } = Guid.NewGuid();
 
     /// <summary>
     ///     Configure or extend how Wolverine does the runtime (or build ahead time) code generation
     /// </summary>
+    [ChildDescription]
     public GenerationRules CodeGeneration { get; }
 
     /// <summary>
@@ -96,22 +99,26 @@ public sealed partial class WolverineOptions
     /// </summary>
     /// <param name="configure"></param>
     /// <returns></returns>
+    [IgnoreDescription]
     public HandlerDiscovery Discovery => HandlerGraph.Discovery;
 
 
     /// <summary>
     ///     Options for applying conventional configuration to all or a subset of messaging endpoints
     /// </summary>
+    [IgnoreDescription]
     public IPolicies Policies => this;
 
     /// <summary>
     /// </summary>
+    [IgnoreDescription]
     public TransportCollection Transports { get; }
 
     /// <summary>
     ///     Advanced configuration options for Wolverine message processing,
     ///     job scheduling, validation, and resiliency features and node specific settings
     /// </summary>
+    [ChildDescription]
     public DurabilitySettings Durability { get; }
 
     /// <summary>
@@ -126,6 +133,7 @@ public sealed partial class WolverineOptions
     ///     methods. This usage will have access to the application's
     ///     full ServiceCollection *at the time of this call*
     /// </summary>
+    [IgnoreDescription]
     public IServiceCollection Services { get; internal set; } = new ServiceCollection();
 
     internal HandlerGraph HandlerGraph { get; } = new();
@@ -149,7 +157,9 @@ public sealed partial class WolverineOptions
     /// </summary>
     internal bool ExternalTransportsAreStubbed { get; set; }
 
+    [IgnoreDescription]
     internal LocalTransport LocalRouting => Transports.GetOrCreate<LocalTransport>();
+    
     internal bool LocalRoutingConventionDisabled { get; set; }
 
     /// <summary>
