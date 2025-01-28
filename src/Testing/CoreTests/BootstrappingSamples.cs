@@ -1,5 +1,6 @@
 using CoreTests.Configuration;
 using JasperFx.CodeGeneration;
+using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
@@ -30,6 +31,25 @@ public class BootstrappingSamples
                 // through IMessageBus.InvokeAsync() or InvokeAsync<T>()
                 // Instead, Wolverine will throw an InvalidOperationException
                 opts.EnableRemoteInvocation = false;
+            }).StartAsync();
+
+        #endregion
+    }
+
+    public static async Task enable_dead_letter_queue_expiration()
+    {
+        #region sample_enabling_dead_letter_queue_expiration
+
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+
+                // This is required
+                opts.Durability.DeadLetterQueueExpirationEnabled = true;
+
+                // Default is 10 days. This is the retention period
+                opts.Durability.DeadLetterQueueExpiration = 3.Days();
+
             }).StartAsync();
 
         #endregion
