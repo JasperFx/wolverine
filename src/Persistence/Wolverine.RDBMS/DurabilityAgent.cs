@@ -25,7 +25,9 @@ internal class DurabilityAgent : IAgent
     private readonly ILogger<DurabilityAgent> _logger;
     private Timer? _scheduledJobTimer;
     private Timer? _recoveryTimer;
+    private Timer? _expirationTimer;
     private PersistenceMetrics _metrics;
+    private DateTimeOffset? _lastDeadLetterQueueCheck;
 
     public DurabilityAgent(string databaseName, IWolverineRuntime runtime, IMessageDatabase database)
     {
@@ -67,7 +69,7 @@ internal class DurabilityAgent : IAgent
 
     public static Uri SimplifyUri(Uri uri)
     {
-        return new Uri($"{DurabilityAgent.AgentScheme}://{uri.Host}");
+        return new Uri($"{AgentScheme}://{uri.Host}");
     }
 
     public static Uri AddMarkerType(Uri uri, Type markerType)
@@ -102,6 +104,20 @@ internal class DurabilityAgent : IAgent
             var batch = new DatabaseOperationBatch(_database, operations);
             _runningBlock.Post(batch);
         }, _settings, recoveryStart, _settings.ScheduledJobPollingTime);
+
+        if (_settings.DeadLetterQueueExpirationEnabled)
+        {
+            _expirationTimer = new Timer(_ =>
+            {
+                var operations = new IDatabaseOperation[]
+                {
+                    new DeleteExpiredDeadLetterMessagesOperation(_database, _logger, DateTimeOffset.UtcNow)
+                };
+
+                var batch = new DatabaseOperationBatch(_database, operations);
+                _runningBlock.Post(batch);
+            }, _settings, 1.Minutes(), 1.Hours());
+        }
         
         if (AutoStartScheduledJobPolling)
         {
@@ -131,6 +147,11 @@ internal class DurabilityAgent : IAgent
         if (_recoveryTimer != null)
         {
             await _recoveryTimer.DisposeAsync();
+        }
+        
+        if (_expirationTimer != null)
+        {
+            await _expirationTimer.DisposeAsync();
         }
 
         Status = AgentStatus.Stopped;

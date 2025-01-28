@@ -39,6 +39,7 @@ public class DeadLetterMessage
     public DateTimeOffset? SentAt { get; set; } 
     public bool Replayable { get; set; }
     public byte[] Body { get; set; }
+    public DateTimeOffset ExpirationTime { get; set; }
 
     public DeadLetterEnvelope ToEnvelope()
     {

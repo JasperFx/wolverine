@@ -44,6 +44,16 @@ public partial class RavenDbMessageStore : IMessageInbox
         using var session = _store.OpenAsyncSession();
         session.Delete(_identity(envelope));
         var dlq = new DeadLetterMessage(envelope, exception);
+
+        if (envelope.DeliverBy.HasValue)
+        {
+            dlq.ExpirationTime = envelope.DeliverBy.Value;
+        }
+        else
+        {
+            dlq.ExpirationTime = DateTimeOffset.UtcNow.Add(_options.Durability.DeadLetterQueueExpiration);
+        }
+
         await session.StoreAsync(dlq);
         await session.SaveChangesAsync();
     }
