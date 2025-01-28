@@ -57,6 +57,8 @@ public class PostgresqlMessageStore_with_IdAndDestination_Identity : MessageStor
         dlq.PrimaryKeyColumns.ShouldContain(DatabaseConstants.Id);
         dlq.PrimaryKeyColumns.ShouldContain(DatabaseConstants.ReceivedAt);
     }
+    
+    
 
     [Fact]
     public async Task delete_expired_envelopes()
