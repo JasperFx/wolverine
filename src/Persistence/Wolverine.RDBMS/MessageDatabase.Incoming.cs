@@ -44,6 +44,11 @@ public abstract partial class MessageDatabase<T>
     {
         if (HasDisposed) return;
 
+        if (Durability.DeadLetterQueueExpirationEnabled && envelope.DeliverBy == null)
+        {
+            envelope.DeliverBy = DateTimeOffset.UtcNow.Add(Durability.DeadLetterQueueExpiration);
+        }
+
         try
         {
             var builder = ToCommandBuilder();
@@ -53,7 +58,7 @@ public abstract partial class MessageDatabase<T>
             builder.AppendParameter(envelope.Destination.ToString());
             builder.Append(';');
 
-            DatabasePersistence.ConfigureDeadLetterCommands(envelope, exception, builder, this);
+            DatabasePersistence.ConfigureDeadLetterCommands(Durability, envelope, exception, builder, this);
 
             await executeCommandBatch(builder);
         }

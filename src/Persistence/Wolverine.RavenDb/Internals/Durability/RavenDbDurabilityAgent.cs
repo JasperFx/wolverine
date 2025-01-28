@@ -2,6 +2,7 @@ using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Logging;
 using Raven.Client.Documents;
+using Raven.Client.Documents.Operations;
 using Wolverine.Persistence;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
@@ -22,12 +23,11 @@ public partial class RavenDbDurabilityAgent : IAgent
 
     private Task? _recoveryTask;
     private Task? _scheduledJob;
-    private readonly IExecutor _executor;
 
     private readonly CancellationTokenSource _cancellation = new();
     private readonly CancellationTokenSource _combined;
     private PersistenceMetrics _metrics;
-
+    
     public RavenDbDurabilityAgent(IDocumentStore store, IWolverineRuntime runtime, RavenDbMessageStore parent)
     {
         _store = store;
@@ -37,8 +37,6 @@ public partial class RavenDbDurabilityAgent : IAgent
         _settings = runtime.DurabilitySettings;
 
         Uri = new Uri($"ravendb://durability");
-
-        _executor = runtime.As<IExecutorFactory>().BuildFor(typeof(IAgentCommand));
 
         _logger = runtime.LoggerFactory.CreateLogger<RavenDbDurabilityAgent>();
         
@@ -70,8 +68,20 @@ public partial class RavenDbDurabilityAgent : IAgent
 
             while (!_combined.IsCancellationRequested)
             {
+                var lastExpiredTime = DateTimeOffset.UtcNow;
+                
                 await tryRecoverIncomingMessages();
                 await tryRecoverOutgoingMessagesAsync();
+
+                if (_settings.DeadLetterQueueExpirationEnabled)
+                {
+                    // Crudely just doing this every hour
+                    var now = DateTimeOffset.UtcNow;
+                    if (now > lastExpiredTime.AddHours(1))
+                    {
+                        await tryDeleteExpiredDeadLetters();
+                    }
+                }
 
                 await timer.WaitForNextTickAsync(_combined.Token);
             }
@@ -88,6 +98,18 @@ public partial class RavenDbDurabilityAgent : IAgent
                 await timer.WaitForNextTickAsync(_combined.Token);
             }
         }, _combined.Token);
+
+    }
+
+    private async Task tryDeleteExpiredDeadLetters()
+    {
+        var now = DateTimeOffset.UtcNow;
+        using var session = _store.OpenAsyncSession();
+        var op =
+            await _store.Operations.SendAsync(
+                new DeleteByQueryOperation<DeadLetterMessage>("DeadLetterMessages", x => x.ExpirationTime < now));
+ 
+        await op.WaitForCompletionAsync();
     }
 
 

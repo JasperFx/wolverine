@@ -113,7 +113,6 @@ public static class DatabasePersistence
         var sentAt = await reader.GetFieldValueAsync<DateTimeOffset>(8, cancellation);
         var replayable = await reader.GetFieldValueAsync<bool>(9, cancellation);
 
-
         return new DeadLetterEnvelope(
             id,
             executionTime,
@@ -128,10 +127,11 @@ public static class DatabasePersistence
         );
     }
 
-    public static void ConfigureDeadLetterCommands(Envelope envelope, Exception? exception, DbCommandBuilder builder,
+    public static void ConfigureDeadLetterCommands(DurabilitySettings durability, Envelope envelope,
+        Exception? exception, DbCommandBuilder builder,
         IMessageDatabase wolverineDatabase)
     {
-        byte[] data = Array.Empty<byte>();
+        byte[] data = [];
         try
         {
             data = EnvelopeSerializer.Serialize(envelope);
@@ -155,10 +155,22 @@ public static class DatabasePersistence
             builder.AddParameter(false)
         };
 
-        var parameterList = list.Select(x => $"@{x.ParameterName}").Join(", ");
+        var deadLetterFields = DatabaseConstants.DeadLetterFields;
+        if (durability.DeadLetterQueueExpirationEnabled)
+        {
+            // If there is a deliver by, use that
+            var expiration = envelope.DeliverBy.HasValue 
+                ? builder.AddParameter(envelope.DeliverBy.Value)
+                : builder.AddParameter(DateTimeOffset.UtcNow.Add(durability.DeadLetterQueueExpiration));
+            
+            list.Add(expiration);
+            deadLetterFields += ", " + DatabaseConstants.Expires;
+        }
 
+        var parameterList = list.Select(x => $"@{x.ParameterName}").Join(", ");
+        
         builder.Append(
-            $"insert into {wolverineDatabase.SchemaName}.{DatabaseConstants.DeadLetterTable} ({DatabaseConstants.DeadLetterFields}) values ({parameterList});");
+            $"insert into {wolverineDatabase.SchemaName}.{DatabaseConstants.DeadLetterTable} ({deadLetterFields}) values ({parameterList});");
     }
 
     public static async Task<Envelope> ReadOutgoingAsync(DbDataReader reader, CancellationToken cancellation = default)
