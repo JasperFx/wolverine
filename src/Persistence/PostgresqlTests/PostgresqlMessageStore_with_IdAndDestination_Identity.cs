@@ -56,9 +56,10 @@ public class PostgresqlMessageStore_with_IdAndDestination_Identity : MessageStor
         var dlq = await new DeadLettersTable(runtime.Options.Durability, "receiver").FetchExistingAsync(conn);
         dlq.PrimaryKeyColumns.ShouldContain(DatabaseConstants.Id);
         dlq.PrimaryKeyColumns.ShouldContain(DatabaseConstants.ReceivedAt);
+        
     }
-    
-    
+
+
 
     [Fact]
     public async Task delete_expired_envelopes()

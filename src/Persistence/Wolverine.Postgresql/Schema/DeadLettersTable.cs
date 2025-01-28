@@ -30,6 +30,11 @@ internal class DeadLettersTable : Table
 
         AddColumn<DateTimeOffset>(DatabaseConstants.SentAt);
         AddColumn<bool>(DatabaseConstants.Replayable);
+
+        if (durability.DeadLetterQueueExpirationEnabled)
+        {
+            AddColumn<DateTimeOffset>(DatabaseConstants.Expires).AllowNulls();
+        }
         
         
     }
