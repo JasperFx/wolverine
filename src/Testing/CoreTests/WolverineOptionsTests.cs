@@ -36,6 +36,14 @@ public class WolverineOptionsTests
     {
         new WolverineOptions().Durability.MessageIdentity.ShouldBe(MessageIdentity.IdOnly);
     }
+
+    [Fact]
+    public void dlq_expiration_is_off_by_default()
+    {
+        var wolverineOptions = new WolverineOptions();
+        wolverineOptions.Durability.DeadLetterQueueExpiration.ShouldBe(10.Days());
+        wolverineOptions.Durability.DeadLetterQueueExpirationEnabled.ShouldBeFalse();
+    }
     
     [Fact]
     public void unique_node_id_is_really_unique()

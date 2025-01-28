@@ -157,6 +157,19 @@ public class DurabilitySettings
     public bool DurabilityMetricsEnabled { get; set; } = true;
 
     /// <summary>
+    /// If DeadLetterQueueExpirationEnabled is true, this governs how long persisted
+    /// dead letter queue messages will be retained. The default is 10 days from the time
+    /// the message is persisted.
+    /// </summary>
+    public TimeSpan DeadLetterQueueExpiration { get; set; } = 10.Days();
+    
+    /// <summary>
+    /// Opt-in flag governs whether or not dead letter queued messages have expiration
+    /// enforced for database stored dead letter messages. The default is false.
+    /// </summary>
+    public bool DeadLetterQueueExpirationEnabled { get; set; }
+
+    /// <summary>
     ///     Get or set the logical Wolverine service name. By default, this is
     ///     derived from the name of a custom WolverineOptions
     /// </summary>
