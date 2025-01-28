@@ -9,6 +9,4 @@ public class DeadLetterEnvelopeQueryParameters
     public string? ExceptionMessage { get; set; }
     public DateTimeOffset? From { get; set; }
     public DateTimeOffset? Until { get; set; }
-    
-    // TODO -- going to need to add page
 }
