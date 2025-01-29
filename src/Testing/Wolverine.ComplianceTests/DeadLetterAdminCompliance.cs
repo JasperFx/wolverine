@@ -1,14 +1,10 @@
-using System.Diagnostics;
-using Castle.Components.DictionaryAdapter;
 using JasperFx.Core.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using NSubstitute.Core;
 using Oakton.Resources;
 using Shouldly;
 using Wolverine.Persistence;
 using Wolverine.Persistence.Durability;
-using Wolverine.Runtime.Serialization;
 using Wolverine.Transports;
 using Wolverine.Util;
 using Xunit;
@@ -19,31 +15,30 @@ namespace Wolverine.ComplianceTests;
 public abstract class DeadLetterAdminCompliance : IAsyncLifetime
 {
     protected const string ServiceName = "Service1";
+
+    private static readonly string[] _colors =
+        ["Red", "Blue", "Orange", "Yellow", "Purple", "Green", "Black", "White", "Gray", "Pink"];
+
     private readonly ITestOutputHelper _output;
+    private DeadLetterEnvelopeResults allEnvelopes;
+    private DateTimeOffset EightHoursAgo;
+
+    private DateTimeOffset FiveHoursAgo;
+    private DateTimeOffset FourHoursAgo;
+    private DateTimeOffset SevenHoursAgo;
+    private DateTimeOffset SixHoursAgo;
+    protected IDeadLetterAdminService theDeadLetters;
+    protected EnvelopeGenerator theGenerator;
+    protected IMessageStore thePersistence;
+    private IReadOnlyList<DeadLetterQueueCount> theSummaries;
 
     protected DeadLetterAdminCompliance(ITestOutputHelper output)
     {
         _output = output;
     }
 
-    private static readonly string[] _colors =
-        ["Red", "Blue", "Orange", "Yellow", "Purple", "Green", "Black", "White", "Gray", "Pink"];
-    
     public IHost theHost { get; private set; }
-    protected IMessageStore thePersistence;
-    protected IDeadLetterAdminService theDeadLetters;
-    protected EnvelopeGenerator theGenerator;
 
-    private DateTimeOffset FiveHoursAgo;
-    private DateTimeOffset FourHoursAgo;
-    private DateTimeOffset SixHoursAgo;
-    private DateTimeOffset SevenHoursAgo;
-    private DateTimeOffset EightHoursAgo;
-    private IReadOnlyList<DeadLetterQueueCount> theSummaries;
-    private DeadLetterEnvelopeResults allEnvelopes;
-
-    public abstract Task<IHost> BuildCleanHost();
-    
     public async Task InitializeAsync()
     {
         theHost = await BuildCleanHost();
@@ -55,7 +50,7 @@ public abstract class DeadLetterAdminCompliance : IAsyncLifetime
 
         theGenerator = new EnvelopeGenerator();
         theGenerator.MessageSource = BuildRandomMessage;
-        
+
         FourHoursAgo = DateTimeOffset.UtcNow.AddHours(-4);
         FiveHoursAgo = DateTimeOffset.UtcNow.AddHours(-5);
         SixHoursAgo = DateTimeOffset.UtcNow.AddHours(-6);
@@ -69,6 +64,8 @@ public abstract class DeadLetterAdminCompliance : IAsyncLifetime
         theHost.Dispose();
     }
 
+    public abstract Task<IHost> BuildCleanHost();
+
     protected Task load(int count, DateTimeOffset startingTime)
     {
         theGenerator.StartingTime = startingTime;
@@ -79,10 +76,7 @@ public abstract class DeadLetterAdminCompliance : IAsyncLifetime
     {
         await thePersistence.Admin.RebuildAsync();
 
-        foreach (var generator in generators)
-        {
-            await generator.WriteDeadLetters(thePersistence);
-        }
+        foreach (var generator in generators) await generator.WriteDeadLetters(thePersistence);
     }
 
     public static object BuildRandomMessage()
@@ -109,7 +103,7 @@ public abstract class DeadLetterAdminCompliance : IAsyncLifetime
             return new TargetMessage1(Guid.NewGuid(), number, color);
         };
     }
-    
+
     private void withTargetMessage2()
     {
         theGenerator.MessageSource = () =>
@@ -119,7 +113,7 @@ public abstract class DeadLetterAdminCompliance : IAsyncLifetime
             return new TargetMessage2(Guid.NewGuid(), number, color);
         };
     }
-    
+
     private void withTargetMessage3()
     {
         theGenerator.MessageSource = () =>
@@ -129,7 +123,7 @@ public abstract class DeadLetterAdminCompliance : IAsyncLifetime
             return new TargetMessage3(Guid.NewGuid(), number, color);
         };
     }
-    
+
     private async Task fetchSummary(TimeRange range)
     {
         theSummaries = await theDeadLetters.SummarizeAllAsync(ServiceName, range, CancellationToken.None);
@@ -137,20 +131,16 @@ public abstract class DeadLetterAdminCompliance : IAsyncLifetime
         if (theSummaries.Any())
         {
             _output.WriteLine("Summaries were:");
-            foreach (var summary in theSummaries)
-            {
-                _output.WriteLine(summary.ToString());
-            }
+            foreach (var summary in theSummaries) _output.WriteLine(summary.ToString());
         }
         else
         {
             _output.WriteLine("No summaries were found!");
         }
-        
-
     }
 
-    private DeadLetterQueueCount summaryCount<TMessage, TException>(int expected, Uri? receivedAt = null, string? databaseIdentifier = null)
+    private DeadLetterQueueCount summaryCount<TMessage, TException>(int expected, Uri? receivedAt = null,
+        string? databaseIdentifier = null)
     {
         var uri = receivedAt ?? theGenerator.ReceivedAt;
         var messageType = typeof(TMessage).ToMessageTypeName();
@@ -160,10 +150,12 @@ public abstract class DeadLetterAdminCompliance : IAsyncLifetime
 
         return new DeadLetterQueueCount(ServiceName, uri, messageType, exceptionType, databaseIdentifier, expected);
     }
-    
+
     protected void noCountsFor<TMessage, TException>()
     {
-        theSummaries.Any(x => x.MessageType == typeof(TMessage).ToMessageTypeName() && x.ExceptionType == typeof(TException).FullNameInCode())
+        theSummaries.Any(x =>
+                x.MessageType == typeof(TMessage).ToMessageTypeName() &&
+                x.ExceptionType == typeof(TException).FullNameInCode())
             .ShouldBeFalse();
     }
 
@@ -175,7 +167,7 @@ public abstract class DeadLetterAdminCompliance : IAsyncLifetime
         await load(5, FiveHoursAgo);
         await load(7, SixHoursAgo);
         await load(8, SevenHoursAgo);
-        
+
         theGenerator.ExceptionSource = msg => new DivideByZeroException(msg);
         await load(3, FiveHoursAgo);
         await load(2, SixHoursAgo);
@@ -184,7 +176,7 @@ public abstract class DeadLetterAdminCompliance : IAsyncLifetime
         theGenerator.ExceptionSource = msg => new BadImageFormatException(msg);
         await load(10, EightHoursAgo);
         await load(8, SevenHoursAgo);
-        
+
         theGenerator.ExceptionSource = msg => new DivideByZeroException(msg);
         await load(5, FiveHoursAgo);
         await load(7, SixHoursAgo);
@@ -196,13 +188,16 @@ public abstract class DeadLetterAdminCompliance : IAsyncLifetime
         await load(3, SevenHoursAgo);
 
         await fetchSummary(TimeRange.AllTime());
-        
-        theSummaries.ShouldContain(summaryCount<TargetMessage1, InvalidOperationException>(20, TransportConstants.DurableLocalUri));
-        theSummaries.ShouldContain(summaryCount<TargetMessage1, DivideByZeroException>(5, TransportConstants.DurableLocalUri));
-        theSummaries.ShouldContain(summaryCount<TargetMessage2, DivideByZeroException>(12, TransportConstants.DurableLocalUri));
+
+        theSummaries.ShouldContain(
+            summaryCount<TargetMessage1, InvalidOperationException>(20, TransportConstants.DurableLocalUri));
+        theSummaries.ShouldContain(
+            summaryCount<TargetMessage1, DivideByZeroException>(5, TransportConstants.DurableLocalUri));
+        theSummaries.ShouldContain(
+            summaryCount<TargetMessage2, DivideByZeroException>(12, TransportConstants.DurableLocalUri));
         theSummaries.ShouldContain(summaryCount<TargetMessage2, BadImageFormatException>(14, new Uri("local://one")));
     }
-    
+
     [Fact]
     public async Task get_summaries_after_a_time()
     {
@@ -211,7 +206,7 @@ public abstract class DeadLetterAdminCompliance : IAsyncLifetime
         await load(5, FiveHoursAgo);
         await load(7, FourHoursAgo);
         await load(8, SevenHoursAgo);
-        
+
         theGenerator.ExceptionSource = msg => new DivideByZeroException(msg);
         await load(3, FiveHoursAgo);
         await load(2, SixHoursAgo);
@@ -220,7 +215,7 @@ public abstract class DeadLetterAdminCompliance : IAsyncLifetime
         theGenerator.ExceptionSource = msg => new BadImageFormatException(msg);
         await load(10, EightHoursAgo);
         await load(8, SevenHoursAgo);
-        
+
         theGenerator.ExceptionSource = msg => new DivideByZeroException(msg);
         await load(5, FiveHoursAgo);
         await load(7, SixHoursAgo);
@@ -232,12 +227,15 @@ public abstract class DeadLetterAdminCompliance : IAsyncLifetime
         await load(3, SevenHoursAgo);
 
         await fetchSummary(new TimeRange(FiveHoursAgo, null));
-        
-        theSummaries.ShouldContain(summaryCount<TargetMessage1, InvalidOperationException>(12, TransportConstants.DurableLocalUri));
-        theSummaries.ShouldContain(summaryCount<TargetMessage1, DivideByZeroException>(3, TransportConstants.DurableLocalUri));
-        theSummaries.ShouldContain(summaryCount<TargetMessage2, DivideByZeroException>(5, TransportConstants.DurableLocalUri));
+
+        theSummaries.ShouldContain(
+            summaryCount<TargetMessage1, InvalidOperationException>(12, TransportConstants.DurableLocalUri));
+        theSummaries.ShouldContain(
+            summaryCount<TargetMessage1, DivideByZeroException>(3, TransportConstants.DurableLocalUri));
+        theSummaries.ShouldContain(
+            summaryCount<TargetMessage2, DivideByZeroException>(5, TransportConstants.DurableLocalUri));
     }
-    
+
     [Fact]
     public async Task get_summaries_before_a_time()
     {
@@ -246,7 +244,7 @@ public abstract class DeadLetterAdminCompliance : IAsyncLifetime
         await load(5, FiveHoursAgo);
         await load(7, SixHoursAgo);
         await load(8, SevenHoursAgo);
-        
+
         theGenerator.ExceptionSource = msg => new DivideByZeroException(msg);
         await load(3, FiveHoursAgo);
         await load(2, SixHoursAgo);
@@ -255,7 +253,7 @@ public abstract class DeadLetterAdminCompliance : IAsyncLifetime
         theGenerator.ExceptionSource = msg => new BadImageFormatException(msg);
         await load(10, FiveHoursAgo);
         await load(8, FourHoursAgo);
-        
+
         theGenerator.ExceptionSource = msg => new DivideByZeroException(msg);
         await load(5, FiveHoursAgo);
         await load(7, SixHoursAgo);
@@ -267,15 +265,15 @@ public abstract class DeadLetterAdminCompliance : IAsyncLifetime
         await load(3, SevenHoursAgo);
 
         await fetchSummary(new TimeRange(null, SixHoursAgo.AddMinutes(-1)));
-        
+
         noCountsFor<TargetMessage2, DivideByZeroException>();
-        
-        theSummaries.ShouldContain(summaryCount<TargetMessage1, InvalidOperationException>(8, TransportConstants.DurableLocalUri));
+
+        theSummaries.ShouldContain(
+            summaryCount<TargetMessage1, InvalidOperationException>(8, TransportConstants.DurableLocalUri));
         theSummaries.ShouldContain(summaryCount<TargetMessage2, BadImageFormatException>(14, new Uri("local://one")));
     }
 
 
-    
     [Fact]
     public async Task get_summaries_within_a_time_range()
     {
@@ -285,16 +283,17 @@ public abstract class DeadLetterAdminCompliance : IAsyncLifetime
         await load(7, SixHoursAgo);
         await load(8, SevenHoursAgo);
         await load(11, EightHoursAgo);
-        
+
         await fetchSummary(new TimeRange(SevenHoursAgo, SixHoursAgo.AddMinutes(-1)));
-        
+
         theSummaries.ShouldContain(summaryCount<TargetMessage1, InvalidOperationException>(8));
     }
-    
+
     protected async Task loadAllEnvelopes()
     {
         allEnvelopes =
-            await theDeadLetters.QueryAsync(new DeadLetterEnvelopeQuery(TimeRange.AllTime()){PageSize = 1000}, CancellationToken.None);
+            await theDeadLetters.QueryAsync(new DeadLetterEnvelopeQuery(TimeRange.AllTime()) { PageSize = 0 },
+                CancellationToken.None);
     }
 
     protected async Task queryMatches(DeadLetterEnvelopeQuery query, Func<DeadLetterEnvelope, bool> filter)
@@ -302,9 +301,9 @@ public abstract class DeadLetterAdminCompliance : IAsyncLifetime
         query.PageSize = 1000;
         var actual = await theDeadLetters.QueryAsync(query, CancellationToken.None);
         var expected = allEnvelopes.Envelopes.Where(filter).OrderBy(x => x.Id).ToList();
-        
+
         //actual.TotalCount.ShouldBe(expected.Count);
-        
+
         actual.Envelopes.Select(x => x.Id).OrderBy(x => x).ToArray()
             .ShouldBe(expected.Select(x => x.Id).OrderBy(x => x).ToArray());
     }
@@ -317,7 +316,7 @@ public abstract class DeadLetterAdminCompliance : IAsyncLifetime
         await load(5, FiveHoursAgo);
         await load(7, SixHoursAgo);
         await load(8, SevenHoursAgo);
-        
+
         theGenerator.ExceptionSource = msg => new DivideByZeroException(msg);
         await load(3, FiveHoursAgo);
         await load(2, SixHoursAgo);
@@ -327,7 +326,7 @@ public abstract class DeadLetterAdminCompliance : IAsyncLifetime
         theGenerator.ExceptionSource = msg => new BadImageFormatException(msg);
         await load(10, FiveHoursAgo);
         await load(8, FourHoursAgo);
-        
+
         theGenerator.ExceptionSource = msg => new DivideByZeroException(msg);
         await load(5, FiveHoursAgo);
         await load(7, SixHoursAgo);
@@ -337,12 +336,12 @@ public abstract class DeadLetterAdminCompliance : IAsyncLifetime
         theGenerator.ExceptionSource = msg => new BadImageFormatException(msg);
         await load(11, EightHoursAgo);
         await load(3, SevenHoursAgo);
-        
+
         withTargetMessage3();
         theGenerator.ExceptionSource = msg => new BadImageFormatException(msg);
         await load(56, FiveHoursAgo);
         await load(45, FourHoursAgo);
-        
+
         theGenerator.ExceptionSource = msg => new DivideByZeroException(msg);
         await load(10, FiveHoursAgo);
         await load(13, FourHoursAgo);
@@ -350,8 +349,10 @@ public abstract class DeadLetterAdminCompliance : IAsyncLifetime
         await loadAllEnvelopes();
 
         await queryMatches(new DeadLetterEnvelopeQuery(new TimeRange(SixHoursAgo, null)), e => e.SentAt >= SixHoursAgo);
-        await queryMatches(new DeadLetterEnvelopeQuery(new TimeRange(null, SevenHoursAgo)), e => e.SentAt <= SevenHoursAgo);
-        await queryMatches(new DeadLetterEnvelopeQuery(new TimeRange(SixHoursAgo, SevenHoursAgo)), e => e.SentAt >= SixHoursAgo && e.SentAt <= SevenHoursAgo);
+        await queryMatches(new DeadLetterEnvelopeQuery(new TimeRange(null, SevenHoursAgo)),
+            e => e.SentAt <= SevenHoursAgo);
+        await queryMatches(new DeadLetterEnvelopeQuery(new TimeRange(SixHoursAgo, SevenHoursAgo)),
+            e => e.SentAt >= SixHoursAgo && e.SentAt <= SevenHoursAgo);
 
         await queryMatches(
             new DeadLetterEnvelopeQuery(TimeRange.AllTime())
@@ -376,7 +377,7 @@ public abstract class DeadLetterAdminCompliance : IAsyncLifetime
         await load(5, FiveHoursAgo);
         await load(7, SixHoursAgo);
         await load(8, SevenHoursAgo);
-        
+
         theGenerator.ExceptionSource = msg => new DivideByZeroException(msg);
         await load(3, FiveHoursAgo);
         await load(2, SixHoursAgo);
@@ -386,7 +387,7 @@ public abstract class DeadLetterAdminCompliance : IAsyncLifetime
         theGenerator.ExceptionSource = msg => new BadImageFormatException(msg);
         await load(10, FiveHoursAgo);
         await load(8, FourHoursAgo);
-        
+
         theGenerator.ExceptionSource = msg => new DivideByZeroException(msg);
         await load(5, FiveHoursAgo);
         await load(7, SixHoursAgo);
@@ -396,12 +397,12 @@ public abstract class DeadLetterAdminCompliance : IAsyncLifetime
         theGenerator.ExceptionSource = msg => new BadImageFormatException(msg);
         await load(11, EightHoursAgo);
         await load(3, SevenHoursAgo);
-        
+
         withTargetMessage3();
         theGenerator.ExceptionSource = msg => new BadImageFormatException(msg);
         await load(56, FiveHoursAgo);
         await load(45, FourHoursAgo);
-        
+
         theGenerator.ExceptionSource = msg => new DivideByZeroException(msg);
         await load(10, FiveHoursAgo);
         await load(13, FourHoursAgo);
@@ -410,11 +411,11 @@ public abstract class DeadLetterAdminCompliance : IAsyncLifetime
 
         var firstPage = await theDeadLetters.QueryAsync(
             new DeadLetterEnvelopeQuery(TimeRange.AllTime()) { PageSize = 10, PageNumber = 1 }, CancellationToken.None);
-        
+
         firstPage.TotalCount.ShouldBe(allEnvelopes.TotalCount);
         firstPage.PageNumber.ShouldBe(1);
         firstPage.Envelopes.Count.ShouldBe(10);
-        
+
         var secondPage = await theDeadLetters.QueryAsync(
             new DeadLetterEnvelopeQuery(TimeRange.AllTime()) { PageSize = 10, PageNumber = 2 }, CancellationToken.None);
 
@@ -431,7 +432,7 @@ public abstract class DeadLetterAdminCompliance : IAsyncLifetime
         await load(5, FiveHoursAgo);
         await load(7, SixHoursAgo);
         await load(8, SevenHoursAgo);
-        
+
         theGenerator.ExceptionSource = msg => new DivideByZeroException(msg);
         await load(3, FiveHoursAgo);
         await load(2, SixHoursAgo);
@@ -441,7 +442,7 @@ public abstract class DeadLetterAdminCompliance : IAsyncLifetime
         theGenerator.ExceptionSource = msg => new BadImageFormatException(msg);
         await load(10, FiveHoursAgo);
         await load(8, FourHoursAgo);
-        
+
         theGenerator.ExceptionSource = msg => new DivideByZeroException(msg);
         await load(5, FiveHoursAgo);
         await load(7, SixHoursAgo);
@@ -451,12 +452,12 @@ public abstract class DeadLetterAdminCompliance : IAsyncLifetime
         theGenerator.ExceptionSource = msg => new BadImageFormatException(msg);
         await load(11, EightHoursAgo);
         await load(3, SevenHoursAgo);
-        
+
         withTargetMessage3();
         theGenerator.ExceptionSource = msg => new BadImageFormatException(msg);
         await load(56, FiveHoursAgo);
         await load(45, FourHoursAgo);
-        
+
         theGenerator.ExceptionSource = msg => new DivideByZeroException(msg);
         await load(10, FiveHoursAgo);
         await load(13, FourHoursAgo);
@@ -469,9 +470,8 @@ public abstract class DeadLetterAdminCompliance : IAsyncLifetime
         var results = await theDeadLetters.QueryAsync(query, CancellationToken.None);
         results.TotalCount.ShouldBe(0);
         results.Envelopes.Count.ShouldBe(0);
-
     }
-    
+
     [Fact]
     public async Task replay_by_query()
     {
@@ -480,7 +480,7 @@ public abstract class DeadLetterAdminCompliance : IAsyncLifetime
         await load(5, FiveHoursAgo);
         await load(7, SixHoursAgo);
         await load(8, SevenHoursAgo);
-        
+
         theGenerator.ExceptionSource = msg => new DivideByZeroException(msg);
         await load(3, FiveHoursAgo);
         await load(2, SixHoursAgo);
@@ -490,7 +490,7 @@ public abstract class DeadLetterAdminCompliance : IAsyncLifetime
         theGenerator.ExceptionSource = msg => new BadImageFormatException(msg);
         await load(10, FiveHoursAgo);
         await load(8, FourHoursAgo);
-        
+
         theGenerator.ExceptionSource = msg => new DivideByZeroException(msg);
         await load(5, FiveHoursAgo);
         await load(7, SixHoursAgo);
@@ -500,12 +500,12 @@ public abstract class DeadLetterAdminCompliance : IAsyncLifetime
         theGenerator.ExceptionSource = msg => new BadImageFormatException(msg);
         await load(11, EightHoursAgo);
         await load(3, SevenHoursAgo);
-        
+
         withTargetMessage3();
         theGenerator.ExceptionSource = msg => new BadImageFormatException(msg);
         await load(56, FiveHoursAgo);
         await load(45, FourHoursAgo);
-        
+
         theGenerator.ExceptionSource = msg => new DivideByZeroException(msg);
         await load(10, FiveHoursAgo);
         await load(13, FourHoursAgo);
@@ -518,7 +518,6 @@ public abstract class DeadLetterAdminCompliance : IAsyncLifetime
         var results = await theDeadLetters.QueryAsync(query, CancellationToken.None);
         results.TotalCount.ShouldBe(0);
         results.Envelopes.Count.ShouldBe(0);
-
     }
 
     [Fact]
@@ -529,7 +528,7 @@ public abstract class DeadLetterAdminCompliance : IAsyncLifetime
         await load(5, FiveHoursAgo);
         await load(7, SixHoursAgo);
         await load(8, SevenHoursAgo);
-        
+
         theGenerator.ExceptionSource = msg => new DivideByZeroException(msg);
         await load(3, FiveHoursAgo);
         await load(2, SixHoursAgo);
@@ -539,7 +538,7 @@ public abstract class DeadLetterAdminCompliance : IAsyncLifetime
         theGenerator.ExceptionSource = msg => new BadImageFormatException(msg);
         await load(10, FiveHoursAgo);
         await load(8, FourHoursAgo);
-        
+
         theGenerator.ExceptionSource = msg => new DivideByZeroException(msg);
         await load(5, FiveHoursAgo);
         await load(7, SixHoursAgo);
@@ -549,12 +548,12 @@ public abstract class DeadLetterAdminCompliance : IAsyncLifetime
         theGenerator.ExceptionSource = msg => new BadImageFormatException(msg);
         await load(11, EightHoursAgo);
         await load(3, SevenHoursAgo);
-        
+
         withTargetMessage3();
         theGenerator.ExceptionSource = msg => new BadImageFormatException(msg);
         await load(56, FiveHoursAgo);
         await load(45, FourHoursAgo);
-        
+
         theGenerator.ExceptionSource = msg => new DivideByZeroException(msg);
         await load(10, FiveHoursAgo);
         await load(13, FourHoursAgo);
@@ -563,12 +562,12 @@ public abstract class DeadLetterAdminCompliance : IAsyncLifetime
 
         var ids = allEnvelopes.Envelopes.Take(10).Select(x => x.Id).ToArray();
         await theDeadLetters.DiscardAsync(new MessageBatchRequest(ids), CancellationToken.None);
-        
+
         // Reload
         await loadAllEnvelopes();
         allEnvelopes.Envelopes.Where(x => ids.Contains(x.Id)).Any().ShouldBeFalse();
     }
-    
+
     [Fact]
     public async Task replay_by_message_batch()
     {
@@ -577,7 +576,7 @@ public abstract class DeadLetterAdminCompliance : IAsyncLifetime
         await load(5, FiveHoursAgo);
         await load(7, SixHoursAgo);
         await load(8, SevenHoursAgo);
-        
+
         theGenerator.ExceptionSource = msg => new DivideByZeroException(msg);
         await load(3, FiveHoursAgo);
         await load(2, SixHoursAgo);
@@ -587,7 +586,7 @@ public abstract class DeadLetterAdminCompliance : IAsyncLifetime
         theGenerator.ExceptionSource = msg => new BadImageFormatException(msg);
         await load(10, FiveHoursAgo);
         await load(8, FourHoursAgo);
-        
+
         theGenerator.ExceptionSource = msg => new DivideByZeroException(msg);
         await load(5, FiveHoursAgo);
         await load(7, SixHoursAgo);
@@ -597,12 +596,12 @@ public abstract class DeadLetterAdminCompliance : IAsyncLifetime
         theGenerator.ExceptionSource = msg => new BadImageFormatException(msg);
         await load(11, EightHoursAgo);
         await load(3, SevenHoursAgo);
-        
+
         withTargetMessage3();
         theGenerator.ExceptionSource = msg => new BadImageFormatException(msg);
         await load(56, FiveHoursAgo);
         await load(45, FourHoursAgo);
-        
+
         theGenerator.ExceptionSource = msg => new DivideByZeroException(msg);
         await load(10, FiveHoursAgo);
         await load(13, FourHoursAgo);
@@ -616,10 +615,10 @@ public abstract class DeadLetterAdminCompliance : IAsyncLifetime
         await loadAllEnvelopes();
         allEnvelopes.Envelopes.Where(x => ids.Contains(x.Id)).Any().ShouldBeFalse();
     }
-
 }
 
 public record TargetMessage1(Guid Id, int Number, string Color);
-public record TargetMessage2(Guid Id, int Number, string Color);
-public record TargetMessage3(Guid Id, int Number, string Color);
 
+public record TargetMessage2(Guid Id, int Number, string Color);
+
+public record TargetMessage3(Guid Id, int Number, string Color);
