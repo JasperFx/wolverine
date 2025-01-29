@@ -49,6 +49,7 @@ public class EnvelopeGenerator
         }
         
         envelope.SentAt = StartingTime;
+        
         envelope.Status = EnvelopeStatus.Incoming;
 
         envelope.OwnerId = 0;

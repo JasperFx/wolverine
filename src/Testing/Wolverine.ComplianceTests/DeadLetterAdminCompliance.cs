@@ -132,6 +132,21 @@ public abstract class DeadLetterAdminCompliance : IAsyncLifetime
     private async Task fetchSummary(TimeRange range)
     {
         theSummaries = await theDeadLetters.SummarizeAllAsync(ServiceName, range, CancellationToken.None);
+
+        if (theSummaries.Any())
+        {
+            _output.WriteLine("Summaries were:");
+            foreach (var summary in theSummaries)
+            {
+                _output.WriteLine(summary.ToString());
+            }
+        }
+        else
+        {
+            _output.WriteLine("No summaries were found!");
+        }
+        
+
     }
 
     private DeadLetterQueueCount summaryCount<TMessage, TException>(int expected, Uri? receivedAt = null, string? databaseIdentifier = null)
@@ -143,6 +158,12 @@ public abstract class DeadLetterAdminCompliance : IAsyncLifetime
         databaseIdentifier ??= "default";
 
         return new DeadLetterQueueCount(ServiceName, uri, messageType, exceptionType, databaseIdentifier, expected);
+    }
+    
+    protected void noCountsFor<TMessage, TException>()
+    {
+        theSummaries.Any(x => x.MessageType == typeof(TMessage).ToMessageTypeName() && x.ExceptionType == typeof(TException).FullNameInCode())
+            .ShouldBeFalse();
     }
 
     [Fact]
@@ -180,21 +201,80 @@ public abstract class DeadLetterAdminCompliance : IAsyncLifetime
         theSummaries.ShouldContain(summaryCount<TargetMessage2, DivideByZeroException>(12, TransportConstants.DurableLocalUri));
         theSummaries.ShouldContain(summaryCount<TargetMessage2, BadImageFormatException>(14, new Uri("local://one")));
     }
+    
+    [Fact]
+    public async Task get_summaries_after_a_time()
+    {
+        withTargetMessage1();
+        theGenerator.ExceptionSource = msg => new InvalidOperationException(msg);
+        await load(5, FiveHoursAgo);
+        await load(7, FourHoursAgo);
+        await load(8, SevenHoursAgo);
+        
+        theGenerator.ExceptionSource = msg => new DivideByZeroException(msg);
+        await load(3, FiveHoursAgo);
+        await load(2, SixHoursAgo);
+
+        withTargetMessage2();
+        theGenerator.ExceptionSource = msg => new BadImageFormatException(msg);
+        await load(10, EightHoursAgo);
+        await load(8, SevenHoursAgo);
+        
+        theGenerator.ExceptionSource = msg => new DivideByZeroException(msg);
+        await load(5, FiveHoursAgo);
+        await load(7, SixHoursAgo);
+
+        theGenerator.ReceivedAt = new Uri("local://one");
+        withTargetMessage2();
+        theGenerator.ExceptionSource = msg => new BadImageFormatException(msg);
+        await load(11, EightHoursAgo);
+        await load(3, SevenHoursAgo);
+
+        await fetchSummary(new TimeRange(FiveHoursAgo, null));
+        
+        theSummaries.ShouldContain(summaryCount<TargetMessage1, InvalidOperationException>(12, TransportConstants.DurableLocalUri));
+        theSummaries.ShouldContain(summaryCount<TargetMessage1, DivideByZeroException>(3, TransportConstants.DurableLocalUri));
+        theSummaries.ShouldContain(summaryCount<TargetMessage2, DivideByZeroException>(5, TransportConstants.DurableLocalUri));
+    }
+    
+    [Fact]
+    public async Task get_summaries_before_a_time()
+    {
+        withTargetMessage1();
+        theGenerator.ExceptionSource = msg => new InvalidOperationException(msg);
+        await load(5, FiveHoursAgo);
+        await load(7, SixHoursAgo);
+        await load(8, SevenHoursAgo);
+        
+        theGenerator.ExceptionSource = msg => new DivideByZeroException(msg);
+        await load(3, FiveHoursAgo);
+        await load(2, SixHoursAgo);
+
+        withTargetMessage2();
+        theGenerator.ExceptionSource = msg => new BadImageFormatException(msg);
+        await load(10, FiveHoursAgo);
+        await load(8, FourHoursAgo);
+        
+        theGenerator.ExceptionSource = msg => new DivideByZeroException(msg);
+        await load(5, FiveHoursAgo);
+        await load(7, SixHoursAgo);
+
+        theGenerator.ReceivedAt = new Uri("local://one");
+        withTargetMessage2();
+        theGenerator.ExceptionSource = msg => new BadImageFormatException(msg);
+        await load(11, EightHoursAgo);
+        await load(3, SevenHoursAgo);
+
+        await fetchSummary(new TimeRange(null, SixHoursAgo.AddMinutes(-1)));
+        
+        noCountsFor<TargetMessage2, DivideByZeroException>();
+        
+        theSummaries.ShouldContain(summaryCount<TargetMessage1, InvalidOperationException>(8, TransportConstants.DurableLocalUri));
+        theSummaries.ShouldContain(summaryCount<TargetMessage2, BadImageFormatException>(14, new Uri("local://one")));
+    }
 
 
-
-    // [Fact]
-    // public async Task get_summaries_after_a_time()
-    // {
-    //     throw new NotImplementedException();
-    // }
-    //
-    // [Fact]
-    // public async Task get_summaries_before_a_time()
-    // {
-    //     throw new NotImplementedException();
-    // }
-    //
+    
     // [Fact]
     // public async Task get_summaries_within_a_time_range()
     // {
