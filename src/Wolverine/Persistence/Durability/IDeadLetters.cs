@@ -1,17 +1,8 @@
 namespace Wolverine.Persistence.Durability;
 
 /// <summary>
-/// Summarized count of dead letter messages
+/// This is the original V2/3 service for dead letter querying
 /// </summary>
-/// <param name="ServiceName"></param>
-/// <param name="ReceivedAt"></param>
-/// <param name="MessageType"></param>
-/// <param name="ExceptionType"></param>
-/// <param name="TenantId"></param>
-/// <param name="Count"></param>
-public record DeadLetterQueueCount(string ServiceName, Uri ReceivedAt, string MessageType, string ExceptionType, string TenantId, int Count);
-
-
 public interface IDeadLetters
 {
     Task<DeadLetterEnvelopesFound> QueryDeadLetterEnvelopesAsync(DeadLetterEnvelopeQueryParameters queryParameters, string? tenantId = null);

@@ -27,7 +27,7 @@ public abstract partial class MessageDatabase<T>
             builder.Append(";");
         }
 
-        return executeCommandBatch(builder);
+        return executeCommandBatch(builder, _cancellation);
     }
 
     public Task StoreIncomingAsync(DbTransaction tx, Envelope[] envelopes)
@@ -60,7 +60,7 @@ public abstract partial class MessageDatabase<T>
 
             DatabasePersistence.ConfigureDeadLetterCommands(Durability, envelope, exception, builder, this);
 
-            await executeCommandBatch(builder);
+            await executeCommandBatch(builder, _cancellation);
         }
         catch (Exception e)
         {
@@ -99,18 +99,18 @@ public abstract partial class MessageDatabase<T>
             builder.Append(";");
         }
 
-        await executeCommandBatch(builder);
+        await executeCommandBatch(builder, _cancellation);
     }
 
-    private async Task executeCommandBatch(DbCommandBuilder builder)
+    private async Task executeCommandBatch(DbCommandBuilder builder, CancellationToken token)
     {
         var cmd = builder.Compile();
 
-        await using var conn = await DataSource.OpenConnectionAsync(_cancellation);
+        await using var conn = await DataSource.OpenConnectionAsync(token);
         try
         {
             cmd.Connection = conn;
-            await cmd.ExecuteNonQueryAsync(_cancellation).ConfigureAwait(false);
+            await cmd.ExecuteNonQueryAsync(token).ConfigureAwait(false);
         }
         finally
         {
