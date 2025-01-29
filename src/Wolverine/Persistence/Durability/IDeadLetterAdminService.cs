@@ -40,7 +40,7 @@ public class DeadLetterEnvelopeResults
     public int PageNumber { get; set; }
 }
 
-public record MessageBatchRequest(Guid[] Ids, string DatabaseIdentifier);
+public record MessageBatchRequest(Guid[] Ids, string? DatabaseIdentifier = "*Default*");
 
 /// <summary>
 /// This is the dead letter service that is meant for CritterWatch usage
