@@ -10,7 +10,7 @@ namespace Wolverine.Persistence;
 /// Used to generate fake Envelope data for test harnesses including
 /// CritterWatch
 /// </summary>
-internal class EnvelopeGenerator
+public class EnvelopeGenerator
 {
     public IMessageSerializer Serializer { get; set; } = new SystemTextJsonSerializer(new JsonSerializerOptions());
     
@@ -24,6 +24,8 @@ internal class EnvelopeGenerator
     public Func<object> MessageSource { get; set; } = () => throw new NotImplementedException();
     
     public DateTimeOffset StartingTime { get; set; }
+
+    public int Count { get; set; } = 100;
     
     public string TenantId { get; set; } = "*Default*";
 
@@ -55,6 +57,8 @@ internal class EnvelopeGenerator
 
         return envelope;
     }
+
+    public Task WriteDeadLetters(IMessageStore store) => WriteDeadLetters(Count, store);
 
     public async Task WriteDeadLetters(int count, IMessageStore store)
     {

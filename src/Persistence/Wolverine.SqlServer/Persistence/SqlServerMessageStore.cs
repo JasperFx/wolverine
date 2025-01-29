@@ -62,6 +62,21 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>, IDatabaseSa
         return ex is SqlException sqlEx && sqlEx.Message.ContainsIgnoreCase("Violation of PRIMARY KEY constraint");
     }
 
+    protected override void writePagingAfter(DbCommandBuilder builder, uint offset, uint limit)
+    {
+        if (limit > 0)
+        {
+            builder.Append("LIMIT ");
+            builder.AppendParameter(limit);
+        }
+
+        if (offset > 0)
+        {
+            builder.Append(" OFFSET ");
+            builder.AppendParameter(offset);
+        }
+    }
+
     public override async Task<PersistedCounts> FetchCountsAsync()
     {
         var counts = new PersistedCounts();
