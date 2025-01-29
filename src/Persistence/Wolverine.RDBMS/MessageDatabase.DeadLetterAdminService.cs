@@ -71,14 +71,15 @@ public abstract partial class MessageDatabase<T> : IDeadLetterAdminService
         var builder = ToCommandBuilder();
         
         // TODO -- not sure the total works for both databases
-        builder.Append($"select {DatabaseConstants.DeadLetterFields} from {SchemaName}.{DatabaseConstants.DeadLetterTable} count(*) OVER() as total_rows where 1 = 1");
+        builder.Append($"select {DatabaseConstants.DeadLetterFields}, count(*) OVER() as total_rows from {SchemaName}.{DatabaseConstants.DeadLetterTable} where 1 = 1");
 
         writeDeadLetterWhereClause(query, builder);
 
         builder.Append(" order by ");
         builder.Append(DatabaseConstants.ExecutionTime);
-        builder.Append(" desc ");
 
+        if (query.PageNumber <= 0) query.PageNumber = 1;
+        
         if (query.PageSize > 0)
         {
             var offset = query.PageNumber <= 1 ? 0 : (query.PageNumber - 1) * query.PageSize;
@@ -93,7 +94,7 @@ public abstract partial class MessageDatabase<T> : IDeadLetterAdminService
 
         await using var reader = await cmd.ExecuteReaderAsync(token);
 
-        var results = new DeadLetterEnvelopeResults();
+        var results = new DeadLetterEnvelopeResults{PageNumber = query.PageNumber};
         if (await reader.ReadAsync(token))
         {
             var env = await DatabasePersistence.ReadDeadLetterAsync(reader, token);
@@ -146,7 +147,7 @@ public abstract partial class MessageDatabase<T> : IDeadLetterAdminService
         }
     }
 
-    protected abstract void writePagingAfter(DbCommandBuilder builder, uint offset, uint limit);
+    protected abstract void writePagingAfter(DbCommandBuilder builder, int offset, int limit);
 
     public Task DiscardAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
     {

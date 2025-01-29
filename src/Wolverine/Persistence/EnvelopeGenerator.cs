@@ -29,6 +29,8 @@ public class EnvelopeGenerator
     
     public string TenantId { get; set; } = "*Default*";
 
+    public string SourceServiceName { get; set; } = "UpstreamService1";
+
     public Envelope BuildEnvelope()
     {
         var envelope = new Envelope(MessageSource())
@@ -38,7 +40,8 @@ public class EnvelopeGenerator
             TenantId = TenantId,
             Serializer = Serializer,
             ContentType = Serializer.ContentType,
-            Attempts = Random.Shared.Next(1, 3)
+            Attempts = Random.Shared.Next(1, 3),
+            Source = SourceServiceName
         };
         
         envelope.Data = envelope.Serializer.WriteMessage(envelope.Message);

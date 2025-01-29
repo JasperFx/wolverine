@@ -105,20 +105,18 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>, IData
         return false;
     }
 
-    protected override void writePagingAfter(DbCommandBuilder builder, uint offset, uint limit)
+    protected override void writePagingAfter(DbCommandBuilder builder, int offset, int limit)
     {
         if (offset > 0)
         {
             builder.Append(" OFFSET ");
             builder.AppendParameter(offset);
-            builder.Append(" ROWS ");
         }
         
         if (limit > 0)
         {
-            builder.Append("FETCH NEXT ");
+            builder.Append(" LIMIT ");
             builder.AppendParameter(limit);
-            builder.Append(" ROWS ONLY");
         }
     }
 
