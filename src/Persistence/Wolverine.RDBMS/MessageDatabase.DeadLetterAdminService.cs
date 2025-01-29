@@ -65,13 +65,19 @@ public abstract partial class MessageDatabase<T> : IDeadLetterAdminService
     {
         return SummarizeAllAsync(serviceName, range, token);
     }
+
+    protected virtual string toTopClause(DeadLetterEnvelopeQuery query)
+    {
+        return "";
+    }
     
     public async Task<DeadLetterEnvelopeResults> QueryAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
     {
         var builder = ToCommandBuilder();
+
+        var topSelect = toTopClause(query);
         
-        // TODO -- not sure the total works for both databases
-        builder.Append($"select {DatabaseConstants.DeadLetterFields}, count(*) OVER() as total_rows from {SchemaName}.{DatabaseConstants.DeadLetterTable} where 1 = 1");
+        builder.Append($"select{topSelect} {DatabaseConstants.DeadLetterFields}, count(*) OVER() as total_rows from {SchemaName}.{DatabaseConstants.DeadLetterTable} where 1 = 1");
 
         writeDeadLetterWhereClause(query, builder);
 
@@ -163,11 +169,18 @@ public abstract partial class MessageDatabase<T> : IDeadLetterAdminService
     public Task ReplayAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
     {
         var builder = ToCommandBuilder();
-        
-        builder.Append($"update {SchemaName}.{DatabaseConstants.DeadLetterTable} set {DatabaseConstants.Replayable} = true where 1 = 1");
+
+        builder.Append(
+            $"update {SchemaName}.{DatabaseConstants.DeadLetterTable} set {DatabaseConstants.Replayable} = ");
+        builder.AppendParameter(true);
+        builder.Append(" where 1 = 1");
         writeDeadLetterWhereClause(query, builder);
         builder.Append(';');
-
+        builder.Append(
+            $"delete from {SchemaName}.{DatabaseConstants.DeadLetterTable} where {DatabaseConstants.Replayable} = ");
+        builder.AppendParameter(true);
+        builder.Append(';');
+        
         return executeCommandBatch(builder, token);
     }
 
@@ -193,8 +206,15 @@ public abstract partial class MessageDatabase<T> : IDeadLetterAdminService
 
         foreach (var id in request.Ids)
         {
-            builder.Append($"update {SchemaName}.{DatabaseConstants.DeadLetterTable} set {DatabaseConstants.Replayable} = true where {DatabaseConstants.Id} = ");
+            builder.Append(
+                $"update {SchemaName}.{DatabaseConstants.DeadLetterTable} set {DatabaseConstants.Replayable} = ");
+            builder.AppendParameter(true);
+            builder.Append($" where {DatabaseConstants.Id} = ");
             builder.AppendParameter(id);
+            builder.Append(';');
+            builder.Append(
+                $"delete from {SchemaName}.{DatabaseConstants.DeadLetterTable} where {DatabaseConstants.Replayable} = ");
+            builder.AppendParameter(true);
             builder.Append(';');
         }
         
