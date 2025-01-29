@@ -423,28 +423,200 @@ public abstract class DeadLetterAdminCompliance : IAsyncLifetime
         secondPage.Envelopes.Count.ShouldBe(10);
     }
 
+    [Fact]
+    public async Task discard_by_query()
+    {
+        withTargetMessage1();
+        theGenerator.ExceptionSource = msg => new InvalidOperationException(msg);
+        await load(5, FiveHoursAgo);
+        await load(7, SixHoursAgo);
+        await load(8, SevenHoursAgo);
+        
+        theGenerator.ExceptionSource = msg => new DivideByZeroException(msg);
+        await load(3, FiveHoursAgo);
+        await load(2, SixHoursAgo);
 
-    // [Fact]
-    // public async Task discard_by_query()
-    // {
-    //     throw new NotImplementedException();
-    // }
+        theGenerator.ReceivedAt = new Uri("local://two");
+        withTargetMessage2();
+        theGenerator.ExceptionSource = msg => new BadImageFormatException(msg);
+        await load(10, FiveHoursAgo);
+        await load(8, FourHoursAgo);
+        
+        theGenerator.ExceptionSource = msg => new DivideByZeroException(msg);
+        await load(5, FiveHoursAgo);
+        await load(7, SixHoursAgo);
+
+        theGenerator.ReceivedAt = new Uri("local://one");
+        withTargetMessage2();
+        theGenerator.ExceptionSource = msg => new BadImageFormatException(msg);
+        await load(11, EightHoursAgo);
+        await load(3, SevenHoursAgo);
+        
+        withTargetMessage3();
+        theGenerator.ExceptionSource = msg => new BadImageFormatException(msg);
+        await load(56, FiveHoursAgo);
+        await load(45, FourHoursAgo);
+        
+        theGenerator.ExceptionSource = msg => new DivideByZeroException(msg);
+        await load(10, FiveHoursAgo);
+        await load(13, FourHoursAgo);
+
+        var query = new DeadLetterEnvelopeQuery(TimeRange.AllTime())
+            { ExceptionType = typeof(BadImageFormatException).FullNameInCode() };
+        await theDeadLetters.DiscardAsync(
+            query, CancellationToken.None);
+
+        var results = await theDeadLetters.QueryAsync(query, CancellationToken.None);
+        results.TotalCount.ShouldBe(0);
+        results.Envelopes.Count.ShouldBe(0);
+
+    }
     
-    // [Fact]
-    // public async Task replay_by_query()
-    // {
-    //     throw new NotImplementedException();
-    // }
-    //
-    // [Fact]
-    // public async Task replay_by_ids()
-    // {
-    //     throw new NotImplementedException();
-    // }
-    //
-    //
+    [Fact]
+    public async Task replay_by_query()
+    {
+        withTargetMessage1();
+        theGenerator.ExceptionSource = msg => new InvalidOperationException(msg);
+        await load(5, FiveHoursAgo);
+        await load(7, SixHoursAgo);
+        await load(8, SevenHoursAgo);
+        
+        theGenerator.ExceptionSource = msg => new DivideByZeroException(msg);
+        await load(3, FiveHoursAgo);
+        await load(2, SixHoursAgo);
+
+        theGenerator.ReceivedAt = new Uri("local://two");
+        withTargetMessage2();
+        theGenerator.ExceptionSource = msg => new BadImageFormatException(msg);
+        await load(10, FiveHoursAgo);
+        await load(8, FourHoursAgo);
+        
+        theGenerator.ExceptionSource = msg => new DivideByZeroException(msg);
+        await load(5, FiveHoursAgo);
+        await load(7, SixHoursAgo);
+
+        theGenerator.ReceivedAt = new Uri("local://one");
+        withTargetMessage2();
+        theGenerator.ExceptionSource = msg => new BadImageFormatException(msg);
+        await load(11, EightHoursAgo);
+        await load(3, SevenHoursAgo);
+        
+        withTargetMessage3();
+        theGenerator.ExceptionSource = msg => new BadImageFormatException(msg);
+        await load(56, FiveHoursAgo);
+        await load(45, FourHoursAgo);
+        
+        theGenerator.ExceptionSource = msg => new DivideByZeroException(msg);
+        await load(10, FiveHoursAgo);
+        await load(13, FourHoursAgo);
+
+        var query = new DeadLetterEnvelopeQuery(TimeRange.AllTime())
+            { ExceptionType = typeof(BadImageFormatException).FullNameInCode() };
+        await theDeadLetters.ReplayAsync(
+            query, CancellationToken.None);
+
+        var results = await theDeadLetters.QueryAsync(query, CancellationToken.None);
+        results.TotalCount.ShouldBe(0);
+        results.Envelopes.Count.ShouldBe(0);
+
+    }
+
+    [Fact]
+    public async Task discard_by_message_batch()
+    {
+        withTargetMessage1();
+        theGenerator.ExceptionSource = msg => new InvalidOperationException(msg);
+        await load(5, FiveHoursAgo);
+        await load(7, SixHoursAgo);
+        await load(8, SevenHoursAgo);
+        
+        theGenerator.ExceptionSource = msg => new DivideByZeroException(msg);
+        await load(3, FiveHoursAgo);
+        await load(2, SixHoursAgo);
+
+        theGenerator.ReceivedAt = new Uri("local://two");
+        withTargetMessage2();
+        theGenerator.ExceptionSource = msg => new BadImageFormatException(msg);
+        await load(10, FiveHoursAgo);
+        await load(8, FourHoursAgo);
+        
+        theGenerator.ExceptionSource = msg => new DivideByZeroException(msg);
+        await load(5, FiveHoursAgo);
+        await load(7, SixHoursAgo);
+
+        theGenerator.ReceivedAt = new Uri("local://one");
+        withTargetMessage2();
+        theGenerator.ExceptionSource = msg => new BadImageFormatException(msg);
+        await load(11, EightHoursAgo);
+        await load(3, SevenHoursAgo);
+        
+        withTargetMessage3();
+        theGenerator.ExceptionSource = msg => new BadImageFormatException(msg);
+        await load(56, FiveHoursAgo);
+        await load(45, FourHoursAgo);
+        
+        theGenerator.ExceptionSource = msg => new DivideByZeroException(msg);
+        await load(10, FiveHoursAgo);
+        await load(13, FourHoursAgo);
+
+        await loadAllEnvelopes();
+
+        var ids = allEnvelopes.Envelopes.Take(10).Select(x => x.Id).ToArray();
+        await theDeadLetters.DiscardAsync(new MessageBatchRequest(ids), CancellationToken.None);
+        
+        // Reload
+        await loadAllEnvelopes();
+        allEnvelopes.Envelopes.Where(x => ids.Contains(x.Id)).Any().ShouldBeFalse();
+    }
     
-    
+    [Fact]
+    public async Task replay_by_message_batch()
+    {
+        withTargetMessage1();
+        theGenerator.ExceptionSource = msg => new InvalidOperationException(msg);
+        await load(5, FiveHoursAgo);
+        await load(7, SixHoursAgo);
+        await load(8, SevenHoursAgo);
+        
+        theGenerator.ExceptionSource = msg => new DivideByZeroException(msg);
+        await load(3, FiveHoursAgo);
+        await load(2, SixHoursAgo);
+
+        theGenerator.ReceivedAt = new Uri("local://two");
+        withTargetMessage2();
+        theGenerator.ExceptionSource = msg => new BadImageFormatException(msg);
+        await load(10, FiveHoursAgo);
+        await load(8, FourHoursAgo);
+        
+        theGenerator.ExceptionSource = msg => new DivideByZeroException(msg);
+        await load(5, FiveHoursAgo);
+        await load(7, SixHoursAgo);
+
+        theGenerator.ReceivedAt = new Uri("local://one");
+        withTargetMessage2();
+        theGenerator.ExceptionSource = msg => new BadImageFormatException(msg);
+        await load(11, EightHoursAgo);
+        await load(3, SevenHoursAgo);
+        
+        withTargetMessage3();
+        theGenerator.ExceptionSource = msg => new BadImageFormatException(msg);
+        await load(56, FiveHoursAgo);
+        await load(45, FourHoursAgo);
+        
+        theGenerator.ExceptionSource = msg => new DivideByZeroException(msg);
+        await load(10, FiveHoursAgo);
+        await load(13, FourHoursAgo);
+
+        await loadAllEnvelopes();
+
+        var ids = allEnvelopes.Envelopes.Take(10).Select(x => x.Id).ToArray();
+        await theDeadLetters.ReplayAsync(new MessageBatchRequest(ids), CancellationToken.None);
+
+        // Reload
+        await loadAllEnvelopes();
+        allEnvelopes.Envelopes.Where(x => ids.Contains(x.Id)).Any().ShouldBeFalse();
+    }
+
 }
 
 public record TargetMessage1(Guid Id, int Number, string Color);
