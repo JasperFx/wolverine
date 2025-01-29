@@ -14,26 +14,21 @@ public abstract partial class MessageDatabase<T> : IDeadLetterAdminService
         var builder = ToCommandBuilder();
         builder.Append($"select {DatabaseConstants.ReceivedAt}, {DatabaseConstants.MessageType}, {DatabaseConstants.ExceptionType}, count(*) as total");
         builder.Append($" from {SchemaName}.{DatabaseConstants.DeadLetterTable}");
-        builder.Append($" group by {DatabaseConstants.ReceivedAt}, {DatabaseConstants.MessageType}, {DatabaseConstants.ExceptionType}");
+        builder.Append(" where 1 = 1");
 
-        var wheres = new List<string>();
         if (range.From.HasValue)
         {
-            wheres.Add($"{DatabaseConstants.ExecutionTime} >= @from");
+            builder.Append($" and {DatabaseConstants.SentAt} >= @from");
             builder.AddNamedParameter("from", range.From.Value.ToUniversalTime(), DbType.DateTimeOffset);
         }
         
         if (range.To.HasValue)
         {
-            wheres.Add($"{DatabaseConstants.ExecutionTime} <= @to");
+            builder.Append($" and {DatabaseConstants.SentAt} <= @to");
             builder.AddNamedParameter("to", range.To.Value.ToUniversalTime(), DbType.DateTimeOffset);
         }
-
-        if (wheres.Any())
-        {
-            builder.Append(" where ");
-            builder.Append(wheres.Join(" and "));
-        }
+        
+        builder.Append($" group by {DatabaseConstants.ReceivedAt}, {DatabaseConstants.MessageType}, {DatabaseConstants.ExceptionType}");
         
         var cmd = builder.Compile();
 
@@ -122,13 +117,13 @@ public abstract partial class MessageDatabase<T> : IDeadLetterAdminService
     {
         if (query.Range.From.HasValue)
         {
-            builder.Append($" and {DatabaseConstants.ExecutionTime} >= ");
+            builder.Append($" and {DatabaseConstants.SentAt} >= ");
             builder.AppendParameter(query.Range.From.Value.ToUniversalTime());
         }
         
         if (query.Range.To.HasValue)
         {
-            builder.Append($" and {DatabaseConstants.ExecutionTime} <= ");
+            builder.Append($" and {DatabaseConstants.SentAt} <= ");
             builder.AppendParameter(query.Range.To.Value.ToUniversalTime());
         }
 
