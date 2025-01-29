@@ -40,6 +40,7 @@ public abstract class DeadLetterAdminCompliance : IAsyncLifetime
     private DateTimeOffset SevenHoursAgo;
     private DateTimeOffset EightHoursAgo;
     private IReadOnlyList<DeadLetterQueueCount> theSummaries;
+    private DeadLetterEnvelopeResults allEnvelopes;
 
     public abstract Task<IHost> BuildCleanHost();
     
@@ -275,30 +276,160 @@ public abstract class DeadLetterAdminCompliance : IAsyncLifetime
 
 
     
-    // [Fact]
-    // public async Task get_summaries_within_a_time_range()
-    // {
-    //     throw new NotImplementedException();
-    // }
-    //
-    // [Fact]
-    // public async Task envelopes_paging_and_totals()
-    // {
-    //     throw new NotImplementedException();
-    // }
-    //
-    // [Fact]
-    // public async Task envelopes_query_by_combination_of_factors()
-    // {
-    //     throw new NotImplementedException();
-    // }
-    //
+    [Fact]
+    public async Task get_summaries_within_a_time_range()
+    {
+        withTargetMessage1();
+        theGenerator.ExceptionSource = msg => new InvalidOperationException(msg);
+        await load(5, FiveHoursAgo);
+        await load(7, SixHoursAgo);
+        await load(8, SevenHoursAgo);
+        await load(11, EightHoursAgo);
+        
+        await fetchSummary(new TimeRange(SevenHoursAgo, SixHoursAgo.AddMinutes(-1)));
+        
+        theSummaries.ShouldContain(summaryCount<TargetMessage1, InvalidOperationException>(8));
+    }
+    
+    protected async Task loadAllEnvelopes()
+    {
+        allEnvelopes =
+            await theDeadLetters.QueryAsync(new DeadLetterEnvelopeQuery(TimeRange.AllTime()){PageSize = 1000}, CancellationToken.None);
+    }
+
+    protected async Task queryMatches(DeadLetterEnvelopeQuery query, Func<DeadLetterEnvelope, bool> filter)
+    {
+        query.PageSize = 1000;
+        var actual = await theDeadLetters.QueryAsync(query, CancellationToken.None);
+        var expected = allEnvelopes.Envelopes.Where(filter).OrderBy(x => x.Id).ToList();
+        
+        //actual.TotalCount.ShouldBe(expected.Count);
+        
+        actual.Envelopes.Select(x => x.Id).OrderBy(x => x).ToArray()
+            .ShouldBe(expected.Select(x => x.Id).OrderBy(x => x).ToArray());
+    }
+
+    [Fact]
+    public async Task query_for_envelopes_big_options()
+    {
+        withTargetMessage1();
+        theGenerator.ExceptionSource = msg => new InvalidOperationException(msg);
+        await load(5, FiveHoursAgo);
+        await load(7, SixHoursAgo);
+        await load(8, SevenHoursAgo);
+        
+        theGenerator.ExceptionSource = msg => new DivideByZeroException(msg);
+        await load(3, FiveHoursAgo);
+        await load(2, SixHoursAgo);
+
+        theGenerator.ReceivedAt = new Uri("local://two");
+        withTargetMessage2();
+        theGenerator.ExceptionSource = msg => new BadImageFormatException(msg);
+        await load(10, FiveHoursAgo);
+        await load(8, FourHoursAgo);
+        
+        theGenerator.ExceptionSource = msg => new DivideByZeroException(msg);
+        await load(5, FiveHoursAgo);
+        await load(7, SixHoursAgo);
+
+        theGenerator.ReceivedAt = new Uri("local://one");
+        withTargetMessage2();
+        theGenerator.ExceptionSource = msg => new BadImageFormatException(msg);
+        await load(11, EightHoursAgo);
+        await load(3, SevenHoursAgo);
+        
+        withTargetMessage3();
+        theGenerator.ExceptionSource = msg => new BadImageFormatException(msg);
+        await load(56, FiveHoursAgo);
+        await load(45, FourHoursAgo);
+        
+        theGenerator.ExceptionSource = msg => new DivideByZeroException(msg);
+        await load(10, FiveHoursAgo);
+        await load(13, FourHoursAgo);
+
+        await loadAllEnvelopes();
+
+        await queryMatches(new DeadLetterEnvelopeQuery(new TimeRange(SixHoursAgo, null)), e => e.SentAt >= SixHoursAgo);
+        await queryMatches(new DeadLetterEnvelopeQuery(new TimeRange(null, SevenHoursAgo)), e => e.SentAt <= SevenHoursAgo);
+        await queryMatches(new DeadLetterEnvelopeQuery(new TimeRange(SixHoursAgo, SevenHoursAgo)), e => e.SentAt >= SixHoursAgo && e.SentAt <= SevenHoursAgo);
+
+        await queryMatches(
+            new DeadLetterEnvelopeQuery(TimeRange.AllTime())
+                { ExceptionType = typeof(BadImageFormatException).FullNameInCode() },
+            e => e.ExceptionType == typeof(BadImageFormatException).FullNameInCode());
+
+        await queryMatches(
+            new DeadLetterEnvelopeQuery(TimeRange.AllTime())
+                { MessageType = typeof(TargetMessage1).ToMessageTypeName() },
+            e => e.MessageType == typeof(TargetMessage1).ToMessageTypeName());
+
+        var receivedAtOne = new Uri("local://one").ToString();
+        await queryMatches(new DeadLetterEnvelopeQuery(TimeRange.AllTime()) { ReceivedAt = receivedAtOne },
+            e => e.ReceivedAt == receivedAtOne);
+    }
+
+    [Fact]
+    public async Task paging_and_totals()
+    {
+        withTargetMessage1();
+        theGenerator.ExceptionSource = msg => new InvalidOperationException(msg);
+        await load(5, FiveHoursAgo);
+        await load(7, SixHoursAgo);
+        await load(8, SevenHoursAgo);
+        
+        theGenerator.ExceptionSource = msg => new DivideByZeroException(msg);
+        await load(3, FiveHoursAgo);
+        await load(2, SixHoursAgo);
+
+        theGenerator.ReceivedAt = new Uri("local://two");
+        withTargetMessage2();
+        theGenerator.ExceptionSource = msg => new BadImageFormatException(msg);
+        await load(10, FiveHoursAgo);
+        await load(8, FourHoursAgo);
+        
+        theGenerator.ExceptionSource = msg => new DivideByZeroException(msg);
+        await load(5, FiveHoursAgo);
+        await load(7, SixHoursAgo);
+
+        theGenerator.ReceivedAt = new Uri("local://one");
+        withTargetMessage2();
+        theGenerator.ExceptionSource = msg => new BadImageFormatException(msg);
+        await load(11, EightHoursAgo);
+        await load(3, SevenHoursAgo);
+        
+        withTargetMessage3();
+        theGenerator.ExceptionSource = msg => new BadImageFormatException(msg);
+        await load(56, FiveHoursAgo);
+        await load(45, FourHoursAgo);
+        
+        theGenerator.ExceptionSource = msg => new DivideByZeroException(msg);
+        await load(10, FiveHoursAgo);
+        await load(13, FourHoursAgo);
+
+        await loadAllEnvelopes();
+
+        var firstPage = await theDeadLetters.QueryAsync(
+            new DeadLetterEnvelopeQuery(TimeRange.AllTime()) { PageSize = 10, PageNumber = 1 }, CancellationToken.None);
+        
+        firstPage.TotalCount.ShouldBe(allEnvelopes.TotalCount);
+        firstPage.PageNumber.ShouldBe(1);
+        firstPage.Envelopes.Count.ShouldBe(10);
+        
+        var secondPage = await theDeadLetters.QueryAsync(
+            new DeadLetterEnvelopeQuery(TimeRange.AllTime()) { PageSize = 10, PageNumber = 2 }, CancellationToken.None);
+
+        secondPage.TotalCount.ShouldBe(allEnvelopes.TotalCount);
+        secondPage.PageNumber.ShouldBe(2);
+        secondPage.Envelopes.Count.ShouldBe(10);
+    }
+
+
     // [Fact]
     // public async Task discard_by_query()
     // {
     //     throw new NotImplementedException();
     // }
-    //
+    
     // [Fact]
     // public async Task replay_by_query()
     // {

@@ -23,8 +23,8 @@ public class DeadLetterEnvelopeQuery
         Range = range;
     }
 
-    public uint PageNumber { get; set; }
-    public uint PageSize { get; set; } = 100;
+    public int PageNumber { get; set; }
+    public int PageSize { get; set; } = 100;
     public string? MessageType { get; set; }
     public string? ExceptionType { get; set; }
     public string? ReceivedAt { get; set; }
@@ -37,6 +37,7 @@ public class DeadLetterEnvelopeResults
 {
     public int TotalCount { get; set; }
     public List<DeadLetterEnvelope> Envelopes { get; set; } = new();
+    public int PageNumber { get; set; }
 }
 
 public record MessageBatchRequest(Guid[] Ids, string DatabaseIdentifier);
