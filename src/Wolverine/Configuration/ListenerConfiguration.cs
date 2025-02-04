@@ -4,6 +4,7 @@ using JasperFx.Core.Reflection;
 using Newtonsoft.Json;
 using Wolverine.Runtime.Serialization;
 using Wolverine.Transports;
+using Wolverine.Transports.Local;
 
 namespace Wolverine.Configuration;
 
@@ -42,6 +43,10 @@ public class ListenerConfiguration<TSelf, TEndpoint> : DelayedEndpointConfigurat
 
     public TSelf ListenWithStrictOrdering(string? endpointName = null)
     {
+        if (_endpoint is LocalQueue)
+            throw new NotSupportedException(
+                $"Wolverine cannot use the {nameof(ListenWithStrictOrdering)} option for local queues. {nameof(Sequential)}() would work for strict ordering *within a single node*, but you will have to use an external message queue for strictly ordering globally across the entire application (assuming your application is clustered)");
+        
         add(e =>
         {
             e.IsListener = true;

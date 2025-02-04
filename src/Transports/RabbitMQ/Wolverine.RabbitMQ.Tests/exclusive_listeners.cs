@@ -87,7 +87,7 @@ public class exclusive_listeners : IAsyncLifetime
             opts.Durability.HealthCheckPollingTime = 1.Seconds();
 
             opts.Services.AddSingleton<IAgentFamily, FakeAgentFamily>();
-            opts.UseRabbitMq().EnableWolverineControlQueues();
+            opts.UseRabbitMq().EnableWolverineControlQueues().AutoProvision();
             opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, "listeners");
             opts.Services.AddSingleton<ILoggerProvider>(new OutputLoggerProvider(_output));
 
