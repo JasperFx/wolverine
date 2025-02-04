@@ -223,8 +223,9 @@ public class AggregateHandlerAttribute : ModifyChainAttribute
     internal static MemberInfo DetermineAggregateIdMember(Type aggregateType, Type commandType)
     {
         var conventionalMemberName = $"{aggregateType.Name}Id";
-        var member = commandType.GetMembers().FirstOrDefault(x =>
-            x.HasAttribute<IdentityAttribute>() || x.Name.EqualsIgnoreCase(conventionalMemberName) || x.Name.EqualsIgnoreCase("Id"));
+        var member = commandType.GetMembers().FirstOrDefault(x => x.HasAttribute<IdentityAttribute>())
+                     ?? commandType.GetMembers().FirstOrDefault(x =>
+                         x.Name.EqualsIgnoreCase(conventionalMemberName) || x.Name.EqualsIgnoreCase("Id"));
 
         if (member == null)
         {
