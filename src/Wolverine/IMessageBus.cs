@@ -44,13 +44,8 @@ public static class MessageBusExtensions
     }
 }
 
-/// <summary>
-///     Entry point for processing or publishing messages with Wolverine
-/// </summary>
-public interface IMessageBus
+public interface ICommandBus
 {
-    string? TenantId { get; set; }
-
     /// <summary>
     ///     Execute the message handling for this message *right now* and wait for the completion.
     ///     If the message is handled locally, this delegates immediately
@@ -61,7 +56,6 @@ public interface IMessageBus
     /// <param name="timeout">Optional timeout</param>
     /// <returns></returns>
     Task InvokeAsync(object message, CancellationToken cancellation = default, TimeSpan? timeout = default);
-
 
     /// <summary>
     ///     Execute the message handling for this message *right now* and wait for the completion and the designated response
@@ -75,6 +69,15 @@ public interface IMessageBus
     /// <typeparam name="T"></typeparam>
     /// <returns></returns>
     Task<T> InvokeAsync<T>(object message, CancellationToken cancellation = default, TimeSpan? timeout = default);
+}
+
+/// <summary>
+///     Entry point for processing or publishing messages with Wolverine
+/// </summary>
+public interface IMessageBus : ICommandBus
+{
+    string? TenantId { get; set; }
+
 
     ///     Execute the message handling for this message *right now* against the specified tenant id and wait for the completion.
     ///     If the message is handled locally, this delegates immediately
