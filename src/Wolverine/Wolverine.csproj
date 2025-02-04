@@ -13,7 +13,7 @@
         <PackageReference Include="System.ComponentModel" Version="4.3.0" />
         <PackageReference Include="JasperFx.CodeGeneration.Commands" Version="3.7.2" />
         <PackageReference Include="JasperFx.RuntimeCompiler" Version="3.7.2" />
-        <PackageReference Include="JasperFx.Core" Version="1.11.0" />
+        <PackageReference Include="JasperFx.Core" Version="1.12.0" />
     </ItemGroup>
 
     <Import Project="../../Analysis.Build.props"/>
