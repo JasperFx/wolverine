@@ -1,4 +1,5 @@
 using Azure.Messaging.ServiceBus;
+using JasperFx.Core;
 
 namespace Wolverine.AzureServiceBus.Internal;
 
@@ -22,10 +23,32 @@ public class AzureServiceBusEnvelope : Envelope
         ServiceBusReceiver = sessionReceiver;
     }
 
-    public Task CompleteAsync(CancellationToken token)
+    public async Task CompleteAsync(CancellationToken token)
     {
-        return Args?.CompleteMessageAsync(AzureMessage, token) ?? ServiceBusReceiver?.CompleteMessageAsync(AzureMessage, token) ??
-            SessionReceiver?.CompleteMessageAsync(AzureMessage, token) ?? Task.CompletedTask;
+        try
+        {
+            if (Args != null)
+            {
+                await Args.CompleteMessageAsync(AzureMessage, token);
+            }
+            else if (ServiceBusReceiver != null)
+            {
+                await ServiceBusReceiver.CompleteMessageAsync(AzureMessage, token);
+            }
+            else if (SessionReceiver != null)
+            {
+                await SessionReceiver.CompleteMessageAsync(AzureMessage, token);
+            }
+        }
+        catch (ServiceBusException e)
+        {
+            if (e.Message.ContainsIgnoreCase("The lock supplied is invalid"))
+            {
+                return;
+            }
+
+            throw;
+        }
     }
 
     public Task DeferAsync(CancellationToken token)
