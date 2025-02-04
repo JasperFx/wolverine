@@ -81,6 +81,13 @@ public class AggregateHandlerAttributeTests
     }
 
     [Fact]
+    public void determine_aggregate_id_with_identity_attribute_bypass()
+    {
+        AggregateHandlerAttribute.DetermineAggregateIdMember(typeof(Invoice), typeof(AggregateIdConventionBypassingCommand))
+            .Name.ShouldBe(nameof(AggregateIdConventionBypassingCommand.StreamId));
+    }
+
+    [Fact]
     public void cannot_determine_aggregate_id()
     {
         Should.Throw<InvalidOperationException>(() =>
@@ -95,6 +102,8 @@ public class Invoice
     public Guid Id { get; set; }
     public int Version { get; set; }
 }
+
+public record AggregateIdConventionBypassingCommand(Guid Id, [property: Identity] Guid StreamId);
 
 public record BadCommand(Guid XId);
 
