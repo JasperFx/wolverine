@@ -1,6 +1,6 @@
 using Marten;
-using Oakton;
-using Oakton.Resources;
+using JasperFx;
+using JasperFx.Resources;
 using Wolverine;
 using Wolverine.Http;
 using Wolverine.Marten;
@@ -83,4 +83,4 @@ app.MapWolverineEndpoints(opts =>
 
 #endregion
 
-return await app.RunOaktonCommands(args);
+return await app.RunJasperFxCommands(args);

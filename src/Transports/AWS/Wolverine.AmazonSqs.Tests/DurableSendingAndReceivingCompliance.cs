@@ -2,7 +2,7 @@ using IntegrationTests;
 using Marten;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
-using Oakton.Resources;
+using JasperFx.Resources;
 using Shouldly;
 using Wolverine.AmazonSqs.Internal;
 using Wolverine.ComplianceTests.Compliance;

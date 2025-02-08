@@ -1,5 +1,5 @@
 using Microsoft.AspNetCore.Builder;
-using Oakton;
+using JasperFx;
 
 namespace Wolverine.Http.Tests.Samples;
 
@@ -24,7 +24,7 @@ public class ConfiguringJson
 
         app.MapWolverineEndpoints();
 
-        return await app.RunOaktonCommands(args);
+        return await app.RunJasperFxCommands(args);
 
         #endregion
     }

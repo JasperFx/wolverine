@@ -5,7 +5,7 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="Lamar.Microsoft.DependencyInjection" Version="14.0.1" />
+        <PackageReference Include="Lamar.Microsoft.DependencyInjection" Version="15.0.0-alpha-1" />
         <PackageReference Include="Microsoft.FeatureManagement" Version="3.2.0"/>
         <PackageReference Include="Microsoft.NET.Test.Sdk" Version="15.9.0"/>
         <PackageReference Include="OpenTelemetry.Exporter.Console" Version="1.6.0"/>

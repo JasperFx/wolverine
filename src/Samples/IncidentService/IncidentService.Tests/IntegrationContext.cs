@@ -1,7 +1,8 @@
 using Alba;
 using Marten;
 using Microsoft.Extensions.DependencyInjection;
-using Oakton;
+using JasperFx;
+using JasperFx.CommandLine;
 using Wolverine;
 using Wolverine.Runtime;
 using Wolverine.Tracking;
@@ -18,7 +19,7 @@ public class AppFixture : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-        OaktonEnvironment.AutoStartHost = true;
+        JasperFxEnvironment.AutoStartHost = true;
 
         // This is bootstrapping the actual application using
         // its implied Program.Main() set up

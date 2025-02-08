@@ -1,7 +1,7 @@
 using IntegrationTests;
 using JasperFx.Core;
 using Marten;
-using Oakton.Resources;
+using JasperFx.Resources;
 using Wolverine;
 using Wolverine.ErrorHandling;
 using Wolverine.Marten;

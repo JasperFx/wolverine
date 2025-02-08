@@ -4,8 +4,8 @@ using Marten;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Oakton;
-using Oakton.Resources;
+using JasperFx;
+using JasperFx.Resources;
 using Wolverine;
 using Wolverine.Marten;
 using Wolverine.Postgresql;
@@ -64,7 +64,7 @@ await Host.CreateDefaultBuilder(args)
         #endregion
     })
     .UseResourceSetupOnStartup()
-    .RunOaktonCommands(args);
+    .RunJasperFxCommands(args);
 
 
 public class Sender(ILogger<Sender> logger, IMessageBus bus) : BackgroundService

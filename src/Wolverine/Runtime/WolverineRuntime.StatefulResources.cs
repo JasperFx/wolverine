@@ -1,14 +1,14 @@
-using Oakton.Resources;
+using JasperFx.Resources;
 using Wolverine.Persistence.Durability;
 
 namespace Wolverine.Runtime;
 
 public partial class WolverineRuntime : IStatefulResourceSource
 {
-    IReadOnlyList<IStatefulResource> IStatefulResourceSource.FindResources()
+    ValueTask<IReadOnlyList<IStatefulResource>> IStatefulResourceSource.FindResources()
     {
         var list = new List<IStatefulResource>();
-        if (Options.ExternalTransportsAreStubbed) return list;
+        if (Options.ExternalTransportsAreStubbed) return new ValueTask<IReadOnlyList<IStatefulResource>>(list);
 
         foreach (var transport in Options.Transports)
         {
@@ -23,6 +23,6 @@ public partial class WolverineRuntime : IStatefulResourceSource
             list.Add(new MessageStoreResource(store));
         }
 
-        return list;
+        return new ValueTask<IReadOnlyList<IStatefulResource>>(list);
     }
 }

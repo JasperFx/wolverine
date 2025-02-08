@@ -5,7 +5,8 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.OpenApi.Models;
-using Oakton;
+using JasperFx;
+using JasperFx.CommandLine;
 using Shouldly;
 using Swashbuckle.AspNetCore.Swagger;
 using Wolverine.Tracking;
@@ -20,9 +21,9 @@ public class AppFixture : IAsyncLifetime
     public async Task InitializeAsync()
     {
         // Sorry folks, but this is absolutely necessary if you
-        // use Oakton for command line processing and want to
+        // use JasperFx for command line processing and want to
         // use WebApplicationFactory and/or Alba for integration testing
-        OaktonEnvironment.AutoStartHost = true;
+        JasperFxEnvironment.AutoStartHost = true;
 
         #region sample_using_run_wolverine_in_solo_mode_with_extension
 

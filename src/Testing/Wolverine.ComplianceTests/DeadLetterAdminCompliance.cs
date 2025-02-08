@@ -1,7 +1,7 @@
 using JasperFx.Core.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Oakton.Resources;
+using JasperFx.Resources;
 using Shouldly;
 using Wolverine.Persistence;
 using Wolverine.Persistence.Durability;

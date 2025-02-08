@@ -1,5 +1,6 @@
 ﻿using JasperFx.Core.Reflection;
-using Oakton;
+using JasperFx;
+using JasperFx.CommandLine;
 
 namespace Wolverine.Attributes;
 
@@ -8,7 +9,7 @@ namespace Wolverine.Attributes;
 ///     module
 /// </summary>
 [AttributeUsage(AttributeTargets.Assembly)]
-public class WolverineModuleAttribute : OaktonCommandAssemblyAttribute
+public class WolverineModuleAttribute : JasperFxAssemblyAttribute
 {
     /// <summary>
     ///     Specify the IWolverineExtension type that should be automatically loaded

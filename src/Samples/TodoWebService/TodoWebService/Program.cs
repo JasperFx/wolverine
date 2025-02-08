@@ -1,8 +1,8 @@
 #region sample_bootstrapping_wolverine_http
 
 using Marten;
-using Oakton;
-using Oakton.Resources;
+using JasperFx;
+using JasperFx.Resources;
 using Wolverine;
 using Wolverine.Http;
 using Wolverine.Marten;
@@ -49,6 +49,6 @@ if (app.Environment.IsDevelopment())
 // Let's add in Wolverine HTTP endpoints to the routing tree
 app.MapWolverineEndpoints();
 
-return await app.RunOaktonCommands(args);
+return await app.RunJasperFxCommands(args);
 
 #endregion
