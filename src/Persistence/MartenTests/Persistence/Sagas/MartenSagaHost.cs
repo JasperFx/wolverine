@@ -1,4 +1,5 @@
 using IntegrationTests;
+using JasperFx;
 using Marten;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;

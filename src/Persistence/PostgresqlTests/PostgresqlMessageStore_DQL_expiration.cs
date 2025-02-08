@@ -2,7 +2,7 @@ using IntegrationTests;
 using Marten;
 using Microsoft.Extensions.Hosting;
 using Npgsql;
-using Oakton.Resources;
+using JasperFx.Resources;
 using Shouldly;
 using Wolverine;
 using Wolverine.Marten;

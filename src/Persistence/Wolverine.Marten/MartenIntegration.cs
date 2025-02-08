@@ -1,3 +1,4 @@
+using JasperFx;
 using JasperFx.Core.Reflection;
 using Marten;
 using Marten.Events;

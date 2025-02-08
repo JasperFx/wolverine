@@ -1,4 +1,4 @@
-using Oakton.Resources;
+using JasperFx.Resources;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
 

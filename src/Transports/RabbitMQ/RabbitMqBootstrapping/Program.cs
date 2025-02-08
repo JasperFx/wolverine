@@ -2,7 +2,7 @@
 
 #region sample_configuring_connection_to_rabbit_mq
 
-using Oakton;
+using JasperFx;
 using Wolverine;
 using Wolverine.RabbitMQ;
 
@@ -34,4 +34,4 @@ var app = builder.Build();
 
 // Some HTTP endpoints maybe?
 
-await app.RunOaktonCommands(args);
+await app.RunJasperFxCommands(args);

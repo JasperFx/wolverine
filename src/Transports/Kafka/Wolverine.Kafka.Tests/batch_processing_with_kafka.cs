@@ -1,5 +1,6 @@
 using Alba;
-using Oakton;
+using JasperFx;
+using JasperFx.CommandLine;
 using Shouldly;
 using Wolverine.Tracking;
 
@@ -10,7 +11,7 @@ public class batch_processing_with_kafka
     [Fact]
     public async Task end_to_end()
     {
-        OaktonEnvironment.AutoStartHost = true;
+        JasperFxEnvironment.AutoStartHost = true;
         
         await using var host = await AlbaHost.For<Program>(_ => {});
 

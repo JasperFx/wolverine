@@ -2,7 +2,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using NSubstitute;
-using Oakton.Resources;
+using JasperFx.Resources;
 using Wolverine.ComplianceTests;
 using Wolverine.ComplianceTests.Fakes;
 using Wolverine.Configuration;

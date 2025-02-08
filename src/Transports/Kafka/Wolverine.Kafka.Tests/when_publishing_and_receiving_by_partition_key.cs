@@ -1,7 +1,7 @@
 ﻿using Microsoft.Extensions.Hosting;
 using NSubstitute;
 using NSubstitute.ReceivedExtensions;
-using Oakton.Resources;
+using JasperFx.Resources;
 using Shouldly;
 using Wolverine.ComplianceTests.Compliance;
 using Wolverine.Tracking;

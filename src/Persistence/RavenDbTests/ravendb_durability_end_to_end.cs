@@ -3,7 +3,7 @@ using JasperFx.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
-using Oakton.Resources;
+using JasperFx.Resources;
 using Raven.Client.Documents;
 using Raven.Client.Documents.Session;
 using Raven.Client.ServerWide.Operations.Configuration;

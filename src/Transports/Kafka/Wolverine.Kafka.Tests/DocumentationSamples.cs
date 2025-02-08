@@ -1,7 +1,6 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Oakton.Resources;
-
+using JasperFx.Resources;
 namespace Wolverine.Kafka.Tests;
 
 public class DocumentationSamples

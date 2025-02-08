@@ -4,7 +4,7 @@ using JasperFx.Core;
 using Marten;
 using Microsoft.Extensions.Hosting;
 using NSubstitute;
-using Oakton.Resources;
+using JasperFx.Resources;
 using Shouldly;
 using Wolverine.ComplianceTests;
 using Wolverine.ComplianceTests.Compliance;

@@ -1,9 +1,10 @@
-﻿using Oakton;
+﻿using JasperFx;
+using JasperFx.CommandLine;
 using Spectre.Console;
 
 namespace Module1;
 
-public class TalkCommand : OaktonCommand<NetCoreInput>
+public class TalkCommand : JasperFxCommand<NetCoreInput>
 {
     public override bool Execute(NetCoreInput input)
     {
