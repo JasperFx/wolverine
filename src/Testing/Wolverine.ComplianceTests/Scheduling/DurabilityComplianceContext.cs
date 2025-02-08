@@ -3,7 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-using Oakton.Resources;
+using JasperFx.Resources;
 using Shouldly;
 using Wolverine.Persistence;
 using Wolverine.Persistence.Durability;

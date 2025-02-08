@@ -1,3 +1,4 @@
+using JasperFx;
 using JasperFx.Core;
 using JasperFx.Core.IoC;
 using JasperFx.Core.Reflection;

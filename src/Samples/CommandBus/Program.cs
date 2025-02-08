@@ -3,15 +3,15 @@ using JasperFx.Core;
 using Marten;
 using Marten.AspNetCore;
 using Npgsql;
-using Oakton;
-using Oakton.Resources;
+using JasperFx;
+using JasperFx.Resources;
 using Wolverine;
 using Wolverine.ErrorHandling;
 using Wolverine.Marten;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Host.ApplyOaktonExtensions();
+builder.Host.ApplyJasperFxExtensions();
 
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
@@ -57,6 +57,6 @@ app.MapGet("/reservations",
 app.UseSwagger();
 app.UseSwaggerUI();
 
-// This opts into using Oakton for extended command line options for this app
-// Oakton is also a transitive dependency of Wolverine itself
-return await app.RunOaktonCommands(args);
+// This opts into using JasperFx for extended command line options for this app
+// JasperFx is also a transitive dependency of Wolverine itself
+return await app.RunJasperFxCommands(args);

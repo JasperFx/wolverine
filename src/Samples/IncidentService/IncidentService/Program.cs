@@ -2,7 +2,7 @@ using IncidentService;
 using Marten;
 using Marten.Events.Daemon.Resiliency;
 using Marten.Events.Projections;
-using Oakton;
+using JasperFx;
 using Wolverine;
 using Wolverine.Http;
 using Wolverine.Marten;
@@ -62,7 +62,7 @@ app.MapWolverineEndpoints();
 
 // Using the expanded command line options for the Critter Stack
 // that are helpful for code generation, database migrations, and diagnostics
-return await app.RunOaktonCommands(args);
+return await app.RunJasperFxCommands(args);
 
 
 #region sample_Program_marker

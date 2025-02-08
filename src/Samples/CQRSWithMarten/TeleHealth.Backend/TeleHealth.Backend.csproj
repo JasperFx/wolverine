@@ -1,11 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
     <ItemGroup>
-        <PackageReference Include="Marten.CommandLine" Version="7.36.0" />
         <PackageReference Include="Swashbuckle.AspNetCore" Version="6.5.0"/>
     </ItemGroup>
 
     <ItemGroup>
+        <ProjectReference Include="..\..\..\..\..\marten\src\Marten\Marten.csproj" />
         <ProjectReference Include="..\TeleHealth.Common\TeleHealth.Common.csproj"/>
     </ItemGroup>
 

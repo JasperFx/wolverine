@@ -1,12 +1,12 @@
 ﻿using System.Data;
 using System.Data.Common;
 using JasperFx.Core;
+using JasperFx.Core.Descriptions;
 using JasperFx.Core.Reflection;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
 using Weasel.Core;
 using Weasel.SqlServer;
-using Weasel.SqlServer.Tables;
 using Wolverine.Logging;
 using Wolverine.Persistence.Durability;
 using Wolverine.RDBMS;
@@ -19,6 +19,7 @@ using Wolverine.SqlServer.Schema;
 using Wolverine.SqlServer.Util;
 using Wolverine.Transports;
 using DbCommandBuilder = Weasel.Core.DbCommandBuilder;
+using Table = Weasel.SqlServer.Tables.Table;
 
 namespace Wolverine.SqlServer.Persistence;
 
@@ -358,6 +359,33 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>, IDatabaseSa
         {
             await conn.CloseAsync();
         }
+    }
+
+    public override DatabaseDescriptor Describe()
+    {
+        var builder = new SqlConnectionStringBuilder(_settings.ConnectionString);
+        var descriptor = new DatabaseDescriptor()
+        {
+            Engine = "SqlServer",
+            ServerName = builder.DataSource ?? string.Empty,
+            DatabaseName = builder.InitialCatalog ?? string.Empty,
+            Subject = GetType().FullNameInCode(),
+            SchemaOrNamespace = _settings.SchemaName
+        };
+
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.ApplicationName));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.Enlist));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.PersistSecurityInfo));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.Pooling));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.MinPoolSize));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.MaxPoolSize));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.CommandTimeout));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.TrustServerCertificate));
+
+        descriptor.Properties.RemoveAll(x => x.Name.ContainsIgnoreCase("password"));
+        descriptor.Properties.RemoveAll(x => x.Name.ContainsIgnoreCase("certificate"));
+
+        return descriptor;
     }
 
     public override IEnumerable<ISchemaObject> AllObjects()

@@ -1,5 +1,5 @@
 using BankingService;
-using Oakton;
+using JasperFx;
 using Wolverine;
 using Wolverine.Http;
 
@@ -14,4 +14,4 @@ var app = builder.Build();
 
 app.MapWolverineEndpoints();
 
-return await app.RunOaktonCommands(args);
+return await app.RunJasperFxCommands(args);

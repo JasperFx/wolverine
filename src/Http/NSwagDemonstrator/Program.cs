@@ -1,8 +1,8 @@
 
 using IntegrationTests;
 using Marten;
-using Oakton;
-using Oakton.Resources;
+using JasperFx;
+using JasperFx.Resources;
 using Wolverine;
 using Wolverine.Http;
 using Wolverine.Marten;
@@ -53,5 +53,5 @@ app.MapWolverineEndpoints();
 // TODO Investigate if this is a dotnet-getdocument issue
 args = args.Where(arg => !arg.StartsWith("--applicationName")).ToArray();
 
-return await app.RunOaktonCommands(args);
+return await app.RunJasperFxCommands(args);
 
