@@ -1,12 +1,12 @@
 using Marten;
-using Oakton;
+using JasperFx.CommandLine;
 using Spectre.Console;
 using TeleHealth.Common;
 
 namespace TeleHealth.Backend;
 
 [Description("Set up some providers and patients")]
-public class SeedCommand : OaktonAsyncCommand<NetCoreInput>
+public class SeedCommand : JasperFxAsyncCommand<NetCoreInput>
 {
     public override async Task<bool> Execute(NetCoreInput input)
     {

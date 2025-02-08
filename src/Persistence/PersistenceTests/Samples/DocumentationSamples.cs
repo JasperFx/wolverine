@@ -5,8 +5,8 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Oakton;
-using Oakton.Resources;
+using JasperFx;
+using JasperFx.Resources;
 using Wolverine;
 using Wolverine.Marten;
 using Wolverine.Persistence.Durability;
@@ -152,9 +152,9 @@ public class DocumentationSamples
 
         // Other ASP.Net Core configuration...
 
-        // Using Oakton opens up command line utilities for managing
+        // Using JasperFx opens up command line utilities for managing
         // the message storage
-        return await app.RunOaktonCommands(args);
+        return await app.RunJasperFxCommands(args);
 
         #endregion
     }
@@ -183,9 +183,9 @@ public class DocumentationSamples
 
         // Other ASP.Net Core configuration...
 
-        // Using Oakton opens up command line utilities for managing
+        // Using JasperFx opens up command line utilities for managing
         // the message storage
-        return await app.RunOaktonCommands(args);
+        return await app.RunJasperFxCommands(args);
 
         #endregion
     }

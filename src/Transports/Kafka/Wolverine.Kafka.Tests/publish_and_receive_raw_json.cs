@@ -1,6 +1,6 @@
 using System.Text.Json;
 using Microsoft.Extensions.Hosting;
-using Oakton.Resources;
+using JasperFx.Resources;
 using Shouldly;
 using Wolverine.Tracking;
 

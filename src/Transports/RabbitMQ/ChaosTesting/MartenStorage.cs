@@ -1,10 +1,11 @@
 ﻿using IntegrationTests;
+using JasperFx;
 using JasperFx.Core;
 using Marten;
 using Marten.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
-using Oakton.Resources;
+using JasperFx.Resources;
 using Weasel.Core;
 using Weasel.Postgresql;
 using Weasel.Postgresql.Migrations;

@@ -4,7 +4,7 @@ using JasperFx.Core;
 using Marten;
 using Marten.Metadata;
 using Microsoft.Extensions.Hosting;
-using Oakton.Resources;
+using JasperFx.Resources;
 using Wolverine;
 using Wolverine.Marten;
 using Wolverine.Tracking;

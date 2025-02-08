@@ -1,6 +1,6 @@
 using IntegrationTests;
 using Marten;
-using Oakton;
+using JasperFx;
 using OpenApiDemonstrator;
 using Wolverine;
 using Wolverine.Http;
@@ -33,5 +33,5 @@ if (app.Environment.IsDevelopment())
 
 app.MapWolverineEndpoints();
 
-await app.RunOaktonCommands(args);
+await app.RunJasperFxCommands(args);
 

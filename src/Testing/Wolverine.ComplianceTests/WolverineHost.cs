@@ -1,7 +1,7 @@
 using JasperFx.Core.TypeScanning;
 using Microsoft.Extensions.Hosting;
-using Oakton;
-using Oakton.Resources;
+using JasperFx;
+using JasperFx.Resources;
 using Wolverine;
 
 [assembly: IgnoreAssembly]
@@ -10,7 +10,7 @@ namespace Wolverine.ComplianceTests;
 
 /// <summary>
 ///     Shortcut to bootstrap simple Wolverine applications.
-///     Syntactical sugar over Host.CreateDefaultBuilder().UseWolverine().RunOaktonCommands(args);
+///     Syntactical sugar over Host.CreateDefaultBuilder().UseWolverine().RunJasperFxCommands(args);
 /// </summary>
 [Obsolete("This should have gone away a long time ago")]
 public static class WolverineHost

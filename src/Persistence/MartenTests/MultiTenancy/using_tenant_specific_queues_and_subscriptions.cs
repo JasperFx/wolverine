@@ -9,7 +9,7 @@ using Marten.Storage;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Npgsql;
-using Oakton.Resources;
+using JasperFx.Resources;
 using Weasel.Postgresql;
 using Weasel.Postgresql.Migrations;
 using Wolverine;

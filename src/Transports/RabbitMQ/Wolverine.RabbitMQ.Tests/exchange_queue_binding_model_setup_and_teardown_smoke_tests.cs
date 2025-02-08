@@ -1,7 +1,7 @@
 using JasperFx.Core;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using Oakton.Resources;
+using JasperFx.Resources;
 using Wolverine.RabbitMQ.Internal;
 using Wolverine.Runtime;
 using Xunit;

@@ -1,7 +1,7 @@
 using ItemService;
 using Microsoft.EntityFrameworkCore;
-using Oakton;
-using Oakton.Resources;
+using JasperFx;
+using JasperFx.Resources;
 using Wolverine;
 using Wolverine.EntityFrameworkCore;
 using Wolverine.Http;
@@ -82,9 +82,9 @@ app.MapPost("/items/create", (CreateItemCommand command, IMessageBus bus) => bus
 
 app.MapPost("/items/createWithDbContextNotIntegratedWithOutbox", (CreateItemWithDbContextNotIntegratedWithOutboxCommand command, IMessageBus bus) => bus.InvokeAsync(command));
 
-#region sample_using_oakton_for_command_line_parsing
+#region sample_using_JasperFx_for_command_line_parsing
 
-// Opt into using Oakton for command parsing
-await app.RunOaktonCommands(args);
+// Opt into using JasperFx for command parsing
+await app.RunJasperFxCommands(args);
 
 #endregion

@@ -6,7 +6,7 @@ using MartenTests.MultiTenancy;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Npgsql;
-using Oakton.Resources;
+using JasperFx.Resources;
 using Shouldly;
 using Wolverine.ComplianceTests;
 using Weasel.Core;

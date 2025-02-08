@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Reflection;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Commands;
@@ -8,9 +9,10 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.ObjectPool;
-using Oakton;
-using Oakton.Descriptions;
-using Oakton.Resources;
+using JasperFx;
+using JasperFx.CommandLine.Descriptions;
+using JasperFx.Resources;
+using JasperFx.RuntimeCompiler;
 using Wolverine.Codegen;
 using Wolverine.Configuration;
 using Wolverine.Persistence.Durability;
@@ -261,7 +263,7 @@ public static class HostBuilderExtensions
     /// <returns></returns>
     public static Task<int> RunWolverineAsync(this IHostBuilder hostBuilder, string[] args)
     {
-        return hostBuilder.RunOaktonCommands(args);
+        return hostBuilder.RunJasperFxCommands(args);
     }
 
     public static T Get<T>(this IHost host) where T : notnull
@@ -341,14 +343,55 @@ public static class HostBuilderExtensions
         return services.AddSingleton<IAsyncWolverineExtension, T>();
     }
 
+    public static void AssertWolverineConfigurationIsValid(this IHost host)
+    {
+        host.AssertAllGeneratedCodeCanCompile();
+    }
+    
     /// <summary>
     ///     Validate all of the Wolverine configuration of this Wolverine application.
     ///     This checks that all of the known generated code elements are valid
     /// </summary>
     /// <param name="host"></param>
-    public static void AssertWolverineConfigurationIsValid(this IHost host)
+    // TODO -- put this back into JasperFx.RuntimeCompiler!
+    public static void AssertAllGeneratedCodeCanCompile(this IHost host)
     {
-        host.AssertAllGeneratedCodeCanCompile();
+        var exceptions = new List<Exception>();
+        var failures = new List<string>();
+        
+        var collections = host.Services.GetServices<ICodeFileCollection>().ToArray();
+
+        var services = host.Services.GetService<IServiceVariableSource>();
+
+        foreach (var collection in collections)
+        {
+            foreach (var file in collection.BuildFiles())
+            {
+                var fileName = collection.ChildNamespace.Replace(".", "/").AppendPath(file.FileName);
+                
+                try
+                {
+                    var assembly = new GeneratedAssembly(collection.Rules);
+                    file.AssembleTypes(assembly);
+                    new AssemblyGenerator().Compile(assembly, services);
+                    
+                    Debug.WriteLine($"U+2713 {fileName} ");
+                }
+                catch (Exception e)
+                {
+                    Debug.WriteLine($"Failed: {fileName}");
+                    Debug.WriteLine(e);
+                    
+                    failures.Add(fileName);
+                    exceptions.Add(e);
+                }
+            }
+        }
+
+        if (failures.Any())
+        {
+            throw new AggregateException($"Compilation failures for:\n{failures.Join("\n")}", exceptions);
+        }
     }
 
     /// <summary>

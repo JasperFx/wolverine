@@ -1,5 +1,5 @@
 using JasperFx.Core;
-using Oakton;
+using JasperFx;
 using Wolverine;
 using Wolverine.RabbitMQ;
 
@@ -27,4 +27,4 @@ return await Host.CreateDefaultBuilder(args)
             // all queues on application startup
             .AutoPurgeOnStartup();
     })
-    .RunOaktonCommands(args);
+    .RunJasperFxCommands(args);

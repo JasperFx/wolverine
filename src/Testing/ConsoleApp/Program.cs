@@ -2,7 +2,7 @@
 
 using JasperFx.CodeGeneration;
 using Microsoft.Extensions.Hosting;
-using Oakton;
+using JasperFx;
 using Wolverine;
 using Wolverine.RabbitMQ;
 using Wolverine.Transports.Tcp;
@@ -33,7 +33,7 @@ internal class Program
 
                 opts.ListenToRabbitQueue("rabbit1");
                 opts.PublishAllMessages().ToRabbitQueue("rabbit2");
-            }).RunOaktonCommands(args);
+            }).RunJasperFxCommands(args);
     }
 }
 

@@ -1,7 +1,7 @@
 #region sample_BootstrappingPinger
 
 using Messages;
-using Oakton;
+using JasperFx;
 using Pinger;
 using Wolverine;
 using Wolverine.Transports.Tcp;
@@ -21,6 +21,6 @@ return await Host.CreateDefaultBuilder(args)
         // that with a separate call to IHostBuilder.ConfigureServices()
         opts.Services.AddHostedService<Worker>();
     })
-    .RunOaktonCommands(args);
+    .RunJasperFxCommands(args);
 
 #endregion
