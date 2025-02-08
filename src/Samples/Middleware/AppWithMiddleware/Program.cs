@@ -2,8 +2,8 @@ using AppWithMiddleware;
 using IntegrationTests;
 using JasperFx.Core;
 using Marten;
-using Oakton;
-using Oakton.Resources;
+using JasperFx;
+using JasperFx.Resources;
 using Wolverine;
 using Wolverine.FluentValidation;
 using Wolverine.Marten;
@@ -60,6 +60,6 @@ app.MapControllers();
 // One Minimal API that just delegates directly to Wolverine
 app.MapPost("/accounts/debit", (DebitAccount command, IMessageBus bus) => bus.InvokeAsync(command));
 
-// This is important, I'm opting into Oakton to be my
+// This is important, I'm opting into JasperFx to be my
 // command line executor for extended options
-return await app.RunOaktonCommands(args);
+return await app.RunJasperFxCommands(args);

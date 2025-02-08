@@ -1,5 +1,6 @@
 ﻿using System.Data.Common;
 using JasperFx.Core;
+using JasperFx.Core.Descriptions;
 using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Logging;
 using Npgsql;
@@ -7,7 +8,6 @@ using NpgsqlTypes;
 using Weasel.Core;
 using Weasel.Core.Migrations;
 using Weasel.Postgresql;
-using Weasel.Postgresql.Tables;
 using Wolverine.Logging;
 using Wolverine.Persistence.Durability;
 using Wolverine.Postgresql.Schema;
@@ -19,6 +19,7 @@ using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.WorkerQueues;
 using Wolverine.Transports;
 using DbCommandBuilder = Weasel.Core.DbCommandBuilder;
+using Table = Weasel.Postgresql.Tables.Table;
 
 namespace Wolverine.Postgresql;
 
@@ -378,6 +379,74 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>, IData
         }
         
         await conn.CloseAsync();
+    }
+
+    public override DatabaseDescriptor Describe()
+    {
+        var builder = new NpgsqlConnectionStringBuilder(DataSource.ConnectionString);
+        var descriptor = new DatabaseDescriptor()
+        {
+            Engine = "PostgreSQL",
+            ServerName = builder.Host ?? string.Empty,
+            DatabaseName = builder.Database ?? string.Empty,
+            Subject = GetType().FullNameInCode()
+        };
+
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.Host));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.Port));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.Database));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.Username));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.ApplicationName));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.Enlist));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.SearchPath));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.ClientEncoding));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.Encoding));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.Timezone));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.SslMode));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.SslNegotiation));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.CheckCertificateRevocation));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.KerberosServiceName));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.IncludeRealm));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.PersistSecurityInfo));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.LogParameters));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.IncludeErrorDetail));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.ChannelBinding));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.Pooling));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.MinPoolSize));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.MaxPoolSize));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.ConnectionIdleLifetime));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.ConnectionPruningInterval));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.ConnectionLifetime));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.Timeout));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.CommandTimeout));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.CancellationTimeout));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.TargetSessionAttributes));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.LoadBalanceHosts));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.HostRecheckSeconds));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.KeepAlive));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.TcpKeepAlive));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.TcpKeepAliveTime));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.TcpKeepAliveInterval));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.ReadBufferSize));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.WriteBufferSize));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.SocketReceiveBufferSize));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.SocketSendBufferSize));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.MaxAutoPrepare));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.AutoPrepareMinUsages));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.NoResetOnClose));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.Options));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.ArrayNullabilityMode));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.Multiplexing));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.WriteCoalescingBufferThresholdBytes));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.LoadTableComposites));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.ServerCompatibilityMode));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.TrustServerCertificate));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.InternalCommandTimeout));
+
+        descriptor.Properties.RemoveAll(x => x.Name.ContainsIgnoreCase("password"));
+        descriptor.Properties.RemoveAll(x => x.Name.ContainsIgnoreCase("certificate"));
+
+        return descriptor;
     }
 
     public override IEnumerable<ISchemaObject> AllObjects()

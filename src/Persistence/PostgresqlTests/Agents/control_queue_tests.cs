@@ -3,7 +3,7 @@ using IntegrationTests;
 using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
 using Npgsql;
-using Oakton.Resources;
+using JasperFx.Resources;
 using Shouldly;
 using Weasel.Postgresql;
 using Wolverine;

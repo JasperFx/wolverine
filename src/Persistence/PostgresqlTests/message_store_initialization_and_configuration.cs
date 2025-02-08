@@ -4,7 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
-using Oakton.Resources;
+using JasperFx.Resources;
 using Shouldly;
 using Weasel.Postgresql;
 using Wolverine;

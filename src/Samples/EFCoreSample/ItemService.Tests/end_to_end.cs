@@ -1,7 +1,8 @@
 using Alba;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Oakton;
+using JasperFx;
+using JasperFx.CommandLine;
 using Shouldly;
 using Wolverine.Tracking;
 
@@ -11,7 +12,7 @@ public class end_to_end
 {
     public end_to_end()
     {
-        OaktonEnvironment.AutoStartHost = true;
+        JasperFxEnvironment.AutoStartHost = true;
     }
 
     [Fact]

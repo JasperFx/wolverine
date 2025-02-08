@@ -1,11 +1,12 @@
 using Microsoft.Extensions.DependencyInjection;
-using Oakton;
+using JasperFx;
+using JasperFx.CommandLine;
 using Wolverine.ComplianceTests.Compliance;
 using Wolverine;
 
 namespace ConsoleApp;
 
-public class TestCommand : OaktonAsyncCommand<NetCoreInput>
+public class TestCommand : JasperFxAsyncCommand<NetCoreInput>
 {
     public override async Task<bool> Execute(NetCoreInput input)
     {

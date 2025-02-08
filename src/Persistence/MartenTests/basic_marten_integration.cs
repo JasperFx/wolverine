@@ -1,11 +1,12 @@
 ﻿using IntegrationTests;
+using JasperFx;
 using JasperFx.Core.Reflection;
 using Marten;
 using Marten.Internal.Sessions;
 using Marten.Storage;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Oakton.Resources;
+using JasperFx.Resources;
 using Shouldly;
 using Weasel.Core;
 using Wolverine;

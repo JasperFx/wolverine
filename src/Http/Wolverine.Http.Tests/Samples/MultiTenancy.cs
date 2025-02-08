@@ -2,7 +2,7 @@ using Marten;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
-using Oakton;
+using JasperFx;
 using Wolverine.Http.Runtime.MultiTenancy;
 using Wolverine.Marten;
 
@@ -58,7 +58,7 @@ public static class MultiTenancy
 
         });
 
-        return await app.RunOaktonCommands(args);
+        return await app.RunJasperFxCommands(args);
 
         #endregion
     }

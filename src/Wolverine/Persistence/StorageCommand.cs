@@ -1,6 +1,7 @@
 using JasperFx.CodeGeneration.Model;
 using Microsoft.Extensions.DependencyInjection;
-using Oakton;
+using JasperFx;
+using JasperFx.CommandLine;
 using Spectre.Console;
 using Wolverine.Persistence.Durability;
 
@@ -28,7 +29,7 @@ public class StorageInput : NetCoreInput
 }
 
 [Description("Administer the Wolverine message storage")]
-public class StorageCommand : OaktonAsyncCommand<StorageInput>
+public class StorageCommand : JasperFxAsyncCommand<StorageInput>
 {
     public StorageCommand()
     {
