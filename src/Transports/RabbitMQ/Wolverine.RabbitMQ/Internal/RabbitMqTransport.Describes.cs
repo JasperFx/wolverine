@@ -1,5 +1,5 @@
+using JasperFx.CommandLine.Descriptions;
 using JasperFx.Core;
-using Oakton.Descriptions;
 using Spectre.Console;
 
 namespace Wolverine.RabbitMQ.Internal;

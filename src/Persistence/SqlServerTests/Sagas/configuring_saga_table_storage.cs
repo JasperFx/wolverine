@@ -1,7 +1,7 @@
 using IntegrationTests;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Hosting;
-using Oakton.Resources;
+using JasperFx.Resources;
 using Shouldly;
 using Weasel.Core;
 using Weasel.SqlServer;

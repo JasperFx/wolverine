@@ -4,16 +4,17 @@ using Marten.Events.Daemon.Resiliency;
 using Marten.Events.Projections;
 using Marten.Exceptions;
 using Npgsql;
-using Oakton;
+using JasperFx;
 using TeleHealth.Common;
 using Wolverine;
 using Wolverine.ErrorHandling;
 using Wolverine.Http;
 using Wolverine.Marten;
+using ConcurrencyException = Marten.Exceptions.ConcurrencyException;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Host.ApplyOaktonExtensions();
+builder.Host.ApplyJasperFxExtensions();
 
 #region sample_configuring_wolverine_event_subscriptions
 
@@ -107,5 +108,5 @@ if (app.Environment.IsDevelopment())
 
 app.MapWolverineEndpoints();
 
-// This is using the Oakton library for command running
-await app.RunOaktonCommands(args);
+// This is using the JasperFx library for command running
+await app.RunJasperFxCommands(args);

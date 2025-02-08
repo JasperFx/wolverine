@@ -2,7 +2,7 @@ using Azure.Messaging.ServiceBus;
 using JasperFx.Core;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
-using Oakton.Resources;
+using JasperFx.Resources;
 using Wolverine.ComplianceTests.Compliance;
 using Wolverine.Transports.Sending;
 using Wolverine.Util;

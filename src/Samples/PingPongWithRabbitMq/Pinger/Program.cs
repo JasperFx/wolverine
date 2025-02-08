@@ -1,5 +1,5 @@
-using Oakton;
-using Oakton.Resources;
+using JasperFx;
+using JasperFx.Resources;
 using Pinger;
 using Wolverine;
 using Wolverine.RabbitMQ;
@@ -31,6 +31,6 @@ return await Host.CreateDefaultBuilder(args)
         // This will send ping messages on a continuous
         // loop
         opts.Services.AddHostedService<PingerService>();
-    }).RunOaktonCommands(args);
+    }).RunJasperFxCommands(args);
 
 #endregion

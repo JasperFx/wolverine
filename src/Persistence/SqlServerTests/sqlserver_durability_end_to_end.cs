@@ -5,7 +5,7 @@ using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
-using Oakton.Resources;
+using JasperFx.Resources;
 using Shouldly;
 using Wolverine.ComplianceTests;
 using Weasel.Core;

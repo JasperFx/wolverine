@@ -1,5 +1,5 @@
 using Microsoft.Extensions.Hosting;
-using Oakton.Resources;
+using JasperFx.Resources;
 
 namespace Wolverine.Kafka.Tests;
 

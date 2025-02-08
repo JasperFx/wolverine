@@ -1,6 +1,6 @@
 #region sample_Quickstart_Program
 
-using Oakton;
+using JasperFx;
 using Quickstart;
 using Wolverine;
 
@@ -35,9 +35,9 @@ app.UseSwaggerUI();
 
 app.MapGet("/", () => Results.Redirect("/swagger"));
 
-// Opt into using Oakton for command line parsing
+// Opt into using JasperFx for command line parsing
 // to unlock built in diagnostics and utility tools within
 // your Wolverine application
-return await app.RunOaktonCommands(args);
+return await app.RunJasperFxCommands(args);
 
 #endregion

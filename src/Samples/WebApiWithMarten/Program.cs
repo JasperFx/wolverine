@@ -1,6 +1,6 @@
 using Marten;
 using Marten.AspNetCore;
-using Oakton;
+using JasperFx;
 using WebApiWithMarten;
 using Wolverine;
 using Wolverine.Marten;
@@ -8,7 +8,7 @@ using Wolverine.Marten;
 #region sample_integrating_wolverine_with_marten
 
 var builder = WebApplication.CreateBuilder(args);
-builder.Host.ApplyOaktonExtensions();
+builder.Host.ApplyJasperFxExtensions();
 
 builder.Services.AddMarten(opts =>
     {
@@ -87,5 +87,5 @@ app.UseSwagger();
 app.UseSwaggerUI();
 
 // Lot of Wolverine and Marten diagnostics and administrative tools
-// come through Oakton command line support
-return await app.RunOaktonCommands(args);
+// come through JasperFx command line support
+return await app.RunJasperFxCommands(args);

@@ -6,7 +6,7 @@ using Marten.Events.Projections;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Oakton.Resources;
+using JasperFx.Resources;
 using Shouldly;
 using Wolverine;
 using Wolverine.Marten;

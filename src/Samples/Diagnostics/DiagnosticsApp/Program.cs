@@ -2,8 +2,8 @@
 using IntegrationTests;
 using JasperFx.Core;
 using Marten;
-using Oakton;
-using Oakton.Resources;
+using JasperFx;
+using JasperFx.Resources;
 using Wolverine;
 using Wolverine.ErrorHandling;
 using Wolverine.Http;
@@ -66,9 +66,9 @@ app.UseAuthorization();
 
 app.MapWolverineEndpoints(opts => { });
 
-// This is an extension method within Oakton
+// This is an extension method within JasperFx
 // And it's important to relay the exit code
-// from Oakton commands to the command line
+// from JasperFx commands to the command line
 // if you want to use these tools in CI or CD
 // pipelines to denote success or failure
-return await app.RunOaktonCommands(args);
+return await app.RunJasperFxCommands(args);

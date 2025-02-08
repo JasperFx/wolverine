@@ -3,7 +3,7 @@ using JasperFx.Core;
 using Marten;
 using MartenTests.Persistence.Resiliency;
 using Microsoft.Extensions.Hosting;
-using Oakton.Resources;
+using JasperFx.Resources;
 using Shouldly;
 using Wolverine.ComplianceTests;
 using Wolverine;

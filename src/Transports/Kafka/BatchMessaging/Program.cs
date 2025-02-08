@@ -1,5 +1,5 @@
 using Confluent.Kafka;
-using Oakton;
+using JasperFx;
 using Wolverine;
 using Wolverine.Kafka;
 
@@ -36,7 +36,7 @@ app.MapPost("/test", async (IMessageBus bus) =>
     })
     .WithOpenApi();
 
-return await app.RunOaktonCommands(args);
+return await app.RunJasperFxCommands(args);
 
 public partial class Program {}
 
