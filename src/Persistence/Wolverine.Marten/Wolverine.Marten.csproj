@@ -9,11 +9,13 @@
         <GenerateAssemblyInformationalVersionAttribute>false</GenerateAssemblyInformationalVersionAttribute>
     </PropertyGroup>
     <ItemGroup>
-        <ProjectReference Include="..\..\..\..\marten\src\Marten\Marten.csproj" />
         <ProjectReference Include="..\Wolverine.Postgresql\Wolverine.Postgresql.csproj"/>
     </ItemGroup>
     <ItemGroup>
       <Compile Remove="CritterStackHostBuilder.cs" />
+    </ItemGroup>
+    <ItemGroup>
+      <PackageReference Include="Marten" Version="8.0.0-alpha-2" />
     </ItemGroup>
 
 
