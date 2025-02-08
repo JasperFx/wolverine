@@ -5,7 +5,8 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Internal.Generated.WolverineHandlers
 {
     // START: SayStuffHandler1292291056
-    public class SayStuffHandler1292291056 : Wolverine.Runtime.Handlers.MessageHandler
+    [global::System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")]
+    public sealed class SayStuffHandler1292291056 : Wolverine.Runtime.Handlers.MessageHandler
     {
         private readonly Microsoft.Extensions.DependencyInjection.IServiceScopeFactory _serviceScopeFactory;
 
