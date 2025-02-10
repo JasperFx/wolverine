@@ -114,6 +114,15 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
         return envelope;
     }
 
+    public SubscriptionDescriptor Describe()
+    {
+        return new SubscriptionDescriptor
+        {
+            ContentType = Serializer.ContentType,
+            Endpoint = _endpoint.Uri
+        };
+    }
+
     public async Task<T> InvokeAsync<T>(object message, MessageBus bus,
         CancellationToken cancellation = default,
         TimeSpan? timeout = null, string? tenantId = null)

@@ -15,7 +15,7 @@
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="Weasel.Postgresql" Version="8.0.0-alpha-3" />
+        <PackageReference Include="Weasel.Postgresql" Version="8.0.0-alpha-4" />
     </ItemGroup>
 
     <Import Project="../../../Analysis.Build.props"/>

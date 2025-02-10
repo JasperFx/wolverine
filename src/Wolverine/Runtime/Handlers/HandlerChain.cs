@@ -5,6 +5,7 @@ using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
+using JasperFx.Core.Descriptions;
 using JasperFx.Core.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -172,6 +173,7 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
     /// <summary>
     /// In the case of "sticky" message handlers, this helps group the handler by an endpoint
     /// </summary>
+    [IgnoreDescription]
     public IReadOnlyList<Endpoint> Endpoints => _endpoints;
 
     public void RegisterEndpoint(Endpoint endpoint) => _endpoints.Fill(endpoint);
@@ -181,6 +183,7 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
     ///     is Information
     /// </summary>
     [Obsolete("The naming is misleading, please use SuccessLogLevel")]
+    [IgnoreDescription]
     public LogLevel ExecutionLogLevel
     {
         get => SuccessLogLevel;
@@ -209,7 +212,7 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
     ///     A textual description of this HandlerChain
     /// </summary>
     public override string Description { get; }
-
+    
     public Type MessageType { get; }
 
     /// <summary>

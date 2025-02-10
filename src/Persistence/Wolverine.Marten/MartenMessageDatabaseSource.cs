@@ -6,6 +6,7 @@ using Marten.Storage;
 using Microsoft.Extensions.Logging;
 using Npgsql;
 using Weasel.Core;
+using Weasel.Core.Migrations;
 using Weasel.Postgresql;
 using Wolverine.Postgresql;
 using Wolverine.RDBMS;
@@ -114,7 +115,8 @@ internal class MartenMessageDatabaseSource : IMessageDatabaseSource
         var store = new PostgresqlMessageStore(settings, _runtime.Options.Durability, database.As<PostgresqlDatabase>().DataSource,
             _runtime.LoggerFactory.CreateLogger<PostgresqlMessageStore>())
         {
-            Name = new NpgsqlConnectionStringBuilder(settings.ConnectionString).Database ?? database.Identifier
+            Descriptor = database.As<PostgresqlDatabase>().Describe(),
+            Name = database.Identifier ?? new NpgsqlConnectionStringBuilder(settings.ConnectionString).Database
         };
 
         return store;
