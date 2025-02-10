@@ -8,6 +8,7 @@ using Wolverine.Attributes;
 [assembly: WolverineFeature]
 
 [assembly: InternalsVisibleTo("CoreTests")]
+[assembly: InternalsVisibleTo("CritterWatch.Services")]
 [assembly: InternalsVisibleTo("DataGenerator")]
 [assembly: InternalsVisibleTo("DiagnosticsTests")]
 [assembly: InternalsVisibleTo("PolicyTests")]
