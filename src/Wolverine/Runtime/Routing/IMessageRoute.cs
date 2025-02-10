@@ -13,9 +13,23 @@ public interface IMessageRoute
 {
     Envelope CreateForSending(object message, DeliveryOptions? options, ISendingAgent localDurableQueue,
         WolverineRuntime runtime, string? topicName);
+
+    SubscriptionDescriptor Describe();
 }
 
 #endregion
+
+/// <summary>
+/// Diagnostic view of a subscription
+/// </summary>
+public class SubscriptionDescriptor
+{
+    public Uri Endpoint { get; init; }
+    public string ContentType { get; set; } = "application/json";
+    public string Description { get; set; } = string.Empty;
+
+    // TODO -- add something about envelope rules?
+}
 
 internal class TransformedMessageRouteSource : IMessageRouteSource
 {
@@ -37,6 +51,13 @@ internal class TransformedMessageRoute<TSource, TDestination> : IMessageRoute
     {
         _transformation = transformation;
         _inner = inner;
+    }
+
+    public SubscriptionDescriptor Describe()
+    {
+        var descriptor = _inner.Describe();
+        descriptor.Description = "Transformed to " + typeof(TDestination).FullNameInCode();
+        return descriptor;
     }
 
     public Envelope CreateForSending(object message, DeliveryOptions? options, ISendingAgent localDurableQueue,
