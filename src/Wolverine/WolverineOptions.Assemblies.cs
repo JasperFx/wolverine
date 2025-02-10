@@ -27,9 +27,8 @@ public sealed partial class WolverineOptions
         get => _applicationAssembly;
         set
         {
-            deriveServiceName();
-
             _applicationAssembly = value;
+            deriveServiceName();
 
             if (value != null)
             {
