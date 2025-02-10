@@ -122,7 +122,7 @@ public static class AncillaryWolverineOptionsMartenExtensions
         var master = new PostgresqlMessageStore<T>(masterSettings, runtime.Options.Durability, dataSource,
             runtime.LoggerFactory.CreateLogger<PostgresqlMessageStore>())
         {
-            Name = "Master"
+            Name = "Master",
         };
 
         var source = new MartenMessageDatabaseSource<T>(schemaName, autoCreate ?? store.Options.AutoCreateSchemaObjects, store.As<T>(), runtime);
