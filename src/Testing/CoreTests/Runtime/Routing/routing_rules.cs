@@ -5,10 +5,12 @@ using Microsoft.Extensions.Hosting;
 using Module2;
 using Wolverine.ComplianceTests;
 using Wolverine.Attributes;
+using Wolverine.ComplianceTests.Compliance;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Runtime.Routing;
+using Wolverine.Tracking;
 using Wolverine.Transports.Tcp;
 using Wolverine.Util;
 using Xunit;
@@ -26,6 +28,21 @@ public class routing_rules
         var bus = host.MessageBus();
         bus.PreviewSubscriptions(new BlueMessage())
             .Single().Destination.ShouldBe(new Uri("local://blue"));
+    }
+
+    [Fact]
+    public async Task create_descriptor()
+    {
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine().StartAsync();
+
+        var runtime = host.GetRuntime();
+
+        var routes = runtime.RoutingFor(typeof(Message1)).Routes;
+        var descriptor = routes.Single().Describe();
+        descriptor.Endpoint.ShouldBe(new Uri("local://message1"));
+        descriptor.ContentType.ShouldBe("application/json");
+
     }
 
     [Fact]

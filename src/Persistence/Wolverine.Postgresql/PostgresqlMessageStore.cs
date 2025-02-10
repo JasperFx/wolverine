@@ -383,6 +383,8 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>, IData
 
     public override DatabaseDescriptor Describe()
     {
+        if (Descriptor != null) return Descriptor;
+        
         var builder = new NpgsqlConnectionStringBuilder(DataSource.ConnectionString);
         var descriptor = new DatabaseDescriptor()
         {

@@ -23,6 +23,11 @@ internal class NoNamedEndpointRoute : IMessageRoute
         throw new UnknownEndpointException(_message);
     }
 
+    public SubscriptionDescriptor Describe()
+    {
+        throw new NotSupportedException();
+    }
+
     public Task<T> InvokeAsync<T>(object message, MessageBus bus,
         CancellationToken cancellation = default,
         TimeSpan? timeout = null)
