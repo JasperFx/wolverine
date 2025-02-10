@@ -1,3 +1,4 @@
+using JasperFx.Core.Descriptions;
 using JasperFx.Core.Reflection;
 using Wolverine.Configuration;
 using Wolverine.Runtime.Routing;
@@ -13,11 +14,13 @@ public partial class WolverineOptions : IAsyncDisposable
     /// <summary>
     ///     Configure the properties of the default, local queue
     /// </summary>
+    [IgnoreDescription]
     public LocalQueueConfiguration DefaultLocalQueue => LocalQueue(TransportConstants.Default);
 
     /// <summary>
     ///     Configure the properties of the default, durable local queue
     /// </summary>
+    [IgnoreDescription]
     public LocalQueueConfiguration DurableScheduledMessagesLocalQueue => LocalQueue(TransportConstants.Durable);
 
 
