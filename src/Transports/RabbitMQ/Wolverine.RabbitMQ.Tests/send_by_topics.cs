@@ -72,6 +72,16 @@ public class send_by_topics : IDisposable
     }
 
     [Fact]
+    public void topic_route_creates_descriptor()
+    {
+        var route = theSender.GetRuntime().RoutingFor(typeof(PurpleMessage)).Routes.Single();
+
+        var descriptor = route.Describe();
+        descriptor.Endpoint.ShouldBe(new Uri("rabbitmq://exchange/wolverine.topics"));
+        descriptor.ContentType.ShouldBe("application/json");
+    }
+    
+    [Fact]
     public void topic_name_needs_to_be_set_on_envelope_as_part_of_routing()
     {
         // Really a global Wolverine behavior test, but using Rabbit MQ as the subject

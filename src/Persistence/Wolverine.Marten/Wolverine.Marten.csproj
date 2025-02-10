@@ -15,7 +15,7 @@
       <Compile Remove="CritterStackHostBuilder.cs" />
     </ItemGroup>
     <ItemGroup>
-      <PackageReference Include="Marten" Version="8.0.0-alpha-2" />
+      <PackageReference Include="Marten" Version="8.0.0-alpha-3" />
     </ItemGroup>
 
 

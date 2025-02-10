@@ -1,5 +1,6 @@
 using System.Data;
 using System.Data.Common;
+using JasperFx.Core.Descriptions;
 using Microsoft.Extensions.Logging;
 using Weasel.Core;
 using Weasel.Core.Migrations;
@@ -54,6 +55,10 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
 
         DataSource = dataSource;
     }
+    
+    // This would be set from the parent database, if one exists. Example would be from
+    // gleaning Wolverine message storage off of Marten storage databases
+    public DatabaseDescriptor? Descriptor { get; set; }
 
     public IAdvisoryLock AdvisoryLock { get; protected set; }
 
