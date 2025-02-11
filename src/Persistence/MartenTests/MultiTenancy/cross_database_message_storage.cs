@@ -544,11 +544,11 @@ public class cross_database_message_storage : MultiTenancyContext, IAsyncLifetim
         var fromDefault = envelopes.Where(x => x.TenantId.IsEmpty()).ToArray();
         var from1 = envelopes.Where(x => x.TenantId == "tenant1").ToArray();
 
-        (await Databases.Master.FetchCountsAsync()).Outgoing.ShouldBeGreaterThan(0);
+        (await Databases.Master.Admin.FetchCountsAsync()).Outgoing.ShouldBeGreaterThan(0);
 
         await Databases.Outbox.DeleteOutgoingAsync(fromDefault);
 
-        (await Databases.Master.FetchCountsAsync()).Outgoing.ShouldBe(0);
+        (await Databases.Master.Admin.FetchCountsAsync()).Outgoing.ShouldBe(0);
 
         var database1 = await Databases.GetDatabaseAsync("tenant1");
 
