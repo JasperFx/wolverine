@@ -1,3 +1,4 @@
+using JasperFx.Core.Reflection;
 using Npgsql;
 using Shouldly;
 using Weasel.Postgresql;
@@ -22,9 +23,9 @@ public class basic_bootstrapping_and_database_configuration : MultiTenancyContex
     public void should_have_the_specified_master_database_as_master()
     {
         Databases.Master.Name.ShouldBe("Master");
-        Databases.Master.SchemaName.ShouldBe("control");
+        Databases.Master.As<IMessageDatabase>().SchemaName.ShouldBe("control");
 
-        new NpgsqlConnectionStringBuilder(Databases.Master.DataSource.CreateConnection().ConnectionString)
+        new NpgsqlConnectionStringBuilder(Databases.Master.As<IMessageDatabase>().DataSource.CreateConnection().ConnectionString)
             .Database.ShouldBe("postgres");
     }
 
@@ -82,7 +83,7 @@ public class basic_bootstrapping_and_database_configuration : MultiTenancyContex
     [Fact]
     public async Task master_database_has_every_storage_table()
     {
-        await using var conn = (NpgsqlConnection)await Databases.Master.DataSource.OpenConnectionAsync();
+        await using var conn = (NpgsqlConnection)await Databases.Master.As<IMessageDatabase>().DataSource.OpenConnectionAsync();
 
         var tables = (await conn.ExistingTablesAsync()).Where(x => x.Schema == "control").ToArray();
         tables.ShouldContain(x => x.Name == DatabaseConstants.IncomingTable);
@@ -105,6 +106,6 @@ public class basic_bootstrapping_and_database_configuration : MultiTenancyContex
             database.IsMaster.ShouldBeFalse();
         }
 
-        Databases.Master.IsMaster.ShouldBeTrue();
+        Databases.Master.As<IMessageDatabase>().IsMaster.ShouldBeTrue();
     }
 }
