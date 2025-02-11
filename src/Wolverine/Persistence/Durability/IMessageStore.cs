@@ -49,6 +49,12 @@ public record DeadLetterEnvelope(
 
 public interface IMessageStore : IAsyncDisposable
 {
+    /// <summary>
+    /// Unique identifier for a message store in case of systems that use multiple message
+    /// store databases. Must use the "messagedb" scheme, and reflect the database connection
+    /// </summary>
+    Uri Uri { get; }
+    
     // /// <summary>
     // /// Let's consuming services in Wolverine know that this message store
     // /// has been disposed and cannot be used in a "DrainAsync". This mostly

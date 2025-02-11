@@ -2,6 +2,7 @@ using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Weasel.Core.Migrations;
 using Wolverine.Logging;
+using Wolverine.Persistence;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
@@ -40,6 +41,9 @@ public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox
 
         Master = master;
     }
+
+    public Uri Uri => new Uri($"{PersistenceConstants.AgentScheme}://multitenanted");
+
 
     public IMessageDatabase Master { get; }
 

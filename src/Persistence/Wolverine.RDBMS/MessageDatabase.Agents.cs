@@ -1,3 +1,4 @@
+using Wolverine.Persistence;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
 using Wolverine.Transports;
@@ -6,9 +7,9 @@ namespace Wolverine.RDBMS;
 
 public abstract partial class MessageDatabase<T> : IAgentFamily
 {
-    private readonly Uri _defaultAgent = new($"{DurabilityAgent.AgentScheme}://{TransportConstants.Default}");
+    private readonly Uri _defaultAgent = new($"{PersistenceConstants.AgentScheme}://{TransportConstants.Default}");
 
-    public string Scheme => DurabilityAgent.AgentScheme;
+    public string Scheme => PersistenceConstants.AgentScheme;
 
     public ValueTask<IReadOnlyList<Uri>> AllKnownAgentsAsync()
     {

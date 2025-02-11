@@ -15,7 +15,6 @@ namespace Wolverine.RDBMS;
 
 internal class DurabilityAgent : IAgent
 {
-    internal const string AgentScheme = "wolverinedb";
     private readonly IMessageDatabase _database;
     private readonly ILocalQueue _localQueue;
     private readonly ActionBlock<IAgentCommand> _runningBlock;
@@ -36,7 +35,7 @@ internal class DurabilityAgent : IAgent
         _localQueue = (ILocalQueue)runtime.Endpoints.AgentForLocalQueue(TransportConstants.Scheduled);
         _settings = runtime.DurabilitySettings;
 
-        Uri = new Uri($"{AgentScheme}://{databaseName}");
+        Uri = new Uri($"{PersistenceConstants.AgentScheme}://{databaseName}");
 
         var executor = runtime.As<IExecutorFactory>().BuildFor(typeof(IAgentCommand));
 
@@ -69,7 +68,7 @@ internal class DurabilityAgent : IAgent
 
     public static Uri SimplifyUri(Uri uri)
     {
-        return new Uri($"{AgentScheme}://{uri.Host}");
+        return new Uri($"{PersistenceConstants.AgentScheme}://{uri.Host}");
     }
 
     public static Uri AddMarkerType(Uri uri, Type markerType)
