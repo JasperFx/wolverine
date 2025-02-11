@@ -16,6 +16,8 @@ public partial class MultiTenantedMessageDatabase : IAgentFamily
         return uris;
     }
 
+    public string Name => "Main";
+
     public async ValueTask<IAgent> BuildAgentAsync(Uri uri, IWolverineRuntime wolverineRuntime)
     {
         // This is checking what's already in memory
@@ -32,7 +34,7 @@ public partial class MultiTenantedMessageDatabase : IAgentFamily
             }
         }
 
-        return new DurabilityAgent(database.Name, _runtime, database)
+        return new DurabilityAgent(database.Name, _runtime, (IMessageDatabase)database)
         {
             AutoStartScheduledJobPolling = true, 
             Uri = uri

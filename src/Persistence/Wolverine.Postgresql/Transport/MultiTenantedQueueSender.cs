@@ -1,5 +1,6 @@
 using JasperFx.Core;
 using Npgsql;
+using Wolverine.RDBMS;
 using Wolverine.RDBMS.MultiTenancy;
 
 namespace Wolverine.Postgresql.Transport;
@@ -56,7 +57,7 @@ internal class MultiTenantedQueueSender : IPostgresqlQueueSender, IAsyncDisposab
         await _lock.WaitAsync(_cancellation.Token);
         try
         {
-            var database = await _databases.GetDatabaseAsync(envelope.TenantId);
+            var database = (IMessageDatabase)await _databases.GetDatabaseAsync(envelope.TenantId);
             if (_byDatabase.TryFind(database.Name, out sender))
             {
                 // This indicates that the database has been encountered before,
