@@ -1,4 +1,5 @@
-﻿using Wolverine.Runtime;
+﻿using JasperFx.Core.Descriptions;
+using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
 
 namespace Wolverine.Persistence.Durability;
@@ -87,6 +88,12 @@ public interface IMessageStore : IAsyncDisposable
     IAgentFamily? BuildAgentFamily(IWolverineRuntime runtime);
     Task<IReadOnlyList<Envelope>> LoadPageOfGloballyOwnedIncomingAsync(Uri listenerAddress, int limit);
     Task ReassignIncomingAsync(int ownerId, IReadOnlyList<Envelope> incoming);
+    
+    
+    /// <summary>
+    /// Descriptive name for cases of multiple message stores
+    /// </summary>
+    string Name { get; }
 }
 
 public record IncomingCount(Uri Destination, int Count);
@@ -101,4 +108,12 @@ public interface IAncillaryMessageStore : IMessageStore
 
 public interface IAncillaryMessageStore<T> : IAncillaryMessageStore
 {
+}
+
+public interface ITenantedMessageStore
+{
+    DatabaseCardinality Cardinality { get; }
+    ValueTask<IMessageStore> FindDatabaseAsync(string tenantId);
+    Task RefreshAsync();
+    IReadOnlyList<IMessageStore> AllActive();
 }
