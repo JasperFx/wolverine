@@ -1,16 +1,12 @@
+using Wolverine.Persistence.Durability;
+
 namespace Wolverine.RDBMS.MultiTenancy;
 
 /// <summary>
 ///     Source of known tenant databases
 /// </summary>
-[Obsolete("Replace with IMessageStoreSource")]
-public interface IMessageDatabaseSource
+public interface IMessageDatabaseSource : ITenantedMessageStore
 {
-    ValueTask<IMessageDatabase> FindDatabaseAsync(string tenantId);
-    Task RefreshAsync();
-
-    IReadOnlyList<IMessageDatabase> AllActive();
-
     /// <summary>
     /// Add extra configuration to every actively used tenant database
     /// </summary>

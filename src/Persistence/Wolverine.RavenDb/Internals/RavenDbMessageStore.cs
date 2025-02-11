@@ -27,6 +27,8 @@ public partial class RavenDbMessageStore : IMessageStore
         _scheduledLockId = "wolverine/scheduled";
     }
 
+    public string Name => _store.Identifier;
+
     public Uri Uri => new("ravendb://durability");
 
     public string IdentityFor(Envelope envelope) => _identity(envelope);
