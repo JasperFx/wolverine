@@ -3,6 +3,7 @@ namespace Wolverine.RDBMS.MultiTenancy;
 /// <summary>
 ///     Source of known tenant databases
 /// </summary>
+[Obsolete("Replace with IMessageStoreSource")]
 public interface IMessageDatabaseSource
 {
     ValueTask<IMessageDatabase> FindDatabaseAsync(string tenantId);

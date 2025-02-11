@@ -12,6 +12,7 @@ using Weasel.Postgresql;
 using Weasel.Postgresql.Migrations;
 using Wolverine;
 using Wolverine.Marten;
+using Wolverine.Persistence;
 using Wolverine.RDBMS;
 using Wolverine.Tracking;
 
@@ -27,7 +28,7 @@ public class dynamically_spin_up_new_tenant_databases_with_autocreate
         {
             await host.WaitUntilAssignmentsChangeTo(w =>
             {
-                w.AgentScheme = DurabilityAgent.AgentScheme;
+                w.AgentScheme = PersistenceConstants.AgentScheme;
 
                 // 1 for the master
                 w.ExpectRunningAgents(host, 1);
@@ -44,7 +45,7 @@ public class dynamically_spin_up_new_tenant_databases_with_autocreate
             // Wait for the agent of the new tenant to start
             await host.WaitUntilAssignmentsChangeTo(w =>
             {
-                w.AgentScheme = DurabilityAgent.AgentScheme;
+                w.AgentScheme = PersistenceConstants.AgentScheme;
 
                 // 1 for the master, 1 for the tenant databases
                 w.ExpectRunningAgents(host, 2);
