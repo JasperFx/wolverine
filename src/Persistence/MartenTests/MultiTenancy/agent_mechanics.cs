@@ -3,6 +3,7 @@ using JasperFx.Core;
 using Npgsql;
 using Weasel.Postgresql;
 using Wolverine;
+using Wolverine.Persistence;
 using Wolverine.RDBMS;
 using Wolverine.Tracking;
 
@@ -33,7 +34,7 @@ public class agent_mechanics : MultiTenancyContext
         // Should be 4 agents, one for the master db, and 3 for the tenants
         await Fixture.Host.WaitUntilAssignmentsChangeTo(w =>
         {
-            w.AgentScheme = DurabilityAgent.AgentScheme;
+            w.AgentScheme = PersistenceConstants.AgentScheme;
             w.ExpectRunningAgents(Fixture.Host, 4);
         }, 30.Seconds());
     }

@@ -1,4 +1,5 @@
 using Raven.Client.Documents;
+using Wolverine.Persistence;
 using Wolverine.Persistence.Durability;
 using Wolverine.RavenDb.Internals.Durability;
 using Wolverine.Runtime;
@@ -25,6 +26,8 @@ public partial class RavenDbMessageStore : IMessageStore
         _leaderLockId = "wolverine/leader";
         _scheduledLockId = "wolverine/scheduled";
     }
+
+    public Uri Uri => new("ravendb://durability");
 
     public string IdentityFor(Envelope envelope) => _identity(envelope);
 

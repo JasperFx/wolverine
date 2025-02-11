@@ -26,21 +26,17 @@ namespace Wolverine.SqlServer.Persistence;
 public class SqlServerMessageStore : MessageDatabase<SqlConnection>, IDatabaseSagaStorage
 {
     private readonly string _findAtLargeEnvelopesSql;
-    private readonly string _moveToDeadLetterStorageSql;
     private readonly string _scheduledLockId;
     private ImHashMap<Type, ISagaStorage> _sagaStorage = ImHashMap<Type, ISagaStorage>.Empty;
     
     private readonly List<ISchemaObject> _externalTables = new();
-
-
+    
     public SqlServerMessageStore(DatabaseSettings database, DurabilitySettings settings,
         ILogger<SqlServerMessageStore> logger, IEnumerable<SagaTableDefinition> sagaTypes)
         : base(database, SqlClientFactory.Instance.CreateDataSource(database.ConnectionString), settings, logger, new SqlServerMigrator(), "dbo")
     {
         _findAtLargeEnvelopesSql =
             $"select top (@limit) {DatabaseConstants.IncomingFields} from {database.SchemaName}.{DatabaseConstants.IncomingTable} where owner_id = {TransportConstants.AnyNode} and status = '{EnvelopeStatus.Incoming}' and {DatabaseConstants.ReceivedAt} = @address";
-
-        _moveToDeadLetterStorageSql = $"EXEC {SchemaName}.uspDeleteIncomingEnvelopes @IDLIST;";
 
         _scheduledLockId = "Wolverine:Scheduled:" + database.ScheduledJobLockId.ToString();
         AdvisoryLock = new AdvisoryLock(() => new SqlConnection(database.ConnectionString),
