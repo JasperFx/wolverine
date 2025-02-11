@@ -42,7 +42,7 @@ public class basic_bootstrapping_and_database_configuration : MultiTenancyContex
     [Fact]
     public async Task tenant_databases_have_envelope_tables()
     {
-        foreach (var database in Databases.ActiveDatabases().Where(x => x.Name != "Master"))
+        foreach (var database in Databases.ActiveDatabases().OfType<IMessageDatabase>().Where(x => x.Name != "Master"))
         {
             await using var conn = (NpgsqlConnection)await database.DataSource.OpenConnectionAsync();
 
@@ -60,7 +60,7 @@ public class basic_bootstrapping_and_database_configuration : MultiTenancyContex
     [Fact]
     public async Task tenant_databases_do_not_have_node_and_assignment_tables()
     {
-        foreach (var database in Databases.ActiveDatabases().Where(x => x.Name != "Master"))
+        foreach (var database in Databases.ActiveDatabases().OfType<IMessageDatabase>().Where(x => x.Name != "Master"))
         {
             await using var conn = (NpgsqlConnection)await database.DataSource.OpenConnectionAsync();
 
@@ -100,7 +100,7 @@ public class basic_bootstrapping_and_database_configuration : MultiTenancyContex
     [Fact]
     public void only_the_master_database_is_the_master()
     {
-        foreach (var database in Databases.ActiveDatabases().Where(x => x.Name != "Master"))
+        foreach (var database in Databases.ActiveDatabases().OfType<IMessageDatabase>().Where(x => x.Name != "Master"))
         {
             database.IsMaster.ShouldBeFalse();
         }
