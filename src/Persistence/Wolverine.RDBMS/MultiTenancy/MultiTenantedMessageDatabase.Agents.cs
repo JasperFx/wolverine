@@ -11,7 +11,7 @@ public partial class MultiTenantedMessageDatabase : IAgentFamily
 
     public async ValueTask<IReadOnlyList<Uri>> AllKnownAgentsAsync()
     {
-        await _databases.RefreshAsync();
+        await Source.RefreshAsync();
         var uris = databases().Select(x => new Uri($"{Scheme}://{x.Name}")).ToList();
         return uris;
     }
@@ -25,7 +25,7 @@ public partial class MultiTenantedMessageDatabase : IAgentFamily
         if (database == null)
         {
             // Try to refresh in case it was recently added
-            await _databases.RefreshAsync();
+            await Source.RefreshAsync();
             database = databases().FirstOrDefault(x => x.Name.EqualsIgnoreCase(uri.Host));
 
             if (database == null)
