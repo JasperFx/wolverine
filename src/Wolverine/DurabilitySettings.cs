@@ -55,6 +55,12 @@ public class DurabilitySettings
     private readonly CancellationTokenSource _cancellation = new();
 
     /// <summary>
+    /// If set, this establishes a default database schema name for all registered message
+    /// storage databases. Use this with a modular monolith approach where all modules target the same physical database. The default is null.
+    /// </summary>
+    public string? MessageStorageSchemaName { get; set; } = null;
+    
+    /// <summary>
     /// Control and optimize the durability agent behavior within Wolverine applications
     /// </summary>
     public DurabilityMode Mode { get; set; } = DurabilityMode.Balanced;

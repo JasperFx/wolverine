@@ -1,6 +1,7 @@
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Marten;
+using Marten.Services;
 using Wolverine.Runtime;
 
 namespace Wolverine.Marten.Publishing;
@@ -8,9 +9,8 @@ namespace Wolverine.Marten.Publishing;
 public class OutboxedSessionFactory<T> : OutboxedSessionFactory, ISessionFactory where T : IDocumentStore
 {
     private readonly T _store;
-
-    // TODO -- make this use the lightweight version
-    public OutboxedSessionFactory(ISessionFactory factory, IWolverineRuntime runtime, T store) : base(factory, runtime, store)
+    
+    public OutboxedSessionFactory(IWolverineRuntime runtime, T store) : base(new SessionFactory(store), runtime, store)
     {
         _store = store;
         _factory = this;
@@ -25,6 +25,14 @@ public class OutboxedSessionFactory<T> : OutboxedSessionFactory, ISessionFactory
     public IDocumentSession OpenSession()
     {
         return _store.LightweightSession();
+    }
+
+    public class SessionFactory(T parent) : SessionFactoryBase(parent)
+    {
+        public override SessionOptions BuildOptions()
+        {
+            return new SessionOptions { Tracking = DocumentTracking.None };
+        }
     }
 }
 

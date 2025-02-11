@@ -1,4 +1,5 @@
 using JasperFx.Core;
+using Wolverine.Persistence;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
 
@@ -6,7 +7,7 @@ namespace Wolverine.RDBMS.MultiTenancy;
 
 public partial class MultiTenantedMessageDatabase : IAgentFamily
 {
-    public string Scheme => DurabilityAgent.AgentScheme;
+    public string Scheme => PersistenceConstants.AgentScheme;
 
     public async ValueTask<IReadOnlyList<Uri>> AllKnownAgentsAsync()
     {
