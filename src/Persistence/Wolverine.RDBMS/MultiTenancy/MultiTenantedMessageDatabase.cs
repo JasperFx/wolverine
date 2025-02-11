@@ -14,7 +14,7 @@ namespace Wolverine.RDBMS.MultiTenancy;
 
 public class MultiTenantedMessageDatabase<T> : MultiTenantedMessageDatabase, IAncillaryMessageStore<T>
 {
-    public MultiTenantedMessageDatabase(IMessageDatabase master, IWolverineRuntime runtime, IMessageDatabaseSource databases) : base(master, runtime, databases)
+    public MultiTenantedMessageDatabase(IMessageDatabase master, IWolverineRuntime runtime, IMessageDatabaseSource source) : base(master, runtime, source)
     {
     }
 
@@ -23,19 +23,18 @@ public class MultiTenantedMessageDatabase<T> : MultiTenantedMessageDatabase, IAn
 
 public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox, IMessageOutbox, IMessageStoreAdmin, IDeadLetters
 {
-    private readonly IMessageDatabaseSource _databases;
     private readonly ILogger _logger;
     private readonly RetryBlock<IEnvelopeCommand> _retryBlock;
     private readonly IWolverineRuntime _runtime;
     private bool _initialized;
 
 
-    public MultiTenantedMessageDatabase(IMessageDatabase master, IWolverineRuntime runtime,
-        IMessageDatabaseSource databases)
+    public MultiTenantedMessageDatabase(IMessageStore master, IWolverineRuntime runtime,
+        IMessageDatabaseSource source)
     {
         _logger = runtime.LoggerFactory.CreateLogger<MultiTenantedMessageDatabase>();
         _runtime = runtime;
-        _databases = databases;
+        Source = source;
 
         _retryBlock = new RetryBlock<IEnvelopeCommand>((command, cancellation) => command.ExecuteAsync(cancellation),
             _logger, runtime.Cancellation);
@@ -43,10 +42,12 @@ public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox
         Master = master;
     }
 
+    public ITenantedMessageStore Source { get; }
+
     public Uri Uri => new Uri($"{PersistenceConstants.AgentScheme}://multitenanted");
 
 
-    public IMessageDatabase Master { get; }
+    public IMessageStore Master { get; }
 
     async Task IMessageInbox.ScheduleExecutionAsync(Envelope envelope)
     {
@@ -299,7 +300,7 @@ public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox
             return;
         }
 
-        await _databases.RefreshAsync();
+        await Source.RefreshAsync();
 
         foreach (var database in databases())
         {
@@ -311,7 +312,7 @@ public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox
 
     public async Task<IReadOnlyList<IMessageDatabase>> CheckForDatabasesAsync(IWolverineRuntime runtime)
     {
-        await _databases.RefreshAsync();
+        await Source.RefreshAsync();
 
         var messageDatabases = databases().ToList();
         foreach (var database in messageDatabases)
@@ -484,14 +485,14 @@ public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox
     {
         return tenantId.IsEmpty() || tenantId == TransportConstants.Default || tenantId == "Master"
             ? new ValueTask<IMessageStore>(Master)
-            : _databases.FindDatabaseAsync(tenantId);
+            : Source.FindStoreAsync(tenantId);
     }
 
     private IEnumerable<IMessageStore> databases()
     {
         yield return Master;
 
-        foreach (var database in _databases.AllActive()) yield return database;
+        foreach (var database in Source.AllActive()) yield return database;
     }
 
     private async Task executeOnAllAsync(Func<IMessageDatabase, Task> action)
@@ -518,7 +519,7 @@ public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox
 
     public IReadOnlyList<IDatabase> AllDatabases()
     {
-        return _databases.AllActive().OfType<IDatabase>().ToList();
+        return Source.AllActive().OfType<IDatabase>().ToList();
     }
 
     public async Task<DeadLetterEnvelopesFound> QueryDeadLetterEnvelopesAsync(DeadLetterEnvelopeQueryParameters queryParameters, string? tenantId)
@@ -545,15 +546,6 @@ public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox
         }
 
         return null;
-    }
-
-    /// <summary>
-    /// Add extra configuration to every actively used tenant database
-    /// </summary>
-    /// <param name="configureDatabase"></param>
-    public ValueTask ConfigureDatabaseAsync(Func<IMessageDatabase, ValueTask> configureDatabase)
-    {
-        return _databases.ConfigureDatabaseAsync(configureDatabase);
     }
     
     public IAgentFamily? BuildAgentFamily(IWolverineRuntime runtime)
