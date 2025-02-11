@@ -34,8 +34,8 @@ internal class MartenMessageDatabaseSource : IMessageDatabaseSource
     private readonly AutoCreate _autoCreate;
     private readonly IDocumentStore _store;
     private readonly IWolverineRuntime _runtime;
-    private ImHashMap<string, PostgresqlMessageStore> _stores = ImHashMap<string, PostgresqlMessageStore>.Empty;
-    private ImHashMap<string, PostgresqlMessageStore> _databases = ImHashMap<string, PostgresqlMessageStore>.Empty;
+    private ImHashMap<string, IMessageStore> _stores = ImHashMap<string, IMessageStore>.Empty;
+    private ImHashMap<string, IMessageStore> _databases = ImHashMap<string, IMessageStore>.Empty;
     private readonly object _locker = new();
 
     public MartenMessageDatabaseSource(
@@ -52,7 +52,7 @@ internal class MartenMessageDatabaseSource : IMessageDatabaseSource
 
     public DatabaseCardinality Cardinality => _store.Options.Tenancy.Cardinality;
 
-    public async ValueTask<IMessageStore> FindDatabaseAsync(string tenantId)
+    public async ValueTask<IMessageStore> FindStoreAsync(string tenantId)
     {
         if (_stores.TryFind(tenantId, out var store)) return store;
 
@@ -93,7 +93,7 @@ internal class MartenMessageDatabaseSource : IMessageDatabaseSource
 
         foreach (var configuration in _configurations)
         {
-            await configuration(store);
+            await configuration((IMessageDatabase)store);
         }
 
         // TODO -- add some resiliency here
