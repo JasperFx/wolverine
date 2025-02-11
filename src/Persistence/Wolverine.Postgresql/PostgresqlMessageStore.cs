@@ -9,6 +9,7 @@ using Weasel.Core;
 using Weasel.Core.Migrations;
 using Weasel.Postgresql;
 using Wolverine.Logging;
+using Wolverine.Persistence;
 using Wolverine.Persistence.Durability;
 using Wolverine.Postgresql.Schema;
 using Wolverine.Postgresql.Util;
@@ -385,7 +386,7 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>, IData
     {
         if (Descriptor != null) return Descriptor;
         
-        var builder = new NpgsqlConnectionStringBuilder(DataSource.ConnectionString);
+        var builder = new NpgsqlConnectionStringBuilder(DataSource?.ConnectionString ?? Settings.ConnectionString);
         var descriptor = new DatabaseDescriptor()
         {
             Engine = "PostgreSQL",

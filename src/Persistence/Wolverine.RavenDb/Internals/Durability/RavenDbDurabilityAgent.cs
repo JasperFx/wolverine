@@ -36,7 +36,7 @@ public partial class RavenDbDurabilityAgent : IAgent
         _localQueue = (ILocalQueue)runtime.Endpoints.AgentForLocalQueue(TransportConstants.Scheduled);
         _settings = runtime.DurabilitySettings;
 
-        Uri = new Uri($"ravendb://durability");
+        Uri = new Uri("ravendb://durability");
 
         _logger = runtime.LoggerFactory.CreateLogger<RavenDbDurabilityAgent>();
         

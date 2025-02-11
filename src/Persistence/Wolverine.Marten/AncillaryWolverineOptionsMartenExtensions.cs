@@ -67,7 +67,7 @@ public static class AncillaryWolverineOptionsMartenExtensions
             var runtime = s.GetRequiredService<IWolverineRuntime>();
             var logger = s.GetRequiredService<ILogger<PostgresqlMessageStore>>();
 
-            schemaName ??= store.Options.DatabaseSchemaName;
+            schemaName ??= runtime.Options.Durability.MessageStorageSchemaName ?? store.Options.DatabaseSchemaName;
 
             // TODO -- hacky. Need a way to expose this in Marten
             if (store.Tenancy.GetType().Name == "DefaultTenancy")

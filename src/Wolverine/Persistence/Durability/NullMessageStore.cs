@@ -12,6 +12,8 @@ public class NullMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IM
 {
     internal IScheduledJobProcessor? ScheduledJobs { get; set; }
 
+    public Uri Uri => new Uri($"{PersistenceConstants.AgentScheme}://null");
+
     public Task MarkIncomingEnvelopeAsHandledAsync(Envelope envelope)
     {
         return Task.CompletedTask;
