@@ -1,3 +1,5 @@
+using Wolverine.Persistence.Durability;
+
 namespace Wolverine.RDBMS.MultiTenancy;
 
 internal interface IEnvelopeCommand
@@ -7,54 +9,54 @@ internal interface IEnvelopeCommand
 
 internal class StoreIncomingAsyncGroup : IEnvelopeCommand
 {
-    private readonly IMessageDatabase _database;
+    private readonly IMessageStore _store;
     private readonly Envelope[] _envelopes;
 
-    public StoreIncomingAsyncGroup(IMessageDatabase database, Envelope[] envelopes)
+    public StoreIncomingAsyncGroup(IMessageStore store, Envelope[] envelopes)
     {
-        _database = database;
+        _store = store;
         _envelopes = envelopes;
     }
 
     public Task ExecuteAsync(CancellationToken cancellationToken)
     {
-        return _database.Inbox.StoreIncomingAsync(_envelopes);
+        return _store.Inbox.StoreIncomingAsync(_envelopes);
     }
 }
 
 internal class DeleteOutgoingAsyncGroup : IEnvelopeCommand
 {
-    private readonly IMessageDatabase _database;
+    private readonly IMessageStore _store;
     private readonly Envelope[] _envelopes;
 
-    public DeleteOutgoingAsyncGroup(IMessageDatabase database, Envelope[] envelopes)
+    public DeleteOutgoingAsyncGroup(IMessageStore store, Envelope[] envelopes)
     {
-        _database = database;
+        _store = store;
         _envelopes = envelopes;
     }
 
     public Task ExecuteAsync(CancellationToken cancellationToken)
     {
-        return _database.Outbox.DeleteOutgoingAsync(_envelopes);
+        return _store.Outbox.DeleteOutgoingAsync(_envelopes);
     }
 }
 
 internal class DiscardAndReassignOutgoingAsyncGroup : IEnvelopeCommand
 {
-    private readonly IMessageDatabase _database;
+    private readonly IMessageStore _store;
     private readonly List<Envelope> _discards = new();
     private readonly int _nodeId;
     private readonly List<Envelope> _reassigned = new();
 
-    public DiscardAndReassignOutgoingAsyncGroup(IMessageDatabase database, int nodeId)
+    public DiscardAndReassignOutgoingAsyncGroup(IMessageStore store, int nodeId)
     {
-        _database = database;
+        _store = store;
         _nodeId = nodeId;
     }
 
     public Task ExecuteAsync(CancellationToken cancellationToken)
     {
-        return _database.Outbox.DiscardAndReassignOutgoingAsync(_discards.ToArray(), _reassigned.ToArray(), _nodeId);
+        return _store.Outbox.DiscardAndReassignOutgoingAsync(_discards.ToArray(), _reassigned.ToArray(), _nodeId);
     }
 
     public void AddDiscards(IEnumerable<Envelope> discards)

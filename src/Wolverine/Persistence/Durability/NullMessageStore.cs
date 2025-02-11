@@ -19,6 +19,8 @@ public class NullMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IM
         return Task.CompletedTask;
     }
 
+    public string Name => "Nullo";
+
     public Task MarkIncomingEnvelopeAsHandledAsync(IReadOnlyList<Envelope> envelopes)
     {
         return Task.CompletedTask;

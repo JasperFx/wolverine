@@ -552,11 +552,11 @@ public class cross_database_message_storage : MultiTenancyContext, IAsyncLifetim
 
         var database1 = await Databases.GetDatabaseAsync("tenant1");
 
-        (await database1.FetchCountsAsync()).Outgoing.ShouldBeGreaterThan(0);
+        (await database1.Admin.FetchCountsAsync()).Outgoing.ShouldBeGreaterThan(0);
 
         await database1.Outbox.DeleteOutgoingAsync(from1);
 
-        (await database1.FetchCountsAsync()).Outgoing.ShouldBe(0);
+        (await database1.Admin.FetchCountsAsync()).Outgoing.ShouldBe(0);
     }
 
     [Fact]

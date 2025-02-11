@@ -1,4 +1,5 @@
 using JasperFx.Core;
+using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Logging;
 using Weasel.Core.Migrations;
 using Wolverine.Logging;
@@ -318,7 +319,7 @@ public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox
             database.Initialize(runtime);
         }
 
-        return messageDatabases;
+        return messageDatabases.OfType<IMessageDatabase>().ToList();
     }
 
     public bool HasDisposed { get; private set; }
@@ -356,7 +357,7 @@ public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox
             catch (Exception e)
             {
                 _logger.LogError(e, "Error trying to mark dead letter envelopes as replayable for database {Name}",
-                    database.Name);
+                    database.As<IMessageDatabase>().Name);
             }
         }
 
@@ -404,7 +405,7 @@ public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox
 
         foreach (var database in databases())
         {
-            var db = await database.FetchCountsAsync();
+            var db = await database.Admin.FetchCountsAsync();
             counts.Tenants[database.Name] = db;
             counts.Add(db);
         }
@@ -474,19 +475,19 @@ public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox
         await executeOnAllAsync(d => d.Admin.MigrateAsync());
     }
 
-    public IReadOnlyList<IMessageDatabase> ActiveDatabases()
+    public IReadOnlyList<IMessageStore> ActiveDatabases()
     {
         return databases().ToArray();
     }
 
-    public ValueTask<IMessageDatabase> GetDatabaseAsync(string? tenantId)
+    public ValueTask<IMessageStore> GetDatabaseAsync(string? tenantId)
     {
         return tenantId.IsEmpty() || tenantId == TransportConstants.Default || tenantId == "Master"
-            ? new ValueTask<IMessageDatabase>(Master)
+            ? new ValueTask<IMessageStore>(Master)
             : _databases.FindDatabaseAsync(tenantId);
     }
 
-    private IEnumerable<IMessageDatabase> databases()
+    private IEnumerable<IMessageStore> databases()
     {
         yield return Master;
 
@@ -501,7 +502,7 @@ public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox
         {
             try
             {
-                await action(database);
+                await action((IMessageDatabase)database);
             }
             catch (Exception e)
             {
