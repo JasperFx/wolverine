@@ -113,7 +113,8 @@ public interface IAncillaryMessageStore<T> : IAncillaryMessageStore
 public interface ITenantedMessageStore
 {
     DatabaseCardinality Cardinality { get; }
-    ValueTask<IMessageStore> FindDatabaseAsync(string tenantId);
+    ValueTask<IMessageStore> FindStoreAsync(string tenantId);
     Task RefreshAsync();
     IReadOnlyList<IMessageStore> AllActive();
 }
+
