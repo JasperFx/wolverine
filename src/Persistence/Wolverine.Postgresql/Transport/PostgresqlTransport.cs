@@ -47,24 +47,27 @@ public class PostgresqlTransport : BrokerTransport<PostgresqlQueue>, ITransportC
         {
             Store = tenants.Master as PostgresqlMessageStore;
 
-            await tenants.ConfigureDatabaseAsync(messageStore =>
+            if (tenants.Source is IMessageDatabaseSource source)
             {
-                if (messageStore is PostgresqlMessageStore s)
+                await source.ConfigureDatabaseAsync(messageStore =>
                 {
-                    foreach (var queue in Queues)
+                    if (messageStore is PostgresqlMessageStore s)
                     {
-                        s.AddTable(queue.QueueTable);
-                        s.AddTable(queue.ScheduledTable);
+                        foreach (var queue in Queues)
+                        {
+                            s.AddTable(queue.QueueTable);
+                            s.AddTable(queue.ScheduledTable);
+                        }
                     }
-                }
-                else
-                {
-                    throw new InvalidOperationException(
-                        "The PostgreSQL backed transport can only be used with PostgreSQL is the active envelope storage mechanism");
-                }
+                    else
+                    {
+                        throw new InvalidOperationException(
+                            "The PostgreSQL backed transport can only be used with PostgreSQL is the active envelope storage mechanism");
+                    }
 
-                return new ValueTask();
-            });
+                    return new ValueTask();
+                });
+            }
         }
         else
         {
