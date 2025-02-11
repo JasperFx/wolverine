@@ -1,7 +1,9 @@
 using JasperFx.Core;
+using Wolverine.Persistence;
 using Wolverine.RDBMS.MultiTenancy;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
+using Wolverine.Transports;
 
 namespace Wolverine.RDBMS;
 
@@ -14,7 +16,7 @@ public class DurabilityAgentFamily : IAgentFamily
         _runtime = runtime;
     }
 
-    public string Scheme => DurabilityAgent.AgentScheme;
+    public string Scheme => PersistenceConstants.AgentScheme;
     public async ValueTask<IReadOnlyList<Uri>> AllKnownAgentsAsync()
     {
         var list = new List<Uri>();

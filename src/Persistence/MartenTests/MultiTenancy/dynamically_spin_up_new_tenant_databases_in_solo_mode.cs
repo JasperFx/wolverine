@@ -9,6 +9,7 @@ using Weasel.Postgresql;
 using Weasel.Postgresql.Migrations;
 using Wolverine;
 using Wolverine.Marten;
+using Wolverine.Persistence;
 using Wolverine.RDBMS;
 
 namespace MartenTests.MultiTenancy;
@@ -93,7 +94,7 @@ public class dynamically_spin_up_new_tenant_databases_in_solo_mode : IAsyncLifet
     {
         await _host.WaitUntilAssignmentsChangeTo(w =>
         {
-            w.AgentScheme = DurabilityAgent.AgentScheme;
+            w.AgentScheme = PersistenceConstants.AgentScheme;
 
             // 1 for the master
             w.ExpectRunningAgents(_host, 1);
@@ -107,7 +108,7 @@ public class dynamically_spin_up_new_tenant_databases_in_solo_mode : IAsyncLifet
 
         await _host.WaitUntilAssignmentsChangeTo(w =>
         {
-            w.AgentScheme = DurabilityAgent.AgentScheme;
+            w.AgentScheme = PersistenceConstants.AgentScheme;
 
             // 1 for the master, 3 for the tenant databases
             w.ExpectRunningAgents(_host, 4);

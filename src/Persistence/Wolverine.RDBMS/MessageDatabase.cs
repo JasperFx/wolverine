@@ -1,9 +1,11 @@
 using System.Data;
 using System.Data.Common;
+using JasperFx.Core;
 using JasperFx.Core.Descriptions;
 using Microsoft.Extensions.Logging;
 using Weasel.Core;
 using Weasel.Core.Migrations;
+using Wolverine.Persistence;
 using Wolverine.Persistence.Durability;
 using Wolverine.RDBMS.Polling;
 using Wolverine.RDBMS.Transport;
@@ -54,8 +56,22 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
         Nodes = buildNodeStorage(databaseSettings, dataSource)!;
 
         DataSource = dataSource;
+
+        var descriptor = Describe();
+        
+        var parts = new List<string>
+        {
+            descriptor.Engine.ToLowerInvariant(),
+            descriptor.ServerName,
+            descriptor.DatabaseName,
+            settings.MessageStorageSchemaName
+        };
+
+        Uri = new Uri($"{PersistenceConstants.AgentScheme}://{parts.Where(x => x.IsNotEmpty()).Join("/")}");
     }
-    
+
+    public Uri Uri { get; protected set; } = new Uri("null://null");
+
     // This would be set from the parent database, if one exists. Example would be from
     // gleaning Wolverine message storage off of Marten storage databases
     public DatabaseDescriptor? Descriptor { get; set; }
