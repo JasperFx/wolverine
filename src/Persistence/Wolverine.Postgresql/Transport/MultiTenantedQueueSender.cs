@@ -2,6 +2,7 @@ using JasperFx.Core;
 using Npgsql;
 using Wolverine.RDBMS;
 using Wolverine.RDBMS.MultiTenancy;
+using MultiTenantedMessageStore = Wolverine.Persistence.Durability.MultiTenantedMessageStore;
 
 namespace Wolverine.Postgresql.Transport;
 
@@ -9,16 +10,16 @@ internal class MultiTenantedQueueSender : IPostgresqlQueueSender, IAsyncDisposab
 {
     private readonly PostgresqlQueue _queue;
     private readonly PostgresqlQueueSender _master;
-    private readonly MultiTenantedMessageDatabase _databases;
+    private readonly MultiTenantedMessageStore _stores;
     private ImHashMap<string, IPostgresqlQueueSender> _byDatabase = ImHashMap<string, IPostgresqlQueueSender>.Empty;
     private readonly SemaphoreSlim _lock = new(1);
     private readonly CancellationTokenSource _cancellation = new();
 
-    public MultiTenantedQueueSender(PostgresqlQueue queue, MultiTenantedMessageDatabase databases)
+    public MultiTenantedQueueSender(PostgresqlQueue queue, MultiTenantedMessageStore stores)
     {
         _queue = queue;
         _master = new PostgresqlQueueSender(queue);
-        _databases = databases;
+        _stores = stores;
 
         Destination = _queue.Uri;
     }
@@ -57,7 +58,7 @@ internal class MultiTenantedQueueSender : IPostgresqlQueueSender, IAsyncDisposab
         await _lock.WaitAsync(_cancellation.Token);
         try
         {
-            var database = (IMessageDatabase)await _databases.GetDatabaseAsync(envelope.TenantId);
+            var database = (IMessageDatabase)await _stores.GetDatabaseAsync(envelope.TenantId);
             if (_byDatabase.TryFind(database.Name, out sender))
             {
                 // This indicates that the database has been encountered before,

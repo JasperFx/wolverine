@@ -12,7 +12,7 @@ using DbCommandBuilder = Weasel.Core.DbCommandBuilder;
 
 namespace Wolverine.RDBMS;
 
-public interface IMessageDatabase : IMessageStore
+public interface IMessageDatabase : IMessageStoreWithAgentSupport
 {
     string Name { get; }
 
