@@ -1,27 +1,23 @@
 using JasperFx.Core;
-using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Logging;
-using Weasel.Core.Migrations;
 using Wolverine.Logging;
-using Wolverine.Persistence;
-using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
 using Wolverine.Transports;
 using Wolverine.Util.Dataflow;
 
-namespace Wolverine.RDBMS.MultiTenancy;
+namespace Wolverine.Persistence.Durability;
 
-public class MultiTenantedMessageDatabase<T> : MultiTenantedMessageDatabase, IAncillaryMessageStore<T>
+public class MultiTenantedMessageStore<T> : MultiTenantedMessageStore, IAncillaryMessageStore<T>
 {
-    public MultiTenantedMessageDatabase(IMessageDatabase master, IWolverineRuntime runtime, IMessageDatabaseSource source) : base(master, runtime, source)
+    public MultiTenantedMessageStore(IMessageStore master, IWolverineRuntime runtime, ITenantedMessageStore source) : base(master, runtime, source)
     {
     }
 
     public Type MarkerType => typeof(T);
 }
 
-public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox, IMessageOutbox, IMessageStoreAdmin, IDeadLetters
+public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IMessageStoreAdmin, IDeadLetters
 {
     private readonly ILogger _logger;
     private readonly RetryBlock<IEnvelopeCommand> _retryBlock;
@@ -29,10 +25,10 @@ public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox
     private bool _initialized;
 
 
-    public MultiTenantedMessageDatabase(IMessageStore master, IWolverineRuntime runtime,
-        IMessageDatabaseSource source)
+    public MultiTenantedMessageStore(IMessageStore master, IWolverineRuntime runtime,
+        ITenantedMessageStore source)
     {
-        _logger = runtime.LoggerFactory.CreateLogger<MultiTenantedMessageDatabase>();
+        _logger = runtime.LoggerFactory.CreateLogger<MultiTenantedMessageStore>();
         _runtime = runtime;
         Source = source;
 
@@ -71,6 +67,8 @@ public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox
         var database = await GetDatabaseAsync(tenantId);
         await database.ReassignIncomingAsync(ownerId, incoming);
     }
+
+    public string Name { get; }
 
     async Task IMessageInbox.MoveToDeadLetterStorageAsync(Envelope envelope, Exception? exception)
     {
@@ -309,20 +307,7 @@ public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox
 
         _initialized = true;
     }
-
-    public async Task<IReadOnlyList<IMessageDatabase>> CheckForDatabasesAsync(IWolverineRuntime runtime)
-    {
-        await Source.RefreshAsync();
-
-        var messageDatabases = databases().ToList();
-        foreach (var database in messageDatabases)
-        {
-            database.Initialize(runtime);
-        }
-
-        return messageDatabases.OfType<IMessageDatabase>().ToList();
-    }
-
+    
     public bool HasDisposed { get; private set; }
     public IMessageInbox Inbox => this;
     public IMessageOutbox Outbox => this;
@@ -338,6 +323,14 @@ public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox
     public Task DrainAsync()
     {
         return executeOnAllAsync(d => d.DrainAsync());
+    }
+
+    public IAgent StartScheduledJobs(IWolverineRuntime runtime)
+    {
+        // TODO -- need to start ancillary stores too.
+        // and probably refresh all
+        return new CompositeAgent(new Uri("internal://scheduledjobs"),
+            Source.AllActive().Select(x => x.StartScheduledJobs(runtime)));
     }
 
     Task IMessageStoreAdmin.ClearAllAsync()
@@ -358,7 +351,7 @@ public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox
             catch (Exception e)
             {
                 _logger.LogError(e, "Error trying to mark dead letter envelopes as replayable for database {Name}",
-                    database.As<IMessageDatabase>().Name);
+                    database.Name);
             }
         }
 
@@ -495,7 +488,7 @@ public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox
         foreach (var database in Source.AllActive()) yield return database;
     }
 
-    private async Task executeOnAllAsync(Func<IMessageDatabase, Task> action)
+    private async Task executeOnAllAsync(Func<IMessageStore, Task> action)
     {
         var exceptions = new List<Exception>();
 
@@ -503,7 +496,7 @@ public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox
         {
             try
             {
-                await action((IMessageDatabase)database);
+                await action(database);
             }
             catch (Exception e)
             {
@@ -515,11 +508,6 @@ public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox
         {
             throw new AggregateException(exceptions);
         }
-    }
-
-    public IReadOnlyList<IDatabase> AllDatabases()
-    {
-        return Source.AllActive().OfType<IDatabase>().ToList();
     }
 
     public async Task<DeadLetterEnvelopesFound> QueryDeadLetterEnvelopesAsync(DeadLetterEnvelopeQueryParameters queryParameters, string? tenantId)
@@ -550,6 +538,75 @@ public partial class MultiTenantedMessageDatabase : IMessageStore, IMessageInbox
     
     public IAgentFamily? BuildAgentFamily(IWolverineRuntime runtime)
     {
-        return new DurabilityAgentFamily(runtime);
+        throw new NotImplementedException();
+        //return new DurabilityAgentFamily(runtime);
+    }
+    
+    internal interface IEnvelopeCommand
+    {
+        Task ExecuteAsync(CancellationToken cancellationToken);
+    }
+
+    internal class StoreIncomingAsyncGroup : IEnvelopeCommand
+    {
+        private readonly IMessageStore _store;
+        private readonly Envelope[] _envelopes;
+
+        public StoreIncomingAsyncGroup(IMessageStore store, Envelope[] envelopes)
+        {
+            _store = store;
+            _envelopes = envelopes;
+        }
+
+        public Task ExecuteAsync(CancellationToken cancellationToken)
+        {
+            return _store.Inbox.StoreIncomingAsync(_envelopes);
+        }
+    }
+
+    internal class DeleteOutgoingAsyncGroup : IEnvelopeCommand
+    {
+        private readonly IMessageStore _store;
+        private readonly Envelope[] _envelopes;
+
+        public DeleteOutgoingAsyncGroup(IMessageStore store, Envelope[] envelopes)
+        {
+            _store = store;
+            _envelopes = envelopes;
+        }
+
+        public Task ExecuteAsync(CancellationToken cancellationToken)
+        {
+            return _store.Outbox.DeleteOutgoingAsync(_envelopes);
+        }
+    }
+
+    internal class DiscardAndReassignOutgoingAsyncGroup : IEnvelopeCommand
+    {
+        private readonly IMessageStore _store;
+        private readonly List<Envelope> _discards = new();
+        private readonly int _nodeId;
+        private readonly List<Envelope> _reassigned = new();
+
+        public DiscardAndReassignOutgoingAsyncGroup(IMessageStore store, int nodeId)
+        {
+            _store = store;
+            _nodeId = nodeId;
+        }
+
+        public Task ExecuteAsync(CancellationToken cancellationToken)
+        {
+            return _store.Outbox.DiscardAndReassignOutgoingAsync(_discards.ToArray(), _reassigned.ToArray(), _nodeId);
+        }
+
+        public void AddDiscards(IEnumerable<Envelope> discards)
+        {
+            _discards.AddRange(discards);
+        }
+
+        public void AddReassigns(IEnumerable<Envelope> reassigns)
+        {
+            _reassigned.AddRange(reassigns);
+        }
     }
 }
