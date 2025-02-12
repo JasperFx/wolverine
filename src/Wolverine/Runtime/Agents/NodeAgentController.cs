@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Wolverine.Persistence.Durability;
 using Wolverine.Transports;
 
 namespace Wolverine.Runtime.Agents;
@@ -43,11 +44,8 @@ public partial class NodeAgentController
 
         if (runtime.Options.Durability.DurabilityAgentEnabled)
         {
-            var family = _runtime.Storage.BuildAgentFamily(runtime);
-            if (family != null)
-            {
-                _agentFamilies[family.Scheme] = family;
-            }
+            var family = new DurabilityAgentFamily(runtime);
+            _agentFamilies[family.Scheme] = family;
         }
 
         foreach (var family in runtime.Options.Transports.OfType<IAgentFamilySource>().SelectMany(x => x.BuildAgentFamilySources(runtime)))

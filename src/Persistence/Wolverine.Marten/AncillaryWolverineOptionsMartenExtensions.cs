@@ -15,6 +15,7 @@ using Weasel.Core.Migrations;
 using Weasel.Postgresql;
 using Wolverine.Marten.Publishing;
 using Wolverine.Marten.Subscriptions;
+using Wolverine.Persistence;
 using Wolverine.Persistence.Durability;
 using Wolverine.Postgresql;
 using Wolverine.RDBMS;
@@ -129,7 +130,7 @@ public static class AncillaryWolverineOptionsMartenExtensions
 
         master.Initialize(runtime);
 
-        return new MultiTenantedMessageDatabase<T>(master, runtime, source);
+        return new MultiTenantedMessageStore<T>(master, runtime, source);
     }
 
     internal static IAncillaryMessageStore<T> BuildSinglePostgresqlMessageStore<T>(
