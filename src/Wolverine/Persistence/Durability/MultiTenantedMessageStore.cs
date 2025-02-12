@@ -1,4 +1,5 @@
 using JasperFx.Core;
+using JasperFx.Core.Descriptions;
 using Microsoft.Extensions.Logging;
 using Wolverine.Logging;
 using Wolverine.Persistence.Durability.DeadLetterManagement;
@@ -319,6 +320,14 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
     public void Describe(TextWriter writer)
     {
         Master.Describe(writer);
+    }
+
+    public DatabaseDescriptor Describe()
+    {
+        return new DatabaseDescriptor(this)
+        {
+            DatabaseName = "nullo", Engine = "nullo"
+        };
     }
 
     public Task DrainAsync()
