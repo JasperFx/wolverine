@@ -1,4 +1,4 @@
-namespace Wolverine.Persistence.Durability;
+namespace Wolverine.Persistence.Durability.DeadLetterManagement;
 
 public class DeadLetterEnvelopeQueryParameters
 {
