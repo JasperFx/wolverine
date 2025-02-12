@@ -5,6 +5,7 @@ using JasperFx.Resources;
 using Shouldly;
 using Wolverine.Persistence;
 using Wolverine.Persistence.Durability;
+using Wolverine.Persistence.Durability.DeadLetterManagement;
 using Wolverine.Tracking;
 using Wolverine.Transports;
 using Wolverine.Util;
