@@ -48,6 +48,11 @@ public record DeadLetterEnvelope(
     bool Replayable
     );
 
+public interface IMessageStoreWithAgentSupport : IMessageStore
+{
+    IAgent BuildAgent(IWolverineRuntime runtime);
+}
+
 public interface IMessageStore : IAsyncDisposable
 {
     /// <summary>
@@ -85,7 +90,6 @@ public interface IMessageStore : IAsyncDisposable
     Task DrainAsync();
     IAgent StartScheduledJobs(IWolverineRuntime runtime);
 
-    IAgentFamily? BuildAgentFamily(IWolverineRuntime runtime);
     Task<IReadOnlyList<Envelope>> LoadPageOfGloballyOwnedIncomingAsync(Uri listenerAddress, int limit);
     Task ReassignIncomingAsync(int ownerId, IReadOnlyList<Envelope> incoming);
     

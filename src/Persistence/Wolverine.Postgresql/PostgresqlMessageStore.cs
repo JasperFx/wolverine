@@ -77,7 +77,7 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>, IData
         _discardAndReassignOutgoingSql = _deleteOutgoingEnvelopesSql +
                                          $";update {SchemaName}.{DatabaseConstants.OutgoingTable} set owner_id = @node where id = ANY(@rids)";
 
-        DataSource = dataSource ?? throw new ArgumentNullException(nameof(dataSource));
+        NpgsqlDataSource = dataSource ?? throw new ArgumentNullException(nameof(dataSource));
 
         AdvisoryLock = new AdvisoryLock(dataSource, logger, Identifier);
         
@@ -88,7 +88,7 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>, IData
         }
     }
 
-    public NpgsqlDataSource DataSource { get; }
+    public NpgsqlDataSource NpgsqlDataSource { get; }
 
     protected override INodeAgentPersistence? buildNodeStorage(DatabaseSettings databaseSettings,
         DbDataSource dataSource)
@@ -219,7 +219,7 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>, IData
         cmd.With("replay", true);
         var param = new NpgsqlParameter("ids", NpgsqlDbType.Array | NpgsqlDbType.Uuid) { Value = ids };
         cmd.Parameters.Add(param);
-        await using var conn = await DataSource.OpenConnectionAsync(_cancellation);
+        await using var conn = await NpgsqlDataSource.OpenConnectionAsync(_cancellation);
         cmd.Connection = conn;
         try
         {
@@ -239,7 +239,7 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>, IData
         var cmd = builder.Compile();
         var param = new NpgsqlParameter("ids", NpgsqlDbType.Array | NpgsqlDbType.Uuid) { Value = ids };
         cmd.Parameters.Add(param);
-        await using var conn = await DataSource.OpenConnectionAsync(_cancellation);
+        await using var conn = await NpgsqlDataSource.OpenConnectionAsync(_cancellation);
         cmd.Connection = conn;
         try
         {
@@ -311,7 +311,7 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>, IData
 
         if (HasDisposed) return;
 
-        await using var conn = await DataSource.OpenConnectionAsync(cancellationToken);
+        await using var conn = await NpgsqlDataSource.OpenConnectionAsync(cancellationToken);
         try
         {
             var tx = await conn.BeginTransactionAsync(cancellationToken);

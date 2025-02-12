@@ -11,6 +11,7 @@ using Wolverine.Marten;
 using Wolverine.RDBMS.MultiTenancy;
 using Wolverine.Runtime;
 using Wolverine.Tracking;
+using MultiTenantedMessageStore = Wolverine.Persistence.Durability.MultiTenantedMessageStore;
 
 namespace MartenTests.MultiTenancy;
 
@@ -22,10 +23,10 @@ public class MultiTenancyContext : IClassFixture<MultiTenancyFixture>
     {
         Fixture = fixture;
         Runtime = fixture.Host.GetRuntime();
-        Databases = Runtime.Storage.ShouldBeOfType<MultiTenantedMessageDatabase>();
+        Stores = Runtime.Storage.ShouldBeOfType<MultiTenantedMessageStore>();
     }
 
-    public MultiTenantedMessageDatabase Databases { get; }
+    public MultiTenantedMessageStore Stores { get; }
 
     public WolverineRuntime Runtime { get; }
 }
