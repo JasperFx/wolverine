@@ -74,7 +74,7 @@ app.MapWolverineEndpoints(opts =>
 
 });
 
-return await app.RunOaktonCommands(args);
+return await app.RunJasperFxCommands(args);
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/Samples/MultiTenancy.cs#L15-L63' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_tenant_id_detection' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->

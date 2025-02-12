@@ -83,13 +83,13 @@ builder.Host.UseResourceSetupOnStartup();
 Assuming that you are using [Oakton](https://jasperfx.github.io/oakton) as your command line parser in your Wolverine application as
 shown in this last line of a .NET 6/7 `Program` code file:
 
-<!-- snippet: sample_using_oakton_for_command_line_parsing -->
-<a id='snippet-sample_using_oakton_for_command_line_parsing'></a>
+<!-- snippet: sample_using_jasperfx_for_command_line_parsing -->
+<a id='snippet-sample_using_jasperfx_for_command_line_parsing'></a>
 ```cs
-// Opt into using Oakton for command parsing
-await app.RunOaktonCommands(args);
+// Opt into using JasperFx for command parsing
+await app.RunJasperFxCommands(args);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/EFCoreSample/ItemService/Program.cs#L85-L90' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_oakton_for_command_line_parsing' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/EFCoreSample/ItemService/Program.cs#L85-L90' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_jasperfx_for_command_line_parsing' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And you're using the message persistence from either the `WolverineFx.SqlServer` or `WolverineFx.Postgresql`

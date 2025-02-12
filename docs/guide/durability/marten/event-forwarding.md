@@ -71,7 +71,7 @@ builder.Services.AddMarten(opts =>
     // the Wolverine outbox during SaveChangesAsync()
     .EventForwardingToWolverine();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/CQRSWithMarten/TeleHealth.WebApi/Program.cs#L61-L97' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_opting_into_wolverine_event_publishing' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/CQRSWithMarten/TeleHealth.WebApi/Program.cs#L62-L98' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_opting_into_wolverine_event_publishing' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 This does need to be paired with a little bit of Wolverine configuration to add
@@ -103,7 +103,7 @@ builder.Host.UseWolverine(opts =>
     opts.Policies.AutoApplyTransactions();
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/CQRSWithMarten/TeleHealth.WebApi/Program.cs#L18-L43' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_wolverine_event_subscriptions' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/CQRSWithMarten/TeleHealth.WebApi/Program.cs#L19-L44' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_wolverine_event_subscriptions' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 This forwarding of events is using an outbox that can be awaited in your tests using this extension method:

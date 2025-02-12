@@ -16,7 +16,7 @@ public static async Task invoking_by_tenant(IMessageBus bus)
         await bus.InvokeForTenantAsync<TodoCreated>("tenant2", new CreateTodo("Update the Documentation"));
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/MultiTenantedTodoService/MultiTenantedTodoWebService.Tests/end_to_end.cs#L96-L108' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_invoking_by_tenant' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/MultiTenantedTodoService/MultiTenantedTodoWebService.Tests/end_to_end.cs#L97-L109' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_invoking_by_tenant' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 When using this syntax, any [cascaded messages](/guide/handlers/cascading) will also be tagged with the same tenant id.
@@ -35,7 +35,7 @@ public static async Task publish_by_tenant(IMessageBus bus)
         new DeliveryOptions { TenantId = "tenant3" });
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/MultiTenantedTodoService/MultiTenantedTodoWebService.Tests/end_to_end.cs#L110-L118' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_publish_by_tenant' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/MultiTenantedTodoService/MultiTenantedTodoWebService.Tests/end_to_end.cs#L111-L119' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_publish_by_tenant' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Cascading Messages
