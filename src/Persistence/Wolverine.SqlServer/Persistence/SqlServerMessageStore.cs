@@ -9,6 +9,7 @@ using Weasel.Core;
 using Weasel.SqlServer;
 using Wolverine.Logging;
 using Wolverine.Persistence.Durability;
+using Wolverine.Persistence.Durability.DeadLetterManagement;
 using Wolverine.RDBMS;
 using Wolverine.RDBMS.Sagas;
 using Wolverine.RDBMS.Transport;
