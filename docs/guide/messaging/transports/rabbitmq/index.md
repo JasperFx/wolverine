@@ -38,7 +38,7 @@ return await Host.CreateDefaultBuilder(args)
         // This will send ping messages on a continuous
         // loop
         opts.Services.AddHostedService<PingerService>();
-    }).RunOaktonCommands(args);
+    }).RunJasperFxCommands(args);
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/PingPongWithRabbitMq/Pinger/Program.cs#L7-L36' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_rabbitmq' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->

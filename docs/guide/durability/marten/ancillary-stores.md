@@ -23,9 +23,10 @@ From the Wolverine tests, say you have these two separate stores:
 <a id='snippet-sample_separate_marten_stores'></a>
 ```cs
 public interface IPlayerStore : IDocumentStore;
+
 public interface IThingStore : IDocumentStore;
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AncillaryStores/bootstrapping_ancillary_marten_stores_with_wolverine.cs#L269-L274' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_separate_marten_stores' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AncillaryStores/bootstrapping_ancillary_marten_stores_with_wolverine.cs#L254-L260' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_separate_marten_stores' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 We can add Wolverine integration to both through a similar call to `IntegrateWithWolverine()` as normal as shown below:
@@ -36,27 +37,28 @@ We can add Wolverine integration to both through a similar call to `IntegrateWit
 theHost = await Host.CreateDefaultBuilder()
     .UseWolverine(opts =>
     {
+
+        // THIS IS IMPORTANT FOR MODULAR MONOLITH USAGE!
+        opts.Durability.MessageStorageSchemaName = "wolverine";
+
         opts.Services.AddMarten(Servers.PostgresConnectionString).IntegrateWithWolverine();
 
         opts.Policies.AutoApplyTransactions();
         opts.Durability.Mode = DurabilityMode.Solo;
 
         opts.Services.AddMartenStore<IPlayerStore>(m =>
-        {
-            m.Connection(Servers.PostgresConnectionString);
-            m.DatabaseSchemaName = "players";
-        })
+            {
+                m.Connection(Servers.PostgresConnectionString);
+                m.DatabaseSchemaName = "players";
+            })
             .IntegrateWithWolverine()
-            
+
             // Add a subscription
             .SubscribeToEvents(new ColorsSubscription())
-            
+
             // Forward events to wolverine handlers
-            .PublishEventsToWolverine("PlayerEvents", x =>
-            {
-                x.PublishEvent<ColorsUpdated>();
-            });
-        
+            .PublishEventsToWolverine("PlayerEvents", x => { x.PublishEvent<ColorsUpdated>(); });
+
         // Look at that, it even works with Marten multi-tenancy through separate databases!
         opts.Services.AddMartenStore<IThingStore>(m =>
         {
@@ -67,13 +69,30 @@ theHost = await Host.CreateDefaultBuilder()
                 tenancy.AddSingleTenantDatabase(tenant3ConnectionString, "tenant3");
             });
             m.DatabaseSchemaName = "things";
-        }).IntegrateWithWolverine(masterDatabaseConnectionString:Servers.PostgresConnectionString);
+        }).IntegrateWithWolverine(masterDatabaseConnectionString: Servers.PostgresConnectionString);
 
         opts.Services.AddResourceSetupOnStartup();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AncillaryStores/bootstrapping_ancillary_marten_stores_with_wolverine.cs#L79-L120' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_with_ancillary_marten_stores' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AncillaryStores/bootstrapping_ancillary_marten_stores_with_wolverine.cs#L54-L99' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_with_ancillary_marten_stores' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+
+Let's specifically zoom in on this code from within the big sample above:
+
+<!-- snippet: sample_using_message_storage_schema_name -->
+<a id='snippet-sample_using_message_storage_schema_name'></a>
+```cs
+// THIS IS IMPORTANT FOR MODULAR MONOLITH USAGE!
+opts.Durability.MessageStorageSchemaName = "wolverine";
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AncillaryStores/bootstrapping_ancillary_marten_stores_with_wolverine.cs#L59-L64' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_message_storage_schema_name' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+If you are using separate Marten document stores for different modules in your application, you can easily make Wolverine 
+happily share the transactional inbox/outbox between modules (you do *want* to do this to save on resource usage) by ensuring
+that all the document stores have the same database schema for envelope storage. The `opts.Durability.MessageStorageSchemaName` 
+value can be used to help Wolverine out to share the transactional inbox/outbox storage across all Marten stores that
+target the same physical database.
 
 Now, moving to message handlers or HTTP endpoints, you will have to explicitly tag either the containing class or
 individual messages with the `[MartenStore(store type)]` attribute like this simple example below:
@@ -89,11 +108,11 @@ public static class PlayerMessageHandler
     // Using a Marten side effect just like normal
     public static IMartenOp Handle(PlayerMessage message)
     {
-        return MartenOps.Store(new Player{Id = message.Id});
+        return MartenOps.Store(new Player { Id = message.Id });
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AncillaryStores/bootstrapping_ancillary_marten_stores_with_wolverine.cs#L253-L267' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_playermessagehandler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AncillaryStores/bootstrapping_ancillary_marten_stores_with_wolverine.cs#L238-L252' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_playermessagehandler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: info
