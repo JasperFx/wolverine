@@ -123,13 +123,13 @@ public partial class WolverineRuntime : IAgentRuntime
         switch (Options.Durability.Mode)
         {
             case DurabilityMode.Balanced:
-                startDurableScheduledJobs();
+                await startDurableScheduledJobs();
                 startNodeAgentController();
                 break;
 
 
             case DurabilityMode.Solo:
-                startDurableScheduledJobs();
+                await startDurableScheduledJobs();
                 startNodeAgentController();
                 await NodeController!.StartSoloModeAsync();
                 break;
@@ -141,10 +141,9 @@ public partial class WolverineRuntime : IAgentRuntime
         }
     }
 
-    private void startDurableScheduledJobs()
+    private async Task startDurableScheduledJobs()
     {
-        // TODO -- what about ancillary jobs???
-        DurableScheduledJobs = Storage.StartScheduledJobs(this);
+        DurableScheduledJobs = await DurabilityAgentFamily.StartScheduledJobProcessing(this);
     }
 
     internal IAgent? DurableScheduledJobs { get; private set; }
