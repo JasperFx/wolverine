@@ -285,19 +285,9 @@ internal class NullNodeAgentPersistence : INodeAgentPersistence
         return Task.CompletedTask;
     }
 
-    public Task<Guid?> MarkNodeAsLeaderAsync(Guid? originalLeader, Guid id)
-    {
-        return Task.FromResult(default(Guid?));
-    }
-
     public Task<WolverineNode?> LoadNodeAsync(Guid nodeId, CancellationToken cancellationToken)
     {
         return Task.FromResult(default(WolverineNode?));
-    }
-
-    public Task MarkHealthCheckAsync(Guid nodeId)
-    {
-        return Task.CompletedTask;
     }
 
     public Task MarkHealthCheckAsync(WolverineNode node, CancellationToken cancellationToken)
@@ -308,11 +298,6 @@ internal class NullNodeAgentPersistence : INodeAgentPersistence
     public Task OverwriteHealthCheckTimeAsync(Guid nodeId, DateTimeOffset lastHeartbeatTime)
     {
         return Task.CompletedTask;
-    }
-
-    public Task<IReadOnlyList<int>> LoadAllNodeAssignedIdsAsync()
-    {
-        return Task.FromResult((IReadOnlyList<int>)Array.Empty<int>());
     }
 
     public Task LogRecordsAsync(params NodeRecord[] records)

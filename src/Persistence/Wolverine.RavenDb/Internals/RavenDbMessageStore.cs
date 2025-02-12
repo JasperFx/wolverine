@@ -1,3 +1,4 @@
+using JasperFx.Core.Descriptions;
 using Raven.Client.Documents;
 using Wolverine.Persistence;
 using Wolverine.Persistence.Durability;
@@ -54,6 +55,15 @@ public partial class RavenDbMessageStore : IMessageStore
     public void Describe(TextWriter writer)
     {
         writer.WriteLine("RavenDb backed Wolverine envelope storage");
+    }
+
+    public DatabaseDescriptor Describe()
+    {
+        return new DatabaseDescriptor(this)
+        {
+            Engine = "ravendb",
+            DatabaseName = _store.Identifier
+        };
     }
 
     public Task DrainAsync()
