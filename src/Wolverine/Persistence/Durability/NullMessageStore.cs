@@ -1,3 +1,4 @@
+using JasperFx.Core.Descriptions;
 using Wolverine.Logging;
 using Wolverine.Persistence.Durability.DeadLetterManagement;
 using Wolverine.Runtime;
@@ -134,6 +135,11 @@ public class NullMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IM
     public void Describe(TextWriter writer)
     {
         writer.WriteLine("No persistent envelope storage");
+    }
+
+    public DatabaseDescriptor Describe()
+    {
+        return new DatabaseDescriptor(this);
     }
 
     public ValueTask DisposeAsync()
