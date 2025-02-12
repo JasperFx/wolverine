@@ -30,8 +30,8 @@ shifting to [Marten](https://martendb.io) for persistence just out of personal p
 <a id='snippet-sample_bootstrapping_wolverine_http'></a>
 ```cs
 using Marten;
-using Oakton;
-using Oakton.Resources;
+using JasperFx;
+using JasperFx.Resources;
 using Wolverine;
 using Wolverine.Http;
 using Wolverine.Marten;
@@ -78,7 +78,7 @@ if (app.Environment.IsDevelopment())
 // Let's add in Wolverine HTTP endpoints to the routing tree
 app.MapWolverineEndpoints();
 
-return await app.RunOaktonCommands(args);
+return await app.RunJasperFxCommands(args);
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/TodoWebService/TodoWebService/Program.cs#L1-L54' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_wolverine_http' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
@@ -120,7 +120,7 @@ public async Task hello_world()
     result.ReadAsText().ShouldBe("Hello.");
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/TodoWebService/TodoWebServiceTests/end_to_end.cs#L33-L47' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_testing_hello_world_for_http' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/TodoWebService/TodoWebServiceTests/end_to_end.cs#L34-L48' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_testing_hello_world_for_http' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Moving on to the actual `Todo` problem domain, let's assume we've got a class like this:

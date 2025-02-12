@@ -11,7 +11,7 @@ sample `Program.cs` file:
 <!-- snippet: sample_Quickstart_Program -->
 <a id='snippet-sample_quickstart_program'></a>
 ```cs
-using Oakton;
+using JasperFx;
 using Quickstart;
 using Wolverine;
 
@@ -46,10 +46,10 @@ app.UseSwaggerUI();
 
 app.MapGet("/", () => Results.Redirect("/swagger"));
 
-// Opt into using Oakton for command line parsing
+// Opt into using JasperFx for command line parsing
 // to unlock built in diagnostics and utility tools within
 // your Wolverine application
-return await app.RunOaktonCommands(args);
+return await app.RunJasperFxCommands(args);
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Quickstart/Program.cs#L1-L43' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_quickstart_program' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
@@ -185,6 +185,6 @@ public static void using_preview_subscriptions(IMessageBus bus)
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Runtime/Routing/routing_rules.cs#L73-L87' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_preview_subscriptions' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Runtime/Routing/routing_rules.cs#L90-L104' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_preview_subscriptions' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 

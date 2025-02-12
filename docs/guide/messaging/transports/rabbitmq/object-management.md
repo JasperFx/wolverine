@@ -77,7 +77,7 @@ declarations as shown in the setup below that uses the `AddResourceSetupOnStartu
 ```cs
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Host.ApplyOaktonExtensions();
+builder.Host.ApplyJasperFxExtensions();
 
 builder.Host.UseWolverine(opts =>
 {
@@ -130,7 +130,7 @@ var app = builder.Build();
 app.MapGet("/", () => "Hello World!");
 
 // Actually important to return the exit code here!
-return await app.RunOaktonCommands(args);
+return await app.RunJasperFxCommands(args);
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/KitchenSink/MartenAndRabbitIssueService/Program.cs#L11-L70' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_kitchen_sink_bootstrapping' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->

@@ -33,7 +33,7 @@ For an example, here's connecting to a Rabbit MQ broker:
 <!-- snippet: sample_configuring_connection_to_rabbit_mq -->
 <a id='snippet-sample_configuring_connection_to_rabbit_mq'></a>
 ```cs
-using Oakton;
+using JasperFx;
 using Wolverine;
 using Wolverine.RabbitMQ;
 
