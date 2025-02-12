@@ -9,7 +9,7 @@ namespace Wolverine.Persistence.Durability;
 /// <param name="ExceptionType"></param>
 /// <param name="TenantId"></param>
 /// <param name="Count"></param>
-public record DeadLetterQueueCount(string ServiceName, Uri ReceivedAt, string MessageType, string ExceptionType, string DatabaseIdentifier, int Count);
+public record DeadLetterQueueCount(string ServiceName, Uri ReceivedAt, string MessageType, string ExceptionType, Uri Database, int Count);
 
 public record TimeRange(DateTimeOffset? From, DateTimeOffset? To)
 {
@@ -28,7 +28,7 @@ public class DeadLetterEnvelopeQuery
     public string? MessageType { get; set; }
     public string? ExceptionType { get; set; }
     public string? ReceivedAt { get; set; }
-    public string? DatabaseIdentifier { get; set; }
+    public Uri? Database { get; set; }
     
     public TimeRange Range { get; set; }
 }
