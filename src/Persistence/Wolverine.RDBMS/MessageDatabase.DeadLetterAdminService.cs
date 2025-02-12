@@ -47,7 +47,7 @@ public abstract partial class MessageDatabase<T> : IDeadLetterAdminService
                 var exceptionType = await reader.GetFieldValueAsync<string>(2, token);
                 var count = await reader.GetFieldValueAsync<int>(3, token);
                 
-                envelopes.Add(new DeadLetterQueueCount(serviceName, uri, messageType, exceptionType, Name, count));
+                envelopes.Add(new DeadLetterQueueCount(serviceName, uri, messageType, exceptionType, Uri, count));
             }
         }
         finally
