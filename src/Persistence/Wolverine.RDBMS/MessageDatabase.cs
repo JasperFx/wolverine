@@ -36,7 +36,7 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
         _settings = databaseSettings;
         _dataSource = dataSource ?? throw new ArgumentNullException(nameof(dataSource));
         Logger = logger;
-        _schemaName = databaseSettings.SchemaName ?? defaultSchema;
+        _schemaName = databaseSettings.SchemaName ?? settings.MessageStorageSchemaName ?? defaultSchema;
 
         IncomingFullName = $"{SchemaName}.{DatabaseConstants.IncomingTable}";
         OutgoingFullName = $"{SchemaName}.{DatabaseConstants.OutgoingTable}";
@@ -64,10 +64,20 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
             descriptor.Engine.ToLowerInvariant(),
             descriptor.ServerName,
             descriptor.DatabaseName,
-            settings.MessageStorageSchemaName
+            _schemaName
         };
 
         Uri = new Uri($"{PersistenceConstants.AgentScheme}://{parts.Where(x => x.IsNotEmpty()).Join("/")}");
+    }
+
+    public override string ToString()
+    {
+        return $"{Uri} ({Name})";
+    }
+
+    public IAgent BuildAgent(IWolverineRuntime runtime)
+    {
+        return new DurabilityAgent(Name, runtime, this);
     }
 
     public Uri Uri { get; protected set; } = new Uri("null://null");

@@ -1,11 +1,9 @@
-using JasperFx.Core;
-using Wolverine.Persistence;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
 
-namespace Wolverine.RDBMS.MultiTenancy;
+namespace Wolverine.Persistence.Durability;
 
-public partial class MultiTenantedMessageDatabase : IAgentFamily
+public partial class MultiTenantedMessageStore : IAgentFamily
 {
     public string Scheme => PersistenceConstants.AgentScheme;
 
@@ -16,34 +14,33 @@ public partial class MultiTenantedMessageDatabase : IAgentFamily
         return uris;
     }
 
-    public string Name => "Main";
-
     public async ValueTask<IAgent> BuildAgentAsync(Uri uri, IWolverineRuntime wolverineRuntime)
     {
         // This is checking what's already in memory
-        var database = databases().FirstOrDefault(x => x.Name.EqualsIgnoreCase(uri.Host));
+        var database = databases().FirstOrDefault(x => x.Uri == uri);
         if (database == null)
         {
             // Try to refresh in case it was recently added
             await Source.RefreshAsync();
-            database = databases().FirstOrDefault(x => x.Name.EqualsIgnoreCase(uri.Host));
+            database = databases().FirstOrDefault(x => x.Uri == uri);
 
             if (database == null)
             {
-                throw new ArgumentOutOfRangeException(nameof(uri), "Unknown database " + uri.Host);
+                throw new ArgumentOutOfRangeException(nameof(uri), "Unknown database " + uri);
             }
         }
 
-        return new DurabilityAgent(database.Name, _runtime, (IMessageDatabase)database)
+        if (database is IMessageStoreWithAgentSupport agentSupport)
         {
-            AutoStartScheduledJobPolling = true, 
-            Uri = uri
-        };
+            return agentSupport.BuildAgent(wolverineRuntime);
+        }
+
+        throw new NotSupportedException($"The database identified as {uri} does not support durability agents");
     }
 
     public ValueTask<IReadOnlyList<Uri>> SupportedAgentsAsync()
     {
-        var uris = databases().Select(x => new Uri($"{Scheme}://{x.Name}")).ToList();
+        var uris = databases().OfType<IMessageStoreWithAgentSupport>().Select(x => new Uri($"{Scheme}://{x.Name}")).ToList();
         return new ValueTask<IReadOnlyList<Uri>>(uris);
     }
 
@@ -51,11 +48,6 @@ public partial class MultiTenantedMessageDatabase : IAgentFamily
     {
         assignments.DistributeEvenly(Scheme);
         return ValueTask.CompletedTask;
-    }
-
-    public IAgent StartScheduledJobs(IWolverineRuntime runtime)
-    {
-        return new DummyAgent();
     }
 
     private class DummyAgent : IAgent

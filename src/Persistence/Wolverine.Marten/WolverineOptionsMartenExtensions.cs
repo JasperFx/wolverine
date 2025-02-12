@@ -1,30 +1,27 @@
-﻿using System.Diagnostics;
-using JasperFx;
+﻿using JasperFx;
+using JasperFx.Core;
+using JasperFx.Core.Descriptions;
+using JasperFx.Core.IoC;
 using JasperFx.Core.Reflection;
 using Marten;
+using Marten.Events;
+using Marten.Events.Daemon.Coordination;
+using Marten.Storage;
+using Marten.Subscriptions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Npgsql;
 using Weasel.Core.Migrations;
+using Weasel.Postgresql;
+using Wolverine.Marten.Distribution;
 using Wolverine.Marten.Publishing;
+using Wolverine.Marten.Subscriptions;
 using Wolverine.Persistence.Durability;
 using Wolverine.Postgresql;
 using Wolverine.RDBMS;
-using Wolverine.RDBMS.MultiTenancy;
 using Wolverine.Runtime;
-using JasperFx.Core;
-using JasperFx.Core.IoC;
-using Marten.Events;
-using Marten.Events.Daemon.Coordination;
-using Marten.Events.Projections;
-using Marten.Storage;
-using Marten.Subscriptions;
-using Microsoft.Extensions.DependencyInjection.Extensions;
-using Npgsql;
-using Weasel.Core;
-using Weasel.Postgresql;
-using Wolverine.Marten.Distribution;
-using Wolverine.Marten.Subscriptions;
 using Wolverine.Runtime.Agents;
+using MultiTenantedMessageStore = Wolverine.Persistence.Durability.MultiTenantedMessageStore;
 
 namespace Wolverine.Marten;
 
@@ -57,19 +54,22 @@ public static class WolverineOptionsMartenExtensions
     ///     Wolverine will try to use the master database from the Marten configuration when possible
     /// </param>
     /// <param name="transportSchemaName">Optionally configure the schema name for any PostgreSQL queues</param>
-    /// <param name="autoCreate">Optionally override whether to automatically create message database schema objects. Defaults to <see cref="StoreOptions.AutoCreateSchemaObjects"/>.</param>
+    /// <param name="autoCreate">
+    ///     Optionally override whether to automatically create message database schema objects. Defaults
+    ///     to <see cref="StoreOptions.AutoCreateSchemaObjects" />.
+    /// </param>
     /// <returns></returns>
     public static MartenServiceCollectionExtensions.MartenConfigurationExpression IntegrateWithWolverine(
-        this MartenServiceCollectionExtensions.MartenConfigurationExpression expression, 
+        this MartenServiceCollectionExtensions.MartenConfigurationExpression expression,
         Action<MartenIntegration>? configure = null)
     {
         var integration = expression.Services.FindMartenIntegration();
         if (integration == null)
         {
-            integration = new();
-            
+            integration = new MartenIntegration();
+
             configure?.Invoke(integration);
-            
+
             expression.Services.AddSingleton<IWolverineExtension>(integration);
         }
         else
@@ -88,15 +88,18 @@ public static class WolverineOptionsMartenExtensions
             var runtime = s.GetRequiredService<IWolverineRuntime>();
             var logger = s.GetRequiredService<ILogger<PostgresqlMessageStore>>();
 
-            var schemaName = integration.MessageStorageSchemaName ?? store.Options.DatabaseSchemaName ?? "public";
+            var schemaName = integration.MessageStorageSchemaName ??
+                             runtime.Options.Durability.MessageStorageSchemaName ??
+                             store.Options.DatabaseSchemaName ?? "public";
 
-            // TODO -- hacky. Need a way to expose this in Marten
-            if (store.Tenancy.GetType().Name == "DefaultTenancy")
+
+            if (store.Tenancy.Cardinality == DatabaseCardinality.Single)
             {
                 return BuildSinglePostgresqlMessageStore(schemaName, integration.AutoCreate, store, runtime, logger);
             }
 
-            return BuildMultiTenantedMessageDatabase(schemaName, integration.AutoCreate, integration.MasterDatabaseConnectionString, integration.MasterDataSource, store, runtime, s);
+            return BuildMultiTenantedMessageDatabase(schemaName, integration.AutoCreate,
+                integration.MasterDatabaseConnectionString, integration.MasterDataSource, store, runtime, s);
         });
 
         if (integration.UseWolverineManagedEventSubscriptionDistribution)
@@ -108,7 +111,7 @@ public static class WolverineOptionsMartenExtensions
 
         expression.Services.AddType(typeof(IDatabaseSource), typeof(MartenMessageDatabaseDiscovery),
             ServiceLifetime.Singleton);
-        
+
         expression.Services.AddSingleton<IConfigureMarten, MartenOverrides>();
 
         expression.Services.AddSingleton<OutboxedSessionFactory>();
@@ -117,16 +120,25 @@ public static class WolverineOptionsMartenExtensions
     }
 
     internal static NpgsqlDataSource findMasterDataSource(
-        DocumentStore store, 
+        DocumentStore store,
         IWolverineRuntime runtime,
-        DatabaseSettings masterSettings, 
+        DatabaseSettings masterSettings,
         IServiceProvider container)
     {
-        if (store.Tenancy is ITenancyWithMasterDatabase m) return m.TenantDatabase.DataSource;
+        if (store.Tenancy is ITenancyWithMasterDatabase m)
+        {
+            return m.TenantDatabase.DataSource;
+        }
 
-        if (masterSettings.DataSource != null) return (NpgsqlDataSource)masterSettings.DataSource;
+        if (masterSettings.DataSource != null)
+        {
+            return (NpgsqlDataSource)masterSettings.DataSource;
+        }
 
-        if (masterSettings.ConnectionString.IsNotEmpty()) return NpgsqlDataSource.Create(masterSettings.ConnectionString);
+        if (masterSettings.ConnectionString.IsNotEmpty())
+        {
+            return NpgsqlDataSource.Create(masterSettings.ConnectionString);
+        }
 
         var source = container.GetService<NpgsqlDataSource>();
 
@@ -138,8 +150,8 @@ public static class WolverineOptionsMartenExtensions
     internal static IMessageStore BuildMultiTenantedMessageDatabase(
         string schemaName,
         AutoCreate? autoCreate,
-        string? masterDatabaseConnectionString, 
-        NpgsqlDataSource? masterDataSource, 
+        string? masterDatabaseConnectionString,
+        NpgsqlDataSource? masterDataSource,
         DocumentStore store,
         IWolverineRuntime runtime,
         IServiceProvider serviceProvider)
@@ -162,18 +174,19 @@ public static class WolverineOptionsMartenExtensions
         };
 
 
-        var source = new MartenMessageDatabaseSource(schemaName, autoCreate ?? store.Options.AutoCreateSchemaObjects, store, runtime);
+        var source = new MartenMessageDatabaseSource(schemaName, autoCreate ?? store.Options.AutoCreateSchemaObjects,
+            store, runtime);
 
         master.Initialize(runtime);
 
-        return new MultiTenantedMessageDatabase(master, runtime, source);
+        return new MultiTenantedMessageStore(master, runtime, source);
     }
 
     internal static IMessageStore BuildSinglePostgresqlMessageStore(
-        string schemaName, 
+        string schemaName,
         AutoCreate? autoCreate,
         DocumentStore store,
-        IWolverineRuntime runtime, 
+        IWolverineRuntime runtime,
         ILogger<PostgresqlMessageStore> logger)
     {
         var settings = new DatabaseSettings
@@ -203,7 +216,8 @@ public static class WolverineOptionsMartenExtensions
     /// </summary>
     /// <param name="expression"></param>
     /// <returns></returns>
-    [Obsolete($"Favor using the {nameof(MartenIntegration.UseFastEventForwarding)} property as part of {nameof(WolverineOptionsMartenExtensions.IntegrateWithWolverine)}. This will be removed in Wolverine 4.0")]
+    [Obsolete(
+        $"Favor using the {nameof(MartenIntegration.UseFastEventForwarding)} property as part of {nameof(IntegrateWithWolverine)}. This will be removed in Wolverine 4.0")]
     public static MartenServiceCollectionExtensions.MartenConfigurationExpression EventForwardingToWolverine(
         this MartenServiceCollectionExtensions.MartenConfigurationExpression expression)
     {
@@ -222,13 +236,15 @@ public static class WolverineOptionsMartenExtensions
     /// <summary>
     ///     Enable publishing of events to Wolverine message routing when captured in Marten sessions that are enrolled in a
     ///     Wolverine outbox. This requires usage of Marten transactional middleware within Wolverine, and makes no guarantees
-    /// about ordering
+    ///     about ordering
     /// </summary>
     /// <param name="expression"></param>
     /// <returns></returns>
-    [Obsolete($"All of these options are available within the {nameof(IntegrateWithWolverine)}() method. This will be removed in Wolverine 4.0")]
+    [Obsolete(
+        $"All of these options are available within the {nameof(IntegrateWithWolverine)}() method. This will be removed in Wolverine 4.0")]
     public static MartenServiceCollectionExtensions.MartenConfigurationExpression EventForwardingToWolverine(
-        this MartenServiceCollectionExtensions.MartenConfigurationExpression expression, Action<IEventForwarding> configure)
+        this MartenServiceCollectionExtensions.MartenConfigurationExpression expression,
+        Action<IEventForwarding> configure)
     {
         var integration = expression.Services.FindMartenIntegration();
         if (integration == null)
@@ -245,8 +261,8 @@ public static class WolverineOptionsMartenExtensions
     }
 
     /// <summary>
-    /// Register a custom subscription that will process a batch of Marten events at a time with
-    /// a user defined action
+    ///     Register a custom subscription that will process a batch of Marten events at a time with
+    ///     a user defined action
     /// </summary>
     /// <param name="expression"></param>
     /// <param name="subscription"></param>
@@ -260,13 +276,14 @@ public static class WolverineOptionsMartenExtensions
     }
 
     /// <summary>
-    /// Register a custom subscription that will process a batch of Marten events at a time with
-    /// a user defined action
+    ///     Register a custom subscription that will process a batch of Marten events at a time with
+    ///     a user defined action
     /// </summary>
     /// <param name="services"></param>
     /// <param name="subscription"></param>
     /// <returns></returns>
-    public static IServiceCollection SubscribeToEvents(this IServiceCollection services, IWolverineSubscription subscription)
+    public static IServiceCollection SubscribeToEvents(this IServiceCollection services,
+        IWolverineSubscription subscription)
     {
         services.ConfigureMarten((sp, opts) =>
         {
@@ -276,16 +293,18 @@ public static class WolverineOptionsMartenExtensions
 
         return services;
     }
-    
+
     /// <summary>
-    /// Register a custom subscription that will process a batch of Marten events at a time with
-    /// a user defined action
+    ///     Register a custom subscription that will process a batch of Marten events at a time with
+    ///     a user defined action
     /// </summary>
     /// <param name="expression"></param>
-    /// <param name="lifetime">Service lifetime of the subscription class within the application's IoC container
-    /// <returns></returns>
+    /// <param name="lifetime">
+    ///     Service lifetime of the subscription class within the application's IoC container
+    ///     <returns></returns>
     public static MartenServiceCollectionExtensions.MartenConfigurationExpression SubscribeToEventsWithServices<T>(
-        this MartenServiceCollectionExtensions.MartenConfigurationExpression expression, ServiceLifetime lifetime) where T : class, IWolverineSubscription
+        this MartenServiceCollectionExtensions.MartenConfigurationExpression expression, ServiceLifetime lifetime)
+        where T : class, IWolverineSubscription
     {
         expression.Services.SubscribeToEventsWithServices<T>(lifetime);
 
@@ -293,14 +312,15 @@ public static class WolverineOptionsMartenExtensions
     }
 
     /// <summary>
-    /// <param name="expression"></param>
-    /// <param name="lifetime">Service lifetime of the subscription class within the application's IoC container
+    ///     <param name="expression"></param>
+    ///     <param name="lifetime">Service lifetime of the subscription class within the application's IoC container
     /// </summary>
     /// <param name="lifetime"></param>
     /// <param name="services"></param>
     /// <typeparam name="T"></typeparam>
     /// <returns></returns>
-    public static IServiceCollection SubscribeToEventsWithServices<T>(this IServiceCollection services, ServiceLifetime lifetime)
+    public static IServiceCollection SubscribeToEventsWithServices<T>(this IServiceCollection services,
+        ServiceLifetime lifetime)
         where T : class, IWolverineSubscription
     {
         switch (lifetime)
@@ -329,16 +349,17 @@ public static class WolverineOptionsMartenExtensions
     }
 
     /// <summary>
-    /// Create a subscription for Marten events to be processed in strict order by Wolverine
+    ///     Create a subscription for Marten events to be processed in strict order by Wolverine
     /// </summary>
     /// <param name="expression"></param>
     /// <param name="subscriptionName">Descriptive name for this event subscription for tracking with Marten</param>
     /// <param name="configure">Fine tune the asynchronous daemon behavior of this subscription</param>
     /// <returns></returns>
     /// <exception cref="ArgumentNullException"></exception>
-    public static MartenServiceCollectionExtensions.MartenConfigurationExpression ProcessEventsWithWolverineHandlersInStrictOrder(
-        this MartenServiceCollectionExtensions.MartenConfigurationExpression expression,
-        string subscriptionName, Action<ISubscriptionOptions>? configure = null)
+    public static MartenServiceCollectionExtensions.MartenConfigurationExpression
+        ProcessEventsWithWolverineHandlersInStrictOrder(
+            this MartenServiceCollectionExtensions.MartenConfigurationExpression expression,
+            string subscriptionName, Action<ISubscriptionOptions>? configure = null)
     {
         expression.Services.ProcessEventsWithWolverineHandlersInStrictOrder(subscriptionName, configure);
 
@@ -346,7 +367,7 @@ public static class WolverineOptionsMartenExtensions
     }
 
     /// <summary>
-    /// Create a subscription for Marten events to be processed in strict order by Wolverine
+    ///     Create a subscription for Marten events to be processed in strict order by Wolverine
     /// </summary>
     /// <param name="expression"></param>
     /// <param name="subscriptionName">Descriptive name for this event subscription for tracking with Marten</param>
@@ -356,7 +377,11 @@ public static class WolverineOptionsMartenExtensions
     public static IServiceCollection ProcessEventsWithWolverineHandlersInStrictOrder(this IServiceCollection services,
         string subscriptionName, Action<ISubscriptionOptions>? configure)
     {
-        if (subscriptionName.IsEmpty()) throw new ArgumentNullException(nameof(subscriptionName));
+        if (subscriptionName.IsEmpty())
+        {
+            throw new ArgumentNullException(nameof(subscriptionName));
+        }
+
         services.ConfigureMarten((sp, opts) =>
         {
             var runtime = sp.GetRequiredService<IWolverineRuntime>();
@@ -373,7 +398,7 @@ public static class WolverineOptionsMartenExtensions
     }
 
     /// <summary>
-    /// Relay events captured by Marten to Wolverine message publishing
+    ///     Relay events captured by Marten to Wolverine message publishing
     /// </summary>
     /// <param name="expression"></param>
     /// <param name="subscriptionName">Descriptive name for this event subscription for tracking with Marten</param>
@@ -390,15 +415,20 @@ public static class WolverineOptionsMartenExtensions
     }
 
     /// <summary>
-    /// Relay events captured by Marten to Wolverine message publishing
+    ///     Relay events captured by Marten to Wolverine message publishing
     /// </summary>
     /// <param name="expression"></param>
     /// <param name="subscriptionName">Descriptive name for this event subscription for tracking with Marten</param>
     /// <param name="configure">Fine tune the asynchronous daemon behavior of this subscription</param>
     /// <exception cref="ArgumentNullException"></exception>
-    public static IServiceCollection PublishEventsToWolverine(this IServiceCollection services, string subscriptionName, Action<IPublishingRelay>? configure)
+    public static IServiceCollection PublishEventsToWolverine(this IServiceCollection services, string subscriptionName,
+        Action<IPublishingRelay>? configure)
     {
-        if (subscriptionName.IsEmpty()) throw new ArgumentNullException(nameof(subscriptionName));
+        if (subscriptionName.IsEmpty())
+        {
+            throw new ArgumentNullException(nameof(subscriptionName));
+        }
+
         services.ConfigureMarten((sp, opts) =>
         {
             var runtime = sp.GetRequiredService<IWolverineRuntime>();
