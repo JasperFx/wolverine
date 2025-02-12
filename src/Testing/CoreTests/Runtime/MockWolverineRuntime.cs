@@ -50,7 +50,6 @@ public class MockWolverineRuntime : IWolverineRuntime, IObserver<IWolverineEvent
     public MockWolverineRuntime()
     {
         Tracker.Subscribe(this);
-        Storage.BuildAgentFamily(this).Returns(new NullAgentFamily());
     }
 
     public IMessageTracker MessageTracking { get; } = Substitute.For<IMessageTracker>();

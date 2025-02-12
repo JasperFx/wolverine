@@ -2,6 +2,7 @@ using Wolverine.Configuration;
 using Wolverine.RDBMS.MultiTenancy;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
+using MultiTenantedMessageStore = Wolverine.Persistence.Durability.MultiTenantedMessageStore;
 
 namespace Wolverine.Postgresql.Transport;
 
@@ -9,30 +10,31 @@ public class StickyPostgresqlQueueListenerAgentFamily : IAgentFamily
 {
     private readonly IWolverineRuntime _runtime;
     public static string StickyListenerSchema = "pg-queue-listener";
-    private readonly MultiTenantedMessageDatabase _databases;
+    private readonly MultiTenantedMessageStore _stores;
     private readonly PostgresqlQueue[] _queues;
 
     public StickyPostgresqlQueueListenerAgentFamily(IWolverineRuntime runtime)
     {
         _runtime = runtime;
-        if (_runtime.Storage is MultiTenantedMessageDatabase databases)
+        if (_runtime.Storage is MultiTenantedMessageStore databases)
         {
-            _databases = databases;
+            _stores = databases;
         }
         else
         {
             throw new ArgumentOutOfRangeException(nameof(runtime),
-                $"The message storage is not {nameof(MultiTenantedMessageDatabase)}");
+                $"The message storage is not {nameof(MultiTenantedMessageStore)}");
         }
 
         var transport = _runtime.Options.Transports.GetOrCreate<PostgresqlTransport>();
-        _queues = transport.Queues.Where(x => x.IsListener && x.ListenerScope == ListenerScope.Exclusive).ToArray();
+        _queues = transport.Queues.Where(x => x is { IsListener: true, ListenerScope: ListenerScope.Exclusive }).ToArray();
     }
 
     public string Scheme { get; set; } = StickyListenerSchema;
     public async ValueTask<IReadOnlyList<Uri>> AllKnownAgentsAsync()
     {
-        var databases = (await _databases.CheckForDatabasesAsync(_runtime))
+        await _stores.Source.RefreshAsync();
+        var databases = (_stores.ActiveDatabases())
             .OfType<PostgresqlMessageStore>()
             .ToArray();
 

@@ -19,7 +19,6 @@ public class OutboxedSessionFactory<T> : OutboxedSessionFactory, ISessionFactory
     public IQuerySession QuerySession()
     {
         return _store.QuerySession();
-
     }
 
     public IDocumentSession OpenSession()
