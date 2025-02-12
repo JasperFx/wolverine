@@ -34,6 +34,40 @@ public class DurabilityAgentFamily : IAgentFamily
         }
     }
 
+    internal static async Task<IAgent> StartScheduledJobProcessing(IWolverineRuntime runtime)
+    {
+        var family = new DurabilityAgentFamily(runtime);
+        
+        // First, find all unique message stores
+        var stores = await family.findUniqueMessageStores();
+        var agents = stores.Select(x => x.StartScheduledJobs(runtime));
+        return new CompositeAgent(new Uri("internal://scheduledjobs"), agents);
+    }
+
+    private async Task<IReadOnlyList<IMessageStore>> findUniqueMessageStores()
+    {
+        var stores = new Dictionary<Uri, IMessageStore>();
+        foreach (var agentSupport in _storeWithAgents)
+        {
+            stores.TryAdd(agentSupport.Key, agentSupport.Value);
+        }
+
+        foreach (var tenantedStore in _tenantedStores)
+        {
+            if (!tenantedStore.AllActive().Any())
+            {
+                await tenantedStore.RefreshAsync();
+            }
+
+            foreach (var store in tenantedStore.AllActive())
+            {
+                stores.TryAdd(store.Uri, store);
+            }
+        }
+
+        return stores.Values.ToList();
+    }
+
     public string Scheme => PersistenceConstants.AgentScheme;
 
     public async ValueTask<IReadOnlyList<Uri>> AllKnownAgentsAsync()
