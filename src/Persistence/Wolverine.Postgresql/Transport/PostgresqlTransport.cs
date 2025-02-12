@@ -7,6 +7,7 @@ using Wolverine.RDBMS.MultiTenancy;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
 using Wolverine.Transports;
+using MultiTenantedMessageStore = Wolverine.Persistence.Durability.MultiTenantedMessageStore;
 
 namespace Wolverine.Postgresql.Transport;
 
@@ -43,7 +44,7 @@ public class PostgresqlTransport : BrokerTransport<PostgresqlQueue>, ITransportC
 
             Store = store;
         }
-        else if (runtime.Storage is MultiTenantedMessageDatabase tenants)
+        else if (runtime.Storage is MultiTenantedMessageStore tenants)
         {
             Store = tenants.Master as PostgresqlMessageStore;
 
@@ -100,7 +101,7 @@ public class PostgresqlTransport : BrokerTransport<PostgresqlQueue>, ITransportC
         {
             Store = store;
         }
-        else if (runtime.Storage is MultiTenantedMessageDatabase tenants)
+        else if (runtime.Storage is MultiTenantedMessageStore tenants)
         {
             Store = tenants.Master as PostgresqlMessageStore ??
                     throw new ArgumentOutOfRangeException(
@@ -113,7 +114,7 @@ public class PostgresqlTransport : BrokerTransport<PostgresqlQueue>, ITransportC
         await runtime.Storage.Admin.CheckConnectivityAsync(CancellationToken.None);
     }
 
-    internal MultiTenantedMessageDatabase? Databases { get; set; }
+    internal MultiTenantedMessageStore? Databases { get; set; }
 
     internal PostgresqlMessageStore? Store { get; set; }
 
@@ -130,7 +131,7 @@ public class PostgresqlTransport : BrokerTransport<PostgresqlQueue>, ITransportC
         NpgsqlDataSource dataSource = null;
         if (Store is PostgresqlMessageStore store)
         {
-            dataSource = store.DataSource;
+            dataSource = store.NpgsqlDataSource;
         }
 
         await using var conn = await dataSource.OpenConnectionAsync();
@@ -147,7 +148,7 @@ public class PostgresqlTransport : BrokerTransport<PostgresqlQueue>, ITransportC
 
     IEnumerable<IAgentFamily> IAgentFamilySource.BuildAgentFamilySources(IWolverineRuntime runtime)
     {
-        if (runtime.Storage is not MultiTenantedMessageDatabase)
+        if (runtime.Storage is not MultiTenantedMessageStore)
         {
             yield break;
         }

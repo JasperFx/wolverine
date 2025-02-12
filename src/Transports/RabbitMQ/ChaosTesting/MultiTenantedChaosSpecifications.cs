@@ -4,6 +4,7 @@ using Shouldly;
 using Wolverine.RabbitMQ;
 using Wolverine.RDBMS.MultiTenancy;
 using Xunit.Abstractions;
+using MultiTenantedMessageStore = Wolverine.Persistence.Durability.MultiTenantedMessageStore;
 
 namespace ChaosTesting;
 
@@ -52,7 +53,7 @@ public class MultiTenantedChaosSpecifications
         _output = output;
     }
 
-    private MultiTenantedMessageDatabase _database;
+    private MultiTenantedMessageStore _store;
 
     protected async Task execute<TScript>(TransportConfiguration configuration)
         where TScript : ChaosScript, new()

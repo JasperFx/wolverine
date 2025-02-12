@@ -39,7 +39,7 @@ internal class StickyPostgresqlQueueListenerAgent : IAgent
 
         var database = (PostgresqlMessageStore)await transport.Databases.GetDatabaseAsync(_databaseName);
 
-        var tenantEndpoint = new TenantedPostgresqlQueue(queue, database.DataSource, _databaseName);
+        var tenantEndpoint = new TenantedPostgresqlQueue(queue, database.NpgsqlDataSource, _databaseName);
         return tenantEndpoint;
     }
 

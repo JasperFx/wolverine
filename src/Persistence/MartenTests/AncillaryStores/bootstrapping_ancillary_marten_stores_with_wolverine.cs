@@ -16,6 +16,7 @@ using Weasel.Postgresql.Migrations;
 using Wolverine;
 using Wolverine.Marten;
 using Wolverine.Marten.Publishing;
+using Wolverine.Persistence;
 using Wolverine.Persistence.Durability;
 using Wolverine.Postgresql;
 using Wolverine.RDBMS;
@@ -81,6 +82,8 @@ public class bootstrapping_ancillary_marten_stores_with_wolverine : IAsyncLifeti
         theHost = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Durability.MessageStorageSchemaName = "wolverine";
+                
                 opts.Services.AddMarten(Servers.PostgresConnectionString).IntegrateWithWolverine();
 
                 opts.Policies.AutoApplyTransactions();
@@ -149,7 +152,7 @@ public class bootstrapping_ancillary_marten_stores_with_wolverine : IAsyncLifeti
     {
         theHost.DocumentStore<IThingStore>().ShouldNotBeNull();
         var ancillaries = theHost.Services.GetServices<IAncillaryMessageStore>();
-        ancillaries.OfType<MultiTenantedMessageDatabase<IThingStore>>().Any()
+        ancillaries.OfType<MultiTenantedMessageStore<IThingStore>>().Any()
             .ShouldBeTrue();
             
     }
@@ -173,11 +176,9 @@ public class bootstrapping_ancillary_marten_stores_with_wolverine : IAsyncLifeti
             .Single();
 
         var databases = await source.BuildDatabases();
-        
-        databases.OfType<PostgresqlMessageStore<IPlayerStore>>().Count().ShouldBe(1);
-        
+
         // 3 tenant databases + 1 master database
-        databases.Where(x => x is not PostgresqlMessageStore<IPlayerStore>).OfType<PostgresqlMessageStore>().Select(x => x.Name)
+        databases.OfType<PostgresqlMessageStore>().Select(x => x.Name)
             .OrderBy(x => x)
             .ShouldHaveTheSameElementsAs("default", "tenant1", "tenant2", "tenant3");
     }
@@ -209,13 +210,12 @@ public class bootstrapping_ancillary_marten_stores_with_wolverine : IAsyncLifeti
     public async Task find_all_the_agents()
     {
         var agents = await theFamily.AllKnownAgentsAsync();
-        
-        agents.ShouldContain(new Uri("wolverinedb://default/"));
-        agents.ShouldContain(new Uri("wolverinedb://default/IPlayerStore"));
-        agents.ShouldContain(new Uri("wolverinedb://master/IThingStore"));
-        agents.ShouldContain(new Uri("wolverinedb://tenant3/IThingStore"));
-        agents.ShouldContain(new Uri("wolverinedb://tenant2/IThingStore"));
-        agents.ShouldContain(new Uri("wolverinedb://tenant1/IThingStore"));
+
+        agents.ShouldContain(new Uri("wolverinedb://postgresql/localhost/postgres/wolverine"));
+        agents.ShouldContain(new Uri("wolverinedb://postgresql/localhost/tenant3/wolverine"));
+        agents.ShouldContain(new Uri("wolverinedb://postgresql/localhost/tenant2/wolverine"));
+        agents.ShouldContain(new Uri("wolverinedb://postgresql/localhost/tenant1/wolverine"));
+
     }
 
     [Theory]
