@@ -23,7 +23,7 @@ in your application (and Wolverine itself!), you next need to add the Wolverine 
 <a id='snippet-sample_integrating_wolverine_with_marten'></a>
 ```cs
 var builder = WebApplication.CreateBuilder(args);
-builder.Host.ApplyOaktonExtensions();
+builder.Host.ApplyJasperFxExtensions();
 
 builder.Services.AddMarten(opts =>
     {
@@ -54,7 +54,7 @@ builder.Host.UseWolverine(opts =>
 <a id='snippet-sample_integrating_wolverine_with_marten-1'></a>
 ```cs
 var builder = WebApplication.CreateBuilder(args);
-builder.Host.ApplyOaktonExtensions();
+builder.Host.ApplyJasperFxExtensions();
 
 builder.Services.AddMarten(opts =>
     {

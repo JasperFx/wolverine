@@ -255,6 +255,40 @@ public interface IAgent : IHostedService
     AgentStatus Status { get; }
 }
 
+public class CompositeAgent : IAgent
+{
+    private readonly List<IAgent> _agents;
+    public Uri Uri { get; }
+
+    public CompositeAgent(Uri uri, IEnumerable<IAgent> agents)
+    {
+        Uri = uri;
+        _agents = agents.ToList();
+    }
+
+    public async Task StartAsync(CancellationToken cancellationToken)
+    {
+        foreach (var agent in _agents)
+        {
+            await agent.StartAsync(cancellationToken);
+        }
+
+        Status = AgentStatus.Started;
+    }
+
+    public async Task StopAsync(CancellationToken cancellationToken)
+    {
+        foreach (var agent in _agents)
+        {
+            await agent.StopAsync(cancellationToken);
+        }
+
+        Status = AgentStatus.Started;
+    }
+
+    public AgentStatus Status { get; private set; } = AgentStatus.Stopped;
+}
+
 public enum AgentStatus
 {
     Started,
@@ -262,7 +296,7 @@ public enum AgentStatus
     Paused
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/Agents/IAgent.cs#L6-L29' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_iagent' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/Agents/IAgent.cs#L6-L63' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_iagent' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 With related groups of agents built and assigned by IoC-registered implementations of this interface:

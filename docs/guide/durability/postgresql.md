@@ -40,9 +40,9 @@ var app = builder.Build();
 
 // Other ASP.Net Core configuration...
 
-// Using Oakton opens up command line utilities for managing
+// Using JasperFx opens up command line utilities for managing
 // the message storage
-return await app.RunOaktonCommands(args);
+return await app.RunJasperFxCommands(args);
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L164-L190' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setup_postgresql_storage' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->

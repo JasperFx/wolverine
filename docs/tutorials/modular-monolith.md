@@ -427,6 +427,26 @@ how a lot of folks want to build their modular monoliths.
 
 See the introduction to [event subscriptions from Marten](/tutorials/cqrs-with-marten.html#publishing-or-handling-events). 
 
+Do note that if you are using multiple document stores with Marten for different modules, but all the stores target the 
+exact same physical PostgreSQL database as shown in this diagram below:
+
+![Modules using the same physical database](/modules-hitting-same-database.png)
+
+You can help Wolverine be a little more efficient by using the same transactional inbox/outbox storage across all modules
+by using this setting:
+
+<!-- snippet: sample_using_message_storage_schema_name -->
+<a id='snippet-sample_using_message_storage_schema_name'></a>
+```cs
+// THIS IS IMPORTANT FOR MODULAR MONOLITH USAGE!
+opts.Durability.MessageStorageSchemaName = "wolverine";
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AncillaryStores/bootstrapping_ancillary_marten_stores_with_wolverine.cs#L59-L64' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_message_storage_schema_name' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+By setting any value for `WolverineOptions.Durability.MessageStorageSchemaName`, Wolverine will use that value for the database schema
+of the message storage tables, and be able to share the inbox/outbox processing across all the modules.
+
 ## Observability
 
 If you're going to opt into using asynchronous message passing within your application between modules or even just really
