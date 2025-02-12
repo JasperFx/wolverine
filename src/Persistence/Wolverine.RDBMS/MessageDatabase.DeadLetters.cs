@@ -1,5 +1,6 @@
 ﻿using Weasel.Core;
 using Wolverine.Persistence.Durability;
+using Wolverine.Persistence.Durability.DeadLetterManagement;
 
 namespace Wolverine.RDBMS;
 

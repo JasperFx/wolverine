@@ -1,6 +1,7 @@
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Wolverine.Logging;
+using Wolverine.Persistence.Durability.DeadLetterManagement;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
 using Wolverine.Transports;

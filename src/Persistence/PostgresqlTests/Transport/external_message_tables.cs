@@ -16,6 +16,7 @@ using Wolverine.ComplianceTests.Compliance;
 using Wolverine.ErrorHandling;
 using Wolverine.Marten;
 using Wolverine.Persistence.Durability;
+using Wolverine.Persistence.Durability.DeadLetterManagement;
 using Wolverine.Postgresql;
 using Wolverine.RDBMS.Transport;
 using Wolverine.Runtime.Handlers;

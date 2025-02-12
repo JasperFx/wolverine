@@ -1,4 +1,5 @@
 using Wolverine.Logging;
+using Wolverine.Persistence.Durability.DeadLetterManagement;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.Scheduled;
