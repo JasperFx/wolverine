@@ -42,7 +42,7 @@ public class MessageBus : IMessageBus
     public string? CorrelationId { get; set; }
 
     public IWolverineRuntime Runtime { get; }
-    public IMessageStore Storage { get; }
+    public IMessageStore Storage { get; protected set; }
 
     public IEnumerable<Envelope> Outstanding => _outstanding;
 
