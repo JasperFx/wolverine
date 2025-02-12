@@ -19,4 +19,5 @@ public interface IDeadLetterAdminService
     Task DiscardAsync(MessageBatchRequest request, CancellationToken token);
     Task ReplayAsync(MessageBatchRequest request, CancellationToken token);
 
+    Uri Uri { get; }
 }
