@@ -33,7 +33,7 @@ var publisher = theSender.Services
 
 await publisher.BroadcastToTopicAsync("color.purple", new Message1());
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/send_by_topics.cs#L90-L97' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_send_to_topic' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/send_by_topics.cs#L100-L107' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_send_to_topic' title='Start of snippet'>anchor</a></sup>
 <a id='snippet-sample_send_to_topic-1'></a>
 ```cs
 var publisher = theSender.Services
@@ -41,7 +41,7 @@ var publisher = theSender.Services
 
 await publisher.BroadcastToTopicAsync("color.purple", new Message1());
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/send_by_topics.cs#L273-L280' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_send_to_topic-1' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/send_by_topics.cs#L283-L290' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_send_to_topic-1' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 

@@ -359,7 +359,7 @@ public class AppFixture : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-        OaktonEnvironment.AutoStartHost = true;
+        JasperFxEnvironment.AutoStartHost = true;
 
         // This is bootstrapping the actual application using
         // its implied Program.Main() set up
@@ -384,7 +384,7 @@ public class AppFixture : IAsyncLifetime
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/IncidentService/IncidentService.Tests/IntegrationContext.cs#L13-L46' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_appfixture_in_incident_service_testing' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/IncidentService/IncidentService.Tests/IntegrationContext.cs#L14-L47' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_appfixture_in_incident_service_testing' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And I like to add a base class for integration tests with some convenience methods that have
@@ -454,7 +454,7 @@ public abstract class IntegrationContext : IAsyncLifetime
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/IncidentService/IncidentService.Tests/IntegrationContext.cs#L48-L112' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_integrationcontext_for_integration_service' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/IncidentService/IncidentService.Tests/IntegrationContext.cs#L49-L113' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_integrationcontext_for_integration_service' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 With all of that in place (and if you're using Docker for your infrastructure, a quick `docker compose up -d` command),

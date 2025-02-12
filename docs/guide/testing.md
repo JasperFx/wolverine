@@ -215,7 +215,7 @@ public class when_the_account_is_overdrawn : IAsyncLifetime
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Middleware/AppWithMiddleware.Tests/try_out_the_middleware.cs#L94-L147' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_when_the_account_is_overdrawn' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Middleware/AppWithMiddleware.Tests/try_out_the_middleware.cs#L95-L148' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_when_the_account_is_overdrawn' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The `TestMessageContext` mostly just collects an array of objects that are sent, published, or scheduled. The
@@ -344,7 +344,7 @@ await using var host = await AlbaHost.For<Program>(x =>
     x.ConfigureServices(services => services.DisableAllExternalWolverineTransports());
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Middleware/AppWithMiddleware.Tests/try_out_the_middleware.cs#L28-L39' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disabling_the_transports_from_web_application_factory' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Middleware/AppWithMiddleware.Tests/try_out_the_middleware.cs#L29-L40' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disabling_the_transports_from_web_application_factory' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In the sample above, I'm bootstrapping the `IHost` for my production application with 
@@ -652,5 +652,5 @@ Host = await AlbaHost.For<Program>(x =>
     });
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/IntegrationContext.cs#L27-L47' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_run_wolverine_in_solo_mode_with_extension' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/IntegrationContext.cs#L28-L48' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_run_wolverine_in_solo_mode_with_extension' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->

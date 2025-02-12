@@ -56,7 +56,12 @@ public class bootstrapping_ancillary_marten_stores_with_wolverine : IAsyncLifeti
         theHost = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                #region sample_using_message_storage_schema_name
+
+                // THIS IS IMPORTANT FOR MODULAR MONOLITH USAGE!
                 opts.Durability.MessageStorageSchemaName = "wolverine";
+
+                #endregion
 
                 opts.Services.AddMarten(Servers.PostgresConnectionString).IntegrateWithWolverine();
 

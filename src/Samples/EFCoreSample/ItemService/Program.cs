@@ -82,7 +82,7 @@ app.MapPost("/items/create", (CreateItemCommand command, IMessageBus bus) => bus
 
 app.MapPost("/items/createWithDbContextNotIntegratedWithOutbox", (CreateItemWithDbContextNotIntegratedWithOutboxCommand command, IMessageBus bus) => bus.InvokeAsync(command));
 
-#region sample_using_JasperFx_for_command_line_parsing
+#region sample_using_jasperfx_for_command_line_parsing
 
 // Opt into using JasperFx for command parsing
 await app.RunJasperFxCommands(args);
