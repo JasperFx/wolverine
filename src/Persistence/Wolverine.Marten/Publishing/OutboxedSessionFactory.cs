@@ -2,6 +2,7 @@ using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Marten;
 using Marten.Services;
+using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
 
 namespace Wolverine.Marten.Publishing;
@@ -14,6 +15,8 @@ public class OutboxedSessionFactory<T> : OutboxedSessionFactory, ISessionFactory
     {
         _store = store;
         _factory = this;
+
+        MessageStore = runtime.AncillaryStores.OfType<IAncillaryMessageStore<T>>().Single();
     }
 
     public IQuerySession QuerySession()
@@ -47,8 +50,12 @@ public class OutboxedSessionFactory
     {
         _factory = factory;
         _store = store;
+        
+        // TODO -- this does not work with ancillary stores
         _shouldPublishEvents = runtime.TryFindExtension<MartenIntegration>()?.UseFastEventForwarding ?? false;
 
+        MessageStore = runtime.Storage;
+        
         if (factory is SessionFactoryBase factoryBase)
         {
             _builder = c =>
@@ -74,6 +81,8 @@ public class OutboxedSessionFactory
             };
         }
     }
+    
+    internal IMessageStore MessageStore { get; set; }
 
     /// <summary>Build new instances of IQuerySession on demand</summary>
     /// <returns></returns>
@@ -128,6 +137,8 @@ public class OutboxedSessionFactory
 
     private void configureSession(MessageContext context, IDocumentSession session)
     {
+        context.OverrideStorage(MessageStore);
+        
         if (context.ConversationId != Guid.Empty)
         {
             session.CausationId = context.ConversationId.ToString();
