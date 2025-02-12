@@ -44,6 +44,15 @@ public class DurabilityAgentFamily : IAgentFamily
         var agents = stores.Select(x => x.StartScheduledJobs(runtime));
         return new CompositeAgent(new Uri("internal://scheduledjobs"), agents);
     }
+    
+    public static async Task<IReadOnlyList<IMessageStore>> FindUniqueMessageStoresAsync(IWolverineRuntime runtime)
+    {
+        var family = new DurabilityAgentFamily(runtime);
+        
+        // First, find all unique message stores
+        var stores = await family.findUniqueMessageStores();
+        return stores;
+    }
 
     private async Task<IReadOnlyList<IMessageStore>> findUniqueMessageStores()
     {
