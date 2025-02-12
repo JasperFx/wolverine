@@ -10,6 +10,7 @@ using Wolverine;
 using Wolverine.ErrorHandling;
 using Wolverine.Marten;
 using Wolverine.Persistence.Durability;
+using Wolverine.Persistence.Durability.DeadLetterManagement;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Tracking;
 
