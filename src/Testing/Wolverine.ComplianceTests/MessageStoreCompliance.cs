@@ -5,6 +5,7 @@ using Microsoft.Extensions.Hosting;
 using JasperFx.Resources;
 using Shouldly;
 using Wolverine.Persistence.Durability;
+using Wolverine.Persistence.Durability.DeadLetterManagement;
 using Wolverine.Transports;
 using Xunit;
 
