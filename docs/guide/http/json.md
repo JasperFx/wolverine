@@ -75,7 +75,7 @@ var app = builder.Build();
 
 app.MapWolverineEndpoints();
 
-return await app.RunOaktonCommands(args);
+return await app.RunJasperFxCommands(args);
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/Samples/ConfiguringJson.cs#L10-L29' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_stj_for_wolverine' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->

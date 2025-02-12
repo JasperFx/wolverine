@@ -28,7 +28,7 @@ And next, I'll start a small *Pinger* service with the `dotnet new worker` templ
 <a id='snippet-sample_bootstrappingpinger'></a>
 ```cs
 using Messages;
-using Oakton;
+using JasperFx;
 using Pinger;
 using Wolverine;
 using Wolverine.Transports.Tcp;
@@ -48,7 +48,7 @@ return await Host.CreateDefaultBuilder(args)
         // that with a separate call to IHostBuilder.ConfigureServices()
         opts.Services.AddHostedService<Worker>();
     })
-    .RunOaktonCommands(args);
+    .RunJasperFxCommands(args);
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/PingPong/Pinger/Program.cs#L1-L26' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrappingpinger' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
@@ -118,7 +118,7 @@ project, then add references to our *Messages* library and Wolverine itself. For
 <a id='snippet-sample_pongerbootstrapping'></a>
 ```cs
 using Microsoft.Extensions.Hosting;
-using Oakton;
+using JasperFx;
 using Wolverine;
 using Wolverine.Transports.Tcp;
 
@@ -128,7 +128,7 @@ return await Host.CreateDefaultBuilder(args)
         // Using Wolverine's built in TCP transport
         opts.ListenAtPort(5581);
     })
-    .RunOaktonCommands(args);
+    .RunJasperFxCommands(args);
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/PingPong/Ponger/Program.cs#L1-L16' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pongerbootstrapping' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->

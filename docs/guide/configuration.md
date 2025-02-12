@@ -37,7 +37,7 @@ Below is a sample of adding Wolverine to an ASP.NET Core application that is boo
 <!-- snippet: sample_Quickstart_Program -->
 <a id='snippet-sample_quickstart_program'></a>
 ```cs
-using Oakton;
+using JasperFx;
 using Quickstart;
 using Wolverine;
 
@@ -72,10 +72,10 @@ app.UseSwaggerUI();
 
 app.MapGet("/", () => Results.Redirect("/swagger"));
 
-// Opt into using Oakton for command line parsing
+// Opt into using JasperFx for command line parsing
 // to unlock built in diagnostics and utility tools within
 // your Wolverine application
-return await app.RunOaktonCommands(args);
+return await app.RunJasperFxCommands(args);
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Quickstart/Program.cs#L1-L43' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_quickstart_program' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
