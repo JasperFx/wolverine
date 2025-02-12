@@ -35,7 +35,7 @@ internal class DurabilityAgent : IAgent
         _localQueue = (ILocalQueue)runtime.Endpoints.AgentForLocalQueue(TransportConstants.Scheduled);
         _settings = runtime.DurabilitySettings;
 
-        Uri = new Uri($"{PersistenceConstants.AgentScheme}://{databaseName}");
+        Uri = database.Uri;
 
         var executor = runtime.As<IExecutorFactory>().BuildFor(typeof(IAgentCommand));
 

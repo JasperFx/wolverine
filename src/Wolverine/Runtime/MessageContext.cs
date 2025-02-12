@@ -477,4 +477,9 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
             outbound.ConversationId = Envelope.ConversationId == Guid.Empty ? Envelope.Id : Envelope.ConversationId;
         }
     }
+
+    public void OverrideStorage(IMessageStore messageStore)
+    {
+        Storage = messageStore;
+    }
 }
