@@ -80,7 +80,6 @@ public interface IAgentRuntime
     /// <returns></returns>
     Task KickstartHealthDetectionAsync();
 
-
     Task<AgentCommands> DoHealthChecksAsync();
 
     /// <summary>
