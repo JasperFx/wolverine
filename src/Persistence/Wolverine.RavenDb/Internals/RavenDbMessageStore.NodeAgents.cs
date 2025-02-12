@@ -122,32 +122,6 @@ public partial class RavenDbMessageStore : INodeAgentPersistence
         await session.SaveChangesAsync(token: cancellationToken);
     }
 
-    public async Task<Guid?> MarkNodeAsLeaderAsync(Guid? originalLeader, Guid id)
-    {
-        using var session = _store.OpenAsyncSession();
-        var original = await session.LoadAsync<AgentAssignment>(NodeAgentController.LeaderUri.ToString(), token: default);
-        
-        // No current leader, assign
-        var agentAssignment = new AgentAssignment(NodeAgentController.LeaderUri, id);
-        if (original == null)
-        {
-            await session.StoreAsync(agentAssignment, agentAssignment.Id);
-            await session.SaveChangesAsync(token: default);
-            return id;
-        }
-        
-        // The current leader is who we thought it was, assign
-        if (originalLeader.HasValue && originalLeader.Value == original.NodeId)
-        {
-            await session.StoreAsync(agentAssignment, agentAssignment.Id);
-            await session.SaveChangesAsync(token: default);
-            return id;
-        }
-        
-        // Some other node has taken over in the meantime, do nothing
-        return original.NodeId;
-    }
-
     public async Task<WolverineNode?> LoadNodeAsync(Guid nodeId, CancellationToken cancellationToken)
     {
         using var session = _store.OpenAsyncSession();
@@ -157,13 +131,6 @@ public partial class RavenDbMessageStore : INodeAgentPersistence
         node.ActiveAgents.AddRange(agents.OrderBy(x => x.Id).Select(x => x.AgentUri));
 
         return node;
-    }
-
-    public async Task MarkHealthCheckAsync(Guid nodeId)
-    {
-        using var session = _store.OpenAsyncSession();
-        session.Advanced.Patch<WolverineNode, DateTimeOffset>(nodeId.ToString(), x => x.LastHealthCheck, DateTimeOffset.UtcNow);
-        await session.SaveChangesAsync();
     }
 
     public async Task MarkHealthCheckAsync(WolverineNode node, CancellationToken cancellationToken)
@@ -178,17 +145,6 @@ public partial class RavenDbMessageStore : INodeAgentPersistence
         using var session = _store.OpenAsyncSession();
         session.Advanced.Patch<WolverineNode, DateTimeOffset>(nodeId.ToString(), x => x.LastHealthCheck, lastHeartbeatTime);
         await session.SaveChangesAsync();
-    }
-
-    public async Task<IReadOnlyList<int>> LoadAllNodeAssignedIdsAsync()
-    {
-        using var session = _store.OpenAsyncSession();
-        var ids = await session.Query<WolverineNode>()
-            .Customize(x => x.WaitForNonStaleResults())
-            .Select(x => x.AssignedNodeNumber)
-            .ToListAsync();
-        
-        return ids;
     }
 
     public async Task LogRecordsAsync(params NodeRecord[] records)
