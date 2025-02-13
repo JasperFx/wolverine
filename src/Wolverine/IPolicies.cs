@@ -149,4 +149,10 @@ public interface IPolicies : IEnumerable<IWolverinePolicy>, IWithFailurePolicies
     /// routing conventions that are applied to the system
     /// </summary>
     void ConventionalLocalRoutingIsAdditive();
+
+    /// <summary>
+    /// Should Wolverine try to publish internal events about agent assignment, node
+    /// history, and endpoint events to the message bus? The default is false;
+    /// </summary>
+    bool PublishAgentEvents { get; set; }
 }
