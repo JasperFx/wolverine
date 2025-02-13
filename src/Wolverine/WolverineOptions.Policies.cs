@@ -30,6 +30,14 @@ public sealed partial class WolverineOptions : IPolicies
 {
     internal List<IWolverinePolicy> RegisteredPolicies { get; } = [new TagHandlerPolicy()];
 
+    internal bool PublishAgentEvents { get; set; } 
+    
+    bool IPolicies.PublishAgentEvents
+    {
+        get => PublishAgentEvents;
+        set => PublishAgentEvents = value;
+    }
+
 
     void IPolicies.AutoApplyTransactions()
     {
@@ -63,7 +71,7 @@ public sealed partial class WolverineOptions : IPolicies
         HandledTypeRules.Add(rule);
     }
 
-    public void ConventionalLocalRoutingIsAdditive()
+    void IPolicies.ConventionalLocalRoutingIsAdditive()
     {
         InternalRouteSources.OfType<LocalRouting>().Single().IsAdditive = true;
     }
@@ -224,7 +232,7 @@ public sealed partial class WolverineOptions : IPolicies
     /// default is Information
     /// </summary>
     /// <param name="logLevel"></param>
-    public void MessageSuccessLogLevel(LogLevel logLevel)
+    void IPolicies.MessageSuccessLogLevel(LogLevel logLevel)
     {
         var policy = new LambdaHandlerPolicy(c => c.SuccessLogLevel = logLevel);
         Policies.Add(policy);
@@ -235,13 +243,13 @@ public sealed partial class WolverineOptions : IPolicies
     /// messages being processed. Wolverine's default is Debug
     /// </summary>
     /// <param name="logLevel"></param>
-    public void MessageExecutionLogLevel(LogLevel logLevel)
+    void IPolicies.MessageExecutionLogLevel(LogLevel logLevel)
     {
         var policy = new LambdaHandlerPolicy(c => c.ProcessingLogLevel = logLevel);
         Policies.Add(policy);
     }
 
-    public void LogMessageStarting(LogLevel logLevel)
+    void IPolicies.LogMessageStarting(LogLevel logLevel)
     {
         RegisteredPolicies.Insert(0, new LogStartingActivityPolicy(logLevel));
     }
