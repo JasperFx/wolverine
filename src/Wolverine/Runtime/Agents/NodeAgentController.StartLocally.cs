@@ -16,7 +16,7 @@ public partial class NodeAgentController
         var current = WolverineNode.For(_runtime.Options);
 
         _runtime.Options.Durability.AssignedNodeNumber = current.AssignedNodeNumber = 1;
-        await _persistence.LogRecordsAsync(NodeRecord.For(_runtime.Options, NodeRecordType.NodeStarted));
+        await _observer.NodeStarted();
 
         await startAllAgentsAsync();
 
