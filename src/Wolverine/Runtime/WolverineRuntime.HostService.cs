@@ -83,6 +83,7 @@ public partial class WolverineRuntime
                     break;
             }
 
+            await Observer.RuntimeIsFullyStarted();
             _hasStarted = true;
         }
         catch (Exception? e)

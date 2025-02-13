@@ -13,7 +13,7 @@ public partial class NodeAgentController
         }
 
         current.AssignedNodeNumber = await _persistence.PersistAsync(current, _cancellation.Token);
-        await _persistence.LogRecordsAsync(NodeRecord.For(_runtime.Options, NodeRecordType.NodeStarted));
+        await _observer.NodeStarted();
 
         _runtime.Options.Durability.AssignedNodeNumber = current.AssignedNodeNumber;
 

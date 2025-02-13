@@ -56,14 +56,7 @@ public partial class NodeAgentController
             }
         }
 
-        var records = commands.Select(x => new NodeRecord
-        {
-            NodeNumber = _runtime.Options.Durability.AssignedNodeNumber,
-            RecordType = NodeRecordType.AssignmentChanged,
-            Description = x.ToString()
-        }).ToArray();
-
-        await _persistence.LogRecordsAsync(records);
+        await _observer.AssignmentsChanged(commands);
 
         LastAssignments = grid;
         LastAssignments.EvaluationTime = DateTimeOffset.UtcNow;

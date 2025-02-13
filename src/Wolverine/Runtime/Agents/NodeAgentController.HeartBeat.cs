@@ -84,8 +84,8 @@ public partial class NodeAgentController
         IsLeader = true;
 
         _logger.LogInformation("Node {NodeNumber} successfully assumed leadership", _runtime.Options.UniqueNodeId);
-        await _persistence.LogRecordsAsync(NodeRecord.For(_runtime.Options,
-            NodeRecordType.LeadershipAssumed, LeaderUri));
+
+        await _observer.AssumedLeadership();
 
         return await EvaluateAssignmentsAsync(nodes);
     }
@@ -100,14 +100,7 @@ public partial class NodeAgentController
 
         if (staleNodes.Any())
         {
-            var records = staleNodes.Select(x => new NodeRecord
-            {
-                NodeNumber = x.AssignedNodeNumber,
-                RecordType = NodeRecordType.DormantNodeEjected,
-                Description = "Health check on Node " + _runtime.Options.Durability.AssignedNodeNumber
-            }).ToArray();
-
-            await _persistence.LogRecordsAsync(records);
+            await _observer.StaleNodes(staleNodes);
         }
     }
 

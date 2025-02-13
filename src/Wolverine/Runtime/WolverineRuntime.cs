@@ -7,6 +7,7 @@ using Microsoft.Extensions.ObjectPool;
 using Wolverine.Configuration;
 using Wolverine.Logging;
 using Wolverine.Persistence.Durability;
+using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Runtime.RemoteInvocation;
 using Wolverine.Runtime.Routing;
@@ -40,6 +41,8 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
 
         LoggerFactory = loggers;
         Logger = loggers.CreateLogger<WolverineRuntime>();
+        
+        Observer = new PersistenceWolverineObserver(this);
 
         Meter = new Meter("Wolverine:" + options.ServiceName, GetType().Assembly.GetName().Version?.ToString());
         Logger.LogInformation("Exporting Open Telemetry metrics from Wolverine with name {Name}, version {Version}",
@@ -96,6 +99,8 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
             activator.Apply(this);
         }
     }
+
+    public IWolverineObserver Observer { get; set; }
 
     public IServiceProvider Services => _container.Services;
 
