@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
 using Wolverine.Logging;
 using Wolverine.Persistence.Durability;
+using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Runtime.RemoteInvocation;
 using Wolverine.Runtime.Routing;
@@ -29,6 +30,8 @@ public interface IWolverineRuntime
     IAgentRuntime Agents { get; }
     IReadOnlyList<IAncillaryMessageStore> AncillaryStores { get; }
     IServiceProvider Services { get; }
+    
+    IWolverineObserver Observer { get; set; }
 
     /// <summary>
     ///     Schedule an envelope for later execution in memory

@@ -20,6 +20,12 @@ public class WolverineOptionsTests
     private readonly WolverineOptions theSettings = new();
 
     [Fact]
+    public void publish_agent_events_should_be_false_by_default()
+    {
+        new WolverineOptions().Policies.PublishAgentEvents.ShouldBeFalse();
+    }
+    
+    [Fact]
     public void failure_acks_are_enabled_by_default()
     {
         new WolverineOptions().EnableAutomaticFailureAcks.ShouldBeTrue();

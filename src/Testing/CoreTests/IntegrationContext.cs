@@ -24,8 +24,8 @@ public class DefaultApp : IDisposable
             .UseLamar()
             .UseWolverine(opts =>
             {
-                opts.MessageExecutionLogLevel(LogLevel.Information);
-                opts.MessageSuccessLogLevel(LogLevel.Debug);
+                opts.Policies.MessageExecutionLogLevel(LogLevel.Information);
+                opts.Policies.MessageSuccessLogLevel(LogLevel.Debug);
                 
                 opts.IncludeType<MessageConsumer>();
                 opts.IncludeType<InvokedMessageHandler>();
