@@ -89,6 +89,12 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
 
         _ancillaryStores =
             new Lazy<IReadOnlyList<IAncillaryMessageStore>>(() => _container.GetAllInstances<IAncillaryMessageStore>());
+
+        var activators = container.GetAllInstances<IWolverineActivator>();
+        foreach (var activator in activators)
+        {
+            activator.Apply(this);
+        }
     }
 
     public IServiceProvider Services => _container.Services;

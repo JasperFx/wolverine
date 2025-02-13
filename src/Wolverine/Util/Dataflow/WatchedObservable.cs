@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Wolverine.Util.Dataflow;
 
+// TODO -- move this to JasperFx
 public class WatchedObservable<T> : IObservable<T>, IDisposable
 {
     private readonly ActionBlock<T> _block;
