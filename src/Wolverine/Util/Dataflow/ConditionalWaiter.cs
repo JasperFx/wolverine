@@ -1,6 +1,6 @@
 namespace Wolverine.Util.Dataflow;
 
-internal sealed class ConditionalWaiter<TObservedEvent, TSpecificEvent> : IObserver<TObservedEvent>
+public sealed class ConditionalWaiter<TObservedEvent, TSpecificEvent> : IObserver<TObservedEvent>
     where TSpecificEvent : TObservedEvent
 {
     private readonly TaskCompletionSource<TSpecificEvent> _completion;
