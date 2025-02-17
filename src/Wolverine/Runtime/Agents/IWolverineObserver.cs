@@ -9,7 +9,7 @@ public interface IWolverineObserver
     Task AgentStopped(Uri agentUri);
 
     // Loop through and decide what you want here. 
-    Task AssignmentsChanged(IEnumerable<IAgentCommand> commands);
+    Task AssignmentsChanged(AssignmentGrid grid, IEnumerable<IAgentCommand> commands);
     
     // TODO -- more for listener stopped/started
     Task StaleNodes(IReadOnlyList<WolverineNode> staleNodes);
@@ -70,7 +70,7 @@ internal class PersistenceWolverineObserver : IWolverineObserver
         return Task.CompletedTask;
     }
 
-    public async Task AssignmentsChanged(IEnumerable<IAgentCommand> commands)
+    public async Task AssignmentsChanged(AssignmentGrid grid, IEnumerable<IAgentCommand> commands)
     {
         var records = commands.Select(x => new NodeRecord
         {

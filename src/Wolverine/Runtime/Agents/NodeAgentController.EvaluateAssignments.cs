@@ -56,7 +56,7 @@ public partial class NodeAgentController
             }
         }
 
-        await _observer.AssignmentsChanged(commands);
+        await _observer.AssignmentsChanged(grid, commands);
 
         LastAssignments = grid;
         LastAssignments.EvaluationTime = DateTimeOffset.UtcNow;
