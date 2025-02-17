@@ -42,9 +42,12 @@ public class NodeRecord : ISerializable
             NodeNumber = options.Durability.AssignedNodeNumber,
             RecordType = eventType,
             Description = agentUri.ToString(),
-            ServiceName = options.ServiceName
+            ServiceName = options.ServiceName,
+            AgentUri = agentUri
         };
     }
+
+    public Uri AgentUri { get; set; } = new("none://");
 
     public byte[] Write()
     {
