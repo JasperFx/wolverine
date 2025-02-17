@@ -1,3 +1,6 @@
+using Wolverine.Configuration;
+using Wolverine.Runtime.Routing;
+
 namespace Wolverine.Runtime.Agents;
 
 public interface IWolverineObserver
@@ -9,11 +12,13 @@ public interface IWolverineObserver
     Task AgentStopped(Uri agentUri);
 
     // Loop through and decide what you want here. 
-    Task AssignmentsChanged(AssignmentGrid grid, IEnumerable<IAgentCommand> commands);
+    Task AssignmentsChanged(AssignmentGrid grid, AgentCommands commands);
     
     // TODO -- more for listener stopped/started
     Task StaleNodes(IReadOnlyList<WolverineNode> staleNodes);
     Task RuntimeIsFullyStarted();
+    void EndpointAdded(Endpoint endpoint);
+    void MessageRouted(Type messageType, IMessageRouter router);
 }
 
 internal class PersistenceWolverineObserver : IWolverineObserver
@@ -70,7 +75,17 @@ internal class PersistenceWolverineObserver : IWolverineObserver
         return Task.CompletedTask;
     }
 
-    public async Task AssignmentsChanged(AssignmentGrid grid, IEnumerable<IAgentCommand> commands)
+    public void EndpointAdded(Endpoint endpoint)
+    {
+        // Nothing, this is a hook for CritterWatch
+    }
+
+    public void MessageRouted(Type messageType, IMessageRouter router)
+    {
+        // Nothing, this is a hook for CritterWatch
+    }
+
+    public async Task AssignmentsChanged(AssignmentGrid grid, AgentCommands commands)
     {
         var records = commands.Select(x => new NodeRecord
         {
@@ -81,4 +96,6 @@ internal class PersistenceWolverineObserver : IWolverineObserver
 
         await _runtime.Storage.Nodes.LogRecordsAsync(records);
     }
+    
+    
 }

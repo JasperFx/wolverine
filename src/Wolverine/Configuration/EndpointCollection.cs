@@ -143,6 +143,8 @@ public class EndpointCollection : IEndpointCollection
                 _localSenders = _localSenders.AddOrUpdate(LocalTransport.QueueName(address), agent);
             }
 
+            _runtime.Observer.EndpointAdded(agent.Endpoint);
+
             return agent;
         }
     }
