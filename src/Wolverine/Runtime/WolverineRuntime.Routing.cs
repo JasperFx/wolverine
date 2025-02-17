@@ -122,6 +122,8 @@ public partial class WolverineRuntime
             ? typeof(MessageRouter<>).CloseAndBuildAs<IMessageRouter>(this, routes, messageType)
             : typeof(EmptyMessageRouter<>).CloseAndBuildAs<IMessageRouter>(this, messageType);
 
+        Observer.MessageRouted(messageType, router);
+
         _messageTypeRouting = _messageTypeRouting.AddOrUpdate(messageType, router);
 
         return router;
