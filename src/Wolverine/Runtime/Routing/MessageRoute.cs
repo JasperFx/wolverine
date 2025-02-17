@@ -114,9 +114,9 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
         return envelope;
     }
 
-    public SubscriptionDescriptor Describe()
+    public MessageSubscriptionDescriptor Describe()
     {
-        return new SubscriptionDescriptor
+        return new MessageSubscriptionDescriptor
         {
             ContentType = Serializer.ContentType,
             Endpoint = _endpoint.Uri

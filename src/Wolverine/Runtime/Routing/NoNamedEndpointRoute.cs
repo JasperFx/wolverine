@@ -23,7 +23,7 @@ internal class NoNamedEndpointRoute : IMessageRoute
         throw new UnknownEndpointException(_message);
     }
 
-    public SubscriptionDescriptor Describe()
+    public MessageSubscriptionDescriptor Describe()
     {
         throw new NotSupportedException();
     }
