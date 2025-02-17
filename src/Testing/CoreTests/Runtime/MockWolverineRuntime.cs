@@ -186,6 +186,7 @@ public class MockWolverineRuntime : IWolverineRuntime, IObserver<IWolverineEvent
     }
 
     public IServiceProvider Services { get; } = new ServiceCollection().BuildServiceProvider();
+    public IWolverineObserver Observer { get; set; } = Substitute.For<IWolverineObserver>();
 
     public void Dispose()
     {

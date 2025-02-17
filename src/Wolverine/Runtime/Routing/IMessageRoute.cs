@@ -14,7 +14,7 @@ public interface IMessageRoute
     Envelope CreateForSending(object message, DeliveryOptions? options, ISendingAgent localDurableQueue,
         WolverineRuntime runtime, string? topicName);
 
-    SubscriptionDescriptor Describe();
+    MessageSubscriptionDescriptor Describe();
 }
 
 #endregion
@@ -22,9 +22,9 @@ public interface IMessageRoute
 /// <summary>
 /// Diagnostic view of a subscription
 /// </summary>
-public class SubscriptionDescriptor
+public class MessageSubscriptionDescriptor
 {
-    public Uri Endpoint { get; init; }
+    public Uri Endpoint { get; init; } = new Uri("null://null");
     public string ContentType { get; set; } = "application/json";
     public string Description { get; set; } = string.Empty;
 
@@ -53,7 +53,7 @@ internal class TransformedMessageRoute<TSource, TDestination> : IMessageRoute
         _inner = inner;
     }
 
-    public SubscriptionDescriptor Describe()
+    public MessageSubscriptionDescriptor Describe()
     {
         var descriptor = _inner.Describe();
         descriptor.Description = "Transformed to " + typeof(TDestination).FullNameInCode();
