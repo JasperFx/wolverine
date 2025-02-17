@@ -1,5 +1,8 @@
+using NSubstitute;
 using Wolverine;
 using Wolverine.RabbitMQ;
+using Wolverine.Runtime.Agents;
+using Wolverine.Tracking;
 using Xunit;
 
 namespace MessageRoutingTests;
@@ -9,6 +12,16 @@ public class using_messaging_conventions_for_both_external_and_local : MessageRo
     protected override void configure(WolverineOptions opts)
     {
         opts.UseRabbitMq().AutoProvision().UseConventionalRouting();
+    }
+
+    [Fact]
+    public void calls_the_observer_on_new_message_routers()
+    {
+        var observer = Substitute.For<IWolverineObserver>();
+        theHost.GetRuntime().Observer = observer;
+
+        var router = theHost.GetRuntime().RoutingFor(typeof(M4));
+        observer.Received().MessageRouted(typeof(M4), router);
     }
     
     [Fact]
