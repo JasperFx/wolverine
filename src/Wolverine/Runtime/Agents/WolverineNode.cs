@@ -35,11 +35,14 @@ public class WolverineNode
 
         return new WolverineNode
         {
+            Version = options.Version,
             NodeId = options.UniqueNodeId,
             ControlUri = options.Transports.NodeControlEndpoint?.Uri,
             LastHealthCheck = DateTimeOffset.UtcNow
         };
     }
+
+    public Version Version { get; set; } = new Version(0, 0, 0, 0);
 
     public void AssignAgents(IReadOnlyList<Uri> agents)
     {
