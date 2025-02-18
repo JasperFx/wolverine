@@ -58,3 +58,26 @@ Some other facts about this integration:
   where a capability is present. This just means that you can add all new projections or subscriptions, or even just
   new versions of a projection or subscription on some application nodes in order to do try ["blue/green deployment."](https://en.wikipedia.org/wiki/Blue%E2%80%93green_deployment)
 * This capability does depend on Wolverine's built-in [leadership election](https://en.wikipedia.org/wiki/Leader_election) -- which fortunately got a _lot_ better in Wolverine 3.0
+
+## Requirements
+
+This functionality requires Wolverine to both track running nodes and to send messages between running nodes within your
+clustered Wolverine service. One way or another, Wolverine needs some kind of "control queue" mechanism for this internal
+messaging. Not to worry though, because Wolverine will utilize in a very basic "database control queue" specifically for
+this if you are using the `AddMarten().IntegrateWithWolverine()` integration or any database backed message persistence as a default
+if you are not using any kind of external messaging broker that supports Wolverine control queues. 
+
+At the point of this writing, the Rabbit MQ and Azure Service Bus transport options both create a "control queue" for each
+executing Wolverine node that Wolverine can use for this communication in a more efficient way than the database backed 
+control queue mechanism. 
+
+Other requirements:
+
+* You cannot disable external transports with the `StubAllExternalTransports()`
+* `WolverineOptions.Durability.Mode` must be `Balanced`
+
+If you are seeing any issues with timeouts due to the Wolverine load distribution, you can try:
+
+1. Pre-generating any Marten types to speed up the "cold start" time
+2. Use the `WolverineOptions.Durability.Mode = Solo` setting at development time
+3. Try to use an external broker for faster communication between nodes
