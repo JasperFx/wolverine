@@ -17,6 +17,7 @@ public class AppFixture : IAsyncLifetime
 
         // This is bootstrapping the actual application using
         // its implied Program.Main() set up
+        
         Host = await AlbaHost.For<Program>(x => { });
     }
 
@@ -29,6 +30,7 @@ public class AppFixture : IAsyncLifetime
 
 [CollectionDefinition("integration")]
 public class IntegrationCollection : ICollectionFixture<AppFixture>;
+
 
 [Collection("integration")]
 public abstract class IntegrationContext : IAsyncLifetime
