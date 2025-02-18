@@ -267,4 +267,6 @@ public sealed partial class WolverineOptions
     {
         return Transports.SelectMany(x => x.Endpoints()).Where(x => x.StickyHandlers.Contains(handlerType));
     }
+
+    public Version? Version => ApplicationAssembly?.GetName().Version ?? Assembly.GetEntryAssembly()?.GetName().Version;
 }
