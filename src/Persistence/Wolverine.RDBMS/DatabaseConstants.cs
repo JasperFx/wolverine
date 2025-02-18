@@ -52,5 +52,5 @@ public class DatabaseConstants
     public static readonly string Started = "started";
     public static readonly string HealthCheck = "health_check";
     public static readonly string Capabilities = "capabilities";
-    public static readonly string NodeColumns = $"{Id}, {NodeNumber}, {Description}, {Uri}, {Started}, {HealthCheck}, {Capabilities}";
+    public static readonly string NodeColumns = $"{Id}, {NodeNumber}, {Description}, {Uri}, {Started}, {HealthCheck}, {Version}, {Capabilities}";
 }

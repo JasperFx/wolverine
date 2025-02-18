@@ -411,6 +411,7 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>, IDatabaseSa
             nodeTable.AddColumn<string>("uri").NotNull();
             nodeTable.AddColumn<DateTimeOffset>("started").DefaultValueByExpression("GETUTCDATE()").NotNull();
             nodeTable.AddColumn<DateTimeOffset>("health_check").DefaultValueByExpression("GETUTCDATE()").NotNull();
+            nodeTable.AddColumn<string>("version");
             nodeTable.AddColumn("capabilities", "nvarchar(max)").AllowNulls();
 
             yield return nodeTable;

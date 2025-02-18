@@ -58,10 +58,11 @@ internal class SqlServerNodePersistence : DatabaseConstants, INodeAgentPersisten
     {
         var strings = node.Capabilities.Select(x => x.ToString()).Join(",");
 
-        var cmd = conn.CreateCommand($"insert into {_nodeTable} (id, uri, capabilities, description) OUTPUT Inserted.node_number values (@id, @uri, @capabilities, @description) ")
+        var cmd = conn.CreateCommand($"insert into {_nodeTable} (id, uri, capabilities, description, version) OUTPUT Inserted.node_number values (@id, @uri, @capabilities, @description, @version) ")
             .With("id", node.NodeId)
             .With("uri", (node.ControlUri ?? TransportConstants.LocalUri).ToString()).With("description", node.Description)
-            .With("capabilities", strings);
+            .With("capabilities", strings)
+            .With("version", node.Version.ToString());
 
         var raw = await cmd.ExecuteScalarAsync(cancellationToken);
         return raw;
@@ -132,7 +133,7 @@ internal class SqlServerNodePersistence : DatabaseConstants, INodeAgentPersisten
         await conn.OpenAsync(cancellationToken);
 
         var cmd = CommandExtensions.CreateCommand(conn,
-                $"select id, node_number, description, uri, started, health_check, capabilities from {_nodeTable} where id = @id;select id, node_id, started from {_assignmentTable} where node_id = @id;")
+                $"select {NodeColumns} from {_nodeTable} where id = @id;select id, node_id, started from {_assignmentTable} where node_id = @id;")
             .With("id", nodeId);
 
         WolverineNode returnValue = default!;
@@ -182,8 +183,14 @@ internal class SqlServerNodePersistence : DatabaseConstants, INodeAgentPersisten
             Started = await reader.GetFieldValueAsync<DateTimeOffset>(4),
             LastHealthCheck = await reader.GetFieldValueAsync<DateTimeOffset>(5)
         };
+        
+        if (!(await reader.IsDBNullAsync(6)))
+        {
+            var rawVersion = await reader.GetFieldValueAsync<string>(6);
+            node.Version = System.Version.Parse(rawVersion);
+        }
 
-        var capabilities = await reader.GetFieldValueAsync<string>(6);
+        var capabilities = await reader.GetFieldValueAsync<string>(7);
         if (capabilities.IsNotEmpty())
         {
             node.Capabilities.AddRange(capabilities.Split(',').Select(x => new Uri(x)));

@@ -48,10 +48,11 @@ internal class PostgresqlNodePersistence : DatabaseConstants, INodeAgentPersiste
     public async Task<int> PersistAsync(WolverineNode node, CancellationToken cancellationToken)
     {
         var cmd = _dataSource.CreateCommand(
-                $"insert into {_nodeTable} (id, uri, capabilities, description) values (:id, :uri, :capabilities, :description) returning node_number")
+                $"insert into {_nodeTable} (id, uri, capabilities, description, version) values (:id, :uri, :capabilities, :description, :version) returning node_number")
             .With("id", node.NodeId)
             .With("uri", (node.ControlUri ?? TransportConstants.LocalUri).ToString())
-            .With("description", node.Description);
+            .With("description", node.Description)
+            .With("version", node.Version.ToString());
 
         var strings = node.Capabilities.Select(x => x.ToString()).ToArray();
         cmd.With("capabilities", strings);
@@ -256,7 +257,13 @@ internal class PostgresqlNodePersistence : DatabaseConstants, INodeAgentPersiste
             LastHealthCheck = await reader.GetFieldValueAsync<DateTimeOffset>(5)
         };
 
-        var capabilities = await reader.GetFieldValueAsync<string[]>(6);
+        if (!(await reader.IsDBNullAsync(6)))
+        {
+            var rawVersion = await reader.GetFieldValueAsync<string>(6);
+            node.Version = System.Version.Parse(rawVersion);
+        }
+
+        var capabilities = await reader.GetFieldValueAsync<string[]>(7);
         node.Capabilities.AddRange(capabilities.Select(x => new Uri(x)));
 
         return node;
