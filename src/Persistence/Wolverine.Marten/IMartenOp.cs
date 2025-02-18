@@ -4,6 +4,8 @@ using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
 using Marten;
+using Marten.Events;
+using Marten.Internal.Sessions;
 using Wolverine.Configuration;
 using Wolverine.Marten.Persistence.Sagas;
 using Wolverine.Runtime;
@@ -358,6 +360,13 @@ public class StartStream<T> : IStartStream where T : class
 
     public void Execute(IDocumentSession session)
     {
+        if (session is DocumentSessionBase s && s.Options.Events.StreamIdentity == StreamIdentity.AsString &&
+            StreamKey.IsEmpty())
+        {
+            throw new InvalidOperationException(
+                "The event stream identity is string, but the StreamKey is empty or null");
+        }
+        
         if (StreamId == Guid.Empty)
         {
             if (StreamKey.IsNotEmpty())
