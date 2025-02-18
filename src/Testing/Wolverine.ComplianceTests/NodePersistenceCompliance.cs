@@ -39,7 +39,7 @@ public abstract class NodePersistenceCompliance : IAsyncLifetime
             NodeId = id,
             ControlUri = new Uri($"dbcontrol://{id}"),
             Description = Environment.MachineName,
-
+            Version = new Version(1,2,3,0)
         };
 
         node.Capabilities.Add(new Uri("red://"));
@@ -54,6 +54,7 @@ public abstract class NodePersistenceCompliance : IAsyncLifetime
         persisted.AssignedNodeNumber.ShouldBe(assignedId);
         persisted.ControlUri.ShouldBe(node.ControlUri);
         persisted.Description.ShouldBe(node.Description);
+        persisted.Version.ShouldBe(new Version(1,2,3,0));
 
         persisted.Capabilities.ShouldHaveTheSameElementsAs(node.Capabilities.ToArray());
     }
@@ -192,7 +193,8 @@ public abstract class NodePersistenceCompliance : IAsyncLifetime
         {
             NodeId = id,
             ControlUri = $"dbcontrol://{id}".ToUri(),
-            AssignedNodeNumber = ++_count
+            AssignedNodeNumber = ++_count,
+            Version = new Version(2, 0, 1)
         };
     }
 

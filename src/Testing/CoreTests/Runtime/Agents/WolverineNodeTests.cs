@@ -11,14 +11,17 @@ public class WolverineNodeTests
     [Fact]
     public void create_from_wolverine_options()
     {
-        var options = new WolverineOptions();
+        var options = new WolverineOptions
+        {
+            ApplicationAssembly = GetType().Assembly
+        };
         options.Transports.NodeControlEndpoint = new FakeEndpoint("fake://one".ToUri(), EndpointRole.System);
 
         var node = WolverineNode.For(options);
 
         node.NodeId.ShouldBe(options.UniqueNodeId);
         node.ControlUri.ShouldBe(options.Transports.NodeControlEndpoint.Uri);
-
+        node.Version.ShouldBe(GetType().Assembly.GetName().Version);
     }
 
     [Fact]
