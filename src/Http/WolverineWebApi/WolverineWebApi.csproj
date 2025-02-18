@@ -4,7 +4,7 @@
     </PropertyGroup>
     <ItemGroup>
         <PackageReference Include="FSharp.Core" Version="9.0.202" />
-        <PackageReference Include="Lamar.Diagnostics" Version="14.0.1" />
+        <PackageReference Include="JasperFx" Version="0.2.2" />
         <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="7.0.2" />
         <PackageReference Include="Microsoft.AspNetCore.SignalR" Version="1.1.0" />
         <PackageReference Include="Shouldly" Version="4.2.1" />

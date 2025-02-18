@@ -469,4 +469,19 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
             }
         }
     }
+
+    public IEnumerable<Type> AllMessageTypes()
+    {
+        foreach (var chain in Chains)
+        {
+            yield return chain.MessageType;
+
+            foreach (var publishedType in chain.PublishedTypes()) yield return publishedType;
+        }
+
+        foreach (var entry in _messageTypes.Enumerate())
+        {
+            yield return entry.Value;
+        }
+    }
 }

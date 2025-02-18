@@ -32,6 +32,10 @@ public class DefaultApp : IDisposable
 
                 opts.Services.AddSingleton(Substitute.For<IIdentityService>());
                 opts.Services.AddSingleton(Substitute.For<ITrackedTaskRepository>());
+                
+                opts.RegisterMessageType(typeof(ExplicitMessage1));
+                opts.RegisterMessageType(typeof(ExplicitMessage2));
+                opts.RegisterMessageType(typeof(ExplicitMessage3));
             })
             .UseResourceSetupOnStartup(StartupAction.ResetState).Start();
     }
@@ -92,3 +96,7 @@ public class IntegrationContext : IDisposable, IClassFixture<DefaultApp>
         return Handlers.HandlerFor<T>().As<MessageHandler>().Chain;
     }
 }
+
+public record ExplicitMessage1;
+public record ExplicitMessage2;
+public record ExplicitMessage3;

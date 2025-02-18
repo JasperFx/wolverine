@@ -1,10 +1,10 @@
 using IntegrationTests;
+using JasperFx.Resources;
 using Marten;
 using Marten.Events;
 using MartenTests.Distribution.TripDomain;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Oakton.Resources;
 using Shouldly;
 using Wolverine;
 using Wolverine.Marten;

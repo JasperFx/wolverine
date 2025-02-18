@@ -146,11 +146,9 @@ public sealed partial class HandlerDiscovery
 
     internal IEnumerable<Type> findAllMessages(HandlerGraph handlers)
     {
-        foreach (var chain in handlers.Chains)
+        foreach (var messageType in handlers.AllMessageTypes())
         {
-            yield return chain.MessageType;
-
-            foreach (var publishedType in chain.PublishedTypes()) yield return publishedType;
+            yield return messageType;
         }
 
         var discovered = _messageQuery.Find(Assemblies);
