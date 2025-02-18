@@ -11,7 +11,7 @@ namespace build;
 
 internal class Build
 {
-    private static void Main(string[] args)
+    private static async Task Main(string[] args)
     {
         Target("default", DependsOn("test-core", "test-policy", "test-extensions", "test-http", "commands"));
 
@@ -157,7 +157,7 @@ end
             Run("dotnet", $"pack {project} -o ./artifacts --configuration Release"));
 
 
-        RunTargetsAndExit(args);
+        await RunTargetsAndExitAsync(args);
     }
 
     private static void WaitForDatabaseToBeReady()
@@ -245,7 +245,7 @@ end
 
     private static void RunNpm(string args)
     {
-        Run("npm", args, windowsName: "cmd.exe", windowsArgs: $"/c npm {args}");
+        Run("npm", args);
     }
 
     private static void RunTests(params string[] paths)

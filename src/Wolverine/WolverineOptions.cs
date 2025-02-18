@@ -110,6 +110,17 @@ public sealed partial class WolverineOptions
     public IPolicies Policies => this;
 
     /// <summary>
+    /// You may want to let Wolverine "know" about a message type upfront that would otherwise
+    /// be discovered at runtime so that Wolverine can build in diagnostics or apply message routing
+    /// upfront
+    /// </summary>
+    /// <param name="messageType"></param>
+    public void RegisterMessageType(Type messageType)
+    {
+        HandlerGraph.RegisterMessageType(messageType);
+    }
+
+    /// <summary>
     /// </summary>
     [IgnoreDescription]
     public TransportCollection Transports { get; }

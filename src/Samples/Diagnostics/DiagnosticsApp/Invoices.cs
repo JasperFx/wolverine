@@ -48,3 +48,6 @@ public record CreateShippingLabel(Guid Id) : ICommand;
 
 [WolverineMessage]
 public record AddItem(Guid Id, string ItemName);
+
+// Just need a fake type here for discovery
+public record PublishedMessage;
