@@ -28,11 +28,6 @@
 
     </ItemGroup>
 
-    <ItemGroup Condition="'$(targetframework)' == 'net7.0'">
-        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="[7.0.1, 8.0.0)"/>
-        <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="[7.0.1, 8.0.0)"/>
-    </ItemGroup>
-
     <ItemGroup Condition="'$(targetframework)' == 'net8.0'">
         <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.11"/>
         <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.11"/>
