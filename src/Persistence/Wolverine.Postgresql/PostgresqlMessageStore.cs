@@ -65,7 +65,7 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>, IData
         settings, logger, new PostgresqlMigrator(), "public")
     {
         _reassignIncomingSql =
-            $"update {SchemaName}.{DatabaseConstants.IncomingTable} set owner_id = @owner where id = ANY(@ids)";
+            $"update {SchemaName}.{DatabaseConstants.IncomingTable} set owner_id = @owner, status = '{EnvelopeStatus.Incoming}' where id = ANY(@ids)";
         _deleteOutgoingEnvelopesSql =
             $"delete from {SchemaName}.{DatabaseConstants.OutgoingTable} WHERE id = ANY(@ids);";
 
