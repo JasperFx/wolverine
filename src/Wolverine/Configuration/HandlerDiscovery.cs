@@ -26,9 +26,7 @@ public sealed partial class HandlerDiscovery
     public HandlerDiscovery()
     {
         specifyHandlerMethodRules();
-
-        specifyHandlerDiscovery();
-
+        
         _messageQuery.Excludes.IsStatic();
         _messageQuery.Excludes.WithCondition(
             $"Not implements {typeof(IMessage).FullNameInCode()} nor has attribute {typeof(WolverineMessageAttribute).FullNameInCode()}",
@@ -78,7 +76,7 @@ public sealed partial class HandlerDiscovery
             m => m.ReturnType != typeof(void) && m.ReturnType.IsPrimitive);
     }
 
-    private void specifyHandlerDiscovery()
+    private void specifyConventionalHandlerDiscovery()
     {
         HandlerQuery.Excludes.WithCondition("Not GeneratedStreamStateQueryHandler", t => t.Name == "GeneratedStreamStateQueryHandler");
         HandlerQuery.Includes.WithNameSuffix(HandlerChain.HandlerSuffix);
@@ -161,15 +159,20 @@ public sealed partial class HandlerDiscovery
 
     internal (Type, MethodInfo)[] FindCalls(WolverineOptions options)
     {
-        if (_conventionalDiscoveryDisabled)
-        {
-            return _explicitTypes.SelectMany(actionsFromType).ToArray();
-        }
-
         if (options.ApplicationAssembly != null)
         {
             Assemblies.Fill(options.ApplicationAssembly);
         }
+        
+        if (_conventionalDiscoveryDisabled)
+        {
+            return HandlerQuery.Find(Assemblies)
+                .Concat(_explicitTypes)
+                .Distinct()
+                .SelectMany(actionsFromType).ToArray();
+        }
+        
+        specifyConventionalHandlerDiscovery();
 
         return HandlerQuery.Find(Assemblies)
             .Concat(_explicitTypes)
