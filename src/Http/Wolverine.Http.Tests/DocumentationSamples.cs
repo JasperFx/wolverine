@@ -30,7 +30,7 @@ public class ConditionalRedirectHandler
 {
     #region sample_conditional_IResult_return
 
-    [WolverineGet("/choose/color")]
+    [WolverinePost("/choose/color")]
     public IResult Redirect(GoToColor request)
     {
         switch (request.Color)
