@@ -508,3 +508,22 @@ public static class RaiseIfValidatedHandler
 
 To mark a Marten event stream as archived from a Wolverine aggregate handler, just append the special Marten [Archived](https://martendb.io/events/archiving.html#archived-event)
 event to the stream just like you would in any other aggregate handler. 
+
+## Reading the Latest Version of an Aggregate
+
+::: info
+This is using Marten's [FetchLatest(https://martendb.io/events/projections/read-aggregates.html#fetchlatest) API]() and is limited to single stream
+projections.
+:::
+
+If you want to inject the current state of an event sourced aggregate as a parameter into
+a message handler method strictly for information and don't need the heavier "aggregate handler workflow," use the `[ReadAggregate]` attribute like this:
+
+snippet: sample_using_ReadAggregate_in_messsage_handlers
+
+If the aggregate doesn't exist, the HTTP request will stop with a 404 status code.
+The aggregate/stream identity is found with the same rules as the `[Entity]` or `[Aggregate]` attributes:
+
+1. You can specify a particular request body property name or route argument
+2. Look for a request body property or route argument named "EntityTypeId"
+3. Look for a request body property or route argument named "Id" or "id"
