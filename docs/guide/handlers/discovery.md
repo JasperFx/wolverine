@@ -226,6 +226,13 @@ using var host = await Host.CreateDefaultBuilder()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerExamples.cs#L227-L236' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_explicithandlerdiscovery' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Replacing the Handler Discovery Rules <Badge type="tip" text="3.10" />
+
+You can completely replace Wolverine's handler type discovery by first disabling the conventional handler discovery,
+then adding all new rules like this:
+
+snippet: sample_replacing_handler_discovery_rules
+
 ## Explicitly Ignoring Methods
 
 You can force Wolverine to disregard a candidate message handler action at either the class or method

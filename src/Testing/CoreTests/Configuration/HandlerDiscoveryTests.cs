@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Hosting;
+using Wolverine.ComplianceTests;
 using Wolverine.Configuration;
 using Xunit;
 
@@ -29,14 +31,34 @@ public class HandlerDiscoveryTests
         public void Handle(Message message){}
     }
 
+    public static async Task completely_replacing_the_built_in_discovery()
+    {
+        #region sample_replacing_handler_discovery_rules
+
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                // Turn off Wolverine's built in handler discovery
+                opts.DisableConventionalDiscovery();
+                
+                // And replace the scanning with your own special discovery:
+                opts.Discovery.CustomizeHandlerDiscovery(q =>
+                {
+                    q.Includes.WithNameSuffix("Listener");
+                });
+            }).StartAsync();
+
+        #endregion
+    }
+    
     [Fact]
     public void disabling_conventional_discovery_does_not_disable_custom_discovery()
     {
-        var discovery = new HandlerDiscovery();
+        var discovery = new HandlerDiscovery(){};
         discovery.DisableConventionalDiscovery();
         discovery.CustomizeHandlerDiscovery(q => q.Includes.WithNameSuffix("CustomListener"));
 
-        var discoveredHandlers = discovery.FindCalls(new WolverineOptions())
+        var discoveredHandlers = discovery.FindCalls(new WolverineOptions{ApplicationAssembly = GetType().Assembly})
             .Select(x => x.Item1)
             .ToList();
         
