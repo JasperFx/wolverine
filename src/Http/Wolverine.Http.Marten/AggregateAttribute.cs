@@ -53,6 +53,12 @@ public class AggregateAttribute : HttpChainParameterAttribute
 
     public override Variable Modify(HttpChain chain, ParameterInfo parameter, IServiceContainer container)
     {
+        if (chain.Method.Method.GetParameters().Where(x => x.HasAttribute<AggregateAttribute>()).Count() > 1)
+        {
+            throw new InvalidOperationException(
+                "It is only possible (today) to use a single [Aggregate] attribute on an HTTP handler method. Maybe use [ReadAggregate] if all you need is the projected data");
+        }
+        
         chain.Metadata.Produces(404);
 
         AggregateType = parameter.ParameterType;
