@@ -8,6 +8,24 @@ using Wolverine.Transports.Sending;
 
 namespace Wolverine.RabbitMQ.Internal;
 
+public enum QueueType
+{
+    /// <summary>
+    /// "Classic" mode. See https://www.rabbitmq.com/docs/classic-queues
+    /// </summary>
+    classic,
+    
+    /// <summary>
+    /// Declares this queue in Rabbit MQ as a quorum queue. See https://www.rabbitmq.com/docs/quorum-queues
+    /// </summary>
+    quorum,
+    
+    /// <summary>
+    /// Declare this queue as a Rabbit MQ stream. See https://www.rabbitmq.com/docs/streams
+    /// </summary>
+    stream
+}
+
 public partial class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQueue
 {
     private readonly RabbitMqTransport _parent;
@@ -28,6 +46,13 @@ public partial class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQu
             DeadLetterQueue = _parent.DeadLetterQueue;
         }
     }
+
+    
+    /// <summary>
+    /// Governs the declaration of the Rabbit MQ queue if Wolverine is building the queues
+    /// Has no impact on Wolverine or your code. Default is classic
+    /// </summary>
+    public QueueType QueueType { get; set; } = QueueType.classic;
 
     internal bool HasDeclared { get; private set; }
 
@@ -111,7 +136,8 @@ public partial class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQu
 
     public async ValueTask PurgeAsync(ILogger logger)
     {
-        if (isSystemQueue())
+        // It's invalid to purge a stream
+        if (isSystemQueue() || QueueType == QueueType.stream)
         {
             return;
         }
@@ -261,7 +287,14 @@ public partial class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQu
 
     internal async Task DeclareAsync(IChannel channel, ILogger logger)
     {
-        if (DeadLetterQueue != null && DeadLetterQueue.Mode == DeadLetterQueueMode.Native)
+        if (HasDeclared) return;
+        
+        if (QueueType != QueueType.classic)
+        {
+            Arguments[RabbitMqTransport.QueueTypeHeader] = QueueType.ToString();
+        }
+        
+        if (DeadLetterQueue is { Mode: DeadLetterQueueMode.Native } && QueueType != QueueType.stream)
         {
             Arguments[RabbitMqTransport.DeadLetterQueueHeader] = DeadLetterQueue.ExchangeName;
         }
