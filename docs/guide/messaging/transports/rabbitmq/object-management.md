@@ -164,6 +164,21 @@ runtime.UnBindRabbitMqQueue(queueName, exchangeName, bindingKey);
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/dynamic_object_creation_smoke_tests.cs#L33-L49' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_dynamic_creation_of_rabbit_mq_objects' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Quorum Queues or Streams <Badge type="tip" text="3.10" />
+
+Wolverine can utilize [Rabbit MQ Quorum Queues](https://www.rabbitmq.com/docs/quorum-queues) or [Rabbit MQ Streams](https://www.rabbitmq.com/docs/streams), but ["Classic" queues](https://www.rabbitmq.com/docs/classic-queues) are the default. The only 
+real difference as far as Wolverine is concerned is how the queues are declared to Rabbit MQ itself. Wolverine's internals
+are largely not impacted otherwise.
+
+Here are your options for configuring one or many queues as opting into being a "Quorum Queue" or a "Stream":
+
+snippet: sample_configuring_quorum_or_streams_in_rabbit_MQ
+
+There are just a few things to know:
+
+* Wolverine's internal reply or control queues will still be declared as "classic" so they can be non-durable
+* Streams cannot be purged, and Wolverine ignores the `AutoPurgeOnStartup()` setting for streams
+
 ## Inside of Wolverine Extensions
 
 If you need to declare Rabbit MQ queues, exchanges, or bindings within a [Wolverine extension](/guide/extensions),

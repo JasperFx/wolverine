@@ -35,6 +35,12 @@ public interface IRabbitMqQueue
     bool PurgeOnStartup { get; set; }
 
     /// <summary>
+    /// Governs the declaration of the Rabbit MQ queue if Wolverine is building the queues
+    /// Has no impact on Wolverine or your code. Default is classic
+    /// </summary>
+    QueueType QueueType { get; set; }
+
+    /// <summary>
     ///     Create a "time to live" limit for messages in this queue. Sets the Rabbit MQ x-message-ttl argument on a queue
     /// </summary>
     /// <param name="limit"></param>

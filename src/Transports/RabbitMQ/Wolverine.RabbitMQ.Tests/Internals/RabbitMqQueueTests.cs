@@ -25,6 +25,8 @@ public class RabbitMqQueueTests
         queue.IsExclusive.ShouldBeFalse();
         queue.AutoDelete.ShouldBeFalse();
         queue.Arguments.Any().ShouldBeFalse();
+        
+        queue.QueueType.ShouldBe(QueueType.classic);
     }
 
     [Fact]

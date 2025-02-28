@@ -4,6 +4,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Wolverine.ComplianceTests;
 using Wolverine.ComplianceTests.Compliance;
+using Wolverine.RabbitMQ.Internal;
 using Wolverine.RabbitMQ.Tests.ConventionalRouting;
 
 namespace Wolverine.RabbitMQ.Tests;
@@ -494,6 +495,38 @@ public class Samples
 
         using var host = builder.Build();
         await host.StartAsync();
+
+        #endregion
+    }
+
+    public static async Task configure_quorum_queues()
+    {
+        #region sample_configuring_quorum_or_streams_in_rabbit_MQ
+
+        var builder = Host.CreateApplicationBuilder();
+        builder.UseWolverine(opts =>
+        {
+            opts
+                .UseRabbitMq(builder.Configuration.GetConnectionString("rabbit"))
+                
+                // You can configure the queue type for declaration with this
+                // usage as well
+                .DeclareQueue("stream", q => q.QueueType = QueueType.stream)
+
+                // Use quorum queues by default as a policy
+                .UseQuorumQueues()
+
+                // Or instead use streams
+                .UseStreamsAsQueues();
+
+            opts.ListenToRabbitQueue("quorum1")
+                // Override the queue type in declarations for a
+                // single queue, and the explicit configuration will win
+                // out over any policy or convention
+                .QueueType(QueueType.quorum);
+            
+            
+        });
 
         #endregion
     }
