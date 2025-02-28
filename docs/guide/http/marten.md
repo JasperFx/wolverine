@@ -320,6 +320,25 @@ public static (UpdatedAggregate, Events) ConfirmDifferent(ConfirmOrder command, 
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L268-L282' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_returning_updated_aggregate_as_response_from_http_endpoint' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Reading the Latest Version of an Aggregate
+
+::: info
+This is using Marten's [FetchLatest(https://martendb.io/events/projections/read-aggregates.html#fetchlatest) API]() and is limited to single stream
+projections. 
+:::
+
+If you want to inject the current state of an event sourced aggregate as a parameter into
+an HTTP endpoint method, use the `[ReadAggregate]` attribute like this:
+
+snippet: sample_using_ReadAggregate_in_HTTP
+
+If the aggregate doesn't exist, the HTTP request will stop with a 404 status code. 
+The aggregate/stream identity is found with the same rules as the `[Entity]` or `[Aggregate]` attributes:
+
+1. You can specify a particular request body property name or route argument
+2. Look for a request body property or route argument named "EntityTypeId"
+3. Look for a request body property or route argument named "Id" or "id"
+
 ### Compiled Query Resource Writer Policy
 
 Marten integration comes with an `IResourceWriterPolicy` policy that handles compiled queries as return types. 
@@ -359,3 +378,4 @@ public class ApprovedInvoicedCompiledQuery : ICompiledListQuery<Invoice>
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Documents.cs#L109-L119' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_compiled_query_return_query' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+

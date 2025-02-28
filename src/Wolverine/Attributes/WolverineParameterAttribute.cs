@@ -2,6 +2,7 @@ using System.Reflection;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
+using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
@@ -54,5 +55,34 @@ public abstract class WolverineParameterAttribute : Attribute
                 call.Arguments[i] = variable;
             }
         }
+    }
+
+    protected bool tryFindIdentityVariable(IChain chain, ParameterInfo parameter, Type idType, out Variable variable)
+    {
+        if (ArgumentName.IsNotEmpty())
+        {
+            if (chain.TryFindVariable(ArgumentName, ValueSource, idType, out variable))
+            {
+                return true;
+            }
+        }
+        
+        if (chain.TryFindVariable(parameter.ParameterType.Name + "Id", ValueSource, idType, out variable))
+        {
+            return true;
+        }
+        
+        if (chain.TryFindVariable("Id", ValueSource, idType, out variable))
+        {
+            return true;
+        }
+        
+        if (chain.TryFindVariable("id", ValueSource, idType, out variable))
+        {
+            return true;
+        }
+
+        variable = default;
+        return false;
     }
 }

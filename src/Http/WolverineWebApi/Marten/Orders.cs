@@ -280,4 +280,11 @@ public static class MarkItemEndpoint
     }
 
     #endregion
+
+    #region sample_using_ReadAggregate_in_HTTP
+
+    [WolverineGet("/orders/latest/{id}")]
+    public static Order GetLatest(Guid id, [ReadAggregate] Order order) => order;
+
+    #endregion
 }
