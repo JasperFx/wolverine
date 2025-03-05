@@ -299,4 +299,7 @@ public static class MarkItemEndpoint
     public static Order GetLatest(Guid id, [ReadAggregate] Order order) => order;
 
     #endregion
+    
+    [WolverineGet("/orders/V1.0/latest/{id}")]
+    public static Order GetLatestV1(Guid id, [ReadAggregate] Order order) => order;
 }
