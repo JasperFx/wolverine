@@ -280,6 +280,18 @@ public static class MarkItemEndpoint
     }
 
     #endregion
+    
+    [AggregateHandler]
+    [WolverinePost("/orders/{id}/confirm3")]
+    // The updated version of the Order aggregate will be returned as the response body
+    // from requesting this endpoint at runtime
+    public static (UpdatedAggregate, OrderConfirmed) ConfirmDifferent2(ConfirmOrder command, Order order)
+    {
+        return (
+            new UpdatedAggregate(),
+            new OrderConfirmed()
+        );
+    }
 
     #region sample_using_ReadAggregate_in_HTTP
 

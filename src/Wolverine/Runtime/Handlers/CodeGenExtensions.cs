@@ -228,3 +228,24 @@ public interface IReturnVariableAction
     IEnumerable<Type> Dependencies();
     IEnumerable<Frame> Frames();
 }
+
+public class CommentReturnAction : IReturnVariableAction
+{
+    private readonly string _commentText;
+
+    public CommentReturnAction(string commentText)
+    {
+        _commentText = commentText;
+    }
+
+    public string Description { get; } = "Comment Only";
+    public IEnumerable<Type> Dependencies()
+    {
+        yield break;
+    }
+
+    public IEnumerable<Frame> Frames()
+    {
+        yield return new CommentFrame(_commentText);
+    }
+}

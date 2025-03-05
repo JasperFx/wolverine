@@ -1,5 +1,7 @@
+using Marten;
 using Microsoft.AspNetCore.Mvc;
 using Shouldly;
+using Wolverine.Marten;
 using WolverineWebApi.Marten;
 
 namespace Wolverine.Http.Tests.Marten;
@@ -246,5 +248,32 @@ public class using_aggregate_handler_workflow(AppFixture fixture) : IntegrationC
         var order = await result.ReadAsJsonAsync<Order>();
         order.IsConfirmed.ShouldBeTrue();
         
+    }
+    
+    [Fact]
+    public async Task return_updated_aggregate_in_tuple()
+    {
+        var result = await Scenario(x =>
+        {
+            x.Post.Json(new StartOrder(["Socks", "Shoes", "Shirt"])).ToUrl("/orders/create");
+        });
+
+        var status = result.ReadAsJson<OrderStatus>();
+        status.ShouldNotBeNull();
+
+        result = await Scenario(x =>
+        {
+            x.Post.Json(new ConfirmOrder(status.OrderId)).ToUrl($"/orders/{status.OrderId}/confirm3");
+
+            x.StatusCodeShouldBe(200);
+        });
+
+        var order = await result.ReadAsJsonAsync<Order>();
+        order.IsConfirmed.ShouldBeTrue();
+
+        using var session = Host.DocumentStore().LightweightSession();
+        var stream = await session.Events.FetchStreamAsync(status.OrderId);
+        stream.Select(x => x.Data).OfType<UpdatedAggregate>().Any().ShouldBeFalse();
+
     }
 }
