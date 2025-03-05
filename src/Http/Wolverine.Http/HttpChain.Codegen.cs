@@ -163,8 +163,20 @@ public partial class HttpChain
 
     private string determineFileName()
     {
-        var parts = RoutePattern.RawText.Replace("{", "").Replace("*", "").Replace("}", "").Split('/').Select(x => x.Split(':').First());
+        var parts = RoutePattern.RawText.Replace("{", "").Replace("*", "").Replace(".", "_").Replace("}", "").Split('/').Select(x => x.Split(':').First());
 
-        return _httpMethods.Select(x => x.ToUpper()).Concat(parts).Join("_").Replace('-', '_').Replace("__", "_");
+        char[] invalidPathChars = Path.GetInvalidPathChars();
+        var fileName = _httpMethods.Select(x => x.ToUpper()).Concat(parts).Join("_").Replace('-', '_').Replace("__", "_");
+
+        var characters = fileName.ToCharArray();
+        for (int i = 0; i < characters.Length; i++)
+        {
+            if (invalidPathChars.Contains(characters[i]))
+            {
+                characters[i] = '_';
+            }
+        }
+        
+        return new string(characters);
     }
 }

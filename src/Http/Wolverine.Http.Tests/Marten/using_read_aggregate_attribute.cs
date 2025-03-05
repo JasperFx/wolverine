@@ -22,6 +22,21 @@ public class using_read_aggregate_attribute(AppFixture fixture) : IntegrationCon
         var result = await Host.GetAsJson<Order>("/orders/latest/" + id);
         result.Items.Keys.ShouldContain("Socks");
     }
+    
+    [Fact]
+    public async Task happy_path_reading_aggregate_and_version_in_url()
+    {
+        var id = Guid.NewGuid();
+
+        // Creating a new order
+        await Scenario(x =>
+        {
+            x.Post.Json(new StartOrderWithId(id, ["Socks", "Shoes", "Shirt"])).ToUrl("/orders/create4");
+        });
+
+        var result = await Host.GetAsJson<Order>("/orders/V1.0/latest/" + id);
+        result.Items.Keys.ShouldContain("Socks");
+    }
 
     [Fact]
     public async Task sad_path_no_aggregate_return_404()
