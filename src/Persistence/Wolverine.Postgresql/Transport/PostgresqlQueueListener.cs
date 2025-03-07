@@ -139,7 +139,7 @@ SELECT message.{DatabaseConstants.Body} from message;
         try
         {
             var builder = new BatchBuilder();
-            builder.Append($"create temporary table temp_move_{_queueName} as select id, body, message_type, keep_until from {_scheduledTableName} WHERE {DatabaseConstants.ExecutionTime} <= (now() at time zone 'utc') AND ID NOT IN (select id from {_queueTableName}) for update skip locked");
+            builder.Append($"create temporary table temp_move_{_queueName} on commit drop as select id, body, message_type, keep_until from {_scheduledTableName} WHERE {DatabaseConstants.ExecutionTime} <= (now() at time zone 'utc') AND ID NOT IN (select id from {_queueTableName}) for update skip locked");
             builder.StartNewCommand();
             builder.Append($"INSERT INTO {_queueTableName} (id, body, message_type, keep_until) SELECT id, body, message_type, keep_until FROM temp_move_{_queueName}");
             builder.StartNewCommand();
@@ -181,7 +181,14 @@ SELECT message.{DatabaseConstants.Body} from message;
                 {
                     await _receiver.ReceivedAsync(this, messages.ToArray());
 
-                    await Task.Delay(250.Milliseconds());
+                    if (messages.Count > _queue.MaximumMessagesToReceive)
+                    {
+                        await Task.Delay(250.Milliseconds());
+                    }
+                    else
+                    {
+                        await Task.Delay(_settings.ScheduledJobPollingTime);
+                    }
                 }
                 else
                 {
@@ -214,7 +221,7 @@ SELECT message.{DatabaseConstants.Body} from message;
 
         builder.Append($"delete FROM {_queueTableName} where id in (select id from {_schemaName}.{DatabaseConstants.IncomingTable})");
         builder.StartNewCommand();
-        builder.Append($"create temporary table temp_pop_{_queueName} as select id, body, message_type, keep_until from {_queueTableName} ORDER BY {_queueTableName}.timestamp limit ");
+        builder.Append($"create temporary table temp_pop_{_queueName} ON COMMIT DROP as select id, body, message_type, keep_until from {_queueTableName} ORDER BY {_queueTableName}.timestamp limit ");
         builder.AppendParameter(count);
         builder.Append(" for update skip locked");
 
@@ -281,7 +288,7 @@ SELECT message.{DatabaseConstants.Body} from message;
                     }
                     catch (Exception e)
                     {
-                        logger.LogError(e, "Error trying to deserialize Envelope data in Sql Transport Queue {Queue}, discarding", _queueName);
+                        logger.LogError(e, "Error trying to deserialize Envelope data in PostgreSQL Transport Queue {Queue}, discarding", _queueName);
                         return Envelope.ForPing(Address); // just a stand in
                     }
                 }, cancellation: cancellationToken);
