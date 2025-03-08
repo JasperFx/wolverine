@@ -30,7 +30,7 @@ jobs:
           dotnet-version: 9.0.x
 
       - name: Run Pack
-        run: ./build.sh --no-color pack
+        run: ./build.sh pack
         shell: bash
 
       - name: Publish to NuGet
