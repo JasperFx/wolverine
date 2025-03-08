@@ -24,7 +24,10 @@ class Build : NukeBuild
 
     [Parameter("Configuration to build - Default is 'Debug' (local) or 'Release' (server)")]
     readonly Configuration Configuration = IsLocalBuild ? Configuration.Debug : Configuration.Release;
-    [Solution] readonly Solution Solution;
+    
+    [Solution(GenerateProjects = true)]
+    readonly Solution Solution;
+    
     [Parameter]readonly string Framework;
     [Parameter] readonly string PostgresConnectionString ="Host=localhost;Port=5433;Database=postgres;Username=postgres;password=postgres";
 
@@ -65,7 +68,7 @@ class Build : NukeBuild
         .Executes(() =>
         {
             DotNetTest(c => c
-                .SetProjectFile("src/Testing/CoreTests")
+                .SetProjectFile(Solution.Testing.CoreTests)
                 .SetConfiguration(Configuration)
                 .EnableNoBuild()
                 .EnableNoRestore()
@@ -78,7 +81,7 @@ class Build : NukeBuild
         .Executes(() =>
         {
             DotNetTest(c => c
-                .SetProjectFile("src/Testing/PolicyTests")
+                .SetProjectFile(Solution.Testing.PolicyTests)
                 .SetConfiguration(Configuration)
                 .EnableNoBuild()
                 .EnableNoRestore()
@@ -94,7 +97,7 @@ class Build : NukeBuild
         .Executes(() =>
         {
             DotNetTest(c => c
-                .SetProjectFile("src/Extensions/Wolverine.FluentValidation.Tests")
+                .SetProjectFile(Solution.Extensions.Wolverine_FluentValidation_Tests)
                 .SetConfiguration(Configuration)
                 .EnableNoBuild()
                 .EnableNoRestore()
@@ -107,7 +110,7 @@ class Build : NukeBuild
         .Executes(() =>
         {
             DotNetTest(c => c
-                .SetProjectFile("src/Extensions/Wolverine.MemoryPack.Tests")
+                .SetProjectFile(Solution.Extensions.Wolverine_MemoryPack_Tests)
                 .SetConfiguration(Configuration)
                 .EnableNoBuild()
                 .EnableNoRestore()
@@ -120,7 +123,7 @@ class Build : NukeBuild
         .Executes(() =>
         {
             DotNetTest(c => c
-                .SetProjectFile("src/Extensions/Wolverine.MessagePack.Tests")
+                .SetProjectFile(Solution.Extensions.Wolverine_MessagePack_Tests)
                 .SetConfiguration(Configuration)
                 .EnableNoBuild()
                 .EnableNoRestore()
@@ -133,7 +136,7 @@ class Build : NukeBuild
         .Executes(() =>
         {
             DotNetTest(c => c
-                .SetProjectFile("src/Http/Wolverine.Http.Tests")
+                .SetProjectFile(Solution.Http.Wolverine_Http_Tests)
                 .SetConfiguration(Configuration)
                 .EnableNoBuild()
                 .EnableNoRestore()
@@ -150,7 +153,7 @@ class Build : NukeBuild
         .Executes(() =>
         {
             DotNetRun(c => c
-                .SetProjectFile("src/Testing/ConsoleApp")
+                .SetProjectFile(Solution.Testing.ConsoleApp)
                 .SetConfiguration(Configuration)
                 .EnableNoBuild()
                 .EnableNoRestore()
@@ -164,7 +167,7 @@ class Build : NukeBuild
         .Executes(() =>
         {
             DotNetRun(c => c
-                .SetProjectFile("src/Testing/ConsoleApp")
+                .SetProjectFile(Solution.Testing.ConsoleApp)
                 .SetConfiguration(Configuration)
                 .EnableNoBuild()
                 .EnableNoRestore()
@@ -178,7 +181,7 @@ class Build : NukeBuild
         .Executes(() =>
         {
             DotNetRun(c => c
-                .SetProjectFile("src/Http/WolverineWebApi")
+                .SetProjectFile(Solution.Http.WolverineWebApi)
                 .SetConfiguration(Configuration)
                 .EnableNoBuild()
                 .EnableNoRestore()
@@ -193,7 +196,7 @@ class Build : NukeBuild
         .Executes(() =>
         {
             DotNetTest(c => c
-                .SetProjectFile("src/Persistence/PersistenceTests")
+                .SetProjectFile(Solution.Persistence.PersistenceTests)
                 .SetConfiguration(Configuration)
                 .EnableNoBuild()
                 .EnableNoRestore()
@@ -206,7 +209,7 @@ class Build : NukeBuild
         .Executes(() =>
         {
             DotNetTest(c => c
-                .SetProjectFile("src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests")
+                .SetProjectFile(Solution.Transports.RabbitMQ.Wolverine_RabbitMQ_Tests)
                 .SetConfiguration(Configuration)
                 .EnableNoBuild()
                 .EnableNoRestore()
@@ -219,7 +222,7 @@ class Build : NukeBuild
         .Executes(() =>
         {
             DotNetTest(c => c
-                .SetProjectFile("src/Transports/Pulsar/Wolverine.Pulsar.Tests")
+                .SetProjectFile(Solution.Transports.Pulsar.Wolverine_Pulsar_Tests)
                 .SetConfiguration(Configuration)
                 .EnableNoBuild()
                 .EnableNoRestore()
@@ -236,7 +239,7 @@ class Build : NukeBuild
         .Executes(() =>
         {
             DotNetTest(c => c
-                .SetProjectFile("src/Samples/TodoWebService/TodoWebServiceTests")
+                .SetProjectFile(Solution.Samples.TodoWebService.TodoWebServiceTests)
                 .SetConfiguration(Configuration)
                 .EnableNoBuild()
                 .EnableNoRestore()
@@ -249,7 +252,7 @@ class Build : NukeBuild
         .Executes(() =>
         {
             DotNetTest(c => c
-                .SetProjectFile("src/Samples/TestHarness/BankingService.Tests")
+                .SetProjectFile(Solution.Samples.TestHarness.BankingService_Tests)
                 .SetConfiguration(Configuration)
                 .EnableNoBuild()
                 .EnableNoRestore()
@@ -262,7 +265,7 @@ class Build : NukeBuild
         .Executes(() =>
         {
             DotNetTest(c => c
-                .SetProjectFile("src/Samples/Middleware/AppWithMiddleware.Tests")
+                .SetProjectFile(Solution.Samples.Middleware.AppWithMiddleware_Tests)
                 .SetConfiguration(Configuration)
                 .EnableNoBuild()
                 .EnableNoRestore()
@@ -275,7 +278,7 @@ class Build : NukeBuild
         .Executes(() =>
         {
             DotNetTest(c => c
-                .SetProjectFile("src/Samples/EFCoreSample/ItemService.Tests")
+                .SetProjectFile(Solution.Samples.EFCoreSample.ItemService_Tests)
                 .SetConfiguration(Configuration)
                 .EnableNoBuild()
                 .EnableNoRestore()
@@ -287,27 +290,27 @@ class Build : NukeBuild
         {
             var nugetProjects = new[]
             {
-                "./src/Wolverine",
-                "./src/Transports/RabbitMQ/Wolverine.RabbitMQ",
-                "./src/Transports/Azure/Wolverine.AzureServiceBus",
-                "./src/Transports/AWS/Wolverine.AmazonSqs",
-                "./src/Transports/MQTT/Wolverine.MQTT",
-                "./src/Transports/Kafka/Wolverine.Kafka",
-                "./src/Transports/Pulsar/Wolverine.Pulsar",
-                "./src/Transports/GCP/Wolverine.Pubsub",
-                "./src/Persistence/Wolverine.RDBMS",
-                "./src/Persistence/Wolverine.Postgresql",
-                "./src/Persistence/Wolverine.EntityFrameworkCore",
-                "./src/Persistence/Wolverine.Marten",
-                "./src/Persistence/Wolverine.RavenDb",
-                "./src/Persistence/Wolverine.SqlServer",
-                "./src/Extensions/Wolverine.FluentValidation",
-                "./src/Extensions/Wolverine.MemoryPack",
-                "./src/Extensions/Wolverine.MessagePack",
-                "./src/Http/Wolverine.Http",
-                "./src/Http/Wolverine.Http.FluentValidation",
-                "./src/Http/Wolverine.Http.Marten",
-                "./src/Testing/Wolverine.ComplianceTests"
+                Solution.Wolverine,
+                Solution.Transports.RabbitMQ.Wolverine_RabbitMQ,
+                Solution.Transports.Azure.Wolverine_AzureServiceBus,
+                Solution.Transports.AWS.Wolverine_AmazonSqs,
+                Solution.Transports.MQTT.Wolverine_MQTT,
+                Solution.Transports.Kafka.Wolverine_Kafka,
+                Solution.Transports.Pulsar.Wolverine_Pulsar,
+                Solution.Transports.GCP.Wolverine_Pubsub,
+                Solution.Persistence.Wolverine_RDBMS,
+                Solution.Persistence.Wolverine_Postgresql,
+                Solution.Persistence.Wolverine_EntityFrameworkCore,
+                Solution.Persistence.Wolverine_Marten,
+                Solution.Persistence.Wolverine_RavenDb,
+                Solution.Persistence.Wolverine_SqlServer,
+                Solution.Extensions.Wolverine_FluentValidation,
+                Solution.Extensions.Wolverine_MemoryPack,
+                Solution.Extensions.Wolverine_MessagePack,
+                Solution.Http.Wolverine_Http,
+                Solution.Http.Wolverine_Http_FluentValidation,
+                Solution.Http.Wolverine_Http_Marten,
+                Solution.Testing.Wolverine_ComplianceTests
             };
 
             foreach (var project in nugetProjects)

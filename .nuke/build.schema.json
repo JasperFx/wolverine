@@ -46,6 +46,7 @@
         "MemoryPackTests",
         "MessagePackTests",
         "NpmInstall",
+        "Pack",
         "PersistenceTests",
         "PolicyTests",
         "PublishDocs",
