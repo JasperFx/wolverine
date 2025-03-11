@@ -279,7 +279,7 @@ As for the return values from these handler methods, you can use:
 * It's legal to have **no** return values if you are directly using `IEventStream<T>` to append events
 * `IEnumerable<object>` or `object[]` to denote that a value is events to append to the current event stream
 * `IAsyncEnumerable<object` will also be treated as a variable enumerable to events to append to the current event stream
-* `Wolverine.Events` to denote a list of events. You *may* find this to lead to more readable code in some cases
+* `Wolverine.Marten.Events` to denote a list of events. You *may* find this to lead to more readable code in some cases
 * `OutgoingMessages` to refer to additional command messages to be published that should *not* be captured as events
 * `ISideEffect` objects
 * Any other type would be considered to be a separate event type, and you may happily use that for either a single event
