@@ -3,14 +3,17 @@ using Wolverine.Transports.Sending;
 
 namespace Wolverine.Kafka.Internals;
 
-public class InlineKafkaSender : ISender
+public class InlineKafkaSender : ISender, IDisposable
 {
     private readonly KafkaTopic _topic;
+    private readonly IProducer<string,string> _producer;
 
     public InlineKafkaSender(KafkaTopic topic)
     {
         _topic = topic;
         Destination = topic.Uri;
+        _producer = new ProducerBuilder<string, string>(_topic.Parent.ProducerConfig).Build();
+        
     }
 
     public bool SupportsNativeScheduledSend => false;
@@ -28,10 +31,15 @@ public class InlineKafkaSender : ISender
         }
     }
 
-    public async ValueTask SendAsync(Envelope envelope)
+    public ValueTask SendAsync(Envelope envelope)
     {
         var message = _topic.Mapper.CreateMessage(envelope);
-        using var producer = new ProducerBuilder<string, string>(_topic.Parent.ProducerConfig).Build();
-        await producer.ProduceAsync(envelope.TopicName ?? _topic.TopicName, message);
+        
+        return new ValueTask(_producer.ProduceAsync(envelope.TopicName ?? _topic.TopicName, message));
+    }
+
+    public void Dispose()
+    {
+        _producer.Dispose();
     }
 }
