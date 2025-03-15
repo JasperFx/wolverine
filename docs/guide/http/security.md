@@ -16,7 +16,7 @@ app.MapWolverineEndpoints(opts =>
 or more selectively, the code above is just syntactical sugar for:
 
 <!-- snippet: sample_RequireAuthorizeOnAll -->
-<a id='snippet-sample_requireauthorizeonall'></a>
+<a id='snippet-sample_RequireAuthorizeOnAll'></a>
 ```cs
 /// <summary>
 /// Equivalent of calling RequireAuthorization() on all wolverine endpoints
@@ -26,5 +26,5 @@ public void RequireAuthorizeOnAll()
     ConfigureEndpoints(e => e.RequireAuthorization());
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http/WolverineHttpOptions.cs#L168-L178' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_requireauthorizeonall' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http/WolverineHttpOptions.cs#L168-L178' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_RequireAuthorizeOnAll' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->

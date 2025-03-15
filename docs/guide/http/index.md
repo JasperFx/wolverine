@@ -64,7 +64,7 @@ Okay, but we still need to expose a web service endpoint for this functionality.
 as a "mediator" tool like so:
 
 <!-- snippet: sample_TodoController_delegating_to_Wolverine -->
-<a id='snippet-sample_todocontroller_delegating_to_wolverine'></a>
+<a id='snippet-sample_TodoController_delegating_to_Wolverine'></a>
 ```cs
 public class TodoController : ControllerBase
 {
@@ -81,7 +81,7 @@ public class TodoController : ControllerBase
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Samples/TodoController.cs#L10-L27' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_todocontroller_delegating_to_wolverine' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Samples/TodoController.cs#L10-L27' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_TodoController_delegating_to_Wolverine' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Or we could do the same thing with Minimal API:

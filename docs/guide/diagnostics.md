@@ -9,7 +9,7 @@ to utilize this command line integration, you need to apply Oakton as your comma
 sample `Program.cs` file:
 
 <!-- snippet: sample_Quickstart_Program -->
-<a id='snippet-sample_quickstart_program'></a>
+<a id='snippet-sample_Quickstart_Program'></a>
 ```cs
 using Oakton;
 using Quickstart;
@@ -51,7 +51,7 @@ app.MapGet("/", () => Results.Redirect("/swagger"));
 // your Wolverine application
 return await app.RunOaktonCommands(args);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Quickstart/Program.cs#L1-L43' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_quickstart_program' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Quickstart/Program.cs#L1-L43' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_Quickstart_Program' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Command Line Description
@@ -142,14 +142,14 @@ Probably mostly for testing projects, you can verify that all the message handle
 application are in a valid state by executing this method:
 
 <!-- snippet: sample_using_AssertWolverineConfigurationIsValid -->
-<a id='snippet-sample_using_assertwolverineconfigurationisvalid'></a>
+<a id='snippet-sample_using_AssertWolverineConfigurationIsValid'></a>
 ```cs
 public static void assert_configuration_is_valid(IHost host)
 {
     host.AssertWolverineConfigurationIsValid();
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/DiagnosticSamples.cs#L8-L15' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_assertwolverineconfigurationisvalid' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/DiagnosticSamples.cs#L8-L15' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_AssertWolverineConfigurationIsValid' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Note that this method will attempt to generate and compile the source code for each message type and use [Lamar's own

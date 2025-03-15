@@ -19,7 +19,7 @@ For an example, let's look at this message handler for applying a debit to a ban
 will use [cascading messages](/guide/handlers/cascading) to raise a variable number of additional messages:
 
 <!-- snippet: sample_AccountHandler_for_testing_examples -->
-<a id='snippet-sample_accounthandler_for_testing_examples'></a>
+<a id='snippet-sample_AccountHandler_for_testing_examples'></a>
 ```cs
 [Transactional]
 public static IEnumerable<object> Handle(
@@ -51,7 +51,7 @@ public static IEnumerable<object> Handle(
     yield return new AccountUpdated(account.Id, account.Balance);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L41-L73' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_accounthandler_for_testing_examples' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L41-L73' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_AccountHandler_for_testing_examples' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The testing extensions can be seen in action by the following test:
@@ -118,7 +118,7 @@ Here's a different version of the message handler from the previous section, but
 directly:
 
 <!-- snippet: sample_DebitAccountHandler_that_uses_IMessageContext -->
-<a id='snippet-sample_debitaccounthandler_that_uses_imessagecontext'></a>
+<a id='snippet-sample_DebitAccountHandler_that_uses_IMessageContext'></a>
 ```cs
 [Transactional]
 public static async Task Handle(
@@ -153,7 +153,7 @@ public static async Task Handle(
         new DeliveryOptions { DeliverWithin = 5.Seconds() });
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Middleware/AppWithMiddleware/Account.cs#L126-L161' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_debitaccounthandler_that_uses_imessagecontext' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Middleware/AppWithMiddleware/Account.cs#L126-L161' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_DebitAccountHandler_that_uses_IMessageContext' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 To test this handler, we can use `TestMessageContext` as a stand in to just record

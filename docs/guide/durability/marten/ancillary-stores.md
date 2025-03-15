@@ -79,7 +79,7 @@ Now, moving to message handlers or HTTP endpoints, you will have to explicitly t
 individual messages with the `[MartenStore(store type)]` attribute like this simple example below:
 
 <!-- snippet: sample_PlayerMessageHandler -->
-<a id='snippet-sample_playermessagehandler'></a>
+<a id='snippet-sample_PlayerMessageHandler'></a>
 ```cs
 // This will use a Marten session from the
 // IPlayerStore rather than the main IDocumentStore
@@ -93,7 +93,7 @@ public static class PlayerMessageHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AncillaryStores/bootstrapping_ancillary_marten_stores_with_wolverine.cs#L253-L267' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_playermessagehandler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AncillaryStores/bootstrapping_ancillary_marten_stores_with_wolverine.cs#L253-L267' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_PlayerMessageHandler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: info

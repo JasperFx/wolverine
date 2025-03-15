@@ -20,7 +20,7 @@ public DateTimeOffset? DeliverBy
     set => _deliverBy = value?.ToUniversalTime();
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Envelope.cs#L53-L65' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_envelope_deliver_by_property' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Envelope.cs#L54-L66' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_envelope_deliver_by_property' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 At runtime, Wolverine will:

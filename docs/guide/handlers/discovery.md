@@ -128,7 +128,7 @@ In all cases, Wolverine assumes that the first argument is the incoming message.
 To make that concrete, here are some valid handler method signatures:
 
 <!-- snippet: sample_ValidMessageHandlers -->
-<a id='snippet-sample_validmessagehandlers'></a>
+<a id='snippet-sample_ValidMessageHandlers'></a>
 ```cs
 [WolverineHandler]
 public class ValidMessageHandlers
@@ -181,7 +181,7 @@ public class ValidMessageHandlers
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerExamples.cs#L10-L63' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_validmessagehandlers' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerExamples.cs#L10-L63' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_ValidMessageHandlers' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The valid method names are:
@@ -214,7 +214,7 @@ You can completely turn off any automatic discovery of message handlers through 
 using this syntax in your `WolverineOptions`:
 
 <!-- snippet: sample_ExplicitHandlerDiscovery -->
-<a id='snippet-sample_explicithandlerdiscovery'></a>
+<a id='snippet-sample_ExplicitHandlerDiscovery'></a>
 ```cs
 using var host = await Host.CreateDefaultBuilder()
     .UseWolverine(opts =>
@@ -223,7 +223,7 @@ using var host = await Host.CreateDefaultBuilder()
         opts.DisableConventionalDiscovery();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerExamples.cs#L227-L236' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_explicithandlerdiscovery' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerExamples.cs#L227-L236' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_ExplicitHandlerDiscovery' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Replacing the Handler Discovery Rules <Badge type="tip" text="3.10" />
@@ -231,7 +231,24 @@ using var host = await Host.CreateDefaultBuilder()
 You can completely replace Wolverine's handler type discovery by first disabling the conventional handler discovery,
 then adding all new rules like this:
 
-snippet: sample_replacing_handler_discovery_rules
+<!-- snippet: sample_replacing_handler_discovery_rules -->
+<a id='snippet-sample_replacing_handler_discovery_rules'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        // Turn off Wolverine's built in handler discovery
+        opts.DisableConventionalDiscovery();
+        
+        // And replace the scanning with your own special discovery:
+        opts.Discovery.CustomizeHandlerDiscovery(q =>
+        {
+            q.Includes.WithNameSuffix("Listener");
+        });
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/HandlerDiscoveryTests.cs#L36-L51' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_replacing_handler_discovery_rules' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 ## Explicitly Ignoring Methods
 
@@ -239,7 +256,7 @@ You can force Wolverine to disregard a candidate message handler action at eithe
 level by using the `[WolverineIgnore]` attribute like this:
 
 <!-- snippet: sample_WolverineIgnoreAttribute -->
-<a id='snippet-sample_wolverineignoreattribute'></a>
+<a id='snippet-sample_WolverineIgnoreAttribute'></a>
 ```cs
 public class NetflixHandler : IMovieSink
 {
@@ -287,7 +304,7 @@ public class BlockbusterHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/find_handlers_with_the_default_handler_discovery.cs#L223-L271' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverineignoreattribute' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/find_handlers_with_the_default_handler_discovery.cs#L223-L271' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_WolverineIgnoreAttribute' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -304,7 +321,7 @@ from those naming conventions you can either supplement the handler discovery or
 At a minimum, you can disable the built in discovery, add additional type filtering criteria, or register specific handler classes with the code below:
 
 <!-- snippet: sample_CustomHandlerApp -->
-<a id='snippet-sample_customhandlerapp'></a>
+<a id='snippet-sample_CustomHandlerApp'></a>
 ```cs
 using var host = await Host.CreateDefaultBuilder()
     .UseWolverine(opts =>
@@ -327,5 +344,5 @@ using var host = await Host.CreateDefaultBuilder()
             .IncludeType<SimpleHandler>();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerDiscoverySamples.cs#L120-L143' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_customhandlerapp' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerDiscoverySamples.cs#L120-L143' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_CustomHandlerApp' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
