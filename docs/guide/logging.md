@@ -43,7 +43,7 @@ you don't want logging for that particular message type, but do for all other me
 level for only that specific message type like so:
 
 <!-- snippet: sample_customized_handler_using_Configure -->
-<a id='snippet-sample_customized_handler_using_configure'></a>
+<a id='snippet-sample_customized_handler_using_Configure'></a>
 ```cs
 public class CustomizedHandler
 {
@@ -64,7 +64,7 @@ public class CustomizedHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/can_customize_handler_chain_through_Configure_call_on_HandlerType.cs#L25-L46' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_customized_handler_using_configure' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/can_customize_handler_chain_through_Configure_call_on_HandlerType.cs#L25-L46' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_customized_handler_using_Configure' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Methods on message handler types with the signature:
@@ -84,7 +84,7 @@ way to do that is to use the `[WolverineLogging]` attribute on either the handle
 below:
 
 <!-- snippet: sample_using_Wolverine_Logging_attribute -->
-<a id='snippet-sample_using_wolverine_logging_attribute'></a>
+<a id='snippet-sample_using_Wolverine_Logging_attribute'></a>
 ```cs
 public class QuietMessage;
 
@@ -100,7 +100,7 @@ public class QuietMessageHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/logging_configuration.cs#L27-L43' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_wolverine_logging_attribute' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/logging_configuration.cs#L27-L43' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_Wolverine_Logging_attribute' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -352,7 +352,7 @@ public const string SendingResumed = "wolverine.sending.resumed";
 /// </summary>
 public const string TooManySenderFailures = "TooManySenderFailures";
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/WolverineTracing.cs#L25-L119' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_open_telemetry_tracing_spans_and_activities' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/WolverineTracing.cs#L27-L121' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_open_telemetry_tracing_spans_and_activities' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Message Correlation

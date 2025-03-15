@@ -39,7 +39,7 @@ builder.UseWolverine(opts =>
 using var host = builder.Build();
 await host.StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L426-L445' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setting_default_message_type_with_rabbit' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L427-L446' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setting_default_message_type_with_rabbit' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 With this setting, there is **no other required headers** for Wolverine to process incoming messages. However, Wolverine will be
@@ -135,7 +135,7 @@ builder.UseWolverine(opts =>
 using var host = builder.Build();
 await host.StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L450-L473' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_registering_custom_rabbit_mq_envelope_mapper' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L451-L474' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_registering_custom_rabbit_mq_envelope_mapper' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -155,7 +155,7 @@ At this point, the interoperability is only built and tested for the [Rabbit MQ 
 Here's a sample:
 
 <!-- snippet: sample_NServiceBus_interoperability -->
-<a id='snippet-sample_nservicebus_interoperability'></a>
+<a id='snippet-sample_NServiceBus_interoperability'></a>
 ```cs
 Wolverine = await Host.CreateDefaultBuilder().UseWolverine(opts =>
 {
@@ -181,7 +181,7 @@ Wolverine = await Host.CreateDefaultBuilder().UseWolverine(opts =>
     opts.Policies.RegisterInteropMessageAssembly(typeof(IInterfaceMessage).Assembly);
 }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/InteropTests/NServiceBus/NServiceBusFixture.cs#L16-L43' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_nservicebus_interoperability' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/InteropTests/NServiceBus/NServiceBusFixture.cs#L16-L43' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_NServiceBus_interoperability' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Interoperability with Mass Transit
@@ -198,7 +198,7 @@ with MassTransit, and don't try to use that endpoint for Wolverine to Wolverine 
 The configuration to do this is shown below:
 
 <!-- snippet: sample_MassTransit_interoperability -->
-<a id='snippet-sample_masstransit_interoperability'></a>
+<a id='snippet-sample_MassTransit_interoperability'></a>
 ```cs
 Wolverine = await Host.CreateDefaultBuilder().UseWolverine(opts =>
 {
@@ -226,5 +226,5 @@ Wolverine = await Host.CreateDefaultBuilder().UseWolverine(opts =>
         .DefaultIncomingMessage<ResponseMessage>().UseForReplies();
 }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/InteropTests/MassTransit/MassTransitSpecs.cs#L21-L49' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_masstransit_interoperability' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/InteropTests/MassTransit/MassTransitSpecs.cs#L21-L49' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_MassTransit_interoperability' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->

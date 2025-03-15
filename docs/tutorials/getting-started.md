@@ -52,17 +52,17 @@ public record CreateIssue(Guid OriginatorId, string Title, string Description);
 and
 
 <!-- snippet: sample_Quickstart_commands_AssignIssue -->
-<a id='snippet-sample_quickstart_commands_assignissue'></a>
+<a id='snippet-sample_Quickstart_commands_AssignIssue'></a>
 ```cs
 public record AssignIssue(Guid IssueId, Guid AssigneeId);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Quickstart/AssignIssue.cs#L3-L7' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_quickstart_commands_assignissue' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Quickstart/AssignIssue.cs#L3-L7' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_Quickstart_commands_AssignIssue' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Let's jump right into the `Program.cs` file of our new web service:
 
 <!-- snippet: sample_Quickstart_Program -->
-<a id='snippet-sample_quickstart_program'></a>
+<a id='snippet-sample_Quickstart_Program'></a>
 ```cs
 using Oakton;
 using Quickstart;
@@ -104,7 +104,7 @@ app.MapGet("/", () => Results.Redirect("/swagger"));
 // your Wolverine application
 return await app.RunOaktonCommands(args);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Quickstart/Program.cs#L1-L43' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_quickstart_program' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Quickstart/Program.cs#L1-L43' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_Quickstart_Program' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: tip
@@ -126,7 +126,7 @@ inline. In a simplistic form, here is the entire handler file for the `CreateIss
 command:
 
 <!-- snippet: sample_Quickstart_CreateIssueHandler -->
-<a id='snippet-sample_quickstart_createissuehandler'></a>
+<a id='snippet-sample_Quickstart_CreateIssueHandler'></a>
 ```cs
 namespace Quickstart;
 
@@ -160,7 +160,7 @@ public class CreateIssueHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Quickstart/CreateIssueHandler.cs#L1-L35' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_quickstart_createissuehandler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Quickstart/CreateIssueHandler.cs#L1-L35' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_Quickstart_CreateIssueHandler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Hopefully that code is simple enough, but let's talk what you do not see in this code or
@@ -194,7 +194,7 @@ the initial web service call.
 The `IssueHandled` event message will be handled by this code:
 
 <!-- snippet: sample_Quickstart_IssueCreatedHandler -->
-<a id='snippet-sample_quickstart_issuecreatedhandler'></a>
+<a id='snippet-sample_Quickstart_IssueCreatedHandler'></a>
 ```cs
 public static class IssueCreatedHandler
 {
@@ -218,7 +218,7 @@ public static class IssueCreatedHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Quickstart/IssueCreatedHandler.cs#L5-L29' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_quickstart_issuecreatedhandler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Quickstart/IssueCreatedHandler.cs#L5-L29' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_Quickstart_IssueCreatedHandler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Now, you'll notice that Wolverine is happy to allow you to use static methods as

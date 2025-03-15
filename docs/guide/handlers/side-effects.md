@@ -24,7 +24,7 @@ irritating to use in tests).
 First off, I'm going to create a new "side effect" type for writing a file like this:
 
 <!-- snippet: sample_WriteFile -->
-<a id='snippet-sample_writefile'></a>
+<a id='snippet-sample_WriteFile'></a>
 ```cs
 // This has to be public btw
 public record WriteFile(string Path, string Contents)
@@ -35,8 +35,8 @@ public record WriteFile(string Path, string Contents)
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CustomReturnType.cs#L12-L23' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_writefile' title='Start of snippet'>anchor</a></sup>
-<a id='snippet-sample_writefile-1'></a>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CustomReturnType.cs#L12-L23' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_WriteFile' title='Start of snippet'>anchor</a></sup>
+<a id='snippet-sample_WriteFile-1'></a>
 ```cs
 // ISideEffect is a Wolverine marker interface
 public class WriteFile : ISideEffect
@@ -62,13 +62,13 @@ public class WriteFile : ISideEffect
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/using_custom_side_effect.cs#L41-L67' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_writefile-1' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/using_custom_side_effect.cs#L41-L67' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_WriteFile-1' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And the matching message type, message handler, and a settings class for configuration:
 
 <!-- snippet: sample_RecordTextHandler -->
-<a id='snippet-sample_recordtexthandler'></a>
+<a id='snippet-sample_RecordTextHandler'></a>
 ```cs
 // An options class
 public class PathSettings
@@ -87,7 +87,7 @@ public class RecordTextHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/using_custom_side_effect.cs#L20-L39' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_recordtexthandler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/using_custom_side_effect.cs#L20-L39' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_RecordTextHandler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 At runtime, Wolverine is generating this code to handle the `RecordText` message:

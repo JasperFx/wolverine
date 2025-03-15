@@ -76,7 +76,7 @@ To that end, you can inject the `Wolverine.Persistence.TenantId` into any Wolver
 to get easy access to the tenant id:
 
 <!-- snippet: sample_TenantId -->
-<a id='snippet-sample_tenantid'></a>
+<a id='snippet-sample_TenantId'></a>
 ```cs
 /// <summary>
 /// Strong typed identifier for the tenant id within a Wolverine message handler
@@ -94,7 +94,7 @@ public record TenantId(string Value)
     public bool IsEmpty() => Value.IsEmpty() || Value == DefaultTenantId;
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Persistence/TenantId.cs#L9-L27' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_tenantid' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Persistence/TenantId.cs#L9-L27' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_TenantId' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 There's really nothing to it other than just pulling that type in as a parameter argument to a message handler:

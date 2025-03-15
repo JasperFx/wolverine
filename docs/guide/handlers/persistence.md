@@ -112,7 +112,7 @@ or request body, you can specify the identity value source through the `EntityAt
 to one of these values:
 
 <!-- snippet: sample_ValueSource -->
-<a id='snippet-sample_valuesource'></a>
+<a id='snippet-sample_ValueSource'></a>
 ```cs
 public enum ValueSource
 {
@@ -132,7 +132,7 @@ public enum ValueSource
     RouteValue
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Attributes/ModifyChainAttribute.cs#L17-L37' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_valuesource' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Attributes/ModifyChainAttribute.cs#L17-L37' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_ValueSource' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Some other facts to know about `[Entity]` usage:

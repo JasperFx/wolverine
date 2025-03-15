@@ -21,11 +21,11 @@ be handled completely separately by two different handlers performing two differ
 message as an input.
 
 <!-- snippet: sample_StickyMessage -->
-<a id='snippet-sample_stickymessage'></a>
+<a id='snippet-sample_StickyMessage'></a>
 ```cs
 public class StickyMessage;
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/sticky_message_handlers.cs#L233-L237' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_stickymessage' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/sticky_message_handlers.cs#L233-L237' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_StickyMessage' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And we're going to handle that `StickyMessage` message separately with two different handler types:

@@ -30,7 +30,7 @@ using var host = await Host.CreateDefaultBuilder()
         opts.PublishAllMessages().ToRabbitExchange("exchange1");
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L241-L261' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_publish_to_rabbitmq_routing_key' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L242-L262' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_publish_to_rabbitmq_routing_key' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 At development time -- or occasionally in production systems -- you may want to have the messaging
@@ -47,7 +47,7 @@ using var host = await Host.CreateDefaultBuilder()
             .AutoPurgeOnStartup();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L266-L275' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_autopurge_rabbitmq' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L267-L276' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_autopurge_rabbitmq' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Or you can be more selective and only have certain queues of volatile messages purged
@@ -64,7 +64,7 @@ using var host = await Host.CreateDefaultBuilder()
             .DeclareQueue("queue2", q => q.PurgeOnStartup = true);
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L280-L290' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_autopurge_selective_queues' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L281-L291' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_autopurge_selective_queues' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Wolverine's Rabbit MQ integration also supports the [Oakton stateful resource](https://jasperfx.github.io/oakton/guide/host/resources.html) model,
@@ -172,7 +172,36 @@ are largely not impacted otherwise.
 
 Here are your options for configuring one or many queues as opting into being a "Quorum Queue" or a "Stream":
 
-snippet: sample_configuring_quorum_or_streams_in_rabbit_MQ
+<!-- snippet: sample_configuring_quorum_or_streams_in_rabbit_MQ -->
+<a id='snippet-sample_configuring_quorum_or_streams_in_rabbit_MQ'></a>
+```cs
+var builder = Host.CreateApplicationBuilder();
+builder.UseWolverine(opts =>
+{
+    opts
+        .UseRabbitMq(builder.Configuration.GetConnectionString("rabbit"))
+        
+        // You can configure the queue type for declaration with this
+        // usage as well
+        .DeclareQueue("stream", q => q.QueueType = QueueType.stream)
+
+        // Use quorum queues by default as a policy
+        .UseQuorumQueues()
+
+        // Or instead use streams
+        .UseStreamsAsQueues();
+
+    opts.ListenToRabbitQueue("quorum1")
+        // Override the queue type in declarations for a
+        // single queue, and the explicit configuration will win
+        // out over any policy or convention
+        .QueueType(QueueType.quorum);
+    
+    
+});
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L504-L531' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_quorum_or_streams_in_rabbit_MQ' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 There are just a few things to know:
 
@@ -186,7 +215,7 @@ you can quickly access and make additions to the Rabbit MQ integration with your
 like so:
 
 <!-- snippet: sample_RabbitMQ_configuration_in_wolverine_extension -->
-<a id='snippet-sample_rabbitmq_configuration_in_wolverine_extension'></a>
+<a id='snippet-sample_RabbitMQ_configuration_in_wolverine_extension'></a>
 ```cs
 public class MyModuleExtension : IWolverineExtension
 {
@@ -201,6 +230,6 @@ public class MyModuleExtension : IWolverineExtension
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L545-L560' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_rabbitmq_configuration_in_wolverine_extension' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L578-L593' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_RabbitMQ_configuration_in_wolverine_extension' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 

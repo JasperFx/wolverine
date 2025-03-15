@@ -127,21 +127,12 @@ would be derived from either Wolverine's [message type name](/guide/messages.htm
 or by using the `[Topic("topic name")]` attribute as shown below:
 
 <!-- snippet: sample_using_Topic_attribute -->
-<a id='snippet-sample_using_topic_attribute'></a>
+<a id='snippet-sample_using_Topic_attribute'></a>
 ```cs
 [Topic("one")]
 public class TopicMessage1;
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/TopicRoutingTester.cs#L7-L12' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_topic_attribute' title='Start of snippet'>anchor</a></sup>
-<a id='snippet-sample_using_topic_attribute-1'></a>
-```cs
-[Topic("color.blue")]
-public class FirstMessage
-{
-    public Guid Id { get; set; } = Guid.NewGuid();
-}
-```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/send_by_topics.cs#L397-L405' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_topic_attribute-1' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/TopicRoutingTester.cs#L7-L12' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_Topic_attribute' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Publishing by Topic Rules
@@ -263,7 +254,7 @@ For more complex interoperability, you can implement the `IMqttEnvelopeMapper` i
 incoming and outgoing MQTT messages and the Wolverine `Envelope` structure. Here's an example:
 
 <!-- snippet: sample_MyMqttEnvelopeMapper -->
-<a id='snippet-sample_mymqttenvelopemapper'></a>
+<a id='snippet-sample_MyMqttEnvelopeMapper'></a>
 ```cs
 public class MyMqttEnvelopeMapper : IMqttEnvelopeMapper
 {
@@ -294,7 +285,7 @@ public class MyMqttEnvelopeMapper : IMqttEnvelopeMapper
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/MQTT/Wolverine.MQTT.Tests/Samples.cs#L207-L238' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_mymqttenvelopemapper' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/MQTT/Wolverine.MQTT.Tests/Samples.cs#L207-L238' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_MyMqttEnvelopeMapper' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And apply that to an MQTT topic like so:

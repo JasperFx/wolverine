@@ -154,7 +154,7 @@ to use any return values as a the endpoint response and to return an empty respo
 code. Here's an example from the tests:
 
 <!-- snippet: sample_using_EmptyResponse -->
-<a id='snippet-sample_using_emptyresponse'></a>
+<a id='snippet-sample_using_EmptyResponse'></a>
 ```cs
 [AggregateHandler]
 [WolverinePost("/orders/ship"), EmptyResponse]
@@ -167,7 +167,7 @@ public static OrderShipped Ship(ShipOrder command, Order order)
     return new OrderShipped();
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L116-L129' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_emptyresponse' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L116-L129' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_EmptyResponse' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## JSON Handling
@@ -200,9 +200,9 @@ The `IResult` mechanics are applied to the return value of any type that can be 
 Wolverine will execute an ASP.Net Core `IResult` object returned from an HTTP endpoint method. 
 
 <!-- snippet: sample_conditional_IResult_return -->
-<a id='snippet-sample_conditional_iresult_return'></a>
+<a id='snippet-sample_conditional_IResult_return'></a>
 ```cs
-[WolverineGet("/choose/color")]
+[WolverinePost("/choose/color")]
 public IResult Redirect(GoToColor request)
 {
     switch (request.Color)
@@ -218,7 +218,7 @@ public IResult Redirect(GoToColor request)
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/DocumentationSamples.cs#L31-L49' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conditional_iresult_return' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/DocumentationSamples.cs#L31-L49' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conditional_IResult_return' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -263,7 +263,7 @@ There's actually a way to customize how Wolverine handles parameters in HTTP end
 To do so, you'd need to write an implementation of the `IParameterStrategy` interface from Wolverine.Http:
 
 <!-- snippet: sample_IParameterStrategy -->
-<a id='snippet-sample_iparameterstrategy'></a>
+<a id='snippet-sample_IParameterStrategy'></a>
 ```cs
 /// <summary>
 /// Apply custom handling to a Wolverine.Http endpoint/chain based on a parameter within the
@@ -275,14 +275,14 @@ public interface IParameterStrategy
     bool TryMatch(HttpChain chain, IServiceContainer container, ParameterInfo parameter, out Variable? variable);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http/CodeGen/IParameterStrategy.cs#L7-L19' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_iparameterstrategy' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http/CodeGen/IParameterStrategy.cs#L7-L19' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_IParameterStrategy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 As an example, let's say that you want any parameter of type `DateTimeOffset` that's named "now" to receive the current
 system time. To do that, we can write this class:
 
 <!-- snippet: sample_NowParameterStrategy -->
-<a id='snippet-sample_nowparameterstrategy'></a>
+<a id='snippet-sample_NowParameterStrategy'></a>
 ```cs
 public class NowParameterStrategy : IParameterStrategy
 {
@@ -301,7 +301,7 @@ public class NowParameterStrategy : IParameterStrategy
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Samples/CustomParameter.cs#L10-L29' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_nowparameterstrategy' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Samples/CustomParameter.cs#L10-L29' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_NowParameterStrategy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 and register that strategy within our `MapWolverineEndpoints()` set up like so:
