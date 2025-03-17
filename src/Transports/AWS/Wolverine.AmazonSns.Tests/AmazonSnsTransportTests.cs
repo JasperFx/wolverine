@@ -32,7 +32,7 @@ public class AmazonSnsTransportTests
     }
 
     [Fact]
-    public void findEndpointByUri_should_correctly_find_by_topicname()
+    public void findEndpointByUri_should_correctly_find_by_topicName()
     {
         var topicNameInPascalCase = "TestTopic";
         var topicNameLowerCase = "testtopic";
