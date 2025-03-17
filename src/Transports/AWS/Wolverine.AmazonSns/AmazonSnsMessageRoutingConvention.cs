@@ -10,8 +10,7 @@ public class AmazonSnsMessageRoutingConvention : MessageRoutingConvention<Amazon
     protected override (AmazonSnsListenerConfiguration, Endpoint) FindOrCreateListenerForIdentifier(string identifier,
         AmazonSnsTransport transport, Type messageType)
     {
-        var topic = transport.EndpointForTopic(identifier);
-        return (new AmazonSnsListenerConfiguration(topic), topic);
+        throw new NotImplementedException();
     }
 
     protected override (AmazonSnsSubscriberConfiguration, Endpoint) FindOrCreateSubscriber(string identifier,

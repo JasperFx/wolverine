@@ -14,6 +14,8 @@ public class AmazonSnsTopic : Endpoint, IBrokerQueue
 {
     private readonly AmazonSnsTransport _parent;
     
+    private bool _initialized;
+    
     private ISnsEnvelopeMapper _mapper = new DefaultSnsEnvelopeMapper();
     
     internal AmazonSnsTopic(string queueName, AmazonSnsTransport parent) : base(new Uri($"{parent.Protocol}://{queueName}"),
@@ -24,8 +26,6 @@ public class AmazonSnsTopic : Endpoint, IBrokerQueue
         EndpointName = queueName;
 
         Configuration = new CreateTopicRequest(TopicName);
-
-        // MessageBatchSize = 10;
     }
     
     /// <summary>
@@ -41,15 +41,11 @@ public class AmazonSnsTopic : Endpoint, IBrokerQueue
     
     public string TopicName { get; }
 
-    // Set by the AmazonSnsTransport parent
-    internal string? TopicArn { get; private set; }
+    internal string? TopicArn { get; set; }
     
     public CreateTopicRequest Configuration { get; }
     
-    /// <summary>
-    ///     Name of the dead letter queue for this SQS queue where failed messages will be moved
-    /// </summary>
-    public string? DeadLetterQueueName { get; set; } = AmazonSnsTransport.DeadLetterQueueName;
+    public ICollection<SubscribeRequest> TopicSubscriptions { get; } = new List<SubscribeRequest>();
     
     public ValueTask<bool> CheckAsync()
     {
@@ -66,25 +62,10 @@ public class AmazonSnsTopic : Endpoint, IBrokerQueue
         return new ValueTask(SetupAsync(_parent.Client!));
     }
     
-    internal async Task SetupAsync(IAmazonSimpleNotificationService client)
-    {
-        try
-        {
-            var response = await client.CreateTopicAsync(Configuration);
-
-            TopicArn = response.TopicArn;
-        }
-        catch (Exception e)
-        {
-            Console.WriteLine(e);
-            throw;
-        }
-    }
-
     public ValueTask PurgeAsync(ILogger logger)
     {
         // TODO We can't really purge SNS topics, so probably do nothing here
-        throw new NotImplementedException();
+        return new ValueTask(Task.CompletedTask);
     }
     
     public async ValueTask<Dictionary<string, string>> GetAttributesAsync()
@@ -105,16 +86,9 @@ public class AmazonSnsTopic : Endpoint, IBrokerQueue
     
     internal async Task SendMessageAsync(Envelope envelope, ILogger logger)
     {
-        if (TopicArn.IsEmpty())
+        if (!_initialized)
         {
-            var client = _parent.Client;
-
-            if (client == null)
-            {
-                throw new InvalidOperationException($"Parent {nameof(AmazonSnsTransport)} has not been initialized");
-            }
-            
-            await SetupAsync(client);
+            await InitializeAsync(logger);
         }
         
         var body = _mapper.BuildMessageBody(envelope);
@@ -146,5 +120,55 @@ public class AmazonSnsTopic : Endpoint, IBrokerQueue
     protected override ISender CreateSender(IWolverineRuntime runtime)
     {
         return new InlineSnsSender(runtime, this);
+    }
+
+    public override async ValueTask InitializeAsync(ILogger logger)
+    {
+        if (_initialized)
+        {
+            return;
+        }
+        
+        try
+        {
+            var client = _parent.Client;
+
+            if (client == null)
+            {
+                throw new InvalidOperationException($"Parent {nameof(AmazonSnsTransport)} has not been initialized");
+            }
+            
+            await SetupAsync(client);
+            
+            if (_parent.AutoProvision)
+            {
+                foreach (var subscribeRequest in TopicSubscriptions)
+                {
+                    await client.SubscribeAsync(subscribeRequest);
+                }
+            }
+        }
+        catch (Exception e)
+        {
+            throw new WolverineSnsTransportException($"Error while trying to initialize Amazon SNS topic '{TopicName}'",
+                e);
+        }
+        
+        _initialized = true;
+    }
+    
+    private async Task SetupAsync(IAmazonSimpleNotificationService client)
+    {
+        try
+        {
+            var response = await client.CreateTopicAsync(Configuration);
+
+            TopicArn = response.TopicArn;
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e);
+            throw;
+        }
     }
 }
