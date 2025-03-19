@@ -1,9 +1,9 @@
 ﻿using System.Text.Json;
 using Amazon.SimpleNotificationService.Model;
-using Wolverine.AmazonSns.Internal;
+using Wolverine.AmazonSqs.Internal;
 using Wolverine.Configuration;
 
-namespace Wolverine.AmazonSns;
+namespace Wolverine.AmazonSqs;
 
 public class 
     AmazonSnsSubscriberConfiguration : SubscriberConfiguration<AmazonSnsSubscriberConfiguration, AmazonSnsTopic>
@@ -42,7 +42,7 @@ public class
     /// <returns></returns>
     public AmazonSnsSubscriberConfiguration SubscribeSqsQueueByArn(string queueArn)
     {
-        add(e => e.TopicSubscriptions.Add(new SubscribeRequest{ TopicArn = e.TopicArn, Protocol = "sqs", Endpoint = queueArn}));
+        add(e => e.TopicSubscriptions.Add(new SubscribeRequest{ TopicArn = e.EndpointArn, Protocol = "sqs", Endpoint = queueArn}));
         return this;
     }
     

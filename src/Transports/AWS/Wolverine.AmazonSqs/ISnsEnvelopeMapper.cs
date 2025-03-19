@@ -2,7 +2,7 @@
 using Wolverine.Runtime.Serialization;
 using Wolverine.Transports;
 
-namespace Wolverine.AmazonSns;
+namespace Wolverine.AmazonSqs;
 
 /// <summary>
 /// Pluggable strategy for reading and writing data to Amazon SNS topics

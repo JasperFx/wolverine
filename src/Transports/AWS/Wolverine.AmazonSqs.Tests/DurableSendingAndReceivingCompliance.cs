@@ -15,7 +15,7 @@ public class DurableComplianceFixture : TransportComplianceFixture, IAsyncLifeti
 {
     public static int Number;
 
-    public DurableComplianceFixture() : base(new Uri("sqs://receiver"), 120)
+    public DurableComplianceFixture() : base(new Uri($"{AmazonSqsTransport.SqsProtocol}://{AmazonSqsTransport.SqsSegment}/receiver"), 120)
     {
     }
 
@@ -23,7 +23,7 @@ public class DurableComplianceFixture : TransportComplianceFixture, IAsyncLifeti
     {
         var number = ++Number;
 
-        OutboundAddress = new Uri("sqs://receiver-" + number);
+        OutboundAddress = new Uri($"{AmazonSqsTransport.SqsProtocol}://{AmazonSqsTransport.SqsSegment}/receiver-" + number);
 
         await SenderIs(opts =>
         {
@@ -88,7 +88,7 @@ public class DurableComplianceFixture : TransportComplianceFixture, IAsyncLifeti
             var transport = runtime.Options.Transports.GetOrCreate<AmazonSqsTransport>();
             var queue = transport.Queues[AmazonSqsTransport.DeadLetterQueueName];
             await queue.InitializeAsync(NullLogger.Instance);
-            var messages = await transport.Client.ReceiveMessageAsync(queue.QueueUrl);
+            var messages = await transport.SqsClient.ReceiveMessageAsync(queue.QueueUrl);
             messages.Messages.Count.ShouldBeGreaterThan(0);
         }
     }

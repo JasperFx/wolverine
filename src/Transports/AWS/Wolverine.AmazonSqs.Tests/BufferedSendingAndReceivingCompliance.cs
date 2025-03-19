@@ -9,7 +9,7 @@ namespace Wolverine.AmazonSqs.Tests;
 
 public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifetime
 {
-    public BufferedComplianceFixture() : base(new Uri("sqs://receiver"), 120)
+    public BufferedComplianceFixture() : base(new Uri($"{AmazonSqsTransport.SqsProtocol}://{AmazonSqsTransport.SqsSegment}/receiver"), 120)
     {
     }
 
@@ -17,7 +17,7 @@ public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifet
     {
         var number = Guid.NewGuid().ToString().Replace(".", "-");
 
-        OutboundAddress = new Uri("sqs://receiver-" + number);
+        OutboundAddress = new Uri($"{AmazonSqsTransport.SqsProtocol}://{AmazonSqsTransport.SqsSegment}/receiver-" + number);
 
         await SenderIs(opts =>
         {
@@ -58,7 +58,7 @@ public class BufferedSendingAndReceivingCompliance : TransportCompliance<Buffere
         var transport = runtime.Options.Transports.GetOrCreate<AmazonSqsTransport>();
         var queue = transport.Queues[AmazonSqsTransport.DeadLetterQueueName];
         await queue.InitializeAsync(NullLogger.Instance);
-        var messages = await transport.Client.ReceiveMessageAsync(queue.QueueUrl);
+        var messages = await transport.SqsClient.ReceiveMessageAsync(queue.QueueUrl);
         messages.Messages.Count.ShouldBeGreaterThan(0);
     }
 }

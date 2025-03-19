@@ -3,7 +3,7 @@ using Amazon.SimpleNotificationService.Model;
 using Wolverine.Transports;
 using Wolverine.Util;
 
-namespace Wolverine.AmazonSns;
+namespace Wolverine.AmazonSqs;
 
 internal class RawJsonSnsEnvelopeMapper : ISnsEnvelopeMapper
 {

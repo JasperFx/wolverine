@@ -1,6 +1,7 @@
 using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
+using Wolverine.AmazonSqs.Internal;
 using Wolverine.ComplianceTests;
 using Wolverine.Tracking;
 
@@ -55,6 +56,6 @@ public class end_to_end_with_conventional_routing_with_prefix : IDisposable
             .ServiceName.ShouldBe("Receiver");
 
         received.Envelope.Destination
-            .ShouldBe(new Uri("sqs://shazaam-routed/"));
+            .ShouldBe(new Uri($"{AmazonSqsTransport.SqsProtocol}://{AmazonSqsTransport.SqsSegment}/shazaam-routed/"));
     }
 }
