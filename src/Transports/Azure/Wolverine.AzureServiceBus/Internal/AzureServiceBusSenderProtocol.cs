@@ -36,8 +36,6 @@ public class AzureServiceBusSenderProtocol : ISenderProtocolWithNativeScheduling
             {
                 var message = new ServiceBusMessage();
                 _mapper.MapEnvelopeToOutgoing(envelope, message);
-
-                messages.Add(message);
             }
             catch (Exception e)
             {
@@ -49,7 +47,26 @@ public class AzureServiceBusSenderProtocol : ISenderProtocolWithNativeScheduling
 
         try
         {
-            await _sender.SendMessagesAsync(messages, _runtime.Cancellation);
+            var serviceBusMessageBatch = await _sender.CreateMessageBatchAsync();
+
+            foreach (var message in messages)
+            {
+                if (!serviceBusMessageBatch.TryAddMessage(message))
+                {
+                    // Send the currently full batch
+                    await _sender.SendMessagesAsync(serviceBusMessageBatch, _runtime.Cancellation);
+                    serviceBusMessageBatch.Dispose();
+
+                    // Create a new batch and add the message to it
+                    serviceBusMessageBatch = await _sender.CreateMessageBatchAsync();
+                    serviceBusMessageBatch.TryAddMessage(message);
+                }
+            }
+
+            // Send the final batch
+            await _sender.SendMessagesAsync(serviceBusMessageBatch, _runtime.Cancellation);
+            serviceBusMessageBatch.Dispose();
+
             await callback.MarkSuccessfulAsync(batch);
         }
         catch (Exception e)
