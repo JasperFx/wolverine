@@ -39,7 +39,7 @@ public class AmazonSqsListenerConfiguration : ListenerConfiguration<AmazonSqsLis
 
         add(e =>
         {
-            e.DeadLetterQueueName = AmazonSqsTransport.SanitizeSqsName(deadLetterQueue);
+            e.DeadLetterQueueName = AmazonSqsTransport.SanitizeAwsName(deadLetterQueue);
             if (configure != null)
             {
                 e.ConfigureDeadLetterQueue(configure);

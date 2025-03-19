@@ -34,7 +34,7 @@ public class conventional_listener_discovery : ConventionalRoutingContext
 
         AssertNoRoutes<PublishedMessage>();
 
-        var uri = "sqs://published.message".ToUri();
+        var uri = $"{AmazonSqsTransport.SqsProtocol}://{AmazonSqsTransport.QueueSegment}/published.message".ToUri();
         var endpoint = theRuntime.Endpoints.EndpointFor(uri);
         endpoint.ShouldBeNull();
 
@@ -51,7 +51,7 @@ public class conventional_listener_discovery : ConventionalRoutingContext
 
         PublishingRoutesFor<PublishedMessage>().Any().ShouldBeTrue();
 
-        var uri = "sqs://Message1".ToUri();
+        var uri = $"{AmazonSqsTransport.SqsProtocol}://{AmazonSqsTransport.QueueSegment}/Message1".ToUri();
         var endpoint = theRuntime.Endpoints.EndpointFor(uri);
         endpoint.ShouldBeNull();
 
@@ -83,7 +83,7 @@ public class conventional_listener_discovery : ConventionalRoutingContext
             return t.ToMessageTypeName().Replace('.', '-');
         }));
 
-        var uri = "sqs://routed".ToUri();
+        var uri = $"{AmazonSqsTransport.SqsProtocol}://{AmazonSqsTransport.QueueSegment}/routed".ToUri();
         var endpoint = theRuntime.Endpoints.EndpointFor(uri);
         endpoint.ShouldBeNull();
 
@@ -96,7 +96,7 @@ public class conventional_listener_discovery : ConventionalRoutingContext
     {
         ConfigureConventions(c => c.ConfigureListeners((x, _) => { x.UseDurableInbox(); }));
 
-        var endpoint = theRuntime.Endpoints.EndpointFor("sqs://routed".ToUri())
+        var endpoint = theRuntime.Endpoints.EndpointFor($"{AmazonSqsTransport.SqsProtocol}://{AmazonSqsTransport.QueueSegment}/routed".ToUri())
             .ShouldBeOfType<AmazonSqsQueue>();
 
         endpoint.Mode.ShouldBe(EndpointMode.Durable);

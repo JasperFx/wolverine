@@ -11,7 +11,7 @@ public class InlineComplianceFixture : TransportComplianceFixture, IAsyncLifetim
 {
     public static int Number;
 
-    public InlineComplianceFixture() : base(new Uri("sqs://buffered-receiver"), 120)
+    public InlineComplianceFixture() : base(new Uri($"{AmazonSqsTransport.SqsProtocol}://{AmazonSqsTransport.QueueSegment}/buffered-receiver"), 120)
     {
     }
 
@@ -19,7 +19,7 @@ public class InlineComplianceFixture : TransportComplianceFixture, IAsyncLifetim
     {
         var number = ++Number;
 
-        OutboundAddress = new Uri("sqs://receiver-" + number);
+        OutboundAddress = new Uri($"{AmazonSqsTransport.SqsProtocol}://{AmazonSqsTransport.QueueSegment}/receiver-" + number);
 
         await SenderIs(opts =>
         {
@@ -64,7 +64,7 @@ public class InlineSendingAndReceivingCompliance : TransportCompliance<InlineCom
         var transport = runtime.Options.Transports.GetOrCreate<AmazonSqsTransport>();
         var queue = transport.Queues[AmazonSqsTransport.DeadLetterQueueName];
         await queue.InitializeAsync(NullLogger.Instance);
-        var messages = await transport.Client.ReceiveMessageAsync(queue.QueueUrl);
+        var messages = await transport.SqsClient.ReceiveMessageAsync(queue.QueueUrl);
         messages.Messages.Count.ShouldBeGreaterThan(0);
     }
 }

@@ -41,7 +41,7 @@ public static class AmazonSqsTransportExtensions
         Action<AmazonSQSConfig> configuration)
     {
         var transport = options.AmazonSqsTransport();
-        configuration(transport.Config);
+        configuration(transport.SqsConfig);
         return new AmazonSqsTransportConfiguration(transport, options);
     }
 
@@ -98,5 +98,27 @@ public static class AmazonSqsTransportExtensions
         publishing.To(endpoint.Uri);
 
         return new AmazonSqsSubscriberConfiguration(endpoint);
+    }
+    
+    /// <summary>
+    ///     Publish matching messages to AWS SNS using the topic name
+    /// </summary>
+    /// <param name="publishing"></param>
+    /// <param name="topicName">The name of the AWS SNS topic</param>
+    /// <returns></returns>
+    public static AmazonSnsSubscriberConfiguration ToSnsTopic(this IPublishToExpression publishing, string topicName)
+    {
+        var transports = publishing.As<PublishingExpression>().Parent.Transports;
+        var transport = transports.GetOrCreate<AmazonSqsTransport>();
+
+        var corrected = transport.MaybeCorrectName(topicName);
+
+        var endpoint = transport.EndpointForTopic(corrected);
+        endpoint.EndpointName = topicName;
+
+        // This is necessary unfortunately to hook up the subscription rules
+        publishing.To(endpoint.Uri);
+
+        return new AmazonSnsSubscriberConfiguration(endpoint);
     }
 }

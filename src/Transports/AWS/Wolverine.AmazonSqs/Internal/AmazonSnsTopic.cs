@@ -2,30 +2,26 @@
 using Amazon.SimpleNotificationService.Model;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
-using Wolverine.Configuration;
 using Wolverine.Runtime;
 using Wolverine.Transports;
 using Wolverine.Transports.Sending;
-using Endpoint = Wolverine.Configuration.Endpoint;
 
-namespace Wolverine.AmazonSns.Internal;
+namespace Wolverine.AmazonSqs.Internal;
 
-public class AmazonSnsTopic : Endpoint, IBrokerQueue
+public class AmazonSnsTopic : AmazonEndpoint
 {
-    private readonly AmazonSnsTransport _parent;
-    
     private bool _initialized;
     
     private ISnsEnvelopeMapper _mapper = new DefaultSnsEnvelopeMapper();
     
-    internal AmazonSnsTopic(string queueName, AmazonSnsTransport parent) : base(new Uri($"{parent.Protocol}://{queueName}"),
-        EndpointRole.Application)
+    internal AmazonSnsTopic(string topicName, AmazonSqsTransport parent) 
+        : base(topicName, parent, new Uri($"{AmazonSqsTransport.SqsProtocol}://{AmazonSqsTransport.TopicSegment}/{topicName}"))
     {
-        _parent = parent;
-        TopicName = queueName;
-        EndpointName = queueName;
+        TopicName = topicName;
 
         Configuration = new CreateTopicRequest(TopicName);
+
+        // MessageBatchSize = 10;
     }
     
     /// <summary>
@@ -40,37 +36,40 @@ public class AmazonSnsTopic : Endpoint, IBrokerQueue
     }
     
     public string TopicName { get; }
-
-    internal string? TopicArn { get; set; }
+    public string TopicArn { get; set; }
     
     public CreateTopicRequest Configuration { get; }
     
-    public ICollection<SubscribeRequest> TopicSubscriptions { get; } = new List<SubscribeRequest>();
+    /// <summary>
+    ///     List of SNS topic subscriptions. Only supports SQS queue subscriptions. The key is the name of the queue to
+    ///     subscribe to the topic.
+    /// </summary>
+    public IDictionary<string, SubscribeRequest> TopicSubscriptions { get; } = new Dictionary<string, SubscribeRequest>();
     
-    public ValueTask<bool> CheckAsync()
+    public override ValueTask<bool> CheckAsync()
     {
         throw new NotImplementedException();
     }
 
-    public async ValueTask TeardownAsync(ILogger logger)
+    public override async ValueTask TeardownAsync(ILogger logger)
     {
-        await _parent.Client!.DeleteTopicAsync(new DeleteTopicRequest(TopicArn));
+        await Parent.SnsClient!.DeleteTopicAsync(new DeleteTopicRequest(TopicArn));
     }
 
-    public ValueTask SetupAsync(ILogger logger)
+    public override ValueTask SetupAsync(ILogger logger)
     {
-        return new ValueTask(SetupAsync(_parent.Client!));
+        return new ValueTask(SetupAsync(Parent.SnsClient!));
     }
     
-    public ValueTask PurgeAsync(ILogger logger)
+    public override ValueTask PurgeAsync(ILogger logger)
     {
         // TODO We can't really purge SNS topics, so probably do nothing here
         return new ValueTask(Task.CompletedTask);
     }
     
-    public async ValueTask<Dictionary<string, string>> GetAttributesAsync()
+    public override async ValueTask<Dictionary<string, string>> GetAttributesAsync()
     {
-        var client = _parent.Client!;
+        var client = Parent.SnsClient!;
 
         if (TopicArn.IsEmpty())
         {
@@ -84,7 +83,7 @@ public class AmazonSnsTopic : Endpoint, IBrokerQueue
         return atts.Attributes;
     }
     
-    internal async Task SendMessageAsync(Envelope envelope, ILogger logger)
+    internal override async Task SendMessageAsync(Envelope envelope, ILogger logger)
     {
         if (!_initialized)
         {
@@ -108,7 +107,7 @@ public class AmazonSnsTopic : Endpoint, IBrokerQueue
             request.MessageAttributes.Add(attribute.Key, attribute.Value);
         }
         
-        await _parent.Client!.PublishAsync(request);
+        await Parent.SnsClient!.PublishAsync(request);
     }
     
     public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
@@ -119,7 +118,7 @@ public class AmazonSnsTopic : Endpoint, IBrokerQueue
 
     protected override ISender CreateSender(IWolverineRuntime runtime)
     {
-        return new InlineSnsSender(runtime, this);
+        return new InlineAmazonSender(runtime, this);
     }
 
     public override async ValueTask InitializeAsync(ILogger logger)
@@ -131,26 +130,30 @@ public class AmazonSnsTopic : Endpoint, IBrokerQueue
         
         try
         {
-            var client = _parent.Client;
+            var client = Parent.SnsClient;
 
             if (client == null)
             {
-                throw new InvalidOperationException($"Parent {nameof(AmazonSnsTransport)} has not been initialized");
+                throw new InvalidOperationException($"Parent {nameof(AmazonSqsTransport)} has not been initialized");
             }
             
             await SetupAsync(client);
             
-            if (_parent.AutoProvision)
+            if (Parent.AutoProvision)
             {
-                foreach (var subscribeRequest in TopicSubscriptions)
+                foreach (var subscription in TopicSubscriptions)
                 {
-                    await client.SubscribeAsync(subscribeRequest);
+                    subscription.Value.TopicArn = TopicArn;
+                    
+                    var queueArn = await Parent.GetQueueArn(subscription.Key);
+                    subscription.Value.Endpoint = queueArn;
+                    await client.SubscribeAsync(subscription.Value);
                 }
             }
         }
         catch (Exception e)
         {
-            throw new WolverineSnsTransportException($"Error while trying to initialize Amazon SNS topic '{TopicName}'",
+            throw new WolverineSqsTransportException($"Error while trying to initialize Amazon SNS topic '{TopicName}'",
                 e);
         }
         
