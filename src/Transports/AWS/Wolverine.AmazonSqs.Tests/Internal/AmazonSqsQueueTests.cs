@@ -35,7 +35,7 @@ public class AmazonSqsQueueTests
     public void uri()
     {
         new AmazonSqsQueue("foo", new AmazonSqsTransport())
-            .Uri.ShouldBe(new Uri("sqs://foo"));
+            .Uri.ShouldBe(new Uri($"{AmazonSqsTransport.SqsProtocol}://{AmazonSqsTransport.SqsSegment}/foo"));
     }
 
     [Fact]

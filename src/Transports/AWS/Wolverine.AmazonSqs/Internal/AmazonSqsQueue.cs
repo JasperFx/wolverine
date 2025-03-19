@@ -9,22 +9,18 @@ using Wolverine.Transports.Sending;
 
 namespace Wolverine.AmazonSqs.Internal;
 
-public class AmazonSqsQueue : Endpoint, IBrokerQueue
+public class AmazonSqsQueue : AmazonEndpoint
 {
-    private readonly AmazonSqsTransport _parent;
-
     private bool _initialized;
 
     // This will vary later
     private ISqsEnvelopeMapper _mapper = new DefaultSqsEnvelopeMapper();
     private int _visibilityTimeout = 120;
 
-    internal AmazonSqsQueue(string queueName, AmazonSqsTransport parent) : base(new Uri($"{parent.Protocol}://{queueName}"),
-        EndpointRole.Application)
+    internal AmazonSqsQueue(string queueName, AmazonSqsTransport parent) 
+        : base(queueName, parent, new Uri($"{AmazonSqsTransport.SqsProtocol}://{AmazonSqsTransport.SqsSegment}/{queueName}"))
     {
-        _parent = parent;
         QueueName = queueName;
-        EndpointName = queueName;
 
         Configuration = new CreateQueueRequest(QueueName);
 
@@ -90,21 +86,17 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue
     /// </summary>
     public string? DeadLetterQueueName { get; set; } = AmazonSqsTransport.DeadLetterQueueName;
 
-    public async ValueTask<bool> CheckAsync()
+    public override async ValueTask<bool> CheckAsync()
     {
-        var response = await _parent.Client!.GetQueueUrlAsync(QueueName);
+        var response = await Parent.SqsClient!.GetQueueUrlAsync(QueueName);
         return response.QueueUrl.IsNotEmpty();
     }
 
-    public async ValueTask TeardownAsync(ILogger logger)
+    public override async ValueTask TeardownAsync(ILogger logger)
     {
-        var client = _parent.Client!;
+        var client = Parent.SqsClient!;
 
-        if (QueueUrl.IsEmpty())
-        {
-            var response = await client.GetQueueUrlAsync(QueueName);
-            QueueUrl = response.QueueUrl;
-        }
+        await LoadQueueUrlIfEmpty(client);
 
         if (QueueUrl.IsEmpty())
         {
@@ -114,19 +106,19 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue
         await client.DeleteQueueAsync(new DeleteQueueRequest(QueueUrl));
     }
 
-    public ValueTask SetupAsync(ILogger logger)
+    public override ValueTask SetupAsync(ILogger logger)
     {
-        return new ValueTask(SetupAsync(_parent.Client!));
+        return new ValueTask(SetupAsync(Parent.SqsClient!));
     }
 
-    public ValueTask PurgeAsync(ILogger logger)
+    public override ValueTask PurgeAsync(ILogger logger)
     {
-        return new ValueTask(PurgeAsync(_parent.Client!));
+        return new ValueTask(PurgeAsync(Parent.SqsClient!));
     }
 
-    public async ValueTask<Dictionary<string, string>> GetAttributesAsync()
+    public override async ValueTask<Dictionary<string, string>> GetAttributesAsync()
     {
-        var client = _parent.Client!;
+        var client = Parent.SqsClient!;
 
         if (QueueUrl.IsEmpty())
         {
@@ -157,7 +149,7 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue
         };
     }
 
-    internal async Task SendMessageAsync(Envelope envelope, ILogger logger)
+    internal override async Task SendMessageAsync(Envelope envelope, ILogger logger)
     {
         if (!_initialized)
         {
@@ -178,7 +170,7 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue
         foreach (var attribute in _mapper.ToAttributes(envelope))
             request.MessageAttributes.Add(attribute.Key, attribute.Value);
 
-        await _parent.Client!.SendMessageAsync(request);
+        await Parent.SqsClient!.SendMessageAsync(request);
     }
 
     public override async ValueTask InitializeAsync(ILogger logger)
@@ -188,7 +180,7 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue
             return;
         }
 
-        var client = _parent.Client;
+        var client = Parent.SqsClient;
 
         if (client == null)
         {
@@ -197,19 +189,15 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue
 
         try
         {
-            if (_parent.AutoProvision)
+            if (Parent.AutoProvision)
             {
                 await SetupAsync(client);
                 logger.LogInformation("Tried to create Amazon SQS queue {Name} if missing", QueueUrl);
             }
 
-            if (QueueUrl.IsEmpty())
-            {
-                var response = await client.GetQueueUrlAsync(QueueName);
-                QueueUrl = response.QueueUrl;
-            }
+            await LoadQueueUrlIfEmpty(client);
 
-            if (_parent.AutoPurgeAllQueues)
+            if (Parent.AutoPurgeAllQueues)
             {
                 await PurgeAsync(logger);
                 logger.LogInformation("Purging Amazon SQS queue {Name}", QueueUrl);
@@ -242,11 +230,7 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue
 
     public async Task PurgeAsync(IAmazonSQS client)
     {
-        if (QueueUrl.IsEmpty())
-        {
-            var response = await client.GetQueueUrlAsync(QueueName);
-            QueueUrl = response.QueueUrl;
-        }
+        await LoadQueueUrlIfEmpty(client);
 
         try
         {
@@ -260,7 +244,7 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue
 
     public override async ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
     {
-        if (_parent.Client == null)
+        if (Parent.SqsClient == null)
         {
             throw new InvalidOperationException("The parent transport has not yet been initialized");
         }
@@ -270,18 +254,18 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue
             await InitializeAsync(runtime.LoggerFactory.CreateLogger<AmazonSqsQueue>());
         }
 
-        return new SqsListener(runtime, this, _parent, receiver);
+        return new SqsListener(runtime, this, Parent, receiver);
     }
 
     protected override ISender CreateSender(IWolverineRuntime runtime)
     {
         if (Mode == EndpointMode.Inline)
         {
-            return new InlineSqsSender(runtime, this);
+            return new InlineAmazonSender(runtime, this);
         }
 
         var protocol = new SqsSenderProtocol(runtime, this,
-            _parent.Client ?? throw new InvalidOperationException("Parent transport has not been initialized"));
+            Parent.SqsClient ?? throw new InvalidOperationException("Parent transport has not been initialized"));
         return new BatchedSender(this, protocol, runtime.Cancellation,
             runtime.LoggerFactory.CreateLogger<SqsSenderProtocol>());
     }
@@ -322,21 +306,30 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue
     {
         if (DeadLetterQueueName != null)
         {
-            var dlq = _parent.Queues[DeadLetterQueueName];
+            var dlq = Parent.Queues[DeadLetterQueueName];
             configure(dlq);
         }
     }
 
     public override bool TryBuildDeadLetterSender(IWolverineRuntime runtime, out ISender? deadLetterSender)
     {
-        if (DeadLetterQueueName.IsNotEmpty() && !_parent.DisableDeadLetterQueues)
+        if (DeadLetterQueueName.IsNotEmpty() && !Parent.DisableDeadLetterQueues)
         {
-            var dlq = _parent.Queues[DeadLetterQueueName];
-            deadLetterSender = new InlineSqsSender(runtime, dlq);
+            var dlq = Parent.Queues[DeadLetterQueueName];
+            deadLetterSender = new InlineAmazonSender(runtime, dlq);
             return true;
         }
 
         deadLetterSender = default;
         return false;
+    }
+    
+    private async Task LoadQueueUrlIfEmpty(IAmazonSQS client)
+    {
+        if (QueueUrl.IsEmpty())
+        {
+            var response = await client.GetQueueUrlAsync(QueueName);
+            QueueUrl = response.QueueUrl;
+        }
     }
 }

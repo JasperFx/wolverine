@@ -1,4 +1,5 @@
 using Amazon.Runtime;
+using Amazon.SimpleNotificationService;
 using Amazon.SQS;
 using Amazon.SQS.Model;
 using JasperFx.Core;
@@ -9,39 +10,47 @@ using Wolverine.Transports;
 
 namespace Wolverine.AmazonSqs.Internal;
 
-public class AmazonSqsTransport : BrokerTransport<AmazonSqsQueue>
+public class AmazonSqsTransport : BrokerTransport<AmazonEndpoint>
 {
+    public const string SqsProtocol = "sqs";
+    public const string SqsSegment = "sqs";
+    public const string SnsSegment = "sns";
+    
     public const string DeadLetterQueueName = "wolverine-dead-letter-queue";
 
     public const char Separator = '-';
 
-    public AmazonSqsTransport() : base("sqs", "Amazon SQS")
+    public AmazonSqsTransport() : base(SqsProtocol, "Amazon SQS")
     {
         Queues = new LightweightCache<string, AmazonSqsQueue>(name => new AmazonSqsQueue(name, this));
+        Topics = new LightweightCache<string, AmazonSnsTopic>(name => new AmazonSnsTopic(name, this));
         IdentifierDelimiter = "-";
     }
 
-    internal AmazonSqsTransport(IAmazonSQS client) : this()
+    internal AmazonSqsTransport(IAmazonSQS sqsClient) : this()
     {
-        Client = client;
+        SqsClient = sqsClient;
     }
 
     public Func<IWolverineRuntime, AWSCredentials>? CredentialSource { get; set; }
 
     public LightweightCache<string, AmazonSqsQueue> Queues { get; }
+    public LightweightCache<string, AmazonSnsTopic> Topics { get; }
 
-    public AmazonSQSConfig Config { get; } = new();
+    public AmazonSQSConfig SqsConfig { get; } = new();
+    public AmazonSimpleNotificationServiceConfig SnsConfig { get; } = new();
 
-    internal IAmazonSQS? Client { get; private set; }
+    internal IAmazonSQS? SqsClient { get; private set; }
+    internal IAmazonSimpleNotificationService? SnsClient { get; private set; }
 
     public int LocalStackPort { get; set; }
 
     public bool UseLocalStackInDevelopment { get; set; }
     public bool DisableDeadLetterQueues { get; set; }
 
-    public static string SanitizeSqsName(string identifier)
+    public static string SanitizeAwsName(string identifier)
     {
-        //AWS requires FIFO queues to have a `.fifo` suffix
+        //AWS requires FIFO queues and topics to have a `.fifo` suffix
         var suffixIndex = identifier.LastIndexOf(".fifo", StringComparison.OrdinalIgnoreCase);
 
         if (suffixIndex != -1) // ".fifo" suffix found
@@ -60,15 +69,16 @@ public class AmazonSqsTransport : BrokerTransport<AmazonSqsQueue>
 
     public override string SanitizeIdentifier(string identifier)
     {
-        return SanitizeSqsName(identifier);
+        return SanitizeAwsName(identifier);
     }
 
     protected override IEnumerable<Endpoint> explicitEndpoints()
     {
-        return Queues;
+        foreach (var queue in Queues) yield return queue;
+        foreach (var topic in Topics) yield return topic;
     }
 
-    protected override IEnumerable<AmazonSqsQueue> endpoints()
+    protected override IEnumerable<AmazonEndpoint> endpoints()
     {
         if (!DisableDeadLetterQueues)
         {
@@ -76,21 +86,41 @@ public class AmazonSqsTransport : BrokerTransport<AmazonSqsQueue>
             foreach (var dlqName in dlqNames) Queues.FillDefault(dlqName!);
         }
 
-        return Queues;
+        foreach (var queue in Queues) yield return queue;
+        foreach (var topic in Topics) yield return topic;
     }
-
-    protected override AmazonSqsQueue findEndpointByUri(Uri uri)
+    
+    public new Endpoint GetOrCreateEndpoint(Uri uri)
     {
-        if (uri.Scheme != Protocol)
+        if (uri.Scheme != SnsSegment && uri.Scheme != SqsSegment)
         {
-            throw new ArgumentOutOfRangeException(nameof(uri));
+            throw new ArgumentOutOfRangeException($"Uri must have scheme '{Protocol}', but received {uri.Scheme}");
         }
-        return Queues.Where(x => x.Uri.OriginalString == uri.OriginalString).FirstOrDefault() ?? Queues[uri.OriginalString.Split("//")[1].TrimEnd('/')];
+
+        return findEndpointByUri(uri);
+    }
+    
+    protected override AmazonEndpoint findEndpointByUri(Uri uri)
+    {
+        var type = uri.Host;
+        var dfgsd = uri.Scheme;
+        var ss = uri.ToString();
+
+        var name = uri.Segments[1].TrimEnd('/');
+        return type switch
+        {
+            SqsSegment => Queues.FirstOrDefault(x => x.Uri.OriginalString == uri.OriginalString) ??
+                           Queues[name],
+            SnsSegment => Topics.FirstOrDefault(x => x.Uri.OriginalString == uri.OriginalString) ?? 
+                           Topics[name],
+            _ => throw new ArgumentOutOfRangeException(nameof(uri), $"Invalid Amazon object type '{type}'")
+        };
     }
 
     public override ValueTask ConnectAsync(IWolverineRuntime runtime)
     {
-        Client ??= BuildClient(runtime);
+        SqsClient ??= BuildSqsClient(runtime);
+        SnsClient ??= BuildSnsClient(runtime);
         return ValueTask.CompletedTask;
     }
 
@@ -105,25 +135,42 @@ public class AmazonSqsTransport : BrokerTransport<AmazonSqsQueue>
             nameof(GetQueueAttributesResponse.ApproximateNumberOfMessagesNotVisible), Justify.Right);
     }
 
-    public IAmazonSQS BuildClient(IWolverineRuntime runtime)
+    private IAmazonSQS BuildSqsClient(IWolverineRuntime runtime)
     {
         if (CredentialSource == null)
         {
-            return new AmazonSQSClient(Config);
+            return new AmazonSQSClient(SqsConfig);
         }
 
         var credentials = CredentialSource(runtime);
-        return new AmazonSQSClient(credentials, Config);
+        return new AmazonSQSClient(credentials, SqsConfig);
+    }
+    
+    private IAmazonSimpleNotificationService BuildSnsClient(IWolverineRuntime runtime)
+    {
+        if (CredentialSource == null)
+        {
+            return new AmazonSimpleNotificationServiceClient(SnsConfig);
+        }
+
+        var credentials = CredentialSource(runtime);
+        return new AmazonSimpleNotificationServiceClient(credentials, SnsConfig);
     }
 
     internal AmazonSqsQueue EndpointForQueue(string queueName)
     {
         return Queues[queueName];
     }
+    
+    internal AmazonSnsTopic EndpointForTopic(string topicName)
+    {
+        return Topics[topicName];
+    }
 
     internal void ConnectToLocalStack(int port = 4566)
     {
         CredentialSource = _ => new BasicAWSCredentials("ignore", "ignore");
-        Config.ServiceURL = $"http://localhost:{port}";
+        SqsConfig.ServiceURL = $"http://localhost:{port}";
+        SnsConfig.ServiceURL = $"http://localhost:{port}";
     }
 }
