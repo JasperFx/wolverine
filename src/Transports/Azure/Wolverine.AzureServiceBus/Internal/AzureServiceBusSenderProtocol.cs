@@ -36,6 +36,7 @@ public class AzureServiceBusSenderProtocol : ISenderProtocolWithNativeScheduling
             {
                 var message = new ServiceBusMessage();
                 _mapper.MapEnvelopeToOutgoing(envelope, message);
+                messages.Add(message);
             }
             catch (Exception e)
             {
