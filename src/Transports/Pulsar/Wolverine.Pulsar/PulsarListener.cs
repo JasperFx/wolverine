@@ -35,7 +35,8 @@ internal class PulsarListener : IListener
         var combined = CancellationTokenSource.CreateLinkedTokenSource(_cancellation, _localCancellation.Token);
 
         _consumer = transport.Client!.NewConsumer()
-            .SubscriptionName("Wolverine")
+            .SubscriptionName(endpoint.SubscriptionName)
+            .SubscriptionType(endpoint.SubscriptionType)
             .Topic(endpoint.PulsarTopic())
             .Create();
 
