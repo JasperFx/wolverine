@@ -1,3 +1,4 @@
+using DotPulsar;
 using JasperFx.Core;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
@@ -24,6 +25,8 @@ public class PulsarEndpoint : Endpoint
     public string Tenant { get; private set; } = Public;
     public string Namespace { get; private set; } = DefaultNamespace;
     public string? TopicName { get; private set; }
+    public string SubscriptionName { get; internal set; } = "Wolverine";
+    public SubscriptionType SubscriptionType { get; internal set; } = SubscriptionType.Exclusive;
 
     public static Uri UriFor(bool persistent, string tenant, string @namespace, string topicName)
     {
