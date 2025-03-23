@@ -14,7 +14,7 @@ public class InvoicesEndpoint
     #region sample_get_invoice_longhand
 
 {
-    [WolverineGet("/invoices/longhand/id")]
+    [WolverineGet("/invoices/longhand/{id}")]
     [ProducesResponseType(404)]
     [ProducesResponseType(200, Type = typeof(Invoice))]
     public static async Task<IResult> GetInvoice(

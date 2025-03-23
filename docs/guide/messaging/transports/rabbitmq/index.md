@@ -8,7 +8,7 @@ Wolverine uses the [Rabbit MQ .NET Client](https://www.rabbitmq.com/dotnet.html)
 
 All the code samples in this section are from the [Ping/Pong with Rabbit MQ sample project](https://github.com/JasperFx/wolverine/tree/main/src/Samples/PingPongWithRabbitMq).
 
-To use [RabbitMQ](http://www.rabbitmq.com/) as a transport with Wolverine, first install the `Wolverine.RabbitMQ` library via nuget to your project. Behind the scenes, this package uses the [RabbitMQ C# Client](https://www.rabbitmq.com/dotnet.html) to both send and receive messages from RabbitMQ.
+To use [RabbitMQ](http://www.rabbitmq.com/) as a transport with Wolverine, first install the `WolverineFX.RabbitMQ` library via nuget to your project. Behind the scenes, this package uses the [RabbitMQ C# Client](https://www.rabbitmq.com/dotnet.html) to both send and receive messages from RabbitMQ.
 
 <!-- snippet: sample_bootstrapping_rabbitmq -->
 <a id='snippet-sample_bootstrapping_rabbitmq'></a>
@@ -43,7 +43,7 @@ return await Host.CreateDefaultBuilder(args)
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/PingPongWithRabbitMq/Pinger/Program.cs#L7-L36' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_rabbitmq' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-See the [Rabbit MQ .NET Client documentation](https://www.rabbitmq.com/dotnet-api-guide.html#connecting) for more information about configuring the `ConnectionFactory` to connect to Rabbit MQ.
+See the [Rabbit MQ .NET Client documentation](https://www.com/dotnet-api-guide.html#connecting) for more information about configuring the `ConnectionFactory` to connect to Rabbit MQ.
 
 
 ## Managing Rabbit MQ Connections
@@ -62,7 +62,7 @@ using var host = await Host.CreateDefaultBuilder()
     .UseWolverine(opts =>
     {
         // *A* way to configure Rabbit MQ using their Uri schema
-        // documented here: https://www.rabbitmq.com/uri-spec.html
+        // documented here: https://www.com/uri-spec.html
         opts.UseRabbitMq(new Uri("amqp://localhost"))
 
             // Turn on listener connection only in case if you only need to listen for messages
@@ -91,7 +91,7 @@ using var host = await Host.CreateDefaultBuilder()
     .UseWolverine(opts =>
     {
         // *A* way to configure Rabbit MQ using their Uri schema
-        // documented here: https://www.rabbitmq.com/uri-spec.html
+        // documented here: https://www.com/uri-spec.html
         opts.UseRabbitMq(new Uri("amqp://localhost"))
 
             // Turn on sender connection only in case if you only need to send messages
@@ -127,7 +127,7 @@ using var host = await Host.CreateDefaultBuilder()
     .UseWolverine(opts =>
     {
         // *A* way to configure Rabbit MQ using their Uri schema
-        // documented here: https://www.rabbitmq.com/uri-spec.html
+        // documented here: https://www.com/uri-spec.html
         opts.UseRabbitMq(new Uri("amqp://localhost"))
 
             // Use Rabbit MQ for inter-node communication
@@ -152,7 +152,7 @@ using var host = await Host.CreateDefaultBuilder()
     .UseWolverine(opts =>
     {
         // *A* way to configure Rabbit MQ using their Uri schema
-        // documented here: https://www.rabbitmq.com/uri-spec.html
+        // documented here: https://www.com/uri-spec.html
         opts.UseRabbitMq(new Uri("amqp://localhost"))
 
             // Stop Wolverine from trying to create a reply queue
