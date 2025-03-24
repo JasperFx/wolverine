@@ -70,6 +70,16 @@ internal class KafkaListener : IListener, IDisposable
                     }
                     catch (Exception e)
                     {
+                        // Might be a poison pill message, try to get out of here
+                        try
+                        {
+                            _consumer.Commit();
+                        }
+                        // ReSharper disable once EmptyGeneralCatchClause
+                        catch (Exception)
+                        {
+                        }
+                        
                         logger.LogError(e, "Error trying to map Kafka message to a Wolverine envelope");
                     }
                 }
@@ -87,8 +97,17 @@ internal class KafkaListener : IListener, IDisposable
 
     public ValueTask CompleteAsync(Envelope envelope)
     {
-        // do nothing here, it's already ack'd before we get here
+        if (_qualityOfService == QualityOfService.AtLeastOnce)
+        {
+            try
+            {
+                _consumer.Commit();
+            }
+            catch (Exception)
+            {
 
+            }
+        }
         return ValueTask.CompletedTask;
     }
 

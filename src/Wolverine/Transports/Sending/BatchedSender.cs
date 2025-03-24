@@ -110,6 +110,11 @@ public class BatchedSender : ISender, ISenderRequiresCallback
 
     public void Dispose()
     {
+        if (_protocol is IDisposable d)
+        {
+            d.SafeDispose();
+        }
+        
         _serializing.Complete();
         _sender.Complete();
         _batching.Dispose();
