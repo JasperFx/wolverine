@@ -20,7 +20,7 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue
     public SqsListener(IWolverineRuntime runtime, AmazonSqsQueue queue, AmazonSqsTransport transport,
         IReceiver receiver)
     {
-        if (transport.Client == null)
+        if (transport.SqsClient == null)
         {
             throw new InvalidOperationException("Parent transport has not been initialized");
         }
@@ -61,7 +61,7 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue
 
                     _queue.ConfigureRequest(request);
 
-                    var results = await _transport.Client.ReceiveMessageAsync(request, _cancellation.Token);
+                    var results = await _transport.SqsClient.ReceiveMessageAsync(request, _cancellation.Token);
 
                     failedCount = 0;
 
@@ -82,7 +82,7 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue
                                 {
                                     try
                                     {
-                                        await _transport.Client.SendMessageAsync(new SendMessageRequest(_deadLetterQueue.QueueUrl,
+                                        await _transport.SqsClient.SendMessageAsync(new SendMessageRequest(_deadLetterQueue.QueueUrl,
                                             message.Body));
                                     }
                                     catch (Exception exception)
@@ -187,6 +187,6 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue
 
     public Task CompleteAsync(Message sqsMessage)
     {
-        return _transport.Client!.DeleteMessageAsync(_queue.QueueUrl, sqsMessage.ReceiptHandle);
+        return _transport.SqsClient!.DeleteMessageAsync(_queue.QueueUrl, sqsMessage.ReceiptHandle);
     }
 }

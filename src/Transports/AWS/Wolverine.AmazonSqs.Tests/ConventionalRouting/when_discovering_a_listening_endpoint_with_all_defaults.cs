@@ -7,7 +7,7 @@ namespace Wolverine.AmazonSqs.Tests.ConventionalRouting;
 
 public class when_discovering_a_listening_endpoint_with_all_defaults : ConventionalRoutingContext
 {
-    private readonly Uri theExpectedUri = "sqs://routed".ToUri();
+    private readonly Uri theExpectedUri = $"{AmazonSqsTransport.SqsProtocol}://{AmazonSqsTransport.QueueSegment}/routed".ToUri();
     private readonly AmazonSqsQueue theQueue;
 
     public when_discovering_a_listening_endpoint_with_all_defaults()

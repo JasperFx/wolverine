@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
 using Wolverine.AmazonSqs.Internal;
+using Wolverine.ComplianceTests.Compliance;
 
 namespace Wolverine.AmazonSqs.Tests;
 
@@ -17,7 +18,8 @@ public class bootstrapping
         var transport = options.AmazonSqsTransport();
 
         // Just a smoke test on configuration here
-        var queueNames = await transport.Client.ListQueuesAsync("wolverine");
+        var queueNames = await transport.SqsClient.ListQueuesAsync("wolverine");
+        var topicNames = await transport.SnsClient.ListTopicsAsync();
     }
 
     [Fact]
@@ -37,11 +39,11 @@ public class bootstrapping
         var transport = options.AmazonSqsTransport();
 
         // Just a smoke test on configuration here
-        var queueNames = await transport.Client.ListQueuesAsync("wolverine");
+        var queueNames = await transport.SqsClient.ListQueuesAsync("wolverine");
         var queueUrl = queueNames.QueueUrls.FirstOrDefault(x => x.Contains(queueName));
         queueUrl.ShouldNotBeNull();
 
-        await transport.Client.DeleteQueueAsync(queueUrl);
+        await transport.SqsClient.DeleteQueueAsync(queueUrl);
     }
 
     [Fact]
@@ -61,11 +63,11 @@ public class bootstrapping
         var options = host.Services.GetRequiredService<WolverineOptions>();
         var transport = options.AmazonSqsTransport();
 
-        var queueNames = await transport.Client.ListQueuesAsync("wolverine");
+        var queueNames = await transport.SqsClient.ListQueuesAsync("wolverine");
         var queueUrl = queueNames.QueueUrls.FirstOrDefault(x => x.Contains(queueName));
         queueUrl.ShouldNotBeNull();
 
-        await transport.Client.DeleteQueueAsync(queueUrl);
+        await transport.SqsClient.DeleteQueueAsync(queueUrl);
     }
 
     [Fact]
@@ -88,11 +90,75 @@ public class bootstrapping
 
         var options = host.Services.GetRequiredService<WolverineOptions>();
 
-        var endpoint = options.Transports.GetOrCreateEndpoint(new Uri($"sqs://{queueName}"))
+        var endpoint = options.Transports.GetOrCreateEndpoint(new Uri($"{AmazonSqsTransport.SqsProtocol}://{AmazonSqsTransport.QueueSegment}/{queueName}"))
             .ShouldBeOfType<AmazonSqsQueue>();
 
         endpoint.VisibilityTimeout.ShouldBe(4);
         endpoint.MaxNumberOfMessages.ShouldBe(5);
         endpoint.WaitTimeSeconds.ShouldBe(6);
+    }
+    
+    [Fact]
+    public async Task create_new_topic_on_startup()
+    {
+        var topicName = "wolverine-" + Guid.NewGuid();
+        
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.UseAmazonSqsTransportLocally();
+
+                opts.PublishMessage<Message1>().ToSnsTopic(topicName);
+            }).StartAsync();
+
+         
+        var options = host.Services.GetRequiredService<WolverineOptions>();
+        var transport = options.AmazonSqsTransport();
+        
+        var listTopicsResponse = await transport.SnsClient!.ListTopicsAsync();
+        listTopicsResponse.ShouldNotBeNull();
+        
+        var topic = listTopicsResponse.Topics.FirstOrDefault(x => x.TopicArn.Contains(topicName));
+        topic.ShouldNotBeNull();
+        
+        await transport.SnsClient.DeleteTopicAsync(topic.TopicArn);
+    }
+    
+    [Fact]
+    public async Task create_new_subsccription_on_startup()
+    {
+        var queueName = "wolverine-" + Guid.NewGuid();
+        var topicName = "wolverine-" + Guid.NewGuid();
+        
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.UseAmazonSqsTransportLocally();
+
+                opts.ListenToSqsQueue(queueName);
+                opts.PublishMessage<Message1>().ToSnsTopic(topicName).SubscribeSqsQueue(queueName);
+            }).StartAsync();
+
+         
+        var options = host.Services.GetRequiredService<WolverineOptions>();
+        var transport = options.AmazonSqsTransport();
+        
+        var queueNames = await transport.SqsClient!.ListQueuesAsync("wolverine");
+        var queueUrl = queueNames.QueueUrls.FirstOrDefault(x => x.Contains(queueName));
+        queueUrl.ShouldNotBeNull();
+        
+        var listTopicsResponse = await transport.SnsClient!.ListTopicsAsync();
+        listTopicsResponse.ShouldNotBeNull();
+        
+        var topic = listTopicsResponse.Topics.FirstOrDefault(x => x.TopicArn.Contains(topicName));
+        topic.ShouldNotBeNull();
+        
+        var subscriptions = await transport.SnsClient!.ListSubscriptionsAsync();
+        var sub = subscriptions.Subscriptions.FirstOrDefault(x => x.TopicArn.Contains(topicName));
+        sub.ShouldNotBeNull();
+        sub.Protocol.ShouldBe("sqs");
+        
+        await transport.SnsClient.DeleteTopicAsync(topic.TopicArn);
+        await transport.SqsClient.DeleteQueueAsync(queueUrl);
     }
 }

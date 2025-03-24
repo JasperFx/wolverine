@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
+using Wolverine.AmazonSqs.Internal;
 using Wolverine.Runtime;
 using Xunit.Abstractions;
 
@@ -33,8 +34,8 @@ public class discover_with_naming_prefix : IDisposable
         var runtime = _host.Services.GetRequiredService<IWolverineRuntime>();
 
         var uris = runtime.Endpoints.ActiveListeners().Select(x => x.Uri).ToArray();
-        uris.ShouldContain(new Uri("sqs://zztop-orderextension-createorder/"));
-        uris.ShouldContain(new Uri("sqs://zztop-orderextension-shiporder/"));
-        uris.ShouldContain(new Uri("sqs://zztop-routed/"));
+        uris.ShouldContain(new Uri($"{AmazonSqsTransport.SqsProtocol}://{AmazonSqsTransport.QueueSegment}/zztop-orderextension-createorder/"));
+        uris.ShouldContain(new Uri($"{AmazonSqsTransport.SqsProtocol}://{AmazonSqsTransport.QueueSegment}/zztop-orderextension-shiporder/"));
+        uris.ShouldContain(new Uri($"{AmazonSqsTransport.SqsProtocol}://{AmazonSqsTransport.QueueSegment}/zztop-routed/"));
     }
 }

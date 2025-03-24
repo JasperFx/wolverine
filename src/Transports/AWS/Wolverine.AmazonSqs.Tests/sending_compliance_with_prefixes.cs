@@ -10,14 +10,14 @@ public class PrefixedComplianceFixture : TransportComplianceFixture, IAsyncLifet
 {
     public static int Number;
 
-    public PrefixedComplianceFixture() : base(new Uri("sqs://foo-buffered-receiver"), 120)
+    public PrefixedComplianceFixture() : base(new Uri($"{AmazonSqsTransport.SqsProtocol}://{AmazonSqsTransport.QueueSegment}/foo-buffered-receiver"), 120)
     {
     }
 
     public async Task InitializeAsync()
     {
         var number = ++Number;
-        OutboundAddress = new Uri("sqs://foo-prefix-receiver-" + number);
+        OutboundAddress = new Uri($"{AmazonSqsTransport.SqsProtocol}://{AmazonSqsTransport.QueueSegment}/foo-prefix-receiver-" + number);
 
         await SenderIs(opts =>
         {

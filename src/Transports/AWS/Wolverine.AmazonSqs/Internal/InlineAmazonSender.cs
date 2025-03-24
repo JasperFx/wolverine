@@ -4,19 +4,19 @@ using Wolverine.Transports.Sending;
 
 namespace Wolverine.AmazonSqs.Internal;
 
-internal class InlineSqsSender : ISender
+internal class InlineAmazonSender : ISender
 {
     private readonly ILogger _logger;
-    private readonly AmazonSqsQueue _queue;
+    private readonly AmazonEndpoint _endpoint;
 
-    public InlineSqsSender(IWolverineRuntime runtime, AmazonSqsQueue queue)
+    public InlineAmazonSender(IWolverineRuntime runtime, AmazonEndpoint endpoint)
     {
-        _queue = queue;
-        _logger = runtime.LoggerFactory.CreateLogger<InlineSqsSender>();
+        _endpoint = endpoint;
+        _logger = runtime.LoggerFactory.CreateLogger<InlineAmazonSender>();
     }
 
     public bool SupportsNativeScheduledSend => false;
-    public Uri Destination => _queue.Uri;
+    public Uri Destination => _endpoint.Uri;
 
     public async Task<bool> PingAsync()
     {
@@ -34,6 +34,6 @@ internal class InlineSqsSender : ISender
 
     public async ValueTask SendAsync(Envelope envelope)
     {
-        await _queue.SendMessageAsync(envelope, _logger);
+        await _endpoint.SendMessageAsync(envelope, _logger);
     }
 }
