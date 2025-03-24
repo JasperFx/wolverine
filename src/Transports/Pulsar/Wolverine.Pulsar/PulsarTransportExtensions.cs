@@ -81,6 +81,11 @@ public class PulsarListenerConfiguration : ListenerConfiguration<PulsarListenerC
     {
     }
 
+    /// <summary>
+    /// Provide a subscription name to Pulsar for this topic
+    /// </summary>
+    /// <param name="subscriptionName"></param>
+    /// <returns></returns>
     public PulsarListenerConfiguration SubscriptionName(string subscriptionName)
     {
         add(e =>
@@ -90,6 +95,12 @@ public class PulsarListenerConfiguration : ListenerConfiguration<PulsarListenerC
 
         return this;
     }
+    
+    /// <summary>
+    /// Override the Pulsar subscription type for just this topic
+    /// </summary>
+    /// <param name="subscriptionType"></param>
+    /// <returns></returns>
     public PulsarListenerConfiguration SubscriptionType(SubscriptionType subscriptionType)
     {
         add(e =>
