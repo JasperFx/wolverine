@@ -276,4 +276,5 @@ public class using_aggregate_handler_workflow(AppFixture fixture) : IntegrationC
         stream.Select(x => x.Data).OfType<UpdatedAggregate>().Any().ShouldBeFalse();
 
     }
+
 }

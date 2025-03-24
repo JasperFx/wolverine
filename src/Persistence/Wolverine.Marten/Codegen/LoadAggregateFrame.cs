@@ -16,6 +16,9 @@ internal class LoadAggregateFrame<T> : MethodCall where T : class
     {
         _att = att;
         CommentText = "Loading Marten aggregate";
+        
+        // Placeholder to keep the HTTP chains from trying to use QueryString
+        Arguments[0] = Constant.ForString("temp");
     }
 
     public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
