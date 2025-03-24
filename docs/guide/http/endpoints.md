@@ -85,17 +85,24 @@ public string PostNotBody([NotBody] Recorder recorder)
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/AttributeEndpoints.cs#L15-L26' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_not_body_attribute' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+::: warning
+You can return any type that can technically be serialized to JSON, which means even primitive
+values like numbers, strings, or dates. Just know that there is special handling for `int` and any
+invalid HTTP status code may result in a web browser hanging -- and that's not typically what you'd
+like to happen!
+:::
+
 In terms of the response type, you can use:
 
-| Type                           | Body         | Status Code       | Notes                                                                          |
-|--------------------------------|--------------|-------------------|--------------------------------------------------------------------------------|
-| `void` / `Task` / `ValueTask`  | Empty        | 200               |                                                                                |
-| `string`                       | "text/plain" | 200               | Writes the result to the response                                              |
-| `int`                          | Empty        | Value of response |                                                                                |
-| Type that implements `IResult` | Varies       | Varies            | The `IResult.ExecuteAsync()` method is executed                                |
-| `CreationResponse` or subclass | JSON         | 201               | The response is serialized, and writes a `location` response header            |
-| `AcceptResponse` or subclass   | JSON         | 202               | The response is serialized, and writes a `location` response header            |
-| Any other type                 | JSON         | 200               | The response is serialized to JSON                                             |
+| Type                           | Body         | Status Code       | Notes                                                                     |
+|--------------------------------|--------------|-------------------|---------------------------------------------------------------------------|
+| `void` / `Task` / `ValueTask`  | Empty        | 200               |                                                                           |
+| `string`                       | "text/plain" | 200               | Writes the result to the response                                         |
+| `int`                          | Empty        | Value of response | **Note**, this must be a valid HTTP status code or bad things may happen! |
+| Type that implements `IResult` | Varies       | Varies            | The `IResult.ExecuteAsync()` method is executed                           |
+| `CreationResponse` or subclass | JSON         | 201               | The response is serialized, and writes a `location` response header       |
+| `AcceptResponse` or subclass   | JSON         | 202               | The response is serialized, and writes a `location` response header       |
+| Any other type                 | JSON         | 200               | The response is serialized to JSON                                        |
 
 In all cases up above, if the endpoint method is asynchronous using either `Task<T>` or `ValueTask<T>`, the `T` is the 
 response type. In other words, a response of `Task<string>` has the same rules as a response of `string` and `ValueTask<int>`
