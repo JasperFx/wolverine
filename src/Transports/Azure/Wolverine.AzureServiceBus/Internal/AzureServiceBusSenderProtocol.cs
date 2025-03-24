@@ -54,6 +54,8 @@ public class AzureServiceBusSenderProtocol : ISenderProtocolWithNativeScheduling
             {
                 if (!serviceBusMessageBatch.TryAddMessage(message))
                 {
+                    _logger.LogInformation("Wolverine had to break up outgoing message batches at {Uri}, you may want to reduce the MaximumMessagesToReceive configuration. No messages were lost, this is strictly informative", _endpoint.Uri);
+                    
                     // Send the currently full batch
                     await _sender.SendMessagesAsync(serviceBusMessageBatch, _runtime.Cancellation);
                     serviceBusMessageBatch.Dispose();
