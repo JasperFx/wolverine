@@ -146,7 +146,7 @@ public partial class HttpChain
             .Select(x => x.ReturnAction(this)).SelectMany(x => x.Frames()).ToArray();
         foreach (var frame in actionsOnOtherReturnValues) yield return frame;
 
-        if (Postprocessors.Concat(actionsOnOtherReturnValues).Any(x => x.MaySendMessages()))
+        if (requiresFlush(actionsOnOtherReturnValues))
         {
             var flush = Postprocessors.OfType<FlushOutgoingMessages>().FirstOrDefault();
             if (flush != null)
@@ -159,6 +159,18 @@ public partial class HttpChain
         }
         
         foreach (var frame in Postprocessors) yield return frame;
+    }
+
+    private bool requiresFlush(Frame[] actionsOnOtherReturnValues)
+    {
+        if (Postprocessors.Any(x => x.MaySendMessages())) return true;
+        if (actionsOnOtherReturnValues.Any(x => x.MaySendMessages())) return true;
+
+        var dependencies = ServiceDependencies(_parent.Container, []).ToArray();
+        if (dependencies.Contains(typeof(IMessageBus))) return true;
+        if (dependencies.Contains(typeof(IMessageContext))) return true;
+
+        return false;
     }
 
     private string determineFileName()

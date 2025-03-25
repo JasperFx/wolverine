@@ -8,7 +8,7 @@ namespace Wolverine.AmazonSqs;
 public static class AmazonSqsTransportExtensions
 {
     /// <summary>
-    ///     Quick access to the Rabbit MQ Transport within this application.
+    ///     Quick access to the Amazon SQS Transport within this application.
     ///     This is for advanced usage
     /// </summary>
     /// <param name="endpoints"></param>
@@ -62,12 +62,12 @@ public static class AmazonSqsTransportExtensions
     }
 
     /// <summary>
-    ///     Listen for incoming messages at the designated Rabbit MQ queue by name
+    ///     Listen for incoming messages at the designated Amazon SQS queue by name
     /// </summary>
     /// <param name="endpoints"></param>
-    /// <param name="queueName">The name of the Rabbit MQ queue</param>
+    /// <param name="queueName">The name of the SQS queue</param>
     /// <param name="configure">
-    ///     Optional configuration for this Rabbit Mq queue if being initialized by Wolverine
+    ///     Optional configuration for this SQS queue if being initialized by Wolverine
     ///     <returns></returns>
     public static AmazonSqsListenerConfiguration ListenToSqsQueue(this WolverineOptions endpoints, string queueName,
         Action<AmazonSqsQueue>? configure = null)
@@ -84,6 +84,12 @@ public static class AmazonSqsTransportExtensions
         return new AmazonSqsListenerConfiguration(endpoint);
     }
 
+    /// <summary>
+    ///     Publish matching messages directly to an Amazon SQS queue
+    /// </summary>
+    /// <param name="publishing"></param>
+    /// <param name="queueName">The name of the SQS queue</param>
+    /// <returns></returns>
     public static AmazonSqsSubscriberConfiguration ToSqsQueue(this IPublishToExpression publishing, string queueName)
     {
         var transports = publishing.As<PublishingExpression>().Parent.Transports;

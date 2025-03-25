@@ -160,6 +160,11 @@ internal class ConstructorPlan : ServicePlan
     public override Variable CreateVariable(ServiceVariables resolverVariables)
     {
         var frame = new ConstructorFrame(Descriptor.ImplementationType, Constructor);
+        if (Descriptor.ImplementationType.CanBeCastTo<IDisposable>() || Descriptor.ImplementationType.CanBeCastTo<IAsyncDisposable>())
+        {
+            frame.Mode = ConstructorCallMode.UsingNestedVariable;
+        }
+        
         for (int i = 0; i < Dependencies.Length; i++)
         {
             var argument = resolverVariables.Resolve(Dependencies[i]);

@@ -374,7 +374,15 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
 
             // This was done specifically for the HTTP transport's optimized 
             // request/reply mechanism
-            if (Envelope.DoNotCascadeResponse) return;
+            if (Envelope.DoNotCascadeResponse)
+            {
+                return;
+            }
+            else
+            {
+                await PublishAsync(message);
+                return;
+            }
         }
 
         switch (message)

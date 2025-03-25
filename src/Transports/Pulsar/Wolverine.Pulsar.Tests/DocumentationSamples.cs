@@ -1,3 +1,4 @@
+using DotPulsar;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Wolverine.ComplianceTests.Compliance;
@@ -31,6 +32,8 @@ public static class DocumentationSamples
 
             // Listen for incoming messages from a Pulsar topic
             opts.ListenToPulsarTopic("persistent://public/default/two")
+                .SubscriptionName("two")
+                .SubscriptionType(SubscriptionType.Exclusive)
                 
                 // And all the normal Wolverine options...
                 .Sequential();

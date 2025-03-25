@@ -1,3 +1,4 @@
+using DotPulsar;
 using DotPulsar.Abstractions;
 using JasperFx.Core.Reflection;
 using Wolverine.Configuration;
@@ -80,6 +81,35 @@ public class PulsarListenerConfiguration : ListenerConfiguration<PulsarListenerC
     {
     }
 
+    /// <summary>
+    /// Provide a subscription name to Pulsar for this topic
+    /// </summary>
+    /// <param name="subscriptionName"></param>
+    /// <returns></returns>
+    public PulsarListenerConfiguration SubscriptionName(string subscriptionName)
+    {
+        add(e =>
+        {
+            e.SubscriptionName = subscriptionName;
+        });
+
+        return this;
+    }
+    
+    /// <summary>
+    /// Override the Pulsar subscription type for just this topic
+    /// </summary>
+    /// <param name="subscriptionType"></param>
+    /// <returns></returns>
+    public PulsarListenerConfiguration SubscriptionType(SubscriptionType subscriptionType)
+    {
+        add(e =>
+        {
+            e.SubscriptionType = subscriptionType;
+        });
+
+        return this;
+    }
     /// <summary>
     ///     Add circuit breaker exception handling to this listener
     /// </summary>
