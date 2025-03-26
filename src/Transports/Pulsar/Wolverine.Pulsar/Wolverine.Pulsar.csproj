@@ -9,12 +9,13 @@
         <GenerateAssemblyInformationalVersionAttribute>false</GenerateAssemblyInformationalVersionAttribute>
     </PropertyGroup>
     <ItemGroup>
-        <ProjectReference Include="..\..\..\Wolverine\Wolverine.csproj"/>
+        <ProjectReference Include="..\..\..\Wolverine\Wolverine.csproj" />
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="DotPulsar" Version="3.3.2" />
+        <PackageReference Include="DotPulsar" Version="4.2.2" />
+        <PackageReference Include="DotPulsar.Extensions.Resiliency" Version="0.3.0" />
     </ItemGroup>
 
-    <Import Project="../../../../Analysis.Build.props"/>
+    <Import Project="../../../../Analysis.Build.props" />
 </Project>

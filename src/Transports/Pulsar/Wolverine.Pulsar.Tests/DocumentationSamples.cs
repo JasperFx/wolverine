@@ -37,6 +37,14 @@ public static class DocumentationSamples
                 
                 // And all the normal Wolverine options...
                 .Sequential();
+
+
+            // Listen for incoming messages from a Pulsar topic with a shared subscription and using RETRY and DLQ queues
+            opts.ListenToPulsarTopic("persistent://public/default/three")
+                .WithSharedSubscriptionType()
+                .DeadLetterQueueing(new DeadLetterTopic("name", DeadLetterTopicMode.Native))
+                .RetryLetterQueueing(new RetryTopic("retry", [TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(5)]))
+                .Sequential();
         });
 
         #endregion

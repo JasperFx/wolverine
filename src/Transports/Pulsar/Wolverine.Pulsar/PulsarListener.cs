@@ -1,4 +1,5 @@
 using System.Buffers;
+using DotPulsar;
 using DotPulsar.Abstractions;
 using DotPulsar.Extensions;
 using Wolverine.Runtime;
@@ -6,13 +7,16 @@ using Wolverine.Transports;
 
 namespace Wolverine.Pulsar;
 
-internal class PulsarListener : IListener
+internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportRetryLetterQueue
 {
     private readonly CancellationToken _cancellation;
     private readonly IConsumer<ReadOnlySequence<byte>>? _consumer;
+    private readonly IConsumer<ReadOnlySequence<byte>>? _retryConsumer;
     private readonly CancellationTokenSource _localCancellation;
     private readonly Task? _receivingLoop;
+    private readonly Task? _receivingRetryLoop;
     private readonly PulsarSender _sender;
+    private DeadLetterPolicy? _dlqClient;
 
     public PulsarListener(IWolverineRuntime runtime, PulsarEndpoint endpoint, IReceiver receiver,
         PulsarTransport transport,
@@ -40,20 +44,151 @@ internal class PulsarListener : IListener
             .Topic(endpoint.PulsarTopic())
             .Create();
 
+        // TODO: check
+        var endpointRetryLetterTopicSettings = endpoint.RetryLetterTopic;
+        NativeDeadLetterQueueEnabled = transport.DeadLetterTopic != null &&
+                                       transport.DeadLetterTopic.Mode != DeadLetterTopicMode.WolverineStorage ||
+                                       endpoint.DeadLetterTopic != null && endpoint.DeadLetterTopic.Mode != DeadLetterTopicMode.WolverineStorage;
+
+        NativeRetryLetterQueueEnabled = endpointRetryLetterTopicSettings != null;
+
+        trySetupNativeResiliency(endpoint, transport);
+
         _receivingLoop = Task.Run(async () =>
         {
+
             await foreach (var message in _consumer.Messages(combined.Token))
             {
                 var envelope = new PulsarEnvelope(message)
                 {
                     Data = message.Data.ToArray()
                 };
+                try
+                {
+                    mapper.MapIncomingToEnvelope(envelope, message);
 
-                mapper.MapIncomingToEnvelope(envelope, message);
-
-                await receiver.ReceivedAsync(this, envelope);
+                    await receiver.ReceivedAsync(this, envelope);
+                }
+                catch (TaskCanceledException)
+                {
+                    throw; 
+                }
+                catch (Exception)
+                {
+                    if (_dlqClient != null)
+                    {
+                        await _dlqClient.ReconsumeLater(message);
+                        await receiver.ReceivedAsync(this, envelope);
+                        //await _retryConsumer.Acknowledge(message); // TODO: check: original message should be acked and copy is sent to retry topic
+                    }
+                }
             }
+
+
         }, combined.Token);
+
+
+        if (_dlqClient != null)
+        {
+            _retryConsumer = createRetryConsumer(endpoint, transport);
+            _receivingRetryLoop = Task.Run(async () =>
+            {
+                await foreach (var message in _retryConsumer.Messages(combined.Token))
+                {
+                    var envelope = new PulsarEnvelope(message)
+                    {
+                        Data = message.Data.ToArray()
+                    };
+                    try
+                    {
+                        mapper.MapIncomingToEnvelope(envelope, message);
+
+                        await receiver.ReceivedAsync(this, envelope);
+                    }
+                    catch (TaskCanceledException)
+                    {
+                        throw;
+                    }
+                    catch (Exception)
+                    {
+                        if (_dlqClient != null)
+                        {
+                            // TODO: can use to manage retries
+                            //var retryCount = int.Parse(message.Properties["RECONSUMETIMES"]);
+                            //await _dlqClient.ReconsumeLater(message, delayTime: endpointRetryLetterTopicSettings.Retry[retryCount]);
+                            await _dlqClient.ReconsumeLater(message);
+                            await receiver.ReceivedAsync(this, envelope);
+                            //await _retryConsumer.Acknowledge(message); // TODO: check: original message should be acked and copy is sent to retry/DLQ
+                        }
+                    }
+                }
+
+            }, combined.Token);
+        }
+    }
+
+    private void trySetupNativeResiliency(PulsarEndpoint endpoint, PulsarTransport transport)
+    {
+        if (NativeRetryLetterQueueEnabled && NativeDeadLetterQueueEnabled)
+        {
+            var topicDql = getDeadLetteredTopicUri(endpoint);
+            var topicRetry = getRetryLetterTopicUri(endpoint);
+
+            _dlqClient = new DeadLetterPolicy(
+                transport.Client!.NewProducer().Topic(topicDql.ToString()),
+                transport.Client!.NewProducer().Topic(topicRetry!.ToString()),
+                endpoint.RetryLetterTopic!.Retry.Count
+            );
+
+        }
+        else if (NativeRetryLetterQueueEnabled)
+        {
+            var topicRetry = getRetryLetterTopicUri(endpoint);
+
+            _dlqClient = new DeadLetterPolicy(
+                null,
+                transport.Client!.NewProducer().Topic(topicRetry!.ToString()),
+                endpoint.RetryLetterTopic!.Retry.Count
+            );
+
+        }
+        else if (NativeDeadLetterQueueEnabled)
+        {
+            var topicDql = getDeadLetteredTopicUri(endpoint);
+
+            _dlqClient = new DeadLetterPolicy(
+                transport.Client!.NewProducer().Topic(topicDql.ToString()),
+                null,
+                0
+            );
+        }
+    }
+
+    private IConsumer<ReadOnlySequence<byte>> createRetryConsumer(PulsarEndpoint endpoint, PulsarTransport transport)
+    {
+        var topicRetry = getRetryLetterTopicUri(endpoint);
+
+        return transport.Client!.NewConsumer()
+            .SubscriptionName(endpoint.SubscriptionName)
+            .SubscriptionType(endpoint.SubscriptionType)
+            .Topic(topicRetry!.ToString())
+            .Create();
+    }
+
+    private Uri? getRetryLetterTopicUri(PulsarEndpoint endpoint)
+    {
+        return NativeDeadLetterQueueEnabled
+            ? PulsarEndpoint.UriFor(endpoint.IsPersistent, endpoint.Tenant, endpoint.Namespace,
+                endpoint.RetryLetterTopic?.TopicName ?? $"{endpoint.TopicName}-RETRY")
+            : null;
+    }
+
+    private Uri getDeadLetteredTopicUri(PulsarEndpoint endpoint)
+    {
+        var topicDql = PulsarEndpoint.UriFor(endpoint.IsPersistent, endpoint.Tenant, endpoint.Namespace,
+            endpoint.DeadLetterTopic?.TopicName ?? $"{endpoint.TopicName}-DLQ");
+
+        return topicDql;
     }
 
     public ValueTask CompleteAsync(Envelope envelope)
@@ -87,9 +222,20 @@ internal class PulsarListener : IListener
             await _consumer.DisposeAsync();
         }
 
+        if (_retryConsumer != null)
+        {
+            await _retryConsumer.DisposeAsync();
+        }
+
+        if (_dlqClient != null)
+        {
+            await _dlqClient.DisposeAsync();
+        }
+
         await _sender.DisposeAsync();
 
         _receivingLoop!.Dispose();
+        _receivingRetryLoop?.Dispose();
     }
 
     public Uri Address { get; }
@@ -103,6 +249,13 @@ internal class PulsarListener : IListener
 
         await _consumer.Unsubscribe(_cancellation);
         await _consumer.RedeliverUnacknowledgedMessages(_cancellation);
+
+
+        if (_retryConsumer != null)
+        {
+            await _retryConsumer.Unsubscribe(_cancellation);
+            await _retryConsumer.RedeliverUnacknowledgedMessages(_cancellation);
+        }
     }
 
     public async Task<bool> TryRequeueAsync(Envelope envelope)
@@ -114,5 +267,19 @@ internal class PulsarListener : IListener
         }
 
         return false;
+    }
+
+    public bool NativeDeadLetterQueueEnabled { get; }
+    public Task MoveToErrorsAsync(Envelope envelope, Exception exception)
+    {
+      // TODO: pass through?
+      return Task.CompletedTask;
+    }
+
+    public bool NativeRetryLetterQueueEnabled { get; }
+    public Task MoveToRetryQueueAsync(Envelope envelope, Exception exception)
+    {
+        // TODO: how to handle retries internally?
+        throw new NotImplementedException();
     }
 }

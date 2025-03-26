@@ -110,6 +110,32 @@ public class PulsarListenerConfiguration : ListenerConfiguration<PulsarListenerC
 
         return this;
     }
+
+    /// <summary>
+    /// Override the Pulsar subscription type for just this topic
+    /// </summary>
+    /// <param name="subscriptionType"></param>
+    /// <returns></returns>
+    public PulsarSharedListenerConfiguration WithSharedSubscriptionType()
+    {
+        add(e => { e.SubscriptionType = DotPulsar.SubscriptionType.Shared; });
+
+        return new PulsarSharedListenerConfiguration(this._endpoint);
+    }
+
+
+    /// <summary>
+    /// Override the Pulsar subscription type for just this topic
+    /// </summary>
+    /// <param name="subscriptionType"></param>
+    /// <returns></returns>
+    public PulsarSharedListenerConfiguration WithKeySharedSubscriptionType()
+    {
+        add(e => { e.SubscriptionType = DotPulsar.SubscriptionType.KeyShared; });
+
+        return new PulsarSharedListenerConfiguration(this._endpoint);
+    }
+
     /// <summary>
     ///     Add circuit breaker exception handling to this listener
     /// </summary>
@@ -141,6 +167,75 @@ public class PulsarListenerConfiguration : ListenerConfiguration<PulsarListenerC
     //     endpoint.ListenerCount = count;
     //     return this;
     // }
+}
+
+
+
+public class PulsarSharedListenerConfiguration : ListenerConfiguration<PulsarListenerConfiguration, PulsarEndpoint>
+{
+    public PulsarSharedListenerConfiguration(PulsarEndpoint endpoint) : base(endpoint)
+    {
+    }
+
+
+    /// <summary>
+    /// Customize the dead letter queueing for this specific endpoint
+    /// </summary>
+    /// <param name="configure">Optional configuration</param>
+    /// <returns></returns>
+    public PulsarSharedListenerConfiguration DeadLetterQueueing(DeadLetterTopic dlq)
+    {
+        add(e =>
+        {
+            e.DeadLetterTopic = dlq;
+        });
+
+        return this;
+    }
+
+    /// <summary>
+    /// Remove all dead letter queueing declarations from this queue
+    /// </summary>
+    /// <returns></returns>
+    public PulsarSharedListenerConfiguration DisableDeadLetterQueueing()
+    {
+        add(e =>
+        {
+            e.DeadLetterTopic = null;
+        });
+
+        return this;
+    }
+
+    /// <summary>
+    /// Customize the Retry letter queueing for this specific endpoint
+    /// </summary>
+    /// <param name="configure">Optional configuration</param>
+    /// <returns></returns>
+    public PulsarSharedListenerConfiguration RetryLetterQueueing(RetryTopic rt)
+    {
+        add(e =>
+        {
+            e.RetryLetterTopic = rt;
+        });
+
+        return this;
+    }
+
+    /// <summary>
+    /// Remove all Retry letter queueing declarations from this queue
+    /// </summary>
+    /// <returns></returns>
+    public PulsarSharedListenerConfiguration DisableRetryLetterQueueing()
+    {
+        add(e =>
+        {
+            e.RetryLetterTopic = null;
+        });
+
+        return this;
+    }
+
 }
 
 public class PulsarSubscriberConfiguration : SubscriberConfiguration<PulsarSubscriberConfiguration, PulsarEndpoint>
