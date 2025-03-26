@@ -115,11 +115,13 @@ public class PulsarEndpoint : Endpoint
 
     public override bool TryBuildDeadLetterSender(IWolverineRuntime runtime, out ISender? deadLetterSender)
     {
-        //return base.TryBuildDeadLetterSender(runtime, out deadLetterSender);
+        return base.TryBuildDeadLetterSender(runtime, out deadLetterSender);
 
-        var queueName =  this.DeadLetterTopic?.TopicName ?? _parent.DeadLetterTopic.TopicName;
-        var dlq = _parent[UriFor(queueName)];
-        deadLetterSender = dlq.CreateSender(runtime);
-        return true;
+
+        // TODO: ?
+        //var queueName =  this.DeadLetterTopic?.TopicName ?? _parent.DeadLetterTopic.TopicName;
+        //var dlq = _parent[UriFor(queueName)];
+        //deadLetterSender = dlq.CreateSender(runtime);
+        //return true;
     }
 }
