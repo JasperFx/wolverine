@@ -2,6 +2,7 @@ using System.Buffers;
 using DotPulsar;
 using DotPulsar.Abstractions;
 using DotPulsar.Extensions;
+using DotPulsar.Internal;
 using Wolverine.Runtime;
 using Wolverine.Transports;
 
@@ -17,16 +18,15 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportRetr
     private readonly Task? _receivingRetryLoop;
     private readonly PulsarSender _sender;
     private DeadLetterPolicy? _dlqClient;
+    private IReceiver _receiver;
+    private PulsarEndpoint _endpoint;
 
     public PulsarListener(IWolverineRuntime runtime, PulsarEndpoint endpoint, IReceiver receiver,
         PulsarTransport transport,
         CancellationToken cancellation)
     {
-        if (receiver == null)
-        {
-            throw new ArgumentNullException(nameof(receiver));
-        }
-
+        _endpoint = endpoint;
+        _receiver = receiver ?? throw new ArgumentNullException(nameof(receiver));
         _cancellation = cancellation;
 
         Address = endpoint.Uri;
@@ -251,10 +251,34 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportRetr
     }
 
     public bool NativeDeadLetterQueueEnabled { get; }
-    public Task MoveToErrorsAsync(Envelope envelope, Exception exception)
+    public async Task MoveToErrorsAsync(Envelope envelope, Exception exception)
     {
-      // TODO: pass through?
-      return Task.CompletedTask;
+        // TODO: Currently only ISupportDeadLetterQueue exists, should we introduce ISupportRetryLetterQueue concept? Because now on (first) exception, Wolverine calls this method (concept of retry letter queue is not set for Pulsar)
+
+        if (envelope is PulsarEnvelope e)
+        {
+            if (_dlqClient != null)
+            {
+                var message = e.MessageData;
+                // TODO: used to manage retries - refactor
+                if(message.Properties.TryGetValue("RECONSUMETIMES", out var reconsumeTimesValue))
+                {
+                    var retryCount = int.Parse(reconsumeTimesValue);
+                    await _retryConsumer!.Acknowledge(e.MessageData, _cancellation); // TODO: check: original message should be acked and copy is sent to retry/DLQ
+                    //await _retryConsumer.Acknowledge(message); // TODO: check: what to do with the original message on Wolverine side? I Guess it should be acked? or we could use some kind of RequeueContinuation in FailureRuleCollection
+                    await _dlqClient.ReconsumeLater(message, delayTime: _endpoint.RetryLetterTopic!.Retry[retryCount], cancellationToken: _cancellation);
+                }
+                else
+                {
+                    // first time failure or no retry letter topic configured
+                    await _consumer!.Acknowledge(e.MessageData, _cancellation); // TODO: check: original message should be acked and copy is sent to retry/DLQ
+                    //await _retryConsumer.Acknowledge(message); // TODO: check: what to do with the original message on Wolverine side? I Guess it should be acked?
+                    await _dlqClient.ReconsumeLater(message, delayTime: _endpoint.RetryLetterTopic!.Retry.First(), cancellationToken: _cancellation);
+                }
+            }
+
+        }
+
     }
 
     public bool NativeRetryLetterQueueEnabled { get; }
