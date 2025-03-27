@@ -73,16 +73,16 @@ public class DeadLetterTopic
 /// <summary>
 /// TODO: how to handle retries internally in Wolverine?
 /// </summary>
-public class RetryTopic
+public class RetryLetterTopic
 {
     private string? _topicName;
     private readonly List<TimeSpan> _retries;
 
-    public RetryTopic(List<TimeSpan> retries)
+    public RetryLetterTopic(List<TimeSpan> retries)
     {
         _retries = retries;
     } 
-    public RetryTopic(string topicName, List<TimeSpan> retries)
+    public RetryLetterTopic(string topicName, List<TimeSpan> retries)
     {
         _topicName = topicName;
         _retries = retries;
@@ -96,7 +96,7 @@ public class RetryTopic
 
     public List<TimeSpan> Retry => _retries.ToList();
 
-    protected bool Equals(RetryTopic other)
+    protected bool Equals(RetryLetterTopic other)
     {
         return _topicName == other._topicName;
     }
@@ -118,7 +118,7 @@ public class RetryTopic
             return false;
         }
 
-        return Equals((RetryTopic)obj);
+        return Equals((RetryLetterTopic)obj);
     }
 
     public override int GetHashCode()
