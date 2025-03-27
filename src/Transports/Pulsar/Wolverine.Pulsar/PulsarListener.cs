@@ -45,12 +45,11 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportRetr
             .Create();
 
         // TODO: check
-        var endpointRetryLetterTopicSettings = endpoint.RetryLetterTopic;
-        NativeDeadLetterQueueEnabled = transport.DeadLetterTopic != null &&
+        NativeDeadLetterQueueEnabled = transport.DeadLetterTopic is not null &&
                                        transport.DeadLetterTopic.Mode != DeadLetterTopicMode.WolverineStorage ||
-                                       endpoint.DeadLetterTopic != null && endpoint.DeadLetterTopic.Mode != DeadLetterTopicMode.WolverineStorage;
+                                       endpoint.DeadLetterTopic is not null && endpoint.DeadLetterTopic.Mode != DeadLetterTopicMode.WolverineStorage;
 
-        NativeRetryLetterQueueEnabled = endpointRetryLetterTopicSettings != null;
+        NativeRetryLetterQueueEnabled = endpoint.RetryLetterTopic is not null && RetryLetterTopic.SupportedSubscriptionTypes.Contains(endpoint.SubscriptionType);
 
         trySetupNativeResiliency(endpoint, transport);
 
@@ -113,9 +112,9 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportRetr
                     {
                         if (_dlqClient != null)
                         {
-                            // TODO: can use to manage retries
-                            //var retryCount = int.Parse(message.Properties["RECONSUMETIMES"]);
-                            //await _dlqClient.ReconsumeLater(message, delayTime: endpointRetryLetterTopicSettings.Retry[retryCount]);
+                            // TODO: used to manage retries - refactor
+                            var retryCount = int.Parse(message.Properties["RECONSUMETIMES"]);
+                            await _dlqClient.ReconsumeLater(message, delayTime: endpoint.RetryLetterTopic!.Retry[retryCount]);
                             await _dlqClient.ReconsumeLater(message);
                             await receiver.ReceivedAsync(this, envelope);
                             //await _retryConsumer.Acknowledge(message); // TODO: check: original message should be acked and copy is sent to retry/DLQ
@@ -129,40 +128,23 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportRetr
 
     private void trySetupNativeResiliency(PulsarEndpoint endpoint, PulsarTransport transport)
     {
-        if (NativeRetryLetterQueueEnabled && NativeDeadLetterQueueEnabled)
+        if (!NativeRetryLetterQueueEnabled && !NativeDeadLetterQueueEnabled)
         {
-            var topicDql = getDeadLetteredTopicUri(endpoint);
-            var topicRetry = getRetryLetterTopicUri(endpoint);
-
-            _dlqClient = new DeadLetterPolicy(
-                transport.Client!.NewProducer().Topic(topicDql.ToString()),
-                transport.Client!.NewProducer().Topic(topicRetry!.ToString()),
-                endpoint.RetryLetterTopic!.Retry.Count
-            );
-
+            return;
         }
-        else if (NativeRetryLetterQueueEnabled)
-        {
-            var topicRetry = getRetryLetterTopicUri(endpoint);
 
-            _dlqClient = new DeadLetterPolicy(
-                null,
-                transport.Client!.NewProducer().Topic(topicRetry!.ToString()),
-                endpoint.RetryLetterTopic!.Retry.Count
-            );
+        var topicDql = NativeDeadLetterQueueEnabled ? getDeadLetteredTopicUri(endpoint) : null;
+        var topicRetry = NativeRetryLetterQueueEnabled ? getRetryLetterTopicUri(endpoint) : null;
+        var retryCount = NativeRetryLetterQueueEnabled ? endpoint.RetryLetterTopic!.Retry.Count : 0;
 
-        }
-        else if (NativeDeadLetterQueueEnabled)
-        {
-            var topicDql = getDeadLetteredTopicUri(endpoint);
-
-            _dlqClient = new DeadLetterPolicy(
-                transport.Client!.NewProducer().Topic(topicDql.ToString()),
-                null,
-                0
-            );
-        }
+        _dlqClient = new DeadLetterPolicy(
+            topicDql != null ? transport.Client!.NewProducer().Topic(topicDql.ToString()) : null,
+            topicRetry != null ? transport.Client!.NewProducer().Topic(topicRetry.ToString()) : null,
+            retryCount
+        );
     }
+
+
 
     private IConsumer<ReadOnlySequence<byte>> createRetryConsumer(PulsarEndpoint endpoint, PulsarTransport transport)
     {

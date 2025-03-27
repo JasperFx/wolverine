@@ -10,7 +10,7 @@ namespace Wolverine.Pulsar;
 public class PulsarTransport : TransportBase<PulsarEndpoint>, IAsyncDisposable
 {
     public const string ProtocolName = "pulsar";
-    public const string DeadLetterTopicName = "wolverine-dead-letter-topic";
+
 
     private readonly LightweightCache<Uri, PulsarEndpoint> _endpoints;
 
@@ -27,7 +27,8 @@ public class PulsarTransport : TransportBase<PulsarEndpoint>, IAsyncDisposable
     public IPulsarClientBuilder Builder { get; }
 
     internal IPulsarClient? Client { get; private set; }
-    public DeadLetterTopic DeadLetterTopic { get; } = new(DeadLetterTopicName); // TODO: should we even have a default or just per endpoint based
+    public DeadLetterTopic? DeadLetterTopic { get; internal set; } // TODO: should we even have a default or just per endpoint based?
+    public RetryLetterTopic? RetryLetterTopic { get; internal set; } // TODO: should we even have a default or just per endpoint based?
 
 
     private IEnumerable<DeadLetterTopic> enabledDeadLetterTopics()

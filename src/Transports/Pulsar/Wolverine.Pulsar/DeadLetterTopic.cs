@@ -1,5 +1,7 @@
 
 
+using DotPulsar;
+
 namespace Wolverine.Pulsar;
 
 public enum DeadLetterTopicMode
@@ -17,6 +19,9 @@ public enum DeadLetterTopicMode
 
 public class DeadLetterTopic
 {
+
+    public static DeadLetterTopic DefaultNative => new(DeadLetterTopicMode.Native);
+
     private string? _topicName;
 
     public DeadLetterTopicMode Mode { get; set; }
@@ -75,6 +80,19 @@ public class DeadLetterTopic
 /// </summary>
 public class RetryLetterTopic
 {
+    public static RetryLetterTopic DefaultNative => new([
+        TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(5), TimeSpan.FromMinutes(2)
+    ]);
+
+
+    /// <summary>
+    /// Message delaying does not work with Pulsar if the subscription type is not shared or key shared
+    /// </summary>
+    public static IReadOnlySet<SubscriptionType> SupportedSubscriptionTypes = new HashSet<SubscriptionType>()
+    {
+        SubscriptionType.Shared, SubscriptionType.KeyShared
+    };
+
     private string? _topicName;
     private readonly List<TimeSpan> _retries;
 
