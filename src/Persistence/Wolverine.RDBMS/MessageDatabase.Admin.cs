@@ -118,7 +118,7 @@ public abstract partial class MessageDatabase<T>
 
         if (migration.Difference != SchemaPatchDifference.None)
         {
-            await Migrator.ApplyAllAsync(conn, migration, _settings.AutoCreate, ct: _cancellation);
+            await Migrator.ApplyAllAsync(conn, migration, _settings.AutoCreate, new MigrationLogger(Logger), ct: _cancellation);
         }
     }
 
