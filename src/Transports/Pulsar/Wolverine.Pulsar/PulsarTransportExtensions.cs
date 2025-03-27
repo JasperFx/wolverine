@@ -171,7 +171,7 @@ public class PulsarListenerConfiguration : ListenerConfiguration<PulsarListenerC
 
 
 
-public class PulsarSharedListenerConfiguration : ListenerConfiguration<PulsarListenerConfiguration, PulsarEndpoint>
+public class PulsarSharedListenerConfiguration : ListenerConfiguration<PulsarSharedListenerConfiguration, PulsarEndpoint>
 {
     public PulsarSharedListenerConfiguration(PulsarEndpoint endpoint) : base(endpoint)
     {

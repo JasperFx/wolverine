@@ -42,8 +42,8 @@ public static class DocumentationSamples
             // Listen for incoming messages from a Pulsar topic with a shared subscription and using RETRY and DLQ queues
             opts.ListenToPulsarTopic("persistent://public/default/three")
                 .WithSharedSubscriptionType()
-                .DeadLetterQueueing(new DeadLetterTopic("name", DeadLetterTopicMode.Native))
-                .RetryLetterQueueing(new RetryLetterTopic("retry", [TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(5)]))
+                .DeadLetterQueueing(new DeadLetterTopic(DeadLetterTopicMode.Native))
+                .RetryLetterQueueing(new RetryLetterTopic([TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(5)]))
                 .Sequential();
         });
 
