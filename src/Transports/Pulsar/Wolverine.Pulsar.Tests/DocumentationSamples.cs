@@ -43,7 +43,7 @@ public static class DocumentationSamples
             opts.ListenToPulsarTopic("persistent://public/default/three")
                 .WithSharedSubscriptionType()
                 .DeadLetterQueueing(new DeadLetterTopic("name", DeadLetterTopicMode.Native))
-                .RetryLetterQueueing(new RetryTopic("retry", [TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(5)]))
+                .RetryLetterQueueing(new RetryLetterTopic("retry", [TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(5)]))
                 .Sequential();
         });
 

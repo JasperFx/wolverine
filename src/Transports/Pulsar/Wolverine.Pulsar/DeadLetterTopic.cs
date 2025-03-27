@@ -88,7 +88,7 @@ public class RetryLetterTopic
         _retries = retries;
     }
 
-    public string TopicName
+    public string? TopicName
     {
         get => _topicName;
         set => _topicName = value ?? throw new ArgumentNullException(nameof(TopicName));
