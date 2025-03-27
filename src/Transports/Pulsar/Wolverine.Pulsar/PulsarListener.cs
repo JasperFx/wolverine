@@ -265,7 +265,7 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportRetr
                 {
                     var retryCount = int.Parse(reconsumeTimesValue);
                     await _retryConsumer!.Acknowledge(e.MessageData, _cancellation); // TODO: check: original message should be acked and copy is sent to retry/DLQ
-                    //await _retryConsumer.Acknowledge(message); // TODO: check: what to do with the original message on Wolverine side? I Guess it should be acked? or we could use some kind of RequeueContinuation in FailureRuleCollection
+                    //await _retryConsumer.Acknowledge(message); // TODO: check: what to do with the original message on Wolverine side? I Guess it should be acked? or we could use some kind of RequeueContinuation in FailureRuleCollection. If I understand correctly, Wolverine is/should handle original Wolverine message and its copies across Pulsar's topics as same identity?
                     //TODO: e.Attempts / attempts header value  is out of sync with Pulsar's RECONSUMETIMES header!
                     await _dlqClient.ReconsumeLater(message, delayTime: _endpoint.RetryLetterTopic!.Retry[retryCount - 1], cancellationToken: _cancellation);
                 }
