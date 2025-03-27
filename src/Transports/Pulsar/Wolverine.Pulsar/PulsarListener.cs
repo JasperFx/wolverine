@@ -115,7 +115,6 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportRetr
                             // TODO: used to manage retries - refactor
                             var retryCount = int.Parse(message.Properties["RECONSUMETIMES"]);
                             await _dlqClient.ReconsumeLater(message, delayTime: endpoint.RetryLetterTopic!.Retry[retryCount]);
-                            await _dlqClient.ReconsumeLater(message);
                             await receiver.ReceivedAsync(this, envelope);
                             //await _retryConsumer.Acknowledge(message); // TODO: check: original message should be acked and copy is sent to retry/DLQ
                         }
