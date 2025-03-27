@@ -19,11 +19,11 @@ public class DeadLetterTopic
 {
     private string? _topicName;
 
-    public DeadLetterTopicMode Mode { get; set; } = DeadLetterTopicMode.Native;
+    public DeadLetterTopicMode Mode { get; set; }
 
-    public DeadLetterTopic(string topicName)
+    public DeadLetterTopic(DeadLetterTopicMode mode)
     {
-        _topicName = topicName;
+        Mode = mode;
     }
 
     public DeadLetterTopic(string topicName, DeadLetterTopicMode mode)
@@ -78,6 +78,10 @@ public class RetryTopic
     private string? _topicName;
     private readonly List<TimeSpan> _retries;
 
+    public RetryTopic(List<TimeSpan> retries)
+    {
+        _retries = retries;
+    } 
     public RetryTopic(string topicName, List<TimeSpan> retries)
     {
         _topicName = topicName;

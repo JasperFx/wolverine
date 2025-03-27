@@ -37,7 +37,7 @@ public class PulsarEndpoint : Endpoint
     /// <summary>
     ///     Use to override the retry letter topic for this endpoint
     /// </summary>
-    public RetryTopic? RetryLetterTopic { get; set; }
+    public RetryLetterTopic? RetryLetterTopic { get; set; }
 
     public bool IsPersistent => Persistence.Equals(Persistent);
 

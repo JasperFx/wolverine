@@ -212,7 +212,7 @@ public class PulsarSharedListenerConfiguration : ListenerConfiguration<PulsarLis
     /// </summary>
     /// <param name="configure">Optional configuration</param>
     /// <returns></returns>
-    public PulsarSharedListenerConfiguration RetryLetterQueueing(RetryTopic rt)
+    public PulsarSharedListenerConfiguration RetryLetterQueueing(RetryLetterTopic rt)
     {
         add(e =>
         {
