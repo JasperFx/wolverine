@@ -254,38 +254,102 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportRetr
     public async Task MoveToErrorsAsync(Envelope envelope, Exception exception)
     {
         // TODO: Currently only ISupportDeadLetterQueue exists, should we introduce ISupportRetryLetterQueue concept? Because now on (first) exception, Wolverine calls this method (concept of retry letter queue is not set for Pulsar)
+        await moveToQueueAsync(envelope, exception, isRetry: false);
+    }
 
+    public bool NativeRetryLetterQueueEnabled { get; }
+    public bool RetryLimitReached(Envelope envelope)
+    {
+        if (NativeRetryLetterQueueEnabled && envelope is PulsarEnvelope e)
+        {
+            if (e.MessageData.Properties.TryGetValue("RECONSUMETIMES", out var reconsumeTimesValue))
+            {
+                var currentRetryCount = int.Parse(reconsumeTimesValue);
+
+                return currentRetryCount >= _endpoint.RetryLetterTopic!.Retry.Count;
+            }
+            // first time failure
+            return false;
+        }
+
+        return true;
+    }
+
+    public async Task MoveToRetryQueueAsync(Envelope envelope, Exception exception)
+    {
+        // TODO: how to handle retries internally?
+        // TODO: Currently only ISupportDeadLetterQueue exists, should we introduce ISupportRetryLetterQueue concept? Because now on (first) exception, Wolverine calls this method (concept of retry letter queue is not set for Pulsar)
+        await moveToQueueAsync(envelope, exception, isRetry: false);
+    }
+
+
+    private async Task moveToQueueAsync(Envelope envelope, Exception exception, bool isRetry)
+    {
         if (envelope is PulsarEnvelope e)
         {
             if (_dlqClient != null)
             {
                 var message = e.MessageData;
-                // TODO: used to manage retries - refactor
-                if(message.Properties.TryGetValue("RECONSUMETIMES", out var reconsumeTimesValue))
+                IConsumer<ReadOnlySequence<byte>>? associatedConsumer;
+                TimeSpan? delayTime = null;
+
+                if (message.TryGetMessageProperty("RECONSUMETIMES", out var reconsumeTimesValue))
                 {
+                    associatedConsumer = _retryConsumer;
                     var retryCount = int.Parse(reconsumeTimesValue);
-                    await _retryConsumer!.Acknowledge(e.MessageData, _cancellation); // TODO: check: original message should be acked and copy is sent to retry/DLQ
-                    //await _retryConsumer.Acknowledge(message); // TODO: check: what to do with the original message on Wolverine side? I Guess it should be acked? or we could use some kind of RequeueContinuation in FailureRuleCollection. If I understand correctly, Wolverine is/should handle original Wolverine message and its copies across Pulsar's topics as same identity?
-                    //TODO: e.Attempts / attempts header value  is out of sync with Pulsar's RECONSUMETIMES header!
-                    await _dlqClient.ReconsumeLater(message, delayTime: _endpoint.RetryLetterTopic!.Retry[retryCount - 1], cancellationToken: _cancellation);
+                    delayTime = _endpoint.RetryLetterTopic!.Retry[retryCount - 1];
                 }
                 else
                 {
-                    // first time failure or no retry letter topic configured
-                    await _consumer!.Acknowledge(e.MessageData, _cancellation); // TODO: check: original message should be acked and copy is sent to retry/DLQ
-                    //await _retryConsumer.Acknowledge(message); // TODO: check: what to do with the original message on Wolverine side? I Guess it should be acked?
-                    await _dlqClient.ReconsumeLater(message, delayTime: _endpoint.RetryLetterTopic!.Retry.First(), cancellationToken: _cancellation);
+                    associatedConsumer = _consumer;
                 }
+
+                await associatedConsumer!.Acknowledge(e.MessageData, _cancellation); // TODO: check: original message should be acked and copy is sent to retry/DLQ
+                // TODO: check: what to do with the original message on Wolverine side? I Guess it should be acked? or we could use some kind of RequeueContinuation in FailureRuleCollection. If I understand correctly, Wolverine is/should handle original Wolverine message and its copies across Pulsar's topics as same identity?
+                // TODO: e.Attempts / attempts header value  is out of sync with Pulsar's RECONSUMETIMES header!
+                await _dlqClient.ReconsumeLater(message, delayTime: delayTime, cancellationToken: _cancellation);
             }
-
         }
-
     }
 
-    public bool NativeRetryLetterQueueEnabled { get; }
-    public Task MoveToRetryQueueAsync(Envelope envelope, Exception exception)
+    //public async Task MoveToRetryQueueAsync(Envelope envelope, Exception exception)
+    //{
+    //    // TODO: how to handle retries internally?
+    //    // TODO: Currently only ISupportDeadLetterQueue exists, should we introduce ISupportRetryLetterQueue concept? Because now on (first) exception, Wolverine calls this method (concept of retry letter queue is not set for Pulsar)
+
+    //    if (envelope is PulsarEnvelope e)
+    //    {
+    //        if (_dlqClient != null)
+    //        {
+    //            var message = e.MessageData;
+    //            // TODO: used to manage retries - refactor
+    //            if (message.Properties.TryGetValue("RECONSUMETIMES", out var reconsumeTimesValue))
+    //            {
+    //                var retryCount = int.Parse(reconsumeTimesValue);
+    //                await _retryConsumer!.Acknowledge(e.MessageData, _cancellation); // TODO: check: original message should be acked and copy is sent to retry/DLQ
+    //                //await _retryConsumer.Acknowledge(message); // TODO: check: what to do with the original message on Wolverine side? I Guess it should be acked? or we could use some kind of RequeueContinuation in FailureRuleCollection. If I understand correctly, Wolverine is/should handle original Wolverine message and its copies across Pulsar's topics as same identity?
+    //                //TODO: e.Attempts / attempts header value  is out of sync with Pulsar's RECONSUMETIMES header!
+    //                await _dlqClient.ReconsumeLater(message, delayTime: _endpoint.RetryLetterTopic!.Retry[retryCount - 1], cancellationToken: _cancellation);
+    //            }
+    //            else
+    //            {
+    //                // first time failure or no retry letter topic configured
+    //                await _consumer!.Acknowledge(e.MessageData, _cancellation); // TODO: check: original message should be acked and copy is sent to retry/DLQ
+    //                //await _retryConsumer.Acknowledge(message); // TODO: check: what to do with the original message on Wolverine side? I Guess it should be acked?
+    //                await _dlqClient.ReconsumeLater(message, delayTime: _endpoint.RetryLetterTopic!.Retry.First(), cancellationToken: _cancellation);
+    //            }
+    //        }
+
+    //    }
+    //}
+}
+
+
+public static class MessageExtensions
+{
+    public static bool TryGetMessageProperty(this DotPulsar.Abstractions.IMessage message, string key, out string val)
     {
-        // TODO: how to handle retries internally?
-        throw new NotImplementedException();
+        return message.Properties.TryGetValue(key , out val);
     }
 }
+

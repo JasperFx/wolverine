@@ -3,6 +3,7 @@ using DotPulsar.Abstractions;
 using JasperFx.Core.Reflection;
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
+using Wolverine.ErrorHandling.Matches;
 
 namespace Wolverine.Pulsar;
 
@@ -216,7 +217,19 @@ public class PulsarSharedListenerConfiguration : ListenerConfiguration<PulsarSha
     {
         add(e =>
         {
+
+            // TODO: This is a bit of a hack to get the retry letter topic in place
             e.RetryLetterTopic = rt;
+
+            var exceptionMatch = new AlwaysMatches(); // currently can't determine if endpoint listener needs it just based on exception
+            var failureRule = new FailureRule(exceptionMatch);
+
+            foreach (var _ in rt.Retry)
+            {
+                failureRule.AddSlot(new MoveToRetryQueueSource());
+            }
+
+            e.Runtime.Options.Policies.Failures.Add(failureRule);
         });
 
         return this;
@@ -231,6 +244,7 @@ public class PulsarSharedListenerConfiguration : ListenerConfiguration<PulsarSha
         add(e =>
         {
             e.RetryLetterTopic = null;
+            //e.Runtime.Options.Policies.Failures // TODO: remove the failure rule
         });
 
         return this;

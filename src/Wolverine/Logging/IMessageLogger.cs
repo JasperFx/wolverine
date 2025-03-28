@@ -72,6 +72,14 @@ public interface IMessageTracker
     /// <param name="envelope"></param>
     void NoRoutesFor(Envelope envelope);
 
+
+    /// <summary>
+    ///     Called when Wolverine moves an envelope into the retry letter queue
+    /// </summary>
+    /// <param name="envelope"></param>
+    /// <param name="ex"></param>
+    void MovedToRetryQueue(Envelope envelope, Exception ex);
+
     /// <summary>
     ///     Called when Wolverine moves an envelope into the dead letter queue
     /// </summary>

@@ -135,6 +135,29 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
         }
     }
 
+    public async Task MoveToRetryLetterQueueAsync(Exception exception)
+    {
+        if (_channel == null || Envelope == null)
+        {
+            throw new InvalidOperationException("No Envelope is active for this context");
+        }
+
+        if (_channel is ISupportRetryLetterQueue c && c.NativeRetryLetterQueueEnabled)
+        {
+            if (Envelope.Batch != null)
+            {
+                foreach (var envelope in Envelope.Batch)
+                {
+                    await c.MoveToRetryQueueAsync(envelope, exception);
+                }
+            }
+            else
+            {
+                await c.MoveToRetryQueueAsync(Envelope, exception);
+            }
+        }
+    }
+
     public async Task MoveToDeadLetterQueueAsync(Exception exception)
     {
         // Don't bother with agent commands

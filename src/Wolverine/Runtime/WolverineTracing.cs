@@ -30,7 +30,13 @@ internal static class WolverineTracing
     /// ActivityEvent marking when an incoming envelope is discarded
     /// </summary>
     public const string EnvelopeDiscarded = "wolverine.envelope.discarded";
-    
+
+
+    /// <summary>
+    /// ActivityEvent marking when an incoming envelope is being moved to the retry queue
+    /// </summary>
+    public const string MovedToRetryQueue = "wolverine.error.retry.queued";
+
     /// <summary>
     /// ActivityEvent marking when an incoming envelope is being moved to the error queue
     /// </summary>

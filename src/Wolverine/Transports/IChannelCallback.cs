@@ -17,6 +17,7 @@ public interface ISupportDeadLetterQueue
 public interface ISupportRetryLetterQueue
 {
     bool NativeRetryLetterQueueEnabled { get; }
+    bool RetryLimitReached(Envelope envelope);
     Task MoveToRetryQueueAsync(Envelope envelope, Exception exception);
 }
 
