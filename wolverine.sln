@@ -265,6 +265,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IncidentService", "src\Samp
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IncidentService.Tests", "src\Samples\IncidentService\IncidentService.Tests\IncidentService.Tests.csproj", "{318BC03C-4D1A-4491-9E57-8F055C0109D3}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wolverine.AmazonSns", "src\Transports\AWS\Wolverine.AmazonSns\Wolverine.AmazonSns.csproj", "{1882C5F8-C20A-47C1-9D32-5BD6BBA9564C}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -670,6 +672,10 @@ Global
 		{318BC03C-4D1A-4491-9E57-8F055C0109D3}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{318BC03C-4D1A-4491-9E57-8F055C0109D3}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{318BC03C-4D1A-4491-9E57-8F055C0109D3}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1882C5F8-C20A-47C1-9D32-5BD6BBA9564C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1882C5F8-C20A-47C1-9D32-5BD6BBA9564C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1882C5F8-C20A-47C1-9D32-5BD6BBA9564C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1882C5F8-C20A-47C1-9D32-5BD6BBA9564C}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{24497E6A-D6B1-4C80-ABFB-57FFAD5070C4} = {96119B5E-B5F0-400A-9580-B342EBE26212}
@@ -789,5 +795,6 @@ Global
 		{5856D04A-079C-4C0B-ACFF-0C49F8C37E9F} = {D953D733-D154-4DF2-B2B9-30BF942E1B6B}
 		{944FA4D5-E198-4DB4-8795-DC810709626C} = {5856D04A-079C-4C0B-ACFF-0C49F8C37E9F}
 		{318BC03C-4D1A-4491-9E57-8F055C0109D3} = {5856D04A-079C-4C0B-ACFF-0C49F8C37E9F}
+		{1882C5F8-C20A-47C1-9D32-5BD6BBA9564C} = {ABE5F332-6709-4EDF-B88A-39DB96542B18}
 	EndGlobalSection
 EndGlobal
