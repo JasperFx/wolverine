@@ -16,10 +16,23 @@ internal class MoveToErrorQueueSource : IContinuationSource
     }
 }
 
+internal class MoveToErrorQueueWithoutFailureAckSource : IContinuationSource
+{
+    public string Description => "Move to error queue without failure ack";
+
+    public IContinuation Build(Exception ex, Envelope envelope)
+    {
+        return new MoveToErrorQueue(ex, true);
+    }
+}
+
 internal class MoveToErrorQueue : IContinuation
 {
-    public MoveToErrorQueue(Exception exception)
+    private readonly bool _forceSkipSendFailureAcknowledgment;
+
+    public MoveToErrorQueue(Exception exception, bool forceSkipSendFailureAcknowledgment = false)
     {
+        _forceSkipSendFailureAcknowledgment = forceSkipSendFailureAcknowledgment;
         Exception = exception ?? throw new ArgumentNullException(nameof(exception));
     }
 
@@ -31,7 +44,7 @@ internal class MoveToErrorQueue : IContinuation
     {
         // TODO -- at some point, we need a more systematic way of doing this
         var scheme = lifecycle.Envelope.Destination.Scheme;
-        if (runtime.Options.EnableAutomaticFailureAcks && scheme != TransportConstants.Local && scheme != "external-table")
+        if (!_forceSkipSendFailureAcknowledgment && runtime.Options.EnableAutomaticFailureAcks && scheme != TransportConstants.Local && scheme != "external-table")
         {
             await lifecycle.SendFailureAcknowledgementAsync(
                 $"Moved message {lifecycle.Envelope!.Id} to the Error Queue.\n{Exception}");

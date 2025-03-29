@@ -3,6 +3,7 @@ using DotPulsar.Abstractions;
 using JasperFx.Core.Reflection;
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
+using Wolverine.ErrorHandling.Matches;
 
 namespace Wolverine.Pulsar;
 
@@ -110,6 +111,32 @@ public class PulsarListenerConfiguration : ListenerConfiguration<PulsarListenerC
 
         return this;
     }
+
+    /// <summary>
+    /// Override the Pulsar subscription type for just this topic
+    /// </summary>
+    /// <param name="subscriptionType"></param>
+    /// <returns></returns>
+    public PulsarSharedListenerConfiguration WithSharedSubscriptionType()
+    {
+        add(e => { e.SubscriptionType = DotPulsar.SubscriptionType.Shared; });
+
+        return new PulsarSharedListenerConfiguration(this._endpoint);
+    }
+
+
+    /// <summary>
+    /// Override the Pulsar subscription type for just this topic
+    /// </summary>
+    /// <param name="subscriptionType"></param>
+    /// <returns></returns>
+    public PulsarSharedListenerConfiguration WithKeySharedSubscriptionType()
+    {
+        add(e => { e.SubscriptionType = DotPulsar.SubscriptionType.KeyShared; });
+
+        return new PulsarSharedListenerConfiguration(this._endpoint);
+    }
+
     /// <summary>
     ///     Add circuit breaker exception handling to this listener
     /// </summary>
@@ -141,6 +168,88 @@ public class PulsarListenerConfiguration : ListenerConfiguration<PulsarListenerC
     //     endpoint.ListenerCount = count;
     //     return this;
     // }
+}
+
+
+
+public class PulsarSharedListenerConfiguration : ListenerConfiguration<PulsarSharedListenerConfiguration, PulsarEndpoint>
+{
+    public PulsarSharedListenerConfiguration(PulsarEndpoint endpoint) : base(endpoint)
+    {
+    }
+
+
+    /// <summary>
+    /// Customize the dead letter queueing for this specific endpoint
+    /// </summary>
+    /// <param name="configure">Optional configuration</param>
+    /// <returns></returns>
+    public PulsarSharedListenerConfiguration DeadLetterQueueing(DeadLetterTopic dlq)
+    {
+        add(e =>
+        {
+            e.DeadLetterTopic = dlq;
+        });
+
+        return this;
+    }
+
+    /// <summary>
+    /// Remove all dead letter queueing declarations from this queue
+    /// </summary>
+    /// <returns></returns>
+    public PulsarSharedListenerConfiguration DisableDeadLetterQueueing()
+    {
+        add(e =>
+        {
+            e.DeadLetterTopic = null;
+        });
+
+        return this;
+    }
+
+    /// <summary>
+    /// Customize the Retry letter queueing for this specific endpoint
+    /// </summary>
+    /// <param name="configure">Optional configuration</param>
+    /// <returns></returns>
+    public PulsarSharedListenerConfiguration RetryLetterQueueing(RetryLetterTopic rt)
+    {
+        add(e =>
+        {
+
+            // TODO: This is a bit of a hack to get the retry letter topic in place
+            e.RetryLetterTopic = rt;
+
+            var exceptionMatch = new AlwaysMatches(); // currently can't determine if endpoint listener needs it just based on exception
+            var failureRule = new FailureRule(exceptionMatch);
+
+            foreach (var _ in rt.Retry)
+            {
+                failureRule.AddSlot(new MoveToRetryQueueSource());
+            }
+
+            e.Runtime.Options.Policies.Failures.Add(failureRule);
+        });
+
+        return this;
+    }
+
+    /// <summary>
+    /// Remove all Retry letter queueing declarations from this queue
+    /// </summary>
+    /// <returns></returns>
+    public PulsarSharedListenerConfiguration DisableRetryLetterQueueing()
+    {
+        add(e =>
+        {
+            e.RetryLetterTopic = null;
+            //e.Runtime.Options.Policies.Failures // TODO: remove the failure rule
+        });
+
+        return this;
+    }
+
 }
 
 public class PulsarSubscriberConfiguration : SubscriberConfiguration<PulsarSubscriberConfiguration, PulsarEndpoint>
