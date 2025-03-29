@@ -29,14 +29,6 @@ internal class MoveToRetryQueue : IContinuation
         IWolverineRuntime runtime,
         DateTimeOffset now, Activity? activity)
     {
-        //var scheme = lifecycle.Envelope.Destination.Scheme;
-        //if (runtime.Options.EnableAutomaticFailureAcks && scheme != TransportConstants.Local && scheme != "external-table")
-        //{
-        //    // TODO: remove or rather ack?
-        //    await lifecycle.SendFailureAcknowledgementAsync(
-        //        $"Moved message {lifecycle.Envelope!.Id} to the Retry Queue.\n{Exception}");
-        //}
-
         if (lifecycle.Envelope.Listener is ISupportRetryLetterQueue retryListener &&
             !retryListener.RetryLimitReached(lifecycle.Envelope))
         {
@@ -62,7 +54,7 @@ internal class MoveToRetryQueue : IContinuation
 
     private IContinuation buildFallbackContinuation(IEnvelopeLifecycle lifecycle)
     {
-        var cs = new MoveToErrorQueueSource();
+        var cs = new MoveToErrorQueueWithoutFailureAckSource();
         var continuation = cs.Build(Exception, lifecycle.Envelope);
         return continuation;
     }

@@ -47,9 +47,11 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportRetr
         // TODO: check
         NativeDeadLetterQueueEnabled = transport.DeadLetterTopic is not null &&
                                        transport.DeadLetterTopic.Mode != DeadLetterTopicMode.WolverineStorage ||
-                                       endpoint.DeadLetterTopic is not null && endpoint.DeadLetterTopic.Mode != DeadLetterTopicMode.WolverineStorage;
+                                       endpoint.DeadLetterTopic is not null && endpoint.DeadLetterTopic.Mode !=
+                                       DeadLetterTopicMode.WolverineStorage;
 
-        NativeRetryLetterQueueEnabled = endpoint.RetryLetterTopic is not null && RetryLetterTopic.SupportedSubscriptionTypes.Contains(endpoint.SubscriptionType);
+        NativeRetryLetterQueueEnabled = endpoint.RetryLetterTopic is not null &&
+                                        RetryLetterTopic.SupportedSubscriptionTypes.Contains(endpoint.SubscriptionType);
 
         trySetupNativeResiliency(endpoint, transport);
 
@@ -62,25 +64,10 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportRetr
                 {
                     Data = message.Data.ToArray()
                 };
-                try
-                {
-                    mapper.MapIncomingToEnvelope(envelope, message);
 
-                    await receiver.ReceivedAsync(this, envelope);
-                }
-                catch (TaskCanceledException)
-                {
-                    throw; 
-                }
-                catch (Exception)
-                {
-                    if (_dlqClient != null)
-                    {
-                        await _dlqClient.ReconsumeLater(message);
-                        await receiver.ReceivedAsync(this, envelope);
-                        //await _retryConsumer.Acknowledge(message); // TODO: check: original message should be acked and copy is sent to retry topic
-                    }
-                }
+                mapper.MapIncomingToEnvelope(envelope, message);
+
+                await receiver.ReceivedAsync(this, envelope);
             }
 
 
@@ -98,27 +85,12 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportRetr
                     {
                         Data = message.Data.ToArray()
                     };
-                    try
-                    {
-                        mapper.MapIncomingToEnvelope(envelope, message);
 
-                        await receiver.ReceivedAsync(this, envelope);
-                    }
-                    catch (TaskCanceledException)
-                    {
-                        throw;
-                    }
-                    catch (Exception)
-                    {
-                        if (_dlqClient != null)
-                        {
-                            // TODO: used to manage retries - refactor
-                            var retryCount = int.Parse(message.Properties["RECONSUMETIMES"]);
-                            await _dlqClient.ReconsumeLater(message, delayTime: endpoint.RetryLetterTopic!.Retry[retryCount]);
-                            await receiver.ReceivedAsync(this, envelope);
-                            //await _retryConsumer.Acknowledge(message); // TODO: check: original message should be acked and copy is sent to retry/DLQ
-                        }
-                    }
+                    mapper.MapIncomingToEnvelope(envelope, message);
+
+                    await receiver.ReceivedAsync(this, envelope);
+
+
                 }
 
             }, combined.Token);
@@ -254,7 +226,7 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportRetr
     public async Task MoveToErrorsAsync(Envelope envelope, Exception exception)
     {
         // TODO: Currently only ISupportDeadLetterQueue exists, should we introduce ISupportRetryLetterQueue concept? Because now on (first) exception, Wolverine calls this method (concept of retry letter queue is not set for Pulsar)
-        await moveToQueueAsync(envelope, exception, isRetry: false);
+        await moveToQueueAsync(envelope, exception);
     }
 
     public bool NativeRetryLetterQueueEnabled { get; }
@@ -262,7 +234,7 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportRetr
     {
         if (NativeRetryLetterQueueEnabled && envelope is PulsarEnvelope e)
         {
-            if (e.MessageData.Properties.TryGetValue("RECONSUMETIMES", out var reconsumeTimesValue))
+            if (e.MessageData.Properties.TryGetValue(PulsarEnvelopeConstants.ReconsumeTimes, out var reconsumeTimesValue))
             {
                 var currentRetryCount = int.Parse(reconsumeTimesValue);
 
@@ -279,11 +251,11 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportRetr
     {
         // TODO: how to handle retries internally?
         // TODO: Currently only ISupportDeadLetterQueue exists, should we introduce ISupportRetryLetterQueue concept? Because now on (first) exception, Wolverine calls this method (concept of retry letter queue is not set for Pulsar)
-        await moveToQueueAsync(envelope, exception, isRetry: false);
+        await moveToQueueAsync(envelope, exception);
     }
 
 
-    private async Task moveToQueueAsync(Envelope envelope, Exception exception, bool isRetry)
+    private async Task moveToQueueAsync(Envelope envelope, Exception exception)
     {
         if (envelope is PulsarEnvelope e)
         {
@@ -293,7 +265,7 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportRetr
                 IConsumer<ReadOnlySequence<byte>>? associatedConsumer;
                 TimeSpan? delayTime = null;
 
-                if (message.TryGetMessageProperty("RECONSUMETIMES", out var reconsumeTimesValue))
+                if (message.TryGetMessageProperty(PulsarEnvelopeConstants.ReconsumeTimes, out var reconsumeTimesValue))
                 {
                     associatedConsumer = _retryConsumer;
                     var retryCount = int.Parse(reconsumeTimesValue);
