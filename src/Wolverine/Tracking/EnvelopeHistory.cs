@@ -99,6 +99,7 @@ internal class EnvelopeHistory
                 break;
 
             case MessageEventType.Requeued:
+            case MessageEventType.MovedToRetryQueue:
                 // Do nothing, just informative
                 break;
 

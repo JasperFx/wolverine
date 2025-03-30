@@ -142,20 +142,38 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
             throw new InvalidOperationException("No Envelope is active for this context");
         }
 
-        if (_channel is ISupportRetryLetterQueue c && c.NativeRetryLetterQueueEnabled)
+        var retryLetterQueue = tryGetRetryLetterQueue(_channel, Envelope);
+        if (retryLetterQueue is not null)
         {
             if (Envelope.Batch != null)
             {
                 foreach (var envelope in Envelope.Batch)
                 {
-                    await c.MoveToRetryQueueAsync(envelope, exception);
+                    await retryLetterQueue.MoveToRetryQueueAsync(envelope, exception);
                 }
             }
             else
             {
-                await c.MoveToRetryQueueAsync(Envelope, exception);
+                await retryLetterQueue.MoveToRetryQueueAsync(Envelope, exception);
             }
         }
+
+
+    }
+
+    private ISupportRetryLetterQueue? tryGetRetryLetterQueue(IChannelCallback? channel, Envelope e)
+    {
+        if (_channel is ISupportRetryLetterQueue { NativeRetryLetterQueueEnabled: true } c)
+        {
+            return c;
+        }
+
+        if (Envelope.Listener is ISupportRetryLetterQueue { NativeRetryLetterQueueEnabled: true } c2)
+        {
+            return c2;
+        }
+
+        return default;
     }
 
     public async Task MoveToDeadLetterQueueAsync(Exception exception)
