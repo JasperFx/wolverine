@@ -1,5 +1,6 @@
 ﻿using Amazon.Runtime;
 using Amazon.SimpleNotificationService;
+using Amazon.SQS;
 using JasperFx.Core;
 using Wolverine.Runtime;
 using Wolverine.Transports;
@@ -19,17 +20,20 @@ public class AmazonSnsTransport : BrokerTransport<AmazonSnsTopic>
         IdentifierDelimiter = "-";
     }
     
-    internal AmazonSnsTransport(IAmazonSimpleNotificationService sqsClient) : this()
+    internal AmazonSnsTransport(IAmazonSimpleNotificationService snsClient, IAmazonSQS sqsClient) : this()
     {
-        Client = sqsClient;
+        SnsClient = snsClient;
+        SqsClient = sqsClient;
     }
     
     public Func<IWolverineRuntime, AWSCredentials>? CredentialSource { get; set; }
     public LightweightCache<string, AmazonSnsTopic> Topics { get; }
     
-    public AmazonSimpleNotificationServiceConfig Config { get; } = new();
+    public AmazonSimpleNotificationServiceConfig SnsConfig { get; } = new();
+    public AmazonSQSConfig SqsConfig { get; } = new();
     
-    internal IAmazonSimpleNotificationService? Client { get; private set; }
+    internal IAmazonSimpleNotificationService? SnsClient { get; private set; }
+    internal IAmazonSQS? SqsClient { get; private set; }
 
     public int LocalStackPort { get; set; }
 
@@ -77,7 +81,8 @@ public class AmazonSnsTransport : BrokerTransport<AmazonSnsTopic>
 
     public override ValueTask ConnectAsync(IWolverineRuntime runtime)
     {
-        Client ??= BuildClient(runtime);
+        SnsClient ??= buildSnsClient(runtime);
+        SqsClient ??= buildSqsClient(runtime);
         return ValueTask.CompletedTask;
     }
 
@@ -94,17 +99,29 @@ public class AmazonSnsTransport : BrokerTransport<AmazonSnsTopic>
     internal void ConnectToLocalStack(int port = 4566)
     {
         CredentialSource = _ => new BasicAWSCredentials("ignore", "ignore");
-        Config.ServiceURL = $"http://localhost:{port}";
+        SnsConfig.ServiceURL = $"http://localhost:{port}";
+        SqsConfig.ServiceURL = $"http://localhost:{port}";
     }
     
-    private IAmazonSimpleNotificationService BuildClient(IWolverineRuntime runtime)
+    private IAmazonSimpleNotificationService buildSnsClient(IWolverineRuntime runtime)
     {
         if (CredentialSource == null)
         {
-            return new AmazonSimpleNotificationServiceClient(Config);
+            return new AmazonSimpleNotificationServiceClient(SnsConfig);
         }
 
         var credentials = CredentialSource(runtime);
-        return new AmazonSimpleNotificationServiceClient(credentials, Config);
+        return new AmazonSimpleNotificationServiceClient(credentials, SnsConfig);
+    }
+    
+    private AmazonSQSClient buildSqsClient(IWolverineRuntime runtime)
+    {
+        if (CredentialSource == null)
+        {
+            return new AmazonSQSClient(SqsConfig);
+        }
+
+        var credentials = CredentialSource(runtime);
+        return new AmazonSQSClient(credentials, SqsConfig);
     }
 }
