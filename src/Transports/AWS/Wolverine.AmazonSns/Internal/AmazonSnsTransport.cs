@@ -67,7 +67,12 @@ public class AmazonSnsTransport : BrokerTransport<AmazonSnsTopic>
 
     protected override AmazonSnsTopic findEndpointByUri(Uri uri)
     {
-        throw new NotImplementedException();
+        if (uri.Scheme != Protocol)
+        {
+            throw new ArgumentOutOfRangeException(nameof(uri));
+        }
+        
+        return Topics.FirstOrDefault(x => x.Uri.OriginalString == uri.OriginalString) ?? Topics[uri.OriginalString.Split("//")[1].TrimEnd('/')];
     }
 
     public override ValueTask ConnectAsync(IWolverineRuntime runtime)

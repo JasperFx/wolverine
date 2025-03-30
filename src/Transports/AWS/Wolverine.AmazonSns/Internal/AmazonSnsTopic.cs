@@ -24,6 +24,8 @@ public class AmazonSnsTopic : Endpoint, IBrokerQueue
         _parent = parent;
         
         TopicName = topicName;
+        EndpointName = topicName;
+        TopicArn = string.Empty;
 
         Configuration = new CreateTopicRequest(TopicName);
     }
@@ -44,14 +46,23 @@ public class AmazonSnsTopic : Endpoint, IBrokerQueue
     
     public CreateTopicRequest Configuration { get; }
     
-    public ValueTask<bool> CheckAsync()
+    public async ValueTask<bool> CheckAsync()
     {
-        throw new NotImplementedException();
+        return await _parent.Client!.FindTopicAsync(TopicName) is not null;
     }
 
     public async ValueTask TeardownAsync(ILogger logger)
     {
-        await _parent.Client!.DeleteTopicAsync(new DeleteTopicRequest(TopicArn));
+        var client = _parent.Client!;
+
+        if (TopicArn.IsEmpty())
+        {
+            var topic = await client.FindTopicAsync(TopicName);
+            if (topic is null) return;
+            TopicArn = topic.TopicArn;
+        }
+        
+        await client.DeleteTopicAsync(TopicArn);
     }
 
     public ValueTask SetupAsync(ILogger logger)
@@ -69,10 +80,7 @@ public class AmazonSnsTopic : Endpoint, IBrokerQueue
     {
         var client = _parent.Client!;
 
-        if (TopicArn.IsEmpty())
-        {
-            await SetupAsync(client);
-        }
+        await LoadTopicArnIfEmptyAsync(client);
         
         var atts = await client.GetTopicAttributesAsync(TopicArn);
         atts.Attributes.Add("name", TopicName);
@@ -154,6 +162,7 @@ public class AmazonSnsTopic : Endpoint, IBrokerQueue
     
     private async Task SetupAsync(IAmazonSimpleNotificationService client)
     {
+        Configuration.Name = TopicName;
         try
         {
             var response = await client.CreateTopicAsync(Configuration);
