@@ -1,5 +1,7 @@
 ﻿using Amazon.SimpleNotificationService;
 using Amazon.SimpleNotificationService.Model;
+using Amazon.SQS;
+using Amazon.SQS.Model;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
@@ -45,15 +47,16 @@ public class AmazonSnsTopic : Endpoint, IBrokerQueue
     public string TopicArn { get; set; }
     
     public CreateTopicRequest Configuration { get; }
+    public IList<AmazonSnsSubscription> TopicSubscriptions { get; set; } = new List<AmazonSnsSubscription>();
     
     public async ValueTask<bool> CheckAsync()
     {
-        return await _parent.Client!.FindTopicAsync(TopicName) is not null;
+        return await _parent.SnsClient!.FindTopicAsync(TopicName) is not null;
     }
 
     public async ValueTask TeardownAsync(ILogger logger)
     {
-        var client = _parent.Client!;
+        var client = _parent.SnsClient!;
 
         if (TopicArn.IsEmpty())
         {
@@ -67,7 +70,7 @@ public class AmazonSnsTopic : Endpoint, IBrokerQueue
 
     public ValueTask SetupAsync(ILogger logger)
     {
-        return new ValueTask(SetupAsync(_parent.Client!));
+        return new ValueTask(setupAsync(_parent.SnsClient!));
     }
     
     public ValueTask PurgeAsync(ILogger logger)
@@ -78,9 +81,9 @@ public class AmazonSnsTopic : Endpoint, IBrokerQueue
     
     public async ValueTask<Dictionary<string, string>> GetAttributesAsync()
     {
-        var client = _parent.Client!;
+        var client = _parent.SnsClient!;
 
-        await LoadTopicArnIfEmptyAsync(client);
+        await loadTopicArnIfEmptyAsync(client);
         
         var atts = await client.GetTopicAttributesAsync(TopicArn);
         atts.Attributes.Add("name", TopicName);
@@ -113,7 +116,7 @@ public class AmazonSnsTopic : Endpoint, IBrokerQueue
             request.MessageAttributes.Add(attribute.Key, attribute.Value);
         }
         
-        await _parent.Client!.PublishAsync(request);
+        await _parent.SnsClient!.PublishAsync(request);
     }
     
     public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
@@ -136,7 +139,7 @@ public class AmazonSnsTopic : Endpoint, IBrokerQueue
         
         try
         {
-            var client = _parent.Client;
+            var client = _parent.SnsClient;
 
             if (client == null)
             {
@@ -145,11 +148,13 @@ public class AmazonSnsTopic : Endpoint, IBrokerQueue
 
             if (_parent.AutoProvision)
             {
-                await SetupAsync(client);
+                await setupAsync(client);
                 logger.LogInformation("Tried to create Amazon SNS topic {Name} if missing", TopicName);
+                
+                if (TopicSubscriptions.Any()) await createTopicSubscriptionsAsync(client);
             }
             
-            await LoadTopicArnIfEmptyAsync(client);
+            await loadTopicArnIfEmptyAsync(client);
         }
         catch (Exception e)
         {
@@ -160,7 +165,7 @@ public class AmazonSnsTopic : Endpoint, IBrokerQueue
         _initialized = true;
     }
     
-    private async Task SetupAsync(IAmazonSimpleNotificationService client)
+    private async Task setupAsync(IAmazonSimpleNotificationService client)
     {
         Configuration.Name = TopicName;
         try
@@ -176,7 +181,7 @@ public class AmazonSnsTopic : Endpoint, IBrokerQueue
         }
     }
     
-    private async Task LoadTopicArnIfEmptyAsync(IAmazonSimpleNotificationService client)
+    private async Task loadTopicArnIfEmptyAsync(IAmazonSimpleNotificationService client)
     {
         if (TopicArn.IsEmpty())
         {
@@ -189,5 +194,42 @@ public class AmazonSnsTopic : Endpoint, IBrokerQueue
             
             TopicArn = response.TopicArn;
         }
+    }
+
+    private async Task createTopicSubscriptionsAsync(IAmazonSimpleNotificationService client)
+    {
+        var sqsClient = _parent.SqsClient!;
+                
+        foreach (var subscription in TopicSubscriptions)
+        {
+            var subscribeRequest = subscription.Type switch
+            {
+                AmazonSnsSubscriptionType.Sqs => await getSqsSubscriptionsAsync(sqsClient, subscription),
+                _ => throw new NotImplementedException("AmazonSnsSubscriptionType not implemented")
+            };
+
+            await client.SubscribeAsync(subscribeRequest);
+        }
+    }
+
+    private async Task<SubscribeRequest> getSqsSubscriptionsAsync(IAmazonSQS client, AmazonSnsSubscription subscription)
+    {
+        var getQueueResponse = await client.GetQueueUrlAsync(subscription.Endpoint);
+        
+        var queueAttributesRequest = new GetQueueAttributesRequest
+        {
+            QueueUrl = getQueueResponse.QueueUrl,
+            AttributeNames = [QueueAttributeName.QueueArn]
+        };
+        
+        var getAttributesResponse = await client.GetQueueAttributesAsync(queueAttributesRequest);
+
+        return new SubscribeRequest(TopicArn, "sqs", getAttributesResponse.QueueARN)
+        {
+            Attributes =
+            {
+                [nameof(AmazonSnsSubscription.RawMessageDelivery)] = subscription.RawMessageDelivery.ToString()
+            }
+        };
     }
 }

@@ -41,7 +41,7 @@ public static class AmazonSnsTransportExtensions
         Action<AmazonSimpleNotificationServiceConfig> configuration)
     {
         var transport = options.AmazonSnsTransport();
-        configuration(transport.Config);
+        configuration(transport.SnsConfig);
         return new AmazonSnsTransportConfiguration(transport, options);
     }
 
