@@ -25,8 +25,7 @@ public class PulsarEnvelopeMapper : EnvelopeMapper<IMessage<ReadOnlySequence<byt
         {
             // dirty hack, handler increments Attempt field
             int val = int.Parse(value);
-            val--;
-            value = val.ToString();
+            value = (--val).ToString();
             return true;
         }
         return incoming.Properties.TryGetValue(key, out value);

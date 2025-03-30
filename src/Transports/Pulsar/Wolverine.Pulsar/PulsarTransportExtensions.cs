@@ -109,6 +109,9 @@ public class PulsarListenerConfiguration : ListenerConfiguration<PulsarListenerC
             e.SubscriptionType = subscriptionType;
         });
 
+        if (subscriptionType is DotPulsar.SubscriptionType.Shared or DotPulsar.SubscriptionType.KeyShared)
+            new PulsarSharedListenerConfiguration(this._endpoint);
+
         return this;
     }
 
@@ -203,6 +206,8 @@ public class PulsarSharedListenerConfiguration : ListenerConfiguration<PulsarSha
         add(e =>
         {
             e.DeadLetterTopic = null;
+            if (e.RetryLetterTopic is null && e.DeadLetterTopic is null)
+                e.Runtime.Options.Policies.Failures.Remove(rule => rule.Id == "PulsarNativeResiliency");
         });
 
         return this;
@@ -221,8 +226,8 @@ public class PulsarSharedListenerConfiguration : ListenerConfiguration<PulsarSha
             // TODO: This is a bit of a hack to get the retry letter topic in place
             e.RetryLetterTopic = rt;
 
-            var exceptionMatch = new AlwaysMatches(); // currently can't determine if endpoint listener needs it just based on exception
-            var failureRule = new FailureRule(exceptionMatch);
+            var exceptionMatch = new AlwaysMatches(); // currently can't determine if endpoint listener needs it just based on exception, should handler that supports native resiliency, wrap the thrown exception into a new dedicated one?
+            var failureRule = new FailureRule(exceptionMatch, "PulsarNativeResiliency");
 
             foreach (var _ in rt.Retry)
             {
@@ -230,6 +235,7 @@ public class PulsarSharedListenerConfiguration : ListenerConfiguration<PulsarSha
             }
 
             e.Runtime.Options.Policies.Failures.Add(failureRule);
+
         });
 
         return this;
@@ -244,7 +250,8 @@ public class PulsarSharedListenerConfiguration : ListenerConfiguration<PulsarSha
         add(e =>
         {
             e.RetryLetterTopic = null;
-            //e.Runtime.Options.Policies.Failures // TODO: remove the failure rule
+            if (e.RetryLetterTopic is null && e.DeadLetterTopic is null)
+                e.Runtime.Options.Policies.Failures.Remove(rule => rule.Id == "PulsarNativeResiliency");
         });
 
         return this;

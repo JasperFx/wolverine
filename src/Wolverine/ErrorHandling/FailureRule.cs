@@ -8,14 +8,21 @@ public class FailureRule : IEnumerable<FailureSlot>
 {
     private readonly List<FailureSlot> _slots = new();
 
+
     public FailureRule(IExceptionMatch match)
     {
         Match = match;
+    }
+    public FailureRule(IExceptionMatch match, string id)
+    {
+        Match = match;
+        Id = id;
     }
 
     public FailureSlot this[int attempt] => _slots[attempt - 1];
 
     public IExceptionMatch Match { get; }
+    public string? Id { get; }
     internal IContinuationSource? InfiniteSource { get; set; }
 
     public IEnumerator<FailureSlot> GetEnumerator()
@@ -55,4 +62,8 @@ public class FailureRule : IEnumerable<FailureSlot>
 
         return slot;
     }
+
+
+
+
 }
