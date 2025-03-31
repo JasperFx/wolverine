@@ -38,8 +38,12 @@ public class PulsarNativeReliabilityTests : /*TransportComplianceFixture,*/ IAsy
                     .WithSharedSubscriptionType()
                     .RetryLetterQueueing(new RetryLetterTopic([TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2)]))
                     .DeadLetterQueueing(DeadLetterTopic.DefaultNative)
-                    .ProcessInline();
-                //.BufferedInMemory();
+                    //.ProcessInline();
+                    .BufferedInMemory();
+
+                //opts.ListenToPulsarTopic(topicPath + "-DLQ")
+                //    .WithSharedSubscriptionType()
+                //    .ProcessInline();
 
 
             });
@@ -54,10 +58,11 @@ public class PulsarNativeReliabilityTests : /*TransportComplianceFixture,*/ IAsy
     [Fact]
     public async Task run_setup_with_simulated_exception_in_handler()
     {
-        var session =  await WolverineHost.TrackActivity(TimeSpan.FromSeconds(10))
-            .WaitForMessageToBeReceivedAt<SRMessage1>(WolverineHost)
+        var session =  await WolverineHost.TrackActivity(TimeSpan.FromSeconds(100))
+            //.WaitForMessageToBeReceivedAt<SRMessage1>(WolverineHost)
             .DoNotAssertOnExceptionsDetected()
             .IncludeExternalTransports()
+            .WaitForCondition(new WaitForDeadLetteredMessage<SRMessage1>())
             .SendMessageAndWaitAsync(new SRMessage1());
 
 
@@ -76,6 +81,32 @@ public class PulsarNativeReliabilityTests : /*TransportComplianceFixture,*/ IAsy
             .MessagesOf<SRMessage1>()
             .Count()
             .ShouldBe(2);
+
+        session.MovedToRetryQueue
+            .MessagesOf<SRMessage1>()
+            .Count()
+            .ShouldBe(2);
+
+        // TODO: I Guess the capture of the envelope headers occurs before we manipulate it
+        //var firstRequeuedEnvelope = session.MovedToRetryQueue.Envelopes().First();
+        //firstRequeuedEnvelope.ShouldSatisfyAllConditions(
+        //    () => firstRequeuedEnvelope.Headers.ContainsKey("DELAY_TIME").ShouldBeTrue(),
+        //    () => firstRequeuedEnvelope.Headers["DELAY_TIME"].ShouldBe(TimeSpan.FromSeconds(1).TotalMilliseconds.ToString())
+        //);
+        //var secondRequeuedEnvelope = session.MovedToRetryQueue.Envelopes().Skip(1).First();
+        //secondRequeuedEnvelope.ShouldSatisfyAllConditions(
+        //    () => secondRequeuedEnvelope.Headers.ContainsKey("DELAY_TIME").ShouldBeTrue(),
+        //    () => secondRequeuedEnvelope.Headers["DELAY_TIME"].ShouldBe(TimeSpan.FromSeconds(2).TotalMilliseconds.ToString())
+        //);
+
+
+        var firstEnvelope = session.MovedToErrorQueue.Envelopes().First();
+        firstEnvelope.ShouldSatisfyAllConditions(
+            () => firstEnvelope.Headers.ContainsKey(PulsarEnvelopeConstants.Exception).ShouldBeTrue(),
+            () => firstEnvelope.Headers[PulsarEnvelopeConstants.ReconsumeTimes].ShouldBe("2"),
+            () => firstEnvelope.Headers["DELAY_TIME"].ShouldBe(TimeSpan.FromSeconds(2).TotalMilliseconds.ToString())
+        );
+
     }
 
    
@@ -94,9 +125,34 @@ public class SRMessage1;
 
 public class SRMessageHandlers
 {
-    public Task Handle(SRMessage1 message)
+    public Task Handle(SRMessage1 message, IMessageContext context)
     {
         throw new InvalidOperationException("Simulated exception");
     }
 
 }
+
+
+
+public class WaitForDeadLetteredMessage<T> : ITrackedCondition
+{
+
+    private bool _found;
+
+    public WaitForDeadLetteredMessage()
+    {
+
+    }
+
+    public void Record(EnvelopeRecord record)
+    {
+        if (record.Envelope.Message is T && record.MessageEventType == MessageEventType.MovedToErrorQueue )
+           // && record.Envelope.Destination?.ToString().Contains(_dlqTopic) == true)
+        {
+            _found = true;
+        }
+    }
+
+    public bool IsCompleted() => _found;
+}
+

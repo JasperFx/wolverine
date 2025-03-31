@@ -168,7 +168,22 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
             return c;
         }
 
-        if (Envelope.Listener is ISupportRetryLetterQueue { NativeRetryLetterQueueEnabled: true } c2)
+        if (e.Listener is ISupportRetryLetterQueue { NativeRetryLetterQueueEnabled: true } c2)
+        {
+            return c2;
+        }
+
+        return default;
+    }
+
+    private ISupportDeadLetterQueue? tryGetDeadLetterQueue(IChannelCallback? channel, Envelope e)
+    {
+        if (_channel is ISupportDeadLetterQueue { NativeDeadLetterQueueEnabled: true } c)
+        {
+            return c;
+        }
+
+        if (e.Listener is ISupportDeadLetterQueue { NativeDeadLetterQueueEnabled: true } c2)
         {
             return c2;
         }
@@ -186,18 +201,19 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
             throw new InvalidOperationException("No Envelope is active for this context");
         }
 
-        if (_channel is ISupportDeadLetterQueue c && c.NativeDeadLetterQueueEnabled)
+        var deadLetterQueue = tryGetDeadLetterQueue(_channel, Envelope);
+        if (deadLetterQueue is not null)
         {
             if (Envelope.Batch != null)
             {
                 foreach (var envelope in Envelope.Batch)
                 {
-                    await c.MoveToErrorsAsync(envelope, exception);
+                    await deadLetterQueue.MoveToErrorsAsync(envelope, exception);
                 }
             }
             else
             {
-                await c.MoveToErrorsAsync(Envelope, exception);
+                await deadLetterQueue.MoveToErrorsAsync(Envelope, exception);
             }
 
             return;

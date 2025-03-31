@@ -156,6 +156,7 @@ internal class EnvelopeHistory
             case MessageEventType.NoHandlers:
             case MessageEventType.NoRoutes:
             case MessageEventType.Requeued:
+            case MessageEventType.MovedToRetryQueue:
 
                 break;
 
