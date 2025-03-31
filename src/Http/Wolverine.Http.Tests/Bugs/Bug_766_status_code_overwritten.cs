@@ -23,14 +23,6 @@ namespace Wolverine.Http.Tests.Bugs
                 // Establish the connection string to your Marten database
                 opts.Connection(Servers.PostgresConnectionString);
                 opts.DatabaseSchemaName = "myapp";
-
-                // Specify that we want to use STJ as our serializer
-                opts.UseSystemTextJsonForSerialization();
-
-                opts.Policies.AllDocumentsSoftDeleted();
-                opts.Policies.AllDocumentsAreMultiTenanted();
-
-                opts.DisableNpgsqlLogging = true;
             }).IntegrateWithWolverine().UseLightweightSessions();
 
             builder.Host.UseWolverine(opts => opts.Discovery.IncludeAssembly(GetType().Assembly));
@@ -61,14 +53,6 @@ namespace Wolverine.Http.Tests.Bugs
                 // Establish the connection string to your Marten database
                 opts.Connection(Servers.PostgresConnectionString);
                 opts.DatabaseSchemaName = "myapp";
-
-                // Specify that we want to use STJ as our serializer
-                opts.UseSystemTextJsonForSerialization();
-
-                opts.Policies.AllDocumentsSoftDeleted();
-                opts.Policies.AllDocumentsAreMultiTenanted();
-
-                opts.DisableNpgsqlLogging = true;
             }).IntegrateWithWolverine().UseLightweightSessions();
 
             builder.Host.UseWolverine(opts => opts.Discovery.IncludeAssembly(GetType().Assembly));
