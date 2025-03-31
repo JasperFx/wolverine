@@ -46,6 +46,17 @@ public class PulsarNativeReliabilityTests : /*TransportComplianceFixture,*/ IAsy
                 //    .ProcessInline();
 
 
+                var topicPath2 = $"persistent://public/default/no-retry-{topic}";
+                opts.IncludeType<SRMessageHandlers>();
+
+                opts.PublishMessage<SRMessage2>()
+                    .ToPulsarTopic(topicPath2);
+
+                opts.ListenToPulsarTopic(topicPath2)
+                    .WithSharedSubscriptionType()
+                    .DeadLetterQueueing(DeadLetterTopic.DefaultNative)
+                    .ProcessInline();
+
             });
     }
 
@@ -109,7 +120,48 @@ public class PulsarNativeReliabilityTests : /*TransportComplianceFixture,*/ IAsy
 
     }
 
-   
+    [Fact]
+    public async Task run_setup_with_simulated_exception_in_handler_only_native_dead_lettered_queue()
+    {
+        var session = await WolverineHost.TrackActivity(TimeSpan.FromSeconds(100))
+            .DoNotAssertOnExceptionsDetected()
+            .IncludeExternalTransports()
+            .WaitForCondition(new WaitForDeadLetteredMessage<SRMessage2>())
+            .SendMessageAndWaitAsync(new SRMessage2());
+
+
+        session.Sent.AllMessages();
+        session.MovedToErrorQueue
+            .MessagesOf<SRMessage2>()
+            .Count()
+            .ShouldBe(1);
+
+        session.Received
+            .MessagesOf<SRMessage2>()
+            .Count()
+            .ShouldBe(1);
+
+        session.Requeued
+            .MessagesOf<SRMessage2>()
+            .Count()
+            .ShouldBe(0);
+
+        session.MovedToRetryQueue
+            .MessagesOf<SRMessage2>()
+            .Count()
+            .ShouldBe(0);
+
+
+
+        var firstEnvelope = session.MovedToErrorQueue.Envelopes().First();
+        firstEnvelope.ShouldSatisfyAllConditions(
+            () => firstEnvelope.Headers.ContainsKey(PulsarEnvelopeConstants.Exception).ShouldBeTrue(),
+            () => firstEnvelope.Headers.ContainsKey(PulsarEnvelopeConstants.ReconsumeTimes).ShouldBeFalse()
+        );
+
+    }
+
+
 
     public async Task DisposeAsync()
     {
@@ -121,11 +173,17 @@ public class PulsarNativeReliabilityTests : /*TransportComplianceFixture,*/ IAsy
 }
 
 public class SRMessage1;
+public class SRMessage2;
 
 
 public class SRMessageHandlers
 {
     public Task Handle(SRMessage1 message, IMessageContext context)
+    {
+        throw new InvalidOperationException("Simulated exception");
+    }
+
+    public Task Handle(SRMessage2 message, IMessageContext context)
     {
         throw new InvalidOperationException("Simulated exception");
     }
