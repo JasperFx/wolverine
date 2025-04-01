@@ -249,7 +249,7 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportRetr
 
     public async Task MoveToRetryQueueAsync(Envelope envelope, Exception exception)
     {
-        // TODO: how to handle retries internally?
+        // TODO: how to handle retries internally (in Wolverine context, not Pulsar)?
         // TODO: Currently only ISupportDeadLetterQueue exists, should we introduce ISupportRetryLetterQueue concept? Because now on (first) exception, Wolverine calls this method (concept of retry letter queue is not set for Pulsar)
         await moveToQueueAsync(envelope, exception);
     }

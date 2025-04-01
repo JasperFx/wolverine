@@ -56,7 +56,7 @@ public interface ITrackedSession
     RecordCollection MovedToErrorQueue { get; }
     
     /// <summary>
-    ///    Records of all messages that were moved to the error queue
+    ///    Records of all messages that were moved to the retry queue
     /// </summary>
     RecordCollection MovedToRetryQueue { get; }
     

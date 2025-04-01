@@ -37,11 +37,10 @@ internal class MoveToRetryQueue : IContinuation
                 lifecycle.Envelope.MessageType = lifecycle.Envelope.Message.GetType().ToMessageTypeName();
             }
 
-            await lifecycle.MoveToRetryLetterQueueAsync(Exception);
-
+            await retryListener.MoveToRetryQueueAsync(lifecycle.Envelope, Exception);
             activity?.AddEvent(new ActivityEvent(WolverineTracing.MovedToRetryQueue));
 
-            runtime.MessageTracking.Requeued(lifecycle.Envelope); // TODO: new method
+            runtime.MessageTracking.Requeued(lifecycle.Envelope); // TODO: new method below or this?
             runtime.MessageTracking.MovedToRetryQueue(lifecycle.Envelope, Exception);
 
         }

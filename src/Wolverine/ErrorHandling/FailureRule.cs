@@ -13,7 +13,7 @@ public class FailureRule : IEnumerable<FailureSlot>
     {
         Match = match;
     }
-    public FailureRule(IExceptionMatch match, string id)
+    public FailureRule(IExceptionMatch match, string? id)
     {
         Match = match;
         Id = id;

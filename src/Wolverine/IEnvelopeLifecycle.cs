@@ -24,8 +24,6 @@ public interface IEnvelopeLifecycle : IMessageBus
 
     Task ReScheduleAsync(DateTimeOffset scheduledTime);
 
-    Task MoveToRetryLetterQueueAsync(Exception exception);
-
     Task MoveToDeadLetterQueueAsync(Exception exception);
 
     /// <summary>

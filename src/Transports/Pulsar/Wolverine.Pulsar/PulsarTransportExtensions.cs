@@ -116,7 +116,31 @@ public class PulsarListenerConfiguration : ListenerConfiguration<PulsarListenerC
     }
 
     /// <summary>
-    /// Override the Pulsar subscription type for just this topic
+    /// Override the Pulsar subscription type to  <see cref="DotPulsar.SubscriptionType.Failover"/> for just this topic
+    /// </summary>
+    /// <param name="subscriptionType"></param>
+    /// <returns></returns>
+    public PulsarListenerConfiguration WithFailoverSubscriptionType()
+    {
+        add(e => { e.SubscriptionType = DotPulsar.SubscriptionType.Failover; });
+
+        return this;
+    }
+
+    /// <summary>
+    /// Override the Pulsar subscription type to  <see cref="DotPulsar.SubscriptionType.Exclusive"/> for just this topic
+    /// </summary>
+    /// <param name="subscriptionType"></param>
+    /// <returns></returns>
+    public PulsarListenerConfiguration WithExclusiveSubscriptionType()
+    {
+        add(e => { e.SubscriptionType = DotPulsar.SubscriptionType.Exclusive; });
+
+        return this;
+    }
+
+    /// <summary>
+    /// Override the Pulsar subscription type to <see cref="DotPulsar.SubscriptionType.Shared"/> for just this topic
     /// </summary>
     /// <param name="subscriptionType"></param>
     /// <returns></returns>
@@ -129,7 +153,7 @@ public class PulsarListenerConfiguration : ListenerConfiguration<PulsarListenerC
 
 
     /// <summary>
-    /// Override the Pulsar subscription type for just this topic
+    /// Override the Pulsar subscription type to <see cref="DotPulsar.SubscriptionType.KeyShared"/> for just this topic
     /// </summary>
     /// <param name="subscriptionType"></param>
     /// <returns></returns>
@@ -157,6 +181,36 @@ public class PulsarListenerConfiguration : ListenerConfiguration<PulsarListenerC
         return this;
     }
 
+
+    /// <summary>
+    /// Customize the dead letter queueing for this specific endpoint
+    /// </summary>
+    /// <param name="configure">Optional configuration</param>
+    /// <returns></returns>
+    public PulsarListenerConfiguration DeadLetterQueueing(DeadLetterTopic dlq)
+    {
+        add(e =>
+        {
+            e.DeadLetterTopic = dlq;
+        });
+
+        return this;
+    }
+
+    /// <summary>
+    /// Remove all dead letter queueing declarations from this queue
+    /// </summary>
+    /// <returns></returns>
+    public PulsarListenerConfiguration DisableDeadLetterQueueing()
+    {
+        add(e =>
+        {
+            e.DeadLetterTopic = null;
+        });
+
+        return this;
+    }
+
     // /// <summary>
     // /// To optimize the message listener throughput,
     // /// start up multiple listening endpoints. This is
@@ -180,7 +234,6 @@ public class PulsarSharedListenerConfiguration : ListenerConfiguration<PulsarSha
     public PulsarSharedListenerConfiguration(PulsarEndpoint endpoint) : base(endpoint)
     {
     }
-
 
     /// <summary>
     /// Customize the dead letter queueing for this specific endpoint
@@ -222,19 +275,19 @@ public class PulsarSharedListenerConfiguration : ListenerConfiguration<PulsarSha
     {
         add(e =>
         {
-
-            // TODO: This is a bit of a hack to get the retry letter topic in place
+            
             e.RetryLetterTopic = rt;
 
-            var exceptionMatch = new AlwaysMatches(); // currently can't determine if endpoint listener needs it just based on exception, should handler that supports native resiliency, wrap the thrown exception into a new dedicated one?
-            var failureRule = new FailureRule(exceptionMatch, "PulsarNativeResiliency");
+            //var exceptionMatch = new AlwaysMatches(); // currently can't determine if endpoint listener needs it just based on exception, should handler that supports native resiliency, wrap the thrown exception into a new dedicated one?
+            //var failureRule = new FailureRule(exceptionMatch, "PulsarNativeResiliency");
+            //foreach (var _ in rt.Retry)
+            //{
+            //    failureRule.AddSlot(new MoveToRetryQueueSource());
+            //}
+            //e.Runtime.Options.Policies.Failures.Add(failureRule);
 
-            foreach (var _ in rt.Retry)
-            {
-                failureRule.AddSlot(new MoveToRetryQueueSource());
-            }
-
-            e.Runtime.Options.Policies.Failures.Add(failureRule);
+            //e.Runtime.Options.Policies.OnAnyException().MoveToErrorQueue();
+            e.Runtime.Options.Policies.OnAnyException().MoveToRetryQueue(rt.Retry.Count, "PulsarNativeResiliency");
 
         });
 
