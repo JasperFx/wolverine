@@ -30,6 +30,8 @@ public class AmazonSnsTopic : Endpoint, IBrokerQueue
         TopicArn = string.Empty;
 
         Configuration = new CreateTopicRequest(TopicName);
+        
+        MessageBatchSize = 10;
     }
     
     /// <summary>
@@ -127,7 +129,15 @@ public class AmazonSnsTopic : Endpoint, IBrokerQueue
 
     protected override ISender CreateSender(IWolverineRuntime runtime)
     {
-        return new InlineSnsSender(runtime, this);
+        if (Mode == EndpointMode.Inline)
+        {
+            return new InlineSnsSender(runtime, this);
+        }
+        
+        var protocol = new SnsSenderProtocol(runtime, this,
+            _parent.SnsClient ?? throw new InvalidOperationException("Parent transport has not been initialized"));
+        return new BatchedSender(this, protocol, runtime.Cancellation,
+            runtime.LoggerFactory.CreateLogger<SnsSenderProtocol>());
     }
 
     public override  async ValueTask InitializeAsync(ILogger logger)
