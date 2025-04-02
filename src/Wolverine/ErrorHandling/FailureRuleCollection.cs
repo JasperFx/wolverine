@@ -95,4 +95,9 @@ public class FailureRuleCollection : IEnumerable<FailureRule>
     {
         _rules.Add(rule);
     }
+
+    internal void Remove(Func<FailureRule, bool> rule)
+    {
+        _rules.RemoveAll(new Predicate<FailureRule>(rule));
+    }
 }
