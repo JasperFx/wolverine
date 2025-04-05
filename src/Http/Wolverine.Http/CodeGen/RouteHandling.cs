@@ -94,7 +94,8 @@ internal class RouteParameterStrategy : IParameterStrategy
         { typeof(ulong), "ulong" },
         { typeof(Guid), typeof(Guid).FullName! },
         { typeof(DateTime), typeof(DateTime).FullName! },
-        { typeof(DateTimeOffset), typeof(DateTimeOffset).FullName! }
+        { typeof(DateTimeOffset), typeof(DateTimeOffset).FullName! },
+        { typeof(DateOnly), typeof(DateOnly).FullName! }
     };
 
     #endregion

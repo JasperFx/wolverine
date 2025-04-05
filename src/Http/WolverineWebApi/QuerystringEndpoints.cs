@@ -53,4 +53,16 @@ public static class QuerystringEndpoints
     {
         return value.HasValue ? value.Value.ToString("O") : "Value is missing";
     }
+
+    [WolverineGet("/querystring/dateonly")]
+    public static string DateOnly(DateOnly value)
+    {
+        return value.ToString("O");
+    }
+
+    [WolverineGet("/querystring/dateonly/nullable")]
+    public static string DateOnlyNullable(DateOnly? value)
+    {
+        return value.HasValue ? value.Value.ToString("O") : "Value is missing";
+    }
 }
