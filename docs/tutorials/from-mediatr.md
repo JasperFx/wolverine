@@ -17,6 +17,11 @@ It's important to note that Wolverine allows for a completely different coding m
 application frameworks in .NET. While you can use Wolverine as a near exact drop in replacement for MediatR, that's not
 taking advantages of Wolverine's capabilities.
 
+::: warning
+While Wolverine is a near drop-in replacement for MediatR, not all features are supported yet.
+.NET 8 introduced the concept of *keyed* services in the default `ServiceProvider`, but this feature is currently not supported in Wolverine.
+:::
+
 ## Handlers
 
 MediatR is an example of what I call an "IHandler of T" framework, just meaning
