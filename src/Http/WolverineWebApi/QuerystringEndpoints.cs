@@ -41,4 +41,28 @@ public static class QuerystringEndpoints
 
         return values.OrderBy(x => x).Select(x => x.ToString()).Join(",");
     }
+
+    [WolverineGet("/querystring/datetime")]
+    public static string DateTime(DateTime value)
+    {
+        return value.ToString("O");
+    }
+
+    [WolverineGet("/querystring/datetime/nullable")]
+    public static string DateTimeNullable(DateTime? value)
+    {
+        return value.HasValue ? value.Value.ToString("O") : "Value is missing";
+    }
+
+    [WolverineGet("/querystring/dateonly")]
+    public static string DateOnly(DateOnly value)
+    {
+        return value.ToString("O");
+    }
+
+    [WolverineGet("/querystring/dateonly/nullable")]
+    public static string DateOnlyNullable(DateOnly? value)
+    {
+        return value.HasValue ? value.Value.ToString("O") : "Value is missing";
+    }
 }

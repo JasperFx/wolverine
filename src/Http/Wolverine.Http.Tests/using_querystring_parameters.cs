@@ -264,6 +264,175 @@ public class using_querystring_parameters : IntegrationContext
         body.ReadAsText().ShouldBe("none");
     }
 
+    [Fact]
+    public async Task using_datetime_with_default_value()
+    {
+        var body = await Scenario(x =>
+        {
+            x.Get.Url("/querystring/datetime");
+            
+            x.Header("content-type").SingleValueShouldEqual("text/plain");
+        });
+
+        body.ReadAsText().ShouldBe("0001-01-01T00:00:00.0000000");
+    }
+
+    [Fact]
+    public async Task using_datetime_with_invalid_value_parses_to_default()
+    {
+        var body = await Scenario(x =>
+        {
+            x.Get.Url("/querystring/datetime?value=-5-5-5");
+
+            x.Header("content-type").SingleValueShouldEqual("text/plain");
+        });
+
+        body.ReadAsText().ShouldBe("0001-01-01T00:00:00.0000000");
+    }
+
+    [Fact]
+    public async Task using_datetime_with_just_a_date()
+    {
+        var body = await Scenario(x =>
+        {
+            x.Get.Url("/querystring/datetime?value=2025-04-05");
+
+            x.Header("content-type").SingleValueShouldEqual("text/plain");
+        });
+
+        body.ReadAsText().ShouldBe("2025-04-05T00:00:00.0000000");
+    }
+
+    [Fact]
+    public async Task using_datetime_including_time()
+    {
+        var body = await Scenario(x =>
+        {
+            x.Get.Url("/querystring/datetime?value=2025-04-05T13:37:42.0123456");
+
+            x.Header("content-type").SingleValueShouldEqual("text/plain");
+        });
+
+        body.ReadAsText().ShouldBe("2025-04-05T13:37:42.0123456");
+    }
+
+    [Fact]
+    public async Task using_nullable_datetime_with_default_value()
+    {
+        var body = await Scenario(x =>
+        {
+            x.Get.Url("/querystring/datetime/nullable");
+
+            x.Header("content-type").SingleValueShouldEqual("text/plain");
+        });
+
+        body.ReadAsText().ShouldBe("Value is missing");
+    }
+
+    [Fact]
+    public async Task using_nullable_datetime_with_just_a_date()
+    {
+        var body = await Scenario(x =>
+        {
+            x.Get.Url("/querystring/datetime/nullable?value=2025-04-05");
+
+            x.Header("content-type").SingleValueShouldEqual("text/plain");
+        });
+
+        body.ReadAsText().ShouldBe("2025-04-05T00:00:00.0000000");
+    }
+
+    [Fact]
+    public async Task using_nullable_datetime_including_time()
+    {
+        var body = await Scenario(x =>
+        {
+            x.Get.Url("/querystring/datetime/nullable?value=2025-04-05T13:37:42.0123456");
+
+            x.Header("content-type").SingleValueShouldEqual("text/plain");
+        });
+
+        body.ReadAsText().ShouldBe("2025-04-05T13:37:42.0123456");
+    }
+
+    [Fact]
+    public async Task using_dateonly_with_default_value()
+    {
+        var body = await Scenario(x =>
+        {
+            x.Get.Url("/querystring/dateonly");
+
+            x.Header("content-type").SingleValueShouldEqual("text/plain");
+        });
+
+        body.ReadAsText().ShouldBe("0001-01-01");
+    }
+
+    [Fact]
+    public async Task using_dateonly_with_value()
+    {
+        var body = await Scenario(x =>
+        {
+            x.Get.Url("/querystring/dateonly?value=2025-04-05");
+
+            x.Header("content-type").SingleValueShouldEqual("text/plain");
+        });
+
+        body.ReadAsText().ShouldBe("2025-04-05");
+    }
+
+    [Fact]
+    public async Task using_dateonly_with_invalid_value_returns_default()
+    {
+        var body = await Scenario(x =>
+        {
+            x.Get.Url("/querystring/dateonly?value=-2025");
+
+            x.Header("content-type").SingleValueShouldEqual("text/plain");
+        });
+
+        body.ReadAsText().ShouldBe("0001-01-01");
+    }
+
+    [Fact]
+    public async Task using_nullable_dateonly_with_default_value()
+    {
+        var body = await Scenario(x =>
+        {
+            x.Get.Url("/querystring/dateonly/nullable");
+
+            x.Header("content-type").SingleValueShouldEqual("text/plain");
+        });
+
+        body.ReadAsText().ShouldBe("Value is missing");
+    }
+
+    [Fact]
+    public async Task using_nullable_dateonly_with_value()
+    {
+        var body = await Scenario(x =>
+        {
+            x.Get.Url("/querystring/dateonly?value=2025-04-05");
+
+            x.Header("content-type").SingleValueShouldEqual("text/plain");
+        });
+
+        body.ReadAsText().ShouldBe("2025-04-05");
+    }
+
+    [Fact]
+    public async Task using_nullable_dateonly_with_invalid_value_returns_default()
+    {
+        var body = await Scenario(x =>
+        {
+            x.Get.Url("/querystring/dateonly?value=-2025");
+
+            x.Header("content-type").SingleValueShouldEqual("text/plain");
+        });
+
+        body.ReadAsText().ShouldBe("0001-01-01");
+    }
+
     #region sample_query_string_usage
 
     [Fact]
