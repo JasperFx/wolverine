@@ -18,6 +18,7 @@ public class KafkaTransport : BrokerTransport<KafkaTopic>
     public Action<ConsumerBuilder<string, string>> ConfigureConsumerBuilders { get; internal set; } = _ => {};
 
     public AdminClientConfig AdminClientConfig { get; } = new();
+    public Action<AdminClientBuilder> ConfigureAdminClientBuilders { get; internal set; } = _ => {};
 
     public KafkaTransport() : base("kafka", "Kafka Topics")
     {
@@ -70,5 +71,12 @@ public class KafkaTransport : BrokerTransport<KafkaTopic>
         var consumerBuilder = new ConsumerBuilder<string, string>(ConsumerConfig);
         ConfigureConsumerBuilders(consumerBuilder);
         return consumerBuilder.Build();
+    }
+
+    internal IAdminClient CreateAdminClient()
+    {
+        var adminClientBuilder = new AdminClientBuilder(AdminClientConfig);
+        ConfigureAdminClientBuilders(adminClientBuilder);
+        return adminClientBuilder.Build();
     }
 }
