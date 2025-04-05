@@ -12,6 +12,8 @@ public class KafkaTransport : BrokerTransport<KafkaTopic>
     public Cache<string, KafkaTopic> Topics { get; }
 
     public ProducerConfig ProducerConfig { get; } = new();
+    public Action<ProducerBuilder<string, string>> ConfigureProducerBuilders { get; internal set; } = _ => {};
+
     public ConsumerConfig ConsumerConfig { get; } = new();
 
     public AdminClientConfig AdminClientConfig { get; } = new();
@@ -53,5 +55,12 @@ public class KafkaTransport : BrokerTransport<KafkaTopic>
     public override IEnumerable<PropertyColumn> DiagnosticColumns()
     {
         yield break;
+    }
+
+    internal IProducer<string, string> CreateProducer()
+    {
+        var producerBuilder = new ProducerBuilder<string, string>(ProducerConfig);
+        ConfigureProducerBuilders(producerBuilder);
+        return producerBuilder.Build();
     }
 }
