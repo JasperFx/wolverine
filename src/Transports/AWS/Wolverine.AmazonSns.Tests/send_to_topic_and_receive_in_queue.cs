@@ -1,12 +1,10 @@
 using JasperFx.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Shouldly;
 using Wolverine.AmazonSqs;
 using Wolverine.Tracking;
-using Xunit.Abstractions;
 
 namespace Wolverine.AmazonSns.Tests;
 
