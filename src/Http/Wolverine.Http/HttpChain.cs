@@ -61,7 +61,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
     private readonly List<QuerystringVariable> _querystringVariables = [];
 
     public string OperationId { get; set; }
-    
+
     /// <summary>
     /// This may be overridden by some IResponseAware policies in place of the first
     /// create variable of the method call
@@ -159,7 +159,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
     public string? RouteName { get; set; }
 
     public string? DisplayName { get; set; }
-    
+
     public int Order { get; set; }
 
     public IEnumerable<string> HttpMethods => _httpMethods;
@@ -242,9 +242,9 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
         registry.AddSingleton<IServiceCollection>(registry);
 
         var provider = registry.BuildServiceProvider();
-        
+
         var serviceContainer = provider.GetRequiredService<IServiceContainer>();
-        
+
         return new HttpChain(call, parent ?? new HttpGraph(new WolverineOptions(), serviceContainer));
     }
 
@@ -302,7 +302,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
             .WithMetadata(this)
             .WithMetadata(new WolverineMarker())
             .WithMetadata(new HttpMethodMetadata(_httpMethods));
-            //.WithMetadata(Method.Method);
+        //.WithMetadata(Method.Method);
 
         if (HasRequestType)
         {
@@ -322,57 +322,70 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
             key = att.Name;
         }
 
+        return TryFindOrCreateQuerystringValue(parameter.ParameterType, key);
+    }
+
+    public QuerystringVariable? TryFindOrCreateQuerystringValue(PropertyInfo property)
+    {
+        var key = property.Name;
+
+        if (property.TryGetAttribute<FromQueryAttribute>(out var att) && att.Name.IsNotEmpty())
+        {
+            key = att.Name;
+        }
+
+        return TryFindOrCreateQuerystringValue(property.PropertyType, key);
+    }
+
+    public QuerystringVariable? TryFindOrCreateQuerystringValue(Type type, string name)
+    {
+        var key = name;
+
         var variable = _querystringVariables.FirstOrDefault(x => x.Name == key);
 
         if (variable == null)
         {
-            if (parameter.ParameterType == typeof(string))
+            if (type == typeof(string))
             {
                 variable = new ReadStringQueryStringValue(key).Variable;
-                variable.Name = key;
                 _querystringVariables.Add(variable);
             }
 
-            if (parameter.ParameterType == typeof(string[]))
+            if (type == typeof(string[]))
             {
-                variable = new ParsedArrayQueryStringValue(parameter).Variable;
-                variable.Name = key;
+                variable = new ParsedArrayQueryStringValue(type, key).Variable;
                 _querystringVariables.Add(variable);
             }
 
-            if (parameter.ParameterType.IsNullable())
+            if (type.IsNullable())
             {
-                var inner = parameter.ParameterType.GetInnerTypeFromNullable();
+                var inner = type.GetInnerTypeFromNullable();
                 if (RouteParameterStrategy.CanParse(inner))
                 {
-                    variable = new ParsedNullableQueryStringValue(parameter).Variable;
-                    variable.Name = key;
+                    variable = new ParsedNullableQueryStringValue(type, key).Variable;
                     _querystringVariables.Add(variable);
                 }
             }
-            
-            if (parameter.ParameterType.IsArray && RouteParameterStrategy.CanParse(parameter.ParameterType.GetElementType()))
+
+            if (type.IsArray && RouteParameterStrategy.CanParse(type.GetElementType()))
             {
-                variable = new ParsedArrayQueryStringValue(parameter).Variable;
-                variable.Name = key;
+                variable = new ParsedArrayQueryStringValue(type, key).Variable;
                 _querystringVariables.Add(variable);
             }
 
-            if (ParsedCollectionQueryStringValue.CanParse(parameter.ParameterType))
+            if (ParsedCollectionQueryStringValue.CanParse(type))
             {
-                variable = new ParsedCollectionQueryStringValue(parameter).Variable;
-                variable.Name = key;
+                variable = new ParsedCollectionQueryStringValue(type, key).Variable;
                 _querystringVariables.Add(variable);
             }
 
-            if (RouteParameterStrategy.CanParse(parameter.ParameterType))
+            if (RouteParameterStrategy.CanParse(type))
             {
-                variable = new ParsedQueryStringValue(parameter).Variable;
-                variable.Name = key;
+                variable = new ParsedQueryStringValue(type, key).Variable;
                 _querystringVariables.Add(variable);
             }
         }
-        else if (variable.VariableType != parameter.ParameterType)
+        else if (variable.VariableType != type)
         {
             throw new InvalidOperationException(
                 $"The query string parameter '{key}' cannot be used for multiple target types");
@@ -381,7 +394,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
         return variable;
     }
 
-    public bool FindRouteVariable(ParameterInfo parameter, [NotNullWhen(true)]out Variable? variable)
+    public bool FindRouteVariable(ParameterInfo parameter, [NotNullWhen(true)] out Variable? variable)
     {
         var existing = _routeVariables.FirstOrDefault(x =>
             x.VariableType == parameter.ParameterType && x.Usage.EqualsIgnoreCase(parameter.Name));
@@ -414,7 +427,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
         return false;
     }
 
-    public bool FindRouteVariable(Type variableType, string routeOrParameterName, [NotNullWhen(true)]out Variable? variable)
+    public bool FindRouteVariable(Type variableType, string routeOrParameterName, [NotNullWhen(true)] out Variable? variable)
     {
         var matched =
             _routeVariables.FirstOrDefault(x => x.VariableType == variableType && x.Usage.EqualsIgnoreCase(routeOrParameterName));

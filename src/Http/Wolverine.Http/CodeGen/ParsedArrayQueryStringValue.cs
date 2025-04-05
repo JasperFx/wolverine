@@ -7,11 +7,19 @@ namespace Wolverine.Http.CodeGen;
 
 internal class ParsedArrayQueryStringValue : SyncFrame
 {
-    public ParsedArrayQueryStringValue(ParameterInfo parameter)
+    public ParsedArrayQueryStringValue(ParameterInfo parameter) : this(parameter.ParameterType, parameter.Name!)
     {
-        Variable = new QuerystringVariable(parameter.ParameterType, parameter.Name!, this);
     }
-    
+
+    public ParsedArrayQueryStringValue(PropertyInfo property) : this(property.PropertyType, property.Name!)
+    {
+    }
+
+    public ParsedArrayQueryStringValue(Type type, string name)
+    {
+        Variable = new QuerystringVariable(type, name, this);
+    }
+
     public QuerystringVariable Variable { get; }
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
@@ -27,7 +35,7 @@ internal class ParsedArrayQueryStringValue : SyncFrame
             var elementAlias = elementType.FullNameInCode();
 
             writer.Write($"var {Variable.Usage}_List = new {collectionAlias}();");
-            
+
             writer.Write($"BLOCK:foreach (var {Variable.Usage}Value in httpContext.Request.Query[\"{Variable.Usage}\"])");
 
             if (elementType.IsEnum)
@@ -47,10 +55,10 @@ internal class ParsedArrayQueryStringValue : SyncFrame
             writer.FinishBlock(); // parsing block
 
             writer.FinishBlock(); // foreach blobck
-            
+
             writer.Write($"var {Variable.Usage} = {Variable.Usage}_List.ToArray();");
         }
-        
+
         Next?.GenerateCode(method, writer);
     }
 }

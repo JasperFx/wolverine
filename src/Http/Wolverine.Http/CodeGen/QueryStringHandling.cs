@@ -36,9 +36,17 @@ internal class ReadStringQueryStringValue : SyncFrame
 
 internal class ParsedQueryStringValue : SyncFrame
 {
-    public ParsedQueryStringValue(ParameterInfo parameter)
+    public ParsedQueryStringValue(ParameterInfo parameter) : this(parameter.ParameterType, parameter.Name!)
     {
-        Variable = new QuerystringVariable(parameter.ParameterType, parameter.Name!, this);
+    }
+
+    public ParsedQueryStringValue(PropertyInfo property) : this(property.PropertyType, property.Name!)
+    {
+    }
+
+    public ParsedQueryStringValue(Type type, string name)
+    {
+        Variable = new QuerystringVariable(type, name, this);
     }
 
     public QuerystringVariable Variable { get; }
@@ -71,10 +79,18 @@ internal class ParsedNullableQueryStringValue : SyncFrame
     private readonly string _alias;
     private Type _innerTypeFromNullable;
 
-    public ParsedNullableQueryStringValue(ParameterInfo parameter)
+    public ParsedNullableQueryStringValue(ParameterInfo parameter) : this(parameter.ParameterType, parameter.Name!)
     {
-        Variable = new QuerystringVariable(parameter.ParameterType, parameter.Name!, this);
-        _innerTypeFromNullable = parameter.ParameterType.GetInnerTypeFromNullable();
+    }
+
+    public ParsedNullableQueryStringValue(PropertyInfo property) : this(property.PropertyType, property.Name!)
+    {
+    }
+
+    public ParsedNullableQueryStringValue(Type type, string name)
+    {
+        Variable = new QuerystringVariable(type, name, this);
+        _innerTypeFromNullable = type.GetInnerTypeFromNullable();
         _alias = _innerTypeFromNullable.FullNameInCode();
     }
 
@@ -107,10 +123,18 @@ internal class ParsedCollectionQueryStringValue : SyncFrame
 {
     private readonly Type _collectionElementType;
 
-    public ParsedCollectionQueryStringValue(ParameterInfo parameter)
+    public ParsedCollectionQueryStringValue(ParameterInfo parameter) : this(parameter.ParameterType, parameter.Name!)
     {
-        Variable = new QuerystringVariable(parameter.ParameterType, parameter.Name!, this);
-        _collectionElementType = GetCollectionElementType(parameter.ParameterType);
+    }
+
+    public ParsedCollectionQueryStringValue(PropertyInfo property) : this(property.PropertyType, property.Name!)
+    {
+    }
+
+    public ParsedCollectionQueryStringValue(Type type, string name)
+    {
+        Variable = new QuerystringVariable(type, name, this);
+        _collectionElementType = GetCollectionElementType(type);
     }
 
     public QuerystringVariable Variable { get; }
