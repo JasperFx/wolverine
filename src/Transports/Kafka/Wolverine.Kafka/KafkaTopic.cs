@@ -78,25 +78,25 @@ public class KafkaTopic : Endpoint, IBrokerEndpoint
     public async ValueTask TeardownAsync(ILogger logger)
     {
         if (TopicName == WolverineTopicsName) return; // don't care, this is just a marker
-        using var client = new AdminClientBuilder(Parent.AdminClientConfig).Build();
-        await client.DeleteTopicsAsync(new string[] { TopicName });
+        using var adminClient = Parent.CreateAdminClient();
+        await adminClient.DeleteTopicsAsync([TopicName]);
     }
 
     public async ValueTask SetupAsync(ILogger logger)
     {
         if (TopicName == WolverineTopicsName) return; // don't care, this is just a marker
 
-        using var client = new AdminClientBuilder(Parent.AdminClientConfig).Build();
+        using var adminClient = Parent.CreateAdminClient();
 
         try
         {
-            await client.CreateTopicsAsync(new[]
-            {
+            await adminClient.CreateTopicsAsync(
+            [
                 new TopicSpecification
                 {
                     Name = TopicName
                 }
-            });
+            ]);
 
             logger.LogInformation("Created Kafka topic {Topic}", TopicName);
         }
