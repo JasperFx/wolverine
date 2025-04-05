@@ -61,6 +61,17 @@ public class KafkaTransportExpression : BrokerExpression<KafkaTransport, KafkaTo
     }
 
     /// <summary>
+    /// Configure the Kafka consumer builders within the Wolverine transport
+    /// </summary>
+    /// <param name="configure"></param>
+    /// <returns></returns>
+    public KafkaTransportExpression ConfigureConsumerBuilders(Action<ConsumerBuilder<string, string>> configure)
+    {
+        _transport.ConfigureConsumerBuilders = configure;
+        return this;
+    }
+
+    /// <summary>
     /// Create newly used Kafka topics on endpoint activation if the topic is missing
     /// </summary>
     /// <param name="configure"></param>

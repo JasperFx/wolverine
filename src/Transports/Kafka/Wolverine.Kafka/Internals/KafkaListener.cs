@@ -16,11 +16,12 @@ internal class KafkaListener : IListener, IDisposable
     private readonly string? _messageTypeName;
     private readonly QualityOfService _qualityOfService;
 
-    public KafkaListener(KafkaTopic topic, ConsumerConfig config, IReceiver receiver,
+    public KafkaListener(KafkaTopic topic, ConsumerConfig config,
+        IConsumer<string, string> consumer, IReceiver receiver,
         ILogger<KafkaListener> logger)
     {
         Address = topic.Uri;
-        _consumer = new ConsumerBuilder<string, string>(config).Build();
+        _consumer = consumer;
         var mapper = topic.Mapper;
 
         _messageTypeName = topic.MessageType?.ToMessageTypeName();
