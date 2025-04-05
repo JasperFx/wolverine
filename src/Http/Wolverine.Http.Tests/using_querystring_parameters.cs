@@ -355,6 +355,84 @@ public class using_querystring_parameters : IntegrationContext
         body.ReadAsText().ShouldBe("2025-04-05T13:37:42.0123456");
     }
 
+    [Fact]
+    public async Task using_dateonly_with_default_value()
+    {
+        var body = await Scenario(x =>
+        {
+            x.Get.Url("/querystring/dateonly");
+
+            x.Header("content-type").SingleValueShouldEqual("text/plain");
+        });
+
+        body.ReadAsText().ShouldBe("0001-01-01");
+    }
+
+    [Fact]
+    public async Task using_dateonly_with_value()
+    {
+        var body = await Scenario(x =>
+        {
+            x.Get.Url("/querystring/dateonly?value=2025-04-05");
+
+            x.Header("content-type").SingleValueShouldEqual("text/plain");
+        });
+
+        body.ReadAsText().ShouldBe("2025-04-05");
+    }
+
+    [Fact]
+    public async Task using_dateonly_with_invalid_value_returns_default()
+    {
+        var body = await Scenario(x =>
+        {
+            x.Get.Url("/querystring/dateonly?value=-2025");
+
+            x.Header("content-type").SingleValueShouldEqual("text/plain");
+        });
+
+        body.ReadAsText().ShouldBe("0001-01-01");
+    }
+
+    [Fact]
+    public async Task using_nullable_dateonly_with_default_value()
+    {
+        var body = await Scenario(x =>
+        {
+            x.Get.Url("/querystring/dateonly/nullable");
+
+            x.Header("content-type").SingleValueShouldEqual("text/plain");
+        });
+
+        body.ReadAsText().ShouldBe("Value is missing");
+    }
+
+    [Fact]
+    public async Task using_nullable_dateonly_with_value()
+    {
+        var body = await Scenario(x =>
+        {
+            x.Get.Url("/querystring/dateonly?value=2025-04-05");
+
+            x.Header("content-type").SingleValueShouldEqual("text/plain");
+        });
+
+        body.ReadAsText().ShouldBe("2025-04-05");
+    }
+
+    [Fact]
+    public async Task using_nullable_dateonly_with_invalid_value_returns_default()
+    {
+        var body = await Scenario(x =>
+        {
+            x.Get.Url("/querystring/dateonly?value=-2025");
+
+            x.Header("content-type").SingleValueShouldEqual("text/plain");
+        });
+
+        body.ReadAsText().ShouldBe("0001-01-01");
+    }
+
     #region sample_query_string_usage
 
     [Fact]
