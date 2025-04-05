@@ -56,20 +56,4 @@ public class AmazonSnsTransportConfiguration : BrokerExpression<AmazonSnsTranspo
         Transport.UseLocalStackInDevelopment = true;
         return this;
     }
-
-    /// <summary>
-    ///     Apply a conventional routing topology based on message types
-    /// </summary>
-    /// <param name="configure"></param>
-    /// <returns></returns>
-    public AmazonSnsTransportConfiguration UseConventionalRouting(
-        Action<AmazonSnsMessageRoutingConvention>? configure = null)
-    {
-        var routing = new AmazonSnsMessageRoutingConvention();
-        configure?.Invoke(routing);
-
-        Options.RouteWith(routing);
-
-        return this;
-    }
 }
