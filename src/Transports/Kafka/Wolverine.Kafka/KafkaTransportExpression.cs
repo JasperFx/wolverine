@@ -39,6 +39,17 @@ public class KafkaTransportExpression : BrokerExpression<KafkaTransport, KafkaTo
     }
 
     /// <summary>
+    /// Configure the Kafka message producer builders within the Wolverine transport
+    /// </summary>
+    /// <param name="configure"></param>
+    /// <returns></returns>
+    public KafkaTransportExpression ConfigureProducerBuilders(Action<ProducerBuilder<string, string>> configure)
+    {
+        _transport.ConfigureProducerBuilders = configure;
+        return this;
+    }
+
+    /// <summary>
     /// Configure the Kafka message consumers within the Wolverine transport
     /// </summary>
     /// <param name="configure"></param>

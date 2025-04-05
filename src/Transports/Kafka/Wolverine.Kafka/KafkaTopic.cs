@@ -58,7 +58,7 @@ public class KafkaTopic : Endpoint, IBrokerEndpoint
         if (TopicName == WolverineTopicsName) return true; // don't care, this is just a marker
         try
         {
-            using var client = new ProducerBuilder<string, string>(Parent.ProducerConfig).Build();
+            using var client = Parent.CreateProducer();
             await client.ProduceAsync(TopicName, new Message<string, string>
             {
                 Key = "ping",
