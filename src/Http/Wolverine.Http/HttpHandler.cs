@@ -160,7 +160,7 @@ public abstract class HttpHandler
             var queryObject = root switch
             {
                 null => JsonSerializer.Deserialize<T>(JsonSerializer.Serialize(dict), _jsonOptions),
-                _ => JsonSerializer.Deserialize<T>(JsonSerializer.Serialize(dict[root]), _jsonOptions),
+                _ => dict.ContainsKey(root) ? JsonSerializer.Deserialize<T>(JsonSerializer.Serialize(dict[root]), _jsonOptions) : JsonSerializer.Deserialize<T>("{}"),
             };
 
             return (queryObject, HandlerContinuation.Continue);
