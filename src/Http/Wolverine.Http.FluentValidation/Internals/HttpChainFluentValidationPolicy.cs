@@ -11,7 +11,7 @@ internal class HttpChainFluentValidationPolicy : IHttpPolicy
 {
     public void Apply(IReadOnlyList<HttpChain> chains, GenerationRules rules, IServiceContainer container)
     {
-        foreach (var chain in chains.Where(x => x.HasRequestType))
+        foreach (var chain in chains.Where(x => x.HasRequestType || x.QueryStringObjectVariables.Any()))
         {
             Apply(chain, container);
         }
@@ -19,37 +19,49 @@ internal class HttpChainFluentValidationPolicy : IHttpPolicy
 
     public void Apply(HttpChain chain, IServiceContainer container)
     {
-        var validatorInterface = typeof(IValidator<>).MakeGenericType(chain.RequestType!);
+        var types = chain.QueryStringObjectVariables
+            .Select(x => x.VariableType)
+            .ToList();
 
-        var registered = container.RegistrationsFor(validatorInterface);
-
-        if (registered.Count() == 1)
+        if (chain.HasRequestType)
         {
-            chain.Metadata.ProducesProblem(400);
-
-            var method =
-                typeof(FluentValidationHttpExecutor).GetMethod(nameof(FluentValidationHttpExecutor.ExecuteOne))!
-                    .MakeGenericMethod(chain.RequestType);
-
-            var methodCall = new MethodCall(typeof(FluentValidationHttpExecutor), method)
-            {
-                CommentText = "Execute FluentValidation validators"
-            };
-
-            var maybeResult = new MaybeEndWithResultFrame(methodCall.ReturnVariable!);
-            chain.Middleware.InsertRange(0, new Frame[]{methodCall,maybeResult});
+            types.Add(chain.RequestType);
         }
-        else if (registered.Count() > 1)
+
+        foreach (var type in types)
         {
-            chain.Metadata.ProducesProblem(400);
+            var validatorInterface = typeof(IValidator<>).MakeGenericType(type);
 
-            var method =
-                typeof(FluentValidationHttpExecutor).GetMethod(nameof(FluentValidationHttpExecutor.ExecuteMany))!
-                    .MakeGenericMethod(chain.RequestType);
+            var registered = container.RegistrationsFor(validatorInterface);
 
-            var methodCall = new MethodCall(typeof(FluentValidationHttpExecutor), method);
-            var maybeResult = new MaybeEndWithResultFrame(methodCall.ReturnVariable!);
-            chain.Middleware.InsertRange(0, new Frame[]{methodCall,maybeResult});
+            if (registered.Count() == 1)
+            {
+                chain.Metadata.ProducesProblem(400);
+
+                var method =
+                    typeof(FluentValidationHttpExecutor).GetMethod(nameof(FluentValidationHttpExecutor.ExecuteOne))!
+                        .MakeGenericMethod(type);
+
+                var methodCall = new MethodCall(typeof(FluentValidationHttpExecutor), method)
+                {
+                    CommentText = "Execute FluentValidation validators"
+                };
+
+                var maybeResult = new MaybeEndWithResultFrame(methodCall.ReturnVariable!);
+                chain.Middleware.InsertRange(0, new Frame[] { methodCall, maybeResult });
+            }
+            else if (registered.Count() > 1)
+            {
+                chain.Metadata.ProducesProblem(400);
+
+                var method =
+                    typeof(FluentValidationHttpExecutor).GetMethod(nameof(FluentValidationHttpExecutor.ExecuteMany))!
+                        .MakeGenericMethod(type);
+
+                var methodCall = new MethodCall(typeof(FluentValidationHttpExecutor), method);
+                var maybeResult = new MaybeEndWithResultFrame(methodCall.ReturnVariable!);
+                chain.Middleware.InsertRange(0, new Frame[] { methodCall, maybeResult });
+            }
         }
     }
 }
