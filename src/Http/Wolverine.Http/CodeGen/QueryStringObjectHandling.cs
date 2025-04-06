@@ -38,7 +38,7 @@ internal class QueryStringObjectVariable : Variable
         _variables = variables;
     }
 
-    public void SetPrefix(string? prefix = null)
+    public void SetPrefixQueryStrings(string? prefix = null)
     {
         foreach (var variable in _variables)
         {
@@ -67,7 +67,7 @@ internal class ReadJsonQueryString : AsyncFrame
         var jsonContinue = $"{Variable.Usage}_continue";
         List<string> arguments = [Variable.HasPrefix ? $"\"{Variable.Usage}\"" : "null"];
         arguments.AddRange(Variable.ArrayVariables.Select(x => $"\"{x}\""));
-        
+
         writer.WriteComment("Reading the request query strings via JSON deserialization");
         writer.Write(
             $"var ({Variable.Usage}, {jsonContinue}) = await ReadQueryStringJsonAsync<{Variable.VariableType.FullNameInCode()}>(httpContext, {string.Join(", ", arguments)});");
@@ -112,7 +112,7 @@ internal class QueryStringObjectStrategy : IParameterStrategy
             if (_lastChain == chain.DisplayName && _lastVariable != null)
             {
                 _lastVariable.HasPrefix = true;
-                _lastVariable.SetPrefix();
+                _lastVariable.SetPrefixQueryStrings();
             }
             else
             {
