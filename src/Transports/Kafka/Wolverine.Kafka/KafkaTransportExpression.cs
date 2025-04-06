@@ -88,7 +88,7 @@ public class KafkaTransportExpression : BrokerExpression<KafkaTransport, KafkaTo
     /// </summary>
     /// <param name="configure"></param>
     /// <returns></returns>
-    public KafkaTransportExpression ConfigureConsumerBuilders(Action<AdminClientBuilder> configure)
+    public KafkaTransportExpression ConfigureAdminConsumerBuilders(Action<AdminClientBuilder> configure)
     {
         _transport.ConfigureAdminClientBuilders = configure;
         return this;
