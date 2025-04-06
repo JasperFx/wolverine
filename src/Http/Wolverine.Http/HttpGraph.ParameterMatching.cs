@@ -16,6 +16,7 @@ public partial class HttpGraph
         new RouteParameterStrategy(),
         new FromHeaderStrategy(),
         new QueryStringParameterStrategy(),
+        new QueryStringObjectStrategy(),
         new JsonBodyParameterStrategy()
     ];
 

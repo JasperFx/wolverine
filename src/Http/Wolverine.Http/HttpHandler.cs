@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Http.Headers;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Wolverine.Http.CodeGen;
 using Wolverine.Http.Runtime.MultiTenancy;
 using JsonSerializer = System.Text.Json.JsonSerializer;
 
@@ -122,6 +123,52 @@ public abstract class HttpHandler
         {
             var logger = context.RequestServices.GetService<ILogger<T>>();
             logger?.LogError(e, "Error trying to deserialize JSON from incoming HTTP body at {Url} to type {Type}",
+                context.Request.Path, typeof(T).FullNameInCode());
+
+            if (e is JsonException jsonException)
+            {
+                await Results.Problem(new()
+                {
+                    Type = "https://httpstatuses.com/400",
+                    Title = "Invalid JSON format",
+                    Status = StatusCodes.Status400BadRequest,
+                    Detail = jsonException.Message,
+                    Instance = context.Request.Path,
+                    Extensions =
+                    {
+                        { "lineNumber", jsonException.LineNumber ?? 0 },
+                        { "bytePositionInLine", jsonException.BytePositionInLine ?? 0 }
+                    }
+                }).ExecuteAsync(context);
+            }
+            else
+            {
+                context.Response.StatusCode = 400;
+            }
+
+            return (default, HandlerContinuation.Stop);
+        }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public async ValueTask<(T?, HandlerContinuation)> ReadQueryStringJsonAsync<T>(HttpContext context, string? root = null, params string[] arrayKeys)
+    {
+        try
+        {
+            var dict = context.Request.Query.ToNestedDictionary(arrayKeys.ToHashSet(StringComparer.OrdinalIgnoreCase));
+
+            var queryObject = root switch
+            {
+                null => JsonSerializer.Deserialize<T>(JsonSerializer.Serialize(dict), _jsonOptions),
+                _ => JsonSerializer.Deserialize<T>(JsonSerializer.Serialize(dict[root]), _jsonOptions),
+            };
+
+            return (queryObject, HandlerContinuation.Continue);
+        }
+        catch (Exception e)
+        {
+            var logger = context.RequestServices.GetService<ILogger<T>>();
+            logger?.LogError(e, "Error trying to deserialize JSON from incoming HTTP query strings at {Url} to type {Type}",
                 context.Request.Path, typeof(T).FullNameInCode());
 
             if (e is JsonException jsonException)
