@@ -212,34 +212,69 @@ public class AmazonSnsTopic : Endpoint, IBrokerQueue
                 
         foreach (var subscription in TopicSubscriptions)
         {
-            var subscribeRequest = subscription.Type switch
-            {
-                AmazonSnsSubscriptionType.Sqs => await getSqsSubscriptionsAsync(sqsClient, subscription),
-                _ => throw new NotImplementedException("AmazonSnsSubscriptionType not implemented")
-            };
+            string endpoint;
 
+            switch (subscription.Type)
+            {
+                case AmazonSnsSubscriptionType.Sqs:
+                    var getQueueResponse = await sqsClient.GetQueueUrlAsync(subscription.Endpoint);
+                    endpoint = await getSqsSubscriptionEndpointAsync(sqsClient, getQueueResponse.QueueUrl);
+                    
+                    await setQueuePolicyForTopic(sqsClient, getQueueResponse.QueueUrl, endpoint, TopicArn);
+                    break;
+                default:
+                    throw new NotImplementedException("AmazonSnsSubscriptionType not implemented");
+            }
+            
+            var subscribeRequest = new SubscribeRequest(TopicArn, subscription.Protocol, endpoint)
+            {
+                Attributes =
+                {
+                    [nameof(AmazonSnsSubscription.RawMessageDelivery)] = subscription.RawMessageDelivery.ToString()
+                }
+            };
             await client.SubscribeAsync(subscribeRequest);
         }
     }
 
-    private async Task<SubscribeRequest> getSqsSubscriptionsAsync(IAmazonSQS client, AmazonSnsSubscription subscription)
+    private async Task<string> getSqsSubscriptionEndpointAsync(IAmazonSQS client, string queueUrl)
     {
-        var getQueueResponse = await client.GetQueueUrlAsync(subscription.Endpoint);
-        
         var queueAttributesRequest = new GetQueueAttributesRequest
         {
-            QueueUrl = getQueueResponse.QueueUrl,
+            QueueUrl = queueUrl,
             AttributeNames = [QueueAttributeName.QueueArn]
         };
         
         var getAttributesResponse = await client.GetQueueAttributesAsync(queueAttributesRequest);
+        return getAttributesResponse.QueueARN;
+    }
 
-        return new SubscribeRequest(TopicArn, "sqs", getAttributesResponse.QueueARN)
-        {
-            Attributes =
+    private async Task setQueuePolicyForTopic(IAmazonSQS client, string queueUrl, string queueArn, string topicArn)
+    {
+        var queuePolicy = $$"""
+                            {
+                              "Version": "2012-10-17",
+                              "Statement": [{
+                                  "Effect": "Allow",
+                                  "Principal": {
+                                      "Service": "sns.amazonaws.com"
+                                  },
+                                  "Action": "sqs:SendMessage",
+                                  "Resource": "{{queueArn}}",
+                                  "Condition": {
+                                    "ArnEquals": {
+                                        "aws:SourceArn": "{{topicArn}}"
+                                    }
+                                  }
+                              }]
+                            }
+                            """;
+
+        await client.SetQueueAttributesAsync(
+            new SetQueueAttributesRequest
             {
-                [nameof(AmazonSnsSubscription.RawMessageDelivery)] = subscription.RawMessageDelivery.ToString()
-            }
-        };
+                QueueUrl = queueUrl,
+                Attributes = new Dictionary<string, string> { {"Policy", queuePolicy } }
+            });
     }
 }

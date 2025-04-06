@@ -15,6 +15,14 @@ public class AmazonSnsSubscription
     }
 
     public string Endpoint { get; }
+
+    public string Protocol =>
+        Type switch
+        {
+            AmazonSnsSubscriptionType.Sqs => "sqs",
+            _ => throw new NotImplementedException("Unknown AmazonSnsSubscriptionType")
+        };
+
     public bool RawMessageDelivery { get; set; }
     public AmazonSnsSubscriptionType Type { get; }
 }
