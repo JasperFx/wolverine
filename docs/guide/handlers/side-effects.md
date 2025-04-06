@@ -123,6 +123,9 @@ available to the actual message handler like:
 
 You can find more usages of side effect return values in the [Marten side effect operations](/guide/durability/marten/operations).
 
+Please note that it's not valid to return `ISideEffect` as the return type of your method. Wolverine will throw an exception
+asking you to return the concrete type (or at least an abstract or interface type that has the `Execute` or `ExecuteAsync` method).
+
 ## Storage Side Effects <Badge type="tip" text="3.6" />
 
 ::: info
