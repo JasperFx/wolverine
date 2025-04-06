@@ -79,7 +79,19 @@ thinks is the application assembly (more on this in the troubleshooting guide be
 Most of the facilities shown here will require the [Oakton command line integration](./command-line).
 :::
 
+## Embedding Codegen in Docker
+
+At this point, the most successful mechanism and sweet spot is to run the codegen as `Dynamic` at development time, but generating
+the code artifacts just in time for production deployments. From Wolverine's sibling project Marten, see this section on [Application project setup](https://martendb.io/devops/devops.html#application-project-set-up)
+for embedding the code generation directly into your Docker images for deployment.
+
 ## Troubleshooting Code Generation Issues
+
+::: warning
+There's nothing magic about the `Auto` mode, and Wolverine isn't (yet) doing any file comparisons against the generated code and
+the current version of the application. At this point, the Wolverine community recommends against using the `Auto` mode
+for code generation as it has not added much value and can cause some confusion.
+:::
 
 In all cases, don't hesitate to reach out to the Wolverine team in the Discord link at the top right of this page to 
 ask for help with any codegen related issues.
