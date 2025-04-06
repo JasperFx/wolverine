@@ -48,6 +48,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
 
     public static readonly Variable[] HttpContextVariables =
         Variable.VariablesForProperties<HttpContext>(HttpGraph.Context);
+    public List<Variable> QueryStringObjectVariables = [];
 
     internal Variable? RequestBodyVariable { get; set; }
 

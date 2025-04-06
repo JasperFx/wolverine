@@ -102,25 +102,20 @@ internal class ReadJsonQueryStringWithNewtonsoft : MethodCall
 
 internal class QueryStringObjectStrategy : IParameterStrategy
 {
-    private QueryStringObjectVariable? _lastVariable;
-    private string? _lastChain;
 
     public bool TryMatch(HttpChain chain, IServiceContainer container, ParameterInfo parameter, out Variable? variable)
     {
         if (parameter.GetAttribute<FromQueryAttribute>() is not null && !parameter.ParameterType.IsSimple())
         {
-            if (_lastChain == chain.DisplayName && _lastVariable != null)
+            var lastVariable = chain.QueryStringObjectVariables.LastOrDefault() as QueryStringObjectVariable;
+
+            if (lastVariable is { HasPrefix: false })
             {
-                _lastVariable.HasPrefix = true;
-                _lastVariable.SetPrefixQueryStrings();
-            }
-            else
-            {
-                _lastChain = chain.DisplayName;
-                _lastVariable = null;
+                lastVariable.HasPrefix = true;
+                lastVariable.SetPrefixQueryStrings();
             }
 
-            var properties = _lastVariable?.HasPrefix switch
+            var properties = lastVariable?.HasPrefix switch
             {
                 true => GetProperties(parameter, parameter.Name),
                 _ => GetProperties(parameter)
@@ -132,13 +127,13 @@ internal class QueryStringObjectStrategy : IParameterStrategy
                 .ToArray();
 
             var queryObjectVariable = new ReadJsonQueryString(parameter, queryStringVariables!).Variable;
-            queryObjectVariable.HasPrefix = _lastVariable?.HasPrefix ?? false;
+            queryObjectVariable.HasPrefix = lastVariable?.HasPrefix ?? false;
+
+            chain.QueryStringObjectVariables.Add(queryObjectVariable);
 
             variable = Usage == JsonUsage.SystemTextJson
                 ? queryObjectVariable
                 : new ReadJsonQueryStringWithNewtonsoft(parameter).ReturnVariable!;
-
-            _lastVariable = variable as QueryStringObjectVariable;
 
             return true;
         }
