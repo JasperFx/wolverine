@@ -177,6 +177,16 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue
 
     public bool NativeDeadLetterQueueEnabled { get; }
 
+    public AmazonSqsQueue GetQueue()
+    {
+        return _queue;
+    }
+
+    public AmazonSqsTransport GetTransport()
+    {
+        return _transport;
+    }
+
     private AmazonSqsEnvelope buildEnvelope(Message message)
     {
         var envelope = new AmazonSqsEnvelope(message);
