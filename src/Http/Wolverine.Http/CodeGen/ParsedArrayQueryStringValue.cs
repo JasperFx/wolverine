@@ -7,11 +7,11 @@ namespace Wolverine.Http.CodeGen;
 
 internal class ParsedArrayQueryStringValue : SyncFrame
 {
-    public ParsedArrayQueryStringValue(ParameterInfo parameter)
+    public ParsedArrayQueryStringValue(Type parameterType, string parameterName) 
     {
-        Variable = new QuerystringVariable(parameter.ParameterType, parameter.Name!, this);
+        Variable = new QuerystringVariable(parameterType, parameterName!, this);
     }
-    
+
     public QuerystringVariable Variable { get; }
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
