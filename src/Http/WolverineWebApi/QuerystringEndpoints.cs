@@ -1,6 +1,7 @@
 using JasperFx.Core;
 using Marten;
 using Microsoft.AspNetCore.Mvc;
+using Spectre.Console;
 using Wolverine.Http;
 
 namespace WolverineWebApi;
@@ -66,3 +67,24 @@ public static class QuerystringEndpoints
         return value.HasValue ? value.Value.ToString("O") : "Value is missing";
     }
 }
+
+public static class FromQueryEndpoints
+{
+    [WolverineGet("/api/fromquery1")]
+    public static Query1 Get([FromQuery] Query1 query) => query;
+    
+    [WolverineGet("/api/fromquery2")]
+    public static Query2 Get([FromQuery] Query2 query) => query;
+    
+    [WolverineGet("/api/fromquery3")]
+    public static Query3 Get([FromQuery] Query3 query) => query;
+
+    [WolverineGet("/api/fromquery4")]
+    public static Query4 Get([FromQuery] Query4 query) => query;
+}
+
+public record Query1(string Name);
+public record Query2(int Number);
+public record Query3(Guid Id);
+
+public record Query4(string Name, int Number, Direction Direction);

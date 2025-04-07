@@ -3,6 +3,7 @@ using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
+using Microsoft.AspNetCore.Mvc;
 using Wolverine.Runtime;
 
 namespace Wolverine.Http.CodeGen;
@@ -36,9 +37,9 @@ internal class ReadStringQueryStringValue : SyncFrame
 
 internal class ParsedQueryStringValue : SyncFrame
 {
-    public ParsedQueryStringValue(ParameterInfo parameter)
+    public ParsedQueryStringValue(Type parameterType, string parameterName)
     {
-        Variable = new QuerystringVariable(parameter.ParameterType, parameter.Name!, this);
+        Variable = new QuerystringVariable(parameterType, parameterName!, this);
     }
 
     public QuerystringVariable Variable { get; }
@@ -71,10 +72,10 @@ internal class ParsedNullableQueryStringValue : SyncFrame
     private readonly string _alias;
     private Type _innerTypeFromNullable;
 
-    public ParsedNullableQueryStringValue(ParameterInfo parameter)
+    public ParsedNullableQueryStringValue(Type parameterType, string parameterName)
     {
-        Variable = new QuerystringVariable(parameter.ParameterType, parameter.Name!, this);
-        _innerTypeFromNullable = parameter.ParameterType.GetInnerTypeFromNullable();
+        Variable = new QuerystringVariable(parameterType, parameterName, this);
+        _innerTypeFromNullable = parameterType.GetInnerTypeFromNullable();
         _alias = _innerTypeFromNullable.FullNameInCode();
     }
 
@@ -107,10 +108,10 @@ internal class ParsedCollectionQueryStringValue : SyncFrame
 {
     private readonly Type _collectionElementType;
 
-    public ParsedCollectionQueryStringValue(ParameterInfo parameter)
+    public ParsedCollectionQueryStringValue(Type parameterType, string parameterName)
     {
-        Variable = new QuerystringVariable(parameter.ParameterType, parameter.Name!, this);
-        _collectionElementType = GetCollectionElementType(parameter.ParameterType);
+        Variable = new QuerystringVariable(parameterType, parameterName!, this);
+        _collectionElementType = GetCollectionElementType(parameterType);
     }
 
     public QuerystringVariable Variable { get; }
