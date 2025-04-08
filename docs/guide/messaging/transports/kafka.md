@@ -38,6 +38,23 @@ using var host = await Host.CreateDefaultBuilder()
             .ConfigureProducers(producer =>
             {
                 // configure only producers
+            })
+            
+            .ConfigureProducerBuilders(builder =>
+            {
+                // there are some options that are only exposed
+                // on the ProducerBuilder
+            })
+            
+            .ConfigureConsumerBuilders(builder =>
+            {
+                // there are some Kafka client options that
+                // are only exposed from the builder
+            })
+            
+            .ConfigureAdminConsumerBuilders(builder =>
+            {
+                // configure admin consumer builders
             });
 
         // Just publish all messages to Kafka topics
@@ -62,7 +79,7 @@ using var host = await Host.CreateDefaultBuilder()
         opts.Services.AddResourceSetupOnStartup();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/DocumentationSamples.cs#L10-L57' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_with_kafka' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/DocumentationSamples.cs#L10-L74' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_with_kafka' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The various `Configure*****()` methods provide quick access to the full API of the Confluent Kafka library for security

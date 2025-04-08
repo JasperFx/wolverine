@@ -1,5 +1,7 @@
 using Marten;
 using Marten.Events;
+using Marten.Linq;
+using Marten.Pagination;
 using Microsoft.AspNetCore.Mvc;
 using Wolverine.Attributes;
 using Wolverine.Http;
@@ -303,3 +305,45 @@ public static class MarkItemEndpoint
     [WolverineGet("/orders/V1.0/latest/{id}")]
     public static Order GetLatestV1(Guid id, [ReadAggregate] Order order) => order;
 }
+
+#region sample_using_[FromQuery]_binding
+
+// If you want every value to be optional, use public, settable
+// properties and a no-arg public constructor
+public class OrderQuery
+{
+    public int PageSize { get; set; } = 10;
+    public int PageNumber { get; set; } = 1;
+    public bool? HasShipped { get; set; }
+}
+
+// Or -- and I'm not sure how useful this really is, use a record:
+public record OrderQueryAlternative(int PageSize, int PageNumber, bool HasShipped);
+
+public static class QueryOrdersEndpoint
+{
+    [WolverineGet("/api/orders/query")]
+    public static Task<IPagedList<Order>> Query(
+        // This will be bound from query string values in the HTTP request
+        [FromQuery] OrderQuery query, 
+        IQuerySession session,
+        CancellationToken token)
+    {
+        IQueryable<Order> queryable = session.Query<Order>()
+            // Just to make the paging deterministic
+            .OrderBy(x => x.Id);
+
+        if (query.HasShipped.HasValue)
+        {
+            queryable = query.HasShipped.Value 
+                ? queryable.Where(x => x.Shipped.HasValue) 
+                : queryable.Where(x => !x.Shipped.HasValue);
+        }
+
+        // Marten specific Linq helper
+        return queryable.ToPagedListAsync(query.PageNumber, query.PageSize, token);
+    }
+}
+
+
+#endregion

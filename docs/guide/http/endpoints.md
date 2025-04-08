@@ -174,7 +174,7 @@ public static OrderShipped Ship(ShipOrder command, Order order)
     return new OrderShipped();
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L116-L129' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_emptyresponse' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L118-L131' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_emptyresponse' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## JSON Handling
@@ -209,7 +209,7 @@ Wolverine will execute an ASP.Net Core `IResult` object returned from an HTTP en
 <!-- snippet: sample_conditional_IResult_return -->
 <a id='snippet-sample_conditional_iresult_return'></a>
 ```cs
-[WolverineGet("/choose/color")]
+[WolverinePost("/choose/color")]
 public IResult Redirect(GoToColor request)
 {
     switch (request.Color)

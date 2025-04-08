@@ -231,7 +231,24 @@ using var host = await Host.CreateDefaultBuilder()
 You can completely replace Wolverine's handler type discovery by first disabling the conventional handler discovery,
 then adding all new rules like this:
 
-snippet: sample_replacing_handler_discovery_rules
+<!-- snippet: sample_replacing_handler_discovery_rules -->
+<a id='snippet-sample_replacing_handler_discovery_rules'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        // Turn off Wolverine's built in handler discovery
+        opts.DisableConventionalDiscovery();
+        
+        // And replace the scanning with your own special discovery:
+        opts.Discovery.CustomizeHandlerDiscovery(q =>
+        {
+            q.Includes.WithNameSuffix("Listener");
+        });
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/HandlerDiscoveryTests.cs#L36-L51' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_replacing_handler_discovery_rules' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 ## Explicitly Ignoring Methods
 
