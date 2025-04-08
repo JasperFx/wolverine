@@ -81,6 +81,9 @@ public static class FromQueryEndpoints
 
     [WolverineGet("/api/fromquery4")]
     public static Query4 Get([FromQuery] Query4 query) => query;
+
+    [WolverineGet("/api/bigquery")]
+    public static BigQuery Get([FromQuery] BigQuery query) => query;
 }
 
 public record Query1(string Name);
@@ -88,3 +91,18 @@ public record Query2(int Number);
 public record Query3(Guid Id);
 
 public record Query4(string Name, int Number, Direction Direction);
+
+public class BigQuery
+{
+    public string Name { get; set; }
+    public int Number { get; set; }
+    public Direction Direction { get; set; }
+    public string[] Values { get; set; }
+    public int[] Numbers { get; set; }
+    
+    public bool Flag { get; set; }
+    
+    public int? NullableNumber { get; set; }
+    public Direction? NullableDirection { get; set; }
+    public bool? NullableFlag { get; set; }
+}
