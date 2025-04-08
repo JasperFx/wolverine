@@ -519,7 +519,23 @@ projections.
 If you want to inject the current state of an event sourced aggregate as a parameter into
 a message handler method strictly for information and don't need the heavier "aggregate handler workflow," use the `[ReadAggregate]` attribute like this:
 
-snippet: sample_using_ReadAggregate_in_messsage_handlers
+<!-- snippet: sample_using_ReadAggregate_in_messsage_handlers -->
+<a id='snippet-sample_using_readaggregate_in_messsage_handlers'></a>
+```cs
+public record FindAggregate(Guid Id);
+
+public static class FindLettersHandler
+{
+    // This is admittedly just some weak sauce testing support code
+    public static LetterAggregateEnvelope Handle(
+        FindAggregate command, 
+        [ReadAggregate] LetterAggregate aggregate)
+    
+        => new LetterAggregateEnvelope(aggregate);
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/read_aggregate_attribute_usage.cs#L81-L95' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_readaggregate_in_messsage_handlers' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 If the aggregate doesn't exist, the HTTP request will stop with a 404 status code.
 The aggregate/stream identity is found with the same rules as the `[Entity]` or `[Aggregate]` attributes:

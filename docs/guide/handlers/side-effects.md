@@ -62,7 +62,7 @@ public class WriteFile : ISideEffect
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/using_custom_side_effect.cs#L41-L67' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_writefile-1' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/using_custom_side_effect.cs#L43-L69' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_writefile-1' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And the matching message type, message handler, and a settings class for configuration:
@@ -81,13 +81,15 @@ public record RecordText(Guid Id, string Text);
 
 public class RecordTextHandler
 {
+    // Notice that the concrete WriteFile is the return type in the method signature
+    // and not the ISideEffect interface
     public WriteFile Handle(RecordText command)
     {
         return new WriteFile(command.Id + ".txt", command.Text);
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/using_custom_side_effect.cs#L20-L39' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_recordtexthandler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/using_custom_side_effect.cs#L20-L41' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_recordtexthandler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 At runtime, Wolverine is generating this code to handle the `RecordText` message:

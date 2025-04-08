@@ -62,10 +62,11 @@ public static readonly Dictionary<Type, string> TypeOutputs = new()
     { typeof(ulong), "ulong" },
     { typeof(Guid), typeof(Guid).FullName! },
     { typeof(DateTime), typeof(DateTime).FullName! },
-    { typeof(DateTimeOffset), typeof(DateTimeOffset).FullName! }
+    { typeof(DateTimeOffset), typeof(DateTimeOffset).FullName! },
+    { typeof(DateOnly), typeof(DateOnly).FullName! }
 };
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http/CodeGen/RouteHandling.cs#L78-L100' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_supported_route_parameter_types' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http/CodeGen/RouteHandling.cs#L78-L101' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_supported_route_parameter_types' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: warning
