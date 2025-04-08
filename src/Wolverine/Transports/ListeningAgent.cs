@@ -170,28 +170,35 @@ internal class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
         using var activity = WolverineTracing.ActivitySource.StartActivity(WolverineTracing.StartingListener);
         activity?.SetTag(WolverineTracing.EndpointAddress, Endpoint.Uri);
 
-        _receiver ??= Endpoint.MaybeWrapReceiver(await buildReceiverAsync());
-        
-        if (Endpoint.ListenerCount > 1)
+        try
         {
-            var listeners = new List<IListener>(Endpoint.ListenerCount);
-            for (var i = 0; i < Endpoint.ListenerCount; i++)
+            _receiver ??= Endpoint.MaybeWrapReceiver(await buildReceiverAsync());
+        
+            if (Endpoint.ListenerCount > 1)
             {
-                var listener = await Endpoint.BuildListenerAsync(_runtime, _receiver);
-                listeners.Add(listener);
+                var listeners = new List<IListener>(Endpoint.ListenerCount);
+                for (var i = 0; i < Endpoint.ListenerCount; i++)
+                {
+                    var listener = await Endpoint.BuildListenerAsync(_runtime, _receiver);
+                    listeners.Add(listener);
+                }
+
+                Listener = new ParallelListener(Uri, listeners);
+            }
+            else
+            {
+                Listener = await Endpoint.BuildListenerAsync(_runtime, _receiver);
             }
 
-            Listener = new ParallelListener(Uri, listeners);
+            Status = ListeningStatus.Accepting;
+            _runtime.Tracker.Publish(new ListenerState(Uri, Endpoint.EndpointName, Status));
+
+            _logger.LogInformation("Started message listening at {Uri}", Uri);
         }
-        else
+        finally
         {
-            Listener = await Endpoint.BuildListenerAsync(_runtime, _receiver);
+            activity?.Stop();
         }
-
-        Status = ListeningStatus.Accepting;
-        _runtime.Tracker.Publish(new ListenerState(Uri, Endpoint.EndpointName, Status));
-
-        _logger.LogInformation("Started message listening at {Uri}", Uri);
     }
 
     public async ValueTask PauseAsync(TimeSpan pauseTime)
