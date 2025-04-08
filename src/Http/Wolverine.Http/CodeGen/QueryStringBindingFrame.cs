@@ -28,7 +28,7 @@ internal class QueryStringBindingFrame : SyncFrame
 {
     private readonly ConstructorInfo _constructor;
     private readonly List<Variable> _parameters = new();
-    private readonly List<SettableProperty> _props = new();
+    private readonly List<IReadQueryStringFrame> _props = new();
 
     public QueryStringBindingFrame(Type queryType, HttpChain chain)
     {
@@ -46,12 +46,21 @@ internal class QueryStringBindingFrame : SyncFrame
             _parameters.Add(queryStringVariable);
         }
 
-        // foreach (var propertyInfo in queryType.GetProperties().Where(x => x.CanWrite))
-        // {
-        //     var queryStringVariable =
-        //         chain.TryFindOrCreateQuerystringValue(propertyInfo.PropertyType, propertyInfo.Name);
-        //     _props.Add(new SettableProperty(propertyInfo, queryStringVariable));
-        // }
+        // Here's the limitation, either it's all ctor args, or all settable props
+        if (!_constructor.GetParameters().Any())
+        {
+            foreach (var propertyInfo in queryType.GetProperties().Where(x => x.CanWrite))
+            {
+                var queryStringVariable =
+                    chain.TryFindOrCreateQuerystringValue(propertyInfo.PropertyType, propertyInfo.Name);
+
+                if (queryStringVariable.Creator is IReadQueryStringFrame frame)
+                {
+                    frame.AssignToProperty($"{Variable.Usage}.{propertyInfo.Name}");
+                    _props.Add(frame);
+                }
+            }
+        }
     }
 
     public Variable Variable { get; }
@@ -60,10 +69,16 @@ internal class QueryStringBindingFrame : SyncFrame
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
+        writer.WriteComment("Binding QueryString values to the argument marked with [FromQuery]");
         var arguments = _parameters.Select(x => x.Usage).Join(", ");
-        var props = _props.Select(x => $"{x.Property.Name} = {x.Variable.Usage}").Join(", ");
+
+        writer.Write($"var {Variable.Usage} = new {Variable.VariableType.FullNameInCode()}({arguments});");
+
+        foreach (var frame in _props)
+        {
+            frame.GenerateCode(method, writer);
+        }
         
-        writer.Write($"var {Variable.Usage} = new {Variable.VariableType.FullNameInCode()}({arguments}){{{props}}};");
         Next?.GenerateCode(method, writer);
     }
 
@@ -73,10 +88,5 @@ internal class QueryStringBindingFrame : SyncFrame
         {
             yield return parameter;
         }
-
-        // foreach (var prop in _props)
-        // {
-        //     yield return prop.Variable;
-        // }
     }
 }
