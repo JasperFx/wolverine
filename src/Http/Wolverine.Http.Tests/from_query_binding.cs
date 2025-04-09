@@ -129,4 +129,12 @@ public class from_query_binding : IntegrationContext
         var query = result.ReadAsJson<BigQuery>();
         query.Numbers.ShouldBe([1, 3, 4]);
     }
+
+    [Fact]
+    public async Task value_with_alias()
+    {
+        (await forQuerystring("name=Jones&number=95&aliased=foo")).ValueWithAlias.ShouldBe("foo");
+        (await forQuerystring("name=Jones&number=95&Aliased=foo")).ValueWithAlias.ShouldBe("foo");
+        (await forQuerystring("name=Jones&number=95&valueWithAlias=foo")).ValueWithAlias.ShouldBeNull();
+    }
 }
