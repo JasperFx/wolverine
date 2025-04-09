@@ -90,7 +90,7 @@ internal class ParsedQueryStringValue : SyncFrame, IReadQueryStringFrame
 
         if (Variable.VariableType.IsEnum)
         {
-            writer.Write($"{prefix}{alias}.TryParse<{alias}>(httpContext.Request.Query[\"{Variable.Name}\"], out {outUsage}){suffix};");
+            writer.Write($"{prefix}{alias}.TryParse<{alias}>(httpContext.Request.Query[\"{Variable.Name}\"], true, out {outUsage}){suffix};");
         }
         else if (Variable.VariableType.IsBoolean())
         {
@@ -137,7 +137,7 @@ internal class ParsedNullableQueryStringValue : SyncFrame, IReadQueryStringFrame
             if (_innerTypeFromNullable.IsEnum)
             {
                 writer.Write(
-                    $"if ({_alias}.TryParse<{_innerTypeFromNullable.FullNameInCode()}>(httpContext.Request.Query[\"{Variable.Usage}\"], out var {Variable.Usage}Parsed)) {Variable.Usage} = {Variable.Usage}Parsed;");
+                    $"if ({_alias}.TryParse<{_innerTypeFromNullable.FullNameInCode()}>(httpContext.Request.Query[\"{Variable.Usage}\"], true, out var {Variable.Usage}Parsed)) {Variable.Usage} = {Variable.Usage}Parsed;");
             }
             else if (_innerTypeFromNullable.IsBoolean())
             {
@@ -155,7 +155,7 @@ internal class ParsedNullableQueryStringValue : SyncFrame, IReadQueryStringFrame
             if (_innerTypeFromNullable.IsEnum)
             {
                 writer.Write(
-                    $"if ({_alias}.TryParse<{_innerTypeFromNullable.FullNameInCode()}>(httpContext.Request.Query[\"{Variable.Usage}\"], out var {Variable.Usage})) {_property} = {Variable.Usage};");
+                    $"if ({_alias}.TryParse<{_innerTypeFromNullable.FullNameInCode()}>(httpContext.Request.Query[\"{Variable.Usage}\"], true, out var {Variable.Usage})) {_property} = {Variable.Usage};");
             }
             else if (_innerTypeFromNullable.IsBoolean())
             {
