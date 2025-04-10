@@ -88,6 +88,18 @@ public class KafkaTransportExpression : BrokerExpression<KafkaTransport, KafkaTo
     /// </summary>
     /// <param name="configure"></param>
     /// <returns></returns>
+    public KafkaTransportExpression ConfigureAdminClientBuilders(Action<AdminClientBuilder> configure)
+    {
+        _transport.ConfigureAdminClientBuilders = configure;
+        return this;
+    }
+
+    /// <summary>
+    /// Configure the Kafka admin client builders within the Wolverine transport
+    /// </summary>
+    /// <param name="configure"></param>
+    /// <returns></returns>
+    [Obsolete($"This method is deprecated. Use {nameof(ConfigureAdminClientBuilders)} instead.")]
     public KafkaTransportExpression ConfigureAdminConsumerBuilders(Action<AdminClientBuilder> configure)
     {
         _transport.ConfigureAdminClientBuilders = configure;
