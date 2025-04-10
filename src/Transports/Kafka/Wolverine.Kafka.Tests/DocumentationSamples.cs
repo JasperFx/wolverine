@@ -43,9 +43,9 @@ public class DocumentationSamples
                         // are only exposed from the builder
                     })
                     
-                    .ConfigureAdminConsumerBuilders(builder =>
+                    .ConfigureAdminClientBuilders(builder =>
                     {
-                        // configure admin consumer builders
+                        // configure admin client builders
                     });
 
                 // Just publish all messages to Kafka topics
