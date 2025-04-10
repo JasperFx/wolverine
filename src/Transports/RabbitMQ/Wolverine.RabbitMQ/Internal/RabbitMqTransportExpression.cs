@@ -106,7 +106,7 @@ public class RabbitMqTransportExpression : BrokerExpression<RabbitMqTransport, R
     public RabbitMqTransportExpression UseConventionalRouting(
         Action<RabbitMqMessageRoutingConvention>? configure = null)
     {
-        var convention = new RabbitMqMessageRoutingConvention();
+        var convention = new RabbitMqMessageRoutingConvention(Options);
         configure?.Invoke(convention);
         Options.RoutingConventions.Add(convention);
 

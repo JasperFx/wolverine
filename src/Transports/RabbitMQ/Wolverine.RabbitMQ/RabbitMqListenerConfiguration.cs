@@ -44,14 +44,30 @@ public sealed class RabbitMqConventionalListenerConfiguration : RabbitMqListener
     /// <param name="arguments"></param>
     /// <typeparam name="TMessage"></typeparam>
     /// <returns></returns>
+    public RabbitMqListenerConfiguration BindToExchange(
+        Type messageType,
+        ExchangeType exchangeType,
+        string? bindingKey = null,
+        Dictionary<string, object>? arguments = null)
+    {
+        var convention = _senderConvention(messageType)!;
+        var name = Transport.MaybeCorrectName(convention);
+        return BindToExchange(exchangeType, name, bindingKey ?? name, arguments);
+    }
+    
+    /// <summary>
+    /// Binds to an exchange named with the message type name. 
+    /// </summary>
+    /// <param name="bindingKey"></param>
+    /// <param name="arguments"></param>
+    /// <typeparam name="TMessage"></typeparam>
+    /// <returns></returns>
     public RabbitMqListenerConfiguration BindToExchange<TMessage>(
         ExchangeType exchangeType,
         string? bindingKey = null,
         Dictionary<string, object>? arguments = null)
     {
-        var convention = _senderConvention(typeof(TMessage))!;
-        var name = Transport.MaybeCorrectName(convention);
-        return BindToExchange(exchangeType, name, bindingKey ?? name, arguments);
+        return BindToExchange(typeof(TMessage), exchangeType, bindingKey, arguments);
     }
 }
 

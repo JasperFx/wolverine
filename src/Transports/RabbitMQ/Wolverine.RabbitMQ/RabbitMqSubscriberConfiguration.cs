@@ -1,6 +1,7 @@
 using Wolverine.Configuration;
 using Wolverine.RabbitMQ.Internal;
 using Wolverine.Runtime.Interop.MassTransit;
+using Wolverine.Runtime.Routing;
 
 namespace Wolverine.RabbitMQ;
 
@@ -43,6 +44,39 @@ public class
         add(e => e.EnvelopeMapper = mapper);
         return this;
     }
+}
+
+
+public sealed class RabbitMqConventionalExchangeConfiguration : RabbitMqExchangeConfiguration
+{
+    private readonly WolverineOptions _options;
+
+    internal RabbitMqConventionalExchangeConfiguration(RabbitMqExchange endpoint, WolverineOptions options) : base(endpoint)
+    {
+        _options = options;
+    }
+    
+    
+    /// <summary>
+    /// Publish messages that are of type T or could be cast to type T to a Rabbit MQ
+    /// topic exchange using the supplied function to determine the topic for the message
+    /// </summary>
+    /// <param name="topicSource"></param>
+    /// <typeparam name="T"></typeparam>
+    /// <returns></returns>
+    public RabbitMqExchangeConfiguration PublishMessagesToTopic<T>(Func<T, string> topicSource)
+    {
+        add(e =>
+        {
+            e.ExchangeType = RabbitMQ.ExchangeType.Topic;
+            e.RoutingType = RoutingMode.ByTopic;
+            var routing = new TopicRouting<T>(topicSource, e);
+            _options.PublishWithMessageRoutingSource(routing);
+        });
+
+        return this;
+    }
+    
 }
 
 public class RabbitMqExchangeConfiguration : SubscriberConfiguration<RabbitMqExchangeConfiguration, RabbitMqExchange>
