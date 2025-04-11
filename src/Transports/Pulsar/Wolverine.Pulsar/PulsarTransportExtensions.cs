@@ -3,6 +3,7 @@ using DotPulsar.Abstractions;
 using JasperFx.Core.Reflection;
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
+using Wolverine.ErrorHandling.Matches;
 
 namespace Wolverine.Pulsar;
 
@@ -108,8 +109,61 @@ public class PulsarListenerConfiguration : ListenerConfiguration<PulsarListenerC
             e.SubscriptionType = subscriptionType;
         });
 
+        if (subscriptionType is DotPulsar.SubscriptionType.Shared or DotPulsar.SubscriptionType.KeyShared)
+            new PulsarSharedListenerConfiguration(this._endpoint);
+
         return this;
     }
+
+    /// <summary>
+    /// Override the Pulsar subscription type to  <see cref="DotPulsar.SubscriptionType.Failover"/> for just this topic
+    /// </summary>
+    /// <param name="subscriptionType"></param>
+    /// <returns></returns>
+    public PulsarListenerConfiguration WithFailoverSubscriptionType()
+    {
+        add(e => { e.SubscriptionType = DotPulsar.SubscriptionType.Failover; });
+
+        return this;
+    }
+
+    /// <summary>
+    /// Override the Pulsar subscription type to  <see cref="DotPulsar.SubscriptionType.Exclusive"/> for just this topic
+    /// </summary>
+    /// <param name="subscriptionType"></param>
+    /// <returns></returns>
+    public PulsarListenerConfiguration WithExclusiveSubscriptionType()
+    {
+        add(e => { e.SubscriptionType = DotPulsar.SubscriptionType.Exclusive; });
+
+        return this;
+    }
+
+    /// <summary>
+    /// Override the Pulsar subscription type to <see cref="DotPulsar.SubscriptionType.Shared"/> for just this topic
+    /// </summary>
+    /// <param name="subscriptionType"></param>
+    /// <returns></returns>
+    public PulsarSharedListenerConfiguration WithSharedSubscriptionType()
+    {
+        add(e => { e.SubscriptionType = DotPulsar.SubscriptionType.Shared; });
+
+        return new PulsarSharedListenerConfiguration(this._endpoint);
+    }
+
+
+    /// <summary>
+    /// Override the Pulsar subscription type to <see cref="DotPulsar.SubscriptionType.KeyShared"/> for just this topic
+    /// </summary>
+    /// <param name="subscriptionType"></param>
+    /// <returns></returns>
+    public PulsarSharedListenerConfiguration WithKeySharedSubscriptionType()
+    {
+        add(e => { e.SubscriptionType = DotPulsar.SubscriptionType.KeyShared; });
+
+        return new PulsarSharedListenerConfiguration(this._endpoint);
+    }
+
     /// <summary>
     ///     Add circuit breaker exception handling to this listener
     /// </summary>
@@ -123,6 +177,36 @@ public class PulsarListenerConfiguration : ListenerConfiguration<PulsarListenerC
             configure?.Invoke(e.CircuitBreakerOptions);
         });
 
+
+        return this;
+    }
+
+
+    /// <summary>
+    /// Customize the dead letter queueing for this specific endpoint
+    /// </summary>
+    /// <param name="configure">Optional configuration</param>
+    /// <returns></returns>
+    public PulsarListenerConfiguration DeadLetterQueueing(DeadLetterTopic dlq)
+    {
+        add(e =>
+        {
+            e.DeadLetterTopic = dlq;
+        });
+
+        return this;
+    }
+
+    /// <summary>
+    /// Remove all dead letter queueing declarations from this queue
+    /// </summary>
+    /// <returns></returns>
+    public PulsarListenerConfiguration DisableDeadLetterQueueing()
+    {
+        add(e =>
+        {
+            e.DeadLetterTopic = null;
+        });
 
         return this;
     }
@@ -141,6 +225,91 @@ public class PulsarListenerConfiguration : ListenerConfiguration<PulsarListenerC
     //     endpoint.ListenerCount = count;
     //     return this;
     // }
+}
+
+
+
+public class PulsarSharedListenerConfiguration : ListenerConfiguration<PulsarSharedListenerConfiguration, PulsarEndpoint>
+{
+    public PulsarSharedListenerConfiguration(PulsarEndpoint endpoint) : base(endpoint)
+    {
+    }
+
+    /// <summary>
+    /// Customize the dead letter queueing for this specific endpoint
+    /// </summary>
+    /// <param name="configure">Optional configuration</param>
+    /// <returns></returns>
+    public PulsarSharedListenerConfiguration DeadLetterQueueing(DeadLetterTopic dlq)
+    {
+        add(e =>
+        {
+            e.DeadLetterTopic = dlq;
+        });
+
+        return this;
+    }
+
+    /// <summary>
+    /// Remove all dead letter queueing declarations from this queue
+    /// </summary>
+    /// <returns></returns>
+    public PulsarSharedListenerConfiguration DisableDeadLetterQueueing()
+    {
+        add(e =>
+        {
+            e.DeadLetterTopic = null;
+            if (e.RetryLetterTopic is null && e.DeadLetterTopic is null)
+                e.Runtime.Options.Policies.Failures.Remove(rule => rule.Id == "PulsarNativeResiliency");
+        });
+
+        return this;
+    }
+
+    /// <summary>
+    /// Customize the Retry letter queueing for this specific endpoint
+    /// </summary>
+    /// <param name="configure">Optional configuration</param>
+    /// <returns></returns>
+    public PulsarSharedListenerConfiguration RetryLetterQueueing(RetryLetterTopic rt)
+    {
+        add(e =>
+        {
+            
+            e.RetryLetterTopic = rt;
+
+            //var exceptionMatch = new AlwaysMatches(); // currently can't determine if endpoint listener needs it just based on exception, should handler that supports native resiliency, wrap the thrown exception into a new dedicated one?
+            //var failureRule = new FailureRule(exceptionMatch, "PulsarNativeResiliency");
+            //foreach (var _ in rt.Retry)
+            //{
+            //    failureRule.AddSlot(new MoveToRetryQueueSource());
+            //}
+            //e.Runtime.Options.Policies.Failures.Add(failureRule);
+
+            //e.Runtime.Options.Policies.OnAnyException().MoveToErrorQueue();
+            e.Runtime.Options.Policies.OnAnyException().MoveToRetryQueue(rt.Retry.Count, "PulsarNativeResiliency");
+
+        });
+
+        return this;
+    }
+
+    /// <summary>
+    /// Remove all Retry letter queueing declarations from this queue
+    /// </summary>
+    /// <returns></returns>
+    public PulsarSharedListenerConfiguration DisableRetryLetterQueueing()
+    {
+        add(e =>
+        {
+            e.RetryLetterTopic = null;
+            if (e.RetryLetterTopic is null && e.DeadLetterTopic is null)
+                e.Runtime.Options.Policies.Failures.Remove(rule => rule.Id == "PulsarNativeResiliency");
+        });
+
+        return this;
+    }
+
 }
 
 public class PulsarSubscriberConfiguration : SubscriberConfiguration<PulsarSubscriberConfiguration, PulsarEndpoint>
