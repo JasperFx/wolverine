@@ -15,6 +15,7 @@ internal class FromQueryAttributeUsage : IParameterStrategy
     {
         if (parameter.HasAttribute<FromQueryAttribute>() && !parameter.ParameterType.IsSimple())
         {
+            chain.RequestType = parameter.ParameterType;
             variable = new QueryStringBindingFrame(parameter.ParameterType, chain).Variable;
             return true;
         }
