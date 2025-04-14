@@ -71,9 +71,9 @@ internal class FailureActions : IAdditionalActions, IFailureActions
     private readonly FailureRule _rule;
     private readonly List<FailureSlot> _slots = new();
 
-    public FailureActions(IExceptionMatch match, FailureRuleCollection parent, string? ruleId = null)
+    public FailureActions(IExceptionMatch match, FailureRuleCollection parent)
     {
-        _rule = new FailureRule(match, ruleId);
+        _rule = new FailureRule(match);
         parent.Add(_rule);
     }
 
@@ -125,17 +125,6 @@ internal class FailureActions : IAdditionalActions, IFailureActions
     {
         var slot = _rule.AddSlot(new MoveToErrorQueueSource());
         _slots.Add(slot);
-        return this;
-    }
-
-    public IAdditionalActions MoveToRetryQueue(int maxAttempts, string? ruleId = null)
-    {
-        for (var i = 0; i < maxAttempts - 1; i++)
-        {
-            var slot = _rule.AddSlot(new MoveToRetryQueueSource());
-            _slots.Add(slot);
-        }
-
         return this;
     }
 
@@ -309,12 +298,6 @@ public interface IFailureActions
     IAdditionalActions MoveToErrorQueue();
 
     /// <summary>
-    ///     Immediately move the message to the retry queue when the exception
-    ///     caught matches this criteria
-    /// </summary>
-    IAdditionalActions MoveToRetryQueue(int maxAttempts, string? ruleId = null);
-
-    /// <summary>
     ///     Requeue the message back to the incoming transport, with the message being
     ///     dead lettered when the maximum number of attempts is reached
     /// </summary>
@@ -401,15 +384,6 @@ public class PolicyExpression : IFailureActions
     public IAdditionalActions MoveToErrorQueue()
     {
         return new FailureActions(_match, _parent).MoveToErrorQueue();
-    }
-
-    /// <summary>
-    ///     Immediately move the message to the retry queue when the exception
-    ///     caught matches this criteria
-    /// </summary>
-    public IAdditionalActions MoveToRetryQueue(int maxAttempts, string? ruleId = null)
-    {
-        return new FailureActions(_match, _parent, ruleId).MoveToRetryQueue(maxAttempts);
     }
 
     /// <summary>

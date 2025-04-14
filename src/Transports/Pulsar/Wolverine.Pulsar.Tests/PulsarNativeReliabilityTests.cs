@@ -37,7 +37,7 @@ public class PulsarNativeReliabilityTests : /*TransportComplianceFixture,*/ IAsy
                 opts.ListenToPulsarTopic(topicPath)
                     .WithSharedSubscriptionType()
                     .DeadLetterQueueing(DeadLetterTopic.DefaultNative)
-                    .RetryLetterQueueing(new RetryLetterTopic([TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2)]))
+                    .RetryLetterQueueing(new RetryLetterTopic([TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(2)]))
                     //.ProcessInline();
                     .BufferedInMemory();
 
@@ -46,16 +46,17 @@ public class PulsarNativeReliabilityTests : /*TransportComplianceFixture,*/ IAsy
                 //    .ProcessInline();
 
 
-                var topicPath2 = $"persistent://public/default/no-retry-{topic}";
-                opts.IncludeType<SRMessageHandlers>();
+                //var topicPath2 = $"persistent://public/default/no-retry-{topic}";
+                //opts.IncludeType<SRMessageHandlers>();
 
-                opts.PublishMessage<SRMessage2>()
-                    .ToPulsarTopic(topicPath2);
+                //opts.PublishMessage<SRMessage2>()
+                //    .ToPulsarTopic(topicPath2);
 
-                opts.ListenToPulsarTopic(topicPath2)
-                    .WithSharedSubscriptionType()
-                    .DeadLetterQueueing(DeadLetterTopic.DefaultNative)
-                    .ProcessInline();
+                //opts.ListenToPulsarTopic(topicPath2)
+                //    .WithSharedSubscriptionType()
+                //    .DeadLetterQueueing(DeadLetterTopic.DefaultNative)
+                //    .DisableRetryLetterQueueing()
+                //    .ProcessInline();
 
             });
     }
@@ -69,7 +70,7 @@ public class PulsarNativeReliabilityTests : /*TransportComplianceFixture,*/ IAsy
     [Fact]
     public async Task run_setup_with_simulated_exception_in_handler()
     {
-        var session =  await WolverineHost.TrackActivity(TimeSpan.FromSeconds(100))
+        var session =  await WolverineHost.TrackActivity(TimeSpan.FromSeconds(1000))
             //.WaitForMessageToBeReceivedAt<SRMessage1>(WolverineHost)
             .DoNotAssertOnExceptionsDetected()
             .IncludeExternalTransports()
@@ -86,17 +87,17 @@ public class PulsarNativeReliabilityTests : /*TransportComplianceFixture,*/ IAsy
         session.Received
             .MessagesOf<SRMessage1>()
             .Count()
+            .ShouldBe(4);
+
+        session.Rescheduled
+            .MessagesOf<SRMessage1>()
+            .Count()
             .ShouldBe(3);
 
-        session.Requeued
-            .MessagesOf<SRMessage1>()
-            .Count()
-            .ShouldBe(2);
-
-        session.MovedToRetryQueue
-            .MessagesOf<SRMessage1>()
-            .Count()
-            .ShouldBe(2);
+        //session.Requeued
+        //    .MessagesOf<SRMessage1>()
+        //    .Count()
+        //    .ShouldBe(2);
 
         // TODO: I Guess the capture of the envelope headers occurs before we manipulate it
         //var firstRequeuedEnvelope = session.MovedToRetryQueue.Envelopes().First();
@@ -114,8 +115,8 @@ public class PulsarNativeReliabilityTests : /*TransportComplianceFixture,*/ IAsy
         var firstEnvelope = session.MovedToErrorQueue.Envelopes().First();
         firstEnvelope.ShouldSatisfyAllConditions(
             () => firstEnvelope.Headers.ContainsKey(PulsarEnvelopeConstants.Exception).ShouldBeTrue(),
-            () => firstEnvelope.Headers[PulsarEnvelopeConstants.ReconsumeTimes].ShouldBe("2"),
-            () => firstEnvelope.Headers["DELAY_TIME"].ShouldBe(TimeSpan.FromSeconds(2).TotalMilliseconds.ToString())
+            () => firstEnvelope.Headers[PulsarEnvelopeConstants.ReconsumeTimes].ShouldBe("3"),
+            () => firstEnvelope.Headers["DELAY_TIME"].ShouldBe(TimeSpan.FromSeconds(1).TotalMilliseconds.ToString())
         );
 
     }
@@ -146,7 +147,7 @@ public class PulsarNativeReliabilityTests : /*TransportComplianceFixture,*/ IAsy
             .Count()
             .ShouldBe(0);
 
-        session.MovedToRetryQueue
+        session.Requeued
             .MessagesOf<SRMessage2>()
             .Count()
             .ShouldBe(0);

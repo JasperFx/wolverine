@@ -11,17 +11,6 @@ public interface ISupportDeadLetterQueue
 }
 
 /// <summary>
-///     Marks an IChannelCallback as supporting a native retry letter queue
-///     functionality
-/// </summary>
-public interface ISupportRetryLetterQueue
-{
-    bool NativeRetryLetterQueueEnabled { get; }
-    bool RetryLimitReached(Envelope envelope);
-    Task MoveToRetryQueueAsync(Envelope envelope, Exception exception);
-}
-
-/// <summary>
 ///     Marks an IChannelCallback as supporting native scheduled send
 /// </summary>
 public interface ISupportNativeScheduling

@@ -13,6 +13,6 @@ public enum MessageEventType
     NoRoutes,
     MovedToErrorQueue,
     Requeued,
-    MovedToRetryQueue,
+    Rescheduled,
 }
 #endregion

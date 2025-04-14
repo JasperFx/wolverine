@@ -74,11 +74,11 @@ public interface IMessageTracker
 
 
     /// <summary>
-    ///     Called when Wolverine moves an envelope into the retry letter queue
+    ///     Called when message execution was rescheduled at some later time
     /// </summary>
     /// <param name="envelope"></param>
     /// <param name="ex"></param>
-    void MovedToRetryQueue(Envelope envelope, Exception ex);
+    void Rescheduled(Envelope envelope);
 
     /// <summary>
     ///     Called when Wolverine moves an envelope into the dead letter queue

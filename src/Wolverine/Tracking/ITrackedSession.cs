@@ -56,14 +56,14 @@ public interface ITrackedSession
     RecordCollection MovedToErrorQueue { get; }
     
     /// <summary>
-    ///    Records of all messages that were moved to the retry queue
-    /// </summary>
-    RecordCollection MovedToRetryQueue { get; }
-    
-    /// <summary>
     ///     Records of all messages that were requeued
     /// </summary>
-    RecordCollection Requeued { get; }
+    RecordCollection Requeued { get; }    
+    
+    /// <summary>
+    ///     Records of all messages that were rescheduled sometime in the future
+    /// </summary>
+    RecordCollection Rescheduled { get; }
     
     /// <summary>
     ///     Message processing records for messages that were executed. Note that this includes message

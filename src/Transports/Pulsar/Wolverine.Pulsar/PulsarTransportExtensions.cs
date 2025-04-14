@@ -221,9 +221,6 @@ public class PulsarListenerConfiguration : ListenerConfiguration<PulsarListenerC
     // }
 }
 
-
-
-
 public class PulsarNativeResiliencyConfig
 {
     public DeadLetterTopic DeadLetterTopic { get; set; }
@@ -263,6 +260,7 @@ public class PulsarNativeResiliencyConfig
                     .Then
                     .MoveToErrorQueue();
 
+                endpoint.Runtime.Options.EnableAutomaticFailureAcks = false;
             }
         };
     }

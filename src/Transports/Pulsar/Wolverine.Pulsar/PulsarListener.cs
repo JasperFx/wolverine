@@ -8,7 +8,7 @@ using Wolverine.Transports;
 
 namespace Wolverine.Pulsar;
 
-internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportRetryLetterQueue, ISupportNativeScheduling
+internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNativeScheduling
 {
     private readonly CancellationToken _cancellation;
     private readonly IConsumer<ReadOnlySequence<byte>>? _consumer;
@@ -230,29 +230,6 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportRetr
     }
 
     public bool NativeRetryLetterQueueEnabled { get; }
-    public bool RetryLimitReached(Envelope envelope)
-    {
-        if (NativeRetryLetterQueueEnabled && envelope is PulsarEnvelope e)
-        {
-            if (e.MessageData.Properties.TryGetValue(PulsarEnvelopeConstants.ReconsumeTimes, out var reconsumeTimesValue))
-            {
-                var currentRetryCount = int.Parse(reconsumeTimesValue);
-
-                return currentRetryCount >= _endpoint.RetryLetterTopic!.Retry.Count;
-            }
-            // first time failure
-            return false;
-        }
-
-        return true;
-    }
-
-    public async Task MoveToRetryQueueAsync(Envelope envelope, Exception exception)
-    {
-        // TODO: how to handle retries internally (in Wolverine context, not Pulsar)?
-        // TODO: Currently only ISupportDeadLetterQueue exists, should we introduce ISupportRetryLetterQueue concept? Because now on (first) exception, Wolverine calls this method (concept of retry letter queue is not set for Pulsar)
-        await moveToQueueAsync(envelope, exception);
-    }
 
     public async Task MoveToScheduledUntilAsync(Envelope envelope, DateTimeOffset time)
     {

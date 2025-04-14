@@ -124,6 +124,7 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
             throw new InvalidOperationException("No Envelope is active for this context");
         }
 
+        Runtime.MessageTracking.Rescheduled(Envelope);
         Envelope.ScheduledTime = scheduledTime;
         //if (_channel is ISupportNativeScheduling c)
         if (tryGetRescheduler(_channel, Envelope) is ISupportNativeScheduling c)
