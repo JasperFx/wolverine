@@ -36,8 +36,8 @@ public class PulsarNativeReliabilityTests : /*TransportComplianceFixture,*/ IAsy
 
                 opts.ListenToPulsarTopic(topicPath)
                     .WithSharedSubscriptionType()
-                    .RetryLetterQueueing(new RetryLetterTopic([TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2)]))
                     .DeadLetterQueueing(DeadLetterTopic.DefaultNative)
+                    .RetryLetterQueueing(new RetryLetterTopic([TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2)]))
                     //.ProcessInline();
                     .BufferedInMemory();
 

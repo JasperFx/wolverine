@@ -125,7 +125,8 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
         }
 
         Envelope.ScheduledTime = scheduledTime;
-        if (_channel is ISupportNativeScheduling c)
+        //if (_channel is ISupportNativeScheduling c)
+        if (tryGetRescheduler(_channel, Envelope) is ISupportNativeScheduling c)
         {
             await c.MoveToScheduledUntilAsync(Envelope, Envelope.ScheduledTime.Value);
         }
@@ -133,6 +134,21 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
         {
             await Storage.Inbox.ScheduleJobAsync(Envelope);
         }
+    }
+
+    private ISupportNativeScheduling? tryGetRescheduler(IChannelCallback? channel, Envelope e)
+    {
+        if (e.Listener is ISupportNativeScheduling c2)
+        {
+            return c2;
+        }
+
+        if (_channel is ISupportNativeScheduling c)
+        {
+            return c;
+        }
+
+        return default;
     }
     private ISupportDeadLetterQueue? tryGetDeadLetterQueue(IChannelCallback? channel, Envelope e)
     {

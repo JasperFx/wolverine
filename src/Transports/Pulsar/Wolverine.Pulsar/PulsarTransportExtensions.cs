@@ -74,6 +74,7 @@ public static class PulsarTransportExtensions
         endpoint.IsListener = true;
         return new PulsarListenerConfiguration(endpoint);
     }
+
 }
 
 public class PulsarListenerConfiguration : ListenerConfiguration<PulsarListenerConfiguration, PulsarEndpoint>
@@ -109,8 +110,9 @@ public class PulsarListenerConfiguration : ListenerConfiguration<PulsarListenerC
             e.SubscriptionType = subscriptionType;
         });
 
-        if (subscriptionType is DotPulsar.SubscriptionType.Shared or DotPulsar.SubscriptionType.KeyShared)
-            new PulsarSharedListenerConfiguration(this._endpoint);
+        // TODO: check how to restrict it properly
+        //if (subscriptionType is DotPulsar.SubscriptionType.Shared or DotPulsar.SubscriptionType.KeyShared)
+        //    return new PulsarSharedListenerConfiguration(this._endpoint);
 
         return this;
     }
@@ -144,11 +146,11 @@ public class PulsarListenerConfiguration : ListenerConfiguration<PulsarListenerC
     /// </summary>
     /// <param name="subscriptionType"></param>
     /// <returns></returns>
-    public PulsarSharedListenerConfiguration WithSharedSubscriptionType()
+    public PulsarNativeResiliencyDeadLetterConfiguration WithSharedSubscriptionType()
     {
         add(e => { e.SubscriptionType = DotPulsar.SubscriptionType.Shared; });
 
-        return new PulsarSharedListenerConfiguration(this._endpoint);
+        return new PulsarNativeResiliencyDeadLetterConfiguration(new PulsarListenerConfiguration(_endpoint));
     }
 
 
@@ -157,11 +159,11 @@ public class PulsarListenerConfiguration : ListenerConfiguration<PulsarListenerC
     /// </summary>
     /// <param name="subscriptionType"></param>
     /// <returns></returns>
-    public PulsarSharedListenerConfiguration WithKeySharedSubscriptionType()
+    public PulsarNativeResiliencyDeadLetterConfiguration WithKeySharedSubscriptionType()
     {
         add(e => { e.SubscriptionType = DotPulsar.SubscriptionType.KeyShared; });
 
-        return new PulsarSharedListenerConfiguration(this._endpoint);
+        return new PulsarNativeResiliencyDeadLetterConfiguration(new PulsarListenerConfiguration(_endpoint));
     }
 
     /// <summary>
@@ -192,23 +194,15 @@ public class PulsarListenerConfiguration : ListenerConfiguration<PulsarListenerC
         add(e =>
         {
             e.DeadLetterTopic = dlq;
+            e.Runtime.Options.Policies.OnAnyException().MoveToErrorQueue();
         });
 
         return this;
     }
 
-    /// <summary>
-    /// Remove all dead letter queueing declarations from this queue
-    /// </summary>
-    /// <returns></returns>
-    public PulsarListenerConfiguration DisableDeadLetterQueueing()
+    internal void Apply(Action<PulsarEndpoint> action)
     {
-        add(e =>
-        {
-            e.DeadLetterTopic = null;
-        });
-
-        return this;
+        add(action);
     }
 
     // /// <summary>
@@ -229,87 +223,140 @@ public class PulsarListenerConfiguration : ListenerConfiguration<PulsarListenerC
 
 
 
-public class PulsarSharedListenerConfiguration : ListenerConfiguration<PulsarSharedListenerConfiguration, PulsarEndpoint>
+
+public class PulsarNativeResiliencyConfig
 {
-    public PulsarSharedListenerConfiguration(PulsarEndpoint endpoint) : base(endpoint)
+    public DeadLetterTopic DeadLetterTopic { get; set; }
+    public RetryLetterTopic? RetryLetterTopic { get; set; }
+
+    public Action<PulsarEndpoint> Apply()
     {
+        return endpoint =>
+        {
+
+            if (RetryLetterTopic is null && DeadLetterTopic is null)
+            {
+                endpoint.DeadLetterTopic = null;
+                endpoint.RetryLetterTopic = null;
+                return;
+            }
+
+            if (RetryLetterTopic is null)
+            {
+                endpoint.DeadLetterTopic = DeadLetterTopic;
+                endpoint.Runtime.Options.Policies.OnAnyException().MoveToErrorQueue();
+
+            }
+            else if (RetryLetterTopic is not null)
+            {
+                if (endpoint.SubscriptionType is SubscriptionType.Failover or SubscriptionType.Exclusive)
+                {
+                    throw new InvalidOperationException(
+                        "Pulsar does not support Retry letter queueing with Failover or Exclusive subscription types. Please use Shared or KeyShared subscription types.");
+                }
+
+                endpoint.DeadLetterTopic = DeadLetterTopic;
+                endpoint.RetryLetterTopic = RetryLetterTopic;
+                //endpoint.Runtime.Options.Policies.OnAnyException().MoveToRetryQueue(rt.Retry.Count, "PulsarNativeResiliency");
+                endpoint.Runtime.Options.Policies.OnAnyException()
+                    .ScheduleRetry(RetryLetterTopic.Retry.ToArray())
+                    .Then
+                    .MoveToErrorQueue();
+
+            }
+        };
+    }
+}
+
+public abstract class PulsarNativeResiliencyConfiguration
+{
+    protected readonly PulsarListenerConfiguration Endpoint;
+    protected PulsarNativeResiliencyConfig NativeResiliencyConfig;
+
+    protected PulsarNativeResiliencyConfiguration(PulsarListenerConfiguration endpoint)
+    {
+        Endpoint = endpoint;
+        NativeResiliencyConfig = new PulsarNativeResiliencyConfig();
+
+    } 
+
+    protected PulsarNativeResiliencyConfiguration(PulsarListenerConfiguration endpoint, PulsarNativeResiliencyConfig config)
+    {
+        Endpoint = endpoint;
+        NativeResiliencyConfig = config;
+
+    }
+
+}
+
+
+public class PulsarNativeResiliencyDeadLetterConfiguration : PulsarNativeResiliencyConfiguration
+{
+
+
+    public PulsarNativeResiliencyDeadLetterConfiguration(PulsarListenerConfiguration endpoint)
+        : base(endpoint)
+    {
+
+
     }
 
     /// <summary>
     /// Customize the dead letter queueing for this specific endpoint
     /// </summary>
+    /// <param name="dlq">DLQ configuration</param>
+    /// <returns></returns>
+    public PulsarNativeResiliencyRetryLetterConfiguration DeadLetterQueueing(DeadLetterTopic dlq)
+    {
+        NativeResiliencyConfig.DeadLetterTopic = dlq;
+
+        return new PulsarNativeResiliencyRetryLetterConfiguration(Endpoint, NativeResiliencyConfig);
+    }
+
+    /// <summary>
+    /// Disable native DLQ functionality for this queue
+    /// </summary>
+    /// <returns></returns>
+    public PulsarListenerConfiguration DisableDeadLetterQueueing()
+    {
+        return this.Endpoint;
+    }
+}
+
+public class PulsarNativeResiliencyRetryLetterConfiguration : PulsarNativeResiliencyConfiguration
+{
+
+    public PulsarNativeResiliencyRetryLetterConfiguration(PulsarListenerConfiguration endpoint, PulsarNativeResiliencyConfig config)
+        : base(endpoint, config)
+    {
+
+
+    }
+
+    /// <summary>
+    /// Customize the retry letter queueing for this specific endpoint
+    /// </summary>
     /// <param name="configure">Optional configuration</param>
     /// <returns></returns>
-    public PulsarSharedListenerConfiguration DeadLetterQueueing(DeadLetterTopic dlq)
+    public PulsarListenerConfiguration RetryLetterQueueing(RetryLetterTopic rt)
     {
-        add(e =>
-        {
-            e.DeadLetterTopic = dlq;
-        });
+        NativeResiliencyConfig.RetryLetterTopic = rt;
+        Endpoint.Apply(NativeResiliencyConfig.Apply());
 
-        return this;
+        return Endpoint;
     }
 
     /// <summary>
-    /// Remove all dead letter queueing declarations from this queue
+    /// Disable native Retry letter functionality for this queue
     /// </summary>
     /// <returns></returns>
-    public PulsarSharedListenerConfiguration DisableDeadLetterQueueing()
+    public PulsarListenerConfiguration DisableRetryLetterQueueing()
     {
-        add(e =>
-        {
-            e.DeadLetterTopic = null;
-            if (e.RetryLetterTopic is null && e.DeadLetterTopic is null)
-                e.Runtime.Options.Policies.Failures.Remove(rule => rule.Id == "PulsarNativeResiliency");
-        });
+        NativeResiliencyConfig.RetryLetterTopic = null;
+        Endpoint.Apply(NativeResiliencyConfig.Apply());
 
-        return this;
+        return Endpoint;
     }
-
-    /// <summary>
-    /// Customize the Retry letter queueing for this specific endpoint
-    /// </summary>
-    /// <param name="configure">Optional configuration</param>
-    /// <returns></returns>
-    public PulsarSharedListenerConfiguration RetryLetterQueueing(RetryLetterTopic rt)
-    {
-        add(e =>
-        {
-            
-            e.RetryLetterTopic = rt;
-
-            //var exceptionMatch = new AlwaysMatches(); // currently can't determine if endpoint listener needs it just based on exception, should handler that supports native resiliency, wrap the thrown exception into a new dedicated one?
-            //var failureRule = new FailureRule(exceptionMatch, "PulsarNativeResiliency");
-            //foreach (var _ in rt.Retry)
-            //{
-            //    failureRule.AddSlot(new MoveToRetryQueueSource());
-            //}
-            //e.Runtime.Options.Policies.Failures.Add(failureRule);
-
-            //e.Runtime.Options.Policies.OnAnyException().MoveToErrorQueue();
-            e.Runtime.Options.Policies.OnAnyException().MoveToRetryQueue(rt.Retry.Count, "PulsarNativeResiliency");
-
-        });
-
-        return this;
-    }
-
-    /// <summary>
-    /// Remove all Retry letter queueing declarations from this queue
-    /// </summary>
-    /// <returns></returns>
-    public PulsarSharedListenerConfiguration DisableRetryLetterQueueing()
-    {
-        add(e =>
-        {
-            e.RetryLetterTopic = null;
-            if (e.RetryLetterTopic is null && e.DeadLetterTopic is null)
-                e.Runtime.Options.Policies.Failures.Remove(rule => rule.Id == "PulsarNativeResiliency");
-        });
-
-        return this;
-    }
-
 }
 
 public class PulsarSubscriberConfiguration : SubscriberConfiguration<PulsarSubscriberConfiguration, PulsarEndpoint>

@@ -8,7 +8,7 @@ using Wolverine.Transports;
 
 namespace Wolverine.Pulsar;
 
-internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportRetryLetterQueue
+internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportRetryLetterQueue, ISupportNativeScheduling
 {
     private readonly CancellationToken _cancellation;
     private readonly IConsumer<ReadOnlySequence<byte>>? _consumer;
@@ -254,6 +254,15 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportRetr
         await moveToQueueAsync(envelope, exception);
     }
 
+    public async Task MoveToScheduledUntilAsync(Envelope envelope, DateTimeOffset time)
+    {
+        if (NativeRetryLetterQueueEnabled && envelope is PulsarEnvelope e)
+        {
+            await moveToQueueAsync(e, e.Failure, false);
+
+        }
+    }
+
 
     private async Task moveToQueueAsync(Envelope envelope, Exception exception, bool isDeadLettered = false)
     {
@@ -284,10 +293,14 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportRetr
                 await associatedConsumer!.Acknowledge(e.MessageData, _cancellation); // TODO: check: original message should be acked and copy is sent to retry/DLQ
                 // TODO: check: what to do with the original message on Wolverine side? I Guess it should be acked? or we could use some kind of RequeueContinuation in FailureRuleCollection. If I understand correctly, Wolverine is/should handle original Wolverine message and its copies across Pulsar's topics as same identity?
                 // TODO: e.Attempts / attempts header value  is out of sync with Pulsar's RECONSUMETIMES header!
+
+                if (delayTime is null && _endpoint.RetryLetterTopic is not null)
+                    delayTime = !isDeadLettered ? _endpoint.RetryLetterTopic!.Retry.First() : null;
                 await _dlqClient.ReconsumeLater(message, delayTime: delayTime, cancellationToken: _cancellation);
             }
         }
     }
+
 
 }
 
