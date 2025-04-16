@@ -110,6 +110,7 @@ public class PulsarListenerConfiguration : ListenerConfiguration<PulsarListenerC
 
         return this;
     }
+
     /// <summary>
     ///     Add circuit breaker exception handling to this listener
     /// </summary>
@@ -123,6 +124,21 @@ public class PulsarListenerConfiguration : ListenerConfiguration<PulsarListenerC
             configure?.Invoke(e.CircuitBreakerOptions);
         });
 
+
+        return this;
+    }
+
+    /// <summary>
+    ///     Disable the possibility of requeueing messages
+    /// </summary>
+    /// <param name="enableRequeue"></param>
+    /// <returns></returns>
+    public PulsarListenerConfiguration DisableRequeue()
+    {
+        add(e =>
+        {
+            e.EnableRequeue = false;
+        });
 
         return this;
     }
