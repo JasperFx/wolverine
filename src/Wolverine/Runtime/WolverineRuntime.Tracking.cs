@@ -15,6 +15,7 @@ public sealed partial class WolverineRuntime : IMessageTracker
     public const int UndeliverableEventId = 108;
 
     private static readonly Action<ILogger, Envelope, Exception?> _movedToErrorQueue;
+    private static readonly Action<ILogger, Envelope, Exception?> _rescheduled;
     private static readonly Action<ILogger, string?, string, Guid, string, Exception?> _noHandler;
     private static readonly Action<ILogger, Envelope, Exception?> _noRoutes;
     private static readonly Action<ILogger, string, string, Guid, string, string, Exception?> _received;
@@ -40,6 +41,9 @@ public sealed partial class WolverineRuntime : IMessageTracker
 
         _noRoutes = LoggerMessage.Define<Envelope>(LogLevel.Information, NoRoutesEventId,
             "No routes can be determined for {envelope}");
+
+        _rescheduled = LoggerMessage.Define<Envelope>(LogLevel.Error, MovedToErrorQueueId,
+            "Envelope {envelope} was rescheduled to queue");
 
         _movedToErrorQueue = LoggerMessage.Define<Envelope>(LogLevel.Error, MovedToErrorQueueId,
             "Envelope {envelope} was moved to the error queue");
@@ -128,6 +132,13 @@ public sealed partial class WolverineRuntime : IMessageTracker
         _noRoutes(Logger, envelope, null);
     }
 
+
+    public void Rescheduled(Envelope envelope)
+    {
+        ActiveSession?.Record(MessageEventType.Rescheduled, envelope, _serviceName, _uniqueNodeId);
+        _rescheduled(Logger, envelope, envelope.Failure);
+    }
+
     public void MovedToErrorQueue(Envelope envelope, Exception ex)
     {
         ActiveSession?.Record(MessageEventType.MovedToErrorQueue, envelope, _serviceName, _uniqueNodeId);
@@ -143,6 +154,7 @@ public sealed partial class WolverineRuntime : IMessageTracker
     {
         Logger.LogInformation("Requeue for message {Id} of message type {MessageType}", envelope.Id, envelope.MessageType);
         ActiveSession?.Record(MessageEventType.Requeued, envelope, _serviceName, _uniqueNodeId);
+        _rescheduled(Logger, envelope, null);
     }
 
     [Obsolete("Try to eliminate this")]

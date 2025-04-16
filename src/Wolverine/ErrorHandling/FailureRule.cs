@@ -8,6 +8,7 @@ public class FailureRule : IEnumerable<FailureSlot>
 {
     private readonly List<FailureSlot> _slots = new();
 
+
     public FailureRule(IExceptionMatch match)
     {
         Match = match;
@@ -55,4 +56,8 @@ public class FailureRule : IEnumerable<FailureSlot>
 
         return slot;
     }
+
+
+
+
 }
