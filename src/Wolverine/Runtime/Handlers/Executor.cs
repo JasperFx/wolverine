@@ -164,6 +164,11 @@ internal class Executor : IExecutor
         try
         {
             await Handler.HandleAsync(context, combined.Token);
+            if (context.Envelope.ReplyRequested.IsNotEmpty())
+            {
+                await context.AssertAnyRequiredResponseWasGenerated();
+            }
+            
             Activity.Current?.SetStatus(ActivityStatusCode.Ok);
 
             _messageSucceeded(_logger, _messageTypeName, envelope.Id,
@@ -202,6 +207,11 @@ internal class Executor : IExecutor
         try
         {
             await Handler.HandleAsync(context, cancellation);
+            if (context.Envelope.ReplyRequested.IsNotEmpty())
+            {
+                await context.AssertAnyRequiredResponseWasGenerated();
+            }
+            
             return InvokeResult.Success;
         }
         catch (Exception e)

@@ -49,11 +49,7 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
 
         if (!Outstanding.Any()) return;
 
-        if (hasRequestedReply() && _channel is not InvocationCallback && isMissingRequestedReply())
-        {
-            await SendFailureAcknowledgementAsync(
-                $"No response was created for expected response '{Envelope.ReplyRequested}'");
-        }
+        await AssertAnyRequiredResponseWasGenerated();
 
         if (!Outstanding.Any())
         {
@@ -96,6 +92,15 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
         _outstanding.Clear();
 
         _hasFlushed = true;
+    }
+
+    public async Task AssertAnyRequiredResponseWasGenerated()
+    {
+        if (hasRequestedReply() && _channel is not InvocationCallback && isMissingRequestedReply())
+        {
+            await SendFailureAcknowledgementAsync(
+                $"No response was created for expected response '{Envelope.ReplyRequested}'");
+        }
     }
 
     public ValueTask CompleteAsync()
