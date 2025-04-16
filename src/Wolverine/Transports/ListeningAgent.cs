@@ -166,39 +166,30 @@ internal class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
         {
             return;
         }
-
-        using var activity = WolverineTracing.ActivitySource.StartActivity(WolverineTracing.StartingListener);
-        activity?.SetTag(WolverineTracing.EndpointAddress, Endpoint.Uri);
-
-        try
-        {
-            _receiver ??= Endpoint.MaybeWrapReceiver(await buildReceiverAsync());
         
-            if (Endpoint.ListenerCount > 1)
-            {
-                var listeners = new List<IListener>(Endpoint.ListenerCount);
-                for (var i = 0; i < Endpoint.ListenerCount; i++)
-                {
-                    var listener = await Endpoint.BuildListenerAsync(_runtime, _receiver);
-                    listeners.Add(listener);
-                }
-
-                Listener = new ParallelListener(Uri, listeners);
-            }
-            else
-            {
-                Listener = await Endpoint.BuildListenerAsync(_runtime, _receiver);
-            }
-
-            Status = ListeningStatus.Accepting;
-            _runtime.Tracker.Publish(new ListenerState(Uri, Endpoint.EndpointName, Status));
-
-            _logger.LogInformation("Started message listening at {Uri}", Uri);
-        }
-        finally
+        _receiver ??= Endpoint.MaybeWrapReceiver(await buildReceiverAsync());
+    
+        if (Endpoint.ListenerCount > 1)
         {
-            activity?.Stop();
+            var listeners = new List<IListener>(Endpoint.ListenerCount);
+            for (var i = 0; i < Endpoint.ListenerCount; i++)
+            {
+                var listener = await Endpoint.BuildListenerAsync(_runtime, _receiver);
+                listeners.Add(listener);
+            }
+
+            Listener = new ParallelListener(Uri, listeners);
         }
+        else
+        {
+            Listener = await Endpoint.BuildListenerAsync(_runtime, _receiver);
+        }
+
+        Status = ListeningStatus.Accepting;
+        _runtime.Tracker.Publish(new ListenerState(Uri, Endpoint.EndpointName, Status));
+
+        _logger.LogInformation("Started message listening at {Uri}", Uri);
+
     }
 
     public async ValueTask PauseAsync(TimeSpan pauseTime)
