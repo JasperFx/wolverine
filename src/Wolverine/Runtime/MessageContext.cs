@@ -47,6 +47,8 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
             return;
         }
 
+        if (!Outstanding.Any()) return;
+
         if (hasRequestedReply() && _channel is not InvocationCallback && isMissingRequestedReply())
         {
             await SendFailureAcknowledgementAsync(

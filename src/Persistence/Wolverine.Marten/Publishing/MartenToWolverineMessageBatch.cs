@@ -6,11 +6,16 @@ using Wolverine.Runtime;
 
 namespace Wolverine.Marten.Publishing;
 
-internal class MartenToWolverineMessageBatch(MessageContext Context, DocumentSessionBase Session) : IMessageBatch
+internal class MartenToWolverineMessageBatch(MessageContext Context, DocumentSessionBase Session) : IMessageBatch, ITenantedMessageSink
 {
-    public async ValueTask PublishAsync<T>(T message)
+    public ValueTask PublishAsync<T>(T message)
     {
-        await Context.PublishAsync(message);
+        return Context.PublishAsync(message);
+    }
+
+    public ValueTask PublishAsync<T>(T message, string tenantId)
+    {
+        return Context.PublishAsync(message, new DeliveryOptions { TenantId = tenantId });
     }
 
     public Task AfterCommitAsync(IDocumentSession session, IChangeSet commit, CancellationToken token)
