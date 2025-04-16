@@ -157,7 +157,6 @@ internal class TrackedSession : ITrackedSession
     public RecordCollection NoHandlers => new(MessageEventType.NoHandlers, this);
     public RecordCollection NoRoutes => new(MessageEventType.NoRoutes, this);
     public RecordCollection MovedToErrorQueue => new(MessageEventType.MovedToErrorQueue, this);
-    public RecordCollection Rescheduled => new(MessageEventType.Rescheduled, this);
     public RecordCollection Requeued => new(MessageEventType.Requeued, this);
     public RecordCollection Executed => new(MessageEventType.ExecutionFinished, this);
 

@@ -124,9 +124,8 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
             throw new InvalidOperationException("No Envelope is active for this context");
         }
 
-        Runtime.MessageTracking.Rescheduled(Envelope);
+        Runtime.MessageTracking.Requeued(Envelope);
         Envelope.ScheduledTime = scheduledTime;
-        //if (_channel is ISupportNativeScheduling c)
         if (tryGetRescheduler(_channel, Envelope) is ISupportNativeScheduling c)
         {
             await c.MoveToScheduledUntilAsync(Envelope, Envelope.ScheduledTime.Value);
@@ -144,7 +143,7 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
             return c2;
         }
 
-        if (_channel is ISupportNativeScheduling c)
+        if (channel is ISupportNativeScheduling c)
         {
             return c;
         }

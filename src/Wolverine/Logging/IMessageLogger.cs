@@ -72,14 +72,6 @@ public interface IMessageTracker
     /// <param name="envelope"></param>
     void NoRoutesFor(Envelope envelope);
 
-
-    /// <summary>
-    ///     Called when message execution was rescheduled at some later time
-    /// </summary>
-    /// <param name="envelope"></param>
-    /// <param name="ex"></param>
-    void Rescheduled(Envelope envelope);
-
     /// <summary>
     ///     Called when Wolverine moves an envelope into the dead letter queue
     /// </summary>

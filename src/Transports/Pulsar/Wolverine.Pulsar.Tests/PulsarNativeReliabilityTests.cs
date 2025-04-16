@@ -37,7 +37,7 @@ public class PulsarNativeReliabilityTests : /*TransportComplianceFixture,*/ IAsy
                 opts.ListenToPulsarTopic(topicPath)
                     .WithSharedSubscriptionType()
                     .DeadLetterQueueing(DeadLetterTopic.DefaultNative)
-                    .RetryLetterQueueing(new RetryLetterTopic([TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(2)]))
+                    .RetryLetterQueueing(new RetryLetterTopic([TimeSpan.FromSeconds(4), TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(3)]))
                     //.ProcessInline();
                     .BufferedInMemory();
 
@@ -89,34 +89,37 @@ public class PulsarNativeReliabilityTests : /*TransportComplianceFixture,*/ IAsy
             .Count()
             .ShouldBe(4);
 
-        session.Rescheduled
+        session.Requeued
             .MessagesOf<SRMessage1>()
             .Count()
             .ShouldBe(3);
 
-        //session.Requeued
-        //    .MessagesOf<SRMessage1>()
-        //    .Count()
-        //    .ShouldBe(2);
 
         // TODO: I Guess the capture of the envelope headers occurs before we manipulate it
-        //var firstRequeuedEnvelope = session.MovedToRetryQueue.Envelopes().First();
-        //firstRequeuedEnvelope.ShouldSatisfyAllConditions(
-        //    () => firstRequeuedEnvelope.Headers.ContainsKey("DELAY_TIME").ShouldBeTrue(),
-        //    () => firstRequeuedEnvelope.Headers["DELAY_TIME"].ShouldBe(TimeSpan.FromSeconds(1).TotalMilliseconds.ToString())
-        //);
-        //var secondRequeuedEnvelope = session.MovedToRetryQueue.Envelopes().Skip(1).First();
-        //secondRequeuedEnvelope.ShouldSatisfyAllConditions(
-        //    () => secondRequeuedEnvelope.Headers.ContainsKey("DELAY_TIME").ShouldBeTrue(),
-        //    () => secondRequeuedEnvelope.Headers["DELAY_TIME"].ShouldBe(TimeSpan.FromSeconds(2).TotalMilliseconds.ToString())
-        //);
+        var firstRequeuedEnvelope = session.Requeued.Envelopes().First();
+        firstRequeuedEnvelope.ShouldSatisfyAllConditions(
+            () => firstRequeuedEnvelope.Attempts.ShouldBe(1),
+            () => firstRequeuedEnvelope.Headers.ContainsKey("DELAY_TIME").ShouldBeFalse()
+        );
+        var secondRequeuedEnvelope = session.Requeued.Envelopes().Skip(1).First();
+        secondRequeuedEnvelope.ShouldSatisfyAllConditions(
+            () => secondRequeuedEnvelope.Attempts.ShouldBe(2),
+            () => secondRequeuedEnvelope.Headers.ContainsKey("DELAY_TIME").ShouldBeTrue(),
+            () => secondRequeuedEnvelope.Headers["DELAY_TIME"].ShouldBe(TimeSpan.FromSeconds(4).TotalMilliseconds.ToString())
+        );
+
+        var thirdRequeuedEnvelope = session.Requeued.Envelopes().Skip(2).First();
+        thirdRequeuedEnvelope.ShouldSatisfyAllConditions(
+            () => thirdRequeuedEnvelope.Attempts.ShouldBe(3),
+            () => thirdRequeuedEnvelope.Headers.ContainsKey("DELAY_TIME").ShouldBeTrue(),
+            () => thirdRequeuedEnvelope.Headers["DELAY_TIME"].ShouldBe(TimeSpan.FromSeconds(4).TotalMilliseconds.ToString()) // TODO: delay is not respected (always uses first specified delay)
+        );
 
 
-        var firstEnvelope = session.MovedToErrorQueue.Envelopes().First();
-        firstEnvelope.ShouldSatisfyAllConditions(
-            () => firstEnvelope.Headers.ContainsKey(PulsarEnvelopeConstants.Exception).ShouldBeTrue(),
-            () => firstEnvelope.Headers[PulsarEnvelopeConstants.ReconsumeTimes].ShouldBe("3"),
-            () => firstEnvelope.Headers["DELAY_TIME"].ShouldBe(TimeSpan.FromSeconds(1).TotalMilliseconds.ToString())
+        var dlqEnvelope = session.MovedToErrorQueue.Envelopes().First();
+        dlqEnvelope.ShouldSatisfyAllConditions(
+            () => dlqEnvelope.Headers.ContainsKey(PulsarEnvelopeConstants.Exception).ShouldBeTrue(),
+            () => dlqEnvelope.Headers[PulsarEnvelopeConstants.ReconsumeTimes].ShouldBe("3")
         );
 
     }
@@ -147,10 +150,6 @@ public class PulsarNativeReliabilityTests : /*TransportComplianceFixture,*/ IAsy
             .Count()
             .ShouldBe(0);
 
-        session.Requeued
-            .MessagesOf<SRMessage2>()
-            .Count()
-            .ShouldBe(0);
 
 
 

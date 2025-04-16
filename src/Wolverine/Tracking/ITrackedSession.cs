@@ -61,11 +61,6 @@ public interface ITrackedSession
     RecordCollection Requeued { get; }    
     
     /// <summary>
-    ///     Records of all messages that were rescheduled sometime in the future
-    /// </summary>
-    RecordCollection Rescheduled { get; }
-    
-    /// <summary>
     ///     Message processing records for messages that were executed. Note that this includes message
     ///     executions that failed and additional attempts as a separate record in the case of retries
     /// </summary>
