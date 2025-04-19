@@ -7,6 +7,7 @@ using Marten.Events.Aggregation;
 using Marten.Events.Daemon.Resiliency;
 using Marten.Events.Projections;
 using Marten.Metadata;
+using Marten.Storage;
 using Microsoft.Extensions.Hosting;
 using Npgsql;
 using Shouldly;
@@ -59,6 +60,93 @@ public class end_to_end_publish_messages_through_marten_to_wolverine
         tracked.Executed.SingleMessage<GotB>()
             .StreamId.ShouldBe(streamId);
     }
+    
+    [Fact]
+    public async Task can_publish_messages_through_outbox_running_inline()
+    {
+        await dropSchema();
+
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.Services.AddMarten(m =>
+                    {
+                        m.Connection(Servers.PostgresConnectionString);
+                        m.DatabaseSchemaName = "wolverine_side_effects";
+                        
+                        m.Projections.Add<Projection3>(ProjectionLifecycle.Inline);
+                        m.Events.EnableSideEffectsOnInlineProjections = true;
+                    })
+                    .IntegrateWithWolverine()
+                    .AddAsyncDaemon(DaemonMode.Solo);
+                
+                opts.Policies.UseDurableLocalQueues();
+            }).StartAsync();
+
+        var streamId = Guid.NewGuid();
+
+        Func<IMessageContext, Task> publish = async _ =>
+        {
+            using var session = host.DocumentStore().LightweightSession();
+            session.Events.StartStream<SideEffects1>(streamId, new AEvent(), new AEvent(), new BEvent());
+            await session.SaveChangesAsync();
+        };
+        
+        var tracked = await host
+            .TrackActivity()
+            .Timeout(30.Seconds())
+            .WaitForMessageToBeReceivedAt<GotB>(host)
+            .ExecuteAndWaitAsync(publish);
+        
+        tracked.Executed.SingleMessage<GotB>()
+            .StreamId.ShouldBe(streamId);
+    }
+    
+    [Fact]
+    public async Task can_publish_messages_through_outbox_with_tenancy()
+    {
+        await dropSchema();
+
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.Services.AddMarten(m =>
+                    {
+                        m.Connection(Servers.PostgresConnectionString);
+                        m.DatabaseSchemaName = "wolverine_side_effects";
+
+                        m.Events.TenancyStyle = TenancyStyle.Conjoined;
+                        m.Schema.For<SideEffects1>().MultiTenanted();
+
+                        m.Projections.Add<Projection3>(ProjectionLifecycle.Async);
+                    })
+                    .IntegrateWithWolverine()
+                    .AddAsyncDaemon(DaemonMode.Solo);
+                
+                opts.Policies.UseDurableLocalQueues();
+            }).StartAsync();
+
+        var streamId = Guid.NewGuid();
+
+        Func<IMessageContext, Task> publish = async _ =>
+        {
+            using var session = host.DocumentStore().LightweightSession("one");
+            session.Events.StartStream<SideEffects1>(streamId, new AEvent(), new AEvent(), new BEvent());
+            await session.SaveChangesAsync();
+        };
+
+        var tracked = await host
+            .TrackActivity()
+            .Timeout(30.Seconds())
+            .WaitForMessageToBeReceivedAt<GotB>(host)
+            .ExecuteAndWaitAsync(publish);
+        
+        tracked.Executed.SingleMessage<GotB>()
+            .StreamId.ShouldBe(streamId);
+        
+        tracked.Executed.SingleEnvelope<GotB>()
+            .TenantId.ShouldBe("one");
+    }
 
     private static async Task dropSchema()
     {
@@ -77,6 +165,11 @@ public class Projection3: SingleStreamProjection<SideEffects1>
     }
 
     public void Apply(SideEffects1 aggregate, BEvent _)
+    {
+
+    }
+    
+    public void Apply(SideEffects1 aggregate, CEvent _)
     {
 
     }

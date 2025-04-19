@@ -383,7 +383,7 @@ class Build : NukeBuild
         });
     
     Target PublishDocs => _ => _
-        .DependsOn(NpmInstall, InstallMdSnippets)
+        .DependsOn(DocsBuild)
         .Executes(() => NpmTasks.NpmRun(s => s.SetCommand("docs:publish")));
     
     #endregion

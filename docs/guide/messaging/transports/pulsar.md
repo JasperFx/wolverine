@@ -39,12 +39,14 @@ builder.UseWolverine(opts =>
 
     // Listen for incoming messages from a Pulsar topic
     opts.ListenToPulsarTopic("persistent://public/default/two")
+        .SubscriptionName("two")
+        .SubscriptionType(SubscriptionType.Exclusive)
         
         // And all the normal Wolverine options...
         .Sequential();
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Pulsar/Wolverine.Pulsar.Tests/DocumentationSamples.cs#L11-L39' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_pulsar' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Pulsar/Wolverine.Pulsar.Tests/DocumentationSamples.cs#L12-L42' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_pulsar' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The topic name format is set by Pulsar itself, and you can learn more about its format in [Pulsar Topics](https://pulsar.apache.org/docs/next/concepts-messaging/#topics). 

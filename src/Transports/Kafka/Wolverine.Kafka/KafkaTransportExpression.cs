@@ -39,6 +39,17 @@ public class KafkaTransportExpression : BrokerExpression<KafkaTransport, KafkaTo
     }
 
     /// <summary>
+    /// Configure the Kafka message producer builders within the Wolverine transport
+    /// </summary>
+    /// <param name="configure"></param>
+    /// <returns></returns>
+    public KafkaTransportExpression ConfigureProducerBuilders(Action<ProducerBuilder<string, string>> configure)
+    {
+        _transport.ConfigureProducerBuilders = configure;
+        return this;
+    }
+
+    /// <summary>
     /// Configure the Kafka message consumers within the Wolverine transport
     /// </summary>
     /// <param name="configure"></param>
@@ -46,6 +57,17 @@ public class KafkaTransportExpression : BrokerExpression<KafkaTransport, KafkaTo
     public KafkaTransportExpression ConfigureConsumers(Action<ConsumerConfig> configure)
     {
         configure(_transport.ConsumerConfig);
+        return this;
+    }
+
+    /// <summary>
+    /// Configure the Kafka consumer builders within the Wolverine transport
+    /// </summary>
+    /// <param name="configure"></param>
+    /// <returns></returns>
+    public KafkaTransportExpression ConfigureConsumerBuilders(Action<ConsumerBuilder<string, string>> configure)
+    {
+        _transport.ConfigureConsumerBuilders = configure;
         return this;
     }
 
@@ -58,6 +80,29 @@ public class KafkaTransportExpression : BrokerExpression<KafkaTransport, KafkaTo
     {
         _transport.AutoProvision = true;
         configure?.Invoke(_transport.AdminClientConfig);
+        return this;
+    }
+
+    /// <summary>
+    /// Configure the Kafka admin client builders within the Wolverine transport
+    /// </summary>
+    /// <param name="configure"></param>
+    /// <returns></returns>
+    public KafkaTransportExpression ConfigureAdminClientBuilders(Action<AdminClientBuilder> configure)
+    {
+        _transport.ConfigureAdminClientBuilders = configure;
+        return this;
+    }
+
+    /// <summary>
+    /// Configure the Kafka admin client builders within the Wolverine transport
+    /// </summary>
+    /// <param name="configure"></param>
+    /// <returns></returns>
+    [Obsolete($"This method is deprecated. Use {nameof(ConfigureAdminClientBuilders)} instead.")]
+    public KafkaTransportExpression ConfigureAdminConsumerBuilders(Action<AdminClientBuilder> configure)
+    {
+        _transport.ConfigureAdminClientBuilders = configure;
         return this;
     }
 

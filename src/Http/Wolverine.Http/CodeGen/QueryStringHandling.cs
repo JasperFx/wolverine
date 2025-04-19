@@ -3,9 +3,24 @@ using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
+using Microsoft.AspNetCore.Mvc;
 using Wolverine.Runtime;
 
 namespace Wolverine.Http.CodeGen;
+
+public enum QueryStringAssignMode
+{
+    WriteToVariable,
+    WriteToProperty
+}
+
+public interface IReadQueryStringFrame
+{
+    void AssignToProperty(string usage);
+    QueryStringAssignMode Mode { get; }
+
+    void GenerateCode(GeneratedMethod method, ISourceWriter writer);
+}
 
 public class QuerystringVariable : Variable
 {
@@ -15,9 +30,10 @@ public class QuerystringVariable : Variable
     }
 
     public string Name { get; set; }
+
 }
 
-internal class ReadStringQueryStringValue : SyncFrame
+internal class ReadStringQueryStringValue : SyncFrame, IReadQueryStringFrame
 {
     public ReadStringQueryStringValue(string name)
     {
@@ -28,17 +44,34 @@ internal class ReadStringQueryStringValue : SyncFrame
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
-        writer.Write($"string {Variable.Usage} = httpContext.Request.Query[\"{Variable.Name}\"].FirstOrDefault();");
+        if (Mode == QueryStringAssignMode.WriteToVariable)
+        {
+            writer.Write($"string {Variable.Usage} = httpContext.Request.Query[\"{Variable.Name}\"].FirstOrDefault();");
+        }
+        else
+        {
+            writer.Write($"{Variable.Usage} = httpContext.Request.Query[\"{Variable.Name}\"].FirstOrDefault();");
+        }
 
         Next?.GenerateCode(method, writer);
     }
+    
+    public void AssignToProperty(string usage)
+    {
+        Variable.OverrideName(usage);
+        Mode = QueryStringAssignMode.WriteToProperty;
+    }
+
+    public QueryStringAssignMode Mode { get; private set; } = QueryStringAssignMode.WriteToVariable;
 }
 
-internal class ParsedQueryStringValue : SyncFrame
+internal class ParsedQueryStringValue : SyncFrame, IReadQueryStringFrame
 {
-    public ParsedQueryStringValue(ParameterInfo parameter)
+    private string _property;
+
+    public ParsedQueryStringValue(Type parameterType, string parameterName)
     {
-        Variable = new QuerystringVariable(parameter.ParameterType, parameter.Name!, this);
+        Variable = new QuerystringVariable(parameterType, parameterName!, this);
     }
 
     public QuerystringVariable Variable { get; }
@@ -46,35 +79,50 @@ internal class ParsedQueryStringValue : SyncFrame
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
         var alias = Variable.VariableType.FullNameInCode();
-        writer.Write($"{alias} {Variable.Usage} = default;");
-
+        var prefix = Mode == QueryStringAssignMode.WriteToVariable ? "" : "if (";
+        var suffix = Mode == QueryStringAssignMode.WriteToVariable ? "" : $") {_property} = {Variable.Usage}";
+        var outUsage = Mode == QueryStringAssignMode.WriteToVariable ? Variable.Usage : $"var {Variable.Usage}";
+        
+        if (Mode == QueryStringAssignMode.WriteToVariable)
+        {
+            writer.Write($"{alias} {Variable.Usage} = default;");
+        }
 
         if (Variable.VariableType.IsEnum)
         {
-            writer.Write($"{alias}.TryParse<{alias}>(httpContext.Request.Query[\"{Variable.Name}\"], out {Variable.Usage});");
+            writer.Write($"{prefix}{alias}.TryParse<{alias}>(httpContext.Request.Query[\"{Variable.Name}\"], true, out {outUsage}){suffix};");
         }
         else if (Variable.VariableType.IsBoolean())
         {
-            writer.Write($"{alias}.TryParse(httpContext.Request.Query[\"{Variable.Name}\"], out {Variable.Usage});");
+            writer.Write($"{prefix}{alias}.TryParse(httpContext.Request.Query[\"{Variable.Name}\"], out {outUsage}){suffix};");
         }
         else
         {
-            writer.Write($"{alias}.TryParse(httpContext.Request.Query[\"{Variable.Name}\"], System.Globalization.CultureInfo.InvariantCulture, out {Variable.Usage});");
+            writer.Write($"{prefix}{alias}.TryParse(httpContext.Request.Query[\"{Variable.Name}\"], System.Globalization.CultureInfo.InvariantCulture, out {outUsage}){suffix};");
         }
 
         Next?.GenerateCode(method, writer);
     }
+    
+    public void AssignToProperty(string usage)
+    {
+        Mode = QueryStringAssignMode.WriteToProperty;
+        _property = usage;
+    }
+
+    public QueryStringAssignMode Mode { get; private set; } = QueryStringAssignMode.WriteToVariable;
 }
 
-internal class ParsedNullableQueryStringValue : SyncFrame
+internal class ParsedNullableQueryStringValue : SyncFrame, IReadQueryStringFrame
 {
     private readonly string _alias;
     private Type _innerTypeFromNullable;
+    private string _property;
 
-    public ParsedNullableQueryStringValue(ParameterInfo parameter)
+    public ParsedNullableQueryStringValue(Type parameterType, string parameterName)
     {
-        Variable = new QuerystringVariable(parameter.ParameterType, parameter.Name!, this);
-        _innerTypeFromNullable = parameter.ParameterType.GetInnerTypeFromNullable();
+        Variable = new QuerystringVariable(parameterType, parameterName, this);
+        _innerTypeFromNullable = parameterType.GetInnerTypeFromNullable();
         _alias = _innerTypeFromNullable.FullNameInCode();
     }
 
@@ -82,35 +130,66 @@ internal class ParsedNullableQueryStringValue : SyncFrame
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
-        writer.Write($"{_alias}? {Variable.Usage} = null;");
-        if (_innerTypeFromNullable.IsEnum)
+        if (Mode == QueryStringAssignMode.WriteToVariable)
         {
-            writer.Write(
-                $"if ({_alias}.TryParse<{_innerTypeFromNullable.FullNameInCode()}>(httpContext.Request.Query[\"{Variable.Usage}\"], out var {Variable.Usage}Parsed)) {Variable.Usage} = {Variable.Usage}Parsed;");
-        }
-        else if (_innerTypeFromNullable.IsBoolean())
-        {
-            writer.Write(
-                $"if ({_alias}.TryParse(httpContext.Request.Query[\"{Variable.Usage}\"], out var {Variable.Usage}Parsed)) {Variable.Usage} = {Variable.Usage}Parsed;");
+            writer.Write($"{_alias}? {Variable.Usage} = null;");
+            
+            if (_innerTypeFromNullable.IsEnum)
+            {
+                writer.Write(
+                    $"if ({_alias}.TryParse<{_innerTypeFromNullable.FullNameInCode()}>(httpContext.Request.Query[\"{Variable.Usage}\"], true, out var {Variable.Usage}Parsed)) {Variable.Usage} = {Variable.Usage}Parsed;");
+            }
+            else if (_innerTypeFromNullable.IsBoolean())
+            {
+                writer.Write(
+                    $"if ({_alias}.TryParse(httpContext.Request.Query[\"{Variable.Usage}\"], out var {Variable.Usage}Parsed)) {Variable.Usage} = {Variable.Usage}Parsed;");
+            }
+            else
+            {
+                writer.Write(
+                    $"if ({_alias}.TryParse(httpContext.Request.Query[\"{Variable.Usage}\"], System.Globalization.CultureInfo.InvariantCulture, out var {Variable.Usage}Parsed)) {Variable.Usage} = {Variable.Usage}Parsed;");
+            }
         }
         else
         {
-            writer.Write(
-                $"if ({_alias}.TryParse(httpContext.Request.Query[\"{Variable.Usage}\"], System.Globalization.CultureInfo.InvariantCulture, out var {Variable.Usage}Parsed)) {Variable.Usage} = {Variable.Usage}Parsed;");
+            if (_innerTypeFromNullable.IsEnum)
+            {
+                writer.Write(
+                    $"if ({_alias}.TryParse<{_innerTypeFromNullable.FullNameInCode()}>(httpContext.Request.Query[\"{Variable.Usage}\"], true, out var {Variable.Usage})) {_property} = {Variable.Usage};");
+            }
+            else if (_innerTypeFromNullable.IsBoolean())
+            {
+                writer.Write(
+                    $"if ({_alias}.TryParse(httpContext.Request.Query[\"{Variable.Usage}\"], out var {Variable.Usage})) {_property} = {Variable.Usage};");
+            }
+            else
+            {
+                writer.Write(
+                    $"if ({_alias}.TryParse(httpContext.Request.Query[\"{Variable.Usage}\"], System.Globalization.CultureInfo.InvariantCulture, out var {Variable.Usage})) {_property} = {Variable.Usage};");
+            }
         }
+        
 
         Next?.GenerateCode(method, writer);
     }
+    
+    public void AssignToProperty(string usage)
+    {
+        _property = usage;
+        Mode = QueryStringAssignMode.WriteToProperty;
+    }
+
+    public QueryStringAssignMode Mode { get; private set; } = QueryStringAssignMode.WriteToVariable;
 }
 
-internal class ParsedCollectionQueryStringValue : SyncFrame
+internal class ParsedCollectionQueryStringValue : SyncFrame, IReadQueryStringFrame
 {
     private readonly Type _collectionElementType;
 
-    public ParsedCollectionQueryStringValue(ParameterInfo parameter)
+    public ParsedCollectionQueryStringValue(Type parameterType, string parameterName)
     {
-        Variable = new QuerystringVariable(parameter.ParameterType, parameter.Name!, this);
-        _collectionElementType = GetCollectionElementType(parameter.ParameterType);
+        Variable = new QuerystringVariable(parameterType, parameterName!, this);
+        _collectionElementType = GetCollectionElementType(parameterType);
     }
 
     public QuerystringVariable Variable { get; }
@@ -178,6 +257,14 @@ internal class ParsedCollectionQueryStringValue : SyncFrame
 
     private static Type GetCollectionElementType(Type collectionType)
         => collectionType.GetGenericArguments()[0];
+    
+    public void AssignToProperty(string usage)
+    {
+        Variable.OverrideName(usage);
+        Mode = QueryStringAssignMode.WriteToProperty;
+    }
+
+    public QueryStringAssignMode Mode { get; private set; } = QueryStringAssignMode.WriteToVariable;
 }
 
 internal class QueryStringParameterStrategy : IParameterStrategy

@@ -41,7 +41,8 @@ public class KafkaTopic : Endpoint, IBrokerEndpoint
 
     public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
     {
-        var listener = new KafkaListener(this, Parent.ConsumerConfig, receiver, runtime.LoggerFactory.CreateLogger<KafkaListener>());
+        var listener = new KafkaListener(this, Parent.ConsumerConfig,
+            Parent.CreateConsumer(), receiver, runtime.LoggerFactory.CreateLogger<KafkaListener>());
         return ValueTask.FromResult((IListener)listener);
     }
 
@@ -58,7 +59,7 @@ public class KafkaTopic : Endpoint, IBrokerEndpoint
         if (TopicName == WolverineTopicsName) return true; // don't care, this is just a marker
         try
         {
-            using var client = new ProducerBuilder<string, string>(Parent.ProducerConfig).Build();
+            using var client = Parent.CreateProducer();
             await client.ProduceAsync(TopicName, new Message<string, string>
             {
                 Key = "ping",
@@ -77,25 +78,25 @@ public class KafkaTopic : Endpoint, IBrokerEndpoint
     public async ValueTask TeardownAsync(ILogger logger)
     {
         if (TopicName == WolverineTopicsName) return; // don't care, this is just a marker
-        using var client = new AdminClientBuilder(Parent.AdminClientConfig).Build();
-        await client.DeleteTopicsAsync(new string[] { TopicName });
+        using var adminClient = Parent.CreateAdminClient();
+        await adminClient.DeleteTopicsAsync([TopicName]);
     }
 
     public async ValueTask SetupAsync(ILogger logger)
     {
         if (TopicName == WolverineTopicsName) return; // don't care, this is just a marker
 
-        using var client = new AdminClientBuilder(Parent.AdminClientConfig).Build();
+        using var adminClient = Parent.CreateAdminClient();
 
         try
         {
-            await client.CreateTopicsAsync(new[]
-            {
+            await adminClient.CreateTopicsAsync(
+            [
                 new TopicSpecification
                 {
                     Name = TopicName
                 }
-            });
+            ]);
 
             logger.LogInformation("Created Kafka topic {Topic}", TopicName);
         }

@@ -401,7 +401,7 @@ builder.Services.AddMarten(opts =>
 
 ::: info
 The setting above cannot be a default in Marten because it can break some existing code with a very different
-workflow that what the Critter Stack team recommends for the aggregate handler workflow.
+workflow than what the Critter Stack team recommends for the aggregate handler workflow.
 :::
 
 Wolverine.Marten has a special response type for message handlers or HTTP endpoints we can use as a directive to tell Wolverine
@@ -468,7 +468,7 @@ public static Task<Order> update_and_get_latest(IMessageBus bus, MarkItemReady c
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/OrderEventSourcingSample/Alternatives/Signatures.cs#L103-L113' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_updatedaggregate_with_invoke_async' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
-]
+
 Likewise, you can use `UpdatedAggregate` as the response body of an HTTP endpoint with Wolverine.HTTP [as shown here](/guide/http/marten.html#responding-with-the-updated-aggregate~~~~).
 
 ::: info
@@ -512,14 +512,30 @@ event to the stream just like you would in any other aggregate handler.
 ## Reading the Latest Version of an Aggregate
 
 ::: info
-This is using Marten's [FetchLatest(https://martendb.io/events/projections/read-aggregates.html#fetchlatest) API]() and is limited to single stream
+This is using Marten's [FetchLatest](https://martendb.io/events/projections/read-aggregates.html#fetchlatest) API and is limited to single stream
 projections.
 :::
 
 If you want to inject the current state of an event sourced aggregate as a parameter into
 a message handler method strictly for information and don't need the heavier "aggregate handler workflow," use the `[ReadAggregate]` attribute like this:
 
-snippet: sample_using_ReadAggregate_in_messsage_handlers
+<!-- snippet: sample_using_ReadAggregate_in_messsage_handlers -->
+<a id='snippet-sample_using_readaggregate_in_messsage_handlers'></a>
+```cs
+public record FindAggregate(Guid Id);
+
+public static class FindLettersHandler
+{
+    // This is admittedly just some weak sauce testing support code
+    public static LetterAggregateEnvelope Handle(
+        FindAggregate command, 
+        [ReadAggregate] LetterAggregate aggregate)
+    
+        => new LetterAggregateEnvelope(aggregate);
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/read_aggregate_attribute_usage.cs#L81-L95' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_readaggregate_in_messsage_handlers' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 If the aggregate doesn't exist, the HTTP request will stop with a 404 status code.
 The aggregate/stream identity is found with the same rules as the `[Entity]` or `[Aggregate]` attributes:

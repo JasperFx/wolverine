@@ -8,6 +8,7 @@ public partial class HttpGraph
 {
     private readonly List<IParameterStrategy> _strategies =
     [
+        new FromQueryAttributeUsage(),
         new FromFileStrategy(),
         new HttpChainParameterAttributeStrategy(),
         new FromServicesParameterStrategy(),

@@ -1,3 +1,5 @@
+using System;
+using System.Threading.Tasks;
 using Marten.Events.Aggregation;
 using Marten.Internal.Sessions;
 using Microsoft.Extensions.DependencyInjection;

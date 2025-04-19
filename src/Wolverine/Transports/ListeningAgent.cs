@@ -166,12 +166,9 @@ internal class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
         {
             return;
         }
-
-        using var activity = WolverineTracing.ActivitySource.StartActivity(WolverineTracing.StartingListener);
-        activity?.SetTag(WolverineTracing.EndpointAddress, Endpoint.Uri);
-
-        _receiver ??= Endpoint.MaybeWrapReceiver(await buildReceiverAsync());
         
+        _receiver ??= Endpoint.MaybeWrapReceiver(await buildReceiverAsync());
+    
         if (Endpoint.ListenerCount > 1)
         {
             var listeners = new List<IListener>(Endpoint.ListenerCount);
@@ -192,6 +189,7 @@ internal class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
         _runtime.Tracker.Publish(new ListenerState(Uri, Endpoint.EndpointName, Status));
 
         _logger.LogInformation("Started message listening at {Uri}", Uri);
+
     }
 
     public async ValueTask PauseAsync(TimeSpan pauseTime)

@@ -287,8 +287,6 @@ public partial class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQu
 
     internal async Task DeclareAsync(IChannel channel, ILogger logger)
     {
-        if (HasDeclared) return;
-        
         if (QueueType != QueueType.classic)
         {
             Arguments[RabbitMqTransport.QueueTypeHeader] = QueueType.ToString();

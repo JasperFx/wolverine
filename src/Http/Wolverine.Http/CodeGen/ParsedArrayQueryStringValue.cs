@@ -5,13 +5,23 @@ using JasperFx.Core.Reflection;
 
 namespace Wolverine.Http.CodeGen;
 
-internal class ParsedArrayQueryStringValue : SyncFrame
+internal class ParsedArrayQueryStringValue : SyncFrame, IReadQueryStringFrame
 {
-    public ParsedArrayQueryStringValue(ParameterInfo parameter)
+    private string _property;
+
+    public ParsedArrayQueryStringValue(Type parameterType, string parameterName) 
     {
-        Variable = new QuerystringVariable(parameter.ParameterType, parameter.Name!, this);
+        Variable = new QuerystringVariable(parameterType, parameterName!, this);
     }
-    
+
+    public void AssignToProperty(string usage)
+    {
+        _property = usage;
+        Mode = QueryStringAssignMode.WriteToProperty;
+    }
+
+    public QueryStringAssignMode Mode { get; private set; } = QueryStringAssignMode.WriteToVariable;
+
     public QuerystringVariable Variable { get; }
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
@@ -19,7 +29,14 @@ internal class ParsedArrayQueryStringValue : SyncFrame
         var elementType = Variable.VariableType.GetElementType();
         if (elementType == typeof(string))
         {
-            writer.Write($"var {Variable.Usage} = httpContext.Request.Query[\"{Variable.Usage}\"].ToArray();");
+            if (Mode == QueryStringAssignMode.WriteToVariable)
+            {
+                writer.Write($"var {Variable.Usage} = httpContext.Request.Query[\"{Variable.Usage}\"].ToArray();");
+            }
+            else
+            {
+                writer.Write($"{_property} = httpContext.Request.Query[\"{Variable.Usage}\"].ToArray();");
+            }
         }
         else
         {
@@ -48,7 +65,14 @@ internal class ParsedArrayQueryStringValue : SyncFrame
 
             writer.FinishBlock(); // foreach blobck
             
-            writer.Write($"var {Variable.Usage} = {Variable.Usage}_List.ToArray();");
+            if (Mode == QueryStringAssignMode.WriteToVariable)
+            {
+                writer.Write($"var {Variable.Usage} = {Variable.Usage}_List.ToArray();");
+            }
+            else
+            {
+                writer.Write($"if ({Variable.Usage}_List.Any()) {_property} = {Variable.Usage}_List.ToArray();");
+            }
         }
         
         Next?.GenerateCode(method, writer);

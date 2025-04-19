@@ -29,6 +29,23 @@ public class DocumentationSamples
                     .ConfigureProducers(producer =>
                     {
                         // configure only producers
+                    })
+                    
+                    .ConfigureProducerBuilders(builder =>
+                    {
+                        // there are some options that are only exposed
+                        // on the ProducerBuilder
+                    })
+                    
+                    .ConfigureConsumerBuilders(builder =>
+                    {
+                        // there are some Kafka client options that
+                        // are only exposed from the builder
+                    })
+                    
+                    .ConfigureAdminClientBuilders(builder =>
+                    {
+                        // configure admin client builders
                     });
 
                 // Just publish all messages to Kafka topics

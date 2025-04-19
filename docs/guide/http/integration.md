@@ -120,7 +120,7 @@ public async Task hello_world()
     result.ReadAsText().ShouldBe("Hello.");
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/TodoWebService/TodoWebServiceTests/end_to_end.cs#L33-L47' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_testing_hello_world_for_http' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/TodoWebService/TodoWebServiceTests/end_to_end.cs#L34-L48' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_testing_hello_world_for_http' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Moving on to the actual `Todo` problem domain, let's assume we've got a class like this:

@@ -12,7 +12,7 @@ public class InlineKafkaSender : ISender, IDisposable
     {
         _topic = topic;
         Destination = topic.Uri;
-        _producer = new ProducerBuilder<string, string>(_topic.Parent.ProducerConfig).Build();
+        _producer = _topic.Parent.CreateProducer();
         
     }
 
