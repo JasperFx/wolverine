@@ -557,6 +557,11 @@ public abstract class TransportCompliance<T> : IAsyncLifetime where T : Transpor
     [Fact]
     public async Task requested_response()
     {
+        if (Fixture.IsSenderOnlyTransport)
+        {
+            return;
+        }
+        
         var ping = new ImplicitPing();
 
         var session = await theSender

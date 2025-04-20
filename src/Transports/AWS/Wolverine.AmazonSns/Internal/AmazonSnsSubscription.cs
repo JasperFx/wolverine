@@ -14,6 +14,13 @@ public class AmazonSnsSubscription
         RawMessageDelivery = rawMessageDelivery;
     }
 
+    internal AmazonSnsSubscription(string subscriptionArn)
+    {
+        SubscriptionArn = subscriptionArn;
+        Endpoint = string.Empty;
+    }
+
+    public string? SubscriptionArn { get; set; }
     public string Endpoint { get; }
 
     public string Protocol =>
