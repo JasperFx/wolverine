@@ -66,6 +66,12 @@ public class AmazonSnsTopic : Endpoint, IBrokerQueue
             if (topic is null) return;
             TopicArn = topic.TopicArn;
         }
+
+        foreach (var subscription in TopicSubscriptions)
+        {
+            var unsubscribeRequest = new UnsubscribeRequest(subscription.SubscriptionArn);
+            await client.UnsubscribeAsync(unsubscribeRequest);
+        }
         
         await client.DeleteTopicAsync(TopicArn);
     }
@@ -165,6 +171,7 @@ public class AmazonSnsTopic : Endpoint, IBrokerQueue
             }
             
             await loadTopicArnIfEmptyAsync(client);
+            await loadTopicSubscriptionsAsync(client);
         }
         catch (Exception e)
         {
@@ -206,6 +213,17 @@ public class AmazonSnsTopic : Endpoint, IBrokerQueue
         }
     }
 
+    private async Task loadTopicSubscriptionsAsync(IAmazonSimpleNotificationService client)
+    {
+        // If you have more than 100 subscriptions on one topic this code breaks
+        var subscriptionResponse = await client.ListSubscriptionsByTopicAsync(TopicArn);
+        foreach (var subscription in subscriptionResponse.Subscriptions.Where(x =>
+                     TopicSubscriptions.FirstOrDefault(y => y.SubscriptionArn == x.SubscriptionArn) is null))
+        {
+            TopicSubscriptions.Add(new AmazonSnsSubscription(subscription.SubscriptionArn));
+        }
+    }
+
     private async Task createTopicSubscriptionsAsync(IAmazonSimpleNotificationService client)
     {
         var sqsClient = _parent.SqsClient!;
@@ -233,7 +251,8 @@ public class AmazonSnsTopic : Endpoint, IBrokerQueue
                     [nameof(AmazonSnsSubscription.RawMessageDelivery)] = subscription.RawMessageDelivery.ToString()
                 }
             };
-            await client.SubscribeAsync(subscribeRequest);
+            var subscribeResponse = await client.SubscribeAsync(subscribeRequest);
+            subscription.SubscriptionArn = subscribeResponse.SubscriptionArn;
         }
     }
 

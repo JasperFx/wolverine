@@ -66,7 +66,7 @@ public class when_initializing_the_endpoint
     }
     
     [Fact]
-    public async Task do_create_queue_if_parent_is_autoprovision()
+    public async Task do_create_topic_if_parent_is_auto_provision()
     {
         theTransport.AutoProvision = true;
 

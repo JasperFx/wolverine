@@ -1,4 +1,5 @@
-﻿using System.Text.Json.Nodes;
+﻿using System.Text.Json;
+using System.Text.Json.Nodes;
 using Amazon.SQS.Model;
 using Wolverine.Transports;
 
@@ -26,7 +27,30 @@ internal class SnsTopicEnvelopeMapper : ISqsEnvelopeMapper
 
     public void ReadEnvelopeData(Envelope envelope, string messageBody, IDictionary<string, MessageAttributeValue> attributes)
     {
-        var body = JsonNode.Parse(messageBody)?["Message"]?.ToString();
+        var body = ReadMessageBody(messageBody);
         _internalMessageMapper.ReadEnvelopeData(envelope, body, attributes);
+    }
+
+    private static string ReadMessageBody(string messageBody)
+    {
+        try
+        {
+            var json = JsonSerializer.Deserialize<SnsMessageMetadata>(messageBody) 
+                       ?? throw new NullReferenceException();
+            return json.Message;
+        }
+        catch (JsonException)
+        {
+            return messageBody;
+        }
+    }
+    
+    internal class SnsMessageMetadata
+    {
+        public string Type { get; set; }
+        public string MessageId { get; set; }
+        public string TopicArn { get; set; }
+        public string Message { get; set; }
+        public string UnsubscribeURL { get; set; }
     }
 }
