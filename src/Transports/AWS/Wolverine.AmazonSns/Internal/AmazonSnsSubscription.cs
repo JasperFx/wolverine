@@ -1,4 +1,6 @@
-﻿namespace Wolverine.AmazonSns.Internal;
+﻿using Amazon.SimpleNotificationService.Model;
+
+namespace Wolverine.AmazonSns.Internal;
 
 public enum AmazonSnsSubscriptionType
 {
@@ -7,21 +9,25 @@ public enum AmazonSnsSubscriptionType
 
 public class AmazonSnsSubscription
 {
-    public AmazonSnsSubscription(string endpoint, bool rawMessageDelivery, AmazonSnsSubscriptionType type)
+    public AmazonSnsSubscription(string endpoint, AmazonSnsSubscriptionType type,
+        AmazonSnsSubscriptionAttributes attributes)
     {
         Endpoint = endpoint;
         Type = type;
-        RawMessageDelivery = rawMessageDelivery;
+        Attributes = attributes;
     }
 
-    internal AmazonSnsSubscription(string subscriptionArn)
+    internal AmazonSnsSubscription(Subscription subscription)
     {
-        SubscriptionArn = subscriptionArn;
-        Endpoint = string.Empty;
+        Endpoint = subscription.Endpoint;
+        SubscriptionArn = subscription.SubscriptionArn;
+        Attributes = new AmazonSnsSubscriptionAttributes();
     }
 
     public string? SubscriptionArn { get; set; }
+
     public string Endpoint { get; }
+    public AmazonSnsSubscriptionType Type { get; }
 
     public string Protocol =>
         Type switch
@@ -30,6 +36,5 @@ public class AmazonSnsSubscription
             _ => throw new NotImplementedException("Unknown AmazonSnsSubscriptionType")
         };
 
-    public bool RawMessageDelivery { get; set; }
-    public AmazonSnsSubscriptionType Type { get; }
+    public AmazonSnsSubscriptionAttributes Attributes { get; }
 }

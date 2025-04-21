@@ -53,12 +53,13 @@ public class
     ///     Subscribes the given SQS queue to the current SNS topic
     /// </summary>
     /// <param name="queueName">The name of the SQS queue</param>
-    /// <param name="rawMessageDelivery">Enables raw message delivery to Amazon SQS or HTTP/S endpoints</param>
+    /// <param name="configure">Optional configuration of the SNS subscription attributes</param>
     /// <returns></returns>
-    public AmazonSnsSubscriberConfiguration SubscribeSqsQueue(string queueName, bool rawMessageDelivery = false)
+    public AmazonSnsSubscriberConfiguration SubscribeSqsQueue(string queueName, Action<AmazonSnsSubscriptionAttributes>? configure = null)
     {
-        add(e => e.TopicSubscriptions.Add(new AmazonSnsSubscription(queueName, rawMessageDelivery,
-            AmazonSnsSubscriptionType.Sqs)));
+        var attributes = new AmazonSnsSubscriptionAttributes();
+        configure?.Invoke(attributes);
+        add(e => e.TopicSubscriptions.Add(new AmazonSnsSubscription(queueName, AmazonSnsSubscriptionType.Sqs, attributes)));
         return this;
     }
 }

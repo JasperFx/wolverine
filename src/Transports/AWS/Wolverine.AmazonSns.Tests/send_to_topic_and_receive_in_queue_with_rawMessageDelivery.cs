@@ -27,7 +27,8 @@ public class send_to_topic_and_receive_in_queue_with_rawMessageDelivery : IAsync
                 
                 opts.PublishMessage<SnsRawMessage>()
                     .ToSnsTopic("send_to_topic_and_receive_in_queue_raw")
-                    .SubscribeSqsQueue("send_to_topic_and_receive_in_queue_raw", true);
+                    .SubscribeSqsQueue("send_to_topic_and_receive_in_queue_raw", 
+                        conf => conf.RawMessageDelivery = true);
             }).StartAsync();
     }
 
