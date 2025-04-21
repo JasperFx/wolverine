@@ -220,7 +220,7 @@ public class AmazonSnsTopic : Endpoint, IBrokerQueue
         foreach (var subscription in subscriptionResponse.Subscriptions.Where(x =>
                      TopicSubscriptions.FirstOrDefault(y => y.SubscriptionArn == x.SubscriptionArn) is null))
         {
-            TopicSubscriptions.Add(new AmazonSnsSubscription(subscription.SubscriptionArn));
+            TopicSubscriptions.Add(new AmazonSnsSubscription(subscription));
         }
     }
 
@@ -243,14 +243,27 @@ public class AmazonSnsTopic : Endpoint, IBrokerQueue
                 default:
                     throw new NotImplementedException("AmazonSnsSubscriptionType not implemented");
             }
-            
+
             var subscribeRequest = new SubscribeRequest(TopicArn, subscription.Protocol, endpoint)
             {
                 Attributes =
                 {
-                    [nameof(AmazonSnsSubscription.RawMessageDelivery)] = subscription.RawMessageDelivery.ToString()
+                    [nameof(AmazonSnsSubscriptionAttributes.RawMessageDelivery)] = subscription.Attributes.RawMessageDelivery.ToString()
                 }
             };
+
+            if (subscription.Attributes.FilterPolicy.IsNotEmpty())
+            {
+                subscribeRequest.Attributes[nameof(AmazonSnsSubscriptionAttributes.FilterPolicy)] =
+                    subscription.Attributes.FilterPolicy;
+            }
+            
+            if (subscription.Attributes.RedrivePolicy.IsNotEmpty())
+            {
+                subscribeRequest.Attributes[nameof(AmazonSnsSubscriptionAttributes.RedrivePolicy)] =
+                    subscription.Attributes.RedrivePolicy;
+            }
+            
             var subscribeResponse = await client.SubscribeAsync(subscribeRequest);
             subscription.SubscriptionArn = subscribeResponse.SubscriptionArn;
         }
