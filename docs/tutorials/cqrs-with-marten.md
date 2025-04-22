@@ -84,7 +84,7 @@ return await app.RunOaktonCommands(args);
 ::: tip
 In Marten parlance, a "Projection" is the mechanism of taking raw Marten events and "projecting" them
 into some kind of view, which could be a .NET object that may or may not be persisted to the database as
-JSON (PostgreSQL JSONB to be precise) or [flat table projections](/events/projections/flat) that write to old fashioned relational database
+JSON (PostgreSQL JSONB to be precise) or [flat table projections](https://martendb.io/events/projections/flat.html) that write to old fashioned relational database
 tables.
 
 The phrase "aggregate" is hopelessly overloaded in Event Sourcing and DDD communities. In Marten world we mostly
