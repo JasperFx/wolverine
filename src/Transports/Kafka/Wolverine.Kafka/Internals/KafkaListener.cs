@@ -61,6 +61,7 @@ internal class KafkaListener : IListener, IDisposable
                         var message = result.Message;
 
                         var envelope = mapper.CreateEnvelope(result.Topic, message);
+                        envelope.Offset = result.Offset.Value;
                         envelope.MessageType ??= _messageTypeName;
 
                         await receiver.ReceivedAsync(this, envelope);
