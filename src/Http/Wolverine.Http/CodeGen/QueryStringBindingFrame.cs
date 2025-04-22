@@ -13,15 +13,22 @@ internal class FromQueryAttributeUsage : IParameterStrategy
 {
     public bool TryMatch(HttpChain chain, IServiceContainer container, ParameterInfo parameter, out Variable? variable)
     {
-        if (parameter.HasAttribute<FromQueryAttribute>() && !parameter.ParameterType.IsSimple())
+        variable = default;
+        if (!parameter.HasAttribute<FromQueryAttribute>())
         {
-            chain.RequestType = parameter.ParameterType;
-            variable = new QueryStringBindingFrame(parameter.ParameterType, chain).Variable;
-            return true;
+            return false;
         }
 
-        variable = default;
-        return false;
+        if (parameter.ParameterType.IsSimple()) return false;
+        if (parameter.ParameterType.IsTypeOrNullableOf<DateTime>()) return false;
+        if (parameter.ParameterType.IsTypeOrNullableOf<DateTimeOffset>()) return false;
+        if (parameter.ParameterType.IsTypeOrNullableOf<DateOnly>()) return false;
+        if (parameter.ParameterType.IsTypeOrNullableOf<TimeOnly>()) return false;
+        if (parameter.ParameterType.IsTypeOrNullableOf<TimeSpan>()) return false;
+        
+        chain.RequestType = parameter.ParameterType;
+        variable = new QueryStringBindingFrame(parameter.ParameterType, chain).Variable;
+        return true;
     }
 }
 
@@ -52,8 +59,14 @@ internal class QueryStringBindingFrame : SyncFrame
         {
             foreach (var propertyInfo in queryType.GetProperties().Where(x => x.CanWrite))
             {
+                var queryStringName = propertyInfo.Name;
+                if (propertyInfo.TryGetAttribute<FromQueryAttribute>(out var att))
+                {
+                    queryStringName = att.Name;
+                }
+                
                 var queryStringVariable =
-                    chain.TryFindOrCreateQuerystringValue(propertyInfo.PropertyType, propertyInfo.Name);
+                    chain.TryFindOrCreateQuerystringValue(propertyInfo.PropertyType, queryStringName);
 
                 if (queryStringVariable.Creator is IReadQueryStringFrame frame)
                 {
