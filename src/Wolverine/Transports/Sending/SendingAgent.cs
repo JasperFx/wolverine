@@ -7,7 +7,7 @@ using Wolverine.Util.Dataflow;
 
 namespace Wolverine.Transports.Sending;
 
-internal abstract class SendingAgent : ISendingAgent, ISenderCallback, ISenderCircuit, IAsyncDisposable
+public abstract class SendingAgent : ISendingAgent, ISenderCallback, ISenderCircuit, IAsyncDisposable
 {
     private readonly ILogger _logger;
     private readonly IMessageTracker _messageLogger;
@@ -34,6 +34,8 @@ internal abstract class SendingAgent : ISendingAgent, ISenderCallback, ISenderCi
 
         _sending = new RetryBlock<Envelope>(senderDelegate, logger, _settings.Cancellation, Endpoint.ExecutionOptions);
     }
+
+    public ISender Sender => _sender;
 
     public virtual ValueTask DisposeAsync()
     {

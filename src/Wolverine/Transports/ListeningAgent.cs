@@ -28,7 +28,7 @@ public interface IListeningAgent : IListenerCircuit
     ValueTask MarkAsTooBusyAndStopReceivingAsync();
 }
 
-internal class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
+public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
 {
     private readonly BackPressureAgent? _backPressureAgent;
     private readonly CircuitBreaker? _circuitBreaker;

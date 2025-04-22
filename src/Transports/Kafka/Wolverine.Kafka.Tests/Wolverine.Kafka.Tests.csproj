@@ -22,6 +22,7 @@
     </ItemGroup>
 
     <ItemGroup>
+        <ProjectReference Include="..\..\..\Persistence\Wolverine.Postgresql\Wolverine.Postgresql.csproj" />
         <ProjectReference Include="..\..\..\Testing\Wolverine.ComplianceTests\Wolverine.ComplianceTests.csproj" />
         <ProjectReference Include="..\BatchMessaging\BatchMessaging.csproj" />
         <ProjectReference Include="..\Wolverine.Kafka\Wolverine.Kafka.csproj"/>

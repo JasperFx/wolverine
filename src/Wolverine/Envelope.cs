@@ -271,7 +271,7 @@ public partial class Envelope
 
     /// <summary>
     /// Application defined message group identifier. Part of AMQP 1.0 spec as the "group-id" property. Session identifier
-    /// for Azure Service Bus.  MessageGroupId for Amazon SQS FIFO Queue
+    /// for Azure Service Bus.  MessageGroupId for Amazon SQS FIFO Queue. This is the Group Id for Kafka consumers, if there is one
     /// </summary>
     public string? GroupId { get; set; }
 

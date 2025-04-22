@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Oakton.Resources;
 
 namespace Wolverine.Kafka.Tests;
@@ -55,11 +56,30 @@ public class DocumentationSamples
 
                 // Or explicitly make subscription rules
                 opts.PublishMessage<ColorMessage>()
-                    .ToKafkaTopic("colors");
+                    .ToKafkaTopic("colors")
+                    
+                    // Override the producer configuration for just this topic
+                    .ConfigureProducer(config =>
+                    {
+                        config.BatchSize = 100;
+                        config.EnableGaplessGuarantee = true;
+                        config.EnableIdempotence = true;
+                    });
 
                 // Listen to topics
                 opts.ListenToKafkaTopic("red")
-                    .ProcessInline();
+                    .ProcessInline()
+                    
+                    // Override the consumer configuration for only this 
+                    // topic
+                    .ConfigureConsumer(config =>
+                    {
+                        // This will also set the Envelope.GroupId for any
+                        // received messages at this topic
+                        config.GroupId = "foo";
+                        
+                        // Other configuration
+                    });
 
                 opts.ListenToKafkaTopic("green")
                     .BufferedInMemory();
@@ -74,3 +94,18 @@ public class DocumentationSamples
         #endregion
     }
 }
+
+#region sample_KafkaInstrumentation_middleware
+
+public static class KafkaInstrumentation
+{
+    // Just showing what data elements are available to use for 
+    // extra instrumentation when listening to Kafka topics
+    public static void Before(Envelope envelope, ILogger logger)
+    {
+        logger.LogDebug("Received message from Kafka topic {TopicName} with Offset={Offset} and GroupId={GroupId}", 
+            envelope.TopicName, envelope.Offset, envelope.GroupId);
+    }
+}
+
+#endregion

@@ -77,6 +77,12 @@ public class when_publishing_and_receiving_by_partition_key : IAsyncLifetime
         singleEnvelope.Offset.ShouldBeGreaterThan(0);
     }
 
+    [Fact]
+    public async Task receive_message_with_group_id()
+    {
+
+    }
+
     public async Task DisposeAsync()
     {
         await _sender.StopAsync();

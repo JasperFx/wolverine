@@ -6,9 +6,8 @@ using Wolverine.Util.Dataflow;
 
 namespace Wolverine.Transports.Sending;
 
-internal class InlineSendingAgent : ISendingAgent, IDisposable
+public class InlineSendingAgent : ISendingAgent, IDisposable
 {
-    private readonly ISender _sender;
     private readonly IMessageTracker _messageLogger;
     private readonly RetryBlock<Envelope> _sending;
     private readonly DurabilitySettings _settings;
@@ -16,7 +15,7 @@ internal class InlineSendingAgent : ISendingAgent, IDisposable
     public InlineSendingAgent(ILogger logger, ISender sender, Endpoint endpoint, IMessageTracker messageLogger,
         DurabilitySettings settings)
     {
-        _sender = sender;
+        Sender = sender;
         _messageLogger = messageLogger;
         _settings = settings;
         Endpoint = endpoint;
@@ -31,12 +30,14 @@ internal class InlineSendingAgent : ISendingAgent, IDisposable
         }
     }
 
+    public ISender Sender { get; }
+
     private async Task sendWithTracing(Envelope e, CancellationToken cancellationToken)
     {
         using var activity = WolverineTracing.StartSending(e);
         try
         {
-            await _sender.SendAsync(e);
+            await Sender.SendAsync(e);
             _messageLogger.Sent(e);
         }
         catch (NotSupportedException)
@@ -51,7 +52,7 @@ internal class InlineSendingAgent : ISendingAgent, IDisposable
 
     private async Task sendWithOutTracing(Envelope e, CancellationToken cancellationToken)
     {
-        await _sender.SendAsync(e);
+        await Sender.SendAsync(e);
         _messageLogger.Sent(e);
     }
 
@@ -60,11 +61,11 @@ internal class InlineSendingAgent : ISendingAgent, IDisposable
         _sending.Dispose();
     }
 
-    public Uri Destination => _sender.Destination;
+    public Uri Destination => Sender.Destination;
     public Uri? ReplyUri { get; set; }
     public bool Latched => false;
     public bool IsDurable => false;
-    public bool SupportsNativeScheduledSend => _sender.SupportsNativeScheduledSend;
+    public bool SupportsNativeScheduledSend => Sender.SupportsNativeScheduledSend;
 
     public ValueTask EnqueueOutgoingAsync(Envelope envelope)
     {

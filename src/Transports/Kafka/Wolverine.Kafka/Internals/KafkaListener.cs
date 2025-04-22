@@ -6,12 +6,11 @@ using Wolverine.Util;
 
 namespace Wolverine.Kafka.Internals;
 
-internal class KafkaListener : IListener, IDisposable
+public class KafkaListener : IListener, IDisposable
 {
     private readonly IConsumer<string,string> _consumer;
     private CancellationTokenSource _cancellation = new();
     private readonly Task _runner;
-    private readonly ConsumerConfig _config;
     private readonly IReceiver _receiver;
     private readonly string? _messageTypeName;
     private readonly QualityOfService _qualityOfService;
@@ -26,10 +25,10 @@ internal class KafkaListener : IListener, IDisposable
 
         _messageTypeName = topic.MessageType?.ToMessageTypeName();
 
-        _config = config;
+        Config = config;
         _receiver = receiver;
 
-        _qualityOfService = _config.EnableAutoCommit.HasValue && !_config.EnableAutoCommit.Value
+        _qualityOfService = Config.EnableAutoCommit.HasValue && !Config.EnableAutoCommit.Value
             ? QualityOfService.AtMostOnce
             : QualityOfService.AtLeastOnce;
 
@@ -63,6 +62,7 @@ internal class KafkaListener : IListener, IDisposable
                         var envelope = mapper.CreateEnvelope(result.Topic, message);
                         envelope.Offset = result.Offset.Value;
                         envelope.MessageType ??= _messageTypeName;
+                        envelope.GroupId = config.GroupId;
 
                         await receiver.ReceivedAsync(this, envelope);
                     }
@@ -96,6 +96,8 @@ internal class KafkaListener : IListener, IDisposable
             }
         }, _cancellation.Token);
     }
+
+    public ConsumerConfig Config { get; }
 
     public ValueTask CompleteAsync(Envelope envelope)
     {

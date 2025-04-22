@@ -33,6 +33,16 @@ public class KafkaTopic : Endpoint, IBrokerEndpoint
     public string TopicName { get; }
 
     public IKafkaEnvelopeMapper Mapper { get; set; }
+    
+    /// <summary>
+    /// Override for this specific Kafka Topic
+    /// </summary>
+    public ConsumerConfig? ConsumerConfig { get; internal set; }
+
+    /// <summary>
+    /// Override for this specific Kafka Topic
+    /// </summary>
+    public ProducerConfig? ProducerConfig { get; internal set; }
 
     public static string TopicNameForUri(Uri uri)
     {
@@ -41,8 +51,8 @@ public class KafkaTopic : Endpoint, IBrokerEndpoint
 
     public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
     {
-        var listener = new KafkaListener(this, Parent.ConsumerConfig,
-            Parent.CreateConsumer(), receiver, runtime.LoggerFactory.CreateLogger<KafkaListener>());
+        var listener = new KafkaListener(this, ConsumerConfig ?? Parent.ConsumerConfig,
+            Parent.CreateConsumer(ConsumerConfig), receiver, runtime.LoggerFactory.CreateLogger<KafkaListener>());
         return ValueTask.FromResult((IListener)listener);
     }
 
@@ -59,7 +69,7 @@ public class KafkaTopic : Endpoint, IBrokerEndpoint
         if (TopicName == WolverineTopicsName) return true; // don't care, this is just a marker
         try
         {
-            using var client = Parent.CreateProducer();
+            using var client = Parent.CreateProducer(ProducerConfig);
             await client.ProduceAsync(TopicName, new Message<string, string>
             {
                 Key = "ping",
