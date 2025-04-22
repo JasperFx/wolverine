@@ -40,16 +40,8 @@ public class DurabilityModes
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.Services.AddMarten("some connection string")
-
-                    // This adds quite a bit of middleware for
-                    // Marten
-                    .IntegrateWithWolverine();
-
-                // You want this maybe!
-                opts.Policies.AutoApplyTransactions();
-
-
+                // Other configuration...
+                
                 // But wait! Optimize Wolverine for usage as *only*
                 // a mediator
                 opts.Durability.Mode = DurabilityMode.MediatorOnly;
