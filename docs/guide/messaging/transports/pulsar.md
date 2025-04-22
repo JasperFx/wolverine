@@ -55,3 +55,16 @@ The topic name format is set by Pulsar itself, and you can learn more about its 
 Depending on demand, the Pulsar transport will be enhanced to support conventional routing topologies and more advanced
 topic routing later.
 ::: 
+
+## Read Only Subscriptions <Badge type="tip" text="3.13" />
+
+As part of Wolverine's "Requeue" error handling action, the Pulsar transport tries to quietly create a matching sender
+for each Pulsar topic it's listening to. Great, but that will blow up if your application only has receive-only permissions
+to Pulsar. In this case, you probably want to disable Pulsar requeue actions altogether with this setting:
+
+snippet: sample_disable_requeue_for_pulsar
+
+
+
+If you have an application that has receive only access to a subscription but not permissions to publish to Pulsar,
+you cannot use the Wolverine "Requeue" error handling policy. 

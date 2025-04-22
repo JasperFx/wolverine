@@ -78,12 +78,7 @@ internal class PulsarListener : IListener
 
     public async ValueTask DeferAsync(Envelope envelope)
     {
-        if (!_enableRequeue)
-        {
-            throw new InvalidOperationException("Requeue is not enabled for this endpoint");
-        }
-
-        if (_sender is not null && envelope is PulsarEnvelope e)
+        if (_enableRequeue && _sender is not null && envelope is PulsarEnvelope e)
         {
             await _consumer!.Acknowledge(e.MessageData, _cancellation);
             await _sender.SendAsync(envelope);
