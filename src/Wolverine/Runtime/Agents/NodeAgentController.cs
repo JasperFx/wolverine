@@ -152,6 +152,8 @@ public partial class NodeAgentController
 
         try
         {
+            // Side step FK problems and timing issues
+            await _persistence.MarkHealthCheckAsync(_runtime.Options.UniqueNodeId);
             await _persistence.AddAssignmentAsync(_runtime.Options.UniqueNodeId, agentUri, _cancellation.Token);
         }
         catch (Exception e)
