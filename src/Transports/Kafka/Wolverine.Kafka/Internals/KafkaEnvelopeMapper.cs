@@ -9,6 +9,7 @@ internal class KafkaEnvelopeMapper : EnvelopeMapper<Message<string, string>, Mes
 {
     public KafkaEnvelopeMapper(Endpoint endpoint) : base(endpoint)
     {
+
     }
 
     protected override void writeOutgoingHeader(Message<string, string> outgoing, string key, string value)

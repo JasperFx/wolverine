@@ -400,4 +400,9 @@ public partial class Envelope
     {
         return (Message?.GetType().Name ?? MessageType)!;
     }
+    
+    /// <summary>
+    /// For stream based transports (Kafka/RedPanda, this will reflect the message offset. This is strictly informational
+    /// </summary>
+    public long Offset { get; set; }
 }
