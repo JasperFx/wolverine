@@ -9,13 +9,17 @@ the actual functionality of web services and applications from the mechanics of 
 a mediator tool allows you to keep MVC Core code ceremony out of your application business logic and service layer. It wasn't the original motivation of the project,
 but Wolverine can be used as a full-featured mediator tool.
 
-Before you run off and use "Wolverine as MediatR", we think you can arrive at lower ceremony and simpler code in most cases by using [WolverineFx.Http](/guide/http/)
+Before you run off and use ["Wolverine as MediatR"](./from-mediatr), we think you can arrive at lower ceremony and simpler code in most cases by using [WolverineFx.Http](/guide/http/)
 for your web services. If you really just like the approach of separating message handlers underneath ASP.Net Minimal API, there is also a set
 of helpers to more efficiently pipe Minimal API routes to Wolverine message handlers that are a bit more performance optimized than the typical
 usage of pulling `IMessageBus` out of the IoC container on every request. See [Optimized Minimal API Integration](/guide/http/mediator.html#optimized-minimal-api-integration) for more information.
 
-
 ## Mediator Only Wolverine
+
+::: tip
+To really get the most value out of Wolverine, you will probably want to completely embrace its integration of persistence
+tooling like EF Core or its "Critter Stack" sibling [Marten](https://martendb.io) and middleware strategies.
+:::
 
 Wolverine was not originally conceived of as a "mediator" tool per se. Out of the box, Wolverine is optimized for asynchronous
 messaging that requires stateful background processing. If you are using Wolverine as "just" a mediator tool, all that background
@@ -27,21 +31,14 @@ stuff for messaging is just unnecessary overhead, so let's tell Wolverine to tur
 using var host = await Host.CreateDefaultBuilder()
     .UseWolverine(opts =>
     {
-        opts.Services.AddMarten("some connection string")
-
-            // This adds quite a bit of middleware for
-            // Marten
-            .IntegrateWithWolverine();
-
-        // You want this maybe!
-        opts.Policies.AutoApplyTransactions();
-
+        // Other configuration...
+        
         // But wait! Optimize Wolverine for usage as *only*
         // a mediator
         opts.Durability.Mode = DurabilityMode.MediatorOnly;
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/DurabilityModes.cs#L38-L58' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_the_mediator_mode' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/DurabilityModes.cs#L38-L50' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_the_mediator_mode' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: warning
