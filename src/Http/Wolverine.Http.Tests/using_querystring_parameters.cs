@@ -317,6 +317,19 @@ public class using_querystring_parameters : IntegrationContext
     }
 
     [Fact]
+    public async Task using_datetime_with_from_query_including_time()
+    {
+        var body = await Scenario(x =>
+        {
+            x.Get.Url("/querystring/datetime2?value=2025-04-05T13:37:42.0123456");
+
+            x.Header("content-type").SingleValueShouldEqual("text/plain");
+        });
+
+        body.ReadAsText().ShouldBe("2025-04-05T13:37:42.0123456");
+    }
+    
+    [Fact]
     public async Task using_nullable_datetime_with_default_value()
     {
         var body = await Scenario(x =>

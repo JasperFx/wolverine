@@ -48,6 +48,12 @@ public static class QuerystringEndpoints
     {
         return value.ToString("O");
     }
+    
+    [WolverineGet("/querystring/datetime2")]
+    public static string DateTime2([FromQuery] DateTime value)
+    {
+        return value.ToString("O");
+    }
 
     [WolverineGet("/querystring/datetime/nullable")]
     public static string DateTimeNullable(DateTime? value)
