@@ -28,7 +28,8 @@ public class KafkaTransportExpression : BrokerExpression<KafkaTransport, KafkaTo
     }
 
     /// <summary>
-    /// Configure the Kafka message producers within the Wolverine transport
+    /// Configure the Kafka message producers within the Wolverine transport. This can be
+    /// overridden at the topic level.
     /// </summary>
     /// <param name="configure"></param>
     /// <returns></returns>
@@ -50,7 +51,8 @@ public class KafkaTransportExpression : BrokerExpression<KafkaTransport, KafkaTo
     }
 
     /// <summary>
-    /// Configure the Kafka message consumers within the Wolverine transport
+    /// Configure the Kafka message consumers within the Wolverine transport. This can be
+    /// overridden at the topic level.
     /// </summary>
     /// <param name="configure"></param>
     /// <returns></returns>

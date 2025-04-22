@@ -26,7 +26,7 @@ public class broadcast_to_topic_rules : IAsyncLifetime
             .UseWolverine(opts =>
             {
                 opts.UseKafka("localhost:9092").AutoProvision();
-                opts.ListenToKafkaTopic("red");
+                opts.ListenToKafkaTopic("red").ConfigureConsumer(c => c.GroupId = "crimson");
                 opts.ListenToKafkaTopic("green");
                 opts.ListenToKafkaTopic("blue");
                 opts.ListenToKafkaTopic("purple");
@@ -43,7 +43,7 @@ public class broadcast_to_topic_rules : IAsyncLifetime
                 opts.UseKafka("localhost:9092").AutoProvision();
                 opts.Policies.DisableConventionalLocalRouting();
 
-                opts.PublishAllMessages().ToKafkaTopics();
+                opts.PublishAllMessages().ToKafkaTopics().SendInline();
 
                 opts.ServiceName = "sender";
 
@@ -61,8 +61,11 @@ public class broadcast_to_topic_rules : IAsyncLifetime
             .WaitForMessageToBeReceivedAt<RedMessage>(_receiver)
             .PublishMessageAndWaitAsync(new RedMessage("one"));
 
-        session.Received.SingleEnvelope<RedMessage>()
+        var singleEnvelope = session.Received.SingleEnvelope<RedMessage>();
+        singleEnvelope
             .Destination.ShouldBe(new Uri("kafka://topic/red"));
+        
+        singleEnvelope.GroupId.ShouldBe("crimson");
     }
 
     [Fact]

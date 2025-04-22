@@ -59,16 +59,16 @@ public class KafkaTransport : BrokerTransport<KafkaTopic>
         yield break;
     }
 
-    internal IProducer<string, string> CreateProducer()
+    internal IProducer<string, string> CreateProducer(ProducerConfig? config)
     {
-        var producerBuilder = new ProducerBuilder<string, string>(ProducerConfig);
+        var producerBuilder = new ProducerBuilder<string, string>(config ?? ProducerConfig);
         ConfigureProducerBuilders(producerBuilder);
         return producerBuilder.Build();
     }
 
-    internal IConsumer<string, string> CreateConsumer()
+    internal IConsumer<string, string> CreateConsumer(ConsumerConfig? config)
     {
-        var consumerBuilder = new ConsumerBuilder<string, string>(ConsumerConfig);
+        var consumerBuilder = new ConsumerBuilder<string, string>(config ?? ConsumerConfig);
         ConfigureConsumerBuilders(consumerBuilder);
         return consumerBuilder.Build();
     }
