@@ -176,3 +176,4 @@ using var host = await Host.CreateDefaultBuilder()
 Of course, doing so means that you will not be able to do request/reply through Rabbit MQ with your Wolverine application.
 
 
+

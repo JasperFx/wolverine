@@ -139,6 +139,13 @@ await host.StartAsync();
 <!-- endSnippet -->
 
 
+## Publishing to Wolverine through the Rabbit MQ Console
+
+Some users like to use the Rabbit MQ management application to send messages to a running Wolverine application for 
+exploratory testing. To do so with an out of the box Wolverine integration (i.e., you haven't opted out of JSON serialization),
+put your message as JSON in the `Payload` field and specify that the `type` property (**not header, property**) equals
+the [Wolverine message type name](/guide/messages.html#message-type-name-or-alias) for the message type, which by default would be the full .NET name. 
+
 ## Interoperability with NServiceBus
 
 ::: warning
