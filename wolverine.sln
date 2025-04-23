@@ -269,7 +269,11 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wolverine.AmazonSns", "src\
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wolverine.AmazonSns.Tests", "src\Transports\AWS\Wolverine.AmazonSns.Tests\Wolverine.AmazonSns.Tests.csproj", "{890E6462-96A1-4B27-95E9-D63ACB848B5B}"
 EndProject
+<<<<<<< HEAD
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "WolverineWebApiFSharp", "WolverineWebApiFSharp\WolverineWebApiFSharp.fsproj", "{0522EE2C-9C5D-452C-A67F-91DBBCDAE502}"
+=======
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "build", "build\build.csproj", "{2D821079-2CE8-47EA-B6CE-CAF1A0B092D1}"
+>>>>>>> b38464bb (WIP: starting attach/detach nuke targets)
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -688,6 +692,10 @@ Global
 		{0522EE2C-9C5D-452C-A67F-91DBBCDAE502}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{0522EE2C-9C5D-452C-A67F-91DBBCDAE502}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{0522EE2C-9C5D-452C-A67F-91DBBCDAE502}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2D821079-2CE8-47EA-B6CE-CAF1A0B092D1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2D821079-2CE8-47EA-B6CE-CAF1A0B092D1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2D821079-2CE8-47EA-B6CE-CAF1A0B092D1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2D821079-2CE8-47EA-B6CE-CAF1A0B092D1}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{24497E6A-D6B1-4C80-ABFB-57FFAD5070C4} = {96119B5E-B5F0-400A-9580-B342EBE26212}
