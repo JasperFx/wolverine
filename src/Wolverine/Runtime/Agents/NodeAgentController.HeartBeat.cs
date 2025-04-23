@@ -71,7 +71,7 @@ public partial class NodeAgentController
     {
         try
         {
-            await _persistence.MarkHealthCheckAsync(_runtime.Options.UniqueNodeId);
+            await _persistence.MarkHealthCheckAsync(WolverineNode.For(_runtime.Options), _cancellation.Token);
             // If this fails, release the leadership lock!
             await _persistence.AddAssignmentAsync(_runtime.Options.UniqueNodeId, LeaderUri,
                 _cancellation.Token);
