@@ -1,5 +1,5 @@
+using JasperFx.Resources;
 using Microsoft.Extensions.Hosting;
-using Oakton.Resources;
 using Shouldly;
 using Wolverine.Kafka.Internals;
 using Wolverine.Tracking;
