@@ -89,7 +89,7 @@ internal class FetchLatestAggregateFrame : AsyncFrame
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
-        writer.Write($"var {Aggregate.Usage} = await {_session.Usage}.Events.{nameof(IEventStore.FetchLatest)}<{Aggregate.VariableType.FullNameInCode()}>({_identity.Usage}, {_token.Usage});");
+        writer.Write($"var {Aggregate.Usage} = await {_session.Usage}.Events.{nameof(IEventStoreOperations.FetchLatest)}<{Aggregate.VariableType.FullNameInCode()}>({_identity.Usage}, {_token.Usage});");
         Next?.GenerateCode(method, writer);
     }
 }

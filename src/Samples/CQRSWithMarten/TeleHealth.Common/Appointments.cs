@@ -1,3 +1,4 @@
+using JasperFx.Events;
 using Marten;
 using Marten.Events;
 using Marten.Events.Projections;
@@ -41,7 +42,7 @@ public class AppointmentDurationProjection : EventProjection
         // This is to let Marten know that we want the data
         // in this table wiped out before doing a rebuild
         // of this projection
-        Options.DeleteDataInTableOnTeardown(table.Identifier);
+        Options.DeleteDataInTableOnTeardown(table.Identifier.QualifiedName);
     }
 
     public void Project(

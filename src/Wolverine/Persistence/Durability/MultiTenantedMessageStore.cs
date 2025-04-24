@@ -1,5 +1,5 @@
 using JasperFx.Core;
-using JasperFx.Core.Descriptions;
+using JasperFx.Core.Descriptors;
 using Microsoft.Extensions.Logging;
 using Wolverine.Logging;
 using Wolverine.Persistence.Durability.DeadLetterManagement;

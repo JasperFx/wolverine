@@ -1,4 +1,5 @@
 using IntegrationTests;
+using JasperFx;
 using JasperFx.CodeGeneration;
 using Marten;
 using Marten.Events;

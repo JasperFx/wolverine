@@ -1,3 +1,5 @@
+using JasperFx.Events.Daemon;
+using JasperFx.Events.Projections;
 using Marten;
 using Marten.Events.Daemon;
 using Marten.Events.Daemon.Internals;
@@ -19,8 +21,8 @@ internal class ScopedWolverineSubscriptionRunner<T> : SubscriptionBase where T :
 
         using var scope = services.CreateScope();
         var subscription = scope.ServiceProvider.GetRequiredService<T>();
-        SubscriptionName = subscription.SubscriptionName;
-        SubscriptionVersion = subscription.SubscriptionVersion;
+        Name = subscription.SubscriptionName;
+        Version = subscription.SubscriptionVersion;
         subscription.Filter(this);
         Options = subscription.Options;
     }

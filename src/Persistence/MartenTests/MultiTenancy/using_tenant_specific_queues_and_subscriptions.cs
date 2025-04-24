@@ -1,15 +1,14 @@
 using IntegrationTests;
 using JasperFx.Core;
+using JasperFx.Events.Daemon;
+using JasperFx.Events.Projections;
+using JasperFx.Resources;
 using Marten;
-using Marten.Events.Daemon;
-using Marten.Events.Daemon.Internals;
-using Marten.Events.Daemon.Resiliency;
 using Marten.Schema;
 using Marten.Storage;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Npgsql;
-using JasperFx.Resources;
 using Weasel.Postgresql;
 using Weasel.Postgresql.Migrations;
 using Wolverine;
@@ -99,21 +98,14 @@ public class using_tenant_specific_queues_and_subscriptions : PostgresqlContext,
             .StartAsync();
 
         theSenderStore = _sender.Services.GetRequiredService<IDocumentStore>();
-
     }
 
     public async Task DisposeAsync()
     {
-        foreach (var host in _receivers)
-        {
-            host.GetRuntime().Agents.DisableHealthChecks();
-        }
+        foreach (var host in _receivers) host.GetRuntime().Agents.DisableHealthChecks();
 
         _receivers.Reverse();
-        foreach (var host in _receivers.ToArray())
-        {
-            await shutdownHostAsync(host);
-        }
+        foreach (var host in _receivers.ToArray()) await shutdownHostAsync(host);
 
         await _sender.StopAsync();
         _sender.Dispose();
@@ -204,7 +196,10 @@ public class using_tenant_specific_queues_and_subscriptions : PostgresqlContext,
         {
             foreach (var color in colors)
             {
-                if (color.IsComplete()) continue;
+                if (color.IsComplete())
+                {
+                    continue;
+                }
 
                 color.PublishSome(session);
             }
@@ -247,15 +242,12 @@ public class using_tenant_specific_queues_and_subscriptions : PostgresqlContext,
 
         Func<Task<bool>> tryMatch = async () =>
         {
-            foreach (var data in all)
-            {
-                await data.TryToMatch(receiverStore);
-            }
+            foreach (var data in all) await data.TryToMatch(receiverStore);
 
             return all.All(x => x.HasMatched);
         };
 
-        for (int i = 0; i < 20; i++)
+        for (var i = 0; i < 20; i++)
         {
             var matched = await tryMatch();
             if (matched)
@@ -281,6 +273,8 @@ public class ColorData
     public string TenantId { get; set; }
     public List<ColorSum> Data { get; } = new();
 
+    public bool HasMatched => Data.All(x => x.HasBeenMatched);
+
     public Task PublishNumbers(IDocumentStore store)
     {
         return Task.Factory.StartNew(async () =>
@@ -291,7 +285,10 @@ public class ColorData
             {
                 foreach (var color in Data)
                 {
-                    if (color.IsComplete()) continue;
+                    if (color.IsComplete())
+                    {
+                        continue;
+                    }
 
                     color.PublishSome(session);
                 }
@@ -299,19 +296,21 @@ public class ColorData
 
             await session.SaveChangesAsync();
         });
-
-
     }
-
-    public bool HasMatched => Data.All(x => x.HasBeenMatched);
 
     public async Task TryToMatch(IDocumentStore store)
     {
-        if (HasMatched) return;
+        if (HasMatched)
+        {
+            return;
+        }
 
         foreach (var sum in Data)
         {
-            if (sum.HasBeenMatched) continue;
+            if (sum.HasBeenMatched)
+            {
+                continue;
+            }
 
             await using var session = store.LightweightSession(TenantId);
 
@@ -325,22 +324,24 @@ public record ColorsUpdated(string Color, int Number);
 
 public class ColorSum
 {
-    public static ColorSum BuildRandom(string color)
-    {
-        var sum = new ColorSum { Color = color };
-        for (int i = 0; i < Random.Shared.Next(50, 100); i++)
-        {
-            sum.Numbers.Add(Random.Shared.Next(0, 100));
-        }
-
-        return sum;
-    }
+    private Queue<int> _numbers;
 
     [Identity] public string Color { get; set; }
 
     public List<int> Numbers { get; set; } = new();
 
     public bool HasBeenMatched { get; set; }
+
+    public static ColorSum BuildRandom(string color)
+    {
+        var sum = new ColorSum { Color = color };
+        for (var i = 0; i < Random.Shared.Next(50, 100); i++)
+        {
+            sum.Numbers.Add(Random.Shared.Next(0, 100));
+        }
+
+        return sum;
+    }
 
     protected bool Equals(ColorSum other)
     {
@@ -359,7 +360,7 @@ public class ColorSum
             return true;
         }
 
-        if (obj.GetType() != this.GetType())
+        if (obj.GetType() != GetType())
         {
             return false;
         }
@@ -372,14 +373,12 @@ public class ColorSum
         return HashCode.Combine(Color, Numbers);
     }
 
-    private Queue<int> _numbers;
-
     public void PublishSome(IDocumentSession session)
     {
         _numbers ??= new Queue<int>(Numbers);
 
         var numberOfEvents = Random.Shared.Next(1, _numbers.Count);
-        for (int i = 0; i < numberOfEvents; i++)
+        for (var i = 0; i < numberOfEvents; i++)
         {
             session.Events.StartStream(Guid.NewGuid(), new ColorsUpdated(Color, _numbers.Dequeue()));
         }
@@ -434,16 +433,14 @@ public class ColorsSubscription : BatchSubscription
     {
     }
 
-    public override async Task ProcessEventsAsync(EventRange page, ISubscriptionController controller, IDocumentOperations operations,
+    public override async Task ProcessEventsAsync(EventRange page, ISubscriptionController controller,
+        IDocumentOperations operations,
         IMessageBus bus, CancellationToken cancellationToken)
     {
         var events = page.Events.Select(x => x.Data).OfType<ColorsUpdated>().ToArray();
         var updates = new ColorUpdates();
 
-        foreach (var e in events)
-        {
-            updates.AddNumber(e.Color, e.Number);
-        }
+        foreach (var e in events) updates.AddNumber(e.Color, e.Number);
 
         operations.Store(updates);
 

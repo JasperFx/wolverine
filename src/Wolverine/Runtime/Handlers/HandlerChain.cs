@@ -5,7 +5,7 @@ using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
-using JasperFx.Core.Descriptions;
+using JasperFx.Core.Descriptors;
 using JasperFx.Core.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -15,7 +15,6 @@ using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
 using Wolverine.Logging;
 using Wolverine.Middleware;
-using Wolverine.Persistence;
 using Wolverine.Runtime.Routing;
 using Wolverine.Transports.Local;
 using Wolverine.Transports.Stub;
@@ -42,6 +41,10 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
     public const string Handles = "Handles";
     public const string Consume = "Consume";
     public const string Consumes = "Consumes";
+
+    private readonly List<HandlerChain> _byEndpoint = [];
+
+    private readonly List<Endpoint> _endpoints = [];
 
     private readonly HandlerGraph _parent;
 
@@ -70,17 +73,15 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
 
     internal HandlerChain(MethodCall call, HandlerGraph parent, Endpoint[] endpoints) : this(call, parent)
     {
-        foreach (var endpoint in endpoints)
-        {
-            RegisterEndpoint(endpoint);
-        }
-        
+        foreach (var endpoint in endpoints) RegisterEndpoint(endpoint);
+
         TypeName = call.HandlerType.ToSuffixedTypeName(HandlerSuffix).Replace("[]", "Array");
 
         Description = $"Message Handler for {MessageType.FullNameInCode()} using {call}";
     }
 
-    public HandlerChain(WolverineOptions options, IGrouping<Type, HandlerCall> grouping, HandlerGraph parent) : this(grouping.Key, parent)
+    public HandlerChain(WolverineOptions options, IGrouping<Type, HandlerCall> grouping, HandlerGraph parent) : this(
+        grouping.Key, parent)
     {
         Handlers.AddRange(grouping);
 
@@ -91,7 +92,7 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
             foreach (var create in handler.Creates)
             {
                 i = DisambiguateOutgoingVariableName(create, i);
-                
+
                 // This was done to enable request/response through the HTTP transport
                 if (create.VariableType.IsConcrete())
                 {
@@ -103,80 +104,18 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         if (grouping.Count() > 1)
         {
             foreach (var handlerCall in grouping)
-            {
                 // ReSharper disable once VirtualMemberCallInConstructor
                 tryAssignStickyEndpoints(handlerCall, options);
-            }
         }
     }
-    
-    protected virtual void tryAssignStickyEndpoints(HandlerCall handlerCall, WolverineOptions options)
-    {
-        var endpoints = findStickyEndpoints(handlerCall, options).Distinct().ToArray();
-        if (endpoints.Any())
-        {
-            foreach (var stub in endpoints.OfType<StubEndpoint>())
-            {
-                stub.Subscriptions.Add(Subscription.ForType(MessageType));
-            }
-            
-            var chain = new HandlerChain(handlerCall, options.HandlerGraph, endpoints);
-
-            Handlers.Remove(handlerCall);
-            
-            _byEndpoint.Add(chain);
-        }
-    }
-
-    private IEnumerable<Endpoint> findStickyEndpoints(HandlerCall call, WolverineOptions options)
-    {
-        var foundSticky = false;
-        if (call.HandlerType.TryGetAttribute<StickyHandlerAttribute>(out var att))
-        {
-            foreach (var endpoint in options.FindOrCreateEndpointByName(att.EndpointName))
-            {
-                foundSticky = true;
-                yield return endpoint;
-            }
-        }
-        
-        if (call.Method.TryGetAttribute<StickyHandlerAttribute>(out att))
-        {
-            foreach (var endpoint in options.FindOrCreateEndpointByName(att.EndpointName))
-            {
-                foundSticky = true;
-                yield return endpoint;
-            }
-        }
-
-        foreach (var endpoint in options.FindEndpointsWithHandlerType(call.HandlerType))
-        {
-            foundSticky = true;
-            yield return endpoint;
-        }
-
-        // In this case, let's find the right queue
-        if (options.MultipleHandlerBehavior == MultipleHandlerBehavior.Separated && !foundSticky)
-        {
-            var endpoint = options.Transports.GetOrCreate<LocalTransport>()
-                .QueueFor(call.HandlerType.FullNameInCode().ToLowerInvariant());
-            yield return endpoint;
-        }
-    }
-
-    private readonly List<HandlerChain> _byEndpoint = [];
 
     public IReadOnlyList<HandlerChain> ByEndpoint => _byEndpoint;
 
-    private readonly List<Endpoint> _endpoints = [];
-
     /// <summary>
-    /// In the case of "sticky" message handlers, this helps group the handler by an endpoint
+    ///     In the case of "sticky" message handlers, this helps group the handler by an endpoint
     /// </summary>
     [IgnoreDescription]
     public IReadOnlyList<Endpoint> Endpoints => _endpoints;
-
-    public void RegisterEndpoint(Endpoint endpoint) => _endpoints.Fill(endpoint);
 
     /// <summary>
     ///     At what level should Wolverine log messages about messages succeeding? The default
@@ -197,14 +136,14 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
     public LogLevel SuccessLogLevel { get; set; } = LogLevel.Information;
 
     /// <summary>
-    /// At what level should processing starting and finishing be logged for this message type?
-    /// The default is Debug
+    ///     At what level should processing starting and finishing be logged for this message type?
+    ///     The default is Debug
     /// </summary>
     public LogLevel ProcessingLogLevel { get; set; } = LogLevel.Debug;
 
     /// <summary>
-    /// Is Open Telemetry logging enabled during message invocation (IMessageBus.InvokeAsync()) for
-    /// this message type. Default is true
+    ///     Is Open Telemetry logging enabled during message invocation (IMessageBus.InvokeAsync()) for
+    ///     this message type. Default is true
     /// </summary>
     public bool TelemetryEnabled { get; set; } = true;
 
@@ -212,13 +151,13 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
     ///     A textual description of this HandlerChain
     /// </summary>
     public override string Description { get; }
-    
+
     public Type MessageType { get; }
 
     /// <summary>
     ///     Wolverine's string identification for this message type
     /// </summary>
-    public string TypeName { get; private set; }
+    public string TypeName { get; }
 
     internal MessageHandler? Handler { get; private set; }
 
@@ -314,6 +253,63 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
     /// </summary>
     public FailureRuleCollection Failures { get; } = new();
 
+    protected virtual void tryAssignStickyEndpoints(HandlerCall handlerCall, WolverineOptions options)
+    {
+        var endpoints = findStickyEndpoints(handlerCall, options).Distinct().ToArray();
+        if (endpoints.Any())
+        {
+            foreach (var stub in endpoints.OfType<StubEndpoint>())
+                stub.Subscriptions.Add(Subscription.ForType(MessageType));
+
+            var chain = new HandlerChain(handlerCall, options.HandlerGraph, endpoints);
+
+            Handlers.Remove(handlerCall);
+
+            _byEndpoint.Add(chain);
+        }
+    }
+
+    private IEnumerable<Endpoint> findStickyEndpoints(HandlerCall call, WolverineOptions options)
+    {
+        var foundSticky = false;
+        if (call.HandlerType.TryGetAttribute<StickyHandlerAttribute>(out var att))
+        {
+            foreach (var endpoint in options.FindOrCreateEndpointByName(att.EndpointName))
+            {
+                foundSticky = true;
+                yield return endpoint;
+            }
+        }
+
+        if (call.Method.TryGetAttribute(out att))
+        {
+            foreach (var endpoint in options.FindOrCreateEndpointByName(att.EndpointName))
+            {
+                foundSticky = true;
+                yield return endpoint;
+            }
+        }
+
+        foreach (var endpoint in options.FindEndpointsWithHandlerType(call.HandlerType))
+        {
+            foundSticky = true;
+            yield return endpoint;
+        }
+
+        // In this case, let's find the right queue
+        if (options.MultipleHandlerBehavior == MultipleHandlerBehavior.Separated && !foundSticky)
+        {
+            var endpoint = options.Transports.GetOrCreate<LocalTransport>()
+                .QueueFor(call.HandlerType.FullNameInCode().ToLowerInvariant());
+            yield return endpoint;
+        }
+    }
+
+    public void RegisterEndpoint(Endpoint endpoint)
+    {
+        _endpoints.Fill(endpoint);
+    }
+
     public override bool HasAttribute<T>()
     {
         return Handlers.Any(x => x.Method.HasAttribute<T>() || x.HandlerType.HasAttribute<T>());
@@ -330,7 +326,7 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         response.OverrideName("response_of_" + response.Usage);
 
         Postprocessors.Add(methodCall);
-        
+
         var cascading = new CaptureCascadingMessages(response);
         Postprocessors.Add(cascading);
     }
@@ -459,13 +455,12 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
 
         // Allow for immutable message types that get overwritten by middleware
         foreach (var methodCall in Middleware.OfType<MethodCall>())
-        {
             methodCall.TryReplaceVariableCreationWithAssignment(messageVariable);
-        }
 
         // The Enqueue cascading needs to happen before the post processors because of the
         // transactional & outbox support
-        return Middleware.Concat(container.TryCreateConstructorFrames(Handlers)).Concat(Handlers).Concat(handlerReturnValueFrames).Concat(Postprocessors).ToList();
+        return Middleware.Concat(container.TryCreateConstructorFrames(Handlers)).Concat(Handlers)
+            .Concat(handlerReturnValueFrames).Concat(Postprocessors).ToList();
     }
 
     protected void applyCustomizations(GenerationRules rules, IServiceContainer container)
@@ -473,7 +468,7 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         if (!_hasConfiguredFrames)
         {
             _hasConfiguredFrames = true;
- 
+
             applyAttributesAndConfigureMethods(rules, container);
 
             foreach (var attribute in MessageType
@@ -484,24 +479,20 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
                          .OfType<ModifyChainAttribute>()) attribute.Modify(this, rules, container);
 
             foreach (var handlerCall in HandlerCalls())
-            {
                 WolverineParameterAttribute.TryApply(handlerCall, container, rules, this);
-            }
         }
 
         ApplyImpliedMiddlewareFromHandlers(rules);
 
         // Use Wolverine Parameter Attribute on any middleware
         foreach (var methodCall in Middleware.OfType<MethodCall>().ToArray())
-        {
             WolverineParameterAttribute.TryApply(methodCall, container, rules, this);
-        }
     }
 
     protected IEnumerable<Frame> determineHandlerReturnValueFrames()
     {
         return Handlers.SelectMany(x => x.Creates)
-            .Where( x => x is not MemberAccessVariable)
+            .Where(x => x is not MemberAccessVariable)
             .Select(x => x.ReturnAction(this))
             .SelectMany(x => x.Frames());
     }
@@ -560,7 +551,9 @@ public static class EntityIsNotNullGuard<T>
     {
         if (entity == null)
         {
-            logger.LogInformation("Not processing envelope {Id} because the required entity {EntityType} ('{VariableName}') cannot be found", envelope.Id, typeof(T).FullNameInCode(), entityVariableName);
+            logger.LogInformation(
+                "Not processing envelope {Id} because the required entity {EntityType} ('{VariableName}') cannot be found",
+                envelope.Id, typeof(T).FullNameInCode(), entityVariableName);
             return HandlerContinuation.Stop;
         }
 

@@ -1,9 +1,8 @@
 using JasperFx.Core;
+using JasperFx.Events;
+using JasperFx.Events.Daemon;
+using JasperFx.Events.Projections;
 using Marten;
-using Marten.Events;
-using Marten.Events.Daemon;
-using Marten.Events.Daemon.Internals;
-using Marten.Events.Daemon.Resiliency;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Wolverine;
@@ -121,12 +120,10 @@ public class MartenSubscriptionSamples
                     // Just pulling the connection information from
                     // the IoC container at runtime.
                     .UseNpgsqlDataSource()
-
                     .IntegrateWithWolverine()
 
                     // The Marten async daemon most be active
                     .AddAsyncDaemon(DaemonMode.HotCold)
-
 
                     // Register the new subscription
                     .SubscribeToEvents(new CompanyTransferSubscription());
@@ -155,7 +152,6 @@ public class MartenSubscriptionSamples
                     // Just pulling the connection information from
                     // the IoC container at runtime.
                     .UseNpgsqlDataSource()
-
                     .IntegrateWithWolverine()
 
                     // The Marten async daemon most be active
@@ -165,7 +161,6 @@ public class MartenSubscriptionSamples
                     // With this alternative you can inject services into your subscription's constructor
                     // function
                     .SubscribeToEventsWithServices<CompanyTransferSubscription>(ServiceLifetime.Scoped);
-
             }).StartAsync();
 
         #endregion
@@ -188,7 +183,9 @@ public static class InternalOrderCreatedHandler
 {
     public static Task<Customer?> LoadAsync(IEvent<OrderCreated> e, IQuerySession session,
         CancellationToken cancellationToken)
-        => session.LoadAsync<Customer>(e.Data.CustomerId, cancellationToken);
+    {
+        return session.LoadAsync<Customer>(e.Data.CustomerId, cancellationToken);
+    }
 
 
     public static OrderCreatedIntegrationEvent Handle(IEvent<OrderCreated> e, Customer customer)
@@ -199,12 +196,11 @@ public static class InternalOrderCreatedHandler
 
 #endregion
 
-
 #region sample_CompanyTransferSubscriptions
 
 public record CompanyActivated(string Name);
 
-public record CompanyDeactivated();
+public record CompanyDeactivated;
 
 public record NewCompany(Guid Id, string Name);
 
@@ -240,7 +236,8 @@ public class CompanyTransferSubscription : BatchSubscription
         IncludeType<CompanyDeactivated>();
     }
 
-    public override async Task ProcessEventsAsync(EventRange page, ISubscriptionController controller, IDocumentOperations operations,
+    public override async Task ProcessEventsAsync(EventRange page, ISubscriptionController controller,
+        IDocumentOperations operations,
         IMessageBus bus, CancellationToken cancellationToken)
     {
         var activations = new CompanyActivations();

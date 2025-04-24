@@ -10,12 +10,9 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\..\Wolverine\Wolverine.csproj"/>
+        <ProjectReference Include="..\..\Wolverine\Wolverine.csproj" />
+        <ProjectReference Include="..\..\..\..\weasel\src\Weasel.Core\Weasel.Core.csproj" />
     </ItemGroup>
 
-    <ItemGroup>
-        <PackageReference Include="Weasel.Core" Version="8.0.0-alpha-4" />
-    </ItemGroup>
-
-    <Import Project="../../../Analysis.Build.props"/>
+    <Import Project="../../../Analysis.Build.props" />
 </Project>

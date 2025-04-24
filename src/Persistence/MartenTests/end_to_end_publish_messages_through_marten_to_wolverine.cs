@@ -2,11 +2,11 @@ using System.Diagnostics;
 using System.Text.Json;
 using IntegrationTests;
 using JasperFx.Core;
+using JasperFx.Events;
+using JasperFx.Events.Daemon;
+using JasperFx.Events.Projections;
 using Marten;
-using Marten.Events;
 using Marten.Events.Aggregation;
-using Marten.Events.Daemon.Resiliency;
-using Marten.Events.Projections;
 using Marten.Metadata;
 using Marten.Schema;
 using Marten.Storage;
@@ -40,7 +40,7 @@ public class end_to_end_publish_messages_through_marten_to_wolverine
                     })
                     .IntegrateWithWolverine()
                     .AddAsyncDaemon(DaemonMode.Solo);
-                
+
                 opts.Policies.UseDurableLocalQueues();
             }).StartAsync();
 
@@ -52,17 +52,17 @@ public class end_to_end_publish_messages_through_marten_to_wolverine
             session.Events.StartStream<SideEffects1>(streamId, new AEvent(), new AEvent(), new BEvent());
             await session.SaveChangesAsync();
         };
-        
+
         var tracked = await host
             .TrackActivity()
             .Timeout(30.Seconds())
             .WaitForMessageToBeReceivedAt<GotB>(host)
             .ExecuteAndWaitAsync(publish);
-        
+
         tracked.Executed.SingleMessage<GotB>()
             .StreamId.ShouldBe(streamId);
     }
-    
+
     [Fact]
     public async Task can_publish_messages_through_outbox_running_inline()
     {
@@ -75,13 +75,13 @@ public class end_to_end_publish_messages_through_marten_to_wolverine
                     {
                         m.Connection(Servers.PostgresConnectionString);
                         m.DatabaseSchemaName = "wolverine_side_effects";
-                        
+
                         m.Projections.Add<Projection3>(ProjectionLifecycle.Inline);
                         m.Events.EnableSideEffectsOnInlineProjections = true;
                     })
                     .IntegrateWithWolverine()
                     .AddAsyncDaemon(DaemonMode.Solo);
-                
+
                 opts.Policies.UseDurableLocalQueues();
             }).StartAsync();
 
@@ -93,17 +93,17 @@ public class end_to_end_publish_messages_through_marten_to_wolverine
             session.Events.StartStream<SideEffects1>(streamId, new AEvent(), new AEvent(), new BEvent());
             await session.SaveChangesAsync();
         };
-        
+
         var tracked = await host
             .TrackActivity()
             .Timeout(30.Seconds())
             .WaitForMessageToBeReceivedAt<GotB>(host)
             .ExecuteAndWaitAsync(publish);
-        
+
         tracked.Executed.SingleMessage<GotB>()
             .StreamId.ShouldBe(streamId);
     }
-    
+
     [Fact]
     public async Task can_publish_messages_through_outbox_with_tenancy()
     {
@@ -124,7 +124,7 @@ public class end_to_end_publish_messages_through_marten_to_wolverine
                     })
                     .IntegrateWithWolverine()
                     .AddAsyncDaemon(DaemonMode.Solo);
-                
+
                 opts.Policies.UseDurableLocalQueues();
             }).StartAsync();
 
@@ -142,10 +142,10 @@ public class end_to_end_publish_messages_through_marten_to_wolverine
             .Timeout(30.Seconds())
             .WaitForMessageToBeReceivedAt<GotB>(host)
             .ExecuteAndWaitAsync(publish);
-        
+
         tracked.Executed.SingleMessage<GotB>()
             .StreamId.ShouldBe(streamId);
-        
+
         tracked.Executed.SingleEnvelope<GotB>()
             .TenantId.ShouldBe("one");
     }
@@ -201,7 +201,7 @@ public class end_to_end_publish_messages_through_marten_to_wolverine
     }
 }
 
-public class Projection3: SingleStreamProjection<SideEffects1>
+public class Projection3 : SingleStreamProjection<SideEffects1, Guid>
 {
     public void Apply(SideEffects1 aggregate, AEvent _)
     {
@@ -210,19 +210,17 @@ public class Projection3: SingleStreamProjection<SideEffects1>
 
     public void Apply(SideEffects1 aggregate, BEvent _)
     {
-
     }
-    
+
     public void Apply(SideEffects1 aggregate, CEvent _)
     {
-
     }
 
     public override ValueTask RaiseSideEffects(IDocumentOperations operations, IEventSlice<SideEffects1> slice)
     {
-        if (slice.Aggregate != null && slice.Events().OfType<IEvent<BEvent>>().Any())
+        if (slice.Snapshot != null && slice.Events().OfType<IEvent<BEvent>>().Any())
         {
-            slice.PublishMessage(new GotB(slice.Aggregate.Id));
+            slice.PublishMessage(new GotB(slice.Snapshot.Id));
         }
 
         return new ValueTask();
@@ -234,15 +232,14 @@ public record GotB(Guid StreamId);
 public static class GotBHandler
 {
     public static List<GotB> Received { get; } = new();
-    
+
     public static void Handle(GotB message)
     {
         Received.Add(message);
-        Debug.WriteLine("Got B for stream " + message.StreamId);
     }
 }
 
-public class SideEffects1: IRevisioned
+public class SideEffects1 : IRevisioned
 {
     public Guid Id { get; set; }
     public int A { get; set; }

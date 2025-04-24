@@ -12,11 +12,11 @@ using Wolverine.Tracking;
 
 namespace MartenTests.Sample;
 
-public class MessageInvocationTests : PostgresqlContext, IDisposable
+public class MessageInvocationTests : PostgresqlContext, IAsyncLifetime
 {
-    private readonly IHost theHost;
+    private IHost theHost;
 
-    public MessageInvocationTests()
+    public async Task InitializeAsync()
     {
         theHost = WolverineHost.For(opts =>
         {
@@ -28,12 +28,15 @@ public class MessageInvocationTests : PostgresqlContext, IDisposable
                 .IntegrateWithWolverine();
         });
 
-        theHost.Get<IDocumentStore>().Advanced.Clean.CompletelyRemoveAll();
+        await theHost.Get<IDocumentStore>().Advanced.Clean.CompletelyRemoveAllAsync();
     }
 
-    public void Dispose()
+    public async Task DisposeAsync()
     {
-        theHost?.Dispose();
+        if (theHost != null)
+        {
+            await theHost.StopAsync();
+        }
     }
 
     [Fact]
@@ -44,7 +47,7 @@ public class MessageInvocationTests : PostgresqlContext, IDisposable
 
         await using (var session = theHost.Get<IDocumentStore>().QuerySession())
         {
-            session.Load<User>("Tom").ShouldNotBeNull();
+            (await session.LoadAsync<User>("Tom")).ShouldNotBeNull();
         }
 
         theHost.Get<UserNames>()
@@ -58,7 +61,7 @@ public class MessageInvocationTests : PostgresqlContext, IDisposable
 
         await using (var session = theHost.Get<IDocumentStore>().QuerySession())
         {
-            session.Load<User>("Bill").ShouldNotBeNull();
+            (await session.LoadAsync<User>("Bill")).ShouldNotBeNull();
         }
 
         theHost.Get<UserNames>()

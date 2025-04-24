@@ -9,13 +9,12 @@
         <GenerateAssemblyInformationalVersionAttribute>false</GenerateAssemblyInformationalVersionAttribute>
     </PropertyGroup>
     <ItemGroup>
-        <ProjectReference Include="..\Wolverine.RDBMS\Wolverine.RDBMS.csproj"/>
-        <EmbeddedResource Include="Schema/*.sql"/>
+        <ProjectReference Include="..\Wolverine.RDBMS\Wolverine.RDBMS.csproj" />
+        <EmbeddedResource Include="Schema/*.sql" />
     </ItemGroup>
-
     <ItemGroup>
-        <PackageReference Include="Weasel.SqlServer" Version="8.0.0-alpha-4" />
+      <ProjectReference Include="..\..\..\..\weasel\src\Weasel.SqlServer\Weasel.SqlServer.csproj" />
     </ItemGroup>
 
-    <Import Project="../../../Analysis.Build.props"/>
+    <Import Project="../../../Analysis.Build.props" />
 </Project>

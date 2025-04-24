@@ -1,6 +1,7 @@
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
+using JasperFx.Events;
 using Marten;
 using Marten.Events;
 
@@ -13,7 +14,7 @@ internal class EventStoreFrame : SyncFrame
 
     public EventStoreFrame()
     {
-        _eventStore = Create<IEventStore>();
+        _eventStore = Create<IEventStoreOperations>();
     }
 
     public override IEnumerable<Variable> FindVariables(IMethodVariables chain)

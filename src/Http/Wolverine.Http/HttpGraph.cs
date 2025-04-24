@@ -3,7 +3,10 @@ using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CommandLine.Descriptions;
 using JasperFx.Core;
+using JasperFx.Core.Descriptors;
 using JasperFx.Core.Reflection;
+using JasperFx.Environment;
+using JasperFx.Resources;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Primitives;
@@ -16,8 +19,7 @@ using Endpoint = Microsoft.AspNetCore.Http.Endpoint;
 
 namespace Wolverine.Http;
 
-public partial class HttpGraph : EndpointDataSource, ICodeFileCollectionWithServices, IChangeToken, IDescribedSystemPart,
-    IWriteToConsole
+public partial class HttpGraph : EndpointDataSource, ICodeFileCollectionWithServices, IChangeToken, IDescribeMyself
 {
     public static readonly string Context = "httpContext";
 
@@ -68,30 +70,10 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollectionWithServ
     public string ChildNamespace => "WolverineHandlers";
     public GenerationRules Rules { get; }
 
-    Task IDescribedSystemPart.Write(TextWriter writer)
+    public OptionsDescription ToDescription()
     {
-        return writer.WriteLineAsync("Use console output.");
-    }
-
-    string IDescribedSystemPart.Title => "Wolverine Http Endpoints";
-
-    Task IWriteToConsole.WriteToConsole()
-    {
-        var table = new Table()
-            .AddColumns("Route", "Http Method", "Handler Method", "Generated Type Name");
-
-        foreach (var chain in _chains.OrderBy(x => x.RoutePattern!.RawText))
-        {
-            var handlerCode = $"{chain.Method.HandlerType.FullNameInCode()}.{chain.Method.Method.Name}()";
-            var verbs = chain.HttpMethods.Select(x => x.ToUpper()).Join("/");
-
-            table.AddRow(chain.RoutePattern!.RawText.EscapeMarkup(), verbs, handlerCode.EscapeMarkup(),
-                chain.Description.EscapeMarkup());
-        }
-
-        AnsiConsole.Write(table);
-
-        return Task.CompletedTask;
+        // TODO -- get fancier!
+        return new OptionsDescription(this);
     }
 
     public void DiscoverEndpoints(WolverineHttpOptions wolverineHttpOptions)

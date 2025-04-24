@@ -120,7 +120,7 @@ public abstract class DurabilityComplianceContext<TTriggerHandler, TItemCreatedH
         await theSender.ResetResourceState();
     }
 
-    protected abstract ItemCreated loadItem(IHost receiver, Guid id);
+    protected abstract Task<ItemCreated> loadItemAsync(IHost receiver, Guid id);
 
 
     protected abstract Task withContext(IHost sender, MessageContext context,

@@ -1,60 +1,41 @@
 using JasperFx.CommandLine.Descriptions;
 using JasperFx.Core.Reflection;
+using JasperFx.Resources;
 using Spectre.Console;
 using Wolverine.ErrorHandling;
 using Wolverine.ErrorHandling.Matches;
+using Wolverine.Persistence.Durability;
+using Wolverine.Runtime;
 using Wolverine.Runtime.Routing;
 using Wolverine.Transports.Local;
 
-namespace Wolverine.Runtime;
+namespace Wolverine;
 
-public sealed partial class WolverineRuntime : IDescribedSystemPartFactory
-{
-    public List<IDescribedSystemPart> AdditionalDescribedParts { get; } = new();
-
-    IDescribedSystemPart[] IDescribedSystemPartFactory.Parts()
-    {
-        Handlers.Compile(Options, _container);
-
-        return buildDescribedSystemParts().ToArray();
-    }
-
-    private IEnumerable<IDescribedSystemPart> buildDescribedSystemParts()
-    {
-        yield return Options;
-        yield return Handlers;
-        yield return new ListenersDescription(this);
-        yield return new MessageSubscriptions(this);
-        yield return new SenderDescription(this);
-        yield return new FailureRuleDescription(this);
-
-        foreach (var systemPart in Options.Transports.OfType<IDescribedSystemPart>()) yield return systemPart;
-
-        foreach (var describedPart in AdditionalDescribedParts) yield return describedPart;
-    }
-}
-
-internal class MessageSubscriptions : IDescribedSystemPart, IWriteToConsole
+internal class WolverineSystemPart : SystemPartBase
 {
     private readonly WolverineRuntime _runtime;
 
-    public MessageSubscriptions(WolverineRuntime runtime)
+    public WolverineSystemPart(IWolverineRuntime runtime) : base("Wolverine", new Uri("wolverine://" + runtime.Options.ServiceName))
     {
-        _runtime = runtime;
+        _runtime = (WolverineRuntime)runtime;
     }
 
-    public Task Write(TextWriter writer) =>
-        writer.WriteLineAsync("Use the console output option.");
-
-    public string Title => "Wolverine Message Routing";
-
-    public async Task WriteToConsole()
+    public override async Task WriteToConsole()
     {
-        // "start" the Wolverine app in a lightweight way
-        // to discover endpoints, but don't start the actual
-        // external endpoint listening or sending
         await _runtime.StartLightweightAsync();
-
+        
+        _runtime.Options.WriteToConsole();
+        
+        await _runtime.Options.HandlerGraph.WriteToConsole();
+        WriteMessageSubscriptions();
+        WriteSendingEndpoints();
+        WriteListeners();
+        WriteErrorHandling();
+    }
+    
+    public void WriteMessageSubscriptions()
+    {
+        AnsiConsole.Write("Message Routing");
         var messageTypes = _runtime.Options.Discovery.FindAllMessages(_runtime.Options.HandlerGraph);
 
         if (!messageTypes.Any())
@@ -81,28 +62,10 @@ internal class MessageSubscriptions : IDescribedSystemPart, IWriteToConsole
 
         AnsiConsole.Write(table);
     }
-}
-
-internal class SenderDescription : IDescribedSystemPart, IWriteToConsole
-{
-    private readonly WolverineRuntime _runtime;
-
-    public SenderDescription(WolverineRuntime runtime)
+    
+    public void WriteSendingEndpoints()
     {
-        _runtime = runtime;
-    }
-
-    public Task Write(TextWriter writer) =>
-        writer.WriteLineAsync("Use the console output option.");
-
-    public string Title => "Wolverine Sending Endpoints";
-
-    public async Task WriteToConsole()
-    {
-        // "start" the Wolverine app in a lightweight way
-        // to discover endpoints, but don't start the actual
-        // external endpoint listening or sending
-        await _runtime.StartLightweightAsync();
+        AnsiConsole.Write("Sending Endpoints");
 
         // This just forces Wolverine to go find and build any extra sender agents
         var messageTypes = _runtime.Options.Discovery.FindAllMessages(_runtime.Options.HandlerGraph);
@@ -139,29 +102,11 @@ internal class SenderDescription : IDescribedSystemPart, IWriteToConsole
 
         AnsiConsole.Write(table);
     }
-}
-
-internal class ListenersDescription : IDescribedSystemPart, IWriteToConsole
-{
-    private readonly WolverineRuntime _runtime;
-
-    public ListenersDescription(WolverineRuntime runtime)
+    
+    public void WriteListeners()
     {
-        _runtime = runtime;
-    }
-
-    public Task Write(TextWriter writer) =>
-        writer.WriteLineAsync("Use the console output option.");
-
-    public string Title => "Wolverine Listeners";
-
-    public async Task WriteToConsole()
-    {
-        // "start" the Wolverine app in a lightweight way
-        // to discover endpoints, but don't start the actual
-        // external endpoint listening or sending
-        await _runtime.StartLightweightAsync();
-
+        AnsiConsole.Write("Listeners");
+        
         var table = new Table();
 
         table.AddColumn("Uri");
@@ -190,28 +135,10 @@ internal class ListenersDescription : IDescribedSystemPart, IWriteToConsole
 
         AnsiConsole.Write(table);
     }
-}
-
-internal class FailureRuleDescription : IDescribedSystemPart, IWriteToConsole
-{
-    private readonly WolverineRuntime _runtime;
-
-    public FailureRuleDescription(WolverineRuntime runtime)
+    
+    public void WriteErrorHandling()
     {
-        _runtime = runtime;
-    }
-
-    public Task Write(TextWriter writer) =>
-        writer.WriteLineAsync("Use the console output option.");
-
-    public string Title => "Wolverine Error Handling";
-
-    public async Task WriteToConsole()
-    {
-        // "start" the Wolverine app in a lightweight way
-        // to discover endpoints, but don't start the actual
-        // external endpoint listening or sending
-        await _runtime.StartLightweightAsync();
+        AnsiConsole.Write("Error Handling");
 
         AnsiConsole.WriteLine("Failure rules specific to a message type");
         AnsiConsole.WriteLine("are applied before the global failure rules");
@@ -247,5 +174,32 @@ internal class FailureRuleDescription : IDescribedSystemPart, IWriteToConsole
             AnsiConsole.WriteLine();
             writeTree(chain.Failures, $"Message: {chain.MessageType.FullNameInCode()}");
         }
+    }
+    
+
+    public override ValueTask<IReadOnlyList<IStatefulResource>> FindResources()
+    {
+        var list = new List<IStatefulResource>();
+        if (_runtime.Options.ExternalTransportsAreStubbed) return new ValueTask<IReadOnlyList<IStatefulResource>>(list);
+
+        foreach (var transport in _runtime.Options.Transports)
+        {
+            if (transport.TryBuildStatefulResource(_runtime, out var resource))
+            {
+                list.Add(resource!);
+            }
+        }
+
+        if (_runtime.Storage is not NullMessageStore)
+        {
+            list.Add(new MessageStoreResource(_runtime.Options, _runtime.Storage));
+        }
+
+        foreach (var store in _runtime.AncillaryStores)
+        {
+            list.Add(new MessageStoreResource(_runtime.Options, store));
+        }
+
+        return new ValueTask<IReadOnlyList<IStatefulResource>>(list);
     }
 }

@@ -58,7 +58,8 @@ public sealed partial class WolverineOptions
         var wolverineFrame = frames.LastOrDefault(x =>
             x.HasMethod() && x.GetMethod()?.DeclaringType?.Assembly.GetName().Name == "Wolverine");
 
-        var index = frames.IndexOf(wolverineFrame);
+        var index = Array.IndexOf(frames, wolverineFrame);
+
         for (var i = index; i < frames.Length; i++)
         {
             var candidate = frames[i];

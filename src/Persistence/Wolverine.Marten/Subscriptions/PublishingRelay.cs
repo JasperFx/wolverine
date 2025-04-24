@@ -1,5 +1,10 @@
+using ImTools;
+using JasperFx;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
+using JasperFx.Events;
+using JasperFx.Events.Daemon;
+using JasperFx.Events.Projections;
 using Marten;
 using Marten.Events;
 using Marten.Events.Daemon;
@@ -89,7 +94,7 @@ internal class PublishingRelay : BatchSubscription, IPublishingRelay
             }
             else
             {
-                if (e.TenantId != Tenancy.DefaultTenantId)
+                if (e.TenantId != StorageConstants.DefaultTenantId)
                 {
                     await bus.PublishAsync(e, new DeliveryOptions{TenantId = e.TenantId});
                 }
