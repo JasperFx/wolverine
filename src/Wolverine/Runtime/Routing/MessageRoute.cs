@@ -83,10 +83,10 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
             envelope.ContentType = envelope.Serializer.ContentType;
         }
 
-        foreach (var rule in Rules) rule.Modify(envelope);
-
         // Delivery options win
         options?.Override(envelope);
+
+        foreach (var rule in Rules) rule.Modify(envelope);
 
         // Will need the topic persisted, see https://github.com/JasperFx/wolverine/issues/1100
         if (Sender.Endpoint.RoutingType == RoutingMode.ByTopic && envelope.TopicName.IsEmpty())

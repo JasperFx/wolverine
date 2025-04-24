@@ -41,10 +41,10 @@ internal class DestinationEndpoint : IDestinationEndpoint
             envelope.Serializer = _parent.Runtime.Options.FindSerializer(options.ContentType);
         }
 
-        foreach (var rule in route.Rules) rule.Modify(envelope);
-
         // Delivery options win
         options?.Override(envelope);
+
+        foreach (var rule in route.Rules) rule.Modify(envelope);
 
         // adjust for local, scheduled send
         if (envelope.IsScheduledForLater(DateTimeOffset.Now) && !_endpoint.Agent!.SupportsNativeScheduledSend)
