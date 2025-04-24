@@ -164,7 +164,7 @@ public class SagaChain : HandlerChain
     {
         if (MessageType.CanBeCastTo<TimeoutMessage>())
         {
-            yield return new ReturnFrame();
+            yield return new ReturnFrame(new Variable(typeof(Task), $"{typeof(Task).FullNameInCode()}.{nameof(Task.CompletedTask)}"));
             yield break;
         }
 
