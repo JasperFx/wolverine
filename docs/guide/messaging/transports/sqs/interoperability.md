@@ -45,7 +45,7 @@ using var host = await Host.CreateDefaultBuilder()
             o => { o.PropertyNamingPolicy = JsonNamingPolicy.CamelCase; });
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L235-L250' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_publish_raw_json_in_sqs' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L272-L287' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_publish_raw_json_in_sqs' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Advanced Interoperability
@@ -86,7 +86,7 @@ public class CustomSqsMapper : ISqsEnvelopeMapper
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L271-L303' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_custom_sqs_mapper' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L308-L340' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_custom_sqs_mapper' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And apply this to any or all of your SQS endpoints with the configuration fluent interface as shown in this sample:
@@ -103,5 +103,47 @@ using var host = await Host.CreateDefaultBuilder()
             .ConfigureSenders(s => s.InteropWith(new CustomSqsMapper()));
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L256-L267' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_apply_custom_sqs_mapping' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L293-L304' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_apply_custom_sqs_mapping' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+## Receive messages from Amazon SNS
+
+By default, Amazon SNS wraps their messages in a structured format that includes metadata.
+You can either turn this feature off in SNS or let Wolverine handle the mapping like this:
+
+<!-- snippet: sample_receive_sns_topic_metadata_in_sqs -->
+<a id='snippet-sample_receive_sns_topic_metadata_in_sqs'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.UseAmazonSqsTransport();
+
+        opts.ListenToSqsQueue("incoming")
+            // Interops with SNS structured metadata
+            .ReceiveSnsTopicMessage();
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L236-L248' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_receive_sns_topic_metadata_in_sqs' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+It's possible for the original message that was sent to SNS to be in a different format. 
+You can also specify a custom mapper to deal with the format of the original message as shown here:
+
+<!-- snippet: sample_receive_sns_topic_metadata_with_custom_mapper_in_sqs -->
+<a id='snippet-sample_receive_sns_topic_metadata_with_custom_mapper_in_sqs'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.UseAmazonSqsTransport();
+
+        opts.ListenToSqsQueue("incoming")
+            // Interops with SNS structured metadata
+            .ReceiveSnsTopicMessage(
+                // Sets inner mapper for original message
+                new RawJsonSqsEnvelopeMapper(typeof(Message1), new JsonSerializerOptions()));
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L253-L267' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_receive_sns_topic_metadata_with_custom_mapper_in_sqs' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
