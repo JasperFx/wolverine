@@ -156,6 +156,7 @@ const config: UserConfig<DefaultTheme.Config> = {
                                         {text: 'Conventional Routing', link:'/guide/messaging/transports/sqs/conventional-routing'},
                                         {text: 'Interoperability', link:'/guide/messaging/transports/sqs/interoperability'}
                                     ]},
+                                {text: 'Amazon SNS', link: '/guide/messaging/transports/sns'},
                                 {text: 'TCP', link: '/guide/messaging/transports/tcp'},
                                 {text: 'Google PubSub', link: '/guide/messaging/transports/gcp-pubsub/', items: [
                                         {text: 'Publishing', link:'/guide/messaging/transports/gcp-pubsub/publishing'},
@@ -243,6 +244,3 @@ const config: UserConfig<DefaultTheme.Config> = {
 }
 
 export default withMermaid(config);
-
-
-
