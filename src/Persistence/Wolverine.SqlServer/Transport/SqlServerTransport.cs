@@ -32,6 +32,8 @@ public class SqlServerTransport : BrokerTransport<SqlServerQueue>
             TransportSchemaName = transportSchemaName;
         }
     }
+    
+    public override Uri ResourceUri => new Uri("sqlserver-transport://");
 
     public LightweightCache<string, SqlServerQueue> Queues { get; }
 

@@ -3,7 +3,8 @@ using System.Runtime.CompilerServices;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
-using JasperFx.Core.Descriptions;
+using JasperFx.Core.Descriptors;
+using JasperFx.Core.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using Wolverine.Configuration;
 using Wolverine.Persistence;
@@ -73,6 +74,8 @@ public sealed partial class WolverineOptions
         Policies.Add<ResponsePolicy>();
         Policies.Add<OutgoingMessagesPolicy>();
     }
+
+    public Uri SubjectUri => new Uri("wolverine://" + ServiceName.Sanitize());
 
     /// <summary>
     /// How should Wolverine treat message handlers for the same message type?

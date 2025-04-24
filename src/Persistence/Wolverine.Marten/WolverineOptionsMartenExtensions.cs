@@ -1,13 +1,13 @@
 ﻿using JasperFx;
 using JasperFx.Core;
-using JasperFx.Core.Descriptions;
+using JasperFx.Core.Descriptors;
 using JasperFx.Core.IoC;
 using JasperFx.Core.Reflection;
+using JasperFx.Events;
+using JasperFx.Events.Subscriptions;
 using Marten;
-using Marten.Events;
 using Marten.Events.Daemon.Coordination;
 using Marten.Storage;
-using Marten.Subscriptions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Npgsql;

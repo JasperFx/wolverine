@@ -3,7 +3,7 @@ using Marten.Events.Aggregation;
 
 namespace TeleHealth.Common;
 
-public class AppointmentProjection : SingleStreamProjection<Appointment>
+public class AppointmentProjection : SingleStreamProjection<Appointment, Guid>
 {
     public AppointmentProjection()
     {

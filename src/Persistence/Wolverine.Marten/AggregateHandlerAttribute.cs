@@ -4,6 +4,8 @@ using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
+using JasperFx.Events.Aggregation;
+using JasperFx.Events.Daemon;
 using Marten;
 using Marten.Events;
 using Marten.Events.Aggregation;
@@ -40,8 +42,7 @@ public class Events : List<object>, IWolverineReturnType
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method)]
 public class AggregateHandlerAttribute : ModifyChainAttribute
 {
-    private static readonly Type _versioningBaseType =
-        typeof(IAggregateVersioning).Assembly.DefinedTypes.Single(x => x.Name.StartsWith("AggregateVersioning"));
+    private static readonly Type _versioningBaseType = typeof(AggregateVersioning<>);
 
     public AggregateHandlerAttribute(ConcurrencyStyle loadStyle)
     {

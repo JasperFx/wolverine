@@ -12,7 +12,7 @@ internal class LoadAggregateFrame<T> : MethodCall where T : class
     private readonly AggregateHandlerAttribute _att;
     private Variable? _command;
 
-    public LoadAggregateFrame(AggregateHandlerAttribute att) : base(typeof(IEventStore), FindMethod(att))
+    public LoadAggregateFrame(AggregateHandlerAttribute att) : base(typeof(IEventStoreOperations), FindMethod(att))
     {
         _att = att;
         CommentText = "Loading Marten aggregate";
@@ -48,19 +48,19 @@ internal class LoadAggregateFrame<T> : MethodCall where T : class
         if (att.LoadStyle == ConcurrencyStyle.Exclusive)
         {
             return isGuidIdentified
-                ? ReflectionHelper.GetMethod<IEventStore>(x => x.FetchForExclusiveWriting<T>(Guid.Empty, default))!
-                : ReflectionHelper.GetMethod<IEventStore>(x => x.FetchForExclusiveWriting<T>(string.Empty, default))!;
+                ? ReflectionHelper.GetMethod<IEventStoreOperations>(x => x.FetchForExclusiveWriting<T>(Guid.Empty, default))!
+                : ReflectionHelper.GetMethod<IEventStoreOperations>(x => x.FetchForExclusiveWriting<T>(string.Empty, default))!;
         }
 
         if (att.VersionMember == null)
         {
             return isGuidIdentified
-                ? ReflectionHelper.GetMethod<IEventStore>(x => x.FetchForWriting<T>(Guid.Empty, default))!
-                : ReflectionHelper.GetMethod<IEventStore>(x => x.FetchForWriting<T>(string.Empty, default))!;
+                ? ReflectionHelper.GetMethod<IEventStoreOperations>(x => x.FetchForWriting<T>(Guid.Empty, default))!
+                : ReflectionHelper.GetMethod<IEventStoreOperations>(x => x.FetchForWriting<T>(string.Empty, default))!;
         }
 
         return isGuidIdentified
-            ? ReflectionHelper.GetMethod<IEventStore>(x => x.FetchForWriting<T>(Guid.Empty, long.MaxValue, default))!
-            : ReflectionHelper.GetMethod<IEventStore>(x => x.FetchForWriting<T>(string.Empty, long.MaxValue, default))!;
+            ? ReflectionHelper.GetMethod<IEventStoreOperations>(x => x.FetchForWriting<T>(Guid.Empty, long.MaxValue, default))!
+            : ReflectionHelper.GetMethod<IEventStoreOperations>(x => x.FetchForWriting<T>(string.Empty, long.MaxValue, default))!;
     }
 }

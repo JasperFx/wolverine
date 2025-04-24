@@ -1,5 +1,6 @@
 using JasperFx;
 using JasperFx.Core.Reflection;
+using JasperFx.Events;
 using Marten;
 using Marten.Events;
 using Marten.Internal;

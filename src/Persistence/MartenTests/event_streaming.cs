@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using IntegrationTests;
+using JasperFx.Events;
 using Marten;
 using Marten.Events;
 using Marten.Services;

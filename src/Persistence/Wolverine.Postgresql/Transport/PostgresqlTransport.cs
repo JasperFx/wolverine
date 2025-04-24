@@ -20,6 +20,8 @@ public class PostgresqlTransport : BrokerTransport<PostgresqlQueue>, ITransportC
         Queues = new LightweightCache<string, PostgresqlQueue>(name => new PostgresqlQueue(name, this));
     }
 
+    public override Uri ResourceUri => new Uri("postgresql-transport://");
+
     /// <summary>
     /// Schema name for the queue and scheduled message tables
     /// </summary>

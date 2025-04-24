@@ -31,12 +31,10 @@ public class MartenDurabilityCompliance : DurabilityComplianceContext<TriggerMes
         }).IntegrateWithWolverine();
     }
 
-    protected override ItemCreated loadItem(IHost receiver, Guid id)
+    protected override async Task<ItemCreated> loadItemAsync(IHost receiver, Guid id)
     {
-        using (var session = receiver.Get<IDocumentStore>().QuerySession())
-        {
-            return session.Load<ItemCreated>(id);
-        }
+        await using var session = receiver.Get<IDocumentStore>().QuerySession();
+        return await session.LoadAsync<ItemCreated>(id);
     }
 
     protected override async Task withContext(IHost sender, MessageContext context,

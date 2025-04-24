@@ -1,4 +1,4 @@
-using JasperFx.Core.Descriptions;
+using JasperFx.Core.Descriptors;
 using JasperFx.Core.Reflection;
 using Wolverine.Configuration;
 using Wolverine.Runtime.Routing;

@@ -6,24 +6,9 @@ using Wolverine.Util;
 
 namespace Wolverine.Runtime.Handlers;
 
-public partial class HandlerGraph : IDescribedSystemPart, IWriteToConsole
+public partial class HandlerGraph 
 {
-    async Task IDescribedSystemPart.Write(TextWriter writer)
-    {
-        foreach (var chain in Chains.OrderBy(x => x.MessageType.Name))
-        {
-            await writer.WriteLineAsync($"Message: {chain.MessageType.FullNameInCode()}");
-            foreach (var handler in chain.Handlers)
-            {
-                await writer.WriteLineAsync(
-                    $"Handled by {handler.HandlerType.FullNameInCode()}.{handler.Method.Name}({handler.Method.GetParameters().Select(x => x.Name)!.Join(", ")})");
-            }
-        }
-    }
-
-    string IDescribedSystemPart.Title => "Wolverine Handlers";
-
-    Task IWriteToConsole.WriteToConsole()
+    internal Task WriteToConsole()
     {
         writeHandlerDiscoveryRules();
 

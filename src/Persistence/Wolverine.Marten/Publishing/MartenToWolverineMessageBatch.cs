@@ -6,7 +6,7 @@ using Wolverine.Runtime;
 
 namespace Wolverine.Marten.Publishing;
 
-internal class MartenToWolverineMessageBatch(MessageContext Context, DocumentSessionBase Session) : IMessageBatch, ITenantedMessageSink
+internal class MartenToWolverineMessageBatch(MessageContext Context, DocumentSessionBase Session) : IMessageBatch
 {
     public ValueTask PublishAsync<T>(T message)
     {

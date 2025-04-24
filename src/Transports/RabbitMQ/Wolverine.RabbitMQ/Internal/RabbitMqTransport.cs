@@ -47,6 +47,23 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IAsy
         
     }
 
+    public override Uri ResourceUri
+    {
+        get
+        {
+            if (ConnectionFactory == null) return new Uri("rabbitmq://");
+
+            var resourceUri = new Uri($"rabbitmq://{ConnectionFactory.HostName}");
+
+            if (ConnectionFactory.VirtualHost.IsNotEmpty())
+            {
+                resourceUri = new Uri(resourceUri, ConnectionFactory.VirtualHost);
+            }
+            
+            return resourceUri;
+        }
+    }
+
     internal LightweightCache<string, RabbitMqTenant> Tenants { get; } = new();
 
     private void configureDefaults(ConnectionFactory factory)

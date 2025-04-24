@@ -1,16 +1,15 @@
-using JasperFx.Core;
-using Marten;
-using Marten.Events.Daemon.Resiliency;
-using Marten.Events.Projections;
-using Marten.Exceptions;
-using Npgsql;
 using JasperFx;
+using JasperFx.Core;
+using JasperFx.Events.Daemon;
+using JasperFx.Events.Projections;
+using Marten;
+using Marten.Events.Projections;
+using Npgsql;
 using TeleHealth.Common;
 using Wolverine;
 using Wolverine.ErrorHandling;
 using Wolverine.Http;
 using Wolverine.Marten;
-using ConcurrencyException = Marten.Exceptions.ConcurrencyException;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -56,7 +55,6 @@ builder.Services.AddWolverineHttp();
 builder.Services.AddMarten(opts =>
 {
     // More stuff...
-    
 });
 
 #region sample_opting_into_wolverine_event_publishing

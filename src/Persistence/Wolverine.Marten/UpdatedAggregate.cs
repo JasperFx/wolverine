@@ -40,7 +40,7 @@ public class UpdatedAggregate : IResponseAware
 
 internal class FetchLatestByGuid<T> : MethodCall where T : class
 {
-    public FetchLatestByGuid(Variable id) : base(typeof(IEventStore), ReflectionHelper.GetMethod<IEventStore>(x => x.FetchLatest<T>(Guid.Empty, CancellationToken.None)))
+    public FetchLatestByGuid(Variable id) : base(typeof(IEventStoreOperations), ReflectionHelper.GetMethod<IEventStoreOperations>(x => x.FetchLatest<T>(Guid.Empty, CancellationToken.None)))
     {
         if (id.VariableType != typeof(Guid))
         {
@@ -54,7 +54,7 @@ internal class FetchLatestByGuid<T> : MethodCall where T : class
 
 internal class FetchLatestByString<T> : MethodCall where T : class
 {
-    public FetchLatestByString(Variable id) : base(typeof(IEventStore), ReflectionHelper.GetMethod<IEventStore>(x => x.FetchLatest<T>("", CancellationToken.None)))
+    public FetchLatestByString(Variable id) : base(typeof(IEventStoreOperations), ReflectionHelper.GetMethod<IEventStoreOperations>(x => x.FetchLatest<T>("", CancellationToken.None)))
     {
         if (id.VariableType != typeof(string))
         {

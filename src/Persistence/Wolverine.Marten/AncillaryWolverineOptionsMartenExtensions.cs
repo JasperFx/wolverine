@@ -2,6 +2,7 @@ using JasperFx;
 using JasperFx.Core;
 using JasperFx.Core.IoC;
 using JasperFx.Core.Reflection;
+using JasperFx.Events.Subscriptions;
 using Marten;
 using Marten.Internal;
 using Marten.Storage;
@@ -51,7 +52,7 @@ public static class AncillaryWolverineOptionsMartenExtensions
         string? schemaName = null,
         string? masterDatabaseConnectionString = null, 
         NpgsqlDataSource? masterDataSource = null, 
-        AutoCreate? autoCreate = null) where T : IDocumentStore
+        AutoCreate? autoCreate = null) where T : class, IDocumentStore
     {
         if (schemaName.IsNotEmpty() && schemaName != schemaName.ToLowerInvariant())
         {
@@ -162,7 +163,7 @@ public static class AncillaryWolverineOptionsMartenExtensions
     /// <returns></returns>
     public static MartenServiceCollectionExtensions.MartenStoreExpression<T> SubscribeToEvents<T>(
         this MartenServiceCollectionExtensions.MartenStoreExpression<T> expression,
-        IWolverineSubscription subscription) where T : IDocumentStore
+        IWolverineSubscription subscription) where T : class, IDocumentStore
     {
         expression.Services.SubscribeToEvents<T>(subscription);
         return expression;
@@ -194,7 +195,7 @@ public static class AncillaryWolverineOptionsMartenExtensions
     /// <param name="lifetime">Service lifetime of the subscription class within the application's IoC container
     /// <returns></returns>
     public static MartenServiceCollectionExtensions.MartenStoreExpression<T> SubscribeToEventsWithServices<T, TSubscription>(
-        this MartenServiceCollectionExtensions.MartenStoreExpression<T> expression, ServiceLifetime lifetime) where TSubscription : class, IWolverineSubscription where T : IDocumentStore
+        this MartenServiceCollectionExtensions.MartenStoreExpression<T> expression, ServiceLifetime lifetime) where TSubscription : class, IWolverineSubscription where T : class, IDocumentStore
     {
         expression.Services.SubscribeToEventsWithServices<T, TSubscription>(lifetime);
 
@@ -247,7 +248,7 @@ public static class AncillaryWolverineOptionsMartenExtensions
     /// <returns></returns>
     public static MartenServiceCollectionExtensions.MartenStoreExpression<T> ProcessEventsWithWolverineHandlersInStrictOrder<T>(
         this MartenServiceCollectionExtensions.MartenStoreExpression<T> expression,
-        string subscriptionName, Action<ISubscriptionOptions>? configure = null) where T : IDocumentStore
+        string subscriptionName, Action<ISubscriptionOptions>? configure = null) where T : class, IDocumentStore
     {
         expression.Services.ProcessEventsWithWolverineHandlersInStrictOrder<T>(subscriptionName, configure);
 
@@ -291,7 +292,7 @@ public static class AncillaryWolverineOptionsMartenExtensions
     /// <exception cref="ArgumentNullException"></exception>
     public static MartenServiceCollectionExtensions.MartenStoreExpression<T> PublishEventsToWolverine<T>(
         this MartenServiceCollectionExtensions.MartenStoreExpression<T> expression,
-        string subscriptionName, Action<IPublishingRelay>? configure = null) where T : IDocumentStore
+        string subscriptionName, Action<IPublishingRelay>? configure = null) where T : class, IDocumentStore
     {
         expression.Services.PublishEventsToWolverine<T>(subscriptionName, configure);
 

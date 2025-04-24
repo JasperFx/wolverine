@@ -5,6 +5,11 @@ namespace Wolverine.Transports;
 public interface IBrokerTransport : ITransport
 {
     /// <summary>
+    /// A Uri that describes this broker. Purely diagnostic
+    /// </summary>
+    Uri ResourceUri { get; }
+    
+    /// <summary>
     ///     Should Wolverine attempt to auto-provision all declared or discovered objects?
     /// </summary>
     bool AutoProvision { get; set; }

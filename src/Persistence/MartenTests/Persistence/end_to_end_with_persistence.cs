@@ -37,6 +37,7 @@ public class end_to_end_with_persistence : PostgresqlContext, IDisposable, IAsyn
 
             opts.Services.AddMarten(x =>
             {
+                x.DisableNpgsqlLogging = true;
                 x.Connection(Servers.PostgresConnectionString);
                 x.DatabaseSchemaName = "sender";
             }).IntegrateWithWolverine();
@@ -52,6 +53,7 @@ public class end_to_end_with_persistence : PostgresqlContext, IDisposable, IAsyn
 
             opts.Services.AddMarten(x =>
             {
+                x.DisableNpgsqlLogging = true;
                 x.Connection(Servers.PostgresConnectionString);
                 x.DatabaseSchemaName = "receiver";
             }).IntegrateWithWolverine();
@@ -114,11 +116,11 @@ public class end_to_end_with_persistence : PostgresqlContext, IDisposable, IAsyn
         var documentStore = theReceiver.Get<IDocumentStore>();
         await using (var session = documentStore.QuerySession())
         {
-            var item2 = session.Load<ItemCreated>(item.Id);
+            var item2 = await session.LoadAsync<ItemCreated>(item.Id);
             if (item2 == null)
             {
                 Thread.Sleep(500);
-                item2 = session.Load<ItemCreated>(item.Id);
+                item2 = await session.LoadAsync<ItemCreated>(item.Id);
             }
 
             item2.Name.ShouldBe("Shoe");

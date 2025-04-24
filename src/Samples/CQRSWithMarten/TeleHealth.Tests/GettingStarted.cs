@@ -24,7 +24,7 @@ public class GettingStarted
             .BuildProjectionDaemonAsync();
 
         await daemon
-            .RebuildProjection<AppointmentDurationProjection>(
+            .RebuildProjectionAsync<AppointmentDurationProjection>(
                 cancellation);
     }
 

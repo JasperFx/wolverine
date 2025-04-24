@@ -1,7 +1,8 @@
-using Marten;
-using Marten.Events.Daemon.Resiliency;
-using Marten.Events.Projections;
 using JasperFx;
+using Marten;
+using Marten.Events.Projections;
+using JasperFx.Events.Daemon;
+using JasperFx.Events.Projections;
 using TeleHealth.Common;
 
 var builder = Host.CreateDefaultBuilder()

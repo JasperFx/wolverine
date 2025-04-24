@@ -17,8 +17,9 @@ public abstract class BrokerTransport<TEndpoint> : TransportBase<TEndpoint>, IBr
     protected BrokerTransport(string protocol, string name) : base(protocol, name)
     {
     }
-    
-    
+
+    public abstract Uri ResourceUri { get; }
+
     /// <summary>
     /// In the case of using multi-tenancy support at the transport level (generally, a separate message broker or namespace or whatever per tenant),
     /// this governs the behavior of message sending in regards to a tenant id. Default behavior is to fall back to the default

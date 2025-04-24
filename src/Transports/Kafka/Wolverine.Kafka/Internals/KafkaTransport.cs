@@ -25,6 +25,23 @@ public class KafkaTransport : BrokerTransport<KafkaTopic>
         Topics = new Cache<string, KafkaTopic>(topicName => new KafkaTopic(this, topicName, EndpointRole.Application));
     }
 
+    public override Uri ResourceUri
+    {
+        get
+        {
+            var uri = new Uri($"{Protocol}://");
+
+            var bootstrap = ConsumerConfig.BootstrapServers ??
+                            ProducerConfig.BootstrapServers ?? AdminClientConfig.BootstrapServers;
+            if (bootstrap.IsNotEmpty())
+            {
+                uri = new Uri(uri, bootstrap);
+            }
+            
+            return uri;
+        }
+    }
+
     protected override IEnumerable<KafkaTopic> endpoints()
     {
         return Topics;

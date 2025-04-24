@@ -1,3 +1,4 @@
+using JasperFx.Events;
 using Marten.Events;
 
 namespace MartenTests.Distribution.TripDomain;

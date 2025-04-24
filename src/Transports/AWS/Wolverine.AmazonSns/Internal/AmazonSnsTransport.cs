@@ -25,7 +25,9 @@ public class AmazonSnsTransport : BrokerTransport<AmazonSnsTopic>
         SnsClient = snsClient;
         SqsClient = sqsClient;
     }
-    
+
+    public override Uri ResourceUri => new(SnsConfig.ServiceURL);
+
     public Func<IWolverineRuntime, AWSCredentials>? CredentialSource { get; set; }
     public LightweightCache<string, AmazonSnsTopic> Topics { get; }
     

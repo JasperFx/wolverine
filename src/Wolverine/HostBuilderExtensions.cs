@@ -110,8 +110,6 @@ public static class HostBuilderExtensions
         services.AddSingleton<WolverineSupplementalCodeFiles>();
         services.AddSingleton<ICodeFileCollection>(x => x.GetRequiredService<WolverineSupplementalCodeFiles>());
 
-        services.AddSingleton<IStatefulResource, MessageStoreResource>();
-
         services.AddSingleton<IServiceContainer, ServiceContainer>();
 
         services.AddTransient<IServiceVariableSource, ServiceCollectionServerVariableSource>();
@@ -147,7 +145,7 @@ public static class HostBuilderExtensions
 
         services.AddSingleton<IWolverineRuntime, WolverineRuntime>();
 
-        services.AddSingleton(s => (IStatefulResourceSource)s.GetRequiredService<IWolverineRuntime>());
+        services.AddSingleton<ISystemPart, WolverineSystemPart>();
 
         services.AddSingleton(options.HandlerGraph);
         services.AddSingleton(options.Durability);
@@ -156,9 +154,6 @@ public static class HostBuilderExtensions
         services.AddSingleton(s => (IHostedService)s.GetRequiredService<IWolverineRuntime>());
 
         services.MessagingRootService(x => x.MessageTracking);
-
-        services.AddSingleton<IDescribedSystemPartFactory>(s =>
-            (IDescribedSystemPartFactory)s.GetRequiredService<IWolverineRuntime>());
 
         services.TryAddSingleton<IMessageStore, NullMessageStore>();
         services.AddSingleton<InMemorySagaPersistor>();

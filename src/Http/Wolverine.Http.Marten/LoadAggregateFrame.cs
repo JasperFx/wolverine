@@ -21,7 +21,7 @@ internal class LoadAggregateFrame<T> : AsyncFrame where T : class
     public LoadAggregateFrame(AggregateAttribute att)
     {
         EventStream = new Variable(typeof(IEventStream<T>), "eventStream", this);
-        _methodName = (att.LoadStyle == ConcurrencyStyle.Exclusive) ? nameof(IEventStore.FetchForExclusiveWriting) : nameof(IEventStore.FetchForWriting);
+        _methodName = (att.LoadStyle == ConcurrencyStyle.Exclusive) ? nameof(IEventStoreOperations.FetchForExclusiveWriting) : nameof(IEventStoreOperations.FetchForWriting);
         Type[] argTypes = null;
         _version = att.VersionVariable;
         _id = att.IdVariable;

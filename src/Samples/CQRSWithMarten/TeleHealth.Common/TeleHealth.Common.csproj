@@ -1,5 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
     <ItemGroup>
-        <PackageReference Include="Marten" Version="7.36.0" />
+      <ProjectReference Include="..\..\..\..\..\marten\src\Marten\Marten.csproj" />
     </ItemGroup>
 </Project>

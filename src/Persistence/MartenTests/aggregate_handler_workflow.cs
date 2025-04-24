@@ -2,6 +2,7 @@ using System.Diagnostics;
 using IntegrationTests;
 using JasperFx.CodeGeneration;
 using JasperFx.Core;
+using JasperFx.Events;
 using Marten;
 using Marten.Events;
 using Marten.Events.Projections;

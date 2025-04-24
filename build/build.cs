@@ -363,27 +363,7 @@ class Build : NukeBuild
         .DependsOn(NpmInstall, InstallMdSnippets)
         .Executes(() => NpmTasks.NpmRun(s => s.SetCommand("docs:build")));
 
-    Target ClearInlineSamples => _ => _
-        .Executes(() =>
-        {
-            var files = Directory.GetFiles("./docs", "*.md", SearchOption.AllDirectories);
-            var pattern = @"<!-- snippet:(.+)-->[\s\S]*?<!-- endSnippet -->";
-            var replacePattern = $"<!-- snippet:$1-->{Environment.NewLine}<!-- endSnippet -->";
-            foreach (var file in files)
-            {
-                // Console.WriteLine(file);
-                var content = File.ReadAllText(file);
 
-                if (!content.Contains("<!-- snippet:"))
-                {
-                    continue;
-                }
-
-                var updatedContent = Regex.Replace(content, pattern, replacePattern);
-                File.WriteAllText(file, updatedContent);
-            }
-        });
-    
     Target PublishDocs => _ => _
         .DependsOn(DocsBuild)
         .Executes(() => NpmTasks.NpmRun(s => s.SetCommand("docs:publish")));
@@ -444,9 +424,30 @@ class Build : NukeBuild
     };
 
     //string[] Nugets = ["JasperFx", "JasperFx.Events", "JasperFx.RuntimeCompiler", "Weasel.Postgresql"];
+
+    public record NugetToProjectReference(Project LocalProject, string[] NugetNames);
+
+    private IEnumerable<NugetToProjectReference> nugetReferences()
+    {
+        yield return new(Solution.Wolverine, ["JasperFx", "JasperFx.RuntimeCompiler"]);
+        
+        yield return new(Solution.Persistence.Wolverine_Postgresql, ["Weasel.Postgresql"]);
+        yield return new(Solution.Persistence.Wolverine_RDBMS, ["Weasel.Core"]);
+        yield return new(Solution.Persistence.Wolverine_SqlServer, ["Weasel.SqlServer"]);
+        yield return new(Solution.Persistence.Wolverine_Marten, ["Marten"]);
+    }
     
     Target Attach => _ => _.Executes(() =>
     {
+        // Remove Nuget references FIRST
+        foreach (var reference in nugetReferences())
+        {
+            foreach (var nugetName in reference.NugetNames)
+            {
+                DotNet($"remove {reference.LocalProject.Path} package {nugetName}");
+            }
+        }
+        
         foreach (var pair in ReferencedProjects)
         {
             foreach (var projectName in pair.Value)
@@ -454,6 +455,8 @@ class Build : NukeBuild
                 addProject(pair.Key, projectName);
             }
         }
+
+
 
         // var marten = Solution.GetProject("Marten").Path;
         // foreach (var nuget in Nugets)
@@ -471,12 +474,14 @@ class Build : NukeBuild
                 removeProject(pair.Key, projectName);
             }
         }
-        
-        // var marten = Solution.GetProject("Marten").Path;
-        // foreach (var nuget in Nugets)
-        // {
-        //     DotNet($"add {marten} package {nuget} --prerelease");
-        // }
+
+        foreach (var reference in nugetReferences())
+        {
+            foreach (var nugetName in reference.NugetNames)
+            {
+                DotNet($"add {reference.LocalProject.Path} package {nugetName} --prerelease");
+            }
+        }
     });
 
     private void addProject(string repository, string projectName)
@@ -484,24 +489,28 @@ class Build : NukeBuild
         var path =  Path.GetFullPath($"../{repository}/src/{projectName}/{projectName}.csproj");;
         var slnPath = Solution.Path;
         DotNet($"sln {slnPath} add {path} --solution-folder Attached");
-        
-        // if (Nugets.Contains(projectName))
-        // {
-        //     var marten = Solution.GetProject("Marten").Path;
-        //     DotNet($"add {marten} reference {path}");
-        // }
+
+        foreach (var reference in nugetReferences())
+        {
+            if (reference.NugetNames.Contains(projectName))
+            {
+                DotNet($"add {reference.LocalProject.Path} reference {path}");
+            }
+        }
     }
     
     private void removeProject(string repository, string projectName)
     {
         var path =  Path.GetFullPath($"../{repository}/src/{projectName}/{projectName}.csproj");
-
-        // if (Nugets.Contains(projectName))
-        // {
-        //     var marten = Solution.GetProject("Marten").Path;
-        //     DotNet($"remove {marten} reference {path}");
-        // }
         
+        foreach (var reference in nugetReferences())
+        {
+            if (reference.NugetNames.Contains(projectName))
+            {
+                DotNet($"remove {reference.LocalProject.Path} reference {path}");
+            }
+        }
+
         var slnPath = Solution.Path;
         DotNet($"sln {slnPath} remove {path}");
         

@@ -1,4 +1,6 @@
 using JasperFx.Core;
+using JasperFx.Events.Daemon;
+using JasperFx.Events.Projections;
 using Marten;
 using Marten.Events.Daemon;
 using Marten.Events.Daemon.Internals;
@@ -19,8 +21,8 @@ internal class WolverineSubscriptionRunner : SubscriptionBase
     {
         _subscription = subscription;
         _runtime = runtime;
-        SubscriptionName = subscription.SubscriptionName;
-        SubscriptionVersion = subscription.SubscriptionVersion;
+        Name = subscription.SubscriptionName;
+        Version = subscription.SubscriptionVersion;
         subscription.Filter(this);
         Options = subscription.Options;
     }

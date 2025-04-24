@@ -1,6 +1,7 @@
 using IntegrationTests;
 using JasperFx.CodeGeneration;
 using JasperFx.Core;
+using JasperFx.Events.Projections;
 using Marten;
 using Marten.Events.Projections;
 using Marten.Storage;

@@ -42,6 +42,8 @@ public class PubsubTransport : BrokerTransport<PubsubEndpoint>, IAsyncDisposable
         ProjectId = projectId;
     }
 
+    public override Uri ResourceUri => new Uri("pubsub://" + ProjectId);
+
     public ValueTask DisposeAsync()
     {
         return ValueTask.CompletedTask;
