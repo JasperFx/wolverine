@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.Globalization;
 using DotPulsar;
 using DotPulsar.Abstractions;
 using DotPulsar.Extensions;
@@ -17,9 +18,10 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
     private readonly Task? _receivingLoop;
     private readonly Task? _receivingRetryLoop;
     private readonly PulsarSender _sender;
-    private DeadLetterPolicy? _dlqClient;
     private IReceiver _receiver;
     private PulsarEndpoint _endpoint;
+    private IProducer<ReadOnlySequence<byte>>? _retryLetterQueueProducer;
+    private IProducer<ReadOnlySequence<byte>>? _dlqProducer;
 
     public PulsarListener(IWolverineRuntime runtime, PulsarEndpoint endpoint, IReceiver receiver,
         PulsarTransport transport,
@@ -74,7 +76,7 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
         }, combined.Token);
 
 
-        if (_dlqClient != null)
+        if (NativeRetryLetterQueueEnabled)
         {
             _retryConsumer = createRetryConsumer(endpoint, transport);
             _receivingRetryLoop = Task.Run(async () =>
@@ -104,15 +106,18 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
             return;
         }
 
-        var topicDql = NativeDeadLetterQueueEnabled ? getDeadLetteredTopicUri(endpoint) : null;
-        var topicRetry = NativeRetryLetterQueueEnabled ? getRetryLetterTopicUri(endpoint) : null;
-        var retryCount = NativeRetryLetterQueueEnabled ? endpoint.RetryLetterTopic!.Retry.Count : 0;
+        if (endpoint.RetryLetterTopic is not null)
+        {
 
-        _dlqClient = new DeadLetterPolicy(
-            topicDql != null ? transport.Client!.NewProducer().Topic(topicDql.ToString()) : null,
-            topicRetry != null ? transport.Client!.NewProducer().Topic(topicRetry.ToString()) : null,
-            retryCount
-        );
+            _retryLetterQueueProducer = transport.Client!.NewProducer()
+                .Topic(getRetryLetterTopicUri(endpoint)!.ToString())
+                .Create();
+        }
+
+        _dlqProducer = transport.Client!.NewProducer()
+            .Topic(getDeadLetteredTopicUri(endpoint).ToString())
+            .Create();
+
     }
 
 
@@ -180,10 +185,16 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
             await _retryConsumer.DisposeAsync();
         }
 
-        if (_dlqClient != null)
+        if (_retryLetterQueueProducer != null)
         {
-            await _dlqClient.DisposeAsync();
+            await _retryLetterQueueProducer.DisposeAsync();
         }
+
+        if (_dlqProducer != null)
+        {
+            await _dlqProducer.DisposeAsync();
+        }
+
 
         await _sender.DisposeAsync();
 
@@ -225,8 +236,11 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
     public bool NativeDeadLetterQueueEnabled { get; }
     public async Task MoveToErrorsAsync(Envelope envelope, Exception exception)
     {
-        // TODO: Currently only ISupportDeadLetterQueue exists, should we introduce ISupportRetryLetterQueue concept? Because now on (first) exception, Wolverine calls this method (concept of retry letter queue is not set for Pulsar)
-        await moveToQueueAsync(envelope, exception, true);
+        if (NativeRetryLetterQueueEnabled && envelope is PulsarEnvelope e)
+        {
+            // TODO: Currently only ISupportDeadLetterQueue exists, should we introduce ISupportRetryLetterQueue concept? Because now on (first) exception, Wolverine calls this method (concept of retry letter queue is not set for Pulsar)
+            await moveToQueueAsync(envelope, exception, true);
+        }
     }
 
     public bool NativeRetryLetterQueueEnabled { get; }
@@ -236,7 +250,6 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
         if (NativeRetryLetterQueueEnabled && envelope is PulsarEnvelope e)
         {
             await moveToQueueAsync(e, e.Failure, false);
-
         }
     }
 
@@ -245,40 +258,83 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
     {
         if (envelope is PulsarEnvelope e)
         {
-            if (_dlqClient != null)
+            var messageMetadata = BuildMessageMetadata(envelope, e, exception, isDeadLettered);
+
+
+            IConsumer<ReadOnlySequence<byte>>? associatedConsumer;
+            IProducer<ReadOnlySequence<byte>> associatedProducer;
+
+            if (NativeRetryLetterQueueEnabled && !isDeadLettered)
             {
-                var message = e.MessageData;
-                IConsumer<ReadOnlySequence<byte>>? associatedConsumer;
-                TimeSpan? delayTime = null;
-
-                if (message.TryGetMessageProperty(PulsarEnvelopeConstants.ReconsumeTimes, out var reconsumeTimesValue))
-                {
-                    associatedConsumer = _retryConsumer;
-                    var retryCount = int.Parse(reconsumeTimesValue);
-                    delayTime = !isDeadLettered ? _endpoint.RetryLetterTopic!.Retry[retryCount] : null;
-                }
-                else
-                {
-                    associatedConsumer = _consumer;
-                }
-
-                if (isDeadLettered)
-                {
-                    e.Headers[PulsarEnvelopeConstants.Exception] = exception.ToString();
-                }
-
-                await associatedConsumer!.Acknowledge(e.MessageData, _cancellation); // TODO: check: original message should be acked and copy is sent to retry/DLQ
-                // TODO: check: what to do with the original message on Wolverine side? I Guess it should be acked? or we could use some kind of RequeueContinuation in FailureRuleCollection. If I understand correctly, Wolverine is/should handle original Wolverine message and its copies across Pulsar's topics as same identity?
-                // TODO: e.Attempts / attempts header value  is out of sync with Pulsar's RECONSUMETIMES header!
-
-                if (delayTime is null && _endpoint.RetryLetterTopic is not null)
-                    delayTime = !isDeadLettered ? _endpoint.RetryLetterTopic!.Retry.First() : null;
-                await _dlqClient.ReconsumeLater(message, delayTime: delayTime, cancellationToken: _cancellation);
+                associatedConsumer = _retryConsumer!;
+                associatedProducer = _retryLetterQueueProducer!;
             }
+            else
+            {
+                associatedConsumer = _consumer!;
+                associatedProducer = _dlqProducer!;
+            }
+
+
+            await associatedConsumer.Acknowledge(e.MessageData,
+                _cancellation); // TODO: check: original message should be acked and copy is sent to retry/DLQ
+            // TODO: check: what to do with the original message on Wolverine side? I Guess it should be acked? or we could use some kind of RequeueContinuation in FailureRuleCollection. If I understand correctly, Wolverine is/should handle original Wolverine message and its copies across Pulsar's topics as same identity?
+            // TODO: e.Attempts / attempts header value  is out of sync with Pulsar's RECONSUMETIMES header!
+
+
+            await associatedProducer.Send(messageMetadata, e.MessageData.Data, _cancellation)
+                .ConfigureAwait(false);
         }
     }
 
+    private MessageMetadata BuildMessageMetadata(Envelope envelope, PulsarEnvelope e, Exception exception,
+        bool isDeadLettered)
+    {
+        var messageMetadata = new MessageMetadata();
 
+        foreach (var property in e.Headers)
+        {
+            messageMetadata[property.Key] = property.Value;
+        }
+
+        //reconsumeTimesValue = GetReconsumeHeader(messageMetadata);
+
+        if (!e.Headers.TryGetValue(PulsarEnvelopeConstants.RealTopicMetadataKey, out var originTopicNameStr))
+        {
+            originTopicNameStr = envelope.Headers[EnvelopeConstants.ReplyUriKey];
+
+        }
+
+        messageMetadata[PulsarEnvelopeConstants.RealTopicMetadataKey] = originTopicNameStr;
+
+        var eid = e.Headers.GetValueOrDefault(PulsarEnvelopeConstants.OriginMessageIdMetadataKey, e.MessageData.MessageId.ToString());
+
+        if (!e.Headers.ContainsKey(PulsarEnvelopeConstants.OriginMessageIdMetadataKey))
+        {
+            messageMetadata[PulsarEnvelopeConstants.OriginMessageIdMetadataKey] = eid;
+        }
+
+        if (NativeRetryLetterQueueEnabled)
+        {
+
+            if (!isDeadLettered)
+            {
+                messageMetadata[PulsarEnvelopeConstants.ReconsumeTimes] = envelope.Attempts.ToString();
+                var delayTime = _endpoint.RetryLetterTopic!.Retry[envelope.Attempts - 1];
+                messageMetadata[PulsarEnvelopeConstants.DelayTimeMetadataKey] = delayTime.TotalMilliseconds.ToString(CultureInfo.InvariantCulture);
+                messageMetadata.DeliverAtTimeAsDateTimeOffset = DateTimeOffset.UtcNow.Add(delayTime);
+            }
+            else
+            {
+                //messageMetadata[PulsarEnvelopeConstants.DelayTimeMetadataKey] = null;
+                messageMetadata.DeliverAtTimeAsDateTimeOffset = DateTimeOffset.UtcNow;
+                e.Headers[PulsarEnvelopeConstants.Exception] = exception.ToString();
+            }
+        }
+
+
+        return messageMetadata;
+    }
 }
 
 

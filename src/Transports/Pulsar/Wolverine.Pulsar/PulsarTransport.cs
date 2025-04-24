@@ -31,22 +31,37 @@ public class PulsarTransport : TransportBase<PulsarEndpoint>, IAsyncDisposable
     public RetryLetterTopic? RetryLetterTopic { get; internal set; } // TODO: should we even have a default or just per endpoint based?
 
 
-    private IEnumerable<DeadLetterTopic> enabledDeadLetterTopics()
-    {
-        if (DeadLetterTopic.Mode != DeadLetterTopicMode.WolverineStorage)
-        {
-            yield return DeadLetterTopic;
-        }
+    //private IEnumerable<DeadLetterTopic> enabledDeadLetterTopics()
+    //{
+    //    if (DeadLetterTopic.Mode != DeadLetterTopicMode.WolverineStorage)
+    //    {
+    //        yield return DeadLetterTopic;
+    //    }
 
-        foreach (var queue in endpoints())
-        {
-            if (queue.IsPersistent && queue.Role == EndpointRole.Application && queue.DeadLetterTopic != null &&
-                queue.DeadLetterTopic.Mode != DeadLetterTopicMode.WolverineStorage)
-            {
-                yield return queue.DeadLetterTopic;
-            }
-        }
-    }
+    //    foreach (var queue in endpoints())
+    //    {
+    //        if (queue.IsPersistent && queue.Role == EndpointRole.Application && queue.DeadLetterTopic != null &&
+    //            queue.DeadLetterTopic.Mode != DeadLetterTopicMode.WolverineStorage)
+    //        {
+    //            yield return queue.DeadLetterTopic;
+    //        }
+    //    }
+    //}
+
+    //public IEnumerable<RetryLetterTopic> enabledRetryLetterTopics()
+    //{
+    //    if (RetryLetterTopic != null)
+    //    {
+    //        yield return RetryLetterTopic;
+    //    }
+    //    foreach (var queue in endpoints())
+    //    {
+    //        if (queue.IsPersistent && queue.Role == EndpointRole.Application && queue.RetryLetterTopic != null)
+    //        {
+    //            yield return queue.RetryLetterTopic;
+    //        }
+    //    }
+    //}
 
     public ValueTask DisposeAsync()
     {

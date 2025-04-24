@@ -46,17 +46,17 @@ public class PulsarNativeReliabilityTests : /*TransportComplianceFixture,*/ IAsy
                 //    .ProcessInline();
 
 
-                //var topicPath2 = $"persistent://public/default/no-retry-{topic}";
-                //opts.IncludeType<SRMessageHandlers>();
+                var topicPath2 = $"persistent://public/default/no-retry-{topic}";
+                opts.IncludeType<SRMessageHandlers>();
 
-                //opts.PublishMessage<SRMessage2>()
-                //    .ToPulsarTopic(topicPath2);
+                opts.PublishMessage<SRMessage2>()
+                    .ToPulsarTopic(topicPath2);
 
-                //opts.ListenToPulsarTopic(topicPath2)
-                //    .WithSharedSubscriptionType()
-                //    .DeadLetterQueueing(DeadLetterTopic.DefaultNative)
-                //    .DisableRetryLetterQueueing()
-                //    .ProcessInline();
+                opts.ListenToPulsarTopic(topicPath2)
+                    .WithSharedSubscriptionType()
+                    .DeadLetterQueueing(DeadLetterTopic.DefaultNative)
+                    .DisableRetryLetterQueueing()
+                    .ProcessInline();
 
             });
     }
@@ -112,7 +112,7 @@ public class PulsarNativeReliabilityTests : /*TransportComplianceFixture,*/ IAsy
         thirdRequeuedEnvelope.ShouldSatisfyAllConditions(
             () => thirdRequeuedEnvelope.Attempts.ShouldBe(3),
             () => thirdRequeuedEnvelope.Headers.ContainsKey("DELAY_TIME").ShouldBeTrue(),
-            () => thirdRequeuedEnvelope.Headers["DELAY_TIME"].ShouldBe(TimeSpan.FromSeconds(4).TotalMilliseconds.ToString()) // TODO: delay is not respected (always uses first specified delay)
+            () => thirdRequeuedEnvelope.Headers["DELAY_TIME"].ShouldBe(TimeSpan.FromSeconds(2).TotalMilliseconds.ToString())
         );
 
 

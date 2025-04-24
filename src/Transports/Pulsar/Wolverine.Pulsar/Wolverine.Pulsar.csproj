@@ -14,7 +14,6 @@
 
     <ItemGroup>
         <PackageReference Include="DotPulsar" Version="4.2.2" />
-        <PackageReference Include="DotPulsar.Extensions.Resiliency" Version="0.3.0" />
     </ItemGroup>
 
     <Import Project="../../../../Analysis.Build.props" />
