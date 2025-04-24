@@ -8,11 +8,6 @@ namespace Wolverine.Marten.Publishing;
 
 internal class MartenToWolverineMessageBatch(MessageContext Context, DocumentSessionBase Session) : IMessageBatch
 {
-    public ValueTask PublishAsync<T>(T message)
-    {
-        return Context.PublishAsync(message);
-    }
-
     public ValueTask PublishAsync<T>(T message, string tenantId)
     {
         return Context.PublishAsync(message, new DeliveryOptions { TenantId = tenantId });
