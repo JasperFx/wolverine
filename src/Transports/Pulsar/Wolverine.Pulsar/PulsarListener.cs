@@ -234,9 +234,10 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
     }
 
     public bool NativeDeadLetterQueueEnabled { get; }
+    public RetryLetterTopic? RetryLetterTopic => _endpoint.RetryLetterTopic;
     public async Task MoveToErrorsAsync(Envelope envelope, Exception exception)
     {
-        if (NativeRetryLetterQueueEnabled && envelope is PulsarEnvelope e)
+        if (NativeDeadLetterQueueEnabled && envelope is PulsarEnvelope e)
         {
             // TODO: Currently only ISupportDeadLetterQueue exists, should we introduce ISupportRetryLetterQueue concept? Because now on (first) exception, Wolverine calls this method (concept of retry letter queue is not set for Pulsar)
             await moveToQueueAsync(envelope, exception, true);
@@ -307,30 +308,30 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
 
         messageMetadata[PulsarEnvelopeConstants.RealTopicMetadataKey] = originTopicNameStr;
 
-        var eid = e.Headers.GetValueOrDefault(PulsarEnvelopeConstants.OriginMessageIdMetadataKey, e.MessageData.MessageId.ToString());
+        var eid = e.Headers.GetValueOrDefault(PulsarEnvelopeConstants.OriginMessageIdMetadataKey,
+            e.MessageData.MessageId.ToString());
 
         if (!e.Headers.ContainsKey(PulsarEnvelopeConstants.OriginMessageIdMetadataKey))
         {
             messageMetadata[PulsarEnvelopeConstants.OriginMessageIdMetadataKey] = eid;
         }
 
-        if (NativeRetryLetterQueueEnabled)
-        {
 
-            if (!isDeadLettered)
-            {
-                messageMetadata[PulsarEnvelopeConstants.ReconsumeTimes] = envelope.Attempts.ToString();
-                var delayTime = _endpoint.RetryLetterTopic!.Retry[envelope.Attempts - 1];
-                messageMetadata[PulsarEnvelopeConstants.DelayTimeMetadataKey] = delayTime.TotalMilliseconds.ToString(CultureInfo.InvariantCulture);
-                messageMetadata.DeliverAtTimeAsDateTimeOffset = DateTimeOffset.UtcNow.Add(delayTime);
-            }
-            else
-            {
-                //messageMetadata[PulsarEnvelopeConstants.DelayTimeMetadataKey] = null;
-                messageMetadata.DeliverAtTimeAsDateTimeOffset = DateTimeOffset.UtcNow;
-                e.Headers[PulsarEnvelopeConstants.Exception] = exception.ToString();
-            }
+        if (!isDeadLettered)
+        {
+            messageMetadata[PulsarEnvelopeConstants.ReconsumeTimes] = envelope.Attempts.ToString();
+            var delayTime = _endpoint.RetryLetterTopic!.Retry[envelope.Attempts - 1];
+            messageMetadata[PulsarEnvelopeConstants.DelayTimeMetadataKey] =
+                delayTime.TotalMilliseconds.ToString(CultureInfo.InvariantCulture);
+            messageMetadata.DeliverAtTimeAsDateTimeOffset = DateTimeOffset.UtcNow.Add(delayTime);
         }
+        else
+        {
+            //messageMetadata[PulsarEnvelopeConstants.DelayTimeMetadataKey] = null;
+            messageMetadata.DeliverAtTimeAsDateTimeOffset = DateTimeOffset.UtcNow;
+            e.Headers[PulsarEnvelopeConstants.Exception] = exception.ToString();
+        }
+
 
 
         return messageMetadata;

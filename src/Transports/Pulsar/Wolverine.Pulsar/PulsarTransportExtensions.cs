@@ -1,9 +1,10 @@
+using System.Net;
 using DotPulsar;
 using DotPulsar.Abstractions;
 using JasperFx.Core.Reflection;
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
-using Wolverine.ErrorHandling.Matches;
+using Wolverine.Pulsar.ErrorHandling;
 
 namespace Wolverine.Pulsar;
 
@@ -30,6 +31,12 @@ public static class PulsarTransportExtensions
     /// <param name="configure"></param>
     public static void UsePulsar(this WolverineOptions endpoints, Action<IPulsarClientBuilder> configure)
     {
+        // doesn't apply the policy?!?:
+        //endpoints.Policies.Add<PulsarNativeResiliencyPolicy>();
+        //endpoints.Policies.Add(new PulsarNativeResiliencyPolicy());
+
+        new PulsarNativeResiliencyPolicy().Apply(endpoints);
+
         configure(endpoints.PulsarTransport().Builder);
     }
 
@@ -226,11 +233,11 @@ public class PulsarNativeResiliencyConfig
     public DeadLetterTopic DeadLetterTopic { get; set; }
     public RetryLetterTopic? RetryLetterTopic { get; set; }
 
+
     public Action<PulsarEndpoint> Apply()
     {
         return endpoint =>
         {
-
             if (RetryLetterTopic is null && DeadLetterTopic is null)
             {
                 endpoint.DeadLetterTopic = null;
@@ -238,32 +245,51 @@ public class PulsarNativeResiliencyConfig
                 return;
             }
 
-            if (RetryLetterTopic is null)
+            // Set the DLQ configuration regardless
+            if (DeadLetterTopic is not null)
             {
                 endpoint.DeadLetterTopic = DeadLetterTopic;
-                endpoint.Runtime.Options.Policies.OnAnyException().MoveToErrorQueue();
-
             }
-            else if (RetryLetterTopic is not null)
+
+            if (RetryLetterTopic is not null)
             {
+                // Validate subscription type
                 if (endpoint.SubscriptionType is SubscriptionType.Failover or SubscriptionType.Exclusive)
                 {
                     throw new InvalidOperationException(
                         "Pulsar does not support Retry letter queueing with Failover or Exclusive subscription types. Please use Shared or KeyShared subscription types.");
                 }
 
-                endpoint.DeadLetterTopic = DeadLetterTopic;
+                // Set retry configuration
                 endpoint.RetryLetterTopic = RetryLetterTopic;
-                //endpoint.Runtime.Options.Policies.OnAnyException().MoveToRetryQueue(rt.Retry.Count, "PulsarNativeResiliency");
-                endpoint.Runtime.Options.Policies.OnAnyException()
-                    .ScheduleRetry(RetryLetterTopic.Retry.ToArray())
-                    .Then
-                    .MoveToErrorQueue();
 
                 endpoint.Runtime.Options.EnableAutomaticFailureAcks = false;
             }
+
+            //if (RetryLetterTopic is null)
+            //{
+            //    // Just move to error queue with no retry
+            //    endpoint.Runtime.Options.Policies.OnAnyException().MoveToErrorQueue();
+            //}
+            //else
+            //{
+                
+            //    // Set retry configuration
+            //    endpoint.RetryLetterTopic = RetryLetterTopic;
+
+            //    // Configure retry policy
+
+            //    //endpoint.IncomingRules
+            //    endpoint.Runtime.Options.Policies.OnAnyException()
+            //        .ScheduleRetry(RetryLetterTopic.Retry.ToArray())
+            //        .Then
+            //        .MoveToErrorQueue();
+
+            //    endpoint.Runtime.Options.EnableAutomaticFailureAcks = false;
+            //}
         };
     }
+
 }
 
 public abstract class PulsarNativeResiliencyConfiguration
