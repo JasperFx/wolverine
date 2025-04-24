@@ -16,7 +16,12 @@ public class BrokerResource : IStatefulResource
     {
         _transport = transport;
         _runtime = runtime;
+
+        SubjectUri = new Uri(runtime.Options.SubjectUri, "messagebroker");
     }
+
+    public Uri SubjectUri { get; }
+    public Uri ResourceUri => _transport.ResourceUri;
 
     public async Task Check(CancellationToken token)
     {

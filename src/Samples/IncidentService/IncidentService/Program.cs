@@ -1,8 +1,8 @@
 using IncidentService;
 using Marten;
-using Marten.Events.Daemon.Resiliency;
 using Marten.Events.Projections;
 using JasperFx;
+using JasperFx.Events.Daemon;
 using Wolverine;
 using Wolverine.Http;
 using Wolverine.Marten;

@@ -1,6 +1,7 @@
 ﻿using System.Diagnostics;
 using IntegrationTests;
 using JasperFx;
+using JasperFx.CommandLine.Descriptions;
 using JasperFx.Core;
 using Marten;
 using Microsoft.Extensions.DependencyInjection;
@@ -68,7 +69,7 @@ public class end_to_end
             opts.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
         });
 
-        var sources = publisher.Services.GetServices<IStatefulResourceSource>();
+        var sources = publisher.Services.GetServices<ISystemPart>();
         foreach (var source in sources)
         {
             var resources = await source.FindResources();
@@ -100,7 +101,7 @@ public class end_to_end
             opts.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
         });
 
-        var sources = publisher.Services.GetServices<IStatefulResourceSource>();
+        var sources = publisher.Services.GetServices<ISystemPart>();
         foreach (var source in sources)
         {
             var resources = await source.FindResources();

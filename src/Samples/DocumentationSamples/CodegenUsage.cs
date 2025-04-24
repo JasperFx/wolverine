@@ -1,3 +1,4 @@
+using JasperFx;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Commands;
 using Microsoft.Extensions.Hosting;
@@ -43,8 +44,11 @@ public class CodegenUsage
                 {
                     opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Static;
 
-                    // You probably only ever want to do this in Production
-                    opts.Services.AssertAllExpectedPreBuiltTypesExistOnStartUp();
+                    opts.Services.AddJasperFx(j =>
+                    {
+                        // I'm only going to care about this in production
+                        j.Production.AssertAllPreGeneratedTypesExist = true;
+                    });
                 }
             });
 

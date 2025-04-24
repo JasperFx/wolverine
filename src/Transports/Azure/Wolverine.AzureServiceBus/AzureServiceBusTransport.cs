@@ -40,6 +40,21 @@ public partial class AzureServiceBusTransport : BrokerTransport<AzureServiceBusE
         IdentifierDelimiter = ".";
     }
 
+    public override Uri ResourceUri
+    {
+        get
+        {
+            var uri = new Uri($"{ProtocolName}://");
+
+            if (FullyQualifiedNamespace.IsNotEmpty())
+            {
+                uri = new Uri(uri, FullyQualifiedNamespace);
+            }
+
+            return uri;
+        }
+    }
+
     public override string SanitizeIdentifier(string identifier)
     {
         return identifier.ToLowerInvariant();

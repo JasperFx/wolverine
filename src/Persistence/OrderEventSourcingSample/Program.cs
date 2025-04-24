@@ -1,12 +1,10 @@
 using JasperFx.Core;
 using Marten;
-using Marten.Exceptions;
 using JasperFx;
 using OrderEventSourcingSample;
 using Wolverine;
 using Wolverine.ErrorHandling;
 using Wolverine.Marten;
-using ConcurrencyException = Marten.Exceptions.ConcurrencyException;
 
 var builder = WebApplication.CreateBuilder(args);
 

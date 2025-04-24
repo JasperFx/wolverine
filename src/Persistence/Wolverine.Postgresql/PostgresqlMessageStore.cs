@@ -1,6 +1,7 @@
 ﻿using System.Data.Common;
+using ImTools;
 using JasperFx.Core;
-using JasperFx.Core.Descriptions;
+using JasperFx.Core.Descriptors;
 using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Logging;
 using Npgsql;
@@ -9,7 +10,6 @@ using Weasel.Core;
 using Weasel.Core.Migrations;
 using Weasel.Postgresql;
 using Wolverine.Logging;
-using Wolverine.Persistence;
 using Wolverine.Persistence.Durability;
 using Wolverine.Postgresql.Schema;
 using Wolverine.Postgresql.Util;

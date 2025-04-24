@@ -1,3 +1,4 @@
+using JasperFx.Events;
 using Marten.Events;
 using Shouldly;
 using Wolverine.Marten;
