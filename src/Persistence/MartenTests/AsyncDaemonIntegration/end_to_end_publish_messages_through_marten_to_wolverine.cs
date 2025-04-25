@@ -7,7 +7,9 @@ using Marten.Events.Aggregation;
 using Marten.Events.Daemon.Resiliency;
 using Marten.Events.Projections;
 using Marten.Metadata;
+using Marten.Schema;
 using Marten.Storage;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Npgsql;
 using Shouldly;
@@ -147,6 +149,48 @@ public class end_to_end_publish_messages_through_marten_to_wolverine
         tracked.Executed.SingleEnvelope<GotB>()
             .TenantId.ShouldBe("one");
     }
+    
+    
+    [Fact]
+    public async Task can_publish_messages_through_outbox_running_inline_from_within_initial_data()
+    {
+        await dropSchema();
+        
+        GotBHandler.Received.Clear();
+
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.Services.AddMarten(m =>
+                    {
+                        m.Connection(Servers.PostgresConnectionString);
+                        m.DatabaseSchemaName = "wolverine_side_effects";
+
+                        m.Projections.Add<Projection3>(ProjectionLifecycle.Inline);
+                        m.Events.EnableSideEffectsOnInlineProjections = true;
+                        
+                        
+                    })
+                    .IntegrateWithWolverine();
+                ;
+                    //.AddAsyncDaemon(DaemonMode.Solo)
+                    //.InitializeWith<SideEffectInitialData>();
+
+                    opts.Services.AddHostedService<SideEffectInitialData>();
+                
+                opts.Policies.UseDurableLocalQueues();
+            }).StartAsync();
+
+        var count = 0;
+        while (count < 10)
+        {
+            if (GotBHandler.Received.Count >= 3) break;
+            await Task.Delay(250.Milliseconds());
+        }
+        
+        GotBHandler.Received.Count.ShouldBe(3);
+    }
+
 
     private static async Task dropSchema()
     {
@@ -189,7 +233,13 @@ public record GotB(Guid StreamId);
 
 public static class GotBHandler
 {
-    public static void Handle(GotB message) => Debug.WriteLine("Got B for stream " + message.StreamId);
+    public static List<GotB> Received { get; } = new();
+    
+    public static void Handle(GotB message)
+    {
+        Received.Add(message);
+        Debug.WriteLine("Got B for stream " + message.StreamId);
+    }
 }
 
 public class SideEffects1: IRevisioned
@@ -200,4 +250,34 @@ public class SideEffects1: IRevisioned
     public int C { get; set; }
     public int D { get; set; }
     public int Version { get; set; }
+}
+
+// Wrap it in your own IHostedService
+public class SideEffectInitialData : IInitialData, IHostedService
+{
+    private readonly IDocumentStore _store;
+
+    public SideEffectInitialData(IDocumentStore store)
+    {
+        _store = store;
+    }
+
+    public Task StartAsync(CancellationToken cancellationToken)
+    {
+        return Populate(_store, cancellationToken);
+    }
+
+    public Task StopAsync(CancellationToken cancellationToken)
+    {
+        return Task.CompletedTask;
+    }
+
+    public async Task Populate(IDocumentStore store, CancellationToken cancellation)
+    {
+        using var session = store.LightweightSession();
+        session.Events.StartStream<SideEffects1>(new AEvent(), new AEvent(), new BEvent());
+        session.Events.StartStream<SideEffects1>(new AEvent(), new BEvent(), new BEvent());
+        session.Events.StartStream<SideEffects1>(new BEvent(), new BEvent(), new BEvent());
+        await session.SaveChangesAsync(cancellation);
+    }
 }
