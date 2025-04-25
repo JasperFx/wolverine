@@ -239,7 +239,6 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
     {
         if (NativeDeadLetterQueueEnabled && envelope is PulsarEnvelope e)
         {
-            // TODO: Currently only ISupportDeadLetterQueue exists, should we introduce ISupportRetryLetterQueue concept? Because now on (first) exception, Wolverine calls this method (concept of retry letter queue is not set for Pulsar)
             await moveToQueueAsync(envelope, exception, true);
         }
     }
@@ -261,7 +260,6 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
         {
             var messageMetadata = BuildMessageMetadata(envelope, e, exception, isDeadLettered);
 
-
             IConsumer<ReadOnlySequence<byte>>? associatedConsumer;
             IProducer<ReadOnlySequence<byte>> associatedProducer;
 
@@ -276,12 +274,9 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
                 associatedProducer = _dlqProducer!;
             }
 
-
             await associatedConsumer.Acknowledge(e.MessageData,
                 _cancellation); // TODO: check: original message should be acked and copy is sent to retry/DLQ
             // TODO: check: what to do with the original message on Wolverine side? I Guess it should be acked? or we could use some kind of RequeueContinuation in FailureRuleCollection. If I understand correctly, Wolverine is/should handle original Wolverine message and its copies across Pulsar's topics as same identity?
-            // TODO: e.Attempts / attempts header value  is out of sync with Pulsar's RECONSUMETIMES header!
-
 
             await associatedProducer.Send(messageMetadata, e.MessageData.Data, _cancellation)
                 .ConfigureAwait(false);
