@@ -58,7 +58,7 @@ public interface ITrackedSession
     /// <summary>
     ///     Records of all messages that were requeued
     /// </summary>
-    RecordCollection Requeued { get; }    
+    RecordCollection Requeued { get; }
     
     /// <summary>
     ///     Message processing records for messages that were executed. Note that this includes message

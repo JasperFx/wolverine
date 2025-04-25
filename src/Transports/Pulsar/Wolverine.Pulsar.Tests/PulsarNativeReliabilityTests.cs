@@ -41,10 +41,6 @@ public class PulsarNativeReliabilityTests : /*TransportComplianceFixture,*/ IAsy
                     //.ProcessInline();
                     .BufferedInMemory();
 
-                //opts.ListenToPulsarTopic(topicPath + "-DLQ")
-                //    .WithSharedSubscriptionType()
-                //    .ProcessInline();
-
 
                 var topicPath2 = $"persistent://public/default/no-retry-{topic}";
                 opts.IncludeType<SRMessageHandlers>();

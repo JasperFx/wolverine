@@ -12,7 +12,6 @@ public enum MessageEventType
     NoHandlers,
     NoRoutes,
     MovedToErrorQueue,
-    Requeued,
-    Rescheduled,
+    Requeued
 }
 #endregion

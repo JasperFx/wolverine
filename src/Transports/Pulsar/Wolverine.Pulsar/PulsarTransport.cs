@@ -11,7 +11,6 @@ public class PulsarTransport : TransportBase<PulsarEndpoint>, IAsyncDisposable
 {
     public const string ProtocolName = "pulsar";
 
-
     private readonly LightweightCache<Uri, PulsarEndpoint> _endpoints;
 
     public PulsarTransport() : base(ProtocolName, "Pulsar")

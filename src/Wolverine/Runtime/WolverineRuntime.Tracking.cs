@@ -13,6 +13,7 @@ public sealed partial class WolverineRuntime : IMessageTracker
     public const int NoRoutesEventId = 107;
     public const int MovedToErrorQueueId = 108;
     public const int UndeliverableEventId = 108;
+    public const int RescheduledEventId = 109;
 
     private static readonly Action<ILogger, Envelope, Exception?> _movedToErrorQueue;
     private static readonly Action<ILogger, Envelope, Exception?> _rescheduled;
@@ -42,7 +43,7 @@ public sealed partial class WolverineRuntime : IMessageTracker
         _noRoutes = LoggerMessage.Define<Envelope>(LogLevel.Information, NoRoutesEventId,
             "No routes can be determined for {envelope}");
 
-        _rescheduled = LoggerMessage.Define<Envelope>(LogLevel.Error, MovedToErrorQueueId,
+        _rescheduled = LoggerMessage.Define<Envelope>(LogLevel.Error, RescheduledEventId,
             "Envelope {envelope} was rescheduled to queue");
 
         _movedToErrorQueue = LoggerMessage.Define<Envelope>(LogLevel.Error, MovedToErrorQueueId,
@@ -130,13 +131,6 @@ public sealed partial class WolverineRuntime : IMessageTracker
     {
         ActiveSession?.Record(MessageEventType.NoRoutes, envelope, _serviceName, _uniqueNodeId);
         _noRoutes(Logger, envelope, null);
-    }
-
-
-    public void Rescheduled(Envelope envelope)
-    {
-        ActiveSession?.Record(MessageEventType.Rescheduled, envelope, _serviceName, _uniqueNodeId);
-        _rescheduled(Logger, envelope, envelope.Failure);
     }
 
     public void MovedToErrorQueue(Envelope envelope, Exception ex)
