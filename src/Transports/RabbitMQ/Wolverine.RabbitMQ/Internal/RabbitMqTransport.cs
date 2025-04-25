@@ -221,7 +221,9 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IAsy
     {
         if (DeclareRequestReplySystemQueue)
         {
-            var queueName = $"wolverine.response.{runtime.DurabilitySettings.AssignedNodeNumber}";
+            // We switched back to using a Guid to disambiguate Wolverine nodes
+            // that might be connecting to the same broker but within different apps
+            var queueName = $"wolverine.response.{Guid.NewGuid()}";
 
             var queue = new RabbitMqQueue(queueName, this, EndpointRole.System)
             {
