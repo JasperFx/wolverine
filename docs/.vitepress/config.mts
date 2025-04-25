@@ -57,16 +57,22 @@ const config: UserConfig<DefaultTheme.Config> = {
         sidebar: {
             '/': [
                 {
+                    text: 'Introduction',
+                    collapsed: false,
+                    items: [
+                        {text: 'What is Wolverine?', link: '/introduction/whatiswolverine'},
+                        {text: 'Getting Started', link: '/introduction/getting-started'},
+                        {text: 'Wolverine for MediatR Users', link: '/introduction/from-mediatr'},
+                        {text: 'Best Practices', link: '/introduction/best-practices'}, 
+                    ]
+                },
+                {
                     text: 'Tutorials',
                     collapsed: true,
-                    items: [
-                        {text: 'Getting Started', link: '/tutorials/getting-started'},
+                    items: [                    
                         {text: 'Wolverine as Mediator', link: '/tutorials/mediator'},
-                        {text: 'Best Practices', link: '/tutorials/best-practices'},
                         {text: 'Ping/Pong Messaging', link: '/tutorials/ping-pong'},
-                        {text: 'Custom Middleware', link: '/tutorials/middleware'},
-                        {text: 'Wolverine and Serverless', link: '/tutorials/serverless'},
-                        {text: 'Wolverine for MediatR Users', link: '/tutorials/from-mediatr'},
+                        {text: 'Custom Middleware', link: '/tutorials/middleware'},                                  
                         {text: 'Vertical Slice Architecture', link: '/tutorials/vertical-slice-architecture'},
                         {text: 'Modular Monoliths', link: '/tutorials/modular-monolith'},
                         {text: 'Event Sourcing and CQRS with Marten', link: '/tutorials/cqrs-with-marten'},
@@ -82,6 +88,7 @@ const config: UserConfig<DefaultTheme.Config> = {
                         {text: 'Runtime Architecture', link: '/guide/runtime'},
                         {text: 'Instrumentation and Metrics', link: '/guide/logging'},
                         {text: 'Diagnostics', link: '/guide/diagnostics'},
+                        {text: 'Serverless Hosting', link: '/guide/serverless'},          
                         {text: 'Test Automation Support', link: '/guide/testing'},
                         {text: 'Command Line Integration', link: '/guide/command-line'},
                         {text: 'Code Generation', link: '/guide/codegen'},

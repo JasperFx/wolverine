@@ -62,7 +62,34 @@ As part of Wolverine's "Requeue" error handling action, the Pulsar transport tri
 for each Pulsar topic it's listening to. Great, but that will blow up if your application only has receive-only permissions
 to Pulsar. In this case, you probably want to disable Pulsar requeue actions altogether with this setting:
 
-snippet: sample_disable_requeue_for_pulsar
+<!-- snippet: sample_disable_requeue_for_pulsar -->
+<a id='snippet-sample_disable_requeue_for_pulsar'></a>
+```cs
+var builder = Host.CreateApplicationBuilder();
+builder.UseWolverine(opts =>
+{
+    opts.UsePulsar(c =>
+    {
+        var pulsarUri = builder.Configuration.GetValue<Uri>("pulsar");
+        c.ServiceUrl(pulsarUri);
+        
+        
+    });
+
+    // Listen for incoming messages from a Pulsar topic
+    opts.ListenToPulsarTopic("persistent://public/default/two")
+        .SubscriptionName("two")
+        .SubscriptionType(SubscriptionType.Exclusive)
+        
+        // Disable the requeue for this topic
+        .DisableRequeue()
+        
+        // And all the normal Wolverine options...
+        .Sequential();
+});
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Pulsar/Wolverine.Pulsar.Tests/DocumentationSamples.cs#L47-L72' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disable_requeue_for_pulsar' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 
 

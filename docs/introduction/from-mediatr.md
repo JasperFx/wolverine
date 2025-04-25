@@ -1,10 +1,5 @@
 # MediatR to Wolverine
 
-::: info
-The word "unambitious" is literally part of MediatR's tagline. For better or worse, Wolverine on the other hand,
-is most definitely an ambitious project and covers some very important use cases that MediatR does not.
-:::
-
 [MediatR](https://github.com/jbogard/MediatR) is an extraordinarily successful OSS project in the .NET ecosystem, but it's
 a very limited tool and the Wolverine team frequently fields questions from folks converting to Wolverine from MediatR.
 Offhand, the common reasons to do so are:
@@ -16,6 +11,11 @@ Offhand, the common reasons to do so are:
 It's important to note that Wolverine allows for a completely different coding model than MediatR or other "IHandler of T" 
 application frameworks in .NET. While you can use Wolverine as a near exact drop in replacement for MediatR, that's not
 taking advantages of Wolverine's capabilities.
+
+::: info
+The word "unambitious" is literally part of MediatR's tagline. For better or worse, Wolverine on the other hand,
+is most definitely an ambitious project and covers some very important use cases that MediatR does not.
+:::
 
 ## Handlers
 
