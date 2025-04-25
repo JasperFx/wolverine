@@ -138,6 +138,7 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
 
     private ISupportNativeScheduling? tryGetRescheduler(IChannelCallback? channel, Envelope e)
     {
+        // TODO: is that ok, or should we modify Task ISupportNativeScheduling.MoveToScheduledUntilAsync(Envelope envelope, DateTimeOffset time) in DurableReceiver and BufferedReceiver?
         if (e.Listener is ISupportNativeScheduling c2)
         {
             return c2;
