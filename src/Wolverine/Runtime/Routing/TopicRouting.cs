@@ -53,6 +53,16 @@ public class TopicRouting<T> : IMessageRouteSource, IMessageRoute, IMessageInvok
             $"The message of type {message.GetType().FullNameInCode()} cannot be routed as a message of type {typeof(T).FullNameInCode()}");
     }
 
+    public MessageSubscriptionDescriptor Describe()
+    {
+        return new MessageSubscriptionDescriptor
+        {
+            ContentType = "application/json",
+            Description = $"Topic Routing for Message {typeof(T).FullNameInCode()}",
+            Endpoint = _topicEndpoint.Uri
+        };
+    }
+
     public Task<T1> InvokeAsync<T1>(object message, MessageBus bus, CancellationToken cancellation = default, TimeSpan? timeout = null,
         string? tenantId = null)
     {

@@ -8,6 +8,8 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 using JasperFx;
+using JasperFx.Events;
+using JasperFx.Events.Projections;
 using JasperFx.Resources;
 using Wolverine;
 using Wolverine.AdminApi;

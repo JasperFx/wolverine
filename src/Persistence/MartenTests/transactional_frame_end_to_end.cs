@@ -57,7 +57,7 @@ public class transactional_frame_end_to_end : PostgresqlContext
         await host.InvokeAsync(command);
 
         await using var query = host.DocumentStore().QuerySession();
-        query.Load<FakeDoc>(command.Id)
+        (await query.LoadAsync<FakeDoc>(command.Id))
             .ShouldNotBeNull();
     }
 

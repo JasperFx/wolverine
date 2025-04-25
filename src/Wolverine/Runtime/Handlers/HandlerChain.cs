@@ -108,6 +108,9 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
                 tryAssignStickyEndpoints(handlerCall, options);
         }
     }
+
+    public IReadOnlyList<HandlerChain> ByEndpoint => _byEndpoint;
+
     internal virtual bool HasDefaultNonStickyHandlers() => Handlers.Any();
 
     /// <summary>

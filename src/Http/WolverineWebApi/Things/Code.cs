@@ -1,4 +1,6 @@
 using IntegrationTests;
+using JasperFx.Events;
+using JasperFx.Events.Projections;
 using Marten;
 using Marten.Events;
 using Marten.Events.Aggregation;
@@ -17,7 +19,7 @@ public class Thing
     public string Title { get; set; }
 }
 
-public class ThingProjection : SingleStreamProjection<Thing>
+public class ThingProjection : SingleStreamProjection<Thing, Guid>
 {
 
     public static Thing Create(ThingCreated @event) => new() { Id = @event.Id, Title = @event.Title };
