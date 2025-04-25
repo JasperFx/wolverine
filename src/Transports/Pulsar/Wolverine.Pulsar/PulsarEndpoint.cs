@@ -108,11 +108,6 @@ public class PulsarEndpoint : Endpoint
         return new PulsarSender(runtime, this, _parent, runtime.Cancellation);
     }
 
-    public override ValueTask InitializeAsync(ILogger logger)
-    {
-        return base.InitializeAsync(logger);
-    }
-
     public override bool TryBuildDeadLetterSender(IWolverineRuntime runtime, out ISender? deadLetterSender)
     {
         return base.TryBuildDeadLetterSender(runtime, out deadLetterSender);
