@@ -1,5 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
     <ItemGroup>
-      <ProjectReference Include="..\..\..\..\..\marten\src\Marten\Marten.csproj" />
+      <ProjectReference Include="..\..\..\Persistence\Wolverine.Marten\Wolverine.Marten.csproj" />
     </ItemGroup>
 </Project>
