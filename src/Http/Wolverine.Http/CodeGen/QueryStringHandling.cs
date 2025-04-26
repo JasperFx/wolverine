@@ -271,6 +271,11 @@ internal class QueryStringParameterStrategy : IParameterStrategy
 {
     public bool TryMatch(HttpChain chain, IServiceContainer container, ParameterInfo parameter, out Variable? variable)
     {
+        if (parameter.GetCustomAttribute<FromFormAttribute>() != null)
+        {
+            variable = null;
+            return false;
+        }
         variable = chain.TryFindOrCreateQuerystringValue(parameter);
         return variable != null;
     }

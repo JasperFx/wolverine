@@ -60,6 +60,8 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
 
     private readonly List<QuerystringVariable> _querystringVariables = [];
 
+    private readonly List<FormVariable> _formValueVariables = [];
+
     public string OperationId { get; set; }
     
     /// <summary>
@@ -306,11 +308,90 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
 
         if (HasRequestType)
         {
-            Metadata.Accepts(RequestType, false, "application/json");
+            if(IsFormData){
+                Metadata.Accepts(RequestType, true, "application/x-www-form-urlencoded");
+            }else{
+                Metadata.Accepts(RequestType, false, "application/json");
+            }
         }
 
         foreach (var attribute in Method.HandlerType.GetCustomAttributes()) Metadata.WithMetadata(attribute);
         foreach (var attribute in Method.Method.GetCustomAttributes()) Metadata.WithMetadata(attribute);
+    }
+
+
+    public FormVariable? TryFindOrCreateFormValue(ParameterInfo parameter)
+    {
+        var parameterName = parameter.Name;
+        var key = parameterName;
+        var parameterType = parameter.ParameterType;
+
+        if (parameter.TryGetAttribute<FromFormAttribute>(out var att) && att.Name.IsNotEmpty())
+        {
+            key = att.Name;
+        }
+
+        return TryFindOrCreateFormValue(parameterType, parameterName, key);
+    }
+    
+ public FormVariable? TryFindOrCreateFormValue(Type parameterType, string parameterName, string? key = null){
+        //We default to CamelCase of parameter name unless a different key is specified
+        key ??= parameterName.ToCamelCase(); 
+        var variable = _formValueVariables.FirstOrDefault(x => x.Name == key);
+        if (variable == null)
+        {   
+            if (parameterType == typeof(string))
+            {
+                variable = new ReadStringFormValue(key).Variable;
+                variable.Name = key;
+                _formValueVariables.Add(variable);
+            }
+            if (parameterType == typeof(string[]))
+            {
+                variable = new ParsedArrayFormValue(parameterType, parameterName).Variable;
+                variable.Name = key;
+                _formValueVariables.Add(variable);
+            }
+
+            if (parameterType.IsNullable())
+            {
+                var inner = parameterType.GetInnerTypeFromNullable();
+                if (RouteParameterStrategy.CanParse(inner))
+                {
+                    variable = new ParsedNullableFormValue(parameterType, parameterName).Variable;
+                    variable.Name = key;
+                    _formValueVariables.Add(variable);
+                }
+            }
+            
+            if (parameterType.IsArray && RouteParameterStrategy.CanParse(parameterType.GetElementType()))
+            {
+                variable = new ParsedArrayFormValue(parameterType, parameterName).Variable;
+                variable.Name = key;
+                _formValueVariables.Add(variable);
+            }
+
+            if (ParsedCollectionQueryStringValue.CanParse(parameterType))
+            {
+                variable = new ParsedCollectionFormValue(parameterType, parameterName).Variable;
+                variable.Name = key;
+                _formValueVariables.Add(variable);
+            }
+
+            if (RouteParameterStrategy.CanParse(parameterType))
+            {
+                variable = new ParsedFormValue(parameterType, parameterName).Variable;
+                variable.Name = key;
+                _formValueVariables.Add(variable);
+            }
+        }
+        else if (variable.VariableType != parameterType)
+        {
+            throw new InvalidOperationException(
+                $"The form value parameter '{key}' cannot be used for multiple target types");
+        }
+
+        return variable;
     }
 
     public QuerystringVariable? TryFindOrCreateQuerystringValue(ParameterInfo parameter)
@@ -485,4 +566,6 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
 
     [MemberNotNullWhen(true, nameof(RequestType))]
     public bool HasRequestType => RequestType != null && RequestType != typeof(void);
+
+    public bool IsFormData { get; internal set; }
 }

@@ -92,6 +92,7 @@ public static class FromQueryEndpoints
     public static BigQuery Get([FromQuery] BigQuery query) => query;
 }
 
+
 public record Query1(string Name);
 public record Query2(int Number);
 public record Query3(Guid Id);
@@ -113,5 +114,6 @@ public class BigQuery
     public bool? NullableFlag { get; set; }
 
     [FromQuery(Name = "aliased")]
+    [FromForm(Name = "aliased")]
     public string? ValueWithAlias { get; set; }
 }

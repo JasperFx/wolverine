@@ -2,6 +2,7 @@ using System.Globalization;
 using Marten;
 using Wolverine.Http;
 using JasperFx.Core;
+using Microsoft.AspNetCore.Mvc;
 
 namespace WolverineWebApi;
 
@@ -54,12 +55,30 @@ public static class TestEndpoints
 
     #endregion
 
+    #region sample_using_string_value_as_form
+
+    [WolverinePost("/form/string")]
+    public static string UsingForm([FromForm]string name) // name is from form data
+    {
+        return name.IsEmpty() ? "Name is missing" : $"Name is {name}";
+    }
+
+    #endregion
+
     [WolverineGet("/querystring/int")]
     public static string UsingQueryStringParsing(Recorder recorder, int? age)
     {
         recorder.Actions.Add("got through query string usage");
         return $"Age is {age}";
     }
+
+    [WolverinePost("/form/int")]
+    public static string UsingFormParsing([NotBody]Recorder recorder, [FromForm]int? age)
+    {
+        recorder.Actions.Add("got through form usage");
+        return $"Age is {age}";
+    }
+    
 
     [WolverineGet("/querystring/int/nullable")]
     public static string UsingQueryStringParsingNullable(int? age)
@@ -72,10 +91,30 @@ public static class TestEndpoints
         return $"Age is {age}";
     }
 
+
+    [WolverinePost("/form/int/nullable")]
+    public static string UsingFormParsingNullable([FromForm]int? age)
+    {
+        if (!age.HasValue)
+        {
+            return "Age is missing";
+        }
+
+        return $"Age is {age}";
+    }
+    
     [WolverineGet("/querystring/decimal")]
     public static string UseQueryStringParsing(Recorder recorder, decimal amount)
     {
         recorder.Actions.Add("Got through query string usage for decimal");
+
+        return string.Format(CultureInfo.InvariantCulture, "Amount is {0}", amount);
+    }
+
+    [WolverinePost("/form/decimal")]
+    public static string UseFormParsing([NotBody]Recorder recorder, [FromForm]decimal amount)
+    {
+        recorder.Actions.Add("Got through form usage for decimal");
 
         return string.Format(CultureInfo.InvariantCulture, "Amount is {0}", amount);
     }
@@ -133,6 +172,36 @@ public static class QuerystringCollectionEndpoints
 
     [WolverineGet("/querystring/collection/enum")]
     public static string UsingEnumCollection(IEnumerable<Direction> collection)
+    {
+        return string.Join(",", collection);
+    }
+    
+    
+}
+
+
+public static class FormCollectionEndpoints
+{
+    [WolverinePost("/form/collection/string")]
+    public static string UsingStringCollection([FromForm]List<string> collection)
+    {
+        return string.Join(",", collection);
+    }
+
+    [WolverinePost("/form/collection/int")]
+    public static string UsingIntCollection([FromForm]IList<int> collection)
+    {
+        return string.Join(",", collection);
+    }
+
+    [WolverinePost("/form/collection/guid")]
+    public static string UsingGuidCollection([FromForm]IReadOnlyList<Guid> collection)
+    {
+        return string.Join(",", collection);
+    }
+
+    [WolverinePost("/form/collection/enum")]
+    public static string UsingEnumCollection([FromForm]IEnumerable<Direction> collection)
     {
         return string.Join(",", collection);
     }
