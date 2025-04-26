@@ -3,6 +3,7 @@ using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
+using Microsoft.AspNetCore.Mvc;
 using Wolverine.Runtime;
 
 namespace Wolverine.Http.CodeGen;
@@ -68,6 +69,11 @@ internal class JsonBodyParameterStrategy : IParameterStrategy
         }
 
         if (parameter.HasAttribute<NotBodyAttribute>())
+        {
+            return false;
+        }
+
+        if(parameter.HasAttribute<FromFormAttribute>())
         {
             return false;
         }
