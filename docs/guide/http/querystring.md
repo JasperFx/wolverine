@@ -72,6 +72,7 @@ public async Task use_decimal_querystring_hit()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/using_querystring_parameters.cs#L449-L488' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_query_string_usage' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+
 ## [FromQuery] Binding <Badge type="tip" text="3.12" />
 
 Wolverine can support the [FromQueryAttribute](https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.mvc.fromqueryattribute?view=aspnetcore-9.0) binding similar to MVC Core or Minimal API. 
@@ -189,3 +190,154 @@ Note there are some limitations of this approach in Wolverine:
 * The binding supports array types, but know that you will always get an empty array as the value even with no matching query string values
 * Likewise, `string` values will be null if there is no query string
 * For any kind of parsed data (`Guid`, numbers, dates, boolean values, enums), Wolverine will not set any value on public setters if there is either no matching querystring value or the querystring value cannot be parsed
+
+
+## [FromForm] Binding <Badge type="tip" text="3.13" />
+
+Similar to the above usuage of `[FromQuery]` Wolverine also supports form parameters as input either directly as method parameters like shown here:
+
+
+<!-- snippet: sample_using_string_value_as_form -->
+<a id='snippet-sample_using_string_value_as_form'></a>
+```cs
+ [WolverinePost("/form/string")]
+public static string UsingForm([FromForm]string name) // name is from form data
+{
+    return name.IsEmpty() ? "Name is missing" : $"Name is {name}";
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/TestEndpoints.cs#L58-L66' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_string_value_as_form' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+And the corresponding test:
+
+
+<!-- snippet: sample_form_value_usage -->
+<a id='snippet-sample_form_value_usage'></a>
+```cs
+[Fact]
+public async Task use_string_form_hit()
+{
+    var body = await Scenario(x =>
+    {
+        x.Post
+            .FormData(new Dictionary<string,string>{
+                ["name"] = "Magic"
+            })
+            .ToUrl("/form/string");
+        x.Header("content-type").SingleValueShouldEqual("text/plain");
+    });
+
+    body.ReadAsText().ShouldBe("Name is Magic");
+}
+
+[Fact]
+public async Task use_string_form_miss()
+{
+    var body = await Scenario(x =>
+    {
+        x.Post
+            .FormData([])
+            .ToUrl("/form/string");
+        x.Header("content-type").SingleValueShouldEqual("text/plain");
+    });
+
+    body.ReadAsText().ShouldBe("Name is missing");
+}
+
+[Fact]
+public async Task use_decimal_form_hit()
+    {
+    var body = await Scenario(x =>
+    {
+        x.WithRequestHeader("Accept-Language", "fr-FR");
+        x.Post
+            .FormData(new Dictionary<string,string> (){
+                {"Amount", "42.1"}
+            })
+            .ToUrl("/form/decimal");
+        x.Header("content-type").SingleValueShouldEqual("text/plain");
+    });
+
+    body.ReadAsText().ShouldBe("Amount is 42.1");
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/using_form_parameters.cs#L478-L525' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_form_value_usage' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+
+You can also use the FromForm attribute on a complex type, Wolverine will then attempt to bind all public properties or all parameters from the single default constructor with Form values:
+
+<!-- snippet: sample_using_[fromform]_binding -->
+<a id='snippet-sample_using_[fromform]_binding'></a>
+```cs
+[WolverinePost("/api/fromformbigquery")]
+public static BigQuery Post([FromForm] BigQuery query) => query;
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/FormEndpoints.cs#L90-L93' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_[fromform]_binding' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Individual properties on the class can be aliased using ``[FromForm(Name = "aliased")]``
+
+## [AsParameters] Binding <Badge type="tip" text="3.13" />
+
+If you want to combine querystring and form parameters you can use ``[AsParameters]``which wolverine has some rudimentary support for if you compare with ASP.NET. Currently you can use AsParameters to instruct wolverine to bind any property of the input marked with either ``[FromQuery]``or ``[FromForm]`` from corresponding querystring and form values on the HTTP request as shown here:
+
+
+
+
+<!-- snippet: sample_using_as_parameters_binding -->
+<a id='snippet-sample_using_as_parameters_binding'></a>
+```cs
+public static class AsParametersEndpoints{
+    [WolverinePost("/api/asparameters1")]
+    public static AsParametersQuery Post([AsParameters, NotBody] AsParametersQuery query)
+    {
+        return query;
+    }
+}
+
+public class AsParametersQuery{
+    [FromQuery]
+    public Direction EnumFromQuery{ get; set; }
+    [FromForm]
+    public Direction EnumFromForm{ get; set; }
+
+    public Direction EnumNotUsed{get;set;}
+
+    [FromQuery]
+    public string StringFromQuery { get; set; }
+    [FromForm]
+    public string StringFromForm { get; set; }
+    public string StringNotUsed { get; set; }
+    [FromQuery]
+    public int IntegerFromQuery { get; set; }
+    [FromForm]
+    public int IntegerFromForm { get; set; }
+    public int IntegerNotUsed { get; set; }
+    [FromQuery]
+    public float FloatFromQuery { get; set; }
+    [FromForm]
+    public float FloatFromForm { get; set; }
+    public float FloatNotUsed { get; set; }
+    [FromQuery]
+    public bool BooleanFromQuery { get; set; }
+    [FromForm]
+    public bool BooleanFromForm { get; set; }
+    public bool BooleanNotUsed { get; set; }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/FormEndpoints.cs#L96-L134' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_as_parameters_binding' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+And the corresponding test case for utilizing this:
+
+
+<!-- snippet: sample_using_asparameters_test -->
+<a id='snippet-sample_using_asparameters_test'></a>
+```cs
+
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/asparameter_binding.cs#L17-L51' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_asparameters_test' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+

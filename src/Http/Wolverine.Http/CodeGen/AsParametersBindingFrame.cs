@@ -75,9 +75,19 @@ internal class AsParametersBindingFrame : SyncFrame{
                     frame.AssignToProperty($"{Variable.Usage}.{propertyInfo.Name}");
                     _queryprops.Add(frame);
                 }
+            }else if(propertyInfo.TryGetAttribute<FromRouteAttribute>(out var ratt))
+            {
+                throw new NotImplementedException("FromRoute is not supported yet");
+            }else if(propertyInfo.TryGetAttribute<FromHeaderAttribute>(out var hatt))
+            {
+                throw new NotImplementedException("FromHeader is not supported yet");
+            }else if(propertyInfo.TryGetAttribute<FromBodyAttribute>(out var batt))
+            {
+                throw new NotImplementedException("FromBody is not supported yet");
+            }else if(propertyInfo.TryGetAttribute<FromServicesAttribute>(out var satt))
+            {
+                throw new NotImplementedException("FromServices is not supported yet");
             }
-            //TODO: Add support for FromRoute, FromHeader & FromBody
-           
         }
         
     }
