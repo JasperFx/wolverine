@@ -10,9 +10,11 @@ public class asparameters_binding : IntegrationContext
     {
     }
 
+
     [Fact]
     public async Task fill_all_fields()
     {
+        #region sample_using_asparameters_test
         var result = await Host.Scenario(x => x
             .Post
             .FormData(new Dictionary<string,string>(){
@@ -46,5 +48,7 @@ public class asparameters_binding : IntegrationContext
         response.IntegerNotUsed.ShouldBe(default);
         response.FloatNotUsed.ShouldBe(default);
         response.BooleanNotUsed.ShouldBe(default);
+        #endregion
     }
+    
 }

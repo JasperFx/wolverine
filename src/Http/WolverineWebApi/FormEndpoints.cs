@@ -76,7 +76,7 @@ public static class FormEndpoints{
 
 public static class FromFormEndpoints{
     [WolverinePost("/api/fromform1")]
-    public static Query1 Post([FromForm, NotBody] Query1 query) => query;
+    public static Query1 Post([FromForm] Query1 query) => query;
 
     [WolverinePost("/api/fromform2")]
     public static Query2 Post([FromForm] Query2 query) => query;
@@ -87,13 +87,16 @@ public static class FromFormEndpoints{
     [WolverinePost("/api/fromform4")]
     public static Query4 Post([FromForm] Query4 query) => query;
 
+    #region sample_using_[fromform]_binding
     [WolverinePost("/api/fromformbigquery")]
     public static BigQuery Post([FromForm] BigQuery query) => query;
+    #endregion
 }
 
+#region sample_using_as_parameters_binding
 public static class AsParametersEndpoints{
     [WolverinePost("/api/asparameters1")]
-    public static AsParametersQuery Post([AsParameters, NotBody] AsParametersQuery query)
+    public static AsParametersQuery Post([AsParameters] AsParametersQuery query)
     {
         return query;
     }
@@ -128,3 +131,4 @@ public class AsParametersQuery{
     public bool BooleanFromForm { get; set; }
     public bool BooleanNotUsed { get; set; }
 }
+#endregion

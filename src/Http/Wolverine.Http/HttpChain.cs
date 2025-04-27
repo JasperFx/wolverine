@@ -335,8 +335,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
     }
     
  public FormVariable? TryFindOrCreateFormValue(Type parameterType, string parameterName, string? key = null){
-        //We default to CamelCase of parameter name unless a different key is specified
-        key ??= parameterName.ToCamelCase(); 
+        key ??= parameterName;
         var variable = _formValueVariables.FirstOrDefault(x => x.Name == key);
         if (variable == null)
         {   
