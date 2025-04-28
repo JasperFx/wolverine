@@ -28,6 +28,7 @@ public class PulsarEndpoint : Endpoint
     public string SubscriptionName { get; internal set; } = "Wolverine";
     public SubscriptionType SubscriptionType { get; internal set; } = SubscriptionType.Exclusive;
     public bool EnableRequeue { get; internal set; } = true;
+    public bool UnsubscribeOnClose { get; internal set; } = true;
 
     public static Uri UriFor(bool persistent, string tenant, string @namespace, string topicName)
     {
