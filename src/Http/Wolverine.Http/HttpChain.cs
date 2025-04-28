@@ -557,6 +557,27 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
             return frame.Variable;
         }
     }
+    
+    public HeaderValueVariable GetOrCreateHeaderVariable(IFromHeaderMetadata metadata, PropertyInfo parameter)
+    {
+        var existing =
+            _headerVariables.FirstOrDefault(x => x.Name == metadata.Name && x.VariableType == parameter.PropertyType);
+
+        if (existing != null) return existing;
+
+        if (parameter.PropertyType == typeof(string))
+        {
+            var frame = new FromHeaderValue(metadata, parameter);
+            _headerVariables.Add(frame.Variable);
+            return frame.Variable;
+        }
+        else
+        {
+            var frame = new ParsedHeaderValue(metadata, parameter);
+            _headerVariables.Add(frame.Variable);
+            return frame.Variable;
+        }
+    }
 
     string IEndpointNameMetadata.EndpointName => ToString();
 

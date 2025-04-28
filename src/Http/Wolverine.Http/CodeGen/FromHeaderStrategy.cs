@@ -46,6 +46,13 @@ internal class FromHeaderValue : SyncFrame
         Variable = new HeaderValueVariable(header, parameter.ParameterType, parameter.Name!, this);
         _header = header.Name ?? parameter.Name!;
     }
+    
+    public FromHeaderValue(IFromHeaderMetadata header, PropertyInfo property)
+    {
+        Variable = new HeaderValueVariable(header, property.PropertyType, property.Name!, this);
+        _header = header.Name ?? property.Name!;
+    }
+
 
     public HeaderValueVariable Variable { get; }
 
@@ -73,6 +80,12 @@ internal class ParsedHeaderValue : SyncFrame
     {
         _header = header.Name ?? parameter.Name!;
         Variable = new HeaderValueVariable(header, parameter.ParameterType, parameter.Name!, this);
+    }
+    
+    public ParsedHeaderValue(IFromHeaderMetadata header, PropertyInfo property)
+    {
+        _header = header.Name ?? property.Name!;
+        Variable = new HeaderValueVariable(header, property.PropertyType, property.Name!, this);
     }
 
     public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
