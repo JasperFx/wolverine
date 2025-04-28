@@ -35,8 +35,8 @@ internal class FromQueryAttributeUsage : IParameterStrategy
 internal class QueryStringBindingFrame : SyncFrame
 {
     private readonly ConstructorInfo _constructor;
-    private readonly List<Variable> _parameters = new();
-    private readonly List<IReadQueryStringFrame> _props = new();
+    private readonly List<Variable> _parameters = [];
+    private readonly List<IGeneratesCode> _props = [];
 
     public QueryStringBindingFrame(Type queryType, HttpChain chain)
     {
@@ -68,7 +68,7 @@ internal class QueryStringBindingFrame : SyncFrame
                 var queryStringVariable =
                     chain.TryFindOrCreateQuerystringValue(propertyInfo.PropertyType, queryStringName);
 
-                if (queryStringVariable.Creator is IReadQueryStringFrame frame)
+                if (queryStringVariable.Creator is IReadHttpFrame frame)
                 {
                     frame.AssignToProperty($"{Variable.Usage}.{propertyInfo.Name}");
                     _props.Add(frame);

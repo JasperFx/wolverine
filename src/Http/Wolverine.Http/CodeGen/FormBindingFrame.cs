@@ -64,7 +64,7 @@ internal class FormBindingFrame : SyncFrame
 {
     private readonly ConstructorInfo _constructor;
     private readonly List<Variable> _parameters = new();
-    private readonly List<IReadFormFrame> _props = new();
+    private readonly List<IReadHttpFrame> _props = new();
     public Variable Variable { get; }
     public FormBindingFrame(Type queryType, HttpChain chain){
         Variable = new Variable(queryType, this);
@@ -93,7 +93,7 @@ internal class FormBindingFrame : SyncFrame
                 var formValueVariable =
                     chain.TryFindOrCreateFormValue(propertyInfo.PropertyType, propertyInfo.Name, formName);
 
-                if (formValueVariable.Creator is IReadFormFrame frame)
+                if (formValueVariable.Creator is IReadHttpFrame frame)
                 {
                     frame.AssignToProperty($"{Variable.Usage}.{propertyInfo.Name}");
                     _props.Add(frame);

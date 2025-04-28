@@ -51,4 +51,66 @@ public class asparameters_binding : IntegrationContext
         #endregion
     }
     
+    [Fact]
+    public async Task headers_miss()
+    {
+        var result = await Host.Scenario(x => x
+            .Post
+            .FormData(new Dictionary<string,string>(){
+                {"EnumFromForm", "east"},
+                {"StringFromForm", "string2"},
+                {"IntegerFromForm", "2"},
+                {"FloatFromForm", "2.2"},
+                {"BooleanFromForm", "true"}, 
+                {"StringNotUsed", "string3"},
+            }).QueryString("EnumFromQuery", "west")
+            .QueryString("StringFromQuery", "string1")
+            .QueryString("IntegerFromQuery", "1")
+            .QueryString("FloatFromQuery", "1.1")
+            .QueryString("BooleanFromQuery", "true")
+            .QueryString("IntegerNotUsed", "3")
+            .ToUrl("/api/asparameters1")
+        );
+        var response = result.ReadAsJson<AsParametersQuery>();
+        response.StringHeader.ShouldBeNull();
+        response.NumberHeader.ShouldBe(5);
+        response.NullableHeader.ShouldBeNull();
+        
+    }
+    
+    [Fact]
+    public async Task headers_hit()
+    {
+        var result = await Host.Scenario(x =>
+            {
+                x.WithRequestHeader("x-string", "Red");
+                x.WithRequestHeader("x-number", "303");
+                x.WithRequestHeader("x-nullable-number", "13");
+                
+                x
+                    .Post
+                    .FormData(new Dictionary<string, string>()
+                    {
+                        { "EnumFromForm", "east" },
+                        { "StringFromForm", "string2" },
+                        { "IntegerFromForm", "2" },
+                        { "FloatFromForm", "2.2" },
+                        { "BooleanFromForm", "true" },
+                        { "StringNotUsed", "string3" },
+                    }).QueryString("EnumFromQuery", "west")
+                    .QueryString("StringFromQuery", "string1")
+                    .QueryString("IntegerFromQuery", "1")
+                    .QueryString("FloatFromQuery", "1.1")
+                    .QueryString("BooleanFromQuery", "true")
+                    .QueryString("IntegerNotUsed", "3")
+
+                    .ToUrl("/api/asparameters1");
+            }
+        );
+        var response = result.ReadAsJson<AsParametersQuery>();
+        response.StringHeader.ShouldBe("Red");
+        response.NumberHeader.ShouldBe(303);
+        response.NullableHeader.ShouldBe(13);
+        
+    }
 }
