@@ -131,13 +131,27 @@ public class PulsarListenerConfiguration : ListenerConfiguration<PulsarListenerC
     /// <summary>
     ///     Disable the possibility of requeueing messages
     /// </summary>
-    /// <param name="enableRequeue"></param>
     /// <returns></returns>
     public PulsarListenerConfiguration DisableRequeue()
     {
         add(e =>
         {
             e.EnableRequeue = false;
+        });
+
+        return this;
+    }
+
+    /// <summary>
+    ///     Set whether the subscription should be unsubscribed when the listener is closed.
+    /// </summary>
+    /// <param name="unsubscribeOnClose"></param>
+    /// <returns></returns>
+    public PulsarListenerConfiguration UnsubscribeOnClose(bool unsubscribeOnClose)
+    {
+        add(e =>
+        {
+            e.UnsubscribeOnClose = unsubscribeOnClose;
         });
 
         return this;
