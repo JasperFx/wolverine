@@ -130,5 +130,14 @@ public class AsParametersQuery{
     [FromForm]
     public bool BooleanFromForm { get; set; }
     public bool BooleanNotUsed { get; set; }
+    
+    [FromHeader(Name = "x-string")]
+    public string StringHeader { get; set; }
+
+    [FromHeader(Name = "x-number")] public int NumberHeader { get; set; } = 5;
+    
+    [FromHeader(Name = "x-nullable-number")]
+    public int? NullableHeader { get; set; }
 }
 #endregion
+

@@ -5,7 +5,7 @@ using JasperFx.Core.Reflection;
 
 namespace Wolverine.Http.CodeGen;
 
-internal class ParsedArrayQueryStringValue : SyncFrame, IReadQueryStringFrame
+internal class ParsedArrayQueryStringValue : SyncFrame, IReadHttpFrame
 {
     private string _property;
 
@@ -17,10 +17,10 @@ internal class ParsedArrayQueryStringValue : SyncFrame, IReadQueryStringFrame
     public void AssignToProperty(string usage)
     {
         _property = usage;
-        Mode = QueryStringAssignMode.WriteToProperty;
+        Mode = AssignMode.WriteToProperty;
     }
 
-    public QueryStringAssignMode Mode { get; private set; } = QueryStringAssignMode.WriteToVariable;
+    public AssignMode Mode { get; private set; } = AssignMode.WriteToVariable;
 
     public QuerystringVariable Variable { get; }
 
@@ -29,7 +29,7 @@ internal class ParsedArrayQueryStringValue : SyncFrame, IReadQueryStringFrame
         var elementType = Variable.VariableType.GetElementType();
         if (elementType == typeof(string))
         {
-            if (Mode == QueryStringAssignMode.WriteToVariable)
+            if (Mode == AssignMode.WriteToVariable)
             {
                 writer.Write($"var {Variable.Usage} = httpContext.Request.Query[\"{Variable.Usage}\"].ToArray();");
             }
@@ -65,7 +65,7 @@ internal class ParsedArrayQueryStringValue : SyncFrame, IReadQueryStringFrame
 
             writer.FinishBlock(); // foreach blobck
             
-            if (Mode == QueryStringAssignMode.WriteToVariable)
+            if (Mode == AssignMode.WriteToVariable)
             {
                 writer.Write($"var {Variable.Usage} = {Variable.Usage}_List.ToArray();");
             }

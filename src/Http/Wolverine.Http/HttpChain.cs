@@ -415,7 +415,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
         {
             if (parameterType == typeof(string))
             {
-                variable = new ReadStringQueryStringValue(key).Variable;
+                variable = new ReadHttpFrame(BindingSource.QueryString, parameterType, key).Variable;
                 variable.Name = key;
                 _querystringVariables.Add(variable);
             }
@@ -432,7 +432,8 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
                 var inner = parameterType.GetInnerTypeFromNullable();
                 if (RouteParameterStrategy.CanParse(inner))
                 {
-                    variable = new ParsedNullableQueryStringValue(parameterType, parameterName).Variable;
+                    //variable = new ParsedNullableQueryStringValue(parameterType, parameterName).Variable;
+                    variable = new ReadHttpFrame(BindingSource.QueryString, parameterType, parameterName).Variable;
                     variable.Name = key;
                     _querystringVariables.Add(variable);
                 }
@@ -454,7 +455,8 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
 
             if (RouteParameterStrategy.CanParse(parameterType))
             {
-                variable = new ParsedQueryStringValue(parameterType, parameterName).Variable;
+                //variable = new ParsedQueryStringValue(parameterType, parameterName).Variable;
+                variable = new ReadHttpFrame(BindingSource.QueryString, parameterType, parameterName).Variable;
                 variable.Name = key;
                 _querystringVariables.Add(variable);
             }
@@ -484,14 +486,14 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
         {
             if (parameter.ParameterType == typeof(string))
             {
-                variable = new ReadStringRouteValue(parameter.Name!).Variable;
+                variable = new ReadHttpFrame(BindingSource.RouteValue, typeof(string), parameter.Name!).Variable;
                 _routeVariables.Add(variable);
                 return true;
             }
 
             if (RouteParameterStrategy.CanParse(parameter.ParameterType))
             {
-                variable = new ParsedRouteArgumentFrame(parameter).Variable;
+                variable = new ReadHttpFrame(BindingSource.RouteValue, parameter.ParameterType, parameter.Name).Variable;
                 _routeVariables.Add(variable);
                 return true;
             }
@@ -514,16 +516,14 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
         var matches = RoutePattern!.Parameters.Any(x => x.Name.EqualsIgnoreCase(routeOrParameterName));
         if (matches)
         {
-            if (variableType == typeof(string))
+            if (variableType == typeof(string) || RouteParameterStrategy.CanParse(variableType))
             {
-                variable = new ReadStringRouteValue(routeOrParameterName).Variable;
-                _routeVariables.Add(variable);
-                return true;
-            }
-
-            if (RouteParameterStrategy.CanParse(variableType))
-            {
-                variable = new ParsedRouteArgumentFrame(variableType, routeOrParameterName).Variable;
+                var frame = new ReadHttpFrame(BindingSource.RouteValue, variableType, routeOrParameterName)
+                {
+                    Key = routeOrParameterName
+                };
+                
+                variable = frame.Variable;
                 _routeVariables.Add(variable);
                 return true;
             }

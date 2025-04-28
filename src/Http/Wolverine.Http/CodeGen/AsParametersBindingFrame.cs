@@ -24,13 +24,14 @@ internal class AsParamatersAttributeUsage : IParameterStrategy
         {
             chain.RequestType = parameter.ParameterType;
             chain.IsFormData = true;
-            variable = new AsParametersBindingFrame(parameter.ParameterType, chain).Variable;
+            variable = new AsParametersBindingFrame(parameter.ParameterType, chain, container).Variable;
             return true;
         }
 
         return false;
     }
 
+    // TODO -- move this to an extension method in JasperFx. Could be useful in other places
     private bool IsClassOrNullableClassNotCollection(Type type)
     {
         return (
@@ -43,11 +44,10 @@ internal class AsParamatersAttributeUsage : IParameterStrategy
 internal class AsParametersBindingFrame : SyncFrame
 {
     private readonly ConstructorInfo _constructor;
-    private readonly List<IReadFormFrame> _formprops = new();
-    private readonly List<Variable> _parameters = new();
-    private readonly List<IReadQueryStringFrame> _queryprops = new();
+    private readonly List<IGeneratesCode> _props = [];
+    private readonly List<Variable> _parameters = [];
 
-    public AsParametersBindingFrame(Type queryType, HttpChain chain)
+    public AsParametersBindingFrame(Type queryType, HttpChain chain, IServiceContainer container)
     {
         Variable = new Variable(queryType, this);
 
@@ -58,48 +58,58 @@ internal class AsParametersBindingFrame : SyncFrame
                 $"Wolverine can only bind AsParamaters values to a type with a public parameterless constructor. {queryType.FullNameInCode()} has a constructor");
         }
 
-        foreach (var propertyInfo in queryType.GetProperties().Where(x => x.CanWrite))
+        foreach (var propertyInfo in queryType.GetProperties().Where(x => x is { CanWrite: true, IsSpecialName: false }))
         {
-            if (propertyInfo.TryGetAttribute<FromFormAttribute>(out var fatt))
+            if (tryCreateFrame(propertyInfo, chain, container, out var variable))
             {
-                var formName = fatt.Name ?? propertyInfo.Name;
-                var formValueVariable =
-                    chain.TryFindOrCreateFormValue(propertyInfo.PropertyType, propertyInfo.Name, formName);
-                if (formValueVariable.Creator is IReadFormFrame frame)
+                if (variable?.Creator is IReadHttpFrame frame)
                 {
                     frame.AssignToProperty($"{Variable.Usage}.{propertyInfo.Name}");
-                    _formprops.Add(frame);
+                    _props.Add(frame);
                 }
-            }
-            else if (propertyInfo.TryGetAttribute<FromQueryAttribute>(out var qatt))
-            {
-                var queryStringName = qatt.Name ?? propertyInfo.Name;
-                var queryStringVariable =
-                    chain.TryFindOrCreateQuerystringValue(propertyInfo.PropertyType, queryStringName);
-
-                if (queryStringVariable.Creator is IReadQueryStringFrame frame)
-                {
-                    frame.AssignToProperty($"{Variable.Usage}.{propertyInfo.Name}");
-                    _queryprops.Add(frame);
-                }
-            }
-            else if (propertyInfo.TryGetAttribute<FromRouteAttribute>(out var ratt))
-            {
-                throw new NotImplementedException("FromRoute is not supported yet");
-            }
-            else if (propertyInfo.TryGetAttribute<FromHeaderAttribute>(out var hatt))
-            {
-                throw new NotImplementedException("FromHeader is not supported yet");
-            }
-            else if (propertyInfo.TryGetAttribute<FromBodyAttribute>(out var batt))
-            {
-                throw new NotImplementedException("FromBody is not supported yet");
-            }
-            else if (propertyInfo.TryGetAttribute<FromServicesAttribute>(out var satt))
-            {
-                throw new NotImplementedException("FromServices is not supported yet");
             }
         }
+    }
+
+    private bool tryCreateFrame(PropertyInfo propertyInfo, HttpChain chain, IServiceContainer container, out Variable? variable)
+    {
+        variable = default;
+        
+        if (propertyInfo.TryGetAttribute<FromFormAttribute>(out var fatt))
+        {
+            var formName = fatt.Name ?? propertyInfo.Name;
+            variable = chain.TryFindOrCreateFormValue(propertyInfo.PropertyType, propertyInfo.Name, formName);
+            return true;
+        }
+
+        if (propertyInfo.TryGetAttribute<FromQueryAttribute>(out var qatt))
+        {
+            var queryStringName = qatt.Name ?? propertyInfo.Name;
+            variable =
+                chain.TryFindOrCreateQuerystringValue(propertyInfo.PropertyType, queryStringName);
+
+            return true;
+        }
+
+        if (propertyInfo.TryGetAttribute<FromRouteAttribute>(out var ratt))
+        {
+            throw new NotImplementedException("FromRoute is not supported yet");
+        }
+        else if (propertyInfo.TryGetAttribute<FromHeaderAttribute>(out var hatt))
+        {
+            variable = chain.GetOrCreateHeaderVariable(hatt, propertyInfo);
+            return true;
+        }
+        else if (propertyInfo.TryGetAttribute<FromBodyAttribute>(out var batt))
+        {
+            throw new NotImplementedException("FromBody is not supported yet");
+        }
+        else if (propertyInfo.TryGetAttribute<FromServicesAttribute>(out var satt))
+        {
+            throw new NotImplementedException("FromServices is not supported yet");
+        }
+
+        return false;
     }
 
     public Variable Variable { get; }
@@ -111,8 +121,7 @@ internal class AsParametersBindingFrame : SyncFrame
 
         writer.Write($"var {Variable.Usage} = new {Variable.VariableType.FullNameInCode()}({arguments});");
 
-        foreach (var frame in _formprops) frame.GenerateCode(method, writer);
-        foreach (var frame in _queryprops) frame.GenerateCode(method, writer);
+        foreach (var frame in _props) frame.GenerateCode(method, writer);
 
         Next?.GenerateCode(method, writer);
     }

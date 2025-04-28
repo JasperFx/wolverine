@@ -8,22 +8,6 @@ using Wolverine.Runtime;
 
 namespace Wolverine.Http.CodeGen;
 
-public enum FormAssignMode
-{
-    WriteToVariable,
-    WriteToProperty
-}
-
-
-public interface IReadFormFrame
-{
-    void AssignToProperty(string usage);
-    FormAssignMode Mode { get; }
-
-    void GenerateCode(GeneratedMethod method, ISourceWriter writer);
-}
-
-
 public class FormVariable : Variable
 {
     public FormVariable(Type variableType, string usage, Frame? creator) : base(variableType, usage, creator)
@@ -36,7 +20,7 @@ public class FormVariable : Variable
 }
 
 
-internal class ReadStringFormValue : SyncFrame, IReadFormFrame
+internal class ReadStringFormValue : SyncFrame, IReadHttpFrame
 {
     public ReadStringFormValue(string name)
     {
@@ -47,7 +31,7 @@ internal class ReadStringFormValue : SyncFrame, IReadFormFrame
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
-        if (Mode == FormAssignMode.WriteToVariable)
+        if (Mode == AssignMode.WriteToVariable)
         {
             writer.Write($"string {Variable.Usage} = httpContext.Request.Form[\"{Variable.Name}\"].FirstOrDefault();");
         }
@@ -62,14 +46,14 @@ internal class ReadStringFormValue : SyncFrame, IReadFormFrame
     public void AssignToProperty(string usage)
     {
         Variable.OverrideName(usage);
-        Mode = FormAssignMode.WriteToProperty;
+        Mode = AssignMode.WriteToProperty;
     }
 
-    public FormAssignMode Mode { get; private set; } = FormAssignMode.WriteToVariable;
+    public AssignMode Mode { get; private set; } = AssignMode.WriteToVariable;
 }
 
 
-internal class ParsedFormValue : SyncFrame, IReadFormFrame
+internal class ParsedFormValue : SyncFrame, IReadHttpFrame
 {
     private string _property;
 
@@ -83,11 +67,11 @@ internal class ParsedFormValue : SyncFrame, IReadFormFrame
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
         var alias = Variable.VariableType.FullNameInCode();
-        var prefix = Mode == FormAssignMode.WriteToVariable ? "" : "if (";
-        var suffix = Mode == FormAssignMode.WriteToVariable ? "" : $") {_property} = {Variable.Usage}";
-        var outUsage = Mode == FormAssignMode.WriteToVariable ? Variable.Usage : $"var {Variable.Usage}";
+        var prefix = Mode == AssignMode.WriteToVariable ? "" : "if (";
+        var suffix = Mode == AssignMode.WriteToVariable ? "" : $") {_property} = {Variable.Usage}";
+        var outUsage = Mode == AssignMode.WriteToVariable ? Variable.Usage : $"var {Variable.Usage}";
         
-        if (Mode == FormAssignMode.WriteToVariable)
+        if (Mode == AssignMode.WriteToVariable)
         {
             writer.Write($"{alias} {Variable.Usage} = default;");
         }
@@ -110,15 +94,15 @@ internal class ParsedFormValue : SyncFrame, IReadFormFrame
     
     public void AssignToProperty(string usage)
     {
-        Mode = FormAssignMode.WriteToProperty;
+        Mode = AssignMode.WriteToProperty;
         _property = usage;
     }
 
-    public FormAssignMode Mode { get; private set; } = FormAssignMode.WriteToVariable;
+    public AssignMode Mode { get; private set; } = AssignMode.WriteToVariable;
 }
 
 
-internal class ParsedNullableFormValue : SyncFrame, IReadFormFrame
+internal class ParsedNullableFormValue : SyncFrame, IReadHttpFrame
 {
     private readonly string _alias;
     private Type _innerTypeFromNullable;
@@ -135,7 +119,7 @@ internal class ParsedNullableFormValue : SyncFrame, IReadFormFrame
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
-        if (Mode == FormAssignMode.WriteToVariable)
+        if (Mode == AssignMode.WriteToVariable)
         {
             writer.Write($"{_alias}? {Variable.Usage} = null;");
             
@@ -181,13 +165,13 @@ internal class ParsedNullableFormValue : SyncFrame, IReadFormFrame
     public void AssignToProperty(string usage)
     {
         _property = usage;
-        Mode = FormAssignMode.WriteToProperty;
+        Mode = AssignMode.WriteToProperty;
     }
 
-    public FormAssignMode Mode { get; private set; } = FormAssignMode.WriteToVariable;
+    public AssignMode Mode { get; private set; } = AssignMode.WriteToVariable;
 }
 
-internal class ParsedCollectionFormValue : SyncFrame, IReadFormFrame
+internal class ParsedCollectionFormValue : SyncFrame, IReadHttpFrame
 {
     private readonly Type _collectionElementType;
 
@@ -266,14 +250,14 @@ internal class ParsedCollectionFormValue : SyncFrame, IReadFormFrame
     public void AssignToProperty(string usage)
     {
         Variable.OverrideName(usage);
-        Mode = FormAssignMode.WriteToProperty;
+        Mode = AssignMode.WriteToProperty;
     }
 
-    public FormAssignMode Mode { get; private set; } = FormAssignMode.WriteToVariable;
+    public AssignMode Mode { get; private set; } = AssignMode.WriteToVariable;
 }
 
 
-internal class ParsedArrayFormValue : SyncFrame, IReadFormFrame
+internal class ParsedArrayFormValue : SyncFrame, IReadHttpFrame
 {
     private string _property;
 
@@ -285,10 +269,10 @@ internal class ParsedArrayFormValue : SyncFrame, IReadFormFrame
     public void AssignToProperty(string usage)
     {
         _property = usage;
-        Mode = FormAssignMode.WriteToProperty;
+        Mode = AssignMode.WriteToProperty;
     }
 
-    public FormAssignMode Mode { get; private set; } = FormAssignMode.WriteToVariable;
+    public AssignMode Mode { get; private set; } = AssignMode.WriteToVariable;
 
     public FormVariable Variable { get; }
 
@@ -297,7 +281,7 @@ internal class ParsedArrayFormValue : SyncFrame, IReadFormFrame
         var elementType = Variable.VariableType.GetElementType();
         if (elementType == typeof(string))
         {
-            if (Mode == FormAssignMode.WriteToVariable)
+            if (Mode == AssignMode.WriteToVariable)
             {
                 writer.Write($"var {Variable.Usage} = httpContext.Request.Form[\"{Variable.Usage}\"].ToArray();");
             }
@@ -333,7 +317,7 @@ internal class ParsedArrayFormValue : SyncFrame, IReadFormFrame
 
             writer.FinishBlock(); // foreach blobck
             
-            if (Mode == FormAssignMode.WriteToVariable)
+            if (Mode == AssignMode.WriteToVariable)
             {
                 writer.Write($"var {Variable.Usage} = {Variable.Usage}_List.ToArray();");
             }

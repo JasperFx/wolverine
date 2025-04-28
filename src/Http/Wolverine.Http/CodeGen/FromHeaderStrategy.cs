@@ -36,10 +36,10 @@ public class FromHeaderStrategy : IParameterStrategy
     }
 }
 
-internal class FromHeaderValue : SyncFrame
+internal class FromHeaderValue : SyncFrame, IReadHttpFrame
 {
-    private Variable? _httpContext;
     private readonly string _header;
+    private string _property;
 
     public FromHeaderValue(IFromHeaderMetadata header, ParameterInfo parameter)
     {
@@ -56,25 +56,36 @@ internal class FromHeaderValue : SyncFrame
 
     public HeaderValueVariable Variable { get; }
 
-    public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
-    {
-        _httpContext = chain.FindVariable(typeof(HttpContext));
-        yield return _httpContext;
-    }
-
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
         writer.WriteComment("Retrieve header value from the request");
-        writer.Write(
-            $"var {Variable.Usage} = {nameof(HttpHandler.ReadSingleHeaderValue)}({_httpContext!.Usage}, \"{_header}\");");
+        if (Mode == AssignMode.WriteToVariable)
+        {
+            writer.Write(
+                $"var {Variable.Usage} = {nameof(HttpHandler.ReadSingleHeaderValue)}(httpContext, \"{_header}\");");
+        }
+        else
+        {
+            writer.Write(
+                $"{_property} = {nameof(HttpHandler.ReadSingleHeaderValue)}(httpContext, \"{_property}\");");
+        }
+        
         Next?.GenerateCode(method, writer);
     }
+
+    public void AssignToProperty(string usage)
+    {
+        Mode = AssignMode.WriteToProperty;
+        _property = usage;
+    }
+
+    public AssignMode Mode { get; private set; }
 }
 
-internal class ParsedHeaderValue : SyncFrame
+internal class ParsedHeaderValue : SyncFrame, IReadHttpFrame
 {
     private readonly string _header;
-    private Variable? _httpContext;
+    private string _property;
 
     public ParsedHeaderValue(IFromHeaderMetadata header, ParameterInfo parameter)
     {
@@ -88,21 +99,52 @@ internal class ParsedHeaderValue : SyncFrame
         Variable = new HeaderValueVariable(header, property.PropertyType, property.Name!, this);
     }
 
-    public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
-    {
-        _httpContext = chain.FindVariable(typeof(HttpContext));
-        yield return _httpContext;
-    }
-
     public HeaderValueVariable Variable { get; }
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
-        var alias = Variable.VariableType.ShortNameInCode();
-        writer.Write($"{alias} {Variable.Usage} = default;");
-        writer.Write(
-            $"{alias}.TryParse({nameof(HttpHandler.ReadSingleHeaderValue)}({_httpContext!.Usage}, \"{_header}\"), out {Variable.Usage});");
+        var valueType = Variable.VariableType;
+        var isNullable = false;
+        if (Variable.VariableType.IsNullable())
+        {
+            isNullable = true;
+            valueType = Variable.VariableType.GetInnerTypeFromNullable();
+        }
+        
+        var alias = valueType.FullNameInCode();
+
+        if (isNullable)
+        {
+            
+        }
+        else
+        {
+            // TODO -- YUCK. Gotta accomodate bools and enums
+            if (Mode == AssignMode.WriteToVariable)
+            {
+                writer.Write($"{alias} {Variable.Usage} = default;");
+            
+                writer.Write(
+                    $"{alias}.TryParse({nameof(HttpHandler.ReadSingleHeaderValue)}(httpContext, \"{_header}\"), out {Variable.Usage});");
+            }
+            else
+            {
+                writer.Write(
+                    $"{alias}.TryParse({nameof(HttpHandler.ReadSingleHeaderValue)}(httpContext, \"{_header}\"), out var {Variable.Usage}) {_property} = {Variable.Usage};");
+            }
+
+        }
+
+
 
         Next?.GenerateCode(method, writer);
     }
+    
+    public void AssignToProperty(string usage)
+    {
+        Mode = AssignMode.WriteToProperty;
+        _property = usage;
+    }
+
+    public AssignMode Mode { get; private set; }
 }

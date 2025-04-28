@@ -8,17 +8,15 @@ using Wolverine.Runtime;
 
 namespace Wolverine.Http.CodeGen;
 
-public enum QueryStringAssignMode
+public enum AssignMode
 {
     WriteToVariable,
     WriteToProperty
 }
 
-public interface IReadQueryStringFrame
+// TODO -- move this to JasperFx.CodeGeneration later
+public interface IGeneratesCode
 {
-    void AssignToProperty(string usage);
-    QueryStringAssignMode Mode { get; }
-
     void GenerateCode(GeneratedMethod method, ISourceWriter writer);
 }
 
@@ -33,156 +31,8 @@ public class QuerystringVariable : Variable
 
 }
 
-internal class ReadStringQueryStringValue : SyncFrame, IReadQueryStringFrame
-{
-    public ReadStringQueryStringValue(string name)
-    {
-        Variable = new QuerystringVariable(typeof(string), name, this);
-    }
 
-    public QuerystringVariable Variable { get; }
-
-    public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
-    {
-        if (Mode == QueryStringAssignMode.WriteToVariable)
-        {
-            writer.Write($"string {Variable.Usage} = httpContext.Request.Query[\"{Variable.Name}\"].FirstOrDefault();");
-        }
-        else
-        {
-            writer.Write($"{Variable.Usage} = httpContext.Request.Query[\"{Variable.Name}\"].FirstOrDefault();");
-        }
-
-        Next?.GenerateCode(method, writer);
-    }
-    
-    public void AssignToProperty(string usage)
-    {
-        Variable.OverrideName(usage);
-        Mode = QueryStringAssignMode.WriteToProperty;
-    }
-
-    public QueryStringAssignMode Mode { get; private set; } = QueryStringAssignMode.WriteToVariable;
-}
-
-internal class ParsedQueryStringValue : SyncFrame, IReadQueryStringFrame
-{
-    private string _property;
-
-    public ParsedQueryStringValue(Type parameterType, string parameterName)
-    {
-        Variable = new QuerystringVariable(parameterType, parameterName!, this);
-    }
-
-    public QuerystringVariable Variable { get; }
-
-    public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
-    {
-        var alias = Variable.VariableType.FullNameInCode();
-        var prefix = Mode == QueryStringAssignMode.WriteToVariable ? "" : "if (";
-        var suffix = Mode == QueryStringAssignMode.WriteToVariable ? "" : $") {_property} = {Variable.Usage}";
-        var outUsage = Mode == QueryStringAssignMode.WriteToVariable ? Variable.Usage : $"var {Variable.Usage}";
-        
-        if (Mode == QueryStringAssignMode.WriteToVariable)
-        {
-            writer.Write($"{alias} {Variable.Usage} = default;");
-        }
-
-        if (Variable.VariableType.IsEnum)
-        {
-            writer.Write($"{prefix}{alias}.TryParse<{alias}>(httpContext.Request.Query[\"{Variable.Name}\"], true, out {outUsage}){suffix};");
-        }
-        else if (Variable.VariableType.IsBoolean())
-        {
-            writer.Write($"{prefix}{alias}.TryParse(httpContext.Request.Query[\"{Variable.Name}\"], out {outUsage}){suffix};");
-        }
-        else
-        {
-            writer.Write($"{prefix}{alias}.TryParse(httpContext.Request.Query[\"{Variable.Name}\"], System.Globalization.CultureInfo.InvariantCulture, out {outUsage}){suffix};");
-        }
-
-        Next?.GenerateCode(method, writer);
-    }
-    
-    public void AssignToProperty(string usage)
-    {
-        Mode = QueryStringAssignMode.WriteToProperty;
-        _property = usage;
-    }
-
-    public QueryStringAssignMode Mode { get; private set; } = QueryStringAssignMode.WriteToVariable;
-}
-
-internal class ParsedNullableQueryStringValue : SyncFrame, IReadQueryStringFrame
-{
-    private readonly string _alias;
-    private Type _innerTypeFromNullable;
-    private string _property;
-
-    public ParsedNullableQueryStringValue(Type parameterType, string parameterName)
-    {
-        Variable = new QuerystringVariable(parameterType, parameterName, this);
-        _innerTypeFromNullable = parameterType.GetInnerTypeFromNullable();
-        _alias = _innerTypeFromNullable.FullNameInCode();
-    }
-
-    public QuerystringVariable Variable { get; }
-
-    public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
-    {
-        if (Mode == QueryStringAssignMode.WriteToVariable)
-        {
-            writer.Write($"{_alias}? {Variable.Usage} = null;");
-            
-            if (_innerTypeFromNullable.IsEnum)
-            {
-                writer.Write(
-                    $"if ({_alias}.TryParse<{_innerTypeFromNullable.FullNameInCode()}>(httpContext.Request.Query[\"{Variable.Usage}\"], true, out var {Variable.Usage}Parsed)) {Variable.Usage} = {Variable.Usage}Parsed;");
-            }
-            else if (_innerTypeFromNullable.IsBoolean())
-            {
-                writer.Write(
-                    $"if ({_alias}.TryParse(httpContext.Request.Query[\"{Variable.Usage}\"], out var {Variable.Usage}Parsed)) {Variable.Usage} = {Variable.Usage}Parsed;");
-            }
-            else
-            {
-                writer.Write(
-                    $"if ({_alias}.TryParse(httpContext.Request.Query[\"{Variable.Usage}\"], System.Globalization.CultureInfo.InvariantCulture, out var {Variable.Usage}Parsed)) {Variable.Usage} = {Variable.Usage}Parsed;");
-            }
-        }
-        else
-        {
-            if (_innerTypeFromNullable.IsEnum)
-            {
-                writer.Write(
-                    $"if ({_alias}.TryParse<{_innerTypeFromNullable.FullNameInCode()}>(httpContext.Request.Query[\"{Variable.Usage}\"], true, out var {Variable.Usage})) {_property} = {Variable.Usage};");
-            }
-            else if (_innerTypeFromNullable.IsBoolean())
-            {
-                writer.Write(
-                    $"if ({_alias}.TryParse(httpContext.Request.Query[\"{Variable.Usage}\"], out var {Variable.Usage})) {_property} = {Variable.Usage};");
-            }
-            else
-            {
-                writer.Write(
-                    $"if ({_alias}.TryParse(httpContext.Request.Query[\"{Variable.Usage}\"], System.Globalization.CultureInfo.InvariantCulture, out var {Variable.Usage})) {_property} = {Variable.Usage};");
-            }
-        }
-        
-
-        Next?.GenerateCode(method, writer);
-    }
-    
-    public void AssignToProperty(string usage)
-    {
-        _property = usage;
-        Mode = QueryStringAssignMode.WriteToProperty;
-    }
-
-    public QueryStringAssignMode Mode { get; private set; } = QueryStringAssignMode.WriteToVariable;
-}
-
-internal class ParsedCollectionQueryStringValue : SyncFrame, IReadQueryStringFrame
+internal class ParsedCollectionQueryStringValue : SyncFrame, IReadHttpFrame
 {
     private readonly Type _collectionElementType;
 
@@ -261,10 +111,10 @@ internal class ParsedCollectionQueryStringValue : SyncFrame, IReadQueryStringFra
     public void AssignToProperty(string usage)
     {
         Variable.OverrideName(usage);
-        Mode = QueryStringAssignMode.WriteToProperty;
+        Mode = AssignMode.WriteToProperty;
     }
 
-    public QueryStringAssignMode Mode { get; private set; } = QueryStringAssignMode.WriteToVariable;
+    public AssignMode Mode { get; private set; } = AssignMode.WriteToVariable;
 }
 
 internal class QueryStringParameterStrategy : IParameterStrategy
@@ -276,6 +126,7 @@ internal class QueryStringParameterStrategy : IParameterStrategy
             variable = null;
             return false;
         }
+        
         variable = chain.TryFindOrCreateQuerystringValue(parameter);
         return variable != null;
     }
