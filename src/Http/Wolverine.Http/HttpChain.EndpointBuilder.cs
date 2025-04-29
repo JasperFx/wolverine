@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.FSharp.Core;
 using Wolverine.Http.Resources;
 
 namespace Wolverine.Http;
@@ -110,7 +111,7 @@ public partial class HttpChain : IEndpointConventionBuilder
     {
         if (tryApplyAsEndpointMetadataProvider(ResourceType, builder)) return;
 
-        if (ResourceType == null || ResourceType == typeof(void))
+        if (ResourceType == null || ResourceType == typeof(void) || ResourceType == typeof(Unit))
         {
             Metadata.Produces(204);
             return;

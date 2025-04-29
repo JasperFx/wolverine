@@ -1,3 +1,4 @@
+using System.Net;
 using Alba;
 using Shouldly;
 using WolverineWebApi;
@@ -30,12 +31,8 @@ public class end_to_end : IntegrationContext
         var body = await Scenario(x =>
         {
             x.Post.Url("/discovered-fsharp-unit");
-            x.StatusCodeShouldBeOk();
-
-            //x.Header("content-type").SingleValueShouldEqual("text/plain");
+            x.StatusCodeShouldBe(HttpStatusCode.NoContent);
         });
-
-        (await body.ReadAsTextAsync()).ShouldBe(null);
     }
 
     [Fact]
