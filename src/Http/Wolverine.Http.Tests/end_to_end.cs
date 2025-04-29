@@ -23,6 +23,20 @@ public class end_to_end : IntegrationContext
 
         (await body.ReadAsTextAsync()).ShouldBe("Hello");
     }
+    
+    [Fact]
+    public async Task post_returning_fsharp_taskunit()
+    {
+        var body = await Scenario(x =>
+        {
+            x.Post.Url("/discovered-fsharp-unit");
+            x.StatusCodeShouldBeOk();
+
+            //x.Header("content-type").SingleValueShouldEqual("text/plain");
+        });
+
+        (await body.ReadAsTextAsync()).ShouldBe(null);
+    }
 
     [Fact]
     public async Task retrieve_json_data()
