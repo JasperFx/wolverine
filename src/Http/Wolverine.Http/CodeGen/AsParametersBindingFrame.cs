@@ -41,11 +41,39 @@ internal class AsParamatersAttributeUsage : IParameterStrategy
     }
 }
 
+// TODO -- this should be in JasperFx longer term
+internal class AssignPropertyFrame : SyncFrame, IGeneratesCode
+{
+    private readonly Variable _target;
+    private readonly PropertyInfo _property;
+    private readonly Variable _value;
+
+    public AssignPropertyFrame(Variable target, PropertyInfo property, Variable value)
+    {
+        _target = target;
+        _property = property;
+        _value = value;
+        
+        uses.Add(target);
+        uses.Add(value);
+    }
+
+    public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        writer.Write($"{_target.Usage}.{_property.Name} = {_value.Usage};");
+        Next?.GenerateCode(method, writer);
+    }
+}
+
 internal class AsParametersBindingFrame : SyncFrame
 {
     private readonly ConstructorInfo _constructor;
     private readonly List<IGeneratesCode> _props = [];
     private readonly List<Variable> _parameters = [];
+    private readonly List<Variable> _dependencies = [];
+    
+    private bool _hasForms = false;
+    private bool _hasJsonBody = false;
 
     public AsParametersBindingFrame(Type queryType, HttpChain chain, IServiceContainer container)
     {
@@ -67,16 +95,29 @@ internal class AsParametersBindingFrame : SyncFrame
                     frame.AssignToProperty($"{Variable.Usage}.{propertyInfo.Name}");
                     _props.Add(frame);
                 }
+                else
+                {
+                    _props.Add(new AssignPropertyFrame(Variable, propertyInfo, variable));
+                    _dependencies.Add(variable);
+                }
             }
+        }
+
+        if (_hasJsonBody && _hasForms)
+        {
+            throw new InvalidOperationException(
+                $"{queryType.FullNameInCode()} cannot be decorated with [AsParameters] because it uses both [FromForm] and [FromBody] binding. You can only use one or the other option");
         }
     }
 
     private bool tryCreateFrame(PropertyInfo propertyInfo, HttpChain chain, IServiceContainer container, out Variable? variable)
     {
         variable = default;
+
         
         if (propertyInfo.TryGetAttribute<FromFormAttribute>(out var fatt))
         {
+            _hasForms = true;
             var formName = fatt.Name ?? propertyInfo.Name;
             variable = chain.TryFindOrCreateFormValue(propertyInfo.PropertyType, propertyInfo.Name, formName);
             return true;
@@ -93,7 +134,14 @@ internal class AsParametersBindingFrame : SyncFrame
 
         if (propertyInfo.TryGetAttribute<FromRouteAttribute>(out var ratt))
         {
-            throw new NotImplementedException("FromRoute is not supported yet");
+            var routeArgumentName = ratt.Name ?? propertyInfo.Name;
+            if (chain.FindRouteVariable(propertyInfo.PropertyType, routeArgumentName, out variable))
+            {
+                return true;
+            }
+
+            throw new InvalidOperationException(
+                $"Unable to find a route argument '{routeArgumentName}' specified on property {Variable.VariableType.FullNameInCode()}.{propertyInfo.Name}");
         }
         else if (propertyInfo.TryGetAttribute<FromHeaderAttribute>(out var hatt))
         {
@@ -102,11 +150,17 @@ internal class AsParametersBindingFrame : SyncFrame
         }
         else if (propertyInfo.TryGetAttribute<FromBodyAttribute>(out var batt))
         {
-            throw new NotImplementedException("FromBody is not supported yet");
+            _hasJsonBody = true;
+            chain.RequestType = propertyInfo.PropertyType;
+            variable = chain.BuildJsonDeserializationVariable();
+            
+            chain.IsFormData = false;
+            return true;
         }
         else if (propertyInfo.TryGetAttribute<FromServicesAttribute>(out var satt))
         {
-            throw new NotImplementedException("FromServices is not supported yet");
+            variable = container.GetInstance<IServiceVariableSource>().Create(propertyInfo.PropertyType);
+            return true;
         }
 
         return false;
@@ -129,5 +183,6 @@ internal class AsParametersBindingFrame : SyncFrame
     public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
     {
         foreach (var parameter in _parameters) yield return parameter;
+        foreach (var parameter in _dependencies) yield return parameter;
     }
 }

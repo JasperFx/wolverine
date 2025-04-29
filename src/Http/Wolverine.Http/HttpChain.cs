@@ -581,4 +581,9 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
     public bool HasRequestType => RequestType != null && RequestType != typeof(void);
 
     public bool IsFormData { get; internal set; }
+
+    internal Variable BuildJsonDeserializationVariable()
+    {
+        return _parent.BuildJsonDeserializationVariable(this);
+    }
 }

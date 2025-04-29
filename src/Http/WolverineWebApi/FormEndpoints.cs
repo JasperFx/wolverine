@@ -1,6 +1,8 @@
+using System.Text.Json.Serialization;
 using JasperFx.Core;
 using Marten;
 using Microsoft.AspNetCore.Mvc;
+using Shouldly;
 using Spectre.Console;
 using Wolverine.Http;
 
@@ -140,4 +142,48 @@ public class AsParametersQuery{
     public int? NullableHeader { get; set; }
 }
 #endregion
+
+public class AsParameterBody
+{
+    public string Name { get; set; }
+    public Direction Direction { get; set; }
+    public int Distance { get; set; }
+}
+
+public class AsParametersQuery2
+{
+    // We do a check inside of an HTTP endpoint that this works correctly
+    [FromServices, JsonIgnore]
+    public IDocumentStore Store { get; set; }
+    
+    [FromBody]
+    public AsParameterBody Body { get; set; }
+    
+    [FromRoute]
+    public string Id { get; set; }
+    
+    [FromRoute]
+    public int Number { get; set; }
+}
+
+public static class AsParametersEndpoints2{
+    [WolverinePost("/asp2/{id}/{number}")]
+    public static AsParametersQuery2 Post([AsParameters] AsParametersQuery2 query)
+    {
+        // Just proving the service binding works
+        query.Store.ShouldBeOfType<DocumentStore>();
+        return query;
+    }
+    
+    // [WolverinePost("/asp2/{id}/{number}")]
+    // public static AsParametersQuery2 Post(AsParameterBody body, string id, int number)
+    // {
+    //     return new AsParametersQuery2
+    //     {
+    //         Body = body,
+    //         Id = id,
+    //         Number = number
+    //     };
+    // }
+}
 
