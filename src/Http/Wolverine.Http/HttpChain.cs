@@ -253,7 +253,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
 
     public bool HasResourceType()
     {
-        return ResourceType != null && ResourceType != typeof(void);
+        return ResourceType != null && ResourceType != typeof(void) && ResourceType != typeof(Unit);
     }
 
     public override bool ShouldFlushOutgoingMessages()
