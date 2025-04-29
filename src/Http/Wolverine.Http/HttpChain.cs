@@ -58,9 +58,9 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
 
     private readonly HttpGraph _parent;
 
-    private readonly List<QuerystringVariable> _querystringVariables = [];
+    private readonly List<HttpElementVariable> _querystringVariables = [];
 
-    private readonly List<FormVariable> _formValueVariables = [];
+    private readonly List<HttpElementVariable> _formValueVariables = [];
 
     public string OperationId { get; set; }
     
@@ -320,7 +320,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
     }
 
 
-    public FormVariable? TryFindOrCreateFormValue(ParameterInfo parameter)
+    public HttpElementVariable? TryFindOrCreateFormValue(ParameterInfo parameter)
     {
         var parameterName = parameter.Name;
         var key = parameterName;
@@ -334,14 +334,14 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
         return TryFindOrCreateFormValue(parameterType, parameterName, key);
     }
     
- public FormVariable? TryFindOrCreateFormValue(Type parameterType, string parameterName, string? key = null){
+ public HttpElementVariable? TryFindOrCreateFormValue(Type parameterType, string parameterName, string? key = null){
         key ??= parameterName;
         var variable = _formValueVariables.FirstOrDefault(x => x.Name == key);
         if (variable == null)
         {   
             if (parameterType == typeof(string))
             {
-                variable = new ReadStringFormValue(key).Variable;
+                variable = new ReadHttpFrame(BindingSource.Form, parameterType,key).Variable;
                 variable.Name = key;
                 _formValueVariables.Add(variable);
             }
@@ -357,7 +357,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
                 var inner = parameterType.GetInnerTypeFromNullable();
                 if (RouteParameterStrategy.CanParse(inner))
                 {
-                    variable = new ParsedNullableFormValue(parameterType, parameterName).Variable;
+                    variable = new ReadHttpFrame(BindingSource.Form, parameterType,key).Variable;
                     variable.Name = key;
                     _formValueVariables.Add(variable);
                 }
@@ -379,7 +379,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
 
             if (RouteParameterStrategy.CanParse(parameterType))
             {
-                variable = new ParsedFormValue(parameterType, parameterName).Variable;
+                variable = new ReadHttpFrame(BindingSource.Form, parameterType,key).Variable;
                 variable.Name = key;
                 _formValueVariables.Add(variable);
             }
@@ -393,7 +393,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
         return variable;
     }
 
-    public QuerystringVariable? TryFindOrCreateQuerystringValue(ParameterInfo parameter)
+    public HttpElementVariable? TryFindOrCreateQuerystringValue(ParameterInfo parameter)
     {
         var parameterName = parameter.Name;
         var key = parameterName;
@@ -407,7 +407,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
         return TryFindOrCreateQuerystringValue(parameterType, parameterName, key);
     }
 
-    public QuerystringVariable? TryFindOrCreateQuerystringValue(Type parameterType, string parameterName, string? key = null)
+    public HttpElementVariable? TryFindOrCreateQuerystringValue(Type parameterType, string parameterName, string? key = null)
     {
         key ??= parameterName;
         var variable = _querystringVariables.FirstOrDefault(x => x.Name == key);
@@ -534,48 +534,40 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
 
     }
 
-    private readonly List<HeaderValueVariable> _headerVariables = [];
+    private readonly List<HttpElementVariable> _headerVariables = [];
 
-    public HeaderValueVariable GetOrCreateHeaderVariable(IFromHeaderMetadata metadata, ParameterInfo parameter)
+    public HttpElementVariable GetOrCreateHeaderVariable(IFromHeaderMetadata metadata, ParameterInfo parameter)
     {
         var existing =
             _headerVariables.FirstOrDefault(x => x.Name == metadata.Name && x.VariableType == parameter.ParameterType);
 
         if (existing != null) return existing;
 
-        if (parameter.ParameterType == typeof(string))
+        var frame = new ReadHttpFrame(BindingSource.Header, parameter.ParameterType, parameter.Name)
         {
-            var frame = new FromHeaderValue(metadata, parameter);
-            _headerVariables.Add(frame.Variable);
-            return frame.Variable;
-        }
-        else
-        {
-            var frame = new ParsedHeaderValue(metadata, parameter);
-            _headerVariables.Add(frame.Variable);
-            return frame.Variable;
-        }
+            Key = metadata.Name ?? parameter.Name
+        };
+        
+        _headerVariables.Add(frame.Variable);
+        
+        return frame.Variable;
     }
     
-    public HeaderValueVariable GetOrCreateHeaderVariable(IFromHeaderMetadata metadata, PropertyInfo parameter)
+    public HttpElementVariable GetOrCreateHeaderVariable(IFromHeaderMetadata metadata, PropertyInfo property)
     {
         var existing =
-            _headerVariables.FirstOrDefault(x => x.Name == metadata.Name && x.VariableType == parameter.PropertyType);
+            _headerVariables.FirstOrDefault(x => x.Name == metadata.Name && x.VariableType == property.PropertyType);
 
         if (existing != null) return existing;
 
-        if (parameter.PropertyType == typeof(string))
+        var frame = new ReadHttpFrame(BindingSource.Header, property.PropertyType, property.Name)
         {
-            var frame = new FromHeaderValue(metadata, parameter);
-            _headerVariables.Add(frame.Variable);
-            return frame.Variable;
-        }
-        else
-        {
-            var frame = new ParsedHeaderValue(metadata, parameter);
-            _headerVariables.Add(frame.Variable);
-            return frame.Variable;
-        }
+            Key = metadata.Name ?? property.Name
+        };
+        
+        _headerVariables.Add(frame.Variable);
+        
+        return frame.Variable;
     }
 
     string IEndpointNameMetadata.EndpointName => ToString();

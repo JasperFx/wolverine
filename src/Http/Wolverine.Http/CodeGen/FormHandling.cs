@@ -8,180 +8,17 @@ using Wolverine.Runtime;
 
 namespace Wolverine.Http.CodeGen;
 
-public class FormVariable : Variable
-{
-    public FormVariable(Type variableType, string usage, Frame? creator) : base(variableType, usage, creator)
-    {
-        Name = usage;
-    }
-
-    public string Name { get; set; }
-
-}
-
-
-internal class ReadStringFormValue : SyncFrame, IReadHttpFrame
-{
-    public ReadStringFormValue(string name)
-    {
-        Variable = new FormVariable(typeof(string), name, this);
-    }
-
-    public FormVariable Variable { get; }
-
-    public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
-    {
-        if (Mode == AssignMode.WriteToVariable)
-        {
-            writer.Write($"string {Variable.Usage} = httpContext.Request.Form[\"{Variable.Name}\"].FirstOrDefault();");
-        }
-        else
-        {
-            writer.Write($"{Variable.Usage} = httpContext.Request.Form[\"{Variable.Name}\"].FirstOrDefault();");
-        }
-
-        Next?.GenerateCode(method, writer);
-    }
-    
-    public void AssignToProperty(string usage)
-    {
-        Variable.OverrideName(usage);
-        Mode = AssignMode.WriteToProperty;
-    }
-
-    public AssignMode Mode { get; private set; } = AssignMode.WriteToVariable;
-}
-
-
-internal class ParsedFormValue : SyncFrame, IReadHttpFrame
-{
-    private string _property;
-
-    public ParsedFormValue(Type parameterType, string parameterName)
-    {
-        Variable = new FormVariable(parameterType, parameterName!, this);
-    }
-
-    public FormVariable Variable { get; }
-
-    public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
-    {
-        var alias = Variable.VariableType.FullNameInCode();
-        var prefix = Mode == AssignMode.WriteToVariable ? "" : "if (";
-        var suffix = Mode == AssignMode.WriteToVariable ? "" : $") {_property} = {Variable.Usage}";
-        var outUsage = Mode == AssignMode.WriteToVariable ? Variable.Usage : $"var {Variable.Usage}";
-        
-        if (Mode == AssignMode.WriteToVariable)
-        {
-            writer.Write($"{alias} {Variable.Usage} = default;");
-        }
-
-        if (Variable.VariableType.IsEnum)
-        {
-            writer.Write($"{prefix}{alias}.TryParse<{alias}>(httpContext.Request.Form[\"{Variable.Name}\"],true, out {outUsage}){suffix};");
-        }
-        else if (Variable.VariableType.IsBoolean())
-        {
-            writer.Write($"{prefix}{alias}.TryParse(httpContext.Request.Form[\"{Variable.Name}\"], out {outUsage}){suffix};");
-        }
-        else
-        {
-            writer.Write($"{prefix}{alias}.TryParse(httpContext.Request.Form[\"{Variable.Name}\"], System.Globalization.CultureInfo.InvariantCulture, out {outUsage}){suffix};");
-        }
-
-        Next?.GenerateCode(method, writer);
-    }
-    
-    public void AssignToProperty(string usage)
-    {
-        Mode = AssignMode.WriteToProperty;
-        _property = usage;
-    }
-
-    public AssignMode Mode { get; private set; } = AssignMode.WriteToVariable;
-}
-
-
-internal class ParsedNullableFormValue : SyncFrame, IReadHttpFrame
-{
-    private readonly string _alias;
-    private Type _innerTypeFromNullable;
-    private string _property;
-
-    public ParsedNullableFormValue(Type parameterType, string parameterName)
-    {
-        Variable = new FormVariable(parameterType, parameterName, this);
-        _innerTypeFromNullable = parameterType.GetInnerTypeFromNullable();
-        _alias = _innerTypeFromNullable.FullNameInCode();
-    }
-
-    public FormVariable Variable { get; }
-
-    public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
-    {
-        if (Mode == AssignMode.WriteToVariable)
-        {
-            writer.Write($"{_alias}? {Variable.Usage} = null;");
-            
-            if (_innerTypeFromNullable.IsEnum)
-            {
-                writer.Write(
-                    $"if ({_alias}.TryParse<{_innerTypeFromNullable.FullNameInCode()}>(httpContext.Request.Form[\"{Variable.Name}\"], true, out var {Variable.Usage}Parsed)) {Variable.Usage} = {Variable.Usage}Parsed;");
-            }
-            else if (_innerTypeFromNullable.IsBoolean())
-            {
-                writer.Write(
-                    $"if ({_alias}.TryParse(httpContext.Request.Form[\"{Variable.Name}\"], out var {Variable.Usage}Parsed)) {Variable.Usage} = {Variable.Usage}Parsed;");
-            }
-            else
-            {
-                writer.Write(
-                    $"if ({_alias}.TryParse(httpContext.Request.Form[\"{Variable.Name}\"], System.Globalization.CultureInfo.InvariantCulture, out var {Variable.Usage}Parsed)) {Variable.Usage} = {Variable.Usage}Parsed;");
-            }
-        }
-        else
-        {
-            if (_innerTypeFromNullable.IsEnum)
-            {
-                writer.Write(
-                    $"if ({_alias}.TryParse<{_innerTypeFromNullable.FullNameInCode()}>(httpContext.Request.Form[\"{Variable.Name}\"], true, out var {Variable.Usage})) {_property} = {Variable.Usage};");
-            }
-            else if (_innerTypeFromNullable.IsBoolean())
-            {
-                writer.Write(
-                    $"if ({_alias}.TryParse(httpContext.Request.Form[\"{Variable.Name}\"], out var {Variable.Usage})) {_property} = {Variable.Usage};");
-            }
-            else
-            {
-                writer.Write(
-                    $"if ({_alias}.TryParse(httpContext.Request.Form[\"{Variable.Name}\"], System.Globalization.CultureInfo.InvariantCulture, out var {Variable.Usage})) {_property} = {Variable.Usage};");
-            }
-        }
-        
-
-        Next?.GenerateCode(method, writer);
-    }
-    
-    public void AssignToProperty(string usage)
-    {
-        _property = usage;
-        Mode = AssignMode.WriteToProperty;
-    }
-
-    public AssignMode Mode { get; private set; } = AssignMode.WriteToVariable;
-}
-
 internal class ParsedCollectionFormValue : SyncFrame, IReadHttpFrame
 {
     private readonly Type _collectionElementType;
 
     public ParsedCollectionFormValue(Type parameterType, string parameterName)
     {
-        Variable = new FormVariable(parameterType, parameterName!, this);
+        Variable = new HttpElementVariable(parameterType, parameterName!, this);
         _collectionElementType = GetCollectionElementType(parameterType);
     }
 
-    public FormVariable Variable { get; }
+    public HttpElementVariable Variable { get; }
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
@@ -263,7 +100,7 @@ internal class ParsedArrayFormValue : SyncFrame, IReadHttpFrame
 
     public ParsedArrayFormValue(Type parameterType, string parameterName) 
     {
-        Variable = new FormVariable(parameterType, parameterName!, this);
+        Variable = new HttpElementVariable(parameterType, parameterName!, this);
     }
 
     public void AssignToProperty(string usage)
@@ -274,7 +111,7 @@ internal class ParsedArrayFormValue : SyncFrame, IReadHttpFrame
 
     public AssignMode Mode { get; private set; } = AssignMode.WriteToVariable;
 
-    public FormVariable Variable { get; }
+    public HttpElementVariable Variable { get; }
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {

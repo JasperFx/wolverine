@@ -11,7 +11,7 @@ internal class ParsedArrayQueryStringValue : SyncFrame, IReadHttpFrame
 
     public ParsedArrayQueryStringValue(Type parameterType, string parameterName) 
     {
-        Variable = new QuerystringVariable(parameterType, parameterName!, this);
+        Variable = new HttpElementVariable(parameterType, parameterName!, this);
     }
 
     public void AssignToProperty(string usage)
@@ -22,7 +22,7 @@ internal class ParsedArrayQueryStringValue : SyncFrame, IReadHttpFrame
 
     public AssignMode Mode { get; private set; } = AssignMode.WriteToVariable;
 
-    public QuerystringVariable Variable { get; }
+    public HttpElementVariable Variable { get; }
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
