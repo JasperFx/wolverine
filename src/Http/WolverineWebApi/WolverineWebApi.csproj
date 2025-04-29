@@ -3,6 +3,7 @@
         <TargetFrameworks>net9.0</TargetFrameworks>
     </PropertyGroup>
     <ItemGroup>
+        <PackageReference Include="FSharp.Core" Version="9.0.202" />
         <PackageReference Include="Lamar.Diagnostics" Version="14.0.1" />
         <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="7.0.2" />
         <PackageReference Include="Microsoft.AspNetCore.SignalR" Version="1.1.0" />
@@ -11,6 +12,7 @@
     </ItemGroup>
 
     <ItemGroup>
+        <ProjectReference Include="..\..\..\WolverineWebApiFSharp\WolverineWebApiFSharp.fsproj" />
         <ProjectReference Include="..\..\Persistence\Wolverine.EntityFrameworkCore\Wolverine.EntityFrameworkCore.csproj" />
         <ProjectReference Include="..\..\Persistence\Wolverine.Marten\Wolverine.Marten.csproj" />
         <ProjectReference Include="..\Wolverine.AdminApi\Wolverine.AdminApi.csproj" />
