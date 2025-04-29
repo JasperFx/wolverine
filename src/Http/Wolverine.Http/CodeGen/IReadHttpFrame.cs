@@ -27,13 +27,13 @@ internal class ReadHttpFrame : SyncFrame, IReadHttpFrame
     public ReadHttpFrame(BindingSource source, Type parameterType, string parameterName)
     {
         _source = source;
-        Variable = new QuerystringVariable(parameterType, parameterName!, this);
+        Variable = new HttpElementVariable(parameterType, parameterName!, this);
 
         _isNullable = parameterType.IsNullable();
         _rawType = _isNullable ? parameterType.GetInnerTypeFromNullable() : parameterType;
     }
 
-    public QuerystringVariable Variable { get; }
+    public HttpElementVariable Variable { get; }
 
     /// <summary>
     /// The query string key, route argument name, or form element name. Mirrors Variable.Name
@@ -128,7 +128,7 @@ internal class ReadHttpFrame : SyncFrame, IReadHttpFrame
             writer.Write($"{Variable.VariableType.FullNameInCode()} {Variable.Usage} = default;");
         }
         
-        var assignmentLine = Mode == AssignMode.WriteToVariable ? "" : $"{_property} = {Variable.Usage}";
+        var assignmentLine = Mode == AssignMode.WriteToVariable ? "" : $"{_property} = {Variable.Usage};";
         var outUsage = Mode == AssignMode.WriteToVariable ? Variable.Usage : $"var {Variable.Usage}";
         
         if (_isNullable)
@@ -140,7 +140,7 @@ internal class ReadHttpFrame : SyncFrame, IReadHttpFrame
         }
 
         writer.Write("");
-        writer.Write($"BLOCK: if({tryParseExpression(outUsage)})");
+        writer.Write($"BLOCK:if ({tryParseExpression(outUsage)})");
         writer.Write(assignmentLine);
         
         writer.FinishBlock();

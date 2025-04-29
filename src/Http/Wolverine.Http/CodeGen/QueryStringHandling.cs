@@ -20,29 +20,17 @@ public interface IGeneratesCode
     void GenerateCode(GeneratedMethod method, ISourceWriter writer);
 }
 
-public class QuerystringVariable : Variable
-{
-    public QuerystringVariable(Type variableType, string usage, Frame? creator) : base(variableType, usage, creator)
-    {
-        Name = usage;
-    }
-
-    public string Name { get; set; }
-
-}
-
-
 internal class ParsedCollectionQueryStringValue : SyncFrame, IReadHttpFrame
 {
     private readonly Type _collectionElementType;
 
     public ParsedCollectionQueryStringValue(Type parameterType, string parameterName)
     {
-        Variable = new QuerystringVariable(parameterType, parameterName!, this);
+        Variable = new HttpElementVariable(parameterType, parameterName!, this);
         _collectionElementType = GetCollectionElementType(parameterType);
     }
 
-    public QuerystringVariable Variable { get; }
+    public HttpElementVariable Variable { get; }
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
