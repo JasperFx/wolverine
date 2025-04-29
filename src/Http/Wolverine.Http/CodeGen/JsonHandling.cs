@@ -22,6 +22,11 @@ internal class ReadJsonBody : AsyncFrame
         Variable = new Variable(parameter.ParameterType, parameterName, this);
     }
 
+    public ReadJsonBody(Type requestType)
+    {
+        Variable = new Variable(requestType, this);
+    }
+
     public Variable Variable { get; }
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
@@ -50,6 +55,19 @@ internal class ReadJsonBodyWithNewtonsoft : MethodCall
         if (parameterName == "_")
         {
             parameterName = Variable.DefaultArgName(parameter.ParameterType);
+        }
+
+        ReturnVariable!.OverrideName(parameterName);
+
+        CommentText = "Reading the request body with JSON deserialization";
+    }
+    
+    public ReadJsonBodyWithNewtonsoft(Type requestType) : base(typeof(NewtonsoftHttpSerialization), findMethodForType(requestType))
+    {
+        var parameterName = Variable.DefaultArgName(requestType);
+        if (parameterName == "_")
+        {
+            parameterName = Variable.DefaultArgName(requestType);
         }
 
         ReturnVariable!.OverrideName(parameterName);
@@ -101,4 +119,22 @@ internal class JsonBodyParameterStrategy : IParameterStrategy
     }
 
     public JsonUsage Usage { get; set; } = JsonUsage.SystemTextJson;
+
+    public bool TryBuildVariable(HttpChain chain, out Variable variable)
+    {
+        if (chain.RequestType.IsConcrete())
+        {
+            // It *could* be used twice, so let's watch out for this!
+            chain.RequestBodyVariable ??= Usage == JsonUsage.SystemTextJson
+                ? new ReadJsonBody(chain.RequestType).Variable
+                : new ReadJsonBodyWithNewtonsoft(chain.RequestType).ReturnVariable!;
+
+            variable = chain.RequestBodyVariable;
+
+            return true;
+        }
+
+        variable = default;
+        return false;
+    }
 }

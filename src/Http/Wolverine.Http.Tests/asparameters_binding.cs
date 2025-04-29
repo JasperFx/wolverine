@@ -1,4 +1,7 @@
+using System.ComponentModel.Design;
 using Alba;
+using Internal.Generated.WolverineHandlers;
+using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 using WolverineWebApi;
 
@@ -9,6 +12,13 @@ public class asparameters_binding : IntegrationContext
     public asparameters_binding(AppFixture fixture) : base(fixture)
     {
     }
+    
+    /*
+     * TODOs
+     * Bind the body, and when you do that, set the request type
+     * Bind a service
+     * Bind a route argument
+     */
 
 
     [Fact]
@@ -112,5 +122,36 @@ public class asparameters_binding : IntegrationContext
         response.NumberHeader.ShouldBe(303);
         response.NullableHeader.ShouldBe(13);
         
+    }
+
+    [Fact]
+    public async Task post_body_services_and_route_arguments()
+    {
+        var result = await Host.Scenario(x =>
+        {
+            x.Post.Json(new AsParameterBody { Name = "Jeremy", Direction = Direction.East, Distance = 133 })
+                .ToUrl("/asp2/croaker/42");
+            
+                    // x.Post.Url("/asp2/croaker/42");
+            
+        });
+
+        var response = result.ReadAsJson<AsParametersQuery2>();
+        
+        // Routes
+        response.Id.ShouldBe("croaker");
+        response.Number.ShouldBe(42);
+        
+        // Body
+        
+        // First check this for OpenAPI generation
+        // var options = Host.Services.GetRequiredService<WolverineHttpOptions>();
+        // var chain = options.Endpoints.ChainFor("POST", "/asp2/{id}/{number}");
+        // chain.RequestType.ShouldBe(typeof(AsParameterBody));
+        //
+        // response.Body.Name.ShouldBe("Jeremy");
+        // response.Body.Direction.ShouldBe(Direction.East);
+        // response.Body.Distance.ShouldBe(133);
+
     }
 }

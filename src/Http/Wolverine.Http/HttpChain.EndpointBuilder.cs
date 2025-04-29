@@ -102,7 +102,6 @@ public partial class HttpChain : IEndpointConventionBuilder
         }
 
         Endpoint = (RouteEndpoint?)builder.Build();
-
         return Endpoint!;
     }
 

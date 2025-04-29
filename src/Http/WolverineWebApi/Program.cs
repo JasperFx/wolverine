@@ -101,8 +101,8 @@ builder.Host.UseWolverine(opts =>
     
     opts.Policies.Add<BroadcastClientMessages>();
 
-    opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Dynamic;
-    //opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
+    //opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Dynamic;
+    opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
 });
 
 builder.Services.ConfigureSystemTextJsonForWolverineOrMinimalApi(o =>
