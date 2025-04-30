@@ -145,13 +145,32 @@ public class asparameters_binding : IntegrationContext
         // Body
         
         // First check this for OpenAPI generation
-        // var options = Host.Services.GetRequiredService<WolverineHttpOptions>();
-        // var chain = options.Endpoints.ChainFor("POST", "/asp2/{id}/{number}");
-        // chain.RequestType.ShouldBe(typeof(AsParameterBody));
-        //
-        // response.Body.Name.ShouldBe("Jeremy");
-        // response.Body.Direction.ShouldBe(Direction.East);
-        // response.Body.Distance.ShouldBe(133);
+        var options = Host.Services.GetRequiredService<WolverineHttpOptions>();
+        var chain = options.Endpoints.ChainFor("POST", "/asp2/{id}/{number}");
+        chain.RequestType.ShouldBe(typeof(AsParameterBody));
+        
+        response.Body.Name.ShouldBe("Jeremy");
+        response.Body.Direction.ShouldBe(Direction.East);
+        response.Body.Distance.ShouldBe(133);
 
+    }
+
+    [Fact]
+    public async Task use_record_for_as_parameters()
+    {
+        var result = await Scenario(x =>
+        {
+            x.Post.FormData(new Dictionary<string, string>() { { "test", "true" } })
+                .QueryString("Number", "2")
+                .ToUrl("/asparameterrecord/idvalue");
+
+            x.WithRequestHeader("x-direction", "East");
+        });
+
+        var value = result.ReadAsJson<AsParameterRecord>();
+        value.Id.ShouldBe("idvalue");
+        value.Number.ShouldBe(2);
+        value.Direction.ShouldBe(Direction.East);
+        value.IsTrue.ShouldBeTrue();
     }
 }

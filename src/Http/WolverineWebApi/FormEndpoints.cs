@@ -143,6 +143,8 @@ public class AsParametersQuery{
 }
 #endregion
 
+#region sample_using_as_parameter_for_services_and_body
+
 public class AsParameterBody
 {
     public string Name { get; set; }
@@ -174,16 +176,23 @@ public static class AsParametersEndpoints2{
         query.Store.ShouldBeOfType<DocumentStore>();
         return query;
     }
-    
-    // [WolverinePost("/asp2/{id}/{number}")]
-    // public static AsParametersQuery2 Post(AsParameterBody body, string id, int number)
-    // {
-    //     return new AsParametersQuery2
-    //     {
-    //         Body = body,
-    //         Id = id,
-    //         Number = number
-    //     };
-    // }
 }
+
+#endregion
+
+#region sample_as_parameter_record
+
+public record AsParameterRecord(
+    [FromRoute] string Id,
+    [FromQuery] int Number,
+    [FromHeader(Name = "x-direction")] Direction Direction,
+    [FromForm(Name = "test")] bool IsTrue);
+
+public static class AsParameterRecordEndpoint
+{
+    [WolverinePost("/asparameterrecord/{Id}")]
+    public static AsParameterRecord Post([AsParameters] AsParameterRecord input) => input;
+}
+
+#endregion
 

@@ -68,7 +68,8 @@ internal class AssignPropertyFrame : SyncFrame, IGeneratesCode
 internal class AsParametersBindingFrame : SyncFrame
 {
     private readonly ConstructorInfo _constructor;
-    private readonly List<IGeneratesCode> _props = [];
+    private readonly List<Frame> _props = [];
+    private readonly List<Frame> _parameterFrames = [];
     private readonly List<Variable> _parameters = [];
     private readonly List<Variable> _dependencies = [];
     
@@ -80,10 +81,22 @@ internal class AsParametersBindingFrame : SyncFrame
         Variable = new Variable(queryType, this);
 
         var constructors = queryType.GetConstructors();
-        if (constructors.Length != 1 && constructors.Single().GetParameters().Any())
-        {
+        if (constructors.Length > 1)
             throw new ArgumentOutOfRangeException(nameof(queryType),
-                $"Wolverine can only bind AsParamaters values to a type with a public parameterless constructor. {queryType.FullNameInCode()} has a constructor");
+                $"Wolverine can only bind a query string to a type with only one public constructor. {queryType.FullNameInCode()} has multiple constructors");
+
+        _constructor = constructors.Single();
+        
+        foreach (var parameter in _constructor.GetParameters())
+        {
+            if (tryCreateFrame(parameter, chain, container, out var variable))
+            {
+                _parameters.Add(variable);
+                if (variable.Creator != null)
+                {
+                    _parameterFrames.Add(variable.Creator);
+                }
+            }
         }
 
         foreach (var propertyInfo in queryType.GetProperties().Where(x => x is { CanWrite: true, IsSpecialName: false }))
@@ -93,7 +106,7 @@ internal class AsParametersBindingFrame : SyncFrame
                 if (variable?.Creator is IReadHttpFrame frame)
                 {
                     frame.AssignToProperty($"{Variable.Usage}.{propertyInfo.Name}");
-                    _props.Add(frame);
+                    _props.Add(variable.Creator);
                 }
                 else
                 {
@@ -109,57 +122,123 @@ internal class AsParametersBindingFrame : SyncFrame
                 $"{queryType.FullNameInCode()} cannot be decorated with [AsParameters] because it uses both [FromForm] and [FromBody] binding. You can only use one or the other option");
         }
     }
+    
+    private bool tryCreateFrame(ParameterInfo parameter, HttpChain chain, IServiceContainer container, out Variable? variable)
+    {
+        variable = default;
+
+        var memberType = parameter.ParameterType;
+        var memberName = parameter.Name;
+        
+        if (parameter.TryGetAttribute<FromFormAttribute>(out var fatt))
+        {
+            _hasForms = true;
+            var formName = fatt.Name ?? memberName;
+            variable = chain.TryFindOrCreateFormValue(memberType, memberName, formName);
+            return true;
+        }
+
+        if (parameter.TryGetAttribute<FromQueryAttribute>(out var qatt))
+        {
+            var queryStringName = qatt.Name ?? memberName;
+            variable =
+                chain.TryFindOrCreateQuerystringValue(memberType, queryStringName);
+
+            return true;
+        }
+
+        if (parameter.TryGetAttribute<FromRouteAttribute>(out var ratt))
+        {
+            var routeArgumentName = ratt.Name ?? memberName;
+            if (chain.FindRouteVariable(memberType, routeArgumentName, out variable))
+            {
+                return true;
+            }
+
+            throw new InvalidOperationException(
+                $"Unable to find a route argument '{routeArgumentName}' specified on property {Variable.VariableType.FullNameInCode()}.{memberName}");
+        }
+
+        if (parameter.TryGetAttribute<FromHeaderAttribute>(out var hatt))
+        {
+            variable = chain.GetOrCreateHeaderVariable(hatt, parameter);
+            return true;
+        }
+
+        if (parameter.TryGetAttribute<FromBodyAttribute>(out var batt))
+        {
+            _hasJsonBody = true;
+            chain.RequestType = memberType;
+            variable = chain.BuildJsonDeserializationVariable();
+            
+            chain.IsFormData = false;
+            return true;
+        }
+
+        if (parameter.TryGetAttribute<FromServicesAttribute>(out var satt))
+        {
+            variable = container.GetInstance<IServiceVariableSource>().Create(memberType);
+            return true;
+        }
+
+        return false;
+    }
 
     private bool tryCreateFrame(PropertyInfo propertyInfo, HttpChain chain, IServiceContainer container, out Variable? variable)
     {
         variable = default;
 
+        var memberType = propertyInfo.PropertyType;
+        var memberName = propertyInfo.Name;
         
         if (propertyInfo.TryGetAttribute<FromFormAttribute>(out var fatt))
         {
             _hasForms = true;
-            var formName = fatt.Name ?? propertyInfo.Name;
-            variable = chain.TryFindOrCreateFormValue(propertyInfo.PropertyType, propertyInfo.Name, formName);
+            var formName = fatt.Name ?? memberName;
+            variable = chain.TryFindOrCreateFormValue(memberType, memberName, formName);
             return true;
         }
 
         if (propertyInfo.TryGetAttribute<FromQueryAttribute>(out var qatt))
         {
-            var queryStringName = qatt.Name ?? propertyInfo.Name;
+            var queryStringName = qatt.Name ?? memberName;
             variable =
-                chain.TryFindOrCreateQuerystringValue(propertyInfo.PropertyType, queryStringName);
+                chain.TryFindOrCreateQuerystringValue(memberType, queryStringName);
 
             return true;
         }
 
         if (propertyInfo.TryGetAttribute<FromRouteAttribute>(out var ratt))
         {
-            var routeArgumentName = ratt.Name ?? propertyInfo.Name;
-            if (chain.FindRouteVariable(propertyInfo.PropertyType, routeArgumentName, out variable))
+            var routeArgumentName = ratt.Name ?? memberName;
+            if (chain.FindRouteVariable(memberType, routeArgumentName, out variable))
             {
                 return true;
             }
 
             throw new InvalidOperationException(
-                $"Unable to find a route argument '{routeArgumentName}' specified on property {Variable.VariableType.FullNameInCode()}.{propertyInfo.Name}");
+                $"Unable to find a route argument '{routeArgumentName}' specified on property {Variable.VariableType.FullNameInCode()}.{memberName}");
         }
-        else if (propertyInfo.TryGetAttribute<FromHeaderAttribute>(out var hatt))
+
+        if (propertyInfo.TryGetAttribute<FromHeaderAttribute>(out var hatt))
         {
             variable = chain.GetOrCreateHeaderVariable(hatt, propertyInfo);
             return true;
         }
-        else if (propertyInfo.TryGetAttribute<FromBodyAttribute>(out var batt))
+
+        if (propertyInfo.TryGetAttribute<FromBodyAttribute>(out var batt))
         {
             _hasJsonBody = true;
-            chain.RequestType = propertyInfo.PropertyType;
+            chain.RequestType = memberType;
             variable = chain.BuildJsonDeserializationVariable();
             
             chain.IsFormData = false;
             return true;
         }
-        else if (propertyInfo.TryGetAttribute<FromServicesAttribute>(out var satt))
+
+        if (propertyInfo.TryGetAttribute<FromServicesAttribute>(out var satt))
         {
-            variable = container.GetInstance<IServiceVariableSource>().Create(propertyInfo.PropertyType);
+            variable = container.GetInstance<IServiceVariableSource>().Create(memberType);
             return true;
         }
 
@@ -171,6 +250,12 @@ internal class AsParametersBindingFrame : SyncFrame
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
         writer.WriteComment("Binding Form & Querystring values to the argument marked with [AsParameters]");
+
+        foreach (var frame in _parameterFrames)
+        {
+            frame.GenerateCode(method, writer);
+        }
+        
         var arguments = _parameters.Select(x => x.Usage).Join(", ");
 
         writer.Write($"var {Variable.Usage} = new {Variable.VariableType.FullNameInCode()}({arguments});");
@@ -182,7 +267,6 @@ internal class AsParametersBindingFrame : SyncFrame
 
     public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
     {
-        foreach (var parameter in _parameters) yield return parameter;
         foreach (var parameter in _dependencies) yield return parameter;
     }
 }

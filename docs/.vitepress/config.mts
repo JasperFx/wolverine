@@ -191,6 +191,8 @@ const config: UserConfig<DefaultTheme.Config> = {
                         {text: 'Authentication and Authorization', link: '/guide/http/security'},
                         {text: 'Working with Querystring', link: '/guide/http/querystring'},
                         {text: 'Headers', link: '/guide/http/headers'},
+                        {text: 'HTTP Form Data', link: '/guide/http/forms'},
+                        {text: `AsParameters Binding`, link: '/guide/http/as-parameters'},
                         {text: 'Middleware', link: '/guide/http/middleware.md'},
                         {text: 'Policies', link: '/guide/http/policies.md'},
                         {text: 'OpenAPI Metadata', link: '/guide/http/metadata'},
