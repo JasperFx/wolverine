@@ -11,8 +11,8 @@ pause message processing on a single listening endpoint in the case of a high ra
 
 ::: warning
 When using `IMessageBus.InvokeAsync()` to execute a message inline, only the "Retry" and "Retry With Cooldown" error policies
-are applied to the execution. In other words, Wolverine will attempt to use retries inside the call to `InvokeAsync()` as
-configured.
+are applied to the execution **automatically**. In other words, Wolverine will attempt to use retries inside the call to `InvokeAsync()` as
+configured. Custom actions can be explicitly enabled for execution inside of `InvokeAsync()` as shown in a section below.
 :::
 
 Error handling rules in Wolverine are defined by three things:
@@ -423,3 +423,23 @@ calls, the circuit breaker will assume that every exception should be considered
 Likewise, if there are no `Exclude()` calls, the circuit breaker will not throw out any
 exceptions. Also note that **it probably makes no sense to define both `Include()` and `Exclude()`
 rules**.
+
+## Custom Actions for InvokeAsync() <Badge type="tip" text="3.13" />
+
+::: info
+This usage was built for a [JasperFx Software](https://jasperfx.net) customer who is using Wolverine by calling `IMessageBus.InvokeAsync()`
+directly underneath [Hot Chocolate mutations](https://chillicream.com/docs/hotchocolate/v13/defining-a-schema/mutations). In their case, if the 
+mutation action failed more than X number of times, they wanted to send a different message that would try to jumpstart the long running
+workflow that is somehow stalled.
+:::
+
+This is maybe a little specialized, but let's say you have a reason for calling `IMessageBus.InvokeAsync()` inline, and
+that you want to carry out some kind of custom action if the message handler exceeds a certain number of retries (the only
+error handling action that applies automatically to `InvokeAsync()`). You can now opt custom actions into applying to 
+exceptions thrown by your message handlers during a call to `InvokeAsync()` by specifying an `InvokeResult` value of `Stop`
+or `TryAgain` to a custom action. Here's a sample that uses a `CompensatingAction()` helper method for raising other messages
+on failures:
+
+snippet: sample_using_custom_actions_for_inline_processing
+
+Note that custom actions would *always* be applied to exceptions thrown in asynchronous message handling. 
