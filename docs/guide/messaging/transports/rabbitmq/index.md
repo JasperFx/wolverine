@@ -111,6 +111,26 @@ using var host = await Host.CreateDefaultBuilder()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L128-L151' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_only_use_sending_connection_with_rabbitmq' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Aspire Integration
+
+Just note that when you use the existing Aspire integration for Rabbit MQ that Aspire "pokes" in an environment variable
+for a Rabbit MQ `Uri` and not a connection string -- even though the Aspire information is available through `IConfiguration.GetConnectionString()`.
+
+Be aware of this when using Aspire so that you're passing that information as a `Uri` like this:
+
+```csharp
+var rabbitmqEndpoint = builder.Configuration.GetConnectionString("rabbitmq");
+if (rabbitmqEndpoint != null)
+{
+    builder.Host.UseWolverine(opts =>
+    {
+        // Important! Convert the "connection string" up above to a Uri
+        opts.UseRabbitMq(new Uri(rabbitmqEndpoint)).AutoProvision();
+    });
+}
+```
+
+Why does Aspire do this? We have no idea, but just don't be tripped up by this little quirk.
 
 ## Enable Rabbit MQ for Wolverine Control Queues
 
