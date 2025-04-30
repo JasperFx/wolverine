@@ -224,12 +224,9 @@ internal class Executor : IExecutor
                 throw;
             }
 
-            if (retry.Delay.HasValue)
-            {
-                await Task.Delay(retry.Delay.Value, cancellation).ConfigureAwait(false);
-            }
-
-            return InvokeResult.TryAgain;
+            return await retry
+                .ExecuteInlineAsync(context, context.Runtime, DateTimeOffset.UtcNow, Activity.Current, cancellation)
+                .ConfigureAwait(false);
         }
     }
 
