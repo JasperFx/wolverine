@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using Wolverine.ErrorHandling.Matches;
 using Wolverine.Runtime;
+using Wolverine.Runtime.Handlers;
 
 namespace Wolverine.ErrorHandling;
 
@@ -106,6 +107,24 @@ internal class FailureActions : IAdditionalActions, IFailureActions
         string description = "User supplied")
     {
         var source = new UserDefinedContinuationSource(action, description);
+        return And(source);
+    }
+    
+    /// <summary>
+    ///     Take out an additional, user-defined action upon message failures
+    /// </summary>
+    /// <param name="source"></param>
+    /// <param name="description"></param>
+    /// <param name="invokeUsage">If specified, this error action will be executed for inline message execution through IMessageBus.InvokeAsync()</param>
+    /// <returns></returns>
+    public IAdditionalActions And(Func<IWolverineRuntime, IEnvelopeLifecycle, Exception, ValueTask> action,
+        string description = "User supplied", InvokeResult? invokeUsage = null)
+    {
+        var source = new UserDefinedContinuationSource(action, description)
+        {
+            InvokeUsage = invokeUsage
+        };
+        
         return And(source);
     }
 
@@ -263,14 +282,15 @@ internal class UserDefinedContinuationSource : IContinuationSource
     }
 
     public string Description { get; }
+    public InvokeResult? InvokeUsage { get; set; }
 
     public IContinuation Build(Exception ex, Envelope envelope)
     {
-        return new LambdaContinuation(_source, ex);
+        return new LambdaContinuation(_source, ex){InvokeUsage = InvokeUsage};
     }
 }
 
-internal class LambdaContinuation : IContinuation
+internal class LambdaContinuation : IContinuation, IInlineContinuation
 {
     private readonly Func<IWolverineRuntime, IEnvelopeLifecycle, Exception, ValueTask> _action;
     private readonly Exception _exception;
@@ -282,10 +302,22 @@ internal class LambdaContinuation : IContinuation
         _exception = exception;
     }
 
+    public InvokeResult? InvokeUsage { get; set; }
+
     public ValueTask ExecuteAsync(IEnvelopeLifecycle lifecycle, IWolverineRuntime runtime, DateTimeOffset now,
         Activity? activity)
     {
         return _action(runtime, lifecycle, _exception);
+    }
+
+    public async ValueTask<InvokeResult> ExecuteInlineAsync(IEnvelopeLifecycle lifecycle, IWolverineRuntime runtime, DateTimeOffset now,
+        Activity? activity, CancellationToken cancellation)
+    {
+        if (InvokeUsage == null) return InvokeResult.Stop;
+
+        await _action(runtime, lifecycle, _exception);
+
+        return InvokeUsage.Value;
     }
 }
 
