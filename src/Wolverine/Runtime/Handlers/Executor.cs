@@ -12,8 +12,20 @@ namespace Wolverine.Runtime.Handlers;
 
 public enum InvokeResult
 {
+    /// <summary>
+    /// The message is successful
+    /// </summary>
     Success,
-    TryAgain
+    
+    /// <summary>
+    /// The message should be retried
+    /// </summary>
+    TryAgain,
+    
+    /// <summary>
+    /// The message should not be retried
+    /// </summary>
+    Stop
 }
 
 public interface IExecutor : IMessageInvoker
