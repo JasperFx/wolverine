@@ -1,6 +1,14 @@
 using System.Diagnostics;
+using Wolverine.Runtime.Handlers;
 
 namespace Wolverine.Runtime;
+
+public interface IInlineContinuation
+{
+    ValueTask<InvokeResult> ExecuteInlineAsync(IEnvelopeLifecycle lifecycle, IWolverineRuntime runtime,
+        DateTimeOffset now,
+        Activity? activity, CancellationToken cancellation);
+}
 
 #region sample_IContinuation
 
