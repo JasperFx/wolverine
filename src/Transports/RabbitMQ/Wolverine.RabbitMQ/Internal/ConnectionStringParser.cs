@@ -7,17 +7,24 @@ internal static class ConnectionStringParser
 {
     public static void Apply(string connectionString, ConnectionFactory factory)
     {
-        var values = connectionString.TrimEnd(';').ToDelimitedArray(';');
-        foreach (var value in values)
+        if (Uri.TryCreate(connectionString, UriKind.Absolute, out var uri))
         {
-            var parts = value.ToDelimitedArray('=');
-            if (parts.Length != 2)
+            factory.Uri = uri;
+        }
+        else
+        {
+            var values = connectionString.TrimEnd(';').ToDelimitedArray(';');
+            foreach (var value in values)
             {
-                throw new ArgumentOutOfRangeException(
-                    "Invalid connection string syntax. Use key1=value1;key2=value2 syntax");
-            }
+                var parts = value.ToDelimitedArray('=');
+                if (parts.Length != 2)
+                {
+                    throw new ArgumentOutOfRangeException(
+                        "Invalid connection string syntax. Use key1=value1;key2=value2 syntax");
+                }
 
-            Parse(parts[0].ToLower(), parts[1], factory);
+                Parse(parts[0].ToLower(), parts[1], factory);
+            }
         }
     }
 
