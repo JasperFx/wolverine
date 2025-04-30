@@ -45,6 +45,8 @@ public class custom_action_for_inline_messages : IntegrationContext
     }
 }
 
+#region sample_using_custom_actions_for_inline_processing
+
 public record ApproveInvoice(string InvoiceId);
 public record RequireIntervention(string InvoiceId);
 
@@ -54,7 +56,11 @@ public static class InvoiceHandler
     {
         chain.OnAnyException().RetryTimes(3)
             .Then
-            .CompensatingAction<ApproveInvoice>((message, ex, bus) => bus.PublishAsync(new RequireIntervention(message.InvoiceId)), InvokeResult.Stop);
+            .CompensatingAction<ApproveInvoice>((message, ex, bus) => bus.PublishAsync(new RequireIntervention(message.InvoiceId)), 
+                
+                // By specifying a value here for InvokeResult, I'm making
+                // this action apply to failures inside of IMessageBus.InvokeAsync()
+                InvokeResult.Stop);
             
         // This is just a long hand way of doing the same thing as CompensatingAction
         // .CustomAction(async (runtime, lifecycle, _) =>
@@ -82,3 +88,5 @@ public static class InvoiceHandler
         Debug.WriteLine($"Got: {message}");
     }
 }
+
+#endregion
