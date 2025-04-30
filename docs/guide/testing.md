@@ -106,8 +106,13 @@ I'd personally organize the testing against that handler with a context/specific
 :::
 
 
-
 ## TestMessageContext
+
+::: tip
+This testing mechanism is admittedly just a copy of the test support in older messaging frameworks in 
+.NET. It's only useful as an argument passed into a handler method. We recommend using the "Tracked Session"
+approach instead.
+:::
 
 In the section above we used cascading messages, but since there are some use cases -- or maybe even just
 user preference -- that would lead you to directly use `IMessageContext` to send additional messages
@@ -352,6 +357,18 @@ all the external transports turned off in a way that's appropriate for integrati
 message handlers within the main application.
 
 ## Integration Testing with Tracked Sessions
+
+::: tip
+This is the recommended approach for integration testing against Wolverine message handlers
+if there are any outgoing messages or asynchronous behavior as a result of the messages being
+handled in your test scenario.
+:::
+
+::: info
+As of Wolverine 3.13, the same extension methods shown here are available off of `IServiceProvider`
+in addition to the original support off of `IHost` if you happen to be writing integration tests
+by spinning up just an IoC container and not the full `IHost` in your test harnesses.
+:::
 
 So far we've been mostly focused on unit testing Wolverine handler methods individually with 
 unit tests without any direct coupling to infrastructure. Great, that's a great start,
