@@ -26,6 +26,30 @@ public abstract class UserDefinedContinuation : IContinuationSource, IContinuati
     }
 }
 
+public static class FailureActionExtensions
+{
+    /// <summary>
+    /// Handle the exception by potentially sending compensating actions to handle the failure case. This can
+    /// match on any time that can be cast to the "T" type
+    /// </summary>
+    /// <param name="compensatingAction"></param>
+    /// <param name="invokeResult"></param>
+    /// <typeparam name="T"></typeparam>
+    /// <returns></returns>
+    public static IAdditionalActions CompensatingAction<T>(this IFailureActions actions, Func<T, Exception, IMessageBus, ValueTask> compensatingAction, InvokeResult? invokeResult = null)
+    {
+        return actions.CustomAction(async (runtime, lifecycle, ex) =>
+        {
+            if (lifecycle.Envelope?.Message is T message)
+            {
+                var bus = new MessageContext(runtime);
+                await compensatingAction(message, ex, bus).ConfigureAwait(false);
+                await bus.FlushOutgoingMessagesAsync().ConfigureAwait(false);
+            }
+        }, "Compensating messages", invokeResult);
+    }
+}
+
 public interface IAdditionalActions
 {
     /// <summary>
@@ -49,6 +73,17 @@ public interface IAdditionalActions
     /// <returns></returns>
     IAdditionalActions And(Func<IWolverineRuntime, IEnvelopeLifecycle, Exception, ValueTask> action,
         string description = "User supplied");
+    
+    /// <summary>
+    ///     Take out an additional, user-defined action upon message failures
+    /// </summary>
+    /// <param name="source"></param>
+    /// <param name="description"></param>
+    /// <param name="invokeUsage">If specified, this error action will be executed for inline message execution through IMessageBus.InvokeAsync()</param>
+    /// <returns></returns>
+    IAdditionalActions And(Func<IWolverineRuntime, IEnvelopeLifecycle, Exception, ValueTask> action,
+        string description, InvokeResult invokeUsage);
+
 
     /// <summary>
     ///     Perform a user defined action using the IContinuationSource approach
@@ -118,7 +153,7 @@ internal class FailureActions : IAdditionalActions, IFailureActions
     /// <param name="invokeUsage">If specified, this error action will be executed for inline message execution through IMessageBus.InvokeAsync()</param>
     /// <returns></returns>
     public IAdditionalActions And(Func<IWolverineRuntime, IEnvelopeLifecycle, Exception, ValueTask> action,
-        string description = "User supplied", InvokeResult? invokeUsage = null)
+        string description, InvokeResult invokeUsage)
     {
         var source = new UserDefinedContinuationSource(action, description)
         {
@@ -172,6 +207,18 @@ internal class FailureActions : IAdditionalActions, IFailureActions
     public IAdditionalActions PauseThenRequeue(TimeSpan delay)
     {
         var slot = _rule.AddSlot(new RequeueContinuation(delay));
+        _slots.Add(slot);
+        return this;
+    }
+
+    public IAdditionalActions CustomAction(Func<IWolverineRuntime, IEnvelopeLifecycle, Exception, ValueTask> action, string description, InvokeResult? invokeUsage = null)
+    {
+        var source = new UserDefinedContinuationSource(action, description)
+        {
+            InvokeUsage = invokeUsage
+        };
+
+        var slot = _rule.AddSlot(source);
         _slots.Add(slot);
         return this;
     }
@@ -395,6 +442,16 @@ public interface IFailureActions
     /// <param name="delay"></param>
     /// <returns></returns>
     IAdditionalActions PauseThenRequeue(TimeSpan delay);
+    
+    /// <summary>
+    ///     Take out an additional, user-defined action upon message failures
+    /// </summary>
+    /// <param name="source"></param>
+    /// <param name="description">Diagnostic description of the failure action</param>
+    /// <param name="invokeUsage">If specified, this error action will be executed for inline message execution through IMessageBus.InvokeAsync()</param>
+    /// <returns></returns>
+    IAdditionalActions CustomAction(Func<IWolverineRuntime, IEnvelopeLifecycle, Exception, ValueTask> action,
+        string description, InvokeResult? invokeUsage = null);
 }
 
 public class PolicyExpression : IFailureActions
@@ -407,6 +464,11 @@ public class PolicyExpression : IFailureActions
     {
         _parent = parent;
         _match = match;
+    }
+
+    public IAdditionalActions CustomAction(Func<IWolverineRuntime, IEnvelopeLifecycle, Exception, ValueTask> action, string description, InvokeResult? invokeUsage = null)
+    {
+        return new FailureActions(_match, _parent).CustomAction(action, description, invokeUsage);
     }
 
     /// <summary>
