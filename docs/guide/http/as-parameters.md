@@ -157,4 +157,4 @@ public static class AsParametersEndpoints2{
 And lastly, you can use C# records or really just any constructor function as well
 and decorate parameters like so:
 
-snippet: sample_as_parameter_record~~~~
+snippet: sample_as_parameter_record
