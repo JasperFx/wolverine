@@ -294,6 +294,7 @@ class Build : NukeBuild
                 Solution.Transports.RabbitMQ.Wolverine_RabbitMQ,
                 Solution.Transports.Azure.Wolverine_AzureServiceBus,
                 Solution.Transports.AWS.Wolverine_AmazonSqs,
+                Solution.Transports.AWS.Wolverine_AmazonSns,
                 Solution.Transports.MQTT.Wolverine_MQTT,
                 Solution.Transports.Kafka.Wolverine_Kafka,
                 Solution.Transports.Pulsar.Wolverine_Pulsar,
