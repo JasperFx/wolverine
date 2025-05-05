@@ -72,8 +72,6 @@ builder.UseWolverine(opts =>
     {
         var pulsarUri = builder.Configuration.GetValue<Uri>("pulsar");
         c.ServiceUrl(pulsarUri);
-        
-        
     });
 
     // Listen for incoming messages from a Pulsar topic
@@ -86,12 +84,37 @@ builder.UseWolverine(opts =>
         
         // And all the normal Wolverine options...
         .Sequential();
+
+    // Disable requeue for all Pulsar endpoints
+    opts.DisablePulsarRequeue();
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Pulsar/Wolverine.Pulsar.Tests/DocumentationSamples.cs#L47-L72' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disable_requeue_for_pulsar' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Pulsar/Wolverine.Pulsar.Tests/DocumentationSamples.cs#L47-L73' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disable_requeue_for_pulsar' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-
-
 If you have an application that has receive only access to a subscription but not permissions to publish to Pulsar,
-you cannot use the Wolverine "Requeue" error handling policy. 
+you cannot use the Wolverine "Requeue" error handling policy.
+
+### Subscription behavior when closing connection
+
+By default, the Pulsar transport will automatically close the subscription when the endpoints is being stopped.
+If the subscription is created for you, and should be kept after application shut down, you can change this behavior.
+
+<!-- snippet: sample_pulsar_unsubscribe_on_close -->
+<a id='snippet-sample_pulsar_unsubscribe_on_close'></a>
+```cs
+var builder = Host.CreateApplicationBuilder();
+builder.UseWolverine(opts =>
+{
+    opts.UsePulsar(c =>
+    {
+        var pulsarUri = builder.Configuration.GetValue<Uri>("pulsar");
+        c.ServiceUrl(pulsarUri);
+    });
+
+    // Disable unsubscribe on close for all Pulsar endpoints
+    opts.UnsubscribePulsarOnClose(PulsarUnsubscribeOnClose.Disabled);
+});
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Pulsar/Wolverine.Pulsar.Tests/DocumentationSamples.cs#L78-L93' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pulsar_unsubscribe_on_close' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
