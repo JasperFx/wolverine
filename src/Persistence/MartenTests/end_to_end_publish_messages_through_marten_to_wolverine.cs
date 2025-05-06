@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text.Json;
 using IntegrationTests;
 using JasperFx.Core;
 using Marten;
@@ -17,9 +18,8 @@ using Weasel.Postgresql;
 using Wolverine;
 using Wolverine.Marten;
 using Wolverine.Tracking;
-using Xunit.Sdk;
 
-namespace MartenTests.AsyncDaemonIntegration;
+namespace MartenTests;
 
 public class end_to_end_publish_messages_through_marten_to_wolverine
 {
@@ -281,3 +281,168 @@ public class SideEffectInitialData : IInitialData, IHostedService
         await session.SaveChangesAsync(cancellation);
     }
 }
+
+public class
+    side_effect_messaging_with_inline_projections_and_mix_of_tenanted_and_not_tenanted_elements : IAsyncLifetime
+{
+    private IHost _host;
+
+    public async Task InitializeAsync()
+    {
+        _host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.Services.AddMarten(m =>
+                {
+                    m.Connection(Servers.PostgresConnectionString);
+                    m.DatabaseSchemaName = "mixed_tenancy";
+                    m.Schema.For<Customer>().SingleTenanted();
+                    m.Schema.For<Order2>().MultiTenanted();
+                    m.Events.EnableGlobalProjectionsForConjoinedTenancy = true;
+                    m.Events.TenancyStyle = TenancyStyle.Conjoined;
+
+                    m.Projections.Add<CustomerProjection>(ProjectionLifecycle.Inline);
+                    m.Events.EnableSideEffectsOnInlineProjections = true;
+                }).IntegrateWithWolverine();
+            }).StartAsync();
+    }
+
+    public Task DisposeAsync()
+    {
+        return _host.StopAsync();
+    }
+    
+    [Fact]
+    public async Task expect_message_from_non_tenanted_session()
+    {
+        var store = _host.DocumentStore();
+        await using var session = store.LightweightSession();
+        var customerId = session.Events.StartStream<Customer>(new CustomerAdded("Acme")).Id;
+        await session.SaveChangesAsync();
+
+        Func<IMessageContext, Task> action = async _ =>
+        {
+            await using var session = store.LightweightSession();
+            session.Events.Append(customerId, new CustomerMoved("Jasper"));
+            await session.SaveChangesAsync();
+        };
+
+        var tracked = await _host
+            .TrackActivity()
+            .Timeout(2.Minutes())
+            .WaitForMessageToBeReceivedAt<CustomerChanged>(_host)
+            .ExecuteAndWaitAsync(action);
+
+        tracked.Executed.SingleMessage<CustomerChanged>()
+            .Customer.Location.ShouldBe("Jasper");
+    }
+
+    [Fact]
+    public async Task expect_message_from_tenanted_session()
+    {
+        var store = _host.DocumentStore();
+        await using var session = store.LightweightSession();
+        var customerId = session.Events.StartStream<Customer>(new CustomerAdded("Acme")).Id;
+        await session.SaveChangesAsync();
+
+        Func<IMessageContext, Task> action = async _ =>
+        {
+            await using var session = store.LightweightSession("aaa");
+            session.ForTenant(Tenancy.DefaultTenantId).Events.Append(customerId, new CustomerMoved("Jasper"));
+            await session.SaveChangesAsync();
+        };
+
+        var tracked = await _host
+            .TrackActivity()
+            .Timeout(2.Minutes())
+            .WaitForMessageToBeReceivedAt<CustomerChanged>(_host)
+            .ExecuteAndWaitAsync(action);
+
+        tracked.Executed.SingleMessage<CustomerChanged>()
+            .Customer.Location.ShouldBe("Jasper");
+    }
+}
+
+public static class CustomerChangedHandler
+{
+    public static void Handle(CustomerChanged changed) => Debug.WriteLine(JsonSerializer.Serialize(changed.Customer));
+}
+
+public class Customer
+{
+    public Guid Id { get; set; }
+    public  string Name { get; set; }
+    public bool IsActive { get; set; }
+    public string Location { get; set; }
+}
+
+public record CustomerAdded(string Name);
+
+public record CustomerActivated;
+
+public record CustomerMoved(string Location);
+
+public class CustomerProjection : SingleStreamProjection<Customer>
+{
+    public static Customer Create(CustomerAdded added) => new Customer { Name = added.Name };
+
+    public void Apply(Customer customer, CustomerActivated _) => customer.IsActive = true;
+    public void Apply(Customer customer, CustomerMoved moved) => customer.Location = moved.Location;
+
+    public override ValueTask RaiseSideEffects(IDocumentOperations operations, IEventSlice<Customer> slice)
+    {
+        if (slice.Aggregate != null && slice.Aggregate.Location.IsNotEmpty())
+        {
+            slice.PublishMessage(new CustomerChanged(slice.Aggregate));
+        }
+
+        return new ValueTask();
+    }
+}
+
+public record CustomerChanged(Customer Customer);
+
+
+
+public class OrderItem
+{
+    public string Name { get; set; }
+    public bool Ready { get; set; }
+}
+
+public class Order2
+{
+    // This would be the stream id
+    public Guid Id { get; set; }
+
+    // This is important, by Marten convention this would
+    // be the
+    public int Version { get; set; }
+
+    public Order2(OrderCreated created)
+    {
+        foreach (var item in created.Items)
+        {
+            Items[item.Name] = item;
+        }
+    }
+
+    public void Apply(IEvent<OrderShipped> shipped) => Shipped = shipped.Timestamp;
+    public void Apply(ItemReady ready) => Items[ready.Name].Ready = true;
+
+    public DateTimeOffset? Shipped { get; private set; }
+
+    public Dictionary<string, OrderItem> Items { get; set; } = new();
+
+    public bool IsReadyToShip()
+    {
+        return Shipped == null && Items.Values.All(x => x.Ready);
+    }
+}
+
+public record OrderShipped;
+public record OrderCreated(OrderItem[] Items);
+public record OrderReady;
+
+public record ItemReady(string Name);
+
