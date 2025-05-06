@@ -193,4 +193,4 @@ Note there are some limitations of this approach in Wolverine:
 
 ## [AsParameters] Binding <Badge type="tip" text="3.13" />
 
-Also see the [AsParameters](/as-parameters) binding. 
+Also see the [AsParameters](./as-parameters) binding. 
