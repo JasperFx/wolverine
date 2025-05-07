@@ -4,8 +4,8 @@
         <PackageId>WolverineFx</PackageId>
     </PropertyGroup>
     <ItemGroup>
-        <PackageReference Include="JasperFx" Version="0.5.1" />
-        <PackageReference Include="JasperFx.RuntimeCompiler" Version="4.0.0-alpha-9" />
+        <PackageReference Include="JasperFx" Version="0.5.2" />
+        <PackageReference Include="JasperFx.RuntimeCompiler" Version="4.0.0-beta-1" />
         <PackageReference Include="NewId" Version="4.0.1" />
         <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
         <PackageReference Include="System.Net.NameResolution" Version="4.3.0" />
