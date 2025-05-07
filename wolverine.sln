@@ -271,6 +271,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wolverine.AmazonSns.Tests",
 EndProject
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "WolverineWebApiFSharp", "WolverineWebApiFSharp\WolverineWebApiFSharp.fsproj", "{0522EE2C-9C5D-452C-A67F-91DBBCDAE502}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "build", "build\build.csproj", "{28E17AA0-8B75-4BAE-9E89-716A45107C58}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -688,6 +690,10 @@ Global
 		{0522EE2C-9C5D-452C-A67F-91DBBCDAE502}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{0522EE2C-9C5D-452C-A67F-91DBBCDAE502}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{0522EE2C-9C5D-452C-A67F-91DBBCDAE502}.Release|Any CPU.Build.0 = Release|Any CPU
+		{28E17AA0-8B75-4BAE-9E89-716A45107C58}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{28E17AA0-8B75-4BAE-9E89-716A45107C58}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{28E17AA0-8B75-4BAE-9E89-716A45107C58}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{28E17AA0-8B75-4BAE-9E89-716A45107C58}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{24497E6A-D6B1-4C80-ABFB-57FFAD5070C4} = {96119B5E-B5F0-400A-9580-B342EBE26212}
