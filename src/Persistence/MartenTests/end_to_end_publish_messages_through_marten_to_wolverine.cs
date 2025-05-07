@@ -1,13 +1,13 @@
 using System.Diagnostics;
 using System.Text.Json;
 using IntegrationTests;
+using JasperFx;
 using JasperFx.Core;
 using JasperFx.Events;
 using JasperFx.Events.Daemon;
 using JasperFx.Events.Projections;
 using Marten;
 using Marten.Events.Aggregation;
-using Marten.Metadata;
 using Marten.Schema;
 using Marten.Storage;
 using Microsoft.Extensions.DependencyInjection;
@@ -18,6 +18,7 @@ using Weasel.Postgresql;
 using Wolverine;
 using Wolverine.Marten;
 using Wolverine.Tracking;
+using IRevisioned = Marten.Metadata.IRevisioned;
 
 namespace MartenTests;
 
@@ -345,7 +346,7 @@ public class
         Func<IMessageContext, Task> action = async _ =>
         {
             await using var session = store.LightweightSession("aaa");
-            session.ForTenant(Tenancy.DefaultTenantId).Events.Append(customerId, new CustomerMoved("Jasper"));
+            session.ForTenant(StorageConstants.DefaultTenantId).Events.Append(customerId, new CustomerMoved("Jasper"));
             await session.SaveChangesAsync();
         };
 
@@ -379,7 +380,7 @@ public record CustomerActivated;
 
 public record CustomerMoved(string Location);
 
-public class CustomerProjection : SingleStreamProjection<Customer>
+public class CustomerProjection : SingleStreamProjection<Customer, Guid>
 {
     public static Customer Create(CustomerAdded added) => new Customer { Name = added.Name };
 
