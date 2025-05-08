@@ -1,6 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
-    
+    <PropertyGroup>
+        <TargetFrameworks>net9.0</TargetFrameworks>
+    </PropertyGroup>
     <ItemGroup>
+        <PackageReference Include="FSharp.Core" Version="9.0.202" />
         <PackageReference Include="Lamar.Diagnostics" Version="14.0.1" />
         <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="7.0.2" />
         <PackageReference Include="Microsoft.AspNetCore.SignalR" Version="1.1.0" />
@@ -9,6 +12,7 @@
     </ItemGroup>
 
     <ItemGroup>
+        <ProjectReference Include="..\..\..\WolverineWebApiFSharp\WolverineWebApiFSharp.fsproj" />
         <ProjectReference Include="..\..\Persistence\Wolverine.EntityFrameworkCore\Wolverine.EntityFrameworkCore.csproj" />
         <ProjectReference Include="..\..\Persistence\Wolverine.Marten\Wolverine.Marten.csproj" />
         <ProjectReference Include="..\Wolverine.AdminApi\Wolverine.AdminApi.csproj" />
@@ -18,11 +22,6 @@
         <ProjectReference Include="..\Wolverine.Http\Wolverine.Http.csproj" />
     </ItemGroup>
 
-    <ItemGroup Condition="'$(targetframework)' == 'net7.0'">
-        <PackageReference Include="Microsoft.EntityFrameworkCore" Version="[7.0.1, 9.0.0)" />
-        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="[7.0.1, 9.0.0)" />
-    </ItemGroup>
-
     <ItemGroup Condition="'$(targetframework)' == 'net8.0'">
         <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.11" />
         <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.11" />
@@ -30,7 +29,7 @@
 
     <ItemGroup Condition="'$(targetframework)' == 'net9.0'">
         <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.0" />
-        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.0" />
+        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.2" />
     </ItemGroup>
 
     <ItemGroup>

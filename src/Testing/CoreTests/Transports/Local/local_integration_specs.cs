@@ -117,4 +117,13 @@ public class local_integration_specs : IntegrationContext
 
         queue.ExecutionOptions.EnsureOrdered.ShouldBeTrue();
     }
+
+    [Fact]
+    public void not_allowed_to_use_strict_ordering()
+    {
+        Should.Throw<NotSupportedException>(() =>
+        {
+            with(o => o.LocalQueue("one").ListenWithStrictOrdering());
+        });
+    }
 }

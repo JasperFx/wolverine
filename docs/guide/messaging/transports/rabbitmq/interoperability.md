@@ -39,7 +39,7 @@ builder.UseWolverine(opts =>
 using var host = builder.Build();
 await host.StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L426-L445' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setting_default_message_type_with_rabbit' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L427-L446' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setting_default_message_type_with_rabbit' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 With this setting, there is **no other required headers** for Wolverine to process incoming messages. However, Wolverine will be
@@ -135,9 +135,16 @@ builder.UseWolverine(opts =>
 using var host = builder.Build();
 await host.StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L450-L473' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_registering_custom_rabbit_mq_envelope_mapper' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L451-L474' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_registering_custom_rabbit_mq_envelope_mapper' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+
+## Publishing to Wolverine through the Rabbit MQ Console
+
+Some users like to use the Rabbit MQ management application to send messages to a running Wolverine application for 
+exploratory testing. To do so with an out of the box Wolverine integration (i.e., you haven't opted out of JSON serialization),
+put your message as JSON in the `Payload` field and specify that the `type` property (**not header, property**) equals
+the [Wolverine message type name](/guide/messages.html#message-type-name-or-alias) for the message type, which by default would be the full .NET name. 
 
 ## Interoperability with NServiceBus
 

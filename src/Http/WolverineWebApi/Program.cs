@@ -22,6 +22,7 @@ using WolverineWebApi;
 using WolverineWebApi.Marten;
 using WolverineWebApi.Samples;
 using WolverineWebApi.WebSockets;
+using WolverineWebApiFSharp;
 
 #region sample_adding_http_services
 
@@ -96,11 +97,13 @@ builder.Host.UseWolverine(opts =>
 
     opts.UseFluentValidation();
     opts.Discovery.IncludeAssembly(typeof(CreateCustomer2).Assembly);
+    opts.Discovery.IncludeAssembly(typeof(DiscoverFSharp).Assembly);
 
     opts.OptimizeArtifactWorkflow();
     
     opts.Policies.Add<BroadcastClientMessages>();
 
+    //opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Dynamic;
     opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
 });
 

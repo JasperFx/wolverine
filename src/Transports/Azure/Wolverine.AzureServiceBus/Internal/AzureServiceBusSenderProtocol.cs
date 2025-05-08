@@ -36,7 +36,6 @@ public class AzureServiceBusSenderProtocol : ISenderProtocolWithNativeScheduling
             {
                 var message = new ServiceBusMessage();
                 _mapper.MapEnvelopeToOutgoing(envelope, message);
-
                 messages.Add(message);
             }
             catch (Exception e)
@@ -49,7 +48,28 @@ public class AzureServiceBusSenderProtocol : ISenderProtocolWithNativeScheduling
 
         try
         {
-            await _sender.SendMessagesAsync(messages, _runtime.Cancellation);
+            var serviceBusMessageBatch = await _sender.CreateMessageBatchAsync();
+
+            foreach (var message in messages)
+            {
+                if (!serviceBusMessageBatch.TryAddMessage(message))
+                {
+                    _logger.LogInformation("Wolverine had to break up outgoing message batches at {Uri}, you may want to reduce the MaximumMessagesToReceive configuration. No messages were lost, this is strictly informative", _endpoint.Uri);
+                    
+                    // Send the currently full batch
+                    await _sender.SendMessagesAsync(serviceBusMessageBatch, _runtime.Cancellation);
+                    serviceBusMessageBatch.Dispose();
+
+                    // Create a new batch and add the message to it
+                    serviceBusMessageBatch = await _sender.CreateMessageBatchAsync();
+                    serviceBusMessageBatch.TryAddMessage(message);
+                }
+            }
+
+            // Send the final batch
+            await _sender.SendMessagesAsync(serviceBusMessageBatch, _runtime.Cancellation);
+            serviceBusMessageBatch.Dispose();
+
             await callback.MarkSuccessfulAsync(batch);
         }
         catch (Exception e)

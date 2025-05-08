@@ -124,7 +124,27 @@ public abstract class HttpHandler
             logger?.LogError(e, "Error trying to deserialize JSON from incoming HTTP body at {Url} to type {Type}",
                 context.Request.Path, typeof(T).FullNameInCode());
 
-            context.Response.StatusCode = 400;
+            if (e is JsonException jsonException)
+            {
+                await Results.Problem(new()
+                {
+                    Type = "https://httpstatuses.com/400",
+                    Title = "Invalid JSON format",
+                    Status = StatusCodes.Status400BadRequest,
+                    Detail = jsonException.Message,
+                    Instance = context.Request.Path,
+                    Extensions =
+                    {
+                        { "lineNumber", jsonException.LineNumber ?? 0 },
+                        { "bytePositionInLine", jsonException.BytePositionInLine ?? 0 }
+                    }
+                }).ExecuteAsync(context);
+            }
+            else
+            {
+                context.Response.StatusCode = 400;
+            }
+
             return (default, HandlerContinuation.Stop);
         }
     }

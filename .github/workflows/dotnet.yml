@@ -46,11 +46,11 @@ jobs:
           echo "### Version: $version" >> $GITHUB_STEP_SUMMARY
 
       - name: Test
-        run: ./build.sh --no-color ci
+        run: ./build.sh ci
 
       - name: Package
         if: github.event_name != 'pull_request'
-        run: ./build.sh --no-color pack
+        run: ./build.sh pack
 
 
       - name: Publish CI Packages

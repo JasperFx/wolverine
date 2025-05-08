@@ -4,32 +4,34 @@ using Wolverine.Transports.Sending;
 
 namespace Wolverine.Kafka;
 
-public class KafkaSenderProtocol : ISenderProtocol
+public class KafkaSenderProtocol : ISenderProtocol, IDisposable
 {
     private readonly KafkaTopic _topic;
+    private readonly IProducer<string,string> _producer;
 
     public KafkaSenderProtocol(KafkaTopic topic)
     {
         _topic = topic;
+        _producer = _topic.Parent.CreateProducer(_topic.ProducerConfig);
     }
 
     public async Task SendBatchAsync(ISenderCallback callback, OutgoingMessageBatch batch)
     {
-        using var producer = new ProducerBuilder<string, string>(_topic.Parent.ProducerConfig).Build();
-
-        var tasks = new List<Task>();
         foreach (var envelope in batch.Messages)
         {
             // TODO -- separate try/catch here!
 
             var message = _topic.Mapper.CreateMessage(envelope);
-            await producer.ProduceAsync(envelope.TopicName ?? _topic.TopicName, message);
-            // var task = producer.ProduceAsync(envelope.TopicName ?? _topic.TopicName, message);
-            // tasks.Add(task);
+            await _producer.ProduceAsync(envelope.TopicName ?? _topic.TopicName, message);
         }
 
-        // await Task.WhenAll(tasks);
+        _producer.Flush();
 
         await callback.MarkSuccessfulAsync(batch);
+    }
+
+    public void Dispose()
+    {
+        _producer.Dispose();
     }
 }

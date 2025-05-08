@@ -32,10 +32,10 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@v1
         with:
-          node-version: 16.x
+          node-version: 20.x
 
       - name: Build & Deploy docs
-        run: ./build.sh --no-color publish-docs
+        run: ./build.sh publish-docs
         if: ${{ github.ref == 'refs/heads/main' }}
         env:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}

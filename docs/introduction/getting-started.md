@@ -1,29 +1,12 @@
 # Getting Started
 
-Wolverine is a toolset for command execution and message handling within .NET applications.
-The killer feature of Wolverine (we think) is its very efficient command execution pipeline that
-can be used as:
-
-1. An [inline "mediator" pipeline](/tutorials/mediator) for executing commands
-2. A [local message bus](/guide/messaging/transports/local) for in-application communication
-3. A full-fledged [asynchronous messaging framework](/guide/messaging/introduction) for robust communication and interaction between services when used in conjunction with low level messaging infrastructure tools like RabbitMQ
-4. With the [WolverineFx.Http](/guide/http/) library, Wolverine's execution pipeline can be used directly as an alternative ASP.Net Core Endpoint provider
-
-Wolverine tries very hard to be a good citizen within the .NET ecosystem. Even when used in
-"headless" services, it uses the idiomatic elements of .NET (logging, configuration, bootstrapping, hosted services)
-rather than try to reinvent something new. Wolverine utilizes the [.NET Generic Host](https://learn.microsoft.com/en-us/dotnet/core/extensions/generic-host) for bootstrapping and application teardown.
-This makes Wolverine relatively easy to use in combination with many of the most popular .NET tools.
-
-## Your First Wolverine Application
-
 Also see the full [quickstart code](https://github.com/JasperFx/wolverine/tree/main/src/Samples/Quickstart) on GitHub.
 
-For a first application, let's say that we're building a very simple issue tracking system for
+For a first application, build a very simple issue tracking system for
 our own usage. If you're reading this web page, it's a pretty safe bet you spend quite a bit of time
 working with an issue tracking system. :)
 
-Ignoring any discussion of the user interface or even a backing database, let's
-start a new web api project for this new system with:
+Let's start a new web api project for this new system with:
 
 ```bash
 dotnet new webapi
@@ -35,7 +18,7 @@ dotnet add package WolverineFx
 ```
 
 To start off, we're just going to build two API endpoints that accepts
-a POST from the client that...
+a POST from the client that:
 
 1. Creates a new `Issue`, stores it, and triggers an email to internal personnel.
 2. Assigns an `Issue` to an existing `User` and triggers an email to that user letting them know there's more work on their plate
@@ -48,8 +31,6 @@ public record CreateIssue(Guid OriginatorId, string Title, string Description);
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Quickstart/CreateIssue.cs#L3-L7' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_quickstart_commands' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
-
-and
 
 <!-- snippet: sample_Quickstart_commands_AssignIssue -->
 <a id='snippet-sample_quickstart_commands_assignissue'></a>
@@ -167,15 +148,8 @@ Hopefully that code is simple enough, but let's talk what you do not see in this
 the initial `Program` code up above.
 
 Wolverine uses a [naming convention](/guide/handlers/#rules-for-message-handlers) to automatically discover message handler actions in your
-application assembly, so at no point did we have to explicitly register the
-`CreateIssueHandler` in any way.
-
-We didn't have to use any kind of base class, marker interface, or .NET attribute to designate
-any part of the behavior of the `CreateIssueHandler` class. In the `Handle()` method, the
-first argument is always assumed to be the message type for the handler action. It's not apparent
-in any of the quick start samples, but Wolverine message handler methods can be asynchronous as
-well as synchronous, depending on what makes sense in each handler. So no littering your code
-with extraneous `return Task.Completed;` code like you'd have to with other .NET tools.
+application assembly, so at no point did we have to explicitly register the `CreateIssueHandler` in any way. Wolverine does not require the use of marker interfaces
+or attributes to discover handlers.
 
 ::: info
 These conventions are just some of the ways Wolverine keeps out of the way of your application code whilst

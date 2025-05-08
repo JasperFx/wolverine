@@ -57,16 +57,22 @@ const config: UserConfig<DefaultTheme.Config> = {
         sidebar: {
             '/': [
                 {
+                    text: 'Introduction',
+                    collapsed: false,
+                    items: [
+                        {text: 'What is Wolverine?', link: '/introduction/whatiswolverine'},
+                        {text: 'Getting Started', link: '/introduction/getting-started'},
+                        {text: 'Wolverine for MediatR Users', link: '/introduction/from-mediatr'},
+                        {text: 'Best Practices', link: '/introduction/best-practices'}, 
+                    ]
+                },
+                {
                     text: 'Tutorials',
                     collapsed: true,
-                    items: [
-                        {text: 'Getting Started', link: '/tutorials/getting-started'},
+                    items: [                    
                         {text: 'Wolverine as Mediator', link: '/tutorials/mediator'},
-                        {text: 'Best Practices', link: '/tutorials/best-practices'},
                         {text: 'Ping/Pong Messaging', link: '/tutorials/ping-pong'},
-                        {text: 'Custom Middleware', link: '/tutorials/middleware'},
-                        {text: 'Wolverine and Serverless', link: '/tutorials/serverless'},
-                        {text: 'Wolverine for MediatR Users', link: '/tutorials/from-mediatr'},
+                        {text: 'Custom Middleware', link: '/tutorials/middleware'},                                  
                         {text: 'Vertical Slice Architecture', link: '/tutorials/vertical-slice-architecture'},
                         {text: 'Modular Monoliths', link: '/tutorials/modular-monolith'},
                         {text: 'Event Sourcing and CQRS with Marten', link: '/tutorials/cqrs-with-marten'},
@@ -82,6 +88,7 @@ const config: UserConfig<DefaultTheme.Config> = {
                         {text: 'Runtime Architecture', link: '/guide/runtime'},
                         {text: 'Instrumentation and Metrics', link: '/guide/logging'},
                         {text: 'Diagnostics', link: '/guide/diagnostics'},
+                        {text: 'Serverless Hosting', link: '/guide/serverless'},          
                         {text: 'Test Automation Support', link: '/guide/testing'},
                         {text: 'Command Line Integration', link: '/guide/command-line'},
                         {text: 'Code Generation', link: '/guide/codegen'},
@@ -156,6 +163,7 @@ const config: UserConfig<DefaultTheme.Config> = {
                                         {text: 'Conventional Routing', link:'/guide/messaging/transports/sqs/conventional-routing'},
                                         {text: 'Interoperability', link:'/guide/messaging/transports/sqs/interoperability'}
                                     ]},
+                                {text: 'Amazon SNS', link: '/guide/messaging/transports/sns'},
                                 {text: 'TCP', link: '/guide/messaging/transports/tcp'},
                                 {text: 'Google PubSub', link: '/guide/messaging/transports/gcp-pubsub/', items: [
                                         {text: 'Publishing', link:'/guide/messaging/transports/gcp-pubsub/publishing'},
@@ -190,6 +198,8 @@ const config: UserConfig<DefaultTheme.Config> = {
                         {text: 'Authentication and Authorization', link: '/guide/http/security'},
                         {text: 'Working with Querystring', link: '/guide/http/querystring'},
                         {text: 'Headers', link: '/guide/http/headers'},
+                        {text: 'HTTP Form Data', link: '/guide/http/forms'},
+                        {text: `AsParameters Binding`, link: '/guide/http/as-parameters'},
                         {text: 'Middleware', link: '/guide/http/middleware.md'},
                         {text: 'Policies', link: '/guide/http/policies.md'},
                         {text: 'OpenAPI Metadata', link: '/guide/http/metadata'},
@@ -243,6 +253,3 @@ const config: UserConfig<DefaultTheme.Config> = {
 }
 
 export default withMermaid(config);
-
-
-

@@ -12,7 +12,8 @@ internal class PulsarListener : IListener
     private readonly IConsumer<ReadOnlySequence<byte>>? _consumer;
     private readonly CancellationTokenSource _localCancellation;
     private readonly Task? _receivingLoop;
-    private readonly PulsarSender _sender;
+    private readonly PulsarSender? _sender;
+    private readonly bool _enableRequeue;
 
     public PulsarListener(IWolverineRuntime runtime, PulsarEndpoint endpoint, IReceiver receiver,
         PulsarTransport transport,
@@ -27,7 +28,13 @@ internal class PulsarListener : IListener
 
         Address = endpoint.Uri;
 
-        _sender = new PulsarSender(runtime, endpoint, transport, _cancellation);
+        _enableRequeue = endpoint.EnableRequeue;
+
+        if (_enableRequeue)
+        {
+            _sender = new PulsarSender(runtime, endpoint, transport, _cancellation);
+        }
+
         var mapper = endpoint.BuildMapper(runtime);
 
         _localCancellation = new CancellationTokenSource();
@@ -35,7 +42,8 @@ internal class PulsarListener : IListener
         var combined = CancellationTokenSource.CreateLinkedTokenSource(_cancellation, _localCancellation.Token);
 
         _consumer = transport.Client!.NewConsumer()
-            .SubscriptionName("Wolverine")
+            .SubscriptionName(endpoint.SubscriptionName)
+            .SubscriptionType(endpoint.SubscriptionType)
             .Topic(endpoint.PulsarTopic())
             .Create();
 
@@ -70,7 +78,7 @@ internal class PulsarListener : IListener
 
     public async ValueTask DeferAsync(Envelope envelope)
     {
-        if (envelope is PulsarEnvelope e)
+        if (_enableRequeue && _sender is not null && envelope is PulsarEnvelope e)
         {
             await _consumer!.Acknowledge(e.MessageData, _cancellation);
             await _sender.SendAsync(envelope);
@@ -86,7 +94,10 @@ internal class PulsarListener : IListener
             await _consumer.DisposeAsync();
         }
 
-        await _sender.DisposeAsync();
+        if (_sender != null)
+        {
+            await _sender.DisposeAsync();
+        }
 
         _receivingLoop!.Dispose();
     }
@@ -106,7 +117,12 @@ internal class PulsarListener : IListener
 
     public async Task<bool> TryRequeueAsync(Envelope envelope)
     {
-        if (envelope is PulsarEnvelope)
+        if (!_enableRequeue)
+        {
+            throw new InvalidOperationException("Requeue is not enabled for this endpoint");
+        }
+
+        if (_sender is not null && envelope is PulsarEnvelope)
         {
             await _sender.SendAsync(envelope);
             return true;

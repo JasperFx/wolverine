@@ -79,6 +79,8 @@ public partial class HttpChain
 
         fillQuerystringParameters(apiDescription);
 
+        fillFormParameters(apiDescription);
+
         fillKnownHeaderParameters(apiDescription);
 
         fillResponseTypes(apiDescription);
@@ -220,7 +222,7 @@ public partial class HttpChain
 
     private void fillRequestType(ApiDescription apiDescription)
     {
-        if (HasRequestType)
+        if (HasRequestType && !IsFormData)
         {
             var parameterDescription = new ApiParameterDescription
             {
@@ -274,6 +276,23 @@ public partial class HttpChain
                 ModelMetadata = new EndpointModelMetadata(querystringVariable.VariableType),
                 Source = BindingSource.Query,
                 Type = querystringVariable.VariableType,
+                IsRequired = false
+            };
+
+            apiDescription.ParameterDescriptions.Add(parameterDescription);
+        }
+    }
+
+    private void fillFormParameters(ApiDescription apiDescription)
+    {
+        foreach (var formVariable in _formValueVariables)
+        {
+            var parameterDescription = new ApiParameterDescription
+            {
+                Name = formVariable.Name,
+                ModelMetadata = new EndpointModelMetadata(formVariable.VariableType),
+                Source = BindingSource.Form,
+                Type = formVariable.VariableType,
                 IsRequired = false
             };
 

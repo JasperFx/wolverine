@@ -33,6 +33,8 @@ public abstract class TransportComplianceFixture : IDisposable, IAsyncDisposable
     public bool AllLocally { get; set; }
 
     public bool MustReset { get; set; } = false;
+    
+    public bool IsSenderOnlyTransport { get; set; }
 
     public async ValueTask DisposeAsync()
     {
@@ -322,6 +324,11 @@ public abstract class TransportCompliance<T> : IAsyncLifetime where T : Transpor
     [Fact]
     public async Task can_send_and_wait()
     {
+        if (Fixture.IsSenderOnlyTransport)
+        {
+            return;
+        }
+        
         var message1 = new Message1();
 
         var session = await theSender.TrackActivity(Fixture.DefaultTimeout)
@@ -333,6 +340,11 @@ public abstract class TransportCompliance<T> : IAsyncLifetime where T : Transpor
     [Fact]
     public async Task can_request_reply()
     {
+        if (Fixture.IsSenderOnlyTransport)
+        {
+            return;
+        }
+        
         var request = new Request { Name = "Nick Bolton" };
 
         var (session, response) = await theSender.TrackActivity()
@@ -525,6 +537,11 @@ public abstract class TransportCompliance<T> : IAsyncLifetime where T : Transpor
     [Fact]
     public async Task explicit_respond_to_sender()
     {
+        if (Fixture.IsSenderOnlyTransport)
+        {
+            return;
+        }
+        
         var ping = new PingMessage();
 
         var session = await theSender
@@ -540,6 +557,11 @@ public abstract class TransportCompliance<T> : IAsyncLifetime where T : Transpor
     [Fact]
     public async Task requested_response()
     {
+        if (Fixture.IsSenderOnlyTransport)
+        {
+            return;
+        }
+        
         var ping = new ImplicitPing();
 
         var session = await theSender

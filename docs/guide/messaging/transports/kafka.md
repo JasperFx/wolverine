@@ -38,6 +38,23 @@ using var host = await Host.CreateDefaultBuilder()
             .ConfigureProducers(producer =>
             {
                 // configure only producers
+            })
+            
+            .ConfigureProducerBuilders(builder =>
+            {
+                // there are some options that are only exposed
+                // on the ProducerBuilder
+            })
+            
+            .ConfigureConsumerBuilders(builder =>
+            {
+                // there are some Kafka client options that
+                // are only exposed from the builder
+            })
+            
+            .ConfigureAdminClientBuilders(builder =>
+            {
+                // configure admin client builders
             });
 
         // Just publish all messages to Kafka topics
@@ -47,11 +64,30 @@ using var host = await Host.CreateDefaultBuilder()
 
         // Or explicitly make subscription rules
         opts.PublishMessage<ColorMessage>()
-            .ToKafkaTopic("colors");
+            .ToKafkaTopic("colors")
+            
+            // Override the producer configuration for just this topic
+            .ConfigureProducer(config =>
+            {
+                config.BatchSize = 100;
+                config.EnableGaplessGuarantee = true;
+                config.EnableIdempotence = true;
+            });
 
         // Listen to topics
         opts.ListenToKafkaTopic("red")
-            .ProcessInline();
+            .ProcessInline()
+            
+            // Override the consumer configuration for only this 
+            // topic
+            .ConfigureConsumer(config =>
+            {
+                // This will also set the Envelope.GroupId for any
+                // received messages at this topic
+                config.GroupId = "foo";
+                
+                // Other configuration
+            });
 
         opts.ListenToKafkaTopic("green")
             .BufferedInMemory();
@@ -62,7 +98,7 @@ using var host = await Host.CreateDefaultBuilder()
         opts.Services.AddResourceSetupOnStartup();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/DocumentationSamples.cs#L10-L57' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_with_kafka' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/DocumentationSamples.cs#L11-L94' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_with_kafka' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The various `Configure*****()` methods provide quick access to the full API of the Confluent Kafka library for security
@@ -82,4 +118,74 @@ public static ValueTask publish_by_partition_key(IMessageBus bus)
 }
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/when_publishing_and_receiving_by_partition_key.cs#L13-L20' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_publish_to_kafka_by_partition_key' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+## Interoperability
+
+It's a complex world out there, and it's more than likely you'll need your Wolverine application to interact with system
+that aren't also Wolverine applications. At this time, it's possible to send or receive raw JSON through Kafka and Wolverine
+by using the options shown below in test harness code:
+
+<!-- snippet: sample_raw_json_sending_and_receiving_with_kafka -->
+<a id='snippet-sample_raw_json_sending_and_receiving_with_kafka'></a>
+```cs
+_receiver = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        //opts.EnableAutomaticFailureAcks = false;
+        opts.UseKafka("localhost:9092").AutoProvision();
+        opts.ListenToKafkaTopic("json")
+            
+            // You do have to tell Wolverine what the message type
+            // is that you'll receive here so that it can deserialize the 
+            // incoming data
+            .ReceiveRawJson<ColorMessage>();
+
+        opts.Services.AddResourceSetupOnStartup();
+        
+        opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, "kafka");
+
+        opts.Services.AddResourceSetupOnStartup();
+        
+        opts.Policies.UseDurableInboxOnAllListeners();
+    }).StartAsync();
+
+_sender = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.UseKafka("localhost:9092").AutoProvision();
+        opts.Policies.DisableConventionalLocalRouting();
+
+        opts.Services.AddResourceSetupOnStartup();
+
+        opts.PublishAllMessages().ToKafkaTopic("json")
+            
+            // Just publish the outgoing information as pure JSON
+            // and no other Wolverine metadata
+            .PublishRawJson(new JsonSerializerOptions());
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/publish_and_receive_raw_json.cs#L21-L59' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_raw_json_sending_and_receiving_with_kafka' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+## Instrumentation & Diagnostics <Badge type="tip" text="3.13" />
+
+When receiving messages through Kafka and Wolverine, there are some useful elements of Kafka metadata
+on the Wolverine `Envelope` you can use for instrumentation or diagnostics as shown in this sample middleware:
+
+<!-- snippet: sample_KafkaInstrumentation_middleware -->
+<a id='snippet-sample_kafkainstrumentation_middleware'></a>
+```cs
+public static class KafkaInstrumentation
+{
+    // Just showing what data elements are available to use for 
+    // extra instrumentation when listening to Kafka topics
+    public static void Before(Envelope envelope, ILogger logger)
+    {
+        logger.LogDebug("Received message from Kafka topic {TopicName} with Offset={Offset} and GroupId={GroupId}", 
+            envelope.TopicName, envelope.Offset, envelope.GroupId);
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/DocumentationSamples.cs#L98-L111' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_kafkainstrumentation_middleware' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->

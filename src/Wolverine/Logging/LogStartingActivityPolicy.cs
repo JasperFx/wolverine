@@ -17,6 +17,9 @@ internal class LogStartingActivityPolicy : IHandlerPolicy
 
     public void Apply(IReadOnlyList<HandlerChain> chains, GenerationRules rules, IServiceContainer container)
     {
-        foreach (var chain in chains) chain.Middleware.Insert(0, new LogStartingActivity(_level, chain));
+        foreach (var chain in chains)
+        {
+            chain.Middleware.Insert(0, new LogStartingActivity(_level, chain));
+        }
     }
 }

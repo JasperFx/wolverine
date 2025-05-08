@@ -23,6 +23,38 @@ To replay dead lettered messages back to the incoming table, you also have a com
 dotnet run -- storage replay
 ```
 
+## Dead Letter Expiration <Badge type="tip" text="3.9" />
+
+::: tip
+You could see poor performance over time if the dead letter queue storage in the database gets excessively large,
+so Wolverine does have an "opt in" feature to let old messages expire and be expunged from the storage.
+:::
+
+It's off by default (for backwards compatibility), but you can enable Wolverine to assign expiration times to dead letter
+queue messages persisted to durable storage like this:
+
+<!-- snippet: sample_enabling_dead_letter_queue_expiration -->
+<a id='snippet-sample_enabling_dead_letter_queue_expiration'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+
+        // This is required
+        opts.Durability.DeadLetterQueueExpirationEnabled = true;
+
+        // Default is 10 days. This is the retention period
+        opts.Durability.DeadLetterQueueExpiration = 3.Days();
+
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/BootstrappingSamples.cs#L41-L55' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_enabling_dead_letter_queue_expiration' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Note that Wolverine will use the message's `DeliverBy` value as the expiration if that exists, otherwise, Wolverine will
+just add the `DeadLetterQueueExpiration` time to the current time. The actual stored messages are deleted by background
+processes and won't be quite real time.
+
 ## Integrating Dead Letters REST API into Your Application
 
 Integrating the Dead Letters REST API into your WolverineFX application provides an elegant and powerful way to manage dead letter messages directly through HTTP requests. This capability is crucial for applications that require a robust mechanism for dealing with message processing failures, enabling developers and administrators to query, replay, or delete dead letter messages as needed. Below, we detail how to add this functionality to your application and describe the usage of each endpoint.
@@ -50,7 +82,7 @@ app.MapDeadLettersEndpoints()
 
     ;
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L152-L162' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_register_dead_letter_endpoints' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L153-L163' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_register_dead_letter_endpoints' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ### Using the Dead Letters REST API

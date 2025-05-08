@@ -6,29 +6,29 @@ using Wolverine.Util;
 
 namespace Wolverine.Kafka.Internals;
 
-internal class KafkaListener : IListener, IDisposable
+public class KafkaListener : IListener, IDisposable
 {
     private readonly IConsumer<string,string> _consumer;
     private CancellationTokenSource _cancellation = new();
     private readonly Task _runner;
-    private readonly ConsumerConfig _config;
     private readonly IReceiver _receiver;
     private readonly string? _messageTypeName;
     private readonly QualityOfService _qualityOfService;
 
-    public KafkaListener(KafkaTopic topic, ConsumerConfig config, IReceiver receiver,
+    public KafkaListener(KafkaTopic topic, ConsumerConfig config,
+        IConsumer<string, string> consumer, IReceiver receiver,
         ILogger<KafkaListener> logger)
     {
         Address = topic.Uri;
-        _consumer = new ConsumerBuilder<string, string>(config).Build();
+        _consumer = consumer;
         var mapper = topic.Mapper;
 
         _messageTypeName = topic.MessageType?.ToMessageTypeName();
 
-        _config = config;
+        Config = config;
         _receiver = receiver;
 
-        _qualityOfService = _config.EnableAutoCommit.HasValue && !_config.EnableAutoCommit.Value
+        _qualityOfService = Config.EnableAutoCommit.HasValue && !Config.EnableAutoCommit.Value
             ? QualityOfService.AtMostOnce
             : QualityOfService.AtLeastOnce;
 
@@ -60,7 +60,9 @@ internal class KafkaListener : IListener, IDisposable
                         var message = result.Message;
 
                         var envelope = mapper.CreateEnvelope(result.Topic, message);
+                        envelope.Offset = result.Offset.Value;
                         envelope.MessageType ??= _messageTypeName;
+                        envelope.GroupId = config.GroupId;
 
                         await receiver.ReceivedAsync(this, envelope);
                     }
@@ -70,6 +72,16 @@ internal class KafkaListener : IListener, IDisposable
                     }
                     catch (Exception e)
                     {
+                        // Might be a poison pill message, try to get out of here
+                        try
+                        {
+                            _consumer.Commit();
+                        }
+                        // ReSharper disable once EmptyGeneralCatchClause
+                        catch (Exception)
+                        {
+                        }
+                        
                         logger.LogError(e, "Error trying to map Kafka message to a Wolverine envelope");
                     }
                 }
@@ -85,10 +97,21 @@ internal class KafkaListener : IListener, IDisposable
         }, _cancellation.Token);
     }
 
+    public ConsumerConfig Config { get; }
+
     public ValueTask CompleteAsync(Envelope envelope)
     {
-        // do nothing here, it's already ack'd before we get here
+        if (_qualityOfService == QualityOfService.AtLeastOnce)
+        {
+            try
+            {
+                _consumer.Commit();
+            }
+            catch (Exception)
+            {
 
+            }
+        }
         return ValueTask.CompletedTask;
     }
 

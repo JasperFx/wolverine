@@ -25,6 +25,22 @@ public class RabbitMqListenerConfigurationTests
     }
 
     [Fact]
+    public void override_queue_type()
+    {
+        var endpoint = new RabbitMqQueue("foo", new RabbitMqTransport());
+        var expression = new RabbitMqListenerConfiguration(endpoint, new RabbitMqTransport());
+
+        expression.QueueType(QueueType.quorum);
+        
+        var wolverineRuntime = Substitute.For<IWolverineRuntime>();
+        wolverineRuntime.Options.Returns(new WolverineOptions());
+
+        endpoint.Compile(wolverineRuntime);
+        
+        endpoint.QueueType.ShouldBe(QueueType.quorum);
+    }
+
+    [Fact]
     public void use_specialized_mapper()
     {
         var endpoint = new RabbitMqQueue("foo", new RabbitMqTransport());

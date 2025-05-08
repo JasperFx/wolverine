@@ -3,6 +3,8 @@ using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Wolverine.Runtime;
 
 namespace Wolverine.Http.CodeGen;
@@ -18,6 +20,11 @@ internal class ReadJsonBody : AsyncFrame
         }
 
         Variable = new Variable(parameter.ParameterType, parameterName, this);
+    }
+
+    public ReadJsonBody(Type requestType)
+    {
+        Variable = new Variable(requestType, this);
     }
 
     public Variable Variable { get; }
@@ -54,6 +61,19 @@ internal class ReadJsonBodyWithNewtonsoft : MethodCall
 
         CommentText = "Reading the request body with JSON deserialization";
     }
+    
+    public ReadJsonBodyWithNewtonsoft(Type requestType) : base(typeof(NewtonsoftHttpSerialization), findMethodForType(requestType))
+    {
+        var parameterName = Variable.DefaultArgName(requestType);
+        if (parameterName == "_")
+        {
+            parameterName = Variable.DefaultArgName(requestType);
+        }
+
+        ReturnVariable!.OverrideName(parameterName);
+
+        CommentText = "Reading the request body with JSON deserialization";
+    }
 }
 
 internal class JsonBodyParameterStrategy : IParameterStrategy
@@ -69,6 +89,15 @@ internal class JsonBodyParameterStrategy : IParameterStrategy
 
         if (parameter.HasAttribute<NotBodyAttribute>())
         {
+            return false;
+        }
+
+        if(parameter.HasAttribute<FromFormAttribute>())
+        {
+            return false;
+        }
+
+        if(parameter.HasAttribute<AsParametersAttribute>()){
             return false;
         }
 
@@ -90,4 +119,22 @@ internal class JsonBodyParameterStrategy : IParameterStrategy
     }
 
     public JsonUsage Usage { get; set; } = JsonUsage.SystemTextJson;
+
+    public bool TryBuildVariable(HttpChain chain, out Variable variable)
+    {
+        if (chain.RequestType.IsConcrete())
+        {
+            // It *could* be used twice, so let's watch out for this!
+            chain.RequestBodyVariable ??= Usage == JsonUsage.SystemTextJson
+                ? new ReadJsonBody(chain.RequestType).Variable
+                : new ReadJsonBodyWithNewtonsoft(chain.RequestType).ReturnVariable!;
+
+            variable = chain.RequestBodyVariable;
+
+            return true;
+        }
+
+        variable = default;
+        return false;
+    }
 }

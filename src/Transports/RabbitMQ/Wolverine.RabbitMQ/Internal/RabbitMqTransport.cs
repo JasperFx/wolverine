@@ -18,6 +18,7 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IAsy
     public const string ResponseEndpointName = "RabbitMqResponses";
     public const string DeadLetterQueueName = "wolverine-dead-letter-queue";
     public const string DeadLetterQueueHeader = "x-dead-letter-exchange";
+    public const string QueueTypeHeader = "x-queue-type";
 
     private ConnectionMonitor? _listenerConnection;
     private ConnectionMonitor? _sendingConnection;
@@ -220,7 +221,9 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IAsy
     {
         if (DeclareRequestReplySystemQueue)
         {
-            var queueName = $"wolverine.response.{runtime.DurabilitySettings.AssignedNodeNumber}";
+            // We switched back to using a Guid to disambiguate Wolverine nodes
+            // that might be connecting to the same broker but within different apps
+            var queueName = $"wolverine.response.{Guid.NewGuid()}";
 
             var queue = new RabbitMqQueue(queueName, this, EndpointRole.System)
             {
@@ -229,7 +232,8 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IAsy
                 IsListener = true,
                 IsUsedForReplies = true,
                 ListenerCount = 1,
-                EndpointName = ResponseEndpointName
+                EndpointName = ResponseEndpointName,
+                QueueType = QueueType.classic // This is important, quorum queues cannot be auto-delete
             };
 
             Queues[queueName] = queue;

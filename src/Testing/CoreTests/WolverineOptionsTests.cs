@@ -20,6 +20,12 @@ public class WolverineOptionsTests
     private readonly WolverineOptions theSettings = new();
 
     [Fact]
+    public void failure_acks_are_enabled_by_default()
+    {
+        new WolverineOptions().EnableAutomaticFailureAcks.ShouldBeTrue();
+    }
+    
+    [Fact]
     public void multiple_handler_behavior_is_classic_mode_by_default()
     {
         new WolverineOptions().MultipleHandlerBehavior.ShouldBe(MultipleHandlerBehavior.ClassicCombineIntoOneLogicalHandler);
@@ -29,6 +35,14 @@ public class WolverineOptionsTests
     public void default_id_behavior_is_id_only()
     {
         new WolverineOptions().Durability.MessageIdentity.ShouldBe(MessageIdentity.IdOnly);
+    }
+
+    [Fact]
+    public void dlq_expiration_is_off_by_default()
+    {
+        var wolverineOptions = new WolverineOptions();
+        wolverineOptions.Durability.DeadLetterQueueExpiration.ShouldBe(10.Days());
+        wolverineOptions.Durability.DeadLetterQueueExpirationEnabled.ShouldBeFalse();
     }
     
     [Fact]

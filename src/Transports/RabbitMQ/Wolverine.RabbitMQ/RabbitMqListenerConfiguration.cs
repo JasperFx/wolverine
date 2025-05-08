@@ -69,6 +69,22 @@ public class RabbitMqListenerConfiguration : ListenerConfiguration<RabbitMqListe
     public string QueueName => Queue.QueueName;
 
     /// <summary>
+    /// Override the queue declaration to opt into using a quorum queue
+    /// or declaring as a stream. Default is a classic queue
+    /// </summary>
+    /// <param name="queueType"></param>
+    /// <returns></returns>
+    public RabbitMqListenerConfiguration QueueType(QueueType queueType)
+    {
+        add(e =>
+        {
+            e.QueueType = queueType;
+        });
+
+        return this;
+    }
+
+    /// <summary>
     ///     Add circuit breaker exception handling to this listener
     /// </summary>
     /// <param name="configure"></param>

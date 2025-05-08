@@ -34,6 +34,20 @@ public class MoveToErrorQueueTester
     }
     
     [Fact]
+    public async Task should_not_send_a_failure_ack_if_wolverine_options_latches_that()
+    {
+        theEnvelope.Destination = new Uri("local://foo");
+        theRuntime.Options.EnableAutomaticFailureAcks = false;
+        
+        await theContinuation.ExecuteAsync(theLifecycle, theRuntime, DateTimeOffset.Now, null);
+
+        await theLifecycle
+                .DidNotReceive()
+                .SendFailureAcknowledgementAsync($"Moved message {theEnvelope.Id} to the Error Queue.\n{theException}")
+            ;
+    }
+    
+    [Fact]
     public async Task should_not_send_a_failure_ack_if_local()
     {
         theEnvelope.Destination = new Uri("local://foo");

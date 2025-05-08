@@ -7,7 +7,7 @@ using Wolverine.Util.Dataflow;
 
 namespace Wolverine.Transports.Sending;
 
-internal abstract class SendingAgent : ISendingAgent, ISenderCallback, ISenderCircuit, IAsyncDisposable
+public abstract class SendingAgent : ISendingAgent, ISenderCallback, ISenderCircuit, IAsyncDisposable
 {
     private readonly ILogger _logger;
     private readonly IMessageTracker _messageLogger;
@@ -34,6 +34,8 @@ internal abstract class SendingAgent : ISendingAgent, ISenderCallback, ISenderCi
 
         _sending = new RetryBlock<Envelope>(senderDelegate, logger, _settings.Cancellation, Endpoint.ExecutionOptions);
     }
+
+    public ISender Sender => _sender;
 
     public virtual ValueTask DisposeAsync()
     {
@@ -234,6 +236,10 @@ internal abstract class SendingAgent : ISendingAgent, ISenderCallback, ISenderCi
             await _sender.SendAsync(envelope);
 
             await MarkSuccessfulAsync(envelope);
+        }
+        catch (NotSupportedException)
+        {
+            // Ignore it, most likely a failure ack that should not have been sent
         }
         catch (Exception e)
         {

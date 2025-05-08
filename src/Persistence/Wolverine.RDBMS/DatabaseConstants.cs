@@ -34,6 +34,8 @@ public class DatabaseConstants
     public const string KeepUntil = "keep_until";
     public const string NodeRecordTableName = "wolverine_node_records";
 
+    public const string Expires = "expires";
+
     public static readonly string IncomingFields =
         $"{Body}, {Id}, {Status}, {OwnerId}, {ExecutionTime}, {Attempts}, {MessageType}, {ReceivedAt}";
 

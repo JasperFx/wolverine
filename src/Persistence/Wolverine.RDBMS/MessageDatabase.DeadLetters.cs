@@ -3,7 +3,7 @@ using Wolverine.Persistence.Durability;
 
 namespace Wolverine.RDBMS;
 
-public abstract partial class MessageDatabase<T>
+public abstract partial class MessageDatabase<T> 
 {
     public async Task<DeadLetterEnvelopesFound> QueryDeadLetterEnvelopesAsync(DeadLetterEnvelopeQueryParameters queryParameters, string? tenantId)
     {
@@ -122,4 +122,7 @@ public abstract partial class MessageDatabase<T>
     public abstract Task MarkDeadLetterEnvelopesAsReplayableAsync(Guid[] ids, string? tenantId = null);
 
     public abstract Task DeleteDeadLetterEnvelopesAsync(Guid[] ids, string? tenantId = null);
+
+
+
 }

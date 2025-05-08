@@ -1,0 +1,5 @@
+{
+  "$schema": "build.schema.json",
+  "Solution": "wolverine.sln",
+  "Framework": "net9.0"
+}

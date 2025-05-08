@@ -415,7 +415,7 @@ in the same database schema and use the same `IDocumentStore` if you want while 
 later if you choose to sever some modules over into a separate service. With the event sourcing though, all the events for 
 different aggregate types or stream types all go into the same events table. While it's not impossible to separate the events
 through database scripts if you want to move a module into a separate service later, it's probably going to be easier
-if you use [Marten's separate document store](/configuration/hostbuilder.html#working-with-multiple-marten-databases) feature. 
+if you use [Marten's separate document store](https://martendb.io/configuration/hostbuilder.html#working-with-multiple-marten-databases) feature. 
 
 Wolverine has [direct support for Marten's separate or "ancillary" stores](/guide/durability/marten/ancillary-stores) that still enables the usage of all Wolverine + Marten
 integrations. There is currently a limitation that there is only one physical database that shares the Wolverine message storage for

@@ -1,8 +1,11 @@
-﻿using JasperFx.CodeGeneration;
+﻿using System.Linq.Expressions;
+using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
 using Marten;
+using Marten.Events;
+using Marten.Internal.Sessions;
 using Wolverine.Configuration;
 using Wolverine.Marten.Persistence.Sagas;
 using Wolverine.Runtime;
@@ -174,6 +177,93 @@ public static class MartenOps
     }
 
     /// <summary>
+    /// Return a side effect of deleting the specified document in Marten by id
+    /// </summary>
+    /// <param name="id"></param>
+    /// <typeparam name="T"></typeparam>
+    /// <returns></returns>
+    /// <exception cref="ArgumentNullException"></exception>
+    public static DeleteDocById<T> Delete<T>(string id) where T : notnull
+    {
+        if (id == null)
+        {
+            throw new ArgumentNullException(nameof(id));
+        }
+
+        return new DeleteDocById<T>(id);
+    }
+
+    /// <summary>
+    /// Return a side effect of deleting the specified document in Marten by id
+    /// </summary>
+    /// <param name="id"></param>
+    /// <typeparam name="T"></typeparam>
+    /// <returns></returns>
+    /// <exception cref="ArgumentNullException"></exception>
+    public static DeleteDocById<T> Delete<T>(Guid id) where T : notnull
+    {
+        return new DeleteDocById<T>(id);
+    }
+
+    /// <summary>
+    /// Return a side effect of deleting the specified document in Marten by id
+    /// </summary>
+    /// <param name="id"></param>
+    /// <typeparam name="T"></typeparam>
+    /// <returns></returns>
+    /// <exception cref="ArgumentNullException"></exception>
+    public static DeleteDocById<T> Delete<T>(int id) where T : notnull
+    {
+        return new DeleteDocById<T>(id);
+    }
+
+    /// <summary>
+    /// Return a side effect of deleting the specified document in Marten by id
+    /// </summary>
+    /// <param name="id"></param>
+    /// <typeparam name="T"></typeparam>
+    /// <returns></returns>
+    /// <exception cref="ArgumentNullException"></exception>
+    public static DeleteDocById<T> Delete<T>(long id) where T : notnull
+    {
+        return new DeleteDocById<T>(id);
+    }
+
+    /// <summary>
+    /// Return a side effect of deleting the specified document in Marten by id
+    /// </summary>
+    /// <param name="id"></param>
+    /// <typeparam name="T"></typeparam>
+    /// <returns></returns>
+    /// <exception cref="ArgumentNullException"></exception>
+    public static DeleteDocById<T> Delete<T>(object id) where T : notnull
+    {
+        if (id == null)
+        {
+            throw new ArgumentNullException(nameof(id));
+        }
+
+        return new DeleteDocById<T>(id);
+    }
+
+    /// <summary>
+    /// Return a side effect of deleting documents that match the provided filter
+    /// </summary>
+    /// <param name="expression"></param>
+    /// <typeparam name="T"></typeparam>
+    /// <returns></returns>
+    /// <exception cref="ArgumentNullException"></exception>
+    public static DeleteDocWhere<T> DeleteWhere<T>(Expression<Func<T, bool>> expression) where T : notnull
+    {
+        if (expression == null)
+        {
+            throw new ArgumentNullException(nameof(expression));
+        }
+
+        return new DeleteDocWhere<T>(expression);
+    }
+
+    /// <summary>
     /// Return a side effect of starting a new event stream in Marten
     /// </summary>
     /// <param name="streamId"></param>
@@ -286,6 +376,13 @@ public class StartStream<T> : IStartStream where T : class
 
     public void Execute(IDocumentSession session)
     {
+        if (session is DocumentSessionBase s && s.Options.Events.StreamIdentity == StreamIdentity.AsString &&
+            StreamKey.IsEmpty())
+        {
+            throw new InvalidOperationException(
+                "The event stream identity is string, but the StreamKey is empty or null");
+        }
+        
         if (StreamId == Guid.Empty)
         {
             if (StreamKey.IsNotEmpty())
@@ -413,6 +510,53 @@ public class DeleteDoc<T> : DocumentOp where T : notnull
     public override void Execute(IDocumentSession session)
     {
         session.Delete(_document);
+    }
+}
+
+public class DeleteDocById<T> : IMartenOp where T : notnull
+{
+    private readonly object _id;
+
+    public DeleteDocById(object id)
+    {
+        _id = id;
+    }
+
+    public void Execute(IDocumentSession session)
+    {
+        switch (_id)
+        {
+            case string idAsString:
+                session.Delete<T>(idAsString);
+                break;
+            case Guid idAsGuid:
+                session.Delete<T>(idAsGuid);
+                break;
+            case long idAsLong:
+                session.Delete<T>(idAsLong);
+                break;
+            case int idAsInt:
+                session.Delete<T>(idAsInt);
+                break;
+            default:
+                session.Delete<T>(_id);
+                break;
+        }
+    }
+}
+
+public class DeleteDocWhere<T> : IMartenOp where T : notnull
+{
+    private readonly Expression<Func<T, bool>> _expression;
+
+    public DeleteDocWhere(Expression<Func<T, bool>> expression)
+    {
+        _expression = expression;
+    }
+
+    public void Execute(IDocumentSession session)
+    {
+        session.DeleteWhere(_expression);
     }
 }
 

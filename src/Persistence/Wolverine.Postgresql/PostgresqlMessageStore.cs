@@ -65,7 +65,7 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>, IData
         settings, logger, new PostgresqlMigrator(), "public")
     {
         _reassignIncomingSql =
-            $"update {SchemaName}.{DatabaseConstants.IncomingTable} set owner_id = @owner where id = ANY(@ids)";
+            $"update {SchemaName}.{DatabaseConstants.IncomingTable} set owner_id = @owner, status = '{EnvelopeStatus.Incoming}' where id = ANY(@ids)";
         _deleteOutgoingEnvelopesSql =
             $"delete from {SchemaName}.{DatabaseConstants.OutgoingTable} WHERE id = ANY(@ids);";
 
@@ -103,6 +103,21 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>, IData
         }
 
         return false;
+    }
+
+    protected override void writePagingAfter(DbCommandBuilder builder, int offset, int limit)
+    {
+        if (offset > 0)
+        {
+            builder.Append(" OFFSET ");
+            builder.AppendParameter(offset);
+        }
+        
+        if (limit > 0)
+        {
+            builder.Append(" LIMIT ");
+            builder.AppendParameter(limit);
+        }
     }
 
     public override ISchemaObject AddExternalMessageTable(ExternalMessageTable definition)

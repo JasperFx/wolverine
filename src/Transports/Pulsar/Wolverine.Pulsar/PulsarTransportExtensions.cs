@@ -1,3 +1,4 @@
+using DotPulsar;
 using DotPulsar.Abstractions;
 using JasperFx.Core.Reflection;
 using Wolverine.Configuration;
@@ -81,6 +82,36 @@ public class PulsarListenerConfiguration : ListenerConfiguration<PulsarListenerC
     }
 
     /// <summary>
+    /// Provide a subscription name to Pulsar for this topic
+    /// </summary>
+    /// <param name="subscriptionName"></param>
+    /// <returns></returns>
+    public PulsarListenerConfiguration SubscriptionName(string subscriptionName)
+    {
+        add(e =>
+        {
+            e.SubscriptionName = subscriptionName;
+        });
+
+        return this;
+    }
+    
+    /// <summary>
+    /// Override the Pulsar subscription type for just this topic
+    /// </summary>
+    /// <param name="subscriptionType"></param>
+    /// <returns></returns>
+    public PulsarListenerConfiguration SubscriptionType(SubscriptionType subscriptionType)
+    {
+        add(e =>
+        {
+            e.SubscriptionType = subscriptionType;
+        });
+
+        return this;
+    }
+
+    /// <summary>
     ///     Add circuit breaker exception handling to this listener
     /// </summary>
     /// <param name="configure"></param>
@@ -93,6 +124,21 @@ public class PulsarListenerConfiguration : ListenerConfiguration<PulsarListenerC
             configure?.Invoke(e.CircuitBreakerOptions);
         });
 
+
+        return this;
+    }
+
+    /// <summary>
+    ///     Disable the possibility of requeueing messages
+    /// </summary>
+    /// <param name="enableRequeue"></param>
+    /// <returns></returns>
+    public PulsarListenerConfiguration DisableRequeue()
+    {
+        add(e =>
+        {
+            e.EnableRequeue = false;
+        });
 
         return this;
     }

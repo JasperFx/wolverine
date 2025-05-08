@@ -315,6 +315,10 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
                 $"Cannot use more than one IResponseAware policy per chain. Chain {this} has {responseAwares.Select(x => x.ToString()).Join(", ")}");
 
         typeof(Applier<>).CloseAndBuildAs<IApplier>(this, responseAwares[0].VariableType).Apply();
+
+        responseAwares[0]
+            .UseReturnAction(new CommentReturnAction(
+                $"{responseAwares[0].VariableType.FullNameInCode()} generates special response handling"));
     }
 }
 

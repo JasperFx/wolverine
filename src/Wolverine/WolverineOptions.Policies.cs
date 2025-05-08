@@ -28,7 +28,7 @@ public interface IHandledTypeRule
 
 public sealed partial class WolverineOptions : IPolicies
 {
-    internal List<IWolverinePolicy> RegisteredPolicies { get; } = [];
+    internal List<IWolverinePolicy> RegisteredPolicies { get; } = [new TagHandlerPolicy()];
 
 
     void IPolicies.AutoApplyTransactions()

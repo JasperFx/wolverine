@@ -3,5 +3,8 @@ export default {
     fsServe: {
       root: '../'
     }
+  },
+  build: {
+    chunkSizeWarningLimit: 3000
   }
 }

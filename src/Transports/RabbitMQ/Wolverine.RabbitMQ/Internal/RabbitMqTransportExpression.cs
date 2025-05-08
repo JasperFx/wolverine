@@ -220,7 +220,8 @@ public class RabbitMqTransportExpression : BrokerExpression<RabbitMqTransport, R
             IsListener = true,
             IsUsedForReplies = true,
             ListenerCount = 5,
-            EndpointName = "Control"
+            EndpointName = "Control",
+            QueueType = QueueType.classic
         };
 
         Transport.Queues[queueName] = queue;
@@ -290,6 +291,40 @@ public class RabbitMqTransportExpression : BrokerExpression<RabbitMqTransport, R
         Transport.DeadLetterQueue.ConfigureQueue = dlq.ConfigureQueue;
         Transport.DeadLetterQueue.ConfigureExchange = dlq.ConfigureExchange;
 
+        return this;
+    }
+
+    /// <summary>
+    /// All application Rabbit MQ queues declared by this application should be quorum queues unless explicitly
+    /// overridden. Wolverine's internal queues will still be "classic"
+    /// </summary>
+    /// <returns></returns>
+    public RabbitMqTransportExpression UseQuorumQueues()
+    {
+        Options.Policies.Add(new LambdaEndpointPolicy<RabbitMqQueue>((queue, _) =>
+        {
+            if (queue.Role == EndpointRole.Application)
+            {
+                queue.QueueType = QueueType.quorum;
+            }
+        }));
+        return this;
+    }
+    
+    /// <summary>
+    /// All Rabbit MQ queues declared by this application should be streams unless explicitly
+    /// overridden. Wolverine's internal queues will still be "classic"
+    /// </summary>
+    /// <returns></returns>
+    public RabbitMqTransportExpression UseStreamsAsQueues()
+    {
+        Options.Policies.Add(new LambdaEndpointPolicy<RabbitMqQueue>((queue, _) =>
+        {
+            if (queue.Role == EndpointRole.Application)
+            {
+                queue.QueueType = QueueType.stream;
+            }
+        }));
         return this;
     }
 }

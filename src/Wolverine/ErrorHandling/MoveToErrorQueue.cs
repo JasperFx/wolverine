@@ -31,7 +31,7 @@ internal class MoveToErrorQueue : IContinuation
     {
         // TODO -- at some point, we need a more systematic way of doing this
         var scheme = lifecycle.Envelope.Destination.Scheme;
-        if (scheme != TransportConstants.Local && scheme != "external-table")
+        if (runtime.Options.EnableAutomaticFailureAcks && scheme != TransportConstants.Local && scheme != "external-table")
         {
             await lifecycle.SendFailureAcknowledgementAsync(
                 $"Moved message {lifecycle.Envelope!.Id} to the Error Queue.\n{Exception}");

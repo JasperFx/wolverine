@@ -3,117 +3,34 @@ using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
+using Microsoft.AspNetCore.Mvc;
 using Wolverine.Runtime;
 
 namespace Wolverine.Http.CodeGen;
 
-public class QuerystringVariable : Variable
+public enum AssignMode
 {
-    public QuerystringVariable(Type variableType, string usage, Frame? creator) : base(variableType, usage, creator)
-    {
-        Name = usage;
-    }
-
-    public string Name { get; set; }
+    WriteToVariable,
+    WriteToProperty
 }
 
-internal class ReadStringQueryStringValue : SyncFrame
+// TODO -- move this to JasperFx.CodeGeneration later
+public interface IGeneratesCode
 {
-    public ReadStringQueryStringValue(string name)
-    {
-        Variable = new QuerystringVariable(typeof(string), name, this);
-    }
-
-    public QuerystringVariable Variable { get; }
-
-    public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
-    {
-        writer.Write($"string {Variable.Usage} = httpContext.Request.Query[\"{Variable.Name}\"].FirstOrDefault();");
-
-        Next?.GenerateCode(method, writer);
-    }
+    void GenerateCode(GeneratedMethod method, ISourceWriter writer);
 }
 
-internal class ParsedQueryStringValue : SyncFrame
-{
-    public ParsedQueryStringValue(ParameterInfo parameter)
-    {
-        Variable = new QuerystringVariable(parameter.ParameterType, parameter.Name!, this);
-    }
-
-    public QuerystringVariable Variable { get; }
-
-    public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
-    {
-        var alias = Variable.VariableType.FullNameInCode();
-        writer.Write($"{alias} {Variable.Usage} = default;");
-
-
-        if (Variable.VariableType.IsEnum)
-        {
-            writer.Write($"{alias}.TryParse<{alias}>(httpContext.Request.Query[\"{Variable.Name}\"], out {Variable.Usage});");
-        }
-        else if (Variable.VariableType.IsBoolean())
-        {
-            writer.Write($"{alias}.TryParse(httpContext.Request.Query[\"{Variable.Name}\"], out {Variable.Usage});");
-        }
-        else
-        {
-            writer.Write($"{alias}.TryParse(httpContext.Request.Query[\"{Variable.Name}\"], System.Globalization.CultureInfo.InvariantCulture, out {Variable.Usage});");
-        }
-
-        Next?.GenerateCode(method, writer);
-    }
-}
-
-internal class ParsedNullableQueryStringValue : SyncFrame
-{
-    private readonly string _alias;
-    private Type _innerTypeFromNullable;
-
-    public ParsedNullableQueryStringValue(ParameterInfo parameter)
-    {
-        Variable = new QuerystringVariable(parameter.ParameterType, parameter.Name!, this);
-        _innerTypeFromNullable = parameter.ParameterType.GetInnerTypeFromNullable();
-        _alias = _innerTypeFromNullable.FullNameInCode();
-    }
-
-    public QuerystringVariable Variable { get; }
-
-    public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
-    {
-        writer.Write($"{_alias}? {Variable.Usage} = null;");
-        if (_innerTypeFromNullable.IsEnum)
-        {
-            writer.Write(
-                $"if ({_alias}.TryParse<{_innerTypeFromNullable.FullNameInCode()}>(httpContext.Request.Query[\"{Variable.Usage}\"], out var {Variable.Usage}Parsed)) {Variable.Usage} = {Variable.Usage}Parsed;");
-        }
-        else if (_innerTypeFromNullable.IsBoolean())
-        {
-            writer.Write(
-                $"if ({_alias}.TryParse(httpContext.Request.Query[\"{Variable.Usage}\"], out var {Variable.Usage}Parsed)) {Variable.Usage} = {Variable.Usage}Parsed;");
-        }
-        else
-        {
-            writer.Write(
-                $"if ({_alias}.TryParse(httpContext.Request.Query[\"{Variable.Usage}\"], System.Globalization.CultureInfo.InvariantCulture, out var {Variable.Usage}Parsed)) {Variable.Usage} = {Variable.Usage}Parsed;");
-        }
-
-        Next?.GenerateCode(method, writer);
-    }
-}
-
-internal class ParsedCollectionQueryStringValue : SyncFrame
+internal class ParsedCollectionQueryStringValue : SyncFrame, IReadHttpFrame
 {
     private readonly Type _collectionElementType;
 
-    public ParsedCollectionQueryStringValue(ParameterInfo parameter)
+    public ParsedCollectionQueryStringValue(Type parameterType, string parameterName)
     {
-        Variable = new QuerystringVariable(parameter.ParameterType, parameter.Name!, this);
-        _collectionElementType = GetCollectionElementType(parameter.ParameterType);
+        Variable = new HttpElementVariable(parameterType, parameterName!, this);
+        _collectionElementType = GetCollectionElementType(parameterType);
     }
 
-    public QuerystringVariable Variable { get; }
+    public HttpElementVariable Variable { get; }
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
@@ -178,12 +95,26 @@ internal class ParsedCollectionQueryStringValue : SyncFrame
 
     private static Type GetCollectionElementType(Type collectionType)
         => collectionType.GetGenericArguments()[0];
+    
+    public void AssignToProperty(string usage)
+    {
+        Variable.OverrideName(usage);
+        Mode = AssignMode.WriteToProperty;
+    }
+
+    public AssignMode Mode { get; private set; } = AssignMode.WriteToVariable;
 }
 
 internal class QueryStringParameterStrategy : IParameterStrategy
 {
     public bool TryMatch(HttpChain chain, IServiceContainer container, ParameterInfo parameter, out Variable? variable)
     {
+        if (parameter.GetCustomAttribute<FromFormAttribute>() != null)
+        {
+            variable = null;
+            return false;
+        }
+        
         variable = chain.TryFindOrCreateQuerystringValue(parameter);
         return variable != null;
     }

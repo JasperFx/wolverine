@@ -146,7 +146,7 @@ public static class HostBuilderExtensions
 
         services.AddSingleton(options.HandlerGraph);
         services.AddSingleton(options.Durability);
-
+        
         // The runtime is also a hosted service
         services.AddSingleton(s => (IHostedService)s.GetRequiredService<IWolverineRuntime>());
 

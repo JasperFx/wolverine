@@ -1,5 +1,7 @@
 using System.Reflection;
 using JasperFx.CodeGeneration.Frames;
+using JasperFx.CodeGeneration.Model;
+using JasperFx.Core.Reflection;
 using Wolverine.Http.CodeGen;
 
 namespace Wolverine.Http;
@@ -8,6 +10,9 @@ public partial class HttpGraph
 {
     private readonly List<IParameterStrategy> _strategies =
     [
+        new FromFormAttributeUsage(),
+        new FromQueryAttributeUsage(),
+        new AsParamatersAttributeUsage(),
         new FromFileStrategy(),
         new HttpChainParameterAttributeStrategy(),
         new FromServicesParameterStrategy(),
@@ -68,5 +73,21 @@ public partial class HttpGraph
     public void InsertParameterStrategy(IParameterStrategy strategy)
     {
         _strategies.Insert(0, strategy);
+    }
+
+    internal Variable BuildJsonDeserializationVariable(HttpChain httpChain)
+    {
+        if (httpChain.RequestType == null)
+        {
+            throw new ArgumentOutOfRangeException(nameof(httpChain), "No request type for this HTTP chain");
+        }
+        
+        var strategy = _strategies.OfType<JsonBodyParameterStrategy>().Single();
+        if (strategy.TryBuildVariable(httpChain, out var variable))
+        {
+            return variable;
+        }
+
+        throw new InvalidOperationException($"Unable to determine a JSON deserialization strategy for request type {httpChain.RequestType.FullNameInCode()}");
     }
 }

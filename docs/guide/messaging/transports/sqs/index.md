@@ -1,10 +1,5 @@
 # Using Amazon SQS
 
-::: tip
-Wolverine is only supporting SQS queues for right now, but support for publishing or subscribing through [Amazon SNS](https://aws.amazon.com/sns/) will
-come shortly.
-:::
-
 ::: warning
 At this moment, Wolverine cannot support request/reply mechanics (`IMessageBus.InvokeAsync<T>()`) with Amazon SQS.
 :::
@@ -117,4 +112,3 @@ await host.StartAsync();
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L83-L111' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setting_aws_credentials' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
-

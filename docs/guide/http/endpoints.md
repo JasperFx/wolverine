@@ -15,7 +15,7 @@ public static ArithmeticResults PostJson(Question question)
     };
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/TestEndpoints.cs#L83-L95' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_simple_wolverine_http_endpoint' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/TestEndpoints.cs#L122-L134' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_simple_wolverine_http_endpoint' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In the method signature above, `Question` is the "request" type (the payload sent from the client to the server) and `ArithmeticResults` is the "resource" type (what is being returned to the client).
@@ -36,7 +36,7 @@ public static Task<ArithmeticResults> PostJsonAsync(Question question)
     return Task.FromResult(results);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/TestEndpoints.cs#L97-L111' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_simple_wolverine_http_endpoint_async' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/TestEndpoints.cs#L136-L150' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_simple_wolverine_http_endpoint_async' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The resource type is still `ArithmeticResults`. Likewise, if an endpoint returns `ValueTask<ArithmeticResults>`, the resource type
@@ -85,17 +85,24 @@ public string PostNotBody([NotBody] Recorder recorder)
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/AttributeEndpoints.cs#L15-L26' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_not_body_attribute' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+::: warning
+You can return any type that can technically be serialized to JSON, which means even primitive
+values like numbers, strings, or dates. Just know that there is special handling for `int` and any
+invalid HTTP status code may result in a web browser hanging -- and that's not typically what you'd
+like to happen!
+:::
+
 In terms of the response type, you can use:
 
-| Type                           | Body         | Status Code       | Notes                                                                          |
-|--------------------------------|--------------|-------------------|--------------------------------------------------------------------------------|
-| `void` / `Task` / `ValueTask`  | Empty        | 200               |                                                                                |
-| `string`                       | "text/plain" | 200               | Writes the result to the response                                              |
-| `int`                          | Empty        | Value of response |                                                                                |
-| Type that implements `IResult` | Varies       | Varies            | The `IResult.ExecuteAsync()` method is executed                                |
-| `CreationResponse` or subclass | JSON         | 201               | The response is serialized, and writes a `location` response header            |
-| `AcceptResponse` or subclass   | JSON         | 202               | The response is serialized, and writes a `location` response header            |
-| Any other type                 | JSON         | 200               | The response is serialized to JSON                                             |
+| Type                           | Body         | Status Code       | Notes                                                                     |
+|--------------------------------|--------------|-------------------|---------------------------------------------------------------------------|
+| `void` / `Task` / `ValueTask`  | Empty        | 200               |                                                                           |
+| `string`                       | "text/plain" | 200               | Writes the result to the response                                         |
+| `int`                          | Empty        | Value of response | **Note**, this must be a valid HTTP status code or bad things may happen! |
+| Type that implements `IResult` | Varies       | Varies            | The `IResult.ExecuteAsync()` method is executed                           |
+| `CreationResponse` or subclass | JSON         | 201               | The response is serialized, and writes a `location` response header       |
+| `AcceptResponse` or subclass   | JSON         | 202               | The response is serialized, and writes a `location` response header       |
+| Any other type                 | JSON         | 200               | The response is serialized to JSON                                        |
 
 In all cases up above, if the endpoint method is asynchronous using either `Task<T>` or `ValueTask<T>`, the `T` is the 
 response type. In other words, a response of `Task<string>` has the same rules as a response of `string` and `ValueTask<int>`
@@ -167,7 +174,7 @@ public static OrderShipped Ship(ShipOrder command, Order order)
     return new OrderShipped();
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L116-L129' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_emptyresponse' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L118-L131' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_emptyresponse' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## JSON Handling
@@ -202,7 +209,7 @@ Wolverine will execute an ASP.Net Core `IResult` object returned from an HTTP en
 <!-- snippet: sample_conditional_IResult_return -->
 <a id='snippet-sample_conditional_iresult_return'></a>
 ```cs
-[WolverineGet("/choose/color")]
+[WolverinePost("/choose/color")]
 public IResult Redirect(GoToColor request)
 {
     switch (request.Color)
@@ -312,7 +319,7 @@ and register that strategy within our `MapWolverineEndpoints()` set up like so:
 // Customizing parameter handling
 opts.AddParameterHandlingStrategy<NowParameterStrategy>();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L214-L219' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_adding_custom_parameter_handling' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L215-L220' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_adding_custom_parameter_handling' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And lastly, here's the application within an HTTP endpoint for extra context:

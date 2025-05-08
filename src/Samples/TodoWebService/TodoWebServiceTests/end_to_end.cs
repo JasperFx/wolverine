@@ -1,5 +1,6 @@
 using Alba;
 using Marten;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using Oakton;
 using Shouldly;
@@ -117,5 +118,21 @@ public class end_to_end : IAsyncLifetime
         });
 
 
+    }
+
+    [Fact]
+    public async Task post_invalid_json()
+    {
+        var results = await _host.Scenario(opts =>
+        {
+            dynamic wrongJson = new { Title = true, PropertyTwo = false };
+            opts.Post.Json(wrongJson).ToUrl("/api/todo-lists");
+            opts.StatusCodeShouldBe(400);
+        });
+        var problemDetails = results.ReadAsJson<ProblemDetails>();
+        problemDetails.Detail.ShouldBe("The JSON value could not be converted to TodoWebService.CreateTodoListRequest. Path: $.title | LineNumber: 0 | BytePositionInLine: 13.");
+        problemDetails.Status.ShouldBe(400);
+        problemDetails.Title.ShouldBe("Invalid JSON format");
+        problemDetails.Type.ShouldBe("https://httpstatuses.com/400");
     }
 }

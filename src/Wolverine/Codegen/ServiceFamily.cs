@@ -69,7 +69,7 @@ internal class ServiceFamily
 #if NET8_0_OR_GREATER
         if (descriptor.IsKeyedService)
         {
-            throw new NotSupportedException("Not quite able yet to support keyed implementations");
+            throw new NotSupportedException("Wolverine is not yet able support keyed implementations in its code generation with the built in ServiceProvider. Wolverine *can* support keyed services with the Lamar IoC container. See https://jasperfx.github.io/lamar for more information");
         }
 #endif
 

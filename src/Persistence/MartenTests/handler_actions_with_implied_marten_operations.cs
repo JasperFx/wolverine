@@ -30,6 +30,10 @@ public class handler_actions_with_implied_marten_operations : PostgresqlContext,
         _store = _host.Services.GetRequiredService<IDocumentStore>();
 
         await _store.Advanced.Clean.DeleteDocumentsByTypeAsync(typeof(NamedDocument));
+        await _store.Advanced.Clean.DeleteDocumentsByTypeAsync(typeof(IntIdDocument));
+        await _store.Advanced.Clean.DeleteDocumentsByTypeAsync(typeof(LongIdDocument));
+        await _store.Advanced.Clean.DeleteDocumentsByTypeAsync(typeof(GuidIdDocument));
+        await _store.Advanced.Clean.DeleteDocumentsByTypeAsync(typeof(StringIdDocument));
     }
 
     public async Task DisposeAsync()
@@ -99,6 +103,124 @@ public class handler_actions_with_implied_marten_operations : PostgresqlContext,
     }
 
     [Fact]
+    public async Task delete_document_by_int_id()
+    {
+        await using var session = _store.LightweightSession();
+
+        var id = 2345;
+
+        session.Store(new IntIdDocument { Id = id });
+        await session.SaveChangesAsync();
+
+        await _host.InvokeMessageAndWaitAsync(new DeleteMartenDocumentByIntId(id));
+
+        var doc = await session.LoadAsync<IntIdDocument>(id);
+        doc.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task delete_document_by_long_id()
+    {
+        await using var session = _store.LightweightSession();
+
+        var id = 23456L;
+
+        session.Store(new LongIdDocument { Id = id });
+        await session.SaveChangesAsync();
+
+        await _host.InvokeMessageAndWaitAsync(new DeleteMartenDocumentByLongId(id));
+
+        var doc = await session.LoadAsync<LongIdDocument>(id);
+        doc.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task delete_document_by_guid_id()
+    {
+        await using var session = _store.LightweightSession();
+
+        var id = Guid.NewGuid();
+
+        session.Store(new GuidIdDocument { Id = id });
+        await session.SaveChangesAsync();
+
+        await _host.InvokeMessageAndWaitAsync(new DeleteMartenDocumentByGuidId(id));
+
+        var doc = await session.LoadAsync<GuidIdDocument>(id);
+        doc.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task delete_document_by_string_id()
+    {
+        await using var session = _store.LightweightSession();
+
+        var id = "Max";
+
+        session.Store(new StringIdDocument { Id = id });
+        await session.SaveChangesAsync();
+
+        await _host.InvokeMessageAndWaitAsync(new DeleteMartenDocumentByStringId(id));
+
+        var doc = await session.LoadAsync<StringIdDocument>(id);
+        doc.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task delete_documents_by_object_ids()
+    {
+        await using var session = _store.LightweightSession();
+
+        var intId = 1234;
+        var longId = 56789L;
+        var guidId = Guid.NewGuid();
+        var stringId = "Max";
+
+        session.Store(new IntIdDocument { Id = intId });
+        session.Store(new LongIdDocument { Id = longId });
+        session.Store(new GuidIdDocument { Id = guidId });
+        session.Store(new StringIdDocument { Id = stringId });
+        await session.SaveChangesAsync();
+
+        await _host.InvokeMessageAndWaitAsync(new DeleteMartenDocumentsByObjectIds(intId, longId, guidId, stringId));
+
+        var intDoc = await session.LoadAsync<IntIdDocument>(intId);
+        var longDoc = await session.LoadAsync<LongIdDocument>(longId);
+        var guidDoc = await session.LoadAsync<GuidIdDocument>(guidId);
+        var stringDoc = await session.LoadAsync<StringIdDocument>(stringId);
+        intDoc.ShouldBeNull();
+        longDoc.ShouldBeNull();
+        guidDoc.ShouldBeNull();
+        stringDoc.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task delete_documents_by_object_ids_throws_when_invalid_id_type_provided()
+    {
+        var invalidId = new object();
+
+        await Should.ThrowAsync<DocumentIdTypeMismatchException>(() =>
+            _host.InvokeMessageAndWaitAsync(
+                new DeleteMartenDocumentsByObjectIds(invalidId, invalidId, invalidId, invalidId)));
+    }
+    
+    [Fact]
+    public async Task delete_document_where()
+    {
+        await _store.Advanced.Clean.DeleteDocumentsByTypeAsync(typeof(NamedDocument));
+
+        await _host.InvokeMessageAndWaitAsync(new InsertMartenDocument("foo"));
+        await _host.InvokeMessageAndWaitAsync(new InsertMartenDocument("bar"));
+        await _host.InvokeMessageAndWaitAsync(new InsertMartenDocument("baz"));
+        await _host.InvokeMessageAndWaitAsync(new DeleteMartenDocumentsStartingWith("ba"));
+
+        await using var session = _store.LightweightSession();
+        var docs = await session.Query<NamedDocument>().ToListAsync();
+        
+        docs.ShouldHaveSingleItem().Id.ShouldBe("foo");
+    }
+
+    [Fact]
     public async Task use_enumerable_of_imartenop_as_return_value()
     {
         await _store.Advanced.Clean.DeleteDocumentsByTypeAsync(typeof(NamedDocument));
@@ -117,6 +239,12 @@ public record CreateMartenDocument(string Name);
 public record InsertMartenDocument(string Name);
 public record UpdateMartenDocument(string Name, int Number);
 public record DeleteMartenDocument(string Name);
+public record DeleteMartenDocumentByIntId(int DocId);
+public record DeleteMartenDocumentByLongId(long DocId);
+public record DeleteMartenDocumentByGuidId(Guid DocId);
+public record DeleteMartenDocumentByStringId(string DocId);
+public record DeleteMartenDocumentsByObjectIds(object IntId, object LongId, object GuidId, object StringId);
+public record DeleteMartenDocumentsStartingWith(string Prefix);
 
 public record MartenMessage2(string Name);
 
@@ -156,6 +284,39 @@ public static class MartenCommandHandler
         return MartenOps.Delete(doc);
     }
 
+    public static IMartenOp Handle(DeleteMartenDocumentByIntId command)
+    {
+        return MartenOps.Delete<IntIdDocument>(command.DocId);
+    }
+
+    public static IMartenOp Handle(DeleteMartenDocumentByLongId command)
+    {
+        return MartenOps.Delete<LongIdDocument>(command.DocId);
+    }
+
+    public static IMartenOp Handle(DeleteMartenDocumentByGuidId command)
+    {
+        return MartenOps.Delete<GuidIdDocument>(command.DocId);
+    }
+
+    public static IMartenOp Handle(DeleteMartenDocumentByStringId command)
+    {
+        return MartenOps.Delete<StringIdDocument>(command.DocId);
+    }
+
+    public static IEnumerable<IMartenOp> Handle(DeleteMartenDocumentsByObjectIds command)
+    {
+        yield return MartenOps.Delete<IntIdDocument>(command.IntId);
+        yield return MartenOps.Delete<LongIdDocument>(command.LongId);
+        yield return MartenOps.Delete<GuidIdDocument>(command.GuidId);
+        yield return MartenOps.Delete<StringIdDocument>(command.StringId);
+    }
+
+    public static IMartenOp Handle(DeleteMartenDocumentsStartingWith command)
+    {
+        return MartenOps.DeleteWhere<NamedDocument>(x => x.Id.StartsWith(command.Prefix));
+    }
+
     public static void Handle(MartenMessage2 message)
     {
         // Nothing yet
@@ -185,4 +346,21 @@ public class NamedDocument
 {
     public string Id { get; set; }
     public int Number { get; set; }
+}
+
+public class IntIdDocument
+{
+    public int Id { get; set; }
+}
+public class LongIdDocument
+{
+    public long Id { get; set; }
+}
+public class GuidIdDocument
+{
+    public Guid Id { get; set; }
+}
+public class StringIdDocument
+{
+    public string Id { get; set; }
 }

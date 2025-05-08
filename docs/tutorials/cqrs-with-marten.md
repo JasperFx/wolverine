@@ -17,7 +17,7 @@ Let's get the entire "Critter Stack" (Wolverine + [Marten](https://martendb.io))
 
 We'll be using the [IncidentService](https://github.com/jasperfx/wolverine/tree/main/src/Samples/IncidentService) example service to show an example of using Wolverine with Marten in a headless
 web service with its accompanying test harness. The problem domain is pretty familiar to all of us developers because our
-lives are somewhat managed by issue tracking systems of some soft. Starting with some [Event Storming](https://jeremydmiller.com/2023/11/28/building-a-critter-stack-application-event-storming/), the first couple
+lives are somewhat managed by issue tracking systems of some sort. Starting with some [Event Storming](https://jeremydmiller.com/2023/11/28/building-a-critter-stack-application-event-storming/), the first couple
 events and triggering commands might be something like this:
 
 ![Event Storming](/event-storming.png)
@@ -84,7 +84,7 @@ return await app.RunOaktonCommands(args);
 ::: tip
 In Marten parlance, a "Projection" is the mechanism of taking raw Marten events and "projecting" them
 into some kind of view, which could be a .NET object that may or may not be persisted to the database as
-JSON (PostgreSQL JSONB to be precise) or [flat table projections](/events/projections/flat) that write to old fashioned relational database
+JSON (PostgreSQL JSONB to be precise) or [flat table projections](https://martendb.io/events/projections/flat.html) that write to old fashioned relational database
 tables.
 
 The phrase "aggregate" is hopelessly overloaded in Event Sourcing and DDD communities. In Marten world we mostly

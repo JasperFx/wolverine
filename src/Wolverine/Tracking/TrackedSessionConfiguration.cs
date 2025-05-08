@@ -44,6 +44,26 @@ public class TrackedSessionConfiguration
 
         return this;
     }
+    
+    /// <summary>
+    ///     Track activity across an additional Wolverine application if you happen to be bootstrapping
+    /// the IoC container for testing harnesses outside of IHost usage
+    /// </summary>
+    /// <param name="host"></param>
+    /// <returns></returns>
+    public TrackedSessionConfiguration AlsoTrack(params IServiceProvider?[] serviceProviders)
+    {
+        // It's actually important to ignore null here
+        foreach (var serviceProvider in serviceProviders)
+        {
+            if (serviceProvider != null)
+            {
+                _session.WatchOther(serviceProvider);
+            }
+        }
+
+        return this;
+    }
 
     /// <summary>
     ///     Force the message tracking to include outgoing activity to

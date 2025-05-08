@@ -107,6 +107,8 @@ public partial class RabbitMqTransport : IDescribedSystemPart, IWriteToConsole
 
     private void writeBasics()
     {
+        ConnectionFactory ??= new();
+        
         var grid = new Grid()
             .AddColumn()
             .AddColumn()

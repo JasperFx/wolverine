@@ -8,6 +8,7 @@ using Weasel.Core;
 using Weasel.SqlServer;
 using Weasel.SqlServer.Tables;
 using Wolverine.Logging;
+using Wolverine.Persistence.Durability;
 using Wolverine.RDBMS;
 using Wolverine.RDBMS.Sagas;
 using Wolverine.RDBMS.Transport;
@@ -60,6 +61,35 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>, IDatabaseSa
     protected override bool isExceptionFromDuplicateEnvelope(Exception ex)
     {
         return ex is SqlException sqlEx && sqlEx.Message.ContainsIgnoreCase("Violation of PRIMARY KEY constraint");
+    }
+
+    protected override void writePagingAfter(DbCommandBuilder builder, int offset, int limit)
+    {
+        if (offset == 0) return;
+        
+        if (offset > 0)
+        {
+            builder.Append(" OFFSET ");
+            builder.AppendParameter(offset);
+            builder.Append(" ROWS ");
+        }
+        
+        if (limit > 0)
+        {
+            builder.Append(" FETCH NEXT ");
+            builder.AppendParameter(limit);
+            builder.Append(" ROWS ONLY");
+        }
+    }
+
+    protected override string toTopClause(DeadLetterEnvelopeQuery query)
+    {
+        if (query.PageSize > 0 && query.PageNumber <= 1)
+        {
+            return $" top {query.PageSize}";
+        }
+
+        return string.Empty;
     }
 
     public override async Task<PersistedCounts> FetchCountsAsync()

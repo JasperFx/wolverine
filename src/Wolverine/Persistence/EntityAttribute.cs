@@ -94,9 +94,7 @@ public class EntityAttribute : WolverineParameterAttribute
 
         // I know it's goofy that this refers to the saga, but it should work fine here too
         var idType = provider.DetermineSagaIdType(parameter.ParameterType, container);
-
-
-
+        
         if (!tryFindIdentityVariable(chain, parameter, idType, out var identity))
         {
             throw new InvalidEntityLoadUsageException(this, parameter);
@@ -123,29 +121,5 @@ public class EntityAttribute : WolverineParameterAttribute
 
         chain.Middleware.Add(frame);
         return entity;
-    }
-
-    private bool tryFindIdentityVariable(IChain chain, ParameterInfo parameter, Type idType, out Variable variable)
-    {
-        if (ArgumentName.IsNotEmpty())
-        {
-            if (chain.TryFindVariable(ArgumentName, ValueSource, idType, out variable))
-            {
-                return true;
-            }
-        }
-        
-        if (chain.TryFindVariable(parameter.ParameterType.Name + "Id", ValueSource, idType, out variable))
-        {
-            return true;
-        }
-        
-        if (chain.TryFindVariable("Id", ValueSource, idType, out variable))
-        {
-            return true;
-        }
-
-        variable = default;
-        return false;
     }
 }

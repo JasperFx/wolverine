@@ -28,6 +28,7 @@ namespace Internal.Generated.WolverineHandlers
             // The actual message body
             var createItem = (EfCoreTests.CreateItem)context.Envelope.Message;
 
+            System.Diagnostics.Activity.Current?.SetTag("message.handler", "EfCoreTests.CreateItemHandler");
             var createItemHandler = new EfCoreTests.CreateItemHandler();
             
             // The actual message execution

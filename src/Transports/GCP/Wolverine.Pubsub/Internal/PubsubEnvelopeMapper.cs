@@ -5,7 +5,7 @@ using Wolverine.Transports;
 
 namespace Wolverine.Pubsub.Internal;
 
-internal class PubsubEnvelopeMapper : EnvelopeMapper<ReceivedMessage, PubsubMessage>, IPubsubEnvelopeMapper
+public class PubsubEnvelopeMapper : EnvelopeMapper<ReceivedMessage, PubsubMessage>, IPubsubEnvelopeMapper
 {
     public PubsubEnvelopeMapper(PubsubEndpoint endpoint) : base(endpoint)
     {
