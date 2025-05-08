@@ -60,7 +60,7 @@ public static void Configure(HttpChain chain)
 
 ## Swashbuckle and Wolverine
 
-[Swashbuckle](https://github.com/domaindrivendev/Swashbuckle.AspNetCore) is de facto the default OpenAPI tooling and it is added in by the default `dotnet new` templates for ASP.Net Core
+[Swashbuckle](https://github.com/domaindrivendev/Swashbuckle.AspNetCore) is de facto the OpenAPI tooling for ASP.Net Core
 applications. It's also very MVC Core-centric in its assumptions about how to generate OpenAPI metadata to describe endpoints.
 If you need to (or just want to), you can do quite a bit to control exactly how Swashbuckle works against
 Wolverine endpoints by using a custom `IOperationFilter` of your making that can use Wolverine's own `HttpChain` model
