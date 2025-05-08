@@ -99,6 +99,7 @@ public record Query3(Guid Id);
 
 public record Query4(string Name, int Number, Direction Direction);
 
+
 public class BigQuery
 {
     public string Name { get; set; }
@@ -116,4 +117,9 @@ public class BigQuery
     [FromQuery(Name = "aliased")]
     [FromForm(Name = "aliased")]
     public string? ValueWithAlias { get; set; }
+
+    public List<string> ListValues { get; set; } = new();
+    public List<Direction> EnumListValues { get; set; } = new();
+
+    public List<int> IntList { get; set; }
 }
