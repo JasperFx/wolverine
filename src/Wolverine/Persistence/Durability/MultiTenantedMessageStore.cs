@@ -488,7 +488,7 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
     {
         return tenantId.IsEmpty() || tenantId == TransportConstants.Default || tenantId == "Master"
             ? new ValueTask<IMessageStore>(Master)
-            : Source.FindStoreAsync(tenantId);
+            : Source.FindAsync(tenantId);
     }
 
     private IEnumerable<IMessageStore> databases()

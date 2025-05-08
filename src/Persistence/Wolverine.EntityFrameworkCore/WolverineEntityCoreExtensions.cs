@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Wolverine.EntityFrameworkCore.Internals;
 using Wolverine.Persistence.Durability;
 using Wolverine.RDBMS;
@@ -44,10 +45,10 @@ public static class WolverineEntityCoreExtensions
             b.ReplaceService<IModelCustomizer, WolverineModelCustomizer>();
         }, ServiceLifetime.Scoped, ServiceLifetime.Singleton);
 
-        services.AddSingleton<IWolverineExtension, EntityFrameworkCoreBackedPersistence>();
+        services.TryAddSingleton<IWolverineExtension, EntityFrameworkCoreBackedPersistence>();
         
-        services.AddScoped(typeof(IDbContextOutbox<>), typeof(DbContextOutbox<>));
-        services.AddScoped<IDbContextOutbox, DbContextOutbox>();
+        services.TryAddScoped(typeof(IDbContextOutbox<>), typeof(DbContextOutbox<>));
+        services.TryAddScoped<IDbContextOutbox, DbContextOutbox>();
 
         services.AddSingleton<WolverineDbContextCustomizationOptions>(_ =>
             string.IsNullOrEmpty(wolverineDatabaseSchema)

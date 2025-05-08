@@ -53,7 +53,7 @@ internal class MartenMessageDatabaseSource : IMessageDatabaseSource
 
     public DatabaseCardinality Cardinality => _store.Options.Tenancy.Cardinality;
 
-    public async ValueTask<IMessageStore> FindStoreAsync(string tenantId)
+    public async ValueTask<IMessageStore> FindAsync(string tenantId)
     {
         if (_stores.TryFind(tenantId, out var store))
         {
