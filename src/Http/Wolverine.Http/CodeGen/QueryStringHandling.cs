@@ -37,7 +37,7 @@ internal class ParsedCollectionQueryStringValue : SyncFrame, IReadHttpFrame
         var collectionAlias = typeof(List<>).MakeGenericType(_collectionElementType).FullNameInCode();
         var elementAlias = _collectionElementType.FullNameInCode();
 
-        if (Mode == QueryStringAssignMode.WriteToVariable)
+        if (Mode == AssignMode.WriteToVariable)
         {
             writer.Write($"var {Variable.Usage} = new {collectionAlias}();");
         }
