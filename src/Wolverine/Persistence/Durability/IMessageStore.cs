@@ -1,4 +1,5 @@
 ﻿using JasperFx.Core.Descriptors;
+using JasperFx.MultiTenancy;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
 
@@ -117,11 +118,8 @@ public interface IAncillaryMessageStore<T> : IAncillaryMessageStore
 {
 }
 
-public interface ITenantedMessageStore
+public interface ITenantedMessageSource : ITenantedSource<IMessageStore>
 {
-    DatabaseCardinality Cardinality { get; }
-    ValueTask<IMessageStore> FindStoreAsync(string tenantId);
-    Task RefreshAsync();
-    IReadOnlyList<IMessageStore> AllActive();
+
 }
 

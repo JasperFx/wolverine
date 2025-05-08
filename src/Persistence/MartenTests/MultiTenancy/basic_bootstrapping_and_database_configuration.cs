@@ -22,10 +22,10 @@ public class basic_bootstrapping_and_database_configuration : MultiTenancyContex
     [Fact]
     public void should_have_the_specified_master_database_as_master()
     {
-        Stores.Master.Name.ShouldBe("Master");
-        Stores.Master.As<IMessageDatabase>().SchemaName.ShouldBe("control");
+        Stores.Main.Name.ShouldBe("Master");
+        Stores.Main.As<IMessageDatabase>().SchemaName.ShouldBe("control");
 
-        new NpgsqlConnectionStringBuilder(Stores.Master.As<IMessageDatabase>().DataSource.CreateConnection().ConnectionString)
+        new NpgsqlConnectionStringBuilder(Stores.Main.As<IMessageDatabase>().DataSource.CreateConnection().ConnectionString)
             .Database.ShouldBe("postgres");
     }
 
@@ -77,13 +77,13 @@ public class basic_bootstrapping_and_database_configuration : MultiTenancyContex
     [Fact]
     public async Task finds_database_for_default_is_master()
     {
-        (await Stores.GetDatabaseAsync(TransportConstants.Default)).ShouldBeSameAs(Stores.Master);
+        (await Stores.GetDatabaseAsync(TransportConstants.Default)).ShouldBeSameAs(Stores.Main);
     }
 
     [Fact]
     public async Task master_database_has_every_storage_table()
     {
-        await using var conn = (NpgsqlConnection)await Stores.Master.As<IMessageDatabase>().DataSource.OpenConnectionAsync();
+        await using var conn = (NpgsqlConnection)await Stores.Main.As<IMessageDatabase>().DataSource.OpenConnectionAsync();
 
         var tables = (await conn.ExistingTablesAsync()).Where(x => x.Schema == "control").ToArray();
         tables.ShouldContain(x => x.Name == DatabaseConstants.IncomingTable);
@@ -103,9 +103,9 @@ public class basic_bootstrapping_and_database_configuration : MultiTenancyContex
     {
         foreach (var database in Stores.ActiveDatabases().OfType<IMessageDatabase>().Where(x => x.Name != "Master"))
         {
-            database.IsMaster.ShouldBeFalse();
+            database.IsMain.ShouldBeFalse();
         }
 
-        Stores.Master.As<IMessageDatabase>().IsMaster.ShouldBeTrue();
+        Stores.Main.As<IMessageDatabase>().IsMain.ShouldBeTrue();
     }
 }

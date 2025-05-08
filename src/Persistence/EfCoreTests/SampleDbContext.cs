@@ -1,30 +1,10 @@
 using Microsoft.EntityFrameworkCore;
+using SharedPersistenceModels.Items;
 using Wolverine.EntityFrameworkCore;
 
 namespace EfCoreTests;
 
-public class SampleDbContext : DbContext
-{
-    public SampleDbContext(DbContextOptions<SampleDbContext> options) : base(options)
-    {
-    }
 
-    public DbSet<Item> Items { get; set; }
-
-    protected override void OnModelCreating(ModelBuilder modelBuilder)
-    {
-        base.OnModelCreating(modelBuilder);
-
-        // Your normal EF Core mapping
-        modelBuilder.Entity<Item>(map =>
-        {
-            map.ToTable("items");
-            map.HasKey(x => x.Id);
-            map.Property(x => x.Name);
-            map.Property(x => x.Approved);
-        });
-    }
-}
 
 public class CleanDbContext : DbContext
 {
@@ -67,7 +47,7 @@ public class SampleMappedDbContext : DbContext
         // Your normal EF Core mapping
         modelBuilder.Entity<Item>(map =>
         {
-            map.ToTable("items");
+            map.ToTable("items", "mt_items");
             map.HasKey(x => x.Id);
             map.Property(x => x.Name);
         });

@@ -58,7 +58,7 @@ using var host = await Host.CreateDefaultBuilder()
         opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CodegenUsage.cs#L12-L32' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_codegen_type_load_mode' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CodegenUsage.cs#L13-L33' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_codegen_type_load_mode' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 At development time, use the `Dynamic` mode if you are actively changing handler
@@ -140,15 +140,18 @@ builder.UseWolverine(opts =>
         {
             opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Static;
 
-            // You probably only ever want to do this in Production
-            opts.Services.AssertAllExpectedPreBuiltTypesExistOnStartUp();
+            opts.Services.AddJasperFx(j =>
+            {
+                // I'm only going to care about this in production
+                j.Production.AssertAllPreGeneratedTypesExist = true;
+            });
         }
     });
 
 using var host = builder.Build();
 await host.StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CodegenUsage.cs#L37-L54' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_asserting_all_pre_built_types_exist_upfront' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CodegenUsage.cs#L38-L58' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_asserting_all_pre_built_types_exist_upfront' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Do note that you would have to opt into using the environment checks on application startup, and maybe even force .NET
@@ -199,7 +202,7 @@ using var host = await Host.CreateDefaultBuilder()
         opts.OptimizeArtifactWorkflow();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CodegenUsage.cs#L59-L69' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_use_optimized_workflow' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CodegenUsage.cs#L63-L73' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_use_optimized_workflow' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Which will use:

@@ -1,6 +1,5 @@
 ﻿using JasperFx.Core.Reflection;
 using JasperFx;
-using JasperFx.CommandLine;
 
 namespace Wolverine.Attributes;
 

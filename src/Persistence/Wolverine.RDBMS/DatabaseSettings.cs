@@ -1,5 +1,6 @@
 using System.Data.Common;
 using JasperFx;
+using JasperFx.MultiTenancy;
 using Weasel.Core;
 
 namespace Wolverine.RDBMS;
@@ -15,7 +16,12 @@ public class DatabaseSettings
     /// <summary>
     ///     Is this database the master database for node storage and any kind of command queueing?
     /// </summary>
-    public bool IsMaster { get; set; }
+    public bool IsMain { get; set; }
+    
+    /// <summary>
+    /// If the main database, add a tenant lookup table
+    /// </summary>
+    public bool AddTenantLookupTable { get; set; } = false;
 
     /// <summary>
     ///     Is this database exposing command queues?
@@ -23,4 +29,10 @@ public class DatabaseSettings
     public bool CommandQueuesEnabled { get; set; } = true;
 
     public int ScheduledJobLockId { get; set; } = 20000;
+    
+    /// <summary>
+    /// Default databases by tenant and connection string to use for seeding
+    /// "master table tenancy"
+    /// </summary>
+    public ITenantedSource<string>? TenantConnections { get; set; }
 }

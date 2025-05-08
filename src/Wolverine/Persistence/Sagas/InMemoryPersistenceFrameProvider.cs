@@ -95,9 +95,9 @@ public class InMemoryPersistenceFrameProvider : IPersistenceFrameProvider
         return call;
     }
 
-    public Frame DetermineStoreFrame(Variable variable, IServiceContainer container)
+    public Frame DetermineStoreFrame(Variable saga, IServiceContainer container)
     {
-        return DetermineInsertFrame(variable, container);
+        return DetermineInsertFrame(saga, container);
     }
 
     public Frame DetermineDeleteFrame(Variable variable, IServiceContainer container)

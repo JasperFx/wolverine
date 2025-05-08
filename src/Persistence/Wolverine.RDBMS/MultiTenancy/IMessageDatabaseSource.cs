@@ -5,7 +5,7 @@ namespace Wolverine.RDBMS.MultiTenancy;
 /// <summary>
 ///     Source of known tenant databases
 /// </summary>
-public interface IMessageDatabaseSource : ITenantedMessageStore
+public interface IMessageDatabaseSource : ITenantedMessageSource
 {
     /// <summary>
     /// Add extra configuration to every actively used tenant database

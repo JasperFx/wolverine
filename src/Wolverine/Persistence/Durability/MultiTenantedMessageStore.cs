@@ -1,8 +1,11 @@
+using JasperFx;
 using JasperFx.Core;
 using JasperFx.Core.Descriptors;
+using JasperFx.MultiTenancy;
 using Microsoft.Extensions.Logging;
 using Wolverine.Logging;
 using Wolverine.Persistence.Durability.DeadLetterManagement;
+using Wolverine.Persistence.Sagas;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
 using Wolverine.Transports;
@@ -12,14 +15,14 @@ namespace Wolverine.Persistence.Durability;
 
 public class MultiTenantedMessageStore<T> : MultiTenantedMessageStore, IAncillaryMessageStore<T>
 {
-    public MultiTenantedMessageStore(IMessageStore master, IWolverineRuntime runtime, ITenantedMessageStore source) : base(master, runtime, source)
+    public MultiTenantedMessageStore(IMessageStore main, IWolverineRuntime runtime, ITenantedMessageSource source) : base(main, runtime, source)
     {
     }
 
     public Type MarkerType => typeof(T);
 }
 
-public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IMessageStoreAdmin, IDeadLetters
+public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IMessageStoreAdmin, IDeadLetters, ISagaSupport
 {
     private readonly ILogger _logger;
     private readonly RetryBlock<IEnvelopeCommand> _retryBlock;
@@ -27,8 +30,8 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
     private bool _initialized;
 
 
-    public MultiTenantedMessageStore(IMessageStore master, IWolverineRuntime runtime,
-        ITenantedMessageStore source)
+    public MultiTenantedMessageStore(IMessageStore main, IWolverineRuntime runtime,
+        ITenantedMessageSource source)
     {
         _logger = runtime.LoggerFactory.CreateLogger<MultiTenantedMessageStore>();
         _runtime = runtime;
@@ -37,15 +40,15 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
         _retryBlock = new RetryBlock<IEnvelopeCommand>((command, cancellation) => command.ExecuteAsync(cancellation),
             _logger, runtime.Cancellation);
 
-        Master = master;
+        Main = main;
     }
 
-    public ITenantedMessageStore Source { get; }
+    public ITenantedMessageSource Source { get; }
 
     public Uri Uri => new Uri($"{PersistenceConstants.AgentScheme}://multitenanted");
 
 
-    public IMessageStore Master { get; }
+    public IMessageStore Main { get; }
 
     async Task IMessageInbox.ScheduleExecutionAsync(Envelope envelope)
     {
@@ -109,7 +112,7 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
                 var command = new StoreIncomingAsyncGroup(database, group.ToArray());
                 await _retryBlock.PostAsync(command);
             }
-            catch (UnknownTenantException e)
+            catch (UnknownTenantIdException e)
             {
                 _logger.LogError(e, "Encountered unknown tenant {TenantId} while trying to store incoming envelopes",
                     group.Key);
@@ -159,7 +162,7 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
                 var database = await GetDatabaseAsync(group.Key);
                 await database.Inbox.MarkIncomingEnvelopeAsHandledAsync(group.ToArray());
             }
-            catch (UnknownTenantException e)
+            catch (UnknownTenantIdException e)
             {
                 _logger.LogError(e, "Encountered unknown tenant {TenantId} while trying to store incoming envelopes",
                     group.Key);
@@ -207,7 +210,7 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
                 var command = new DeleteOutgoingAsyncGroup(database, group.ToArray());
                 await _retryBlock.PostAsync(command);
             }
-            catch (UnknownTenantException e)
+            catch (UnknownTenantIdException e)
             {
                 _logger.LogError(e, "Encountered unknown tenant {TenantId} while trying to store incoming envelopes",
                     group.Key);
@@ -314,12 +317,12 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
     public IMessageInbox Inbox => this;
     public IMessageOutbox Outbox => this;
     public IDeadLetters DeadLetters => this;
-    public INodeAgentPersistence Nodes => Master.Nodes;
+    public INodeAgentPersistence Nodes => Main.Nodes;
     public IMessageStoreAdmin Admin => this;
 
     public void Describe(TextWriter writer)
     {
-        Master.Describe(writer);
+        Main.Describe(writer);
     }
 
     public DatabaseDescriptor Describe()
@@ -486,14 +489,14 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
 
     public ValueTask<IMessageStore> GetDatabaseAsync(string? tenantId)
     {
-        return tenantId.IsEmpty() || tenantId == TransportConstants.Default || tenantId == "Master"
-            ? new ValueTask<IMessageStore>(Master)
-            : Source.FindStoreAsync(tenantId);
+        return tenantId.IsDefaultTenant() || tenantId == "Master"
+            ? new ValueTask<IMessageStore>(Main)
+            : Source.FindAsync(tenantId);
     }
 
     private IEnumerable<IMessageStore> databases()
     {
-        yield return Master;
+        yield return Main;
 
         foreach (var database in Source.AllActive()) yield return database;
     }
@@ -618,5 +621,22 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
         {
             _reassigned.AddRange(reassigns);
         }
+    }
+
+    public async ValueTask<ISagaStorage<TId, TSaga>> EnrollAndFetchSagaStorage<TId, TSaga>(MessageContext context) where TSaga : Saga
+    {
+        if (context.IsDefaultTenant())
+        {
+            if (Main is ISagaSupport s1) return await s1.EnrollAndFetchSagaStorage<TId, TSaga>(context);
+        }
+
+        var store = (await Source.FindAsync(context.TenantId)) as ISagaSupport;
+        if (store != null)
+        {
+            return await store.EnrollAndFetchSagaStorage<TId, TSaga>(context);
+        }
+
+        throw new InvalidOperationException(
+            "The tenant stores do not implement ISagaSupport and cannot be used for saga persistence");
     }
 }

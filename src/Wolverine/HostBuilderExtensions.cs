@@ -103,6 +103,8 @@ public static class HostBuilderExtensions
                 "IHostBuilder.UseWolverine() can only be called once per service collection");
         }
 
+        services.AddJasperFx();
+
         services.AddSingleton<IAssemblyGenerator, AssemblyGenerator>();
 
         services.AddSingleton(services);

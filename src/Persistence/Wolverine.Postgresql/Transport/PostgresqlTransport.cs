@@ -48,7 +48,7 @@ public class PostgresqlTransport : BrokerTransport<PostgresqlQueue>, ITransportC
         }
         else if (runtime.Storage is MultiTenantedMessageStore tenants)
         {
-            Store = tenants.Master as PostgresqlMessageStore;
+            Store = tenants.Main as PostgresqlMessageStore;
 
             if (tenants.Source is IMessageDatabaseSource source)
             {
@@ -105,7 +105,7 @@ public class PostgresqlTransport : BrokerTransport<PostgresqlQueue>, ITransportC
         }
         else if (runtime.Storage is MultiTenantedMessageStore tenants)
         {
-            Store = tenants.Master as PostgresqlMessageStore ??
+            Store = tenants.Main as PostgresqlMessageStore ??
                     throw new ArgumentOutOfRangeException(
                         "The PostgreSQL transport can only be used if PostgreSQL is the backing message store");
 

@@ -99,7 +99,7 @@ public class message_store_initialization_and_configuration : PostgresqlContext,
         var settings = new DatabaseSettings
         {
             ConnectionString = Servers.PostgresConnectionString,
-            IsMaster = false,
+            IsMain = false,
             SchemaName = "registry"
         };
 

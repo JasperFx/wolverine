@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
+using SharedPersistenceModels.Items;
 using Wolverine;
 using Wolverine.EntityFrameworkCore;
 

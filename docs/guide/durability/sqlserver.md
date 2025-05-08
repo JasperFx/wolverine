@@ -149,5 +149,57 @@ _listener = await Host.CreateDefaultBuilder()
 
 See the details on [Lightweight Saga Storage](/guide/durability/sagas.html#lightweight-saga-storage) for more information.
 
+## Multi-Tenancy <Badge type="tip" text="4.0" />
+
+You can utilize multi-tenancy through separate databases for each tenant with SQL Server and Wolverine. If utilizing the SQL Server transport 
+with multi-tenancy through separate databases per tenant, the SQL Server
+queues will be built and monitored for each tenant database as well as any main, non-tenanted database. Also, Wolverine is able to utilize
+completely different message storage for its transactional inbox and outbox for each unique database including any main database.
+Wolverine is able to activate additional durability agents for itself for any tenant databases added at runtime for tenancy modes
+that support dynamic discovery.
+
+To utilize Wolverine managed multi-tenancy, you have a couple main options. The simplest is just using a static configured
+set of tenant id to database connections like so:
+
+snippet: sample_static_tenant_registry_with_sqlserver
+
+::: warning
+Wolverine is not yet able to dynamically tear down tenants yet. That's long planned, and honestly probably only happens
+when an outside company sponsors that work.
+:::
+
+If you need to be able to add new tenants at runtime or just have more tenants than is comfortable living in static configuration
+or plenty of other reasons I could think of, you can also use Wolverine's "master table tenancy" approach where tenant id
+to database connection string information is kept in a separate database table.
+
+Here's a possible usage of that model:
+
+snippet: sample_using_sqlserver_backed_master_table_tenancy
+
+::: info
+Wolverine's "master table tenancy" model was unsurprisingly based on Marten's [Master Table Tenancy](https://martendb.io/configuration/multitenancy.html#master-table-tenancy-model) feature
+and even shares a little bit of supporting code now.
+:::
+
+Here's some more important background on the multi-tenancy support:
+
+* Wolverine is spinning up a completely separate "durability agent" across the application to recover stranded messages in
+  the transactional inbox and outbox, and that's done automatically for you
+* The lightweight saga support for PostgreSQL absolutely works with this model of multi-tenancy
+* Wolverine is able to manage all of its database tables including the tenant table itself (`wolverine_tenants`) across both the
+  main database and all the tenant databases including schema migrations
+* Wolverine's transactional middleware is aware of the multi-tenancy and can connect to the correct database based on the `IMesageContext.TenantId`
+  or utilize the tenant id detection in Wolverine.HTTP as well
+
+MORE -- other usages, including custom ITenantSource
+
+
+
+
+
+
+
+
+
 
 

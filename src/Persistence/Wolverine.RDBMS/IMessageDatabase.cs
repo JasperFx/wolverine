@@ -1,8 +1,10 @@
 using System.Data.Common;
+using JasperFx.MultiTenancy;
 using Microsoft.Extensions.Logging;
 using Weasel.Core;
 using Wolverine.Logging;
 using Wolverine.Persistence.Durability;
+using Wolverine.RDBMS.MultiTenancy;
 using Wolverine.RDBMS.Polling;
 using Wolverine.RDBMS.Transport;
 using Wolverine.Runtime;
@@ -12,14 +14,47 @@ using DbCommandBuilder = Weasel.Core.DbCommandBuilder;
 
 namespace Wolverine.RDBMS;
 
-public interface IMessageDatabase : IMessageStoreWithAgentSupport
+public static class MessageDatabaseExtensions
 {
-    string Name { get; }
+    /// <summary>
+    /// Try to find the right IMessageDatabase for the current MessageContext including its tenant if any
+    /// </summary>
+    /// <param name="context"></param>
+    /// <param name="database"></param>
+    /// <returns></returns>
+    public static bool TryFindMessageDatabase(this MessageContext context, out IMessageDatabase? database)
+    {
+        database = default!;
+        
+        if (context.Storage is IMessageDatabase db)
+        {
+            database = db;
+            return true;
+        }
 
-    bool IsMaster { get; }
+        if (context.Storage is MultiTenantedMessageStore tenantedMessageStore)
+        {
+            if (context.IsDefaultTenant() && tenantedMessageStore.Main is IMessageDatabase db2)
+            {
+                database = db2;
+                return true;
+            }
+
+            database = tenantedMessageStore.Source.FindAsync(context.TenantId).GetAwaiter().GetResult() as IMessageDatabase;
+            return database != null;
+        }
+
+        return false;
+    }
+}
+
+public interface IMessageDatabase : IMessageStoreWithAgentSupport, ITenantDatabaseRegistry
+{
+    public DatabaseSettings Settings {get; }
+    
+    bool IsMain { get; }
 
     string SchemaName { get; set; }
-    DatabaseSettings Settings { get; }
 
     DbDataSource DataSource { get; }
     ILogger Logger { get; }
@@ -53,4 +88,5 @@ public interface IMessageDatabase : IMessageStoreWithAgentSupport
     Task MigrateExternalMessageTable(ExternalMessageTable messageTable);
 
     Task PublishMessageToExternalTableAsync(ExternalMessageTable table, string messageTypeName, byte[] json, CancellationToken token);
+    
 }

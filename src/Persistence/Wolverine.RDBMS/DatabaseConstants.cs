@@ -27,6 +27,7 @@ public class DatabaseConstants
 
     public const string NodeTableName = "wolverine_nodes";
     public const string NodeAssignmentsTableName = "wolverine_node_assignments";
+    public const string TenantsTableName = "wolverine_tenants";
 
     public const string ReceivedAt = "received_at"; // add to all
     public const string SentAt = "sent_at"; // add to all

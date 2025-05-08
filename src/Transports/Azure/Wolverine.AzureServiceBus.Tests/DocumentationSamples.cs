@@ -237,8 +237,8 @@ public class DocumentationSamples
 
             // I overrode the buffering limits just to show
             // that they exist for "back pressure"
-            opts.ListenToAzureServiceBusQueue("incoming")
-                .UseDurableInbox(new BufferingLimits(1000, 200));
+opts.ListenToAzureServiceBusQueue("incoming")
+    .UseDurableInbox(new BufferingLimits(1000, 200));
 
             opts.PublishAllMessages().ToAzureServiceBusQueue("outgoing")
                 .UseDurableOutbox();

@@ -3,6 +3,7 @@ using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Logging;
 using JasperFx;
+using JasperFx.MultiTenancy;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.RemoteInvocation;
@@ -11,7 +12,7 @@ using Wolverine.Util;
 
 namespace Wolverine.Runtime;
 
-public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction, IEnvelopeLifecycle
+public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelopeTransaction, IEnvelopeLifecycle
 {
     private IChannelCallback? _channel;
 

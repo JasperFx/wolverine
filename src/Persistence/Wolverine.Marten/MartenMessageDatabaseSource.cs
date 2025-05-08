@@ -2,6 +2,7 @@ using ImTools;
 using JasperFx;
 using JasperFx.Core.Descriptors;
 using JasperFx.Core.Reflection;
+using JasperFx.MultiTenancy;
 using Marten;
 using Marten.Storage;
 using Microsoft.Extensions.Logging;
@@ -53,7 +54,7 @@ internal class MartenMessageDatabaseSource : IMessageDatabaseSource
 
     public DatabaseCardinality Cardinality => _store.Options.Tenancy.Cardinality;
 
-    public async ValueTask<IMessageStore> FindStoreAsync(string tenantId)
+    public async ValueTask<IMessageStore> FindAsync(string tenantId)
     {
         if (_stores.TryFind(tenantId, out var store))
         {
@@ -115,11 +116,6 @@ internal class MartenMessageDatabaseSource : IMessageDatabaseSource
         foreach (var martenDatabase in martenDatabases)
         {
             var wolverineStore = createWolverineStore(martenDatabase);
-            if (_autoCreate != AutoCreate.None)
-            {
-                await wolverineStore.MigrateAsync();
-            }
-
             _databases = _databases.AddOrUpdate(martenDatabase.Identifier, wolverineStore);
         }
     }
@@ -127,6 +123,11 @@ internal class MartenMessageDatabaseSource : IMessageDatabaseSource
     public IReadOnlyList<IMessageStore> AllActive()
     {
         return _databases.Enumerate().Select(x => x.Value).ToList();
+    }
+
+    public IReadOnlyList<Assignment<IMessageStore>> AllActiveByTenant()
+    {
+        return _databases.Enumerate().Select(x => new Assignment<IMessageStore>(x.Key, x.Value)).ToList();
     }
 
     public async ValueTask ConfigureDatabaseAsync(Func<IMessageDatabase, ValueTask> configureDatabase)
@@ -141,7 +142,7 @@ internal class MartenMessageDatabaseSource : IMessageDatabaseSource
         var settings = new DatabaseSettings
         {
             SchemaName = _schemaName,
-            IsMaster = false,
+            IsMain = false,
             AutoCreate = _autoCreate,
             CommandQueuesEnabled = false,
             DataSource = database.As<PostgresqlDatabase>().DataSource

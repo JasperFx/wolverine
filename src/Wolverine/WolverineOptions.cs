@@ -1,5 +1,6 @@
 ﻿using System.Reflection;
 using System.Runtime.CompilerServices;
+using JasperFx;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
@@ -8,6 +9,7 @@ using JasperFx.Core.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using Wolverine.Configuration;
 using Wolverine.Persistence;
+using Wolverine.Persistence.MultiTenancy;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Runtime.Scheduled;
 using Wolverine.Runtime.Serialization;
@@ -58,8 +60,7 @@ public sealed partial class WolverineOptions
         CodeGeneration.Assemblies.Add(GetType().Assembly);
 
         establishApplicationAssembly(assemblyName);
-
-
+        
         if (ApplicationAssembly != null)
         {
             CodeGeneration.Assemblies.Add(ApplicationAssembly);
