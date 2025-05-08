@@ -118,7 +118,7 @@ public interface IAncillaryMessageStore<T> : IAncillaryMessageStore
 {
 }
 
-public interface ITenantedMessageStore : ITenantedSource<IMessageStore>
+public interface ITenantedMessageSource : ITenantedSource<IMessageStore>
 {
 
 }

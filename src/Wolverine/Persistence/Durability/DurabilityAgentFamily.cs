@@ -7,7 +7,7 @@ namespace Wolverine.Persistence.Durability;
 public class DurabilityAgentFamily : IAgentFamily
 {
     private readonly Dictionary<Uri, IMessageStoreWithAgentSupport> _storeWithAgents = new();
-    private readonly List<ITenantedMessageStore> _tenantedStores = new();
+    private readonly List<ITenantedMessageSource> _tenantedStores = new();
 
     public DurabilityAgentFamily(IWolverineRuntime runtime)
     {

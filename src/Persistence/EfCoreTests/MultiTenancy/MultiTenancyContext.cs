@@ -10,12 +10,10 @@ using Weasel.Postgresql.Migrations;
 using Weasel.Postgresql.Tables;
 using Wolverine;
 using Wolverine.EntityFrameworkCore;
-using Wolverine.EntityFrameworkCore.Internals;
 
 namespace EfCoreTests.MultiTenancy;
 
 // TODO -- extension methods to build this from IHost or IServiceProvider
-
 
 public abstract class MultiTenancyContext : IAsyncLifetime
 {

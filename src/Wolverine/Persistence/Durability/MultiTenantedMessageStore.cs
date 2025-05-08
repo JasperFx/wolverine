@@ -12,7 +12,7 @@ namespace Wolverine.Persistence.Durability;
 
 public class MultiTenantedMessageStore<T> : MultiTenantedMessageStore, IAncillaryMessageStore<T>
 {
-    public MultiTenantedMessageStore(IMessageStore master, IWolverineRuntime runtime, ITenantedMessageStore source) : base(master, runtime, source)
+    public MultiTenantedMessageStore(IMessageStore master, IWolverineRuntime runtime, ITenantedMessageSource source) : base(master, runtime, source)
     {
     }
 
@@ -28,7 +28,7 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
 
 
     public MultiTenantedMessageStore(IMessageStore master, IWolverineRuntime runtime,
-        ITenantedMessageStore source)
+        ITenantedMessageSource source)
     {
         _logger = runtime.LoggerFactory.CreateLogger<MultiTenantedMessageStore>();
         _runtime = runtime;
@@ -40,7 +40,7 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
         Master = master;
     }
 
-    public ITenantedMessageStore Source { get; }
+    public ITenantedMessageSource Source { get; }
 
     public Uri Uri => new Uri($"{PersistenceConstants.AgentScheme}://multitenanted");
 
