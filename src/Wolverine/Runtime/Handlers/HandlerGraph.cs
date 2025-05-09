@@ -167,7 +167,7 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
         // If none, use the default
         if (sticky == null)
         {
-            if (!chain.Handlers.Any())
+            if (!chain.HasDefaultNonStickyHandlers())
             {
                 throw new NoHandlerForEndpointException(messageType, endpoint.Uri);
             }
@@ -221,7 +221,7 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
         {
             handler = chain.Handler;
         }
-        else if (!chain.Handlers.Any())
+        else if (!chain.HasDefaultNonStickyHandlers())
         {
             throw new NoHandlerForEndpointException(messageType);
         }
