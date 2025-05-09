@@ -108,6 +108,8 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
             }
         }
     }
+
+    internal virtual bool HasDefaultNonStickyHandlers() => Handlers.Any();
     
     protected virtual void tryAssignStickyEndpoints(HandlerCall handlerCall, WolverineOptions options)
     {

@@ -159,6 +159,9 @@ public class SagaChain : HandlerChain
         frames.Add(ifNotCompleted);
     }
 
+    // Always true!
+    internal override bool HasDefaultNonStickyHandlers() => true;
+
     internal IEnumerable<Frame> DetermineSagaDoesNotExistSteps(Variable sagaId, Variable saga,
         IPersistenceFrameProvider frameProvider, IServiceContainer container)
     {
