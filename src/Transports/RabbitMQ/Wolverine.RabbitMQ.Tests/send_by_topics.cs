@@ -34,7 +34,14 @@ public class send_by_topics : IDisposable
                     exchange.BindTopic("color.green").ToQueue("green");
                     exchange.BindTopic("color.blue").ToQueue("blue");
                     exchange.BindTopic("color.*").ToQueue("all");
+                    
+                    // Need this to be able to go to ONLY the green receiver for a test
+                    exchange.BindTopic("special").ToQueue("green");
                 });
+
+                opts.Discovery.DisableConventionalDiscovery();
+
+                opts.ServiceName = "TheSender";
 
                 opts.PublishMessagesToRabbitMqExchange<RoutedMessage>("wolverine.topics", m => m.TopicName);
             }).Start();
@@ -110,6 +117,34 @@ public class send_by_topics : IDisposable
             .Where(x => x.MessageEventType == MessageEventType.Received)
             .Select(x => x.ServiceName)
             .Single().ShouldBe("Third");
+    }
+
+    [Fact]
+    public async Task request_reply_through_topic_exchange()
+    {
+        Func<IMessageContext,Task> action = async c =>
+        {
+            // This should get handled by only the Green receiver 
+            // according to the configuration at the top
+            var message = new RoutedMessage{TopicName = "special"};
+            await c.InvokeAsync<RoutedResponse>(message);
+        };
+        
+        var session = await theSender
+            .TrackActivity()
+            .IncludeExternalTransports()
+            .AlsoTrack(theGreenReceiver, theBlueReceiver, theThirdReceiver)
+            .ExecuteAndWaitAsync(action);
+        
+        session.Executed.SingleRecord<RoutedMessage>()
+            .ServiceName.ShouldBe("Green");
+    }
+
+    [Fact]
+    public async Task remove_request_reply_with_topics()
+    {
+        var bus = theSender.MessageBus();
+        
     }
 
     [Fact]
@@ -414,12 +449,18 @@ public class RoutedMessage
     public Guid Id { get; set; } = Guid.NewGuid();
 }
 
+public class RoutedResponse
+{
+    public Guid Id { get; set; }
+}
+
 public class TriggerTopicMessage;
 
 public class MessagesHandler
 {
-    public static void Handle(RoutedMessage message)
+    public static RoutedResponse Handle(RoutedMessage message)
     {
+        return new RoutedResponse { Id = message.Id };
     }
 
     public object Handle(TriggerTopicMessage message)

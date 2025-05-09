@@ -114,9 +114,15 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
         return envelope;
     }
 
-    public async Task<T> InvokeAsync<T>(object message, MessageBus bus,
+    public Task<T> InvokeAsync<T>(object message, MessageBus bus,
         CancellationToken cancellation = default,
         TimeSpan? timeout = null, string? tenantId = null)
+    {
+        return RemoteInvokeAsync<T>(message, bus, cancellation, timeout, tenantId);
+    }
+
+    internal async Task<T> RemoteInvokeAsync<T>(object message, MessageBus bus, CancellationToken cancellation,
+        TimeSpan? timeout, string? tenantId, string? topicName = null)
     {
         if (message == null)
         {
@@ -135,7 +141,8 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
         
         var envelope = new Envelope(message, Sender)
         {
-            TenantId = tenantId ?? bus.TenantId
+            TenantId = tenantId ?? bus.TenantId,
+            TopicName = topicName
         };
 
         foreach (var rule in Rules) rule.Modify(envelope);
