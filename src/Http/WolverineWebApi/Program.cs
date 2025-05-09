@@ -2,6 +2,8 @@ using IntegrationTests;
 using JasperFx.CodeGeneration;
 using JasperFx.Core;
 using Marten;
+using Marten.Events;
+using Marten.Events.Projections;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
@@ -21,6 +23,7 @@ using Wolverine.Marten;
 using WolverineWebApi;
 using WolverineWebApi.Marten;
 using WolverineWebApi.Samples;
+using WolverineWebApi.Things;
 using WolverineWebApi.WebSockets;
 using WolverineWebApiFSharp;
 
@@ -71,7 +74,17 @@ builder.Services.AddMarten(opts =>
     opts.Events.UseIdentityMapForAggregates = true;
 }).IntegrateWithWolverine();
 
+builder.Services.AddMartenStore<IThingStore>(options =>
+{
+    options.Connection(Servers.PostgresConnectionString);
+    options.DatabaseSchemaName        = "things";
 
+    // Configure the event store to use strings as identifiers to support resource names.
+    options.Events.StreamIdentity = StreamIdentity.AsString;
+
+    // Add projections
+    options.Projections.Add<ThingProjection>(ProjectionLifecycle.Inline);
+}).IntegrateWithWolverine();
 
 builder.Services.AddResourceSetupOnStartup();
 
