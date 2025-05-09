@@ -38,6 +38,27 @@ public class transactional_frame_end_to_end : PostgresqlContext
         query.Load<FakeDoc>(command.Id)
             .ShouldNotBeNull();
     }
+    
+    [Fact]
+    public async Task the_transactional_middleware_works_with_document_operations()
+    {
+        using var host = WolverineHost.For(opts =>
+        {
+            opts.Services.AddMarten(o =>
+            {
+                o.Connection(Servers.PostgresConnectionString);
+                o.AutoCreateSchemaObjects = AutoCreate.All;
+                o.DisableNpgsqlLogging = true;
+            }).IntegrateWithWolverine();
+        });
+
+        var command = new CreateDocCommand2();
+        await host.InvokeAsync(command);
+
+        await using var query = host.DocumentStore().QuerySession();
+        query.Load<FakeDoc>(command.Id)
+            .ShouldNotBeNull();
+    }
 
     public static async Task Using_CommandsAreTransactional()
     {
@@ -58,6 +79,23 @@ public class CreateDocCommand
 {
     public Guid Id { get; set; } = Guid.NewGuid();
 }
+
+public class CreateDocCommand2
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+}
+
+
+
+public class CreateDocCommand2Handler
+{
+    [Transactional]
+    public void Handle(CreateDocCommand2 message, IDocumentOperations operations)
+    {
+        operations.Store(new FakeDoc { Id = message.Id });
+    }
+}
+
 
 
 public class CreateDocCommandHandler
