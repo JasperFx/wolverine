@@ -227,7 +227,7 @@ public interface IMessageRoute
         WolverineRuntime runtime, string? topicName);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/Routing/IMessageRoute.cs#L7-L19' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_imessageroute' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/Routing/IMessageRoute.cs#L6-L18' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_imessageroute' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 This type "knows" about any endpoint or model sending customizations like delivery expiration

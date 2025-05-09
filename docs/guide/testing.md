@@ -566,6 +566,35 @@ public class When_message_is_sent : IAsyncLifetime
 
         _host = await hostBuilder.StartAsync();
     }
+    
+    [Fact]
+    public async Task should_be_in_session_using_service_provider()
+    {
+        var randomFileChange = _host.Services.GetRequiredService<RandomFileChange>();
+
+        var session = await _host.Services
+            .TrackActivity()
+            .Timeout(2.Seconds())
+            .ExecuteAndWaitAsync(
+                (Func<IMessageContext, Task>)(
+                    async (
+                        _
+                    ) => await randomFileChange.SimulateRandomFileChange()
+                )
+            );
+
+        session
+            .Sent
+            .AllMessages()
+            .Count()
+            .ShouldBe(1);
+        
+        session
+            .Sent
+            .AllMessages()
+            .First()
+            .ShouldBeOfType<FileAdded>();
+    }
 
     [Fact]
     public async Task should_be_in_session()
@@ -599,7 +628,7 @@ public class When_message_is_sent : IAsyncLifetime
     public async Task DisposeAsync() => await _host.StopAsync();
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L203-L282' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_send_message_on_file_change' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L203-L311' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_send_message_on_file_change' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 As you can see, we just have to start our application, attach a tracked session to it, and then wait for the message to be published. This way, we can test the whole process of the application, from the file change to the message publication, in a single test.

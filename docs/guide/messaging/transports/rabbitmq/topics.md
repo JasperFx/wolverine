@@ -60,7 +60,7 @@ public class FirstMessage
     public Guid Id { get; set; } = Guid.NewGuid();
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/send_by_topics.cs#L397-L405' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_topic_attribute-1' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/send_by_topics.cs#L432-L440' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_topic_attribute-1' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Of course, you can always explicitly send a message to a specific topic with this syntax:
@@ -95,12 +95,19 @@ theSender = Host.CreateDefaultBuilder()
             exchange.BindTopic("color.green").ToQueue("green");
             exchange.BindTopic("color.blue").ToQueue("blue");
             exchange.BindTopic("color.*").ToQueue("all");
+            
+            // Need this to be able to go to ONLY the green receiver for a test
+            exchange.BindTopic("special").ToQueue("green");
         });
+
+        opts.Discovery.DisableConventionalDiscovery();
+
+        opts.ServiceName = "TheSender";
 
         opts.PublishMessagesToRabbitMqExchange<RoutedMessage>("wolverine.topics", m => m.TopicName);
     }).Start();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/send_by_topics.cs#L26-L42' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_binding_topics_and_topic_patterns_to_queues' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/send_by_topics.cs#L26-L49' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_binding_topics_and_topic_patterns_to_queues' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Publishing by Topic Rule

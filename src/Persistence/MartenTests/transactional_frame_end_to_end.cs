@@ -87,14 +87,25 @@ public class CreateDocCommand2
 
 
 
+#region sample_using_IDocumentOperations
+
 public class CreateDocCommand2Handler
 {
     [Transactional]
-    public void Handle(CreateDocCommand2 message, IDocumentOperations operations)
+    public void Handle(
+        CreateDocCommand2 message, 
+        
+        // This is the IDocumentSession for the handler &
+        // transactional middleware, it's just that you're
+        // going to use the slimmer interface that won't let
+        // you accidentally call SaveChangesAysnc
+        IDocumentOperations operations)
     {
         operations.Store(new FakeDoc { Id = message.Id });
     }
 }
+
+#endregion
 
 
 
