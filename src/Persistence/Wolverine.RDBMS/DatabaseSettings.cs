@@ -1,6 +1,6 @@
 using System.Data.Common;
 using JasperFx;
-using Wolverine.Persistence.MultiTenancy;
+using Weasel.Core;
 
 namespace Wolverine.RDBMS;
 
@@ -17,36 +17,12 @@ public class DatabaseSettings
     /// </summary>
     public bool IsMaster { get; set; }
 
+    public bool AddMasterTenantLookupTable { get; set; } = false;
+
     /// <summary>
     ///     Is this database exposing command queues?
     /// </summary>
     public bool CommandQueuesEnabled { get; set; } = true;
 
     public int ScheduledJobLockId { get; set; } = 20000;
-}
-
-// Just use a separate setting for doing this by DbDataSource
-public class MultiTenancySettings
-{
-    /// <summary>
-    ///     Is this database exposing command queues?
-    /// </summary>
-    public bool CommandQueuesEnabled { get; set; } = true;
-
-    public int ScheduledJobLockId { get; set; } = 20000;
-    
-    // TODO -- use the default from JasperFxOptions
-    public AutoCreate AutoCreate { get; set; } = JasperFx.AutoCreate.CreateOrUpdate;
-
-    public string? SchemaName { get; set; } = "wolverine";
-
-    /// <summary>
-    /// The "master" database that will store node information and be the default
-    /// Wolverine envelope storage when there is not tenant specified or in non-tenanted
-    /// operations. This *can* be one of the specific tenant connection strings. If not specified,
-    /// Wolverine will look for the connection string for the *Default* tenant id
-    /// </summary>
-    public string? MasterConnectionString { get; set; }
-
-    public StaticConnectionStringSource ConnectionStrings { get; } = new();
 }
