@@ -46,7 +46,7 @@ public class cross_database_message_storage : MultiTenancyContext, IAsyncLifetim
 
         await Stores.Inbox.StoreIncomingAsync(envelope);
 
-        var envelopes = await Stores.Master.Admin.AllIncomingAsync();
+        var envelopes = await Stores.Main.Admin.AllIncomingAsync();
         envelopes.ShouldContain(x => x.Id == envelope.Id);
     }
 
@@ -61,7 +61,7 @@ public class cross_database_message_storage : MultiTenancyContext, IAsyncLifetim
 
         await Stores.Inbox.MarkIncomingEnvelopeAsHandledAsync(envelope);
 
-        var envelopes = await Stores.Master.Admin.AllIncomingAsync();
+        var envelopes = await Stores.Main.Admin.AllIncomingAsync();
         var loaded = envelopes.FirstOrDefault(x => x.Id == envelope.Id);
         loaded.Status.ShouldBe(EnvelopeStatus.Handled);
     }
@@ -76,7 +76,7 @@ public class cross_database_message_storage : MultiTenancyContext, IAsyncLifetim
         await Stores.Inbox.StoreIncomingAsync(envelope);
         await Stores.Inbox.ScheduleExecutionAsync(envelope);
 
-        var envelopes = await Stores.Master.Admin.AllIncomingAsync();
+        var envelopes = await Stores.Main.Admin.AllIncomingAsync();
         envelopes.ShouldContain(x => x.Id == envelope.Id);
     }
 
@@ -134,7 +134,7 @@ public class cross_database_message_storage : MultiTenancyContext, IAsyncLifetim
 
         await Stores.Outbox.StoreOutgoingAsync(envelope, 5);
 
-        var envelopes = await Stores.Master.Admin.AllOutgoingAsync();
+        var envelopes = await Stores.Main.Admin.AllOutgoingAsync();
         var loaded = envelopes.FirstOrDefault(x => x.Id == envelope.Id);
         loaded.OwnerId.ShouldBe(5);
     }
@@ -167,7 +167,7 @@ public class cross_database_message_storage : MultiTenancyContext, IAsyncLifetim
         envelope.Attempts = 4;
         await Stores.Inbox.IncrementIncomingEnvelopeAttemptsAsync(envelope);
 
-        var envelopes = await Stores.Master.Admin.AllIncomingAsync();
+        var envelopes = await Stores.Main.Admin.AllIncomingAsync();
         var loaded = envelopes.FirstOrDefault(x => x.Id == envelope.Id);
         loaded.Attempts.ShouldBe(4);
     }
@@ -204,7 +204,7 @@ public class cross_database_message_storage : MultiTenancyContext, IAsyncLifetim
 
         await Stores.Inbox.StoreIncomingAsync(envelopes);
 
-        var loaded = await Stores.Master.Admin.AllIncomingAsync();
+        var loaded = await Stores.Main.Admin.AllIncomingAsync();
 
         loaded.Select(x => x.Id).OrderBy(x => x)
             .ShouldHaveTheSameElementsAs(envelopes.Select(x => x.Id).OrderBy(x => x));
@@ -487,7 +487,7 @@ public class cross_database_message_storage : MultiTenancyContext, IAsyncLifetim
         await Stores.Outbox.StoreOutgoingAsync(envelope, 5);
         await Stores.Outbox.DeleteOutgoingAsync(envelope);
 
-        var envelopes = await Stores.Master.Admin.AllOutgoingAsync();
+        var envelopes = await Stores.Main.Admin.AllOutgoingAsync();
         var loaded = envelopes.FirstOrDefault(x => x.Id == envelope.Id);
         loaded.ShouldBeNull();
     }
@@ -544,11 +544,11 @@ public class cross_database_message_storage : MultiTenancyContext, IAsyncLifetim
         var fromDefault = envelopes.Where(x => x.TenantId.IsEmpty()).ToArray();
         var from1 = envelopes.Where(x => x.TenantId == "tenant1").ToArray();
 
-        (await Stores.Master.Admin.FetchCountsAsync()).Outgoing.ShouldBeGreaterThan(0);
+        (await Stores.Main.Admin.FetchCountsAsync()).Outgoing.ShouldBeGreaterThan(0);
 
         await Stores.Outbox.DeleteOutgoingAsync(fromDefault);
 
-        (await Stores.Master.Admin.FetchCountsAsync()).Outgoing.ShouldBe(0);
+        (await Stores.Main.Admin.FetchCountsAsync()).Outgoing.ShouldBe(0);
 
         var database1 = await Stores.GetDatabaseAsync("tenant1");
 
@@ -654,7 +654,7 @@ public class cross_database_message_storage : MultiTenancyContext, IAsyncLifetim
         var db2 = await Stores.GetDatabaseAsync("tenant2");
         var db3 = await Stores.GetDatabaseAsync("tenant3");
 
-        (await Stores.Master.DeadLetters.DeadLetterEnvelopeByIdAsync(fromMaster.Id)).ShouldNotBeNull();
+        (await Stores.Main.DeadLetters.DeadLetterEnvelopeByIdAsync(fromMaster.Id)).ShouldNotBeNull();
         (await db1.DeadLetters.DeadLetterEnvelopeByIdAsync(from1.Id)).ShouldNotBeNull();
         (await db2.DeadLetters.DeadLetterEnvelopeByIdAsync(from2.Id)).ShouldNotBeNull();
         (await db3.DeadLetters.DeadLetterEnvelopeByIdAsync(from3.Id)).ShouldNotBeNull();

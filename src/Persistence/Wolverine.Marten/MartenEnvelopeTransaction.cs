@@ -20,7 +20,7 @@ internal class MartenEnvelopeTransaction : IEnvelopeTransaction
             _store = store;
             _nodeId = store.Durability.AssignedNodeNumber;
         }
-        else if (context.Storage is MultiTenantedMessageStore mt && mt.Master is PostgresqlMessageStore s)
+        else if (context.Storage is MultiTenantedMessageStore mt && mt.Main is PostgresqlMessageStore s)
         {
             _store = s;
             _nodeId = s.Durability.AssignedNodeNumber;

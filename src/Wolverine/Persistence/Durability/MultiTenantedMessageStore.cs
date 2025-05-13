@@ -12,7 +12,7 @@ namespace Wolverine.Persistence.Durability;
 
 public class MultiTenantedMessageStore<T> : MultiTenantedMessageStore, IAncillaryMessageStore<T>
 {
-    public MultiTenantedMessageStore(IMessageStore master, IWolverineRuntime runtime, ITenantedMessageSource source) : base(master, runtime, source)
+    public MultiTenantedMessageStore(IMessageStore main, IWolverineRuntime runtime, ITenantedMessageSource source) : base(main, runtime, source)
     {
     }
 
@@ -27,7 +27,7 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
     private bool _initialized;
 
 
-    public MultiTenantedMessageStore(IMessageStore master, IWolverineRuntime runtime,
+    public MultiTenantedMessageStore(IMessageStore main, IWolverineRuntime runtime,
         ITenantedMessageSource source)
     {
         _logger = runtime.LoggerFactory.CreateLogger<MultiTenantedMessageStore>();
@@ -37,7 +37,7 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
         _retryBlock = new RetryBlock<IEnvelopeCommand>((command, cancellation) => command.ExecuteAsync(cancellation),
             _logger, runtime.Cancellation);
 
-        Master = master;
+        Main = main;
     }
 
     public ITenantedMessageSource Source { get; }
@@ -45,7 +45,7 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
     public Uri Uri => new Uri($"{PersistenceConstants.AgentScheme}://multitenanted");
 
 
-    public IMessageStore Master { get; }
+    public IMessageStore Main { get; }
 
     async Task IMessageInbox.ScheduleExecutionAsync(Envelope envelope)
     {
@@ -314,12 +314,12 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
     public IMessageInbox Inbox => this;
     public IMessageOutbox Outbox => this;
     public IDeadLetters DeadLetters => this;
-    public INodeAgentPersistence Nodes => Master.Nodes;
+    public INodeAgentPersistence Nodes => Main.Nodes;
     public IMessageStoreAdmin Admin => this;
 
     public void Describe(TextWriter writer)
     {
-        Master.Describe(writer);
+        Main.Describe(writer);
     }
 
     public DatabaseDescriptor Describe()
@@ -487,13 +487,13 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
     public ValueTask<IMessageStore> GetDatabaseAsync(string? tenantId)
     {
         return tenantId.IsEmpty() || tenantId == TransportConstants.Default || tenantId == "Master"
-            ? new ValueTask<IMessageStore>(Master)
+            ? new ValueTask<IMessageStore>(Main)
             : Source.FindAsync(tenantId);
     }
 
     private IEnumerable<IMessageStore> databases()
     {
-        yield return Master;
+        yield return Main;
 
         foreach (var database in Source.AllActive()) yield return database;
     }

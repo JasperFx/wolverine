@@ -89,6 +89,22 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>, IData
     }
 
     public NpgsqlDataSource NpgsqlDataSource { get; }
+    
+    /// <summary>
+    ///     Fetch a list of the existing tables in the database
+    /// </summary>
+    /// <param name="database"></param>
+    /// <returns></returns>
+    public async Task<IReadOnlyList<DbObjectName>> SchemaTables(CancellationToken ct = default)
+    {
+        var schemaNames = AllSchemaNames();
+
+        await using var conn = CreateConnection();
+
+        await conn.OpenAsync(ct).ConfigureAwait(false);
+
+        return await conn.ExistingTablesAsync(schemas: schemaNames, ct: ct).ConfigureAwait(false);
+    }
 
     protected override INodeAgentPersistence? buildNodeStorage(DatabaseSettings databaseSettings,
         DbDataSource dataSource)
@@ -506,15 +522,17 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>, IData
             eventTable.AddColumn<string>("description").AllowNulls();
             yield return eventTable;
 
-            foreach (var table in _otherTables)
-            {
-                yield return table;
-            }
+
+        }
+        
+        foreach (var table in _otherTables)
+        {
+            yield return table;
+        }
             
-            foreach (var entry in _sagaStorage.Enumerate())
-            {
-                yield return entry.Value.Table;
-            }
+        foreach (var entry in _sagaStorage.Enumerate())
+        {
+            yield return entry.Value.Table;
         }
     }
 

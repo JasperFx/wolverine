@@ -26,7 +26,7 @@ public class DurabilityAgentFamily : IAgentFamily
         }
         else if (store is MultiTenantedMessageStore tenantedMessageStore)
         {
-            if (tenantedMessageStore.Master is IMessageStoreWithAgentSupport master)
+            if (tenantedMessageStore.Main is IMessageStoreWithAgentSupport master)
             {
                 _storeWithAgents.TryAdd(master.Uri, master);
             }

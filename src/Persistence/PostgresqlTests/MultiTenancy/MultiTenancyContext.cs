@@ -2,10 +2,12 @@ using IntegrationTests;
 using Microsoft.Extensions.Hosting;
 using Npgsql;
 using Weasel.Core;
+using Weasel.Core.Migrations;
 using Weasel.Postgresql;
 using Weasel.Postgresql.Migrations;
 using Weasel.Postgresql.Tables;
 using Wolverine;
+using Wolverine.RDBMS;
 
 namespace PostgresqlTests.MultiTenancy;
 
@@ -37,6 +39,12 @@ public abstract class MultiTenancyContext : PostgresqlContext, IAsyncLifetime
             }).StartAsync();
 
         await onStartup();
+    }
+
+    public async Task SchemaTables(IDatabase<NpgsqlConnection> database)
+    {
+        using var conn = database.CreateConnection();
+        await conn.OpenAsync();
     }
 
     protected abstract void configureWolverine(WolverineOptions opts);

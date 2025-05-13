@@ -1,3 +1,4 @@
+using JasperFx.Core.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using Wolverine.RDBMS.Sagas;
 
@@ -14,7 +15,7 @@ public static class SagaConfigurationExtensions
     /// <param name="tableName"></param>
     /// <typeparam name="T"></typeparam>
     /// <returns></returns>
-    public static WolverineOptions AddSagaType<T>(this WolverineOptions options, string? tableName = null)
+    public static WolverineOptions AddSagaType<T>(this WolverineOptions options, string? tableName = null) where T : Saga
     {
         var storage = new SagaTableDefinition(typeof(T), tableName);
         options.Services.AddSingleton(storage);
@@ -32,6 +33,12 @@ public static class SagaConfigurationExtensions
     /// <returns></returns>
     public static WolverineOptions AddSagaType(this WolverineOptions options, Type sagaType, string? tableName = null)
     {
+        if (!sagaType.CanBeCastTo<Saga>())
+        {
+            throw new ArgumentOutOfRangeException(nameof(sagaType),
+                $"Type {sagaType.FullNameInCode()} does not inherit from {typeof(Saga).FullNameInCode()}");
+        }
+        
         var storage = new SagaTableDefinition(sagaType, tableName);
         options.Services.AddSingleton(storage);
         return options;

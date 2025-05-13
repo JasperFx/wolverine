@@ -321,7 +321,8 @@ internal class PostgresqlTenantedMessageStore : ITenantedMessageSource, IMessage
         var npgsqlDataSource = NpgsqlDataSource.Create(connectionString);
         var settings = new DatabaseSettings
         {
-            CommandQueuesEnabled = _persistence.CommandQueuesEnabled,
+            // Always disable command queues for tenant databases
+            CommandQueuesEnabled = false,
             // TODO -- set the AutoCreate here
             DataSource = npgsqlDataSource,
             IsMain = false,
@@ -340,7 +341,8 @@ internal class PostgresqlTenantedMessageStore : ITenantedMessageSource, IMessage
         // TODO -- do some idempotency so that you don't build two or more stores for the same tenant id
         var settings = new DatabaseSettings
         {
-            CommandQueuesEnabled = _persistence.CommandQueuesEnabled,
+            // You always want the command queues disabled for non-default databases
+            CommandQueuesEnabled = false,
             // TODO -- set the AutoCreate here
             DataSource = source,
             IsMain = false,
