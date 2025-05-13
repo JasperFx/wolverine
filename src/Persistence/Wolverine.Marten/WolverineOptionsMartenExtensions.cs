@@ -19,6 +19,7 @@ using Wolverine.Marten.Subscriptions;
 using Wolverine.Persistence.Durability;
 using Wolverine.Postgresql;
 using Wolverine.RDBMS;
+using Wolverine.RDBMS.MultiTenancy;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
 using MultiTenantedMessageStore = Wolverine.Persistence.Durability.MultiTenantedMessageStore;
@@ -109,7 +110,7 @@ public static class WolverineOptionsMartenExtensions
             expression.Services.AddSingleton<IProjectionCoordinator>(s => s.GetRequiredService<ProjectionAgents>());
         }
 
-        expression.Services.AddType(typeof(IDatabaseSource), typeof(MartenMessageDatabaseDiscovery),
+        expression.Services.AddType(typeof(IDatabaseSource), typeof(MessageDatabaseDiscovery),
             ServiceLifetime.Singleton);
 
         expression.Services.AddSingleton<IConfigureMarten, MartenOverrides>();

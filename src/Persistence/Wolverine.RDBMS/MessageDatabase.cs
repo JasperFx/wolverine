@@ -100,7 +100,7 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
 
     public DurabilitySettings Durability { get; }
 
-    public bool IsMaster => Settings.IsMain;
+    public bool IsMain => Settings.IsMain;
 
     public string Name { get; set; } = TransportConstants.Default;
 

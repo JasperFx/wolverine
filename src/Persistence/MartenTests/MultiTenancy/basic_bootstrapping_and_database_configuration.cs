@@ -103,9 +103,9 @@ public class basic_bootstrapping_and_database_configuration : MultiTenancyContex
     {
         foreach (var database in Stores.ActiveDatabases().OfType<IMessageDatabase>().Where(x => x.Name != "Master"))
         {
-            database.IsMaster.ShouldBeFalse();
+            database.IsMain.ShouldBeFalse();
         }
 
-        Stores.Main.As<IMessageDatabase>().IsMaster.ShouldBeTrue();
+        Stores.Main.As<IMessageDatabase>().IsMain.ShouldBeTrue();
     }
 }

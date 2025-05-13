@@ -80,7 +80,7 @@ public static class AncillaryWolverineOptionsMartenExtensions
             return BuildMultiTenantedMessageDatabase<T>(schemaName, autoCreate, masterDatabaseConnectionString, masterDataSource, store, runtime);
         });
 
-        expression.Services.AddType(typeof(IDatabaseSource), typeof(MartenMessageDatabaseDiscovery),
+        expression.Services.AddType(typeof(IDatabaseSource), typeof(MessageDatabaseDiscovery),
             ServiceLifetime.Singleton);
         
         // Limitation is that the wolverine objects go in the same schema

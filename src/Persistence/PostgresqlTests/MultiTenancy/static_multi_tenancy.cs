@@ -5,6 +5,8 @@ using JasperFx.Resources;
 using Microsoft.Extensions.DependencyInjection;
 using PostgresqlTests.Sagas;
 using Shouldly;
+using Weasel.Core.CommandLine;
+using Weasel.Core.Migrations;
 using Wolverine;
 using Wolverine.Persistence.Durability;
 using Wolverine.Postgresql;
@@ -50,6 +52,30 @@ public class static_multi_tenancy : MultiTenancyContext
         (await store.Source.FindAsync("red")).Describe().DatabaseName.ShouldBe("db1");
         (await store.Source.FindAsync("blue")).Describe().DatabaseName.ShouldBe("db2");
         (await store.Source.FindAsync("green")).Describe().DatabaseName.ShouldBe("db3");
+    }
+
+    [Fact]
+    public async Task exposes_every_database_in_all_active()
+    {
+        var store = theHost.Services.GetRequiredService<IMessageStore>()
+            .ShouldBeOfType<MultiTenantedMessageStore>();
+
+        var all = store.ActiveDatabases();
+        all.Count.ShouldBe(4);
+    }
+
+    [Fact]
+    public async Task all_databases_are_exposed_to_weasel()
+    {
+        var databases = await new WeaselInput().FilterDatabases(theHost);
+        
+        var store = theHost.Services.GetRequiredService<IMessageStore>()
+            .ShouldBeOfType<MultiTenantedMessageStore>();
+        
+        databases.ShouldContain((IDatabase)store.Main);
+        databases.ShouldContain((IDatabase)await store.Source.FindAsync("red"));
+        databases.ShouldContain((IDatabase)await store.Source.FindAsync("blue"));
+        databases.ShouldContain((IDatabase)await store.Source.FindAsync("green"));
     }
 
     [Fact]

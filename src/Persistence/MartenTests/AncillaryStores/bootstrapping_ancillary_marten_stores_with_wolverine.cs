@@ -18,6 +18,7 @@ using Wolverine.Marten.Publishing;
 using Wolverine.Persistence.Durability;
 using Wolverine.Postgresql;
 using Wolverine.RDBMS;
+using Wolverine.RDBMS.MultiTenancy;
 using Wolverine.Tracking;
 using Xunit.Abstractions;
 
@@ -162,7 +163,7 @@ public class bootstrapping_ancillary_marten_stores_with_wolverine : IAsyncLifeti
     {
         var databaseSources = theHost.Services.GetServices<IDatabaseSource>();
         var source = databaseSources
-            .OfType<MartenMessageDatabaseDiscovery>()
+            .OfType<MessageDatabaseDiscovery>()
             .Single();
 
         var databases = await source.BuildDatabases();
