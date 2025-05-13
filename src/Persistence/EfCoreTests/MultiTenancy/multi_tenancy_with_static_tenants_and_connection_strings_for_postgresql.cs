@@ -1,4 +1,5 @@
 using IntegrationTests;
+using JasperFx.Core.Reflection;
 using JasperFx.Resources;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -7,6 +8,7 @@ using Shouldly;
 using Wolverine;
 using Wolverine.EntityFrameworkCore;
 using Wolverine.EntityFrameworkCore.Internals;
+using Wolverine.Persistence;
 using Wolverine.Persistence.MultiTenancy;
 using Wolverine.Postgresql;
 using Wolverine.Runtime;
@@ -14,7 +16,7 @@ using Wolverine.Tracking;
 
 namespace EfCoreTests.MultiTenancy;
 
-public class TenantedDbContextBuilderTests : MultiTenancyContext
+public class multi_tenancy_with_static_tenants_and_connection_strings_for_postgresql : MultiTenancyContext
 {
     private IDbContextBuilder<ItemsDbContext> theBuilder;
 
@@ -37,6 +39,9 @@ public class TenantedDbContextBuilderTests : MultiTenancyContext
     protected override Task onStartup()
     {
         theBuilder = theHost.Services.GetRequiredService<IDbContextBuilder<ItemsDbContext>>();
+
+        //await theBuilder.MigrateAllAsync();
+
         return Task.CompletedTask;
     }
 
@@ -108,4 +113,49 @@ public class TenantedDbContextBuilderTests : MultiTenancyContext
     }
     
     // TODO -- go end to end baby!
+
+    [Fact]
+    public async Task end_to_end_with_commands()
+    {
+        var defaultId = Guid.NewGuid();
+        var blueId = Guid.NewGuid();
+        var redId = Guid.NewGuid();
+        var greenId = Guid.NewGuid();
+
+        await theHost.InvokeMessageAndWaitAsync(new StartNewItem(defaultId, "The Default!"));
+        await theHost.InvokeMessageAndWaitAsync(new StartNewItem(blueId, "Blue!"), "blue");
+        await theHost.InvokeMessageAndWaitAsync(new StartNewItem(redId, "Red!"), "red");
+        await theHost.InvokeMessageAndWaitAsync(new StartNewItem(greenId, "Green!"), "green");
+
+        var defaultDbContext = theBuilder.BuildForMain();
+        var blueDbContext = await theBuilder.BuildAsync("blue", CancellationToken.None);
+        var greenDbContext = await theBuilder.BuildAsync("green", CancellationToken.None);
+        var redDbContext = await theBuilder.BuildAsync("red", CancellationToken.None);
+        
+        (await defaultDbContext.FindAsync<Item>(defaultId)).Name.ShouldBe("The Default!");
+        
+        
+        (await blueDbContext.Items.FindAsync(blueId)).Name.ShouldBe("Blue!");
+        (await greenDbContext.Items.FindAsync(blueId)).ShouldBeNull();
+        (await redDbContext.Items.FindAsync(blueId)).ShouldBeNull();
+        
+        (await blueDbContext.Items.FindAsync(redId)).ShouldBeNull();
+        (await greenDbContext.Items.FindAsync(redId)).ShouldBeNull();
+        (await redDbContext.Items.FindAsync(redId)).Name.ShouldBe("Red!");
+        
+        (await blueDbContext.Items.FindAsync(greenId)).ShouldBeNull();
+        (await greenDbContext.Items.FindAsync(greenId)).Name.ShouldBe("Green!");
+        (await redDbContext.Items.FindAsync(greenId)).ShouldBeNull();
+        
+    }
+}
+
+public record StartNewItem(Guid Id, string Name);
+
+public static class StartNewItemHandler
+{
+    public static IStorageAction<Item> Handle(StartNewItem command)
+    {
+        return new Insert<Item>(new Item { Id = command.Id, Name = command.Name });
+    }
 }

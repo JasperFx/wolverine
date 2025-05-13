@@ -51,7 +51,7 @@ public static class WolverineEntityCoreExtensions
         Action<DbContextOptionsBuilder<T>, string> dbContextConfiguration) where T : DbContext
     {
         // For code generation
-        services.TryAddSingleton<IWolverineExtension, EntityFrameworkCoreBackedPersistence>();
+        services.TryAddSingleton<IWolverineExtension, EntityFrameworkCoreBackedPersistence<T>>();
         
         services.AddSingleton<IDbContextBuilder<T>>(s =>
         {
@@ -65,7 +65,7 @@ public static class WolverineEntityCoreExtensions
 
             return new TenantedDbContextBuilder<T>(s, tenanted, dbContextConfiguration);
         });
-        
+
         // TODO -- need a multi-tenanted version of this
         // services.TryAddScoped(typeof(IDbContextOutbox<>), typeof(DbContextOutbox<>));
         // services.TryAddScoped<IDbContextOutbox, DbContextOutbox>();

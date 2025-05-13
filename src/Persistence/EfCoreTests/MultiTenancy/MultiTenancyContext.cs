@@ -31,6 +31,7 @@ public abstract class MultiTenancyContext : IAsyncLifetime
         tenant2ConnectionString = await CreateDatabaseIfNotExists(conn, "db2");
         tenant3ConnectionString = await CreateDatabaseIfNotExists(conn, "db3");
 
+        await cleanItems(Servers.PostgresConnectionString);
         await cleanItems(tenant1ConnectionString);
         await cleanItems(tenant2ConnectionString);
         await cleanItems(tenant3ConnectionString);
@@ -70,9 +71,10 @@ public abstract class MultiTenancyContext : IAsyncLifetime
     
     private async Task cleanItems(string connectionString)
     {
-        var table = new Table("items");
-        table.AddColumn<Guid>("Id").AsPrimaryKey();
-        table.AddColumn<string>("Name");
+        var table = new Table(new DbObjectName("sample", "items"));
+        table.AddColumn<Guid>("id").AsPrimaryKey();
+        table.AddColumn<string>("name");
+        table.AddColumn<bool>("approved");
 
         await using var dataSource = NpgsqlDataSource.Create(connectionString);
         await using var conn = dataSource.CreateConnection();
@@ -80,7 +82,7 @@ public abstract class MultiTenancyContext : IAsyncLifetime
 
         await table.ApplyChangesAsync(conn);
 
-        await conn.RunSqlAsync("delete from items");
+        await conn.RunSqlAsync("delete from sample.items");
         await conn.CloseAsync();
     }
 

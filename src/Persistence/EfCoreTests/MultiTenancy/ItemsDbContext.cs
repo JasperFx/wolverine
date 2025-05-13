@@ -17,7 +17,9 @@ public class ItemsDbContext : DbContext
         {
             map.ToTable("items", "sample");
             map.HasKey(x => x.Id);
-            map.Property(x => x.Name);
+            map.Property(x => x.Id).HasColumnName("id");
+            map.Property(x => x.Name).HasColumnName("name");
+            map.Property(x => x.Approved).HasColumnName("approved");
         });
     }
 }

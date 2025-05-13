@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
+using Wolverine.EntityFrameworkCore.Internals;
 using Wolverine.Persistence;
 using Wolverine.Persistence.Durability;
 using Wolverine.Persistence.Sagas;
@@ -193,6 +194,29 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
                 if (dbContext.Model.FindEntityType(entityType) != null)
                 {
                     _dbContextTypes = _dbContextTypes.AddOrUpdate(entityType, candidate);
+                    return candidate;
+                }
+            }
+            catch (InvalidOperationException e)
+            {
+                var logger = container.Services.GetService<ILogger<EFCorePersistenceFrameProvider>>();
+                logger?.LogError(e, "Error trying to use DbContext type {DbContextType}", candidate.FullNameInCode());
+            }
+        }
+
+        var multiTenantCandidates = container.FindMatchingServices(type => type.Closes(typeof(IDbContextBuilder<>)))
+            .Select(x => x.ServiceType).ToArray();
+
+        foreach (var candidate in multiTenantCandidates)
+        {
+            var builder = (IDbContextBuilder)nested.ServiceProvider.GetRequiredService(candidate);
+            var dbContext = builder.BuildForMain();
+            
+            try
+            {
+                if (dbContext.Model.FindEntityType(entityType) != null)
+                {
+                    _dbContextTypes = _dbContextTypes.AddOrUpdate(entityType, builder.DbContextType);
                     return candidate;
                 }
             }

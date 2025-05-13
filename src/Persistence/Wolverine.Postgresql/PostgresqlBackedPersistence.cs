@@ -185,8 +185,6 @@ internal class PostgresqlBackedPersistence : IPostgresqlBackedPersistence, IWolv
         
         if (ConnectionStringTenancy != null || DataSourceTenancy != null)
         {
-
-
             return new MultiTenantedMessageStore(defaultStore, runtime,
                 new PostgresqlTenantedMessageStore(runtime, this, sagaTables));
         }

@@ -1,3 +1,4 @@
+using EfCoreTests.MultiTenancy;
 using IntegrationTests;
 using JasperFx;
 using JasperFx.Core;
@@ -40,6 +41,11 @@ public class Bug_252_codegen_issue
                 {
                     o.UseSqlServer(Servers.SqlServerConnectionString);
                 });
+                
+                opt.Services.AddDbContextWithWolverineIntegration<ItemsDbContext>(o =>
+                {
+                    o.UseSqlServer(Servers.SqlServerConnectionString);
+                });
 
                 opt.Services.AddScoped<IOrderRepository, OrderRepository>();
 
@@ -74,6 +80,11 @@ public class Bug_252_codegen_issue
             .UseWolverine(opt =>
             {
                 opt.Services.AddDbContextWithWolverineIntegration<AppDbContext>(o =>
+                {
+                    o.UseSqlServer(Servers.SqlServerConnectionString);
+                });
+                
+                opt.Services.AddDbContextWithWolverineIntegration<ItemsDbContext>(o =>
                 {
                     o.UseSqlServer(Servers.SqlServerConnectionString);
                 });

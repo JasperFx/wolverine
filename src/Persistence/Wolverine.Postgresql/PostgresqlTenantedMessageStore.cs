@@ -63,6 +63,7 @@ internal class PostgresqlTenantedMessageStore : ITenantedMessageSource, IMessage
             CommandQueuesEnabled = false,
             // TODO -- set the AutoCreate here
             DataSource = npgsqlDataSource,
+            ConnectionString = connectionString,
             IsMain = false,
             ScheduledJobLockId = _persistence.ScheduledJobLockId,
             SchemaName = _persistence.EnvelopeStorageSchemaName
