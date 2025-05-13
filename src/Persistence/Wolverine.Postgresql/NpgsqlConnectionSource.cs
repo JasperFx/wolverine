@@ -1,6 +1,7 @@
 using JasperFx.CodeGeneration.Model;
 using Npgsql;
 using System.Data.Common;
+using Wolverine.RDBMS;
 
 namespace Wolverine.Postgresql;
 
@@ -13,6 +14,8 @@ internal class NpgsqlConnectionSource : IVariableSource
 
     public Variable Create(Type type)
     {
-        return new NpgsqlConnectionFrame(type).Connection;
+        return type == typeof(DbConnection) 
+            ? new ConnectionFrame<DbConnection>().ReturnVariable! 
+            : new ConnectionFrame<NpgsqlConnection>().ReturnVariable!;
     }
 }

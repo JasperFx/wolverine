@@ -10,7 +10,7 @@ public partial class MultiTenantedMessageStore : IAgentFamily
     public async ValueTask<IReadOnlyList<Uri>> AllKnownAgentsAsync()
     {
         await Source.RefreshAsync();
-        var uris = databases().Select(x => new Uri($"{Scheme}://{x.Name}")).ToList();
+        var uris = databases().Select(x => x.Uri).ToList();
         return uris;
     }
 
@@ -40,7 +40,7 @@ public partial class MultiTenantedMessageStore : IAgentFamily
 
     public ValueTask<IReadOnlyList<Uri>> SupportedAgentsAsync()
     {
-        var uris = databases().OfType<IMessageStoreWithAgentSupport>().Select(x => new Uri($"{Scheme}://{x.Name}")).ToList();
+        var uris = databases().OfType<IMessageStoreWithAgentSupport>().Select(x => x.Uri).ToList();
         return new ValueTask<IReadOnlyList<Uri>>(uris);
     }
 
@@ -65,6 +65,6 @@ public partial class MultiTenantedMessageStore : IAgentFamily
         
         public AgentStatus Status { get; set; } = AgentStatus.Started;
 
-        public Uri Uri { get; } = new Uri("dummy://");
+        public Uri Uri { get; } = new Uri("wolverinedb://");
     }
 }

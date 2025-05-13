@@ -24,6 +24,7 @@ internal class SqlServerBackedPersistence : IWolverineExtension
 
     public void Configure(WolverineOptions options)
     {
+        // TODO -- delete this.
         options.Services.AddSingleton(Settings);
 
         options.Services.AddTransient<IMessageStore, SqlServerMessageStore>();

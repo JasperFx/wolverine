@@ -68,7 +68,7 @@ public class static_multi_tenancy : MultiTenancyContext
     public async Task all_databases_are_exposed_to_weasel()
     {
         var databases = await new WeaselInput().FilterDatabases(theHost);
-        
+
         var store = theHost.Services.GetRequiredService<IMessageStore>()
             .ShouldBeOfType<MultiTenantedMessageStore>();
         
@@ -127,15 +127,21 @@ static_multi_tenancy.wolverine_outgoing_envelopes
         }
     }
 
+    [Fact]
+    public async Task have_all_the_correct_durability_agents()
+    {
+        var store = theHost.Services.GetRequiredService<IMessageStore>()
+            .ShouldBeOfType<MultiTenantedMessageStore>();
 
-    /* TODO
-     1. Test the right tables exist in both master and tenant databases
-     2. check AllActive
-     3. See all the right agents exist
-     4. Add saga tables and see those tables exist
-     5. Weasel databases, can find all
+        var expected = @"
+wolverinedb://postgresql/localhost/postgres/static_multi_tenancy
+wolverinedb://postgresql/localhost/db1/static_multi_tenancy
+wolverinedb://postgresql/localhost/db3/static_multi_tenancy
+wolverinedb://postgresql/localhost/db2/static_multi_tenancy
+".ReadLines().Where(x => x.IsNotEmpty()).Select(x => new Uri(x)).OrderBy(x => x.ToString()).ToArray();
+        
 
-
-
-     */
+        var agents = await store.AllKnownAgentsAsync();
+        agents.OrderBy(x => x.ToString()).ToArray().ShouldBe(expected);
+    }
 }

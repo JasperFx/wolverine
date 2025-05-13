@@ -1,6 +1,7 @@
 using System.Data.Common;
 using JasperFx.CodeGeneration.Model;
 using Microsoft.Data.SqlClient;
+using Wolverine.RDBMS;
 
 namespace Wolverine.SqlServer.Util;
 
@@ -13,6 +14,8 @@ internal class SqlConnectionSource : IVariableSource
 
     public Variable Create(Type type)
     {
-        return new SqlConnectionFrame(type).Connection;
+        return type == typeof(DbConnection) 
+            ? new ConnectionFrame<DbConnection>().ReturnVariable! 
+            : new ConnectionFrame<SqlConnection>().ReturnVariable!;
     }
 }
