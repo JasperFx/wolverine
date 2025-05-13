@@ -24,7 +24,7 @@ internal class SqlServerBackedPersistence : IWolverineExtension
 
     public void Configure(WolverineOptions options)
     {
-        // TODO -- delete this.
+        // Nope, this has to stay! For EF Core to get the message schema name
         options.Services.AddSingleton(Settings);
 
         options.Services.AddTransient<IMessageStore, SqlServerMessageStore>();

@@ -147,7 +147,9 @@ internal class PostgresqlBackedPersistence : IPostgresqlBackedPersistence, IWolv
             throw new InvalidOperationException(
                 "The PostgreSQL backed persistence needs to at least have either a connection string or NpgsqlDataSource defined for the main envelope database");
         }
-        
+
+        // This needs to stay in to help w/ EF Core customization
+        options.Services.AddSingleton(buildMainDatabaseSettings());
         options.CodeGeneration.Sources.Add(new NpgsqlConnectionSource());
         options.CodeGeneration.AddPersistenceStrategy<PostgresqlPersistenceFrameProvider>();
         options.Services.AddSingleton<IDatabaseSagaStorage>(s => (IDatabaseSagaStorage)s.GetRequiredService<IMessageStore>());

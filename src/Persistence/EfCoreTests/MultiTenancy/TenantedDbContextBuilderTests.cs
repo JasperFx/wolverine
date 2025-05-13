@@ -1,9 +1,14 @@
+using IntegrationTests;
+using JasperFx.Resources;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using Shouldly;
+using Wolverine;
 using Wolverine.EntityFrameworkCore;
 using Wolverine.EntityFrameworkCore.Internals;
 using Wolverine.Persistence.MultiTenancy;
+using Wolverine.Postgresql;
 using Wolverine.Runtime;
 using Wolverine.Tracking;
 
@@ -11,17 +16,27 @@ namespace EfCoreTests.MultiTenancy;
 
 public class TenantedDbContextBuilderTests : MultiTenancyContext
 {
-    private TenantedDbContextBuilder<ItemsDbContext> theBuilder;
+    private IDbContextBuilder<ItemsDbContext> theBuilder;
+
+    protected override void configureWolverine(WolverineOptions opts)
+    {
+        opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, "static_multi_tenancy")
+            .RegisterStaticTenants(tenants =>
+            {
+                tenants.Register("red", tenant1ConnectionString);
+                tenants.Register("blue", tenant2ConnectionString);
+                tenants.Register("green", tenant3ConnectionString);
+            });
+
+        opts.Services.AddDbContextWithWolverineManagedMultiTenancy<ItemsDbContext>((builder, connectionString) =>
+            builder.UseNpgsql(connectionString));
+
+        opts.Services.AddResourceSetupOnStartup();
+    }
 
     protected override Task onStartup()
     {
-        var connectionStrings = new StaticConnectionStringSource();
-        connectionStrings.Register("blue", tenant1ConnectionString);
-        connectionStrings.Register("red", tenant2ConnectionString);
-        connectionStrings.Register("green", tenant3ConnectionString);
-
-        theBuilder = new TenantedDbContextBuilder<ItemsDbContext>(connectionStrings, (builder, connectionString) => builder.UseNpgsql(connectionString));
-
+        theBuilder = theHost.Services.GetRequiredService<IDbContextBuilder<ItemsDbContext>>();
         return Task.CompletedTask;
     }
 
@@ -67,7 +82,7 @@ public class TenantedDbContextBuilderTests : MultiTenancyContext
 
         var blue = await theBuilder.BuildAndEnrollAsync(messageContext, CancellationToken.None);
         var builder = new NpgsqlConnectionStringBuilder(blue.Database.GetConnectionString());
-        builder.Database.ShouldBe("db1");
+        builder.Database.ShouldBe("db2");
     }
     
     [Fact]
@@ -78,14 +93,14 @@ public class TenantedDbContextBuilderTests : MultiTenancyContext
 
         var blue = await theBuilder.BuildAndEnrollAsync(messageContext, CancellationToken.None);
         var builder = new NpgsqlConnectionStringBuilder(blue.Database.GetConnectionString());
-        builder.Database.ShouldBe("db2");
+        builder.Database.ShouldBe("db1");
     }
     
     [Fact]
     public async Task opens_the_db_context_to_the_correct_database_3()
     {
         var messageContext = new MessageContext(theHost.GetRuntime());
-        messageContext.TenantId = "greenm";
+        messageContext.TenantId = "green";
 
         var blue = await theBuilder.BuildAndEnrollAsync(messageContext, CancellationToken.None);
         var builder = new NpgsqlConnectionStringBuilder(blue.Database.GetConnectionString());

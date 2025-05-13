@@ -14,6 +14,8 @@ namespace Wolverine.RDBMS;
 
 public interface IMessageDatabase : IMessageStoreWithAgentSupport
 {
+    public DatabaseSettings Settings {get; }
+    
     bool IsMain { get; }
 
     string SchemaName { get; set; }

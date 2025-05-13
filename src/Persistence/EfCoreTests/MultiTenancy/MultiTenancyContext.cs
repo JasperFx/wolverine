@@ -38,16 +38,13 @@ public abstract class MultiTenancyContext : IAsyncLifetime
         theHost = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                //opts.Services.AddSingleton<EfCoreDbContextFactory>();
-                
-                opts.Services.AddDbContextWithWolverineIntegration<ItemsDbContext>(builder =>
-                {
-                    builder.UseNpgsql(Servers.PostgresConnectionString);
-                });
+                configureWolverine(opts);
             }).StartAsync();
 
         await onStartup();
     }
+
+    protected abstract void configureWolverine(WolverineOptions opts);
 
     protected virtual Task onStartup() => Task.CompletedTask;
 

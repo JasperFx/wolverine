@@ -1,3 +1,4 @@
+using JasperFx.Core.Reflection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
@@ -37,6 +38,41 @@ public static class WolverineEntityCoreExtensions
         return addDbContextWithWolverineIntegration<T>(services, configure, wolverineDatabaseSchema);
     }
 
+    /// <summary>
+    /// Register a DbContext type that should use the separately configured Wolverine managed multi-tenancy
+    /// for separate databases per tenant
+    /// </summary>
+    /// <param name="services"></param>
+    /// <param name="dbContextConfiguration"></param>
+    /// <typeparam name="T"></typeparam>
+    /// <returns></returns>
+    /// <exception cref="InvalidOperationException"></exception>
+    public static IServiceCollection AddDbContextWithWolverineManagedMultiTenancy<T>(this IServiceCollection services,
+        Action<DbContextOptionsBuilder<T>, string> dbContextConfiguration) where T : DbContext
+    {
+        // For code generation
+        services.TryAddSingleton<IWolverineExtension, EntityFrameworkCoreBackedPersistence>();
+        
+        services.AddSingleton<IDbContextBuilder<T>>(s =>
+        {
+            var store = s.GetRequiredService<IMessageStore>();
+            var tenanted = store as MultiTenantedMessageStore;
+            if (tenanted == null || tenanted.Main is not IMessageDatabase)
+            {
+                throw new InvalidOperationException(
+                    $"Configured multi-tenanted usage of {typeof(T).FullNameInCode()} requires multi-tenanted Wolverine database storage");
+            }
+
+            return new TenantedDbContextBuilder<T>(s, tenanted, dbContextConfiguration);
+        });
+        
+        // TODO -- need a multi-tenanted version of this
+        // services.TryAddScoped(typeof(IDbContextOutbox<>), typeof(DbContextOutbox<>));
+        // services.TryAddScoped<IDbContextOutbox, DbContextOutbox>();
+
+        return services;
+    }
+
     private static IServiceCollection addDbContextWithWolverineIntegration<T>(IServiceCollection services, Action<IServiceProvider, DbContextOptionsBuilder> configure, string? wolverineDatabaseSchema = null) where T : DbContext
     {
         services.AddDbContext<T>((s, b) =>
@@ -49,11 +85,6 @@ public static class WolverineEntityCoreExtensions
         
         services.TryAddScoped(typeof(IDbContextOutbox<>), typeof(DbContextOutbox<>));
         services.TryAddScoped<IDbContextOutbox, DbContextOutbox>();
-
-        services.AddSingleton<WolverineDbContextCustomizationOptions>(_ =>
-            string.IsNullOrEmpty(wolverineDatabaseSchema)
-                ? WolverineDbContextCustomizationOptions.Default
-                : new WolverineDbContextCustomizationOptions {DatabaseSchema = wolverineDatabaseSchema});
 
         return services;
     }
