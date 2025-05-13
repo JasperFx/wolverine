@@ -115,7 +115,7 @@ public static class AncillaryWolverineOptionsMartenExtensions
             ConnectionString = masterDatabaseConnectionString,
             SchemaName = schemaName,
             AutoCreate = autoCreate ?? store.Options.AutoCreateSchemaObjects,
-            IsMaster = true,
+            IsMain = true,
             CommandQueuesEnabled = true,
             DataSource = masterDataSource
         };
@@ -145,7 +145,7 @@ public static class AncillaryWolverineOptionsMartenExtensions
         {
             SchemaName = schemaName,
             AutoCreate = autoCreate ?? store.Options.AutoCreateSchemaObjects,
-            IsMaster = true,
+            IsMain = true,
             ScheduledJobLockId = $"{schemaName ?? "public"}:scheduled-jobs".GetDeterministicHashCode()
         };
 

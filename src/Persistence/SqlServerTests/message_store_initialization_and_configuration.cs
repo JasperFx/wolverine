@@ -101,7 +101,7 @@ public class message_store_initialization_and_configuration : SqlServerContext, 
         var settings = new DatabaseSettings
         {
             ConnectionString = Servers.SqlServerConnectionString,
-            IsMaster = false,
+            IsMain = false,
             SchemaName = "registry"
         };
 

@@ -1,11 +1,9 @@
 using IntegrationTests;
-using Microsoft.Extensions.Hosting;
-using Npgsql;
-using Weasel.Core;
-using Weasel.Postgresql;
-using Weasel.Postgresql.Migrations;
-using Weasel.Postgresql.Tables;
+using JasperFx.Resources;
+using Microsoft.Extensions.DependencyInjection;
+using Shouldly;
 using Wolverine;
+using Wolverine.Persistence.Durability;
 using Wolverine.Postgresql;
 
 namespace PostgresqlTests.MultiTenancy;
@@ -14,78 +12,27 @@ public class static_multi_tenancy : MultiTenancyContext
 {
     protected override void configureWolverine(WolverineOptions opts)
     {
-        throw new NotImplementedException();
-    }
-}
-
-public abstract class MultiTenancyContext : PostgresqlContext, IAsyncLifetime
-{
-    protected IHost theHost;
-    protected string tenant1ConnectionString;
-    protected string tenant2ConnectionString;
-    protected string tenant3ConnectionString;
-
-    public async Task InitializeAsync()
-    {
-        await using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
-        await conn.OpenAsync();
-
-        tenant1ConnectionString = await CreateDatabaseIfNotExists(conn, "db1");
-        tenant2ConnectionString = await CreateDatabaseIfNotExists(conn, "db2");
-        tenant3ConnectionString = await CreateDatabaseIfNotExists(conn, "db3");
-
-        await cleanItems(tenant1ConnectionString);
-        await cleanItems(tenant2ConnectionString);
-        await cleanItems(tenant3ConnectionString);
-        
-        theHost = await Host.CreateDefaultBuilder()
-            .UseWolverine(opts =>
+        opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, "static_multi_tenancy")
+            .RegisterStaticTenants(tenants =>
             {
-                configureWolverine(opts);
+                tenants.Register("red", tenant1ConnectionString);
+                tenants.Register("blue", tenant2ConnectionString);
+                tenants.Register("green", tenant3ConnectionString);
+            });
 
-            }).StartAsync();
-
-        await onStartup();
+        opts.Services.AddResourceSetupOnStartup();
     }
 
-    protected abstract void configureWolverine(WolverineOptions opts);
-
-    protected virtual Task onStartup() => Task.CompletedTask;
-
-    public async Task DisposeAsync()
+    [Fact]
+    public async Task registers_a_multi_tenanted_message_store()
     {
-        await theHost.StopAsync();
+        var store = theHost.Services.GetRequiredService<IMessageStore>()
+            .ShouldBeOfType<MultiTenantedMessageStore>();
+        
+        store.Master.Describe().DatabaseName.ShouldBe("postgres");
+        
+        (await store.Source.FindAsync("red")).Describe().DatabaseName.ShouldBe("db1");
+        (await store.Source.FindAsync("blue")).Describe().DatabaseName.ShouldBe("db2");
+        (await store.Source.FindAsync("green")).Describe().DatabaseName.ShouldBe("db3");
     }
-
-    private async Task<string> CreateDatabaseIfNotExists(NpgsqlConnection conn, string databaseName)
-    {
-        var builder = new NpgsqlConnectionStringBuilder(Servers.PostgresConnectionString);
-
-        var exists = await conn.DatabaseExists(databaseName);
-        if (!exists)
-        {
-            await new DatabaseSpecification().BuildDatabase(conn, databaseName);
-        }
-
-        builder.Database = databaseName;
-
-        return builder.ConnectionString;
-    }
-    
-    private async Task cleanItems(string connectionString)
-    {
-        var table = new Table("items");
-        table.AddColumn<Guid>("Id").AsPrimaryKey();
-        table.AddColumn<string>("Name");
-
-        await using var dataSource = NpgsqlDataSource.Create(connectionString);
-        await using var conn = dataSource.CreateConnection();
-        await conn.OpenAsync();
-
-        await table.ApplyChangesAsync(conn);
-
-        await conn.RunSqlAsync("delete from items");
-        await conn.CloseAsync();
-    }
-
 }

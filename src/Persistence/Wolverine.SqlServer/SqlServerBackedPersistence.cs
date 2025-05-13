@@ -20,7 +20,7 @@ namespace Wolverine.SqlServer;
 /// </summary>
 internal class SqlServerBackedPersistence : IWolverineExtension
 {
-    public DatabaseSettings Settings { get; } = new(){IsMaster = true};
+    public DatabaseSettings Settings { get; } = new(){IsMain = true};
 
     public void Configure(WolverineOptions options)
     {

@@ -15,7 +15,7 @@ public class DatabaseSettings
     /// <summary>
     ///     Is this database the master database for node storage and any kind of command queueing?
     /// </summary>
-    public bool IsMaster { get; set; }
+    public bool IsMain { get; set; }
 
     public bool AddMasterTenantLookupTable { get; set; } = false;
 

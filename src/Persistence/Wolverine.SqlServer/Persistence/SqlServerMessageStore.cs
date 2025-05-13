@@ -402,7 +402,7 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>, IDatabaseSa
             yield return table;
         }
         
-        if (_settings.IsMaster)
+        if (_settings.IsMain)
         {
             var nodeTable = new Table(new DbObjectName(SchemaName, DatabaseConstants.NodeTableName));
             nodeTable.AddColumn<Guid>("id").AsPrimaryKey();

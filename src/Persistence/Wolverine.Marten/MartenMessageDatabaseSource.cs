@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 using Npgsql;
 using Weasel.Postgresql;
 using Wolverine.Persistence.Durability;
+using Wolverine.Persistence.MultiTenancy;
 using Wolverine.Postgresql;
 using Wolverine.RDBMS;
 using Wolverine.RDBMS.MultiTenancy;
@@ -129,6 +130,11 @@ internal class MartenMessageDatabaseSource : IMessageDatabaseSource
         return _databases.Enumerate().Select(x => x.Value).ToList();
     }
 
+    public IReadOnlyList<Assignment<IMessageStore>> AllActiveByTenant()
+    {
+        return _databases.Enumerate().Select(x => new Assignment<IMessageStore>(x.Key, x.Value)).ToList();
+    }
+
     public async ValueTask ConfigureDatabaseAsync(Func<IMessageDatabase, ValueTask> configureDatabase)
     {
         foreach (var database in AllActive().OfType<IMessageDatabase>()) await configureDatabase(database);
@@ -141,7 +147,7 @@ internal class MartenMessageDatabaseSource : IMessageDatabaseSource
         var settings = new DatabaseSettings
         {
             SchemaName = _schemaName,
-            IsMaster = false,
+            IsMain = false,
             AutoCreate = _autoCreate,
             CommandQueuesEnabled = false,
             DataSource = database.As<PostgresqlDatabase>().DataSource

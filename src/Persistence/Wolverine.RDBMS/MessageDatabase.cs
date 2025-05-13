@@ -100,7 +100,7 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
 
     public DurabilitySettings Durability { get; }
 
-    public bool IsMaster => Settings.IsMaster;
+    public bool IsMaster => Settings.IsMain;
 
     public string Name { get; set; } = TransportConstants.Default;
 
@@ -155,7 +155,7 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
 
         _batcher = new DatabaseBatcher(this, runtime, runtime.Options.Durability.Cancellation);
 
-        if (Settings.IsMaster && runtime.Options.Transports.NodeControlEndpoint == null && runtime.Options.Durability.Mode == DurabilityMode.Balanced)
+        if (Settings.IsMain && runtime.Options.Transports.NodeControlEndpoint == null && runtime.Options.Durability.Mode == DurabilityMode.Balanced)
         {
             var transport = new DatabaseControlTransport(this, runtime.Options);
             runtime.Options.Transports.Add(transport);

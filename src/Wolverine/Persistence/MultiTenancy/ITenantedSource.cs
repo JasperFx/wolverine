@@ -10,7 +10,11 @@ public interface ITenantedSource<T>
     ValueTask<T> FindAsync(string tenantId);
     Task RefreshAsync();
     IReadOnlyList<T> AllActive();
+
+    IReadOnlyList<Assignment<T>> AllActiveByTenant();
 }
+
+public record Assignment<T>(string TenantId, T Value);
 
 public class StaticTenantSource<T> : ITenantedSource<T>
 {
@@ -39,6 +43,11 @@ public class StaticTenantSource<T> : ITenantedSource<T>
     public IReadOnlyList<T> AllActive()
     {
         return _values.Enumerate().Select(x => x.Value).Distinct().ToList();
+    }
+
+    public IReadOnlyList<Assignment<T>> AllActiveByTenant()
+    {
+        return _values.Enumerate().Select(pair => new Assignment<T>(pair.Key, pair.Value)).ToList();
     }
 }
 

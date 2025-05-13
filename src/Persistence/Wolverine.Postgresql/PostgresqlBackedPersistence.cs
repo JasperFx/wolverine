@@ -1,8 +1,11 @@
 ﻿using System.Data.Common;
+using ImTools;
 using JasperFx;
 using JasperFx.Core;
+using JasperFx.Core.Descriptors;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 using Npgsql;
 using Weasel.Core.Migrations;
 using Wolverine.Persistence.Durability;
@@ -10,7 +13,9 @@ using Wolverine.Persistence.MultiTenancy;
 using Wolverine.Persistence.Sagas;
 using Wolverine.Postgresql.Transport;
 using Wolverine.RDBMS;
+using Wolverine.RDBMS.MultiTenancy;
 using Wolverine.RDBMS.Sagas;
+using Wolverine.Runtime;
 
 namespace Wolverine.Postgresql;
 
@@ -105,17 +110,11 @@ public interface IPostgresqlBackedPersistence
 /// </summary>
 internal class PostgresqlBackedPersistence : IPostgresqlBackedPersistence, IWolverineExtension
 {
-    // public DatabaseSettings Settings { get; } = new()
-    // {
-    //     IsMaster = true
-    // };
-    //
     // Gotta have one or the other. Maybe even just DbDataSource here
     public NpgsqlDataSource? DataSource { get; set; }
     public string? ConnectionString { get; set; }
     
     public string EnvelopeStorageSchemaName { get; set; } = "wolverine";
-    public string TransportSchemaName { get; set; } = "wolverine_queues";
     
     // This needs to be an override, and we use JasperFxOptions first!
     public AutoCreate AutoCreate { get; set; } = JasperFx.AutoCreate.CreateOrUpdate;
@@ -124,40 +123,43 @@ internal class PostgresqlBackedPersistence : IPostgresqlBackedPersistence, IWolv
     ///     Is this database exposing command queues?
     /// </summary>
     public bool CommandQueuesEnabled { get; set; } = true;
+
+    private int _scheduledJobLockId = 0;
     
     // This would be an override
-    public int? ScheduledJobLockId { get; set; } = 20000;
+    public int ScheduledJobLockId
+    {
+        get
+        {
+            if (_scheduledJobLockId > 0) return _scheduledJobLockId;
+
+            return $"{EnvelopeStorageSchemaName}:scheduled-jobs".GetDeterministicHashCode();
+        }
+        set
+        {
+            _scheduledJobLockId = value;
+        }
+    }
     
-    public StaticConnectionStringSource? StaticMultiTenancy { get; set; }
 
     public void Configure(WolverineOptions options)
     {
-        // TODO -- do some validation here
-        
-        options.Services.AddSingleton(new DatabaseSettings
+        if (ConnectionString.IsEmpty() && DataSource == null)
         {
-            CommandQueuesEnabled = CommandQueuesEnabled,
-            IsMaster = true,
-            ConnectionString = ConnectionString,
-            DataSource = DataSource,
-            ScheduledJobLockId = ScheduledJobLockId ?? $"{EnvelopeStorageSchemaName}:scheduled-jobs".GetDeterministicHashCode(),
-            SchemaName = EnvelopeStorageSchemaName
-        });
+            throw new InvalidOperationException(
+                "The PostgreSQL backed persistence needs to at least have either a connection string or NpgsqlDataSource defined for the main envelope database");
+        }
 
-        options.Services.TryAddSingleton<NpgsqlDataSource>(s => (NpgsqlDataSource)DataSource! ?? NpgsqlDataSource.Create(ConnectionString!));
-
-        options.Services.AddTransient<IMessageStore, PostgresqlMessageStore>();
-        options.Services.AddSingleton(s => (IDatabase)s.GetRequiredService<IMessageStore>());
+        var settings = buildMainDatabaseSettings();
+        options.Services.AddSingleton<DatabaseSettings>(settings);
+        
+        options.CodeGeneration.Sources.Add(new NpgsqlConnectionSource());
+        options.CodeGeneration.AddPersistenceStrategy<PostgresqlPersistenceFrameProvider>();
+        options.Services.AddSingleton<IDatabaseSagaStorage>(s => (IDatabaseSagaStorage)s.GetRequiredService<IMessageStore>());
         options.CodeGeneration.Sources.Add(new DatabaseBackedPersistenceMarker());
 
-        options.Services.AddScoped<NpgsqlConnection, NpgsqlConnection>();
-
-        options.CodeGeneration.Sources.Add(new NpgsqlConnectionSource());
-
-        options.CodeGeneration.AddPersistenceStrategy<PostgresqlPersistenceFrameProvider>();
+        options.Services.AddSingleton<IMessageStore>(s => BuildMessageStore(s.GetRequiredService<IWolverineRuntime>()));
         
-        options.Services.AddSingleton<IDatabaseSagaStorage>(s => (IDatabaseSagaStorage)s.GetRequiredService<IMessageStore>());
-
         if (_transportConfigurations.Any())
         {
             var transport = options.Transports.GetOrCreate<PostgresqlTransport>();
@@ -168,6 +170,43 @@ internal class PostgresqlBackedPersistence : IPostgresqlBackedPersistence, IWolv
                 transportConfiguration(expression);
             }
         }
+    }
+
+    public IMessageStore BuildMessageStore(IWolverineRuntime runtime)
+    {
+        var settings = buildMainDatabaseSettings();
+
+        var sagaTables = runtime.Services.GetServices<SagaTableDefinition>().ToArray();
+        
+        var mainSource = DataSource ?? NpgsqlDataSource.Create(ConnectionString);
+        var logger = runtime.LoggerFactory.CreateLogger<PostgresqlMessageStore>();
+        
+        var defaultStore = new PostgresqlMessageStore(settings, runtime.DurabilitySettings, mainSource,
+            logger, sagaTables);
+        
+        if (ConnectionStringTenancy != null || DataSourceTenancy != null)
+        {
+
+
+            return new MultiTenantedMessageStore(defaultStore, runtime,
+                new PostgresqlTenantedMessageStore(runtime, this, sagaTables));
+        }
+
+        return defaultStore;
+    }
+
+    private DatabaseSettings buildMainDatabaseSettings()
+    {
+        var settings = new DatabaseSettings
+        {
+            CommandQueuesEnabled = CommandQueuesEnabled,
+            IsMain = true,
+            ConnectionString = ConnectionString,
+            DataSource = DataSource,
+            ScheduledJobLockId = ScheduledJobLockId,
+            SchemaName = EnvelopeStorageSchemaName
+        };
+        return settings;
     }
 
     private List<Action<PostgresqlPersistenceExpression>> _transportConfigurations = new();
@@ -203,8 +242,15 @@ internal class PostgresqlBackedPersistence : IPostgresqlBackedPersistence, IWolv
 
     IPostgresqlBackedPersistence IPostgresqlBackedPersistence.RegisterStaticTenants(Action<StaticConnectionStringSource> configure)
     {
-        throw new NotImplementedException();
+        var source = new StaticConnectionStringSource();
+        configure(source);
+        ConnectionStringTenancy = source;
+
+        return this;
     }
+
+    public ITenantedSource<string>? ConnectionStringTenancy { get; set; }
+    public ITenantedSource<NpgsqlDataSource>? DataSourceTenancy { get; set; }
 
     IPostgresqlBackedPersistence IPostgresqlBackedPersistence.RegisterStaticTenants(Action<StaticTenantSource<NpgsqlDataSource>> configure)
     {
@@ -224,5 +270,137 @@ internal class PostgresqlBackedPersistence : IPostgresqlBackedPersistence, IWolv
     IPostgresqlBackedPersistence IPostgresqlBackedPersistence.UseMasterTableTenancy()
     {
         throw new NotImplementedException();
+    }
+}
+
+internal class PostgresqlTenantedMessageStore : ITenantedMessageSource, IMessageDatabaseSource
+{
+    private ImHashMap<string, PostgresqlMessageStore> _values = ImHashMap<string, PostgresqlMessageStore>.Empty;
+    private readonly PostgresqlBackedPersistence _persistence;
+    private readonly SagaTableDefinition[] _sagaTables;
+    private readonly IWolverineRuntime _runtime;
+    private ImHashMap<string, PostgresqlMessageStore> _stores = ImHashMap<string, PostgresqlMessageStore>.Empty;
+    
+    public PostgresqlTenantedMessageStore(IWolverineRuntime runtime, PostgresqlBackedPersistence persistence,
+        SagaTableDefinition[] sagaTables)
+    {
+        _persistence = persistence;
+        _sagaTables = sagaTables;
+        _runtime = runtime;
+    }
+
+    public ITenantedSource<NpgsqlDataSource> DataSource { get; set; }
+
+    public DatabaseCardinality Cardinality => DataSource.Cardinality;
+    public async ValueTask<IMessageStore> FindAsync(string tenantId)
+    {
+        if (_stores.TryFind(tenantId, out var store))
+        {
+            return store;
+        }
+
+        if (_persistence.DataSourceTenancy != null)
+        {
+            var source = await _persistence.DataSourceTenancy.FindAsync(tenantId);
+            store = buildStoreForDataSource(source);
+        }
+        else
+        {
+            var connectionString = await _persistence.ConnectionStringTenancy.FindAsync(tenantId);
+            store = buildStoreForConnectionString(connectionString);
+        }
+        
+        _stores = _stores.AddOrUpdate(tenantId, store);
+        return store;
+    }
+
+    private PostgresqlMessageStore buildStoreForConnectionString(string connectionString)
+    {
+        PostgresqlMessageStore store;
+        // TODO -- do some idempotency so that you don't build two or more stores for the same tenant id
+        var npgsqlDataSource = NpgsqlDataSource.Create(connectionString);
+        var settings = new DatabaseSettings
+        {
+            CommandQueuesEnabled = _persistence.CommandQueuesEnabled,
+            // TODO -- set the AutoCreate here
+            DataSource = npgsqlDataSource,
+            IsMain = false,
+            ScheduledJobLockId = _persistence.ScheduledJobLockId,
+            SchemaName = _persistence.EnvelopeStorageSchemaName
+        };
+
+        store = new PostgresqlMessageStore(settings, _runtime.Options.Durability, npgsqlDataSource,
+            _runtime.LoggerFactory.CreateLogger<PostgresqlMessageStore>(), _sagaTables);
+        return store;
+    }
+
+    private PostgresqlMessageStore buildStoreForDataSource(NpgsqlDataSource source)
+    {
+        PostgresqlMessageStore store;
+        // TODO -- do some idempotency so that you don't build two or more stores for the same tenant id
+        var settings = new DatabaseSettings
+        {
+            CommandQueuesEnabled = _persistence.CommandQueuesEnabled,
+            // TODO -- set the AutoCreate here
+            DataSource = source,
+            IsMain = false,
+            ScheduledJobLockId = _persistence.ScheduledJobLockId,
+            SchemaName = _persistence.EnvelopeStorageSchemaName
+        };
+
+        store = new PostgresqlMessageStore(settings, _runtime.Options.Durability, source,
+            _runtime.LoggerFactory.CreateLogger<PostgresqlMessageStore>(), _sagaTables);
+        return store;
+    }
+
+    public async Task RefreshAsync()
+    {
+        if (_persistence.ConnectionStringTenancy != null)
+        {
+            await _persistence.ConnectionStringTenancy.RefreshAsync();
+
+            foreach (var assignment in _persistence.ConnectionStringTenancy.AllActiveByTenant())
+            {
+                // TODO -- some idempotency
+                if (!_stores.Contains(assignment.TenantId))
+                {
+                    var store = buildStoreForConnectionString(assignment.Value);
+                    _stores = _stores.AddOrUpdate(assignment.TenantId, store);
+                }
+            }
+        }
+        else
+        {
+            await _persistence.DataSourceTenancy!.RefreshAsync();
+
+            foreach (var assignment in _persistence.DataSourceTenancy.AllActiveByTenant())
+            {
+                // TODO -- some idempotency
+                if (!_stores.Contains(assignment.TenantId))
+                {
+                    var store = buildStoreForDataSource(assignment.Value);
+                    _stores = _stores.AddOrUpdate(assignment.TenantId, store);
+                }
+            }
+        }
+    }
+
+    public IReadOnlyList<IMessageStore> AllActive()
+    {
+        return _stores.Enumerate().Select(x => x.Value).ToList();
+    }
+
+    public IReadOnlyList<Assignment<IMessageStore>> AllActiveByTenant()
+    {
+        return _stores.Enumerate().Select(x => new Assignment<IMessageStore>(x.Key, x.Value)).ToList();
+    }
+
+    public async ValueTask ConfigureDatabaseAsync(Func<IMessageDatabase, ValueTask> configureDatabase)
+    {
+        await RefreshAsync();
+        foreach (var store in _stores.Enumerate().Select(x => x.Value).ToArray())
+        {
+            await configureDatabase(store);
+        }
     }
 }
