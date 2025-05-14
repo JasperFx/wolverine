@@ -1,5 +1,7 @@
+using EfCoreTests.MultiTenancy;
 using JasperFx.CodeGeneration;
 using Microsoft.Extensions.DependencyInjection;
+using SharedPersistenceModels.Items;
 using Wolverine.ComplianceTests;
 using Wolverine;
 
@@ -62,10 +64,3 @@ public class CreateItemHandler
     }
 }
 
-public class Item
-{
-    public Guid Id { get; set; }
-    public string Name { get; set; }
-    
-    public bool Approved { get; set; }
-}

@@ -3,9 +3,11 @@
     <PropertyGroup>
         <IsPackable>false</IsPackable>
         <IsTestProject>true</IsTestProject>
+        <TargetFrameworks>net9.0</TargetFrameworks>
     </PropertyGroup>
 
     <ItemGroup>
+        <PackageReference Include="Alba" Version="8.2.0" />
         <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.6.0"/>
         <PackageReference Include="Shouldly" Version="4.2.1"/>
         <PackageReference Include="xunit" Version="2.9.0"/>
@@ -35,11 +37,17 @@
             <Link>Servers.cs</Link>
         </Compile>
         <Compile Remove="Internal\Generated\WolverineHandlers\CreateItemHandler1945924936.cs" />
+        <Compile Remove="MultiTenancy\PostgresqlSchema.cs" />
+        <Compile Remove="MultiTenancy\SqlServerSchema.cs" />
     </ItemGroup>
 
     <ItemGroup>
         <ProjectReference Include="..\..\Testing\Wolverine.ComplianceTests\Wolverine.ComplianceTests.csproj" />
+        <ProjectReference Include="..\MultiTenantedEfCoreWithPostgreSQL\MultiTenantedEfCoreWithPostgreSQL.csproj" />
+        <ProjectReference Include="..\MultiTenantedEfCoreWithSqlServer\MultiTenantedEfCoreWithSqlServer.csproj" />
+        <ProjectReference Include="..\SharedPersistenceModels\SharedPersistenceModels.csproj" />
         <ProjectReference Include="..\Wolverine.EntityFrameworkCore\Wolverine.EntityFrameworkCore.csproj"/>
+        <ProjectReference Include="..\Wolverine.Marten\Wolverine.Marten.csproj" />
         <ProjectReference Include="..\Wolverine.Postgresql\Wolverine.Postgresql.csproj"/>
         <ProjectReference Include="..\Wolverine.SqlServer\Wolverine.SqlServer.csproj"/>
     </ItemGroup>

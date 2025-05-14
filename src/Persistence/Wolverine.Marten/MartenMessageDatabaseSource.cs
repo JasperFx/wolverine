@@ -2,13 +2,13 @@ using ImTools;
 using JasperFx;
 using JasperFx.Core.Descriptors;
 using JasperFx.Core.Reflection;
+using JasperFx.MultiTenancy;
 using Marten;
 using Marten.Storage;
 using Microsoft.Extensions.Logging;
 using Npgsql;
 using Weasel.Postgresql;
 using Wolverine.Persistence.Durability;
-using Wolverine.Persistence.MultiTenancy;
 using Wolverine.Postgresql;
 using Wolverine.RDBMS;
 using Wolverine.RDBMS.MultiTenancy;
@@ -116,11 +116,6 @@ internal class MartenMessageDatabaseSource : IMessageDatabaseSource
         foreach (var martenDatabase in martenDatabases)
         {
             var wolverineStore = createWolverineStore(martenDatabase);
-            if (_autoCreate != AutoCreate.None)
-            {
-                await wolverineStore.MigrateAsync();
-            }
-
             _databases = _databases.AddOrUpdate(martenDatabase.Identifier, wolverineStore);
         }
     }

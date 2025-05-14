@@ -1,5 +1,7 @@
-﻿using JasperFx.Core;
+﻿using JasperFx;
+using JasperFx.Core;
 using JasperFx.Core.Reflection;
+using JasperFx.MultiTenancy;
 using MassTransit;
 using Wolverine.Attributes;
 using Wolverine.Util;
@@ -7,7 +9,7 @@ using Wolverine.Util;
 namespace Wolverine;
 
 [MessageIdentity("envelope")]
-public partial class Envelope
+public partial class Envelope : IHasTenantId
 {
     public static readonly string PingMessageType = "wolverine-ping";
     private byte[]? _data;

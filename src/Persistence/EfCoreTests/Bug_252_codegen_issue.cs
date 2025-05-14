@@ -7,6 +7,7 @@ using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using SharedPersistenceModels.Items;
 using Shouldly;
 using Weasel.Core;
 using Weasel.SqlServer;

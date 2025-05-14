@@ -1,4 +1,5 @@
 using JasperFx.Core;
+using JasperFx.MultiTenancy;
 
 namespace Wolverine;
 
@@ -53,6 +54,12 @@ public enum MessageIdentity
 public class DurabilitySettings
 {
     private readonly CancellationTokenSource _cancellation = new();
+
+    /// <summary>
+    /// For systems that use multi-tenancy, this controls how Wolverine does or does not "correct" the supplied tenant
+    /// id, with the default behavior being to use case-sensitive tenant ids
+    /// </summary>
+    public TenantIdStyle TenantIdStyle { get; set; } = TenantIdStyle.CaseSensitive;
 
     /// <summary>
     /// If set, this establishes a default database schema name for all registered message

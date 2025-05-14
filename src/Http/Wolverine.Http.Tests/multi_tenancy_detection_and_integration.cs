@@ -3,6 +3,7 @@ using System.Security.Claims;
 using Alba;
 using Alba.Security;
 using IntegrationTests;
+using JasperFx.MultiTenancy;
 using Marten;
 using Marten.Metadata;
 using Microsoft.AspNetCore.Authentication;

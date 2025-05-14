@@ -5,6 +5,7 @@ using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
+using JasperFx.MultiTenancy;
 using Weasel.Core;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
@@ -19,8 +20,7 @@ public static class ConnectionSource<T> where T : DbConnection
 
         if (messageStore is MultiTenantedMessageStore tenantedStore)
         {
-            // TODO -- create a IsTenanted() method
-            if (context.TenantId.IsEmpty() || context.TenantId == StorageConstants.DefaultTenantId)
+            if (context.IsDefaultTenant())
             {
                 if (tenantedStore.Main is IConnectionSource<T> s2) return s2.CreateConnection();
             }

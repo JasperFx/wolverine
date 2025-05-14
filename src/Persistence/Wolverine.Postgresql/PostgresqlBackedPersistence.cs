@@ -1,13 +1,13 @@
 ﻿using System.Data.Common;
 using JasperFx;
 using JasperFx.Core;
+using JasperFx.MultiTenancy;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Npgsql;
 using Weasel.Core.Migrations;
 using Wolverine.Persistence.Durability;
-using Wolverine.Persistence.MultiTenancy;
 using Wolverine.Persistence.Sagas;
 using Wolverine.Postgresql.Transport;
 using Wolverine.RDBMS;
@@ -76,7 +76,7 @@ public interface IPostgresqlBackedPersistence
     /// </summary>
     /// <param name="configure"></param>
     /// <returns></returns>
-    IPostgresqlBackedPersistence RegisterStaticTenants(Action<StaticTenantSource<NpgsqlDataSource>> configure);
+    IPostgresqlBackedPersistence RegisterStaticTenantsByDataSource(Action<StaticTenantSource<NpgsqlDataSource>> configure);
 
     /// <summary>
     /// Opt into multi-tenancy with separate databases using your own strategy for finding the right connection string
@@ -99,8 +99,10 @@ public interface IPostgresqlBackedPersistence
     /// that is controlled by Wolverine. This supports dynamic addition of new tenant databases at runtime without any
     /// downtime
     /// </summary>
+    /// <param name="configure">Register any default tenants and connection strings to seed the table. This might be helpful for testing and local development</param>
     /// <returns></returns>
-    IPostgresqlBackedPersistence UseMasterTableTenancy();
+    IPostgresqlBackedPersistence UseMasterTableTenancy(Action<StaticConnectionStringSource> configure);
+
 }
 
 /// <summary>
@@ -150,10 +152,9 @@ internal class PostgresqlBackedPersistence : IPostgresqlBackedPersistence, IWolv
 
         // This needs to stay in to help w/ EF Core customization
         options.Services.AddSingleton(buildMainDatabaseSettings());
-        options.CodeGeneration.Sources.Add(new NpgsqlConnectionSource());
-        options.CodeGeneration.AddPersistenceStrategy<PostgresqlPersistenceFrameProvider>();
-        options.Services.AddSingleton<IDatabaseSagaStorage>(s => (IDatabaseSagaStorage)s.GetRequiredService<IMessageStore>());
+        options.CodeGeneration.AddPersistenceStrategy<LightweightSagaPersistenceFrameProvider>();
         options.CodeGeneration.Sources.Add(new DatabaseBackedPersistenceMarker());
+        options.CodeGeneration.Sources.Add(new SagaStorageVariableSource());
 
         options.Services.AddSingleton<IMessageStore>(s => BuildMessageStore(s.GetRequiredService<IWolverineRuntime>()));
 
@@ -182,8 +183,15 @@ internal class PostgresqlBackedPersistence : IPostgresqlBackedPersistence, IWolv
         
         var defaultStore = new PostgresqlMessageStore(settings, runtime.DurabilitySettings, mainSource,
             logger, sagaTables);
-        
-        if (ConnectionStringTenancy != null || DataSourceTenancy != null)
+
+        if (UseMasterTableTenancy)
+        {
+            ConnectionStringTenancy = new MasterTenantSource(defaultStore, runtime.Options);
+            
+            return new MultiTenantedMessageStore(defaultStore, runtime,
+                new PostgresqlTenantedMessageStore(runtime, this, sagaTables));
+        }
+        else if (ConnectionStringTenancy != null || DataSourceTenancy != null)
         {
             return new MultiTenantedMessageStore(defaultStore, runtime,
                 new PostgresqlTenantedMessageStore(runtime, this, sagaTables));
@@ -201,13 +209,15 @@ internal class PostgresqlBackedPersistence : IPostgresqlBackedPersistence, IWolv
             ConnectionString = ConnectionString,
             DataSource = DataSource,
             ScheduledJobLockId = ScheduledJobLockId,
-            SchemaName = EnvelopeStorageSchemaName
+            SchemaName = EnvelopeStorageSchemaName,
+            AddTenantLookupTable = UseMasterTableTenancy,
+            TenantConnections = TenantConnections
         };
         return settings;
     }
 
     private List<Action<PostgresqlPersistenceExpression>> _transportConfigurations = new();
-    
+
     public IPostgresqlBackedPersistence EnableMessageTransport(Action<PostgresqlPersistenceExpression>? configure = null)
     {
         if (configure != null)
@@ -219,22 +229,26 @@ internal class PostgresqlBackedPersistence : IPostgresqlBackedPersistence, IWolv
 
     IPostgresqlBackedPersistence IPostgresqlBackedPersistence.OverrideAutoCreateResources(AutoCreate autoCreate)
     {
-        throw new NotImplementedException();
+        AutoCreate = autoCreate;
+        return this;
     }
 
     IPostgresqlBackedPersistence IPostgresqlBackedPersistence.SchemaName(string schemaName)
     {
-        throw new NotImplementedException();
+        EnvelopeStorageSchemaName = schemaName;
+        return this;
     }
 
     IPostgresqlBackedPersistence IPostgresqlBackedPersistence.OverrideScheduledJobLockId(int lockId)
     {
-        throw new NotImplementedException();
+        _scheduledJobLockId = lockId;
+        return this;
     }
 
     IPostgresqlBackedPersistence IPostgresqlBackedPersistence.EnableCommandQueues(bool enabled)
     {
-        throw new NotImplementedException();
+        CommandQueuesEnabled = enabled;
+        return this;
     }
 
     IPostgresqlBackedPersistence IPostgresqlBackedPersistence.RegisterStaticTenants(Action<StaticConnectionStringSource> configure)
@@ -248,24 +262,42 @@ internal class PostgresqlBackedPersistence : IPostgresqlBackedPersistence, IWolv
 
     public ITenantedSource<string>? ConnectionStringTenancy { get; set; }
     public ITenantedSource<NpgsqlDataSource>? DataSourceTenancy { get; set; }
+    
+    public bool UseMasterTableTenancy { get; set; }
 
-    IPostgresqlBackedPersistence IPostgresqlBackedPersistence.RegisterStaticTenants(Action<StaticTenantSource<NpgsqlDataSource>> configure)
+    IPostgresqlBackedPersistence IPostgresqlBackedPersistence.RegisterStaticTenantsByDataSource(Action<StaticTenantSource<NpgsqlDataSource>> configure)
     {
-        throw new NotImplementedException();
+        var tenants = new StaticTenantSource<NpgsqlDataSource>();
+        configure(tenants);
+        DataSourceTenancy = tenants;
+        return this;
     }
 
     IPostgresqlBackedPersistence IPostgresqlBackedPersistence.RegisterTenants(ITenantedSource<string> tenantSource)
     {
-        throw new NotImplementedException();
+        ConnectionStringTenancy = tenantSource;
+        return this;
     }
 
     IPostgresqlBackedPersistence IPostgresqlBackedPersistence.RegisterTenants(ITenantedSource<NpgsqlDataSource> tenantSource)
     {
-        throw new NotImplementedException();
+        DataSourceTenancy = tenantSource;
+        return this;
     }
 
-    IPostgresqlBackedPersistence IPostgresqlBackedPersistence.UseMasterTableTenancy()
+    IPostgresqlBackedPersistence IPostgresqlBackedPersistence.UseMasterTableTenancy(
+        Action<StaticConnectionStringSource> configure)
     {
-        throw new NotImplementedException();
+        UseMasterTableTenancy = true;
+        var source = new StaticConnectionStringSource();
+        configure(source);
+
+        TenantConnections = source;
+        return this;
     }
+
+    /// <summary>
+    /// This is any default connection strings by tenant that should be loaded at start up time
+    /// </summary>
+    public StaticConnectionStringSource? TenantConnections { get; set; }
 }

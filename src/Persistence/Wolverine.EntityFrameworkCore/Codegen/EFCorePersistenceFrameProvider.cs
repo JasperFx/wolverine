@@ -100,9 +100,9 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         return call;
     }
 
-    public Frame DetermineStoreFrame(Variable variable, IServiceContainer container)
+    public Frame DetermineStoreFrame(Variable saga, IServiceContainer container)
     {
-        return DetermineUpdateFrame(variable, container);
+        return DetermineUpdateFrame(saga, container);
     }
 
     public void ApplyTransactionSupport(IChain chain, IServiceContainer container)
@@ -110,14 +110,21 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         if (chain.Tags.ContainsKey(UsingEfCoreTransaction)) return;
         chain.Tags.Add(UsingEfCoreTransaction, true);
 
-        var dbType = DetermineDbContextType(chain, container);
-
-        chain.Middleware.Insert(0, new EnrollDbContextInTransaction(dbType));
+        var dbContextType = DetermineDbContextType(chain, container);
+        if (isMultiTenanted(container, dbContextType))
+        {
+            var createContext = typeof(CreateTenantedDbContext<>).CloseAndBuildAs<Frame>(dbContextType);
+            chain.Middleware.Insert(0, createContext);
+        }
+        else
+        {
+            chain.Middleware.Insert(0, new EnrollDbContextInTransaction(dbContextType));
+        }
 
         var saveChangesAsync =
-            dbType.GetMethod(nameof(DbContext.SaveChangesAsync), [typeof(CancellationToken)]);
+            dbContextType.GetMethod(nameof(DbContext.SaveChangesAsync), [typeof(CancellationToken)]);
 
-        var call = new MethodCall(dbType, saveChangesAsync!)
+        var call = new MethodCall(dbContextType, saveChangesAsync!)
         {
             CommentText = "Added by EF Core Transaction Middleware"
         };
@@ -134,15 +141,27 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         }
     }
 
+    private bool isMultiTenanted(IServiceContainer container, Type dbContextType)
+    {
+        return container.HasRegistrationFor(typeof(IDbContextBuilder<>).MakeGenericType(dbContextType));
+    }
+
     public void ApplyTransactionSupport(IChain chain, IServiceContainer container, Type entityType)
     {
         if (chain.Tags.ContainsKey(UsingEfCoreTransaction)) return;
         chain.Tags.Add(UsingEfCoreTransaction, true);
 
         var dbType = DetermineDbContextType(entityType, container);
-
-        chain.Middleware.Insert(0, new EnrollDbContextInTransaction(dbType));
-
+        if (isMultiTenanted(container, dbType))
+        {
+            var createContext = typeof(CreateTenantedDbContext<>).CloseAndBuildAs<Frame>(dbType);
+            chain.Middleware.Insert(0, createContext);
+        }
+        else
+        {
+            chain.Middleware.Insert(0, new EnrollDbContextInTransaction(dbType));
+        }
+        
         var saveChangesAsync =
             dbType.GetMethod(nameof(DbContext.SaveChangesAsync), [typeof(CancellationToken)]);
 
@@ -183,27 +202,8 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         }
 
         using var nested = container.Services.CreateScope();
-        var candidates = container.FindMatchingServices(type => type.CanBeCastTo<DbContext>())
-            .Select(x => x.ServiceType).ToArray();
 
-        foreach (var candidate in candidates)
-        {
-            var dbContext = (DbContext)nested.ServiceProvider.GetService(candidate);
-            try
-            {
-                if (dbContext.Model.FindEntityType(entityType) != null)
-                {
-                    _dbContextTypes = _dbContextTypes.AddOrUpdate(entityType, candidate);
-                    return candidate;
-                }
-            }
-            catch (InvalidOperationException e)
-            {
-                var logger = container.Services.GetService<ILogger<EFCorePersistenceFrameProvider>>();
-                logger?.LogError(e, "Error trying to use DbContext type {DbContextType}", candidate.FullNameInCode());
-            }
-        }
-
+        // Need to check for multi-tenanted candidates FIRST
         var multiTenantCandidates = container.FindMatchingServices(type => type.Closes(typeof(IDbContextBuilder<>)))
             .Select(x => x.ServiceType).ToArray();
 
@@ -226,11 +226,32 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
                 logger?.LogError(e, "Error trying to use DbContext type {DbContextType}", candidate.FullNameInCode());
             }
         }
+        
+        var candidates = container.FindMatchingServices(type => type.CanBeCastTo<DbContext>())
+            .Select(x => x.ServiceType).ToArray();
+
+        foreach (var candidate in candidates)
+        {
+            var dbContext = (DbContext)nested.ServiceProvider.GetService(candidate);
+            try
+            {
+                if (dbContext.Model.FindEntityType(entityType) != null)
+                {
+                    _dbContextTypes = _dbContextTypes.AddOrUpdate(entityType, candidate);
+                    return candidate;
+                }
+            }
+            catch (InvalidOperationException e)
+            {
+                var logger = container.Services.GetService<ILogger<EFCorePersistenceFrameProvider>>();
+                logger?.LogError(e, "Error trying to use DbContext type {DbContextType}", candidate.FullNameInCode());
+            }
+        }
 
         _dbContextTypes = _dbContextTypes.AddOrUpdate(entityType, null);
         return null;
     }
-
+    
     internal Type DetermineDbContextType(Type entityType, IServiceContainer container)
     {
         var contextType = TryDetermineDbContextType(entityType, container);
@@ -254,6 +275,16 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
 
         if (contextTypes.Length == 0)
         {
+            var sagaType = chain.HandlerCalls().SelectMany(x => x.Creates)
+                .Where(x => x.VariableType.CanBeCastTo<Saga>())
+                .Select(x => x.VariableType)
+                .FirstOrDefault();
+
+            if (sagaType != null)
+            {
+                return DetermineDbContextType(sagaType, container);
+            }
+            
             throw new InvalidOperationException(
                 $"Cannot determine the {nameof(DbContext)} type for {chain.Description}");
         }

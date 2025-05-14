@@ -13,17 +13,13 @@ namespace Wolverine.EntityFrameworkCore.Internals;
 public class RawDatabaseEnvelopeTransaction : IEnvelopeTransaction
 {
     private readonly IMessageDatabase _database;
-
+    
     public RawDatabaseEnvelopeTransaction(DbContext dbContext, MessageContext messaging)
     {
-        if (messaging.Storage is IMessageDatabase persistence)
-        {
-            _database = persistence;
-        }
-        else
+        if (!messaging.TryFindMessageDatabase(out _database))
         {
             throw new InvalidOperationException(
-                "This Wolverine application is not using Database backed message persistence. Please configure the message configuration");
+                "This Wolverine application is not using Database backed message persistence. Please configure the message persistence");
         }
 
         DbContext = dbContext;

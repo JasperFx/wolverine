@@ -82,6 +82,16 @@ public static class WolverineOptionsMartenExtensions
 
         expression.Services.AddScoped<IMartenOutbox, MartenOutbox>();
 
+        // Gotta have at least a placeholder just in case a user also has
+        // EF Core
+        expression.Services.AddSingleton<DatabaseSettings>(s =>
+        {
+            var store = s.GetRequiredService<IMessageStore>() as IMessageDatabase;
+            if (store != null) return store.Settings;
+
+            return new DatabaseSettings();
+        });
+
         expression.Services.AddSingleton<IMessageStore>(s =>
         {
             var store = s.GetRequiredService<IDocumentStore>().As<DocumentStore>();
@@ -159,28 +169,27 @@ public static class WolverineOptionsMartenExtensions
     {
         var masterSettings = new DatabaseSettings
         {
-            ConnectionString = masterDatabaseConnectionString,
             SchemaName = schemaName,
             AutoCreate = autoCreate ?? store.Options.AutoCreateSchemaObjects,
             IsMain = true,
             CommandQueuesEnabled = true,
-            DataSource = masterDataSource
+            DataSource = masterDataSource ?? NpgsqlDataSource.Create(masterDatabaseConnectionString)
         };
 
         var dataSource = findMasterDataSource(store, runtime, masterSettings, serviceProvider);
-        var master = new PostgresqlMessageStore(masterSettings, runtime.Options.Durability, dataSource,
+        var main = new PostgresqlMessageStore(masterSettings, runtime.Options.Durability, dataSource,
             runtime.LoggerFactory.CreateLogger<PostgresqlMessageStore>())
         {
-            Name = "Master"
+            Name = "Main"
         };
 
 
         var source = new MartenMessageDatabaseSource(schemaName, autoCreate ?? store.Options.AutoCreateSchemaObjects,
             store, runtime);
 
-        master.Initialize(runtime);
+        main.Initialize(runtime);
 
-        return new MultiTenantedMessageStore(master, runtime, source);
+        return new MultiTenantedMessageStore(main, runtime, source);
     }
 
     internal static IMessageStore BuildSinglePostgresqlMessageStore(

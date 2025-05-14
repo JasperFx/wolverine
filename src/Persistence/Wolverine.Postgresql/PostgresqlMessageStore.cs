@@ -1,5 +1,6 @@
 ﻿using System.Data.Common;
 using ImTools;
+using JasperFx;
 using JasperFx.Core;
 using JasperFx.Core.Descriptors;
 using JasperFx.Core.Reflection;
@@ -38,7 +39,7 @@ internal class PostgresqlMessageStore<T> : PostgresqlMessageStore, IAncillaryMes
     public Type MarkerType => typeof(T);
 }
 
-internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>, IDatabaseSagaStorage
+internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
 {
     private readonly string _deleteOutgoingEnvelopesSql;
     private readonly string _discardAndReassignOutgoingSql;
@@ -47,7 +48,7 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>, IData
 
     private readonly List<ISchemaObject> _externalTables = new();
     
-    private ImHashMap<Type, ISagaStorage> _sagaStorage = ImHashMap<Type, ISagaStorage>.Empty;
+    private ImHashMap<Type, IDatabaseSagaSchema> _sagaStorage = ImHashMap<Type, IDatabaseSagaSchema>.Empty;
 
 
     public PostgresqlMessageStore(DatabaseSettings databaseSettings, DurabilitySettings settings, NpgsqlDataSource dataSource,
@@ -64,7 +65,7 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>, IData
 
     public PostgresqlMessageStore(DatabaseSettings databaseSettings, DurabilitySettings settings, NpgsqlDataSource dataSource,
         ILogger<PostgresqlMessageStore> logger, IEnumerable<SagaTableDefinition> sagaTypes) : base(databaseSettings, dataSource,
-        settings, logger, new PostgresqlMigrator(), "public")
+        settings, logger, new PostgresqlMigrator(), PostgresqlProvider.Instance)
     {
         _reassignIncomingSql =
             $"update {SchemaName}.{DatabaseConstants.IncomingTable} set owner_id = @owner, status = '{EnvelopeStatus.Incoming}' where id = ANY(@ids)";
@@ -83,7 +84,7 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>, IData
         
         foreach (var sagaTableDefinition in sagaTypes)
         {
-            var storage = typeof(SagaStorage<,>).CloseAndBuildAs<ISagaStorage>(sagaTableDefinition, _settings, sagaTableDefinition.SagaType, sagaTableDefinition.IdMember.GetMemberType());
+            var storage = typeof(DatabaseSagaSchema<,>).CloseAndBuildAs<IDatabaseSagaSchema>(sagaTableDefinition, _settings, sagaTableDefinition.SagaType, sagaTableDefinition.IdMember.GetMemberType());
             _sagaStorage = _sagaStorage.AddOrUpdate(sagaTableDefinition.SagaType, storage);
         }
     }
@@ -514,6 +515,14 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>, IData
                 yield return queueTable;
             }
 
+            if (_settings.AddTenantLookupTable)
+            {
+                var tenantTable = new Table(new DbObjectName(SchemaName, DatabaseConstants.TenantsTableName));
+                tenantTable.AddColumn<string>(StorageConstants.TenantIdColumn).AsPrimaryKey();
+                tenantTable.AddColumn<string>(StorageConstants.ConnectionStringColumn).NotNull();
+                yield return tenantTable;
+            }
+
             var eventTable = new Table(new DbObjectName(SchemaName, DatabaseConstants.NodeRecordTableName));
             eventTable.AddColumn("id", "SERIAL").AsPrimaryKey();
             eventTable.AddColumn<int>("node_number").NotNull();
@@ -542,77 +551,22 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>, IData
     {
         _otherTables.Add(table);
     }
-    
-    public SagaStorage<T, TId> SagaStorageFor<T, TId>() where T : Saga
+
+    public override DatabaseSagaSchema<T, TId> SagaSchemaFor<T, TId>()
     {
         if (_sagaStorage.TryFind(typeof(T), out var raw))
         {
-            if (raw is SagaStorage<T, TId> sagaStorage)
+            if (raw is DatabaseSagaSchema<T, TId> sagaStorage)
             {
                 return sagaStorage;
             }
         }
         
         var definition = new SagaTableDefinition(typeof(T), null);
-        var storage = new SagaStorage<T, TId>(definition, _settings);
+        var storage = new DatabaseSagaSchema<T, TId>(definition, _settings);
         _sagaStorage = _sagaStorage.AddOrUpdate(typeof(T), storage);
         
         return storage;
     }
 
-    public Task InsertAsync<T>(T saga, DbTransaction transaction, CancellationToken cancellationToken) where T : Saga
-    {
-        if (_sagaStorage.TryFind(typeof(T), out var raw))
-        {
-            if (raw is ISagaStorage<T> sagaStorage)
-            {
-                return sagaStorage.InsertAsync(saga, transaction, cancellationToken);
-            }
-        }
-
-        var definition = new SagaTableDefinition(typeof(T), null);
-        var storage = typeof(SagaStorage<,>).CloseAndBuildAs<ISagaStorage<T>>(definition, _settings, typeof(T), definition.IdMember.GetMemberType());
-        _sagaStorage = _sagaStorage.AddOrUpdate(typeof(T), storage);
-        
-        return storage.InsertAsync(saga, transaction, cancellationToken);
-    }
-
-    public Task UpdateAsync<T>(T saga, DbTransaction transaction, CancellationToken cancellationToken) where T : Saga
-    {
-        if (_sagaStorage.TryFind(typeof(T), out var raw))
-        {
-            if (raw is ISagaStorage<T> sagaStorage)
-            {
-                return sagaStorage.UpdateAsync(saga, transaction, cancellationToken);
-            }
-        }
-
-        var definition = new SagaTableDefinition(typeof(T), null);
-        var storage = typeof(SagaStorage<,>).CloseAndBuildAs<ISagaStorage<T>>(definition, _settings, typeof(T), definition.IdMember.GetMemberType());
-        _sagaStorage = _sagaStorage.AddOrUpdate(typeof(T), storage);
-        
-        return storage.UpdateAsync(saga, transaction, cancellationToken);
-    }
-
-    public Task DeleteAsync<T>(T saga, DbTransaction transaction, CancellationToken cancellationToken) where T : Saga
-    {
-        if (_sagaStorage.TryFind(typeof(T), out var raw))
-        {
-            if (raw is ISagaStorage<T> sagaStorage)
-            {
-                return sagaStorage.DeleteAsync(saga, transaction, cancellationToken);
-            }
-        }
-
-        var definition = new SagaTableDefinition(typeof(T), null);
-        var storage = typeof(SagaStorage<,>).CloseAndBuildAs<ISagaStorage<T>>(definition, _settings, typeof(T), definition.IdMember.GetMemberType());
-        _sagaStorage = _sagaStorage.AddOrUpdate(typeof(T), storage);
-        
-        return storage.DeleteAsync(saga, transaction, cancellationToken);
-    }
-
-    public Task<T?> LoadAsync<T, TId>(TId id, DbTransaction tx, CancellationToken cancellationToken) where T : Saga
-    {
-        return SagaStorageFor<T, TId>().LoadAsync(id, tx, cancellationToken);
-    }
 }

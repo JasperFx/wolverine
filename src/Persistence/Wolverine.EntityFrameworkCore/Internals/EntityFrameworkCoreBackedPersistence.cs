@@ -28,6 +28,7 @@ internal class EntityFrameworkCoreBackedPersistence<T> : IWolverineExtension whe
 {
     public void Configure(WolverineOptions options)
     {
+        options.CodeGeneration.ReferenceAssembly(GetType().Assembly);
         options.CodeGeneration.InsertFirstPersistenceStrategy<EFCorePersistenceFrameProvider>();
         options.CodeGeneration.Sources.Add(new TenantedDbContextSource<T>());
     }

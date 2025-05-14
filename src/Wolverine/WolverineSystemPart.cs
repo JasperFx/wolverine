@@ -1,6 +1,7 @@
 using JasperFx.CommandLine.Descriptions;
 using JasperFx.Core.Reflection;
 using JasperFx.Resources;
+using Microsoft.Extensions.DependencyInjection;
 using Spectre.Console;
 using Wolverine.ErrorHandling;
 using Wolverine.ErrorHandling.Matches;
@@ -180,6 +181,11 @@ internal class WolverineSystemPart : SystemPartBase
     public override ValueTask<IReadOnlyList<IStatefulResource>> FindResources()
     {
         var list = new List<IStatefulResource>();
+        
+        // These have to run first. Right now, the only options are for building multi-tenanted
+        // databases with EF Core
+        list.AddRange(_runtime.Services.GetServices<IResourceCreator>());
+        
         if (_runtime.Options.ExternalTransportsAreStubbed) return new ValueTask<IReadOnlyList<IStatefulResource>>(list);
 
         foreach (var transport in _runtime.Options.Transports)

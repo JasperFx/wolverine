@@ -11,6 +11,15 @@ public interface IDbContextBuilder
 {
     DbContext BuildForMain();
     Type DbContextType { get; }
+    
+    /// <summary>
+    /// Migrates the underlying database to the current configuration of the DbContext through
+    /// EF Core, but skips any migrations
+    /// </summary>
+    /// <returns></returns>
+    Task ApplyAllChangesToDatabasesAsync();
+    
+    Task EnsureAllDatabasesAreCreatedAsync();
 }
 
 public interface IDbContextBuilder<T> : IDbContextBuilder where T : DbContext
@@ -20,7 +29,9 @@ public interface IDbContextBuilder<T> : IDbContextBuilder where T : DbContext
     ValueTask<T> BuildAsync(string tenantId, CancellationToken cancellationToken);
     
     ValueTask<T> BuildAsync(CancellationToken cancellationToken);
-    Task MigrateAllAsync();
+
+    DbContextOptions<T> BuildOptionsForMain();
+    
 }
 
 internal class CreateTenantedDbContext<T> : MethodCall where T : DbContext

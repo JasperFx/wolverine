@@ -1,9 +1,9 @@
 using ImTools;
 using JasperFx.Core.Descriptors;
+using JasperFx.MultiTenancy;
 using Microsoft.Extensions.Logging;
 using Npgsql;
 using Wolverine.Persistence.Durability;
-using Wolverine.Persistence.MultiTenancy;
 using Wolverine.RDBMS;
 using Wolverine.RDBMS.MultiTenancy;
 using Wolverine.RDBMS.Sagas;
@@ -13,7 +13,6 @@ namespace Wolverine.Postgresql;
 
 internal class PostgresqlTenantedMessageStore : ITenantedMessageSource, IMessageDatabaseSource
 {
-    private ImHashMap<string, PostgresqlMessageStore> _values = ImHashMap<string, PostgresqlMessageStore>.Empty;
     private readonly PostgresqlBackedPersistence _persistence;
     private readonly SagaTableDefinition[] _sagaTables;
     private readonly IWolverineRuntime _runtime;

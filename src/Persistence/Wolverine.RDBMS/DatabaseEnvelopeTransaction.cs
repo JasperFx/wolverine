@@ -6,15 +6,13 @@ namespace Wolverine.RDBMS;
 
 public class DatabaseEnvelopeTransaction : IEnvelopeTransaction, IDisposable
 {
-    private readonly IMessageDatabase _persistence;
+    private readonly IMessageDatabase _database;
     private readonly DbTransaction _tx;
 
-    public DatabaseEnvelopeTransaction(MessageContext context, DbTransaction tx)
+    public DatabaseEnvelopeTransaction(IMessageDatabase database, DbTransaction tx)
     {
-        _persistence = context.Storage as IMessageDatabase ??
-                       throw new InvalidOperationException(
-                           "This message context is not using Database-backed messaging persistence");
         _tx = tx;
+        _database = database;
     }
 
     public void Dispose()
@@ -34,12 +32,12 @@ public class DatabaseEnvelopeTransaction : IEnvelopeTransaction, IDisposable
             return Task.CompletedTask;
         }
 
-        return _persistence.StoreOutgoingAsync(_tx, envelopes);
+        return _database.StoreOutgoingAsync(_tx, envelopes);
     }
 
     public Task PersistIncomingAsync(Envelope envelope)
     {
-        return _persistence.StoreIncomingAsync(_tx, [envelope]);
+        return _database.StoreIncomingAsync(_tx, [envelope]);
     }
 
     public ValueTask RollbackAsync()

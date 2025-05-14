@@ -29,6 +29,7 @@ public class smoke_test_code_generation_of_endpoints_with_no_service_dependencie
         registry.AddTransient<IServiceVariableSource>(c => new ServiceCollectionServerVariableSource((ServiceContainer)c.GetRequiredService<IServiceContainer>()));
         registry.AddSingleton<IServiceCollection>(registry);
         registry.AddSingleton<IServiceContainer, ServiceContainer>();
+        registry.AddSingleton<IAssemblyGenerator, AssemblyGenerator>();
 
         var container = registry.BuildServiceProvider().GetRequiredService<IServiceContainer>();
 

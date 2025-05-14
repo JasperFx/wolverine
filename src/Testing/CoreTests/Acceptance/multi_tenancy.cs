@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using CoreTests.Configuration;
+using JasperFx.MultiTenancy;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Wolverine.Persistence;

@@ -1,4 +1,8 @@
+using System.Data.Common;
+using JasperFx;
 using JasperFx.Core.Reflection;
+using JasperFx.MultiTenancy;
+using JasperFx.Resources;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
@@ -44,14 +48,29 @@ public static class WolverineEntityCoreExtensions
     /// </summary>
     /// <param name="services"></param>
     /// <param name="dbContextConfiguration"></param>
+    /// <param name="autoCreate">Should this application try to create missing databases and apply missing migrations at application startup? Default is None, all other options will create the databases.</param>
     /// <typeparam name="T"></typeparam>
     /// <returns></returns>
     /// <exception cref="InvalidOperationException"></exception>
     public static IServiceCollection AddDbContextWithWolverineManagedMultiTenancy<T>(this IServiceCollection services,
-        Action<DbContextOptionsBuilder<T>, string> dbContextConfiguration) where T : DbContext
+        Action<DbContextOptionsBuilder<T>, ConnectionString, TenantId> dbContextConfiguration, AutoCreate autoCreate = AutoCreate.None) where T : DbContext
     {
+        services.TryAddSingleton<IDbContextOutboxFactory, DbContextOutboxFactory>();
+        
         // For code generation
-        services.TryAddSingleton<IWolverineExtension, EntityFrameworkCoreBackedPersistence<T>>();
+        services.AddSingleton<IWolverineExtension, EntityFrameworkCoreBackedPersistence<T>>();
+        
+        // STRICTLY FOR EF CORE MIGRATIONS!!!!
+        services.AddScoped<T>(s =>
+        {
+            return (T)s.GetRequiredService<IDbContextBuilder<T>>().BuildForMain();
+        });
+
+        services.AddSingleton<DbContextOptions<T>>(s =>
+        {
+            var builder = s.GetRequiredService<IDbContextBuilder<T>>();
+            return builder.BuildOptionsForMain();
+        });
         
         services.AddSingleton<IDbContextBuilder<T>>(s =>
         {
@@ -63,8 +82,15 @@ public static class WolverineEntityCoreExtensions
                     $"Configured multi-tenanted usage of {typeof(T).FullNameInCode()} requires multi-tenanted Wolverine database storage");
             }
 
-            return new TenantedDbContextBuilder<T>(s, tenanted, dbContextConfiguration);
+            return new TenantedDbContextBuilderByConnectionString<T>(s, tenanted, dbContextConfiguration);
         });
+
+        services.AddSingleton<IDbContextBuilder>(s => s.GetRequiredService<IDbContextBuilder<T>>());
+
+        if (autoCreate != AutoCreate.None)
+        {
+            services.AddSingleton<IResourceCreator, TenantedDbContextInitializer<T>>();
+        }
 
         // TODO -- need a multi-tenanted version of this
         // services.TryAddScoped(typeof(IDbContextOutbox<>), typeof(DbContextOutbox<>));
@@ -72,9 +98,66 @@ public static class WolverineEntityCoreExtensions
 
         return services;
     }
+    
+    /// <summary>
+    /// Register a DbContext type that should use the separately configured Wolverine managed multi-tenancy
+    /// for separate databases per tenant using DbDataSource. This option is necessary when using EF Core *with*
+    /// Marten managed Multi-Tenancy
+    /// </summary>
+    /// <param name="services"></param>
+    /// <param name="dbContextConfiguration"></param>
+    /// <param name="autoCreate">Should this application try to create missing databases and apply missing migrations at application startup? Default is None, all other options will create the databases.</param>
+    /// <typeparam name="T"></typeparam>
+    /// <returns></returns>
+    /// <exception cref="InvalidOperationException"></exception>
+    public static IServiceCollection AddDbContextWithWolverineManagedMultiTenancyByDbDataSource<T>(this IServiceCollection services,
+        Action<DbContextOptionsBuilder<T>, DbDataSource, TenantId> dbContextConfiguration, AutoCreate autoCreate = AutoCreate.None) where T : DbContext
+    {
+        services.TryAddSingleton<IDbContextOutboxFactory, DbContextOutboxFactory>();
+        
+        // For code generation
+        services.AddSingleton<IWolverineExtension, EntityFrameworkCoreBackedPersistence<T>>();
+        
+        // STRICTLY FOR EF CORE MIGRATIONS!!!!
+        services.AddScoped<T>(s =>
+        {
+            return (T)s.GetRequiredService<IDbContextBuilder<T>>().BuildForMain();
+        });
+
+        services.AddSingleton<DbContextOptions<T>>(s =>
+        {
+            var builder = s.GetRequiredService<IDbContextBuilder<T>>();
+            return builder.BuildOptionsForMain();
+        });
+        
+        services.AddSingleton<IDbContextBuilder<T>>(s =>
+        {
+            var store = s.GetRequiredService<IMessageStore>();
+            var tenanted = store as MultiTenantedMessageStore;
+            if (tenanted == null || tenanted.Main is not IMessageDatabase)
+            {
+                throw new InvalidOperationException(
+                    $"Configured multi-tenanted usage of {typeof(T).FullNameInCode()} requires multi-tenanted Wolverine database storage");
+            }
+
+            return new TenantedDbContextBuilderByDbDataSource<T>(s, tenanted, dbContextConfiguration);
+        });
+
+        services.AddSingleton<IDbContextBuilder>(s => s.GetRequiredService<IDbContextBuilder<T>>());
+
+        if (autoCreate != AutoCreate.None)
+        {
+            services.AddSingleton<IResourceCreator, TenantedDbContextInitializer<T>>();
+        }
+
+        return services;
+    }
+
 
     private static IServiceCollection addDbContextWithWolverineIntegration<T>(IServiceCollection services, Action<IServiceProvider, DbContextOptionsBuilder> configure, string? wolverineDatabaseSchema = null) where T : DbContext
     {
+        services.TryAddSingleton<IDbContextOutboxFactory, DbContextOutboxFactory>();
+        
         services.AddDbContext<T>((s, b) =>
         {
             configure(s, b);
@@ -98,6 +181,7 @@ public static class WolverineEntityCoreExtensions
     {
         try
         {
+            options.Services.TryAddSingleton<IDbContextOutboxFactory, DbContextOutboxFactory>();
             options.Services.AddScoped(typeof(IDbContextOutbox<>), typeof(DbContextOutbox<>));
             options.Services.AddScoped<IDbContextOutbox, DbContextOutbox>();
         }

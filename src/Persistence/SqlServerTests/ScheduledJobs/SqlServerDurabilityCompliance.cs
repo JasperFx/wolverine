@@ -81,7 +81,7 @@ public class SqlServerDurabilityCompliance : DurabilityComplianceContext<Trigger
             var tx = conn.BeginTransaction();
 
             // "context" is an IMessageContext object
-            await context.EnlistInOutboxAsync(new DatabaseEnvelopeTransaction(context, tx));
+            await context.EnlistInOutboxAsync(new DatabaseEnvelopeTransaction((IMessageDatabase)context.Storage, tx));
 
             await action(context);
 

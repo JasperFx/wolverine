@@ -14,7 +14,7 @@
     </ItemGroup>
 
     <ItemGroup>
-      <PackageReference Include="Weasel.Core" Version="8.0.0-beta-9" />
+      <PackageReference Include="Weasel.Core" Version="8.0.0-beta-10" />
     </ItemGroup>
 
     <Import Project="../../../Analysis.Build.props" />

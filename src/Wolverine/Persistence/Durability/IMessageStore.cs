@@ -1,5 +1,5 @@
 ﻿using JasperFx.Core.Descriptors;
-using Wolverine.Persistence.MultiTenancy;
+using JasperFx.MultiTenancy;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
 

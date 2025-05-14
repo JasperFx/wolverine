@@ -1,26 +1,32 @@
 using IntegrationTests;
-using JasperFx.Core.Reflection;
+using JasperFx;
 using JasperFx.Resources;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Npgsql;
+using SharedPersistenceModels.Items;
+using SharedPersistenceModels.Orders;
 using Shouldly;
 using Wolverine;
 using Wolverine.EntityFrameworkCore;
 using Wolverine.EntityFrameworkCore.Internals;
-using Wolverine.Persistence;
-using Wolverine.Persistence.MultiTenancy;
 using Wolverine.Postgresql;
+using Wolverine.RDBMS;
 using Wolverine.Runtime;
 using Wolverine.Tracking;
 
 namespace EfCoreTests.MultiTenancy;
 
-public class multi_tenancy_with_static_tenants_and_connection_strings_for_postgresql : MultiTenancyContext
+public class multi_tenancy_with_static_tenants_and_connection_strings_for_postgresql : MultiTenancyCompliance
 {
-    private IDbContextBuilder<ItemsDbContext> theBuilder;
+    
 
-    protected override void configureWolverine(WolverineOptions opts)
+    public multi_tenancy_with_static_tenants_and_connection_strings_for_postgresql() : base(DatabaseEngine.PostgreSQL)
+    {
+    }
+
+    public override void Configure(WolverineOptions opts)
     {
         opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, "static_multi_tenancy")
             .RegisterStaticTenants(tenants =>
@@ -29,56 +35,20 @@ public class multi_tenancy_with_static_tenants_and_connection_strings_for_postgr
                 tenants.Register("blue", tenant2ConnectionString);
                 tenants.Register("green", tenant3ConnectionString);
             });
-
-        opts.Services.AddDbContextWithWolverineManagedMultiTenancy<ItemsDbContext>((builder, connectionString) =>
-            builder.UseNpgsql(connectionString));
+        
+        // Little weird, but we have to remove this DbContext to use
+        // the lightweight saga persistence
+        opts.Services.RemoveAll(typeof(OrdersDbContext));
+        opts.AddSagaType<Order>();
+        
+        opts.Services.AddDbContextWithWolverineManagedMultiTenancy<ItemsDbContext>((builder, connectionString, _) =>
+        {
+            builder.UseNpgsql(connectionString.Value, b => b.MigrationsAssembly("MultiTenantedEfCoreWithPostgreSQL"));
+        }, AutoCreate.CreateOrUpdate);
 
         opts.Services.AddResourceSetupOnStartup();
     }
-
-    protected override Task onStartup()
-    {
-        theBuilder = theHost.Services.GetRequiredService<IDbContextBuilder<ItemsDbContext>>();
-
-        //await theBuilder.MigrateAllAsync();
-
-        return Task.CompletedTask;
-    }
-
-    [Fact]
-    public async Task can_build_a_db_context_at_all()
-    {
-        var messageContext = new MessageContext(theHost.GetRuntime());
-        messageContext.TenantId = "blue";
-
-        var dbContext = await theBuilder.BuildAndEnrollAsync(messageContext, CancellationToken.None);
-        dbContext.ShouldNotBeNull();
-
-    }
-
-    [Fact]
-    public async Task db_context_is_wolverine_enabled()
-    {
-        var messageContext = new MessageContext(theHost.GetRuntime());
-        messageContext.TenantId = "blue";
-
-        var dbContext = await theBuilder.BuildAndEnrollAsync(messageContext, CancellationToken.None);
-        dbContext.IsWolverineEnabled().ShouldBeTrue();
-    }
-
-    [Fact]
-    public async Task message_context_has_correct_envelope_transaction()
-    {
-        var messageContext = new MessageContext(theHost.GetRuntime());
-        messageContext.TenantId = "blue";
-
-        var dbContext = await theBuilder.BuildAndEnrollAsync(messageContext, CancellationToken.None);
-        
-        messageContext.Transaction.ShouldBeOfType<MappedEnvelopeTransaction>()
-            .DbContext.ShouldBe(dbContext);
-            
-    }
-
+    
     [Fact]
     public async Task opens_the_db_context_to_the_correct_database_1()
     {
@@ -89,7 +59,7 @@ public class multi_tenancy_with_static_tenants_and_connection_strings_for_postgr
         var builder = new NpgsqlConnectionStringBuilder(blue.Database.GetConnectionString());
         builder.Database.ShouldBe("db2");
     }
-    
+
     [Fact]
     public async Task opens_the_db_context_to_the_correct_database_2()
     {
@@ -100,7 +70,7 @@ public class multi_tenancy_with_static_tenants_and_connection_strings_for_postgr
         var builder = new NpgsqlConnectionStringBuilder(blue.Database.GetConnectionString());
         builder.Database.ShouldBe("db1");
     }
-    
+
     [Fact]
     public async Task opens_the_db_context_to_the_correct_database_3()
     {
@@ -111,51 +81,15 @@ public class multi_tenancy_with_static_tenants_and_connection_strings_for_postgr
         var builder = new NpgsqlConnectionStringBuilder(blue.Database.GetConnectionString());
         builder.Database.ShouldBe("db3");
     }
-    
-    // TODO -- go end to end baby!
 
     [Fact]
-    public async Task end_to_end_with_commands()
+    public async Task open_db_from_context_factory()
     {
-        var defaultId = Guid.NewGuid();
-        var blueId = Guid.NewGuid();
-        var redId = Guid.NewGuid();
-        var greenId = Guid.NewGuid();
+        var factory = theHost.Services.GetRequiredService<IDbContextOutboxFactory>();
 
-        await theHost.InvokeMessageAndWaitAsync(new StartNewItem(defaultId, "The Default!"));
-        await theHost.InvokeMessageAndWaitAsync(new StartNewItem(blueId, "Blue!"), "blue");
-        await theHost.InvokeMessageAndWaitAsync(new StartNewItem(redId, "Red!"), "red");
-        await theHost.InvokeMessageAndWaitAsync(new StartNewItem(greenId, "Green!"), "green");
-
-        var defaultDbContext = theBuilder.BuildForMain();
-        var blueDbContext = await theBuilder.BuildAsync("blue", CancellationToken.None);
-        var greenDbContext = await theBuilder.BuildAsync("green", CancellationToken.None);
-        var redDbContext = await theBuilder.BuildAsync("red", CancellationToken.None);
-        
-        (await defaultDbContext.FindAsync<Item>(defaultId)).Name.ShouldBe("The Default!");
-        
-        
-        (await blueDbContext.Items.FindAsync(blueId)).Name.ShouldBe("Blue!");
-        (await greenDbContext.Items.FindAsync(blueId)).ShouldBeNull();
-        (await redDbContext.Items.FindAsync(blueId)).ShouldBeNull();
-        
-        (await blueDbContext.Items.FindAsync(redId)).ShouldBeNull();
-        (await greenDbContext.Items.FindAsync(redId)).ShouldBeNull();
-        (await redDbContext.Items.FindAsync(redId)).Name.ShouldBe("Red!");
-        
-        (await blueDbContext.Items.FindAsync(greenId)).ShouldBeNull();
-        (await greenDbContext.Items.FindAsync(greenId)).Name.ShouldBe("Green!");
-        (await redDbContext.Items.FindAsync(greenId)).ShouldBeNull();
-        
+        var blueOutbox = await factory.CreateForTenantAsync<ItemsDbContext>("blue", CancellationToken.None);
+        var builder = new NpgsqlConnectionStringBuilder(blueOutbox.DbContext.Database.GetConnectionString());
+        builder.Database.ShouldBe("db2");
     }
-}
 
-public record StartNewItem(Guid Id, string Name);
-
-public static class StartNewItemHandler
-{
-    public static IStorageAction<Item> Handle(StartNewItem command)
-    {
-        return new Insert<Item>(new Item { Id = command.Id, Name = command.Name });
-    }
 }
