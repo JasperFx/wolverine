@@ -20,11 +20,13 @@ internal class FromQueryAttributeUsage : IParameterStrategy
         }
 
         if (parameter.ParameterType.IsSimple()) return false;
+        if (parameter.ParameterType.IsNullable() && parameter.ParameterType.GetInnerTypeFromNullable().IsSimple()) return false;
         if (parameter.ParameterType.IsTypeOrNullableOf<DateTime>()) return false;
         if (parameter.ParameterType.IsTypeOrNullableOf<DateTimeOffset>()) return false;
         if (parameter.ParameterType.IsTypeOrNullableOf<DateOnly>()) return false;
         if (parameter.ParameterType.IsTypeOrNullableOf<TimeOnly>()) return false;
         if (parameter.ParameterType.IsTypeOrNullableOf<TimeSpan>()) return false;
+        if (parameter.ParameterType.IsTypeOrNullableOf<Guid>()) return false;
         
         chain.RequestType = parameter.ParameterType;
         variable = new QueryStringBindingFrame(parameter.ParameterType, chain).Variable;
