@@ -482,19 +482,32 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
             return true;
         }
 
-        var matches = RoutePattern!.Parameters.Any(x => x.Name == parameter.Name);
-        if (matches)
+        var matchingRouteParameter = RoutePattern!.Parameters.FirstOrDefault(x => x.Name == parameter.Name);
+        if (matchingRouteParameter != null)
         {
+            var isOptional = matchingRouteParameter.IsOptional;
+            
             if (parameter.ParameterType == typeof(string))
             {
-                variable = new ReadHttpFrame(BindingSource.RouteValue, typeof(string), parameter.Name!).Variable;
+                variable = new ReadHttpFrame(BindingSource.RouteValue, typeof(string), parameter.Name!, isOptional).Variable;
                 _routeVariables.Add(variable);
                 return true;
+            }
+            
+            if (parameter.ParameterType.IsNullable())
+            {
+                var inner = parameter.ParameterType.GetInnerTypeFromNullable();
+                if (RouteParameterStrategy.CanParse(inner))
+                {
+                    variable = new ReadHttpFrame(BindingSource.RouteValue, parameter.ParameterType, parameter.Name, isOptional).Variable;
+                    _routeVariables.Add(variable);
+                    return true;
+                }
             }
 
             if (RouteParameterStrategy.CanParse(parameter.ParameterType))
             {
-                variable = new ReadHttpFrame(BindingSource.RouteValue, parameter.ParameterType, parameter.Name).Variable;
+                variable = new ReadHttpFrame(BindingSource.RouteValue, parameter.ParameterType, parameter.Name, isOptional).Variable;
                 _routeVariables.Add(variable);
                 return true;
             }

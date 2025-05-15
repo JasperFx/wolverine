@@ -24,11 +24,12 @@ internal class ReadHttpFrame : SyncFrame, IReadHttpFrame
 {
     private readonly BindingSource _source;
 
-    public ReadHttpFrame(BindingSource source, Type parameterType, string parameterName)
+    public ReadHttpFrame(BindingSource source, Type parameterType, string parameterName, bool isOptional = false)
     {
         _source = source;
         Variable = new HttpElementVariable(parameterType, parameterName!, this);
 
+        _isOptional = isOptional;
         _isNullable = parameterType.IsNullable();
         _rawType = _isNullable ? parameterType.GetInnerTypeFromNullable() : parameterType;
     }
@@ -60,7 +61,7 @@ internal class ReadHttpFrame : SyncFrame, IReadHttpFrame
                 return $"httpContext.Request.Query[\"{Key}\"]";
             
             case BindingSource.RouteValue:
-                return $"(string)httpContext.GetRouteValue(\"{Key}\")";
+                return $"(string?)httpContext.GetRouteValue(\"{Key}\")";
             
             default:
                 throw new ArgumentOutOfRangeException();
@@ -71,7 +72,7 @@ internal class ReadHttpFrame : SyncFrame, IReadHttpFrame
     private string tryParseExpression(string assignedExpression)
     {
         var typeName = _rawType.FullNameInCode();
-        var rawValue = rawValueSource();
+        var rawValue = $"{Variable.Usage}_rawValue";
 
         if (_rawType.IsEnum)
         {
@@ -83,7 +84,7 @@ internal class ReadHttpFrame : SyncFrame, IReadHttpFrame
             return $"{typeName}.TryParse({rawValue}, out {assignedExpression})";
         }
         
-        return $"{typeName}.TryParse({rawValue}, System.Globalization.CultureInfo.InvariantCulture, out {assignedExpression})";
+        return $"{rawValue} != null && {typeName}.TryParse({rawValue}, System.Globalization.CultureInfo.InvariantCulture, out {assignedExpression})";
     }
     
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
@@ -113,16 +114,22 @@ internal class ReadHttpFrame : SyncFrame, IReadHttpFrame
         if (_source == BindingSource.RouteValue)
         {
             var check = Mode == AssignMode.WriteToVariable ? Variable.Usage : _property;
-            writer.Write($"BLOCK:if({check} == null)");
-            writer.WriteLine(
-                $"httpContext.Response.{nameof(HttpResponse.StatusCode)} = 404;");
-            writer.WriteLine(method.ToExitStatement());
-            writer.FinishBlock();
+
+            if (!_isOptional)
+            {
+                writer.Write($"BLOCK:if({check} == null)");
+                writer.WriteLine(
+                    $"httpContext.Response.{nameof(HttpResponse.StatusCode)} = 404;");
+                writer.WriteLine(method.ToExitStatement());
+                writer.FinishBlock();
+            }
         }
     }
 
     private void writeParsedValue(ISourceWriter writer, GeneratedMethod method)
     {
+        writer.Write($"string {Variable.Usage}_rawValue = {rawValueSource()};");
+        
         if (Mode == AssignMode.WriteToVariable)
         {
             writer.Write($"{Variable.VariableType.FullNameInCode()} {Variable.Usage} = default;");
@@ -147,7 +154,15 @@ internal class ReadHttpFrame : SyncFrame, IReadHttpFrame
 
         if (_source == BindingSource.RouteValue)
         {
-            writer.WriteElse();
+            if (_isNullable || _isOptional)
+            {
+                writer.Write($"BLOCK:else if (!string.IsNullOrWhiteSpace({Variable.Usage}_rawValue))");
+            }
+            else
+            {
+                writer.WriteElse();
+            }
+
             writer.WriteLine(
                 $"httpContext.Response.{nameof(HttpResponse.StatusCode)} = 404;");
             writer.WriteLine(method.ToExitStatement());
@@ -157,6 +172,7 @@ internal class ReadHttpFrame : SyncFrame, IReadHttpFrame
 
 
     private string _property;
+    private readonly bool _isOptional;
     private readonly bool _isNullable;
     private readonly Type _rawType;
 
