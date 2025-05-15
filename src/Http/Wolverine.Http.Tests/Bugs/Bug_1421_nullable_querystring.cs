@@ -4,11 +4,11 @@ using Marten;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Mvc;
 using Shouldly;
+using Wolverine;
+using Wolverine.Http;
 using Wolverine.Marten;
 
-namespace Wolverine.Http.Tests.Bugs;
-
-public sealed class Bug_multiple_nullable_query_parameters
+public class Bug_1421_nullable_querystring
 {
     [Fact]
     public async Task does_support_multiple_nullable_query_parameters()
