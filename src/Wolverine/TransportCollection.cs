@@ -1,5 +1,6 @@
 using System.Collections;
 using JasperFx.Core;
+using JasperFx.Core.Reflection;
 using Wolverine.Configuration;
 using Wolverine.Transports;
 using Wolverine.Transports.Local;
@@ -60,7 +61,7 @@ public class TransportCollection : IEnumerable<ITransport>, IAsyncDisposable
 
     public ITransport? ForScheme(string scheme)
     {
-        return _transports.TryGetValue(scheme.ToLowerInvariant(), out var transport)
+        return _transports.TryGetValue(scheme, out var transport)
             ? transport
             : null;
     }
@@ -85,14 +86,13 @@ public class TransportCollection : IEnumerable<ITransport>, IAsyncDisposable
         }
         else
         {
-            var transport = _transports.Values.OfType<T>().FirstOrDefault(x => x.Protocol == name.Name);
-            if (transport == null)
+            if (!_transports.TryGetValue(name.Name, out var transport))
             {
                 transport = (T)Activator.CreateInstance(typeof(T), name.Name);
                 _transports[name.Name] = transport;
             }
 
-            return transport;
+            return transport.As<T>();
         }
         
     }

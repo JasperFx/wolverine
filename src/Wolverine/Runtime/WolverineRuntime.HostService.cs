@@ -235,6 +235,7 @@ public partial class WolverineRuntime
             {
                 // There are a couple other places where senders might be getting
                 // started before this point, so latch to avoid double creations
+                // TODO: this will not work for two brokers
                 if (_endpoints.HasSender(endpoint.Uri)) continue;
 
                 var agent = endpoint.StartSending(this, replyUri);

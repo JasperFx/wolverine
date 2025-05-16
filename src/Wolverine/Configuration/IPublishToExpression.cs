@@ -10,8 +10,9 @@ public interface IPublishToExpression
     /// </summary>
     /// <param name="uri"></param>
     /// <param name="address"></param>
+    /// <param name="brokerName"></param>
     /// <returns></returns>
-    ISubscriberConfiguration To(Uri uri);
+    ISubscriberConfiguration To(Uri uri, BrokerName? brokerName = null);
 
     /// <summary>
     ///     Send all the matching messages to the designated Uri string

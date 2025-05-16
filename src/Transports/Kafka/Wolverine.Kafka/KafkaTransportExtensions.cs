@@ -14,11 +14,11 @@ public static class KafkaTransportExtensions
     /// </summary>
     /// <param name="endpoints"></param>
     /// <returns></returns>
-    internal static KafkaTransport KafkaTransport(this WolverineOptions endpoints)
+    internal static KafkaTransport KafkaTransport(this WolverineOptions endpoints, BrokerName? name = null)
     {
         var transports = endpoints.As<WolverineOptions>().Transports;
 
-        return transports.GetOrCreate<KafkaTransport>();
+        return transports.GetOrCreate<KafkaTransport>(name);
     }
 
     /// <summary>
@@ -27,11 +27,11 @@ public static class KafkaTransportExtensions
     /// <param name="options"></param>
     /// <param name="configure"></param>
     /// <returns></returns>
-    public static KafkaTransportExpression UseKafka(this WolverineOptions options, string bootstrapServers)
+    public static KafkaTransportExpression UseKafka(this WolverineOptions options, string bootstrapServers, BrokerName? name = null)
     {
         // Automatic failure acks do not work with Kafka serialization failures
         options.EnableAutomaticFailureAcks = false;
-        var transport = options.KafkaTransport();
+        var transport = options.KafkaTransport(name);
         transport.ConsumerConfig.BootstrapServers = bootstrapServers;
         transport.ProducerConfig.BootstrapServers = bootstrapServers;
         transport.AdminClientConfig.BootstrapServers = bootstrapServers;
@@ -45,9 +45,9 @@ public static class KafkaTransportExtensions
     /// <param name="options"></param>
     /// <param name="configure"></param>
     /// <returns></returns>
-    public static KafkaTransportExpression ConfigureKafka(this WolverineOptions options, string bootstrapServers)
+    public static KafkaTransportExpression ConfigureKafka(this WolverineOptions options, string bootstrapServers, BrokerName? name = null)
     {
-        var transport = options.KafkaTransport();
+        var transport = options.KafkaTransport(name);
 
         return new KafkaTransportExpression(transport, options);
     }
@@ -60,9 +60,9 @@ public static class KafkaTransportExtensions
     /// <param name="configure">
     ///     Optional configuration for this Rabbit Mq queue if being initialized by Wolverine
     ///     <returns></returns>
-    public static KafkaListenerConfiguration ListenToKafkaTopic(this WolverineOptions endpoints, string topicName)
+    public static KafkaListenerConfiguration ListenToKafkaTopic(this WolverineOptions endpoints, string topicName, BrokerName? name = null)
     {
-        var transport = endpoints.KafkaTransport();
+        var transport = endpoints.KafkaTransport(name);
 
         var endpoint = transport.Topics[topicName];
         endpoint.EndpointName = topicName;
@@ -77,15 +77,15 @@ public static class KafkaTransportExtensions
     /// <param name="publishing"></param>
     /// <param name="topicName"></param>
     /// <returns></returns>
-    public static KafkaSubscriberConfiguration ToKafkaTopic(this IPublishToExpression publishing, string topicName)
+    public static KafkaSubscriberConfiguration ToKafkaTopic(this IPublishToExpression publishing, string topicName, BrokerName? name = null)
     {
         var transports = publishing.As<PublishingExpression>().Parent.Transports;
-        var transport = transports.GetOrCreate<KafkaTransport>();
+        var transport = transports.GetOrCreate<KafkaTransport>(name);
 
         var topic = transport.Topics[topicName];
 
         // This is necessary unfortunately to hook up the subscription rules
-        publishing.To(topic.Uri);
+        publishing.To(topic.Uri, name);
 
         return new KafkaSubscriberConfiguration(topic);
     }

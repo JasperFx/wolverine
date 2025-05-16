@@ -26,9 +26,17 @@ public class PublishingExpression : IPublishToExpression
     /// </summary>
     /// <param name="uri"></param>
     /// <returns></returns>
-    public ISubscriberConfiguration To(Uri uri)
+    public ISubscriberConfiguration To(Uri uri, BrokerName? brokerName = null)
     {
-        var endpoint = Parent.Transports.GetOrCreateEndpoint(uri);
+        Endpoint? endpoint = null;
+        if (brokerName is null)
+        {
+            endpoint = Parent.Transports.GetOrCreateEndpoint(uri);
+        }
+        else
+        {
+            endpoint = Parent.Transports.ForScheme(brokerName.Name)?.GetOrCreateEndpoint(uri) ?? throw new InvalidOperationException($"Broker with name '{brokerName}' not found");
+        }
 
         AddSubscriber(endpoint);
 
