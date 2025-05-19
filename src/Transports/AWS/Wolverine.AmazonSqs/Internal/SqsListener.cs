@@ -116,7 +116,7 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue
                     failedCount++;
                     var pauseTime = failedCount > 5 ? 1.Seconds() : (failedCount * 100).Milliseconds();
 
-                    logger.LogError(e, "Error while trying to retrieve messages from Azure Service Bus {Uri}",
+                    logger.LogError(e, "Error while trying to retrieve messages from SQS Queue {Uri}",
                         queue.Uri);
                     await Task.Delay(pauseTime);
                 }
