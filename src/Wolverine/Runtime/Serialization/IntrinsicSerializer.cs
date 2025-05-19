@@ -23,6 +23,7 @@ public class IntrinsicSerializer : IMessageSerializer
         }
 
         serializer = typeof(IntrinsicSerializer<>).CloseAndBuildAs<IMessageSerializer>(messageType);
+        _inner = _inner.AddOrUpdate(messageType, serializer);
         return serializer.Write(envelope);
     }
 
