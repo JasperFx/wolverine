@@ -1,6 +1,7 @@
 using Confluent.Kafka;
 using Confluent.Kafka.Admin;
 using Microsoft.Extensions.Logging;
+using System.Text;
 using Wolverine.Configuration;
 using Wolverine.Kafka.Internals;
 using Wolverine.Runtime;
@@ -70,10 +71,10 @@ public class KafkaTopic : Endpoint, IBrokerEndpoint
         try
         {
             using var client = Parent.CreateProducer(ProducerConfig);
-            await client.ProduceAsync(TopicName, new Message<string, string>
+            await client.ProduceAsync(TopicName, new Message<string, byte[]>
             {
                 Key = "ping",
-                Value = "ping"
+                Value = Encoding.Default.GetBytes("ping")
             });
 
 

@@ -12,10 +12,10 @@ public class KafkaTransport : BrokerTransport<KafkaTopic>
     public Cache<string, KafkaTopic> Topics { get; }
 
     public ProducerConfig ProducerConfig { get; } = new();
-    public Action<ProducerBuilder<string, string>> ConfigureProducerBuilders { get; internal set; } = _ => {};
+    public Action<ProducerBuilder<string, byte[]>> ConfigureProducerBuilders { get; internal set; } = _ => {};
 
     public ConsumerConfig ConsumerConfig { get; } = new();
-    public Action<ConsumerBuilder<string, string>> ConfigureConsumerBuilders { get; internal set; } = _ => {};
+    public Action<ConsumerBuilder<string, byte[]>> ConfigureConsumerBuilders { get; internal set; } = _ => {};
 
     public AdminClientConfig AdminClientConfig { get; } = new();
     public Action<AdminClientBuilder> ConfigureAdminClientBuilders { get; internal set; } = _ => {};
@@ -76,16 +76,16 @@ public class KafkaTransport : BrokerTransport<KafkaTopic>
         yield break;
     }
 
-    internal IProducer<string, string> CreateProducer(ProducerConfig? config)
+    internal IProducer<string, byte[]> CreateProducer(ProducerConfig? config)
     {
-        var producerBuilder = new ProducerBuilder<string, string>(config ?? ProducerConfig);
+        var producerBuilder = new ProducerBuilder<string, byte[]>(config ?? ProducerConfig);
         ConfigureProducerBuilders(producerBuilder);
         return producerBuilder.Build();
     }
 
-    internal IConsumer<string, string> CreateConsumer(ConsumerConfig? config)
+    internal IConsumer<string, byte[]> CreateConsumer(ConsumerConfig? config)
     {
-        var consumerBuilder = new ConsumerBuilder<string, string>(config ?? ConsumerConfig);
+        var consumerBuilder = new ConsumerBuilder<string, byte[]>(config ?? ConsumerConfig);
         ConfigureConsumerBuilders(consumerBuilder);
         return consumerBuilder.Build();
     }

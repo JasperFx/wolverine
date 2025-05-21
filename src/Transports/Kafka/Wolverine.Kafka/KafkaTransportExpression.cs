@@ -44,7 +44,7 @@ public class KafkaTransportExpression : BrokerExpression<KafkaTransport, KafkaTo
     /// </summary>
     /// <param name="configure"></param>
     /// <returns></returns>
-    public KafkaTransportExpression ConfigureProducerBuilders(Action<ProducerBuilder<string, string>> configure)
+    public KafkaTransportExpression ConfigureProducerBuilders(Action<ProducerBuilder<string, byte[]>> configure)
     {
         _transport.ConfigureProducerBuilders = configure;
         return this;
@@ -67,7 +67,7 @@ public class KafkaTransportExpression : BrokerExpression<KafkaTransport, KafkaTo
     /// </summary>
     /// <param name="configure"></param>
     /// <returns></returns>
-    public KafkaTransportExpression ConfigureConsumerBuilders(Action<ConsumerBuilder<string, string>> configure)
+    public KafkaTransportExpression ConfigureConsumerBuilders(Action<ConsumerBuilder<string, byte[]>> configure)
     {
         _transport.ConfigureConsumerBuilders = configure;
         return this;
