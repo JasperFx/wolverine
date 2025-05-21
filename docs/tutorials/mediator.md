@@ -9,7 +9,7 @@ the actual functionality of web services and applications from the mechanics of 
 a mediator tool allows you to keep MVC Core code ceremony out of your application business logic and service layer. It wasn't the original motivation of the project,
 but Wolverine can be used as a full-featured mediator tool.
 
-Before you run off and use ["Wolverine as MediatR"](./from-mediatr), we think you can arrive at lower ceremony and simpler code in most cases by using [WolverineFx.Http](/guide/http/)
+Before you run off and use [Wolverine for MediatR users](/introduction/from-mediatr), we think you can arrive at lower ceremony and simpler code in most cases by using [WolverineFx.Http](/guide/http/)
 for your web services. If you really just like the approach of separating message handlers underneath ASP.Net Minimal API, there is also a set
 of helpers to more efficiently pipe Minimal API routes to Wolverine message handlers that are a bit more performance optimized than the typical
 usage of pulling `IMessageBus` out of the IoC container on every request. See [Optimized Minimal API Integration](/guide/http/mediator.html#optimized-minimal-api-integration) for more information.

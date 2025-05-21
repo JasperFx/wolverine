@@ -1,4 +1,4 @@
-# MediatR to Wolverine
+# Wolverine for MediatR Users
 
 [MediatR](https://github.com/jbogard/MediatR) is an extraordinarily successful OSS project in the .NET ecosystem, but it's
 a very limited tool and the Wolverine team frequently fields questions from folks converting to Wolverine from MediatR.
