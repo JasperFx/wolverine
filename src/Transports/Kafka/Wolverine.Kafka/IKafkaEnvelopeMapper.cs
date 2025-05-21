@@ -6,7 +6,7 @@ using Wolverine.Util;
 
 namespace Wolverine.Kafka;
 
-public interface IKafkaEnvelopeMapper : IEnvelopeMapper<Message<string, string>, Message<string, string>>;
+public interface IKafkaEnvelopeMapper : IEnvelopeMapper<Message<string, byte[]>, Message<string, byte[]>>;
 
 /// <summary>
 /// Option to publish or receive raw JSON from or to Kafka topics
@@ -23,17 +23,17 @@ internal class JsonOnlyMapper : IKafkaEnvelopeMapper
         _messageTypeName = topic.MessageType?.ToMessageTypeName();
     }
 
-    public void MapEnvelopeToOutgoing(Envelope envelope, Message<string, string> outgoing)
+    public void MapEnvelopeToOutgoing(Envelope envelope, Message<string, byte[]> outgoing)
     {
         outgoing.Key = envelope.GroupId;
 
         if (envelope.Data != null && envelope.Data.Any())
         {
-            outgoing.Value = Encoding.Default.GetString(envelope.Data);
+            outgoing.Value = envelope.Data;
         }
         else if (envelope.Message != null)
         {
-            outgoing.Value = JsonSerializer.Serialize(envelope.Message, _options);
+            outgoing.Value = Encoding.Default.GetBytes(JsonSerializer.Serialize(envelope.Message, _options));
         }
         else
         {
@@ -42,9 +42,9 @@ internal class JsonOnlyMapper : IKafkaEnvelopeMapper
         }
     }
 
-    public void MapIncomingToEnvelope(Envelope envelope, Message<string, string> incoming)
+    public void MapIncomingToEnvelope(Envelope envelope, Message<string, byte[]> incoming)
     {
-        envelope.Data = Encoding.Default.GetBytes(incoming.Value);
+        envelope.Data = incoming.Value;
         envelope.MessageType = _messageTypeName;
     }
 
