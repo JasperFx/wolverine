@@ -7,7 +7,7 @@ namespace Wolverine.Kafka;
 public class KafkaSenderProtocol : ISenderProtocol, IDisposable
 {
     private readonly KafkaTopic _topic;
-    private readonly IProducer<string,string> _producer;
+    private readonly IProducer<string, byte[]> _producer;
 
     public KafkaSenderProtocol(KafkaTopic topic)
     {
