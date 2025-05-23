@@ -33,9 +33,6 @@ public class Program
         builder.Services.AddWolverineHttp();
         builder.Services.AddResourceSetupOnStartup();
 
-// TODO -- WTH is this required?
-        builder.Services.AddJasperFx();
-
         var app = builder.Build();
 
         app.MapWolverineEndpoints(opts =>

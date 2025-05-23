@@ -44,10 +44,10 @@ public class CodegenUsage
                 {
                     opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Static;
 
-                    opts.Services.AddJasperFx(j =>
+                    opts.Services.CritterStackDefaults(cr =>
                     {
                         // I'm only going to care about this in production
-                        j.Production.AssertAllPreGeneratedTypesExist = true;
+                        cr.Production.AssertAllPreGeneratedTypesExist = true;
                     });
                 }
             });
