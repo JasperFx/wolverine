@@ -14,6 +14,7 @@ internal class PulsarListener : IListener
     private readonly Task? _receivingLoop;
     private readonly PulsarSender? _sender;
     private readonly bool _enableRequeue;
+    private readonly bool _unsubscribeOnClose;
 
     public PulsarListener(IWolverineRuntime runtime, PulsarEndpoint endpoint, IReceiver receiver,
         PulsarTransport transport,
@@ -34,6 +35,8 @@ internal class PulsarListener : IListener
         {
             _sender = new PulsarSender(runtime, endpoint, transport, _cancellation);
         }
+
+        _unsubscribeOnClose = endpoint.UnsubscribeOnClose;
 
         var mapper = endpoint.BuildMapper(runtime);
 
@@ -111,7 +114,11 @@ internal class PulsarListener : IListener
             return;
         }
 
-        await _consumer.Unsubscribe(_cancellation);
+        if (_unsubscribeOnClose)
+        {
+            await _consumer.Unsubscribe(_cancellation);
+        }
+
         await _consumer.RedeliverUnacknowledgedMessages(_cancellation);
     }
 

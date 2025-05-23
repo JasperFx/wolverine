@@ -111,6 +111,53 @@ public class from_query_binding : IntegrationContext
         var query = result.ReadAsJson<BigQuery>();
         query.Values.ShouldBe(["one", "two", "three"]);
     }
+
+     [Fact]
+    public async Task string_list_as_property()
+    {
+        var result = await Scenario(x =>
+        {
+            x.Get
+                .Url("/api/bigquery")
+                .QueryString("listValues", "one")
+                .QueryString("listValues", "two")
+                .QueryString("listValues", "three");
+        });
+    
+        var query = result.ReadAsJson<BigQuery>();
+        query.ListValues.ShouldBe(["one", "two", "three"]);
+    }
+
+    [Fact]
+    public async Task enum_list_as_property()
+    {
+        var result = await Scenario(x =>
+        {
+            x.Get
+                .Url("/api/bigquery")
+                .QueryString("EnumListValues", "North")
+                .QueryString("EnumListValues", "south");
+        });
+    
+        var query = result.ReadAsJson<BigQuery>();
+        query.EnumListValues.ShouldBe([Direction.North, Direction.South]);
+    }
+
+     [Fact]
+    public async Task int_list_as_property()
+    {
+        var result = await Scenario(x =>
+        {
+            x.Get
+                .Url("/api/bigquery")
+                .QueryString("IntList", "-1")
+                .QueryString("IntList", "42");
+        });
+    
+        var query = result.ReadAsJson<BigQuery>();
+        query.IntList.ShouldBe([-1,42]);
+    }
+    
     
     [Fact]
     public async Task int_array_as_property()

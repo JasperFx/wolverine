@@ -77,13 +77,14 @@ And the corresponding test case for utilizing this:
 ```cs
 var result = await Host.Scenario(x => x
     .Post
-    .FormData(new Dictionary<string,string>(){
-        {"EnumFromForm", "east"},
-        {"StringFromForm", "string2"},
-        {"IntegerFromForm", "2"},
-        {"FloatFromForm", "2.2"},
-        {"BooleanFromForm", "true"}, 
-        {"StringNotUsed", "string3"},
+    .FormData(new Dictionary<string, string>
+    {
+        { "EnumFromForm", "east" },
+        { "StringFromForm", "string2" },
+        { "IntegerFromForm", "2" },
+        { "FloatFromForm", "2.2" },
+        { "BooleanFromForm", "true" },
+        { "StringNotUsed", "string3" }
     }).QueryString("EnumFromQuery", "west")
     .QueryString("StringFromQuery", "string1")
     .QueryString("IntegerFromQuery", "1")
@@ -109,7 +110,7 @@ response.IntegerNotUsed.ShouldBe(default);
 response.FloatNotUsed.ShouldBe(default);
 response.BooleanNotUsed.ShouldBe(default);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/asparameters_binding.cs#L27-L61' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_asparameters_test' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/asparameters_binding.cs#L24-L61' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_asparameters_test' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Wolverine.HTTP is also able to support `[FromServices]`, `[FromBody]`, and `[FromRoute]` bindings as well
@@ -157,4 +158,20 @@ public static class AsParametersEndpoints2{
 And lastly, you can use C# records or really just any constructor function as well
 and decorate parameters like so:
 
-snippet: sample_as_parameter_record
+<!-- snippet: sample_as_parameter_record -->
+<a id='snippet-sample_as_parameter_record'></a>
+```cs
+public record AsParameterRecord(
+    [FromRoute] string Id,
+    [FromQuery] int Number,
+    [FromHeader(Name = "x-direction")] Direction Direction,
+    [FromForm(Name = "test")] bool IsTrue);
+
+public static class AsParameterRecordEndpoint
+{
+    [WolverinePost("/asparameterrecord/{Id}")]
+    public static AsParameterRecord Post([AsParameters] AsParameterRecord input) => input;
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/FormEndpoints.cs#L183-L197' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_as_parameter_record' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->

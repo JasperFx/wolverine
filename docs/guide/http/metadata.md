@@ -60,7 +60,7 @@ public static void Configure(HttpChain chain)
 
 ## Swashbuckle and Wolverine
 
-[Swashbuckle](https://github.com/domaindrivendev/Swashbuckle.AspNetCore) is de facto the default OpenAPI tooling and it is added in by the default `dotnet new` templates for ASP.Net Core
+[Swashbuckle](https://github.com/domaindrivendev/Swashbuckle.AspNetCore) is de facto the OpenAPI tooling for ASP.Net Core
 applications. It's also very MVC Core-centric in its assumptions about how to generate OpenAPI metadata to describe endpoints.
 If you need to (or just want to), you can do quite a bit to control exactly how Swashbuckle works against
 Wolverine endpoints by using a custom `IOperationFilter` of your making that can use Wolverine's own `HttpChain` model
@@ -97,7 +97,7 @@ builder.Services.AddSwaggerGen(x =>
     x.OperationFilter<WolverineOperationFilter>();
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L43-L50' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_register_custom_swashbuckle_filter' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L47-L54' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_register_custom_swashbuckle_filter' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Operation Id

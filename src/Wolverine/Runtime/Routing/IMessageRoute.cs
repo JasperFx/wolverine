@@ -1,5 +1,4 @@
 using JasperFx.Core.Reflection;
-using Wolverine.Configuration;
 using Wolverine.Transports.Sending;
 
 namespace Wolverine.Runtime.Routing;
@@ -50,55 +49,5 @@ internal class TransformedMessageRoute<TSource, TDestination> : IMessageRoute
     public override string ToString()
     {
         return "Forward message as " + typeof(TDestination).FullNameInCode();
-    }
-}
-
-public class TopicRouting<T> : IMessageRouteSource, IMessageRoute
-{
-    private readonly Func<T, string> _topicSource;
-    private readonly Endpoint _topicEndpoint;
-    private IMessageRoute? _route;
-
-    public TopicRouting(Func<T, string> topicSource, Endpoint topicEndpoint)
-    {
-        _topicSource = topicSource;
-        _topicEndpoint = topicEndpoint;
-    }
-
-    public IEnumerable<IMessageRoute> FindRoutes(Type messageType, IWolverineRuntime runtime)
-    {
-        if (messageType.CanBeCastTo<T>())
-        {
-            yield return this;
-        }
-    }
-
-    public bool IsAdditive => true;
-
-    public Envelope CreateForSending(object message, DeliveryOptions? options, ISendingAgent localDurableQueue,
-        WolverineRuntime runtime, string? topicName)
-    {
-        if (message is T typedMessage)
-        {
-            _route ??= _topicEndpoint.RouteFor(typeof(T), runtime);
-            topicName ??= _topicSource(typedMessage);
-            var envelope = _route.CreateForSending(message, options, localDurableQueue, runtime, topicName);
-
-            // This is an unfortunate timing of operation issue.
-            if (envelope is { Message: Envelope scheduled, Status: EnvelopeStatus.Scheduled })
-            {
-                scheduled.TopicName = envelope.TopicName;
-            }
-
-            return envelope;
-        }
-
-        throw new InvalidOperationException(
-            $"The message of type {message.GetType().FullNameInCode()} cannot be routed as a message of type {typeof(T).FullNameInCode()}");
-    }
-
-    public override string ToString()
-    {
-        return $"Topic routing to {_topicEndpoint.Uri}";
     }
 }

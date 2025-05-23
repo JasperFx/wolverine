@@ -25,30 +25,37 @@ internal class ParsedCollectionFormValue : SyncFrame, IReadHttpFrame
         var collectionAlias = typeof(List<>).MakeGenericType(_collectionElementType).FullNameInCode();
         var elementAlias = _collectionElementType.FullNameInCode();
 
-        writer.Write($"var {Variable.Usage} = new {collectionAlias}();");
-
-        if (_collectionElementType == typeof(string))
+        if (Mode == AssignMode.WriteToVariable)
         {
-            writer.Write($"{Variable.Usage}.AddRange(httpContext.Request.Form[\"{Variable.Usage}\"]);");
+            writer.Write($"var {Variable.Usage} = new {collectionAlias}();");
         }
         else
         {
-            writer.Write($"BLOCK:foreach (var {Variable.Usage}Value in httpContext.Request.Form[\"{Variable.Usage}\"])");
+            writer.Write($"{Variable.Usage} = new {collectionAlias}();");
+        }
+
+        if (_collectionElementType == typeof(string))
+        {
+            writer.Write($"{Variable.Usage}.AddRange(httpContext.Request.Form[\"{Variable.Name}\"]);");
+        }
+        else
+        {
+            writer.Write($"BLOCK:foreach (var {Variable.Name}Value in httpContext.Request.Form[\"{Variable.Name}\"])");
 
             if (_collectionElementType.IsEnum)
             {
-                writer.Write($"BLOCK:if ({elementAlias}.TryParse<{elementAlias}>({Variable.Usage}Value, out var {Variable.Usage}ValueParsed))");
+                writer.Write($"BLOCK:if ({elementAlias}.TryParse<{elementAlias}>({Variable.Name}Value, true, out var {Variable.Name}ValueParsed))");
             }
             else if (_collectionElementType.IsBoolean())
             {
-                writer.Write($"BLOCK:if ({elementAlias}.TryParse({Variable.Usage}Value, out var {Variable.Usage}ValueParsed))");
+                writer.Write($"BLOCK:if ({elementAlias}.TryParse({Variable.Name}Value, out var {Variable.Name}ValueParsed))");
             }
             else
             {
-                writer.Write($"BLOCK:if ({elementAlias}.TryParse({Variable.Usage}Value, System.Globalization.CultureInfo.InvariantCulture, out var {Variable.Usage}ValueParsed))");
+                writer.Write($"BLOCK:if ({elementAlias}.TryParse({Variable.Name}Value, System.Globalization.CultureInfo.InvariantCulture, out var {Variable.Name}ValueParsed))");
             }
 
-            writer.Write($"{Variable.Usage}.Add({Variable.Usage}ValueParsed);");
+            writer.Write($"{Variable.Usage}.Add({Variable.Name}ValueParsed);");
             writer.FinishBlock(); // parsing block
 
             writer.FinishBlock(); // foreach blobck
