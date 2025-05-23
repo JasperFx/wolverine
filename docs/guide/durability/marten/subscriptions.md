@@ -69,7 +69,7 @@ using var host = await Host.CreateDefaultBuilder()
             });
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MartenSubscriptionSamples.cs#L20-L57' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_publish_events_to_wolverine_subscribers' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MartenSubscriptionSamples.cs#L19-L56' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_publish_events_to_wolverine_subscribers' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: tip
@@ -112,7 +112,9 @@ public static class InternalOrderCreatedHandler
 {
     public static Task<Customer?> LoadAsync(IEvent<OrderCreated> e, IQuerySession session,
         CancellationToken cancellationToken)
-        => session.LoadAsync<Customer>(e.Data.CustomerId, cancellationToken);
+    {
+        return session.LoadAsync<Customer>(e.Data.CustomerId, cancellationToken);
+    }
 
     public static OrderCreatedIntegrationEvent Handle(IEvent<OrderCreated> e, Customer customer)
     {
@@ -120,7 +122,7 @@ public static class InternalOrderCreatedHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MartenSubscriptionSamples.cs#L175-L200' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_transforming_event_to_external_integration_events' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MartenSubscriptionSamples.cs#L170-L197' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_transforming_event_to_external_integration_events' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Process Events as Messages in Strict Order
@@ -167,7 +169,7 @@ using var host = await Host.CreateDefaultBuilder()
             });
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MartenSubscriptionSamples.cs#L62-L101' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_inline_invocation_of_wolverine_messages_for_marten_subscription' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MartenSubscriptionSamples.cs#L61-L100' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_inline_invocation_of_wolverine_messages_for_marten_subscription' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In this recipe, Marten & Wolverine are working together to call `IMessageBus.InvokeAsync()` on each event in order. You can
@@ -203,7 +205,7 @@ publish batches of reference data about customers being activated or deactivated
 ```cs
 public record CompanyActivated(string Name);
 
-public record CompanyDeactivated();
+public record CompanyDeactivated;
 
 public record NewCompany(Guid Id, string Name);
 
@@ -239,7 +241,8 @@ public class CompanyTransferSubscription : BatchSubscription
         IncludeType<CompanyDeactivated>();
     }
 
-    public override async Task ProcessEventsAsync(EventRange page, ISubscriptionController controller, IDocumentOperations operations,
+    public override async Task ProcessEventsAsync(EventRange page, ISubscriptionController controller,
+        IDocumentOperations operations,
         IMessageBus bus, CancellationToken cancellationToken)
     {
         var activations = new CompanyActivations();
@@ -266,7 +269,7 @@ public class CompanyTransferSubscription : BatchSubscription
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MartenSubscriptionSamples.cs#L203-L270' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_companytransfersubscriptions' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MartenSubscriptionSamples.cs#L199-L267' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_companytransfersubscriptions' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And the related code to register this subscription:
@@ -290,7 +293,6 @@ using var host = await Host.CreateDefaultBuilder()
             // Just pulling the connection information from
             // the IoC container at runtime.
             .UseNpgsqlDataSource()
-
             .IntegrateWithWolverine()
 
             // The Marten async daemon most be active
@@ -300,7 +302,7 @@ using var host = await Host.CreateDefaultBuilder()
             .SubscribeToEvents(new CompanyTransferSubscription());
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MartenSubscriptionSamples.cs#L106-L135' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_registering_a_batched_subscription' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MartenSubscriptionSamples.cs#L105-L132' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_registering_a_batched_subscription' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Using IoC Services in Subscriptions
@@ -327,7 +329,6 @@ using var host = await Host.CreateDefaultBuilder()
             // Just pulling the connection information from
             // the IoC container at runtime.
             .UseNpgsqlDataSource()
-
             .IntegrateWithWolverine()
 
             // The Marten async daemon most be active
@@ -337,10 +338,9 @@ using var host = await Host.CreateDefaultBuilder()
             // With this alternative you can inject services into your subscription's constructor
             // function
             .SubscribeToEventsWithServices<CompanyTransferSubscription>(ServiceLifetime.Scoped);
-
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MartenSubscriptionSamples.cs#L140-L171' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_registering_a_batched_subscription_with_services' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MartenSubscriptionSamples.cs#L137-L166' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_registering_a_batched_subscription_with_services' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 See the [Marten documentation on subscriptions](/guide/durability/marten/subscriptions.html#using-ioc-services-in-subscriptions) for more information about the lifecycle and mechanics.

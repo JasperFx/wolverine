@@ -440,6 +440,52 @@ exceptions thrown by your message handlers during a call to `InvokeAsync()` by s
 or `TryAgain` to a custom action. Here's a sample that uses a `CompensatingAction()` helper method for raising other messages
 on failures:
 
-snippet: sample_using_custom_actions_for_inline_processing
+<!-- snippet: sample_using_custom_actions_for_inline_processing -->
+<a id='snippet-sample_using_custom_actions_for_inline_processing'></a>
+```cs
+public record ApproveInvoice(string InvoiceId);
+public record RequireIntervention(string InvoiceId);
+
+public static class InvoiceHandler
+{
+    public static void Configure(HandlerChain chain)
+    {
+        chain.OnAnyException().RetryTimes(3)
+            .Then
+            .CompensatingAction<ApproveInvoice>((message, ex, bus) => bus.PublishAsync(new RequireIntervention(message.InvoiceId)), 
+                
+                // By specifying a value here for InvokeResult, I'm making
+                // this action apply to failures inside of IMessageBus.InvokeAsync()
+                InvokeResult.Stop);
+            
+        // This is just a long hand way of doing the same thing as CompensatingAction
+        // .CustomAction(async (runtime, lifecycle, _) =>
+        // {
+        //     if (lifecycle.Envelope.Message is ApproveInvoice message)
+        //     {
+        //         var bus = new MessageBus(runtime);
+        //         await bus.PublishAsync(new RequireIntervention(message.InvoiceId));
+        //     }
+        //
+        // }, "Send a compensating action", InvokeResult.Stop);
+    }
+    
+    public static int SucceedOnAttempt = 0;
+    
+    public static void Handle(ApproveInvoice invoice, Envelope envelope)
+    {
+        if (envelope.Attempts >= SucceedOnAttempt) return;
+
+        throw new Exception();
+    }
+
+    public static void Handle(RequireIntervention message)
+    {
+        Debug.WriteLine($"Got: {message}");
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/ErrorHandling/custom_action_for_inline_messages.cs#L48-L92' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_custom_actions_for_inline_processing' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 Note that custom actions would *always* be applied to exceptions thrown in asynchronous message handling. 
