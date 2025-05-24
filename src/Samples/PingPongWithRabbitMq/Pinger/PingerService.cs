@@ -9,38 +9,37 @@ public class PingerService : IHostedService
 {
     // IMessagePublisher is an interface you can use
     // strictly to publish messages through Wolverine
-    private readonly IMessageBus _bus;
+    private readonly IServiceProvider _serviceProvider;
 
-    public PingerService(IMessageBus bus)
+    public PingerService(IServiceProvider serviceProvider)
     {
-        _bus = bus;
+        _serviceProvider = serviceProvider;
     }
 
-    public Task StartAsync(CancellationToken cancellationToken)
+    public async Task StartAsync(CancellationToken cancellationToken)
     {
-        return Task.Run(async () =>
+        var count = 0;
+
+        await using var scope= _serviceProvider.CreateAsyncScope();
+        var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
+        while (!cancellationToken.IsCancellationRequested)
         {
-            var count = 0;
-
-            while (!cancellationToken.IsCancellationRequested)
+            try
             {
-                try
+                var message = new PingMessage
                 {
-                    var message = new PingMessage
-                    {
-                        Number = ++count
-                    };
+                    Number = ++count
+                };
 
-                    await _bus.SendAsync(message);
+                await bus.SendAsync(message);
 
-                    await Task.Delay(1.Seconds(), cancellationToken);
-                }
-                catch (TaskCanceledException)
-                {
-                    return;
-                }
+                await Task.Delay(1.Seconds(), cancellationToken);
             }
-        }, cancellationToken);
+            catch (TaskCanceledException)
+            {
+                return;
+            }
+        }
     }
 
     public Task StopAsync(CancellationToken cancellationToken)

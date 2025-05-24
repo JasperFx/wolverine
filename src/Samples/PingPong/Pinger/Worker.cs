@@ -8,23 +8,25 @@ namespace Pinger;
 public class Worker : BackgroundService
 {
     private readonly ILogger<Worker> _logger;
-    private readonly IMessageBus _bus;
+    private readonly IServiceProvider _serviceProvider;
 
-    public Worker(ILogger<Worker> logger, IMessageBus bus)
+    public Worker(ILogger<Worker> logger, IServiceProvider serviceProvider)
     {
         _logger = logger;
-        _bus = bus;
+        _serviceProvider = serviceProvider;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         var pingNumber = 1;
 
+        await using var scope= _serviceProvider.CreateAsyncScope();
+        var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
         while (!stoppingToken.IsCancellationRequested)
         {
             await Task.Delay(1000, stoppingToken);
             _logger.LogInformation("Sending Ping #{Number}", pingNumber);
-            await _bus.PublishAsync(new Ping { Number = pingNumber });
+            await bus.PublishAsync(new Ping { Number = pingNumber });
             pingNumber++;
         }
     }
