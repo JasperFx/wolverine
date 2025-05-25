@@ -34,10 +34,9 @@ internal class CircuitWatcher : IDisposable
 
     private async Task pingUntilConnectedAsync()
     {
-        while (!_cancellation.IsCancellationRequested)
+        using var timer=new PeriodicTimer(_senderCircuit.RetryInterval);
+        while (await timer.WaitForNextTickAsync(_cancellation))
         {
-            await Task.Delay(_senderCircuit.RetryInterval, _cancellation);
-
             try
             {
                 var pinged = await _senderCircuit.TryToResumeAsync(_cancellation);
