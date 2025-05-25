@@ -54,18 +54,18 @@ internal class RabbitMqSender : RabbitMqChannelAgent, ISender
 
     public async ValueTask SendAsync(Envelope envelope)
     {
-        await EnsureConnected();
+        await EnsureInitiated();
         if (Channel == null)
         {
             throw new InvalidOperationException("Channel has not been started for this sender");
         }
 
-        await _endpoint.InitializeAsync(Logger);
-
         if (State == AgentState.Disconnected)
         {
             throw new InvalidOperationException($"The RabbitMQ agent for {Destination} is disconnected");
         }
+
+        await _endpoint.InitializeAsync(Logger);
 
         var props = new BasicProperties
         {
@@ -83,33 +83,21 @@ internal class RabbitMqSender : RabbitMqChannelAgent, ISender
     {
         return $"RabbitMqSender: {Destination}";
     }
-    
+
     public async Task<bool> PingAsync()
     {
-        await Locker.WaitAsync();
-
-        try
+        if (State == AgentState.Connected)
         {
-            if (State == AgentState.Connected)
-            {
-                return true;
-            }
-
-            await startNewChannel();
-
-            if (Channel!.IsOpen)
-            {
-                return true;
-            }
-
-            await teardownChannel();
-            return false;
+            return true;
         }
-        finally
+
+        await EnsureInitiated();
+
+        if (State == AgentState.Connected)
         {
-            Locker.Release();
+            return true;
         }
-      
 
+        return false;
     }
 }

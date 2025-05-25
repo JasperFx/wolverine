@@ -36,7 +36,7 @@ internal class WorkerQueueMessageConsumer : AsyncDefaultBasicConsumer, IDisposab
         string routingKey, IReadOnlyBasicProperties properties, ReadOnlyMemory<byte> body,
         CancellationToken cancellationToken = new())
     {
-        if (_latched || _cancellation.IsCancellationRequested)
+        if (_latched || _cancellation.IsCancellationRequested || !_listener.IsConnected)
         {
             await _listener.Channel!.BasicRejectAsync(deliveryTag, true, _cancellation);
             return;
