@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using IntegrationTests;
 using JasperFx.Core;
 using Marten;
@@ -39,10 +40,11 @@ public class send_by_topics : IDisposable
                     exchange.BindTopic("special").ToQueue("green");
                 });
 
-                opts.Discovery.DisableConventionalDiscovery();
+                opts.Discovery.DisableConventionalDiscovery()
+                    .IncludeType<TriggerTopicMessageHandler>();
 
                 opts.ServiceName = "TheSender";
-
+  
                 opts.PublishMessagesToRabbitMqExchange<RoutedMessage>("wolverine.topics", m => m.TopicName);
             }).Start();
 
@@ -199,6 +201,7 @@ public class send_by_topics : IDisposable
     {
         var session = await theSender
             .TrackActivity()
+            .Timeout(30.Seconds())
             .IncludeExternalTransports()
             .WaitForMessageToBeReceivedAt<FirstMessage>(theBlueReceiver)
             .AlsoTrack(theGreenReceiver, theBlueReceiver, theThirdReceiver)
@@ -456,6 +459,14 @@ public class RoutedResponse
 
 public class TriggerTopicMessage;
 
+public class TriggerTopicMessageHandler
+{
+    public static object Handle(TriggerTopicMessage message)
+    {
+        return new FirstMessage().ToTopic("color.blue", new DeliveryOptions { ScheduleDelay = 1.Seconds() });
+    }
+}
+
 public class MessagesHandler
 {
     public static RoutedResponse Handle(RoutedMessage message)
@@ -463,13 +474,11 @@ public class MessagesHandler
         return new RoutedResponse { Id = message.Id };
     }
 
-    public object Handle(TriggerTopicMessage message)
-    {
-        return new FirstMessage().ToTopic("color.blue", new DeliveryOptions { ScheduleDelay = 3.Seconds() });
-    }
+
 
     public void Handle(FirstMessage message)
     {
+        Debug.WriteLine("Got " + message);
     }
 
     public void Handle(SecondMessage message)
