@@ -29,9 +29,6 @@ public static class MultiTenantMessageHandler
 
 public class MultiTenantedAzureServiceBusFixture : IAsyncLifetime
 {
-    public const string Tenant1ConnectionString = "REPLACE ME";
-    public const string Tenant2ConnectionString = "REPLACE ME";
-    public const string Tenant3ConnectionString = "REPLACE ME";
     
     public async Task InitializeAsync()
     {
