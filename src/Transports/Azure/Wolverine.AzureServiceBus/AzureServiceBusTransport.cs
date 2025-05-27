@@ -23,7 +23,12 @@ public partial class AzureServiceBusTransport : BrokerTransport<AzureServiceBusE
     public readonly List<AzureServiceBusSubscription> Subscriptions = new();
     public const string DeadLetterQueueName = "wolverine-dead-letter-queue";
 
-    public AzureServiceBusTransport() : base(ProtocolName, "Azure Service Bus")
+    public AzureServiceBusTransport() : this(ProtocolName)
+    {
+
+    }
+
+    internal AzureServiceBusTransport(string protocolName) : base(protocolName, "Azure Service Bus")
     {
         Queues = new(name => new AzureServiceBusQueue(this, name));
         Topics = new(name => new AzureServiceBusTopic(this, name));
@@ -39,8 +44,8 @@ public partial class AzureServiceBusTransport : BrokerTransport<AzureServiceBusE
     {
         return identifier.ToLowerInvariant();
     }
-    
-    internal LightweightCache<string, AzureServiceBusTenant> Tenants { get; } = new();
+
+    internal LightweightCache<string, AzureServiceBusTenant> Tenants { get; } = new(key => new AzureServiceBusTenant(key));
 
     /// <summary>
     /// Is this transport connection allowed to build and use response, retry, and control queues
