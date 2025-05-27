@@ -137,7 +137,7 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
         
         bus.Runtime.RegisterMessageType(typeof(T));
 
-        timeout ??= 50.Seconds();
+        timeout ??= 5.Seconds();
         
         var envelope = new Envelope(message, Sender)
         {
