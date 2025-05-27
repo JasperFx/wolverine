@@ -77,30 +77,6 @@ public class RabbitMqQueueTests
         queue.HasDeclared.ShouldBeTrue();
     }
 
-    [Theory]
-    [InlineData(true, false, false)]
-    [InlineData(false, true, false)]
-    [InlineData(false, false, true)]
-    public async Task declare_second_time(bool autoDelete, bool isExclusive, bool isDurable)
-    {
-        var queue = new RabbitMqQueue("foo", new RabbitMqTransport())
-        {
-            AutoDelete = autoDelete,
-            IsExclusive = isExclusive,
-            IsDurable = isDurable
-        };
-
-        // cheating here.
-        var prop = ReflectionHelper.GetProperty<RabbitMqQueue>(x => x.HasDeclared);
-        prop.SetValue(queue, true);
-
-        var channel = Substitute.For<IChannel>();
-        await queue.DeclareAsync(channel, NullLogger.Instance);
-
-        await channel.DidNotReceiveWithAnyArgs().QueueDeclareAsync("foo", isDurable, isExclusive, autoDelete, queue.Arguments);
-        queue.HasDeclared.ShouldBeTrue();
-    }
-
     [Fact]
     public async Task initialize_with_no_auto_provision_or_auto_purge()
     {

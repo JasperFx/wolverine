@@ -285,14 +285,14 @@ internal class TrackedSession : ITrackedSession
             await Execution(context).WaitAsync(Timeout);
             _executionComplete = true;
         }
-        catch (TimeoutException)
+        catch (TimeoutException e)
         {
             cleanUp();
 
             var message =
                 BuildActivityMessage($"This {nameof(TrackedSession)} timed out before all activity completed.");
 
-            throw new TimeoutException(message);
+            throw new TimeoutException(message, e);
         }
         catch (Exception)
         {

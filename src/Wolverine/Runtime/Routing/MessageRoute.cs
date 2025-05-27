@@ -137,7 +137,7 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
         
         bus.Runtime.RegisterMessageType(typeof(T));
 
-        timeout ??= 5.Seconds();
+        timeout ??= 50.Seconds();
         
         var envelope = new Envelope(message, Sender)
         {
@@ -158,7 +158,7 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
         envelope.DeliverWithin = timeout.Value;
         envelope.Sender = Sender;
 
-        bus.TrackEnvelopeCorrelation(envelope, Activity.Current);
+        @bus.TrackEnvelopeCorrelation(envelope, Activity.Current);
         
         // The request/reply envelope *must* use the envelope id for the conversation id
         // for proper tracking. See https://github.com/JasperFx/wolverine/issues/1176
