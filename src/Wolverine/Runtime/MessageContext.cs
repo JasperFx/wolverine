@@ -26,7 +26,7 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
     // Used implicitly in codegen
     public MessageContext(IWolverineRuntime runtime, string tenantId) : base(runtime)
     {
-        TenantId = tenantId;
+        TenantId = runtime.Options.Durability.TenantIdStyle.MaybeCorrectTenantId(tenantId);
     }
 
     internal IList<Envelope> Scheduled { get; } = new List<Envelope>();
