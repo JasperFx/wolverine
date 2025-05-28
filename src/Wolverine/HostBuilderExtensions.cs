@@ -53,15 +53,6 @@ public static class HostBuilderExtensions
         });
     }
 
-    // Just for testing
-    internal static IHostBuilder UseWolverine(this IHostBuilder builder, WolverineOptions options)
-    {
-        return builder.ConfigureServices(services =>
-        {
-            services.AddWolverine(options);
-        });
-    }
-
     /// <summary>
     /// Add Wolverine services to your application with automatic extension discovery
     /// </summary>
