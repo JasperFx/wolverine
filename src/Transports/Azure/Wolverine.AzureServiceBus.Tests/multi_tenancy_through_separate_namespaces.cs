@@ -1,20 +1,16 @@
 using System.Diagnostics;
-using System.Net;
 using JasperFx.Core;
+using JasperFx.Resources;
 using Microsoft.Extensions.Hosting;
-using NSubstitute;
-using Oakton.Resources;
 using Shouldly;
 using Wolverine.ComplianceTests.Compliance;
-using Wolverine.Configuration;
 using Wolverine.Tracking;
-using Wolverine.Transports;
-using Wolverine.Transports.Sending;
 using Xunit;
 
 namespace Wolverine.AzureServiceBus.Tests;
 
 public record MultiTenantMessage(Guid Id);
+
 public record MultiTenantResponse(Guid Id);
 
 public static class MultiTenantMessageHandler
@@ -24,7 +20,10 @@ public static class MultiTenantMessageHandler
         return new MultiTenantResponse(message.Id).ToDestination("rabbitmq://queue/multi_response".ToUri());
     }
 
-    public static void Handle(MultiTenantResponse message) => Debug.WriteLine("Got a response");
+    public static void Handle(MultiTenantResponse message)
+    {
+        Debug.WriteLine("Got a response");
+    }
 }
 
 public class MultiTenantedAzureServiceBusFixture : IAsyncLifetime
@@ -32,16 +31,24 @@ public class MultiTenantedAzureServiceBusFixture : IAsyncLifetime
     public const string Tenant1ConnectionString = "CHANGE ME TO A REAL THING";
     public const string Tenant2ConnectionString = "CHANGE ME TO A REAL THING";
     public const string Tenant3ConnectionString = "CHANGE ME TO A REAL THING";
-    
+
+    public IHost Three { get; set; }
+
+    public IHost Two { get; set; }
+
+    public IHost One { get; set; }
+
+    public IHost Main { get; private set; }
+
     public async Task InitializeAsync()
     {
         Main = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
                 opts.Policies.DisableConventionalLocalRouting();
-                
+
                 opts.ServiceName = "main";
-                
+
                 opts.UseAzureServiceBusTesting().AutoProvision().AutoPurgeOnStartup()
                     .AddTenantByConnectionString("one", Tenant1ConnectionString)
                     .AddTenantByConnectionString("two", Tenant2ConnectionString)
@@ -68,12 +75,10 @@ public class MultiTenantedAzureServiceBusFixture : IAsyncLifetime
                 opts.ServiceName = "one";
                 opts.UseAzureServiceBus(Tenant1ConnectionString);
                 opts.ListenToAzureServiceBusQueue("multi_incoming");
-                
+
                 opts.Services.AddResourceSetupOnStartup();
-                
-                
             }).StartAsync();
-        
+
         Two = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -81,10 +86,10 @@ public class MultiTenantedAzureServiceBusFixture : IAsyncLifetime
                 opts.ServiceName = "two";
                 opts.UseAzureServiceBus(Tenant2ConnectionString);
                 opts.ListenToAzureServiceBusQueue("multi_incoming");
-                
+
                 opts.Services.AddResourceSetupOnStartup();
             }).StartAsync();
-        
+
         Three = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -92,18 +97,10 @@ public class MultiTenantedAzureServiceBusFixture : IAsyncLifetime
                 opts.ServiceName = "three";
                 opts.UseAzureServiceBus(Tenant3ConnectionString);
                 opts.ListenToAzureServiceBusQueue("multi_incoming");
-                
+
                 opts.Services.AddResourceSetupOnStartup();
             }).StartAsync();
     }
-
-    public IHost Three { get; set; }
-
-    public IHost Two { get; set; }
-
-    public IHost One { get; set; }
-
-    public IHost Main { get; private set; }
 
     public async Task DisposeAsync()
     {
@@ -112,7 +109,6 @@ public class MultiTenantedAzureServiceBusFixture : IAsyncLifetime
         await Two.StopAsync();
         await Three.StopAsync();
     }
-
 }
 
 public class multi_tenancy_through_separate_namespaces : IClassFixture<MultiTenantedAzureServiceBusFixture>
@@ -132,24 +128,23 @@ public class multi_tenancy_through_separate_namespaces : IClassFixture<MultiTena
             .TrackActivity()
             .AlsoTrack(_fixture.One, _fixture.Two, _fixture.Three)
             .WaitForMessageToBeReceivedAt<MultiTenantMessage>(_fixture.Two)
-            .SendMessageAndWaitAsync(message, new DeliveryOptions{TenantId = "two"});
+            .SendMessageAndWaitAsync(message, new DeliveryOptions { TenantId = "two" });
 
         var record = session.Received.SingleRecord<MultiTenantMessage>();
         record.ServiceName.ShouldBe("two");
 
         var response = session.Received.SingleRecord<MultiTenantResponse>();
         response.ServiceName.ShouldBe("main");
-        
+
         // Label the envelope as tenant id = "two" because it was received at that point
         response.Envelope.TenantId.ShouldBe("two");
         response.Envelope.Message.ShouldBeOfType<MultiTenantResponse>()
             .Id.ShouldBe(message.Id);
     }
-    
+
     /*
 
        opts.PublishMessage<Message3>().ToRabbitExchange("message3");
        opts.PublishMessage<Message4>().ToRabbitExchange("message4").GlobalSender();
      */
-
 }
