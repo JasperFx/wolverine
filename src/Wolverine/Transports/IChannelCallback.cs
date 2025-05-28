@@ -1,4 +1,6 @@
-﻿namespace Wolverine.Transports;
+﻿using Wolverine.Runtime;
+
+namespace Wolverine.Transports;
 
 /// <summary>
 ///     Marks an IChannelCallback as supporting a native dead letter queue
@@ -27,6 +29,8 @@ public interface ISupportNativeScheduling
 
 public interface IChannelCallback
 {
+    IHandlerPipeline? Pipeline { get; }
+    
     /// <summary>
     ///     Mark the message as having been successfully received and processed
     /// </summary>

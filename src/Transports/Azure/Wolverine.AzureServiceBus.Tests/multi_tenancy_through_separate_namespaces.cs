@@ -29,6 +29,9 @@ public static class MultiTenantMessageHandler
 
 public class MultiTenantedAzureServiceBusFixture : IAsyncLifetime
 {
+    public const string Tenant1ConnectionString = "CHANGE ME TO A REAL THING";
+    public const string Tenant2ConnectionString = "CHANGE ME TO A REAL THING";
+    public const string Tenant3ConnectionString = "CHANGE ME TO A REAL THING";
     
     public async Task InitializeAsync()
     {
@@ -41,8 +44,8 @@ public class MultiTenantedAzureServiceBusFixture : IAsyncLifetime
                 
                 opts.UseAzureServiceBusTesting().AutoProvision().AutoPurgeOnStartup()
                     .AddTenantByConnectionString("one", Tenant1ConnectionString)
-                    .AddTenantByConnectionString("two", Tenant1ConnectionString)
-                    .AddTenantByConnectionString("three", Tenant1ConnectionString);
+                    .AddTenantByConnectionString("two", Tenant2ConnectionString)
+                    .AddTenantByConnectionString("three", Tenant3ConnectionString);
 
                 // Listen for multiples
                 opts.ListenToAzureServiceBusQueue("multi_response");

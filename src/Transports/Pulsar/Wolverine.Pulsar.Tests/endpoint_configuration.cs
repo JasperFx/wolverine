@@ -19,7 +19,7 @@ public class endpoint_configuration : IDisposable
             opts.DisablePulsarRequeue();
             opts.UnsubscribePulsarOnClose(PulsarUnsubscribeOnClose.Disabled);
 
-            opts.ListenToPulsarTopic("one");
+            opts.ListenToPulsarTopic("persistent://public/default/one");
         }).Build();
 
         var theOptions = _host.Get<WolverineOptions>();
@@ -39,7 +39,7 @@ public class endpoint_configuration : IDisposable
     [Fact]
     public void requeue_disabled()
     {
-        var uri = PulsarEndpoint.UriFor("one");
+        var uri = PulsarEndpoint.UriFor("persistent://public/default/one");
         var endpoint = theRuntime.Endpoints.EndpointFor(uri)?.As<PulsarEndpoint>();
 
         endpoint.EnableRequeue.ShouldBeFalse();
@@ -48,7 +48,7 @@ public class endpoint_configuration : IDisposable
     [Fact]
     public void unsubscribe_on_close_disabled()
     {
-        var uri = PulsarEndpoint.UriFor("one");
+        var uri = PulsarEndpoint.UriFor("persistent://public/default/one");
         var endpoint = theRuntime.Endpoints.EndpointFor(uri)?.As<PulsarEndpoint>();
 
         endpoint.UnsubscribeOnClose.ShouldBeFalse();

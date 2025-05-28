@@ -16,6 +16,7 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue
     private readonly RetryBlock<AmazonSqsEnvelope> _requeueBlock;
     private readonly Task _task;
     private readonly AmazonSqsTransport _transport;
+    private readonly IReceiver _receiver;
 
     public SqsListener(IWolverineRuntime runtime, AmazonSqsQueue queue, AmazonSqsTransport transport,
         IReceiver receiver)
@@ -28,6 +29,7 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue
         var logger = runtime.LoggerFactory.CreateLogger<SqsListener>();
         _queue = queue;
         _transport = transport;
+        _receiver = receiver;
 
         if (_queue.DeadLetterQueueName != null && !transport.DisableDeadLetterQueues)
         {
@@ -50,6 +52,8 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue
         _deadLetterBlock =
             new RetryBlock<Envelope>(async (e, _) => { await _deadLetterQueue!.SendMessageAsync(e, logger); }, logger,
                 runtime.Cancellation);
+
+        _receiver = receiver;
 
         _task = Task.Run(async () =>
         {
@@ -133,6 +137,8 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue
 
         return ValueTask.CompletedTask;
     }
+
+    public IHandlerPipeline? Pipeline => _receiver.Pipeline;
 
     public async ValueTask DeferAsync(Envelope envelope)
     {

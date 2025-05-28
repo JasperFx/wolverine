@@ -3,6 +3,7 @@ using System.Net.Sockets;
 using System.Threading.Tasks.Dataflow;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging.Abstractions;
+using Wolverine.Runtime;
 using Wolverine.Transports;
 using Wolverine.Transports.Tcp;
 
@@ -59,6 +60,8 @@ public class TestingListeningAgent : IDisposable, IListener
     {
         return ValueTask.CompletedTask;
     }
+
+    public IHandlerPipeline? Pipeline => null;
 
     ValueTask IChannelCallback.CompleteAsync(Envelope envelope)
     {

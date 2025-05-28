@@ -15,6 +15,7 @@ internal class PulsarListener : IListener
     private readonly PulsarSender? _sender;
     private readonly bool _enableRequeue;
     private readonly bool _unsubscribeOnClose;
+    private readonly IReceiver _receiver;
 
     public PulsarListener(IWolverineRuntime runtime, PulsarEndpoint endpoint, IReceiver receiver,
         PulsarTransport transport,
@@ -24,6 +25,8 @@ internal class PulsarListener : IListener
         {
             throw new ArgumentNullException(nameof(receiver));
         }
+
+        _receiver = receiver;
 
         _cancellation = cancellation;
 
@@ -78,6 +81,8 @@ internal class PulsarListener : IListener
 
         return ValueTask.CompletedTask;
     }
+
+    public IHandlerPipeline? Pipeline => _receiver.Pipeline;
 
     public async ValueTask DeferAsync(Envelope envelope)
     {

@@ -22,7 +22,7 @@ public class PulsarListenerTests
             opts.ListenToPulsarTopic(topic).SubscriptionName("test");
         }).StartAsync();
 
-        await host.Services.GetRequiredService<IMessageBus>().PublishAsync(new PulsarListenerTestMessage());
+        await host.MessageBus().PublishAsync(new PulsarListenerTestMessage());
 
         await host.StopAsync();
 
@@ -44,7 +44,7 @@ public class PulsarListenerTests
             opts.ListenToPulsarTopic(topic).SubscriptionName("test");
         }).StartAsync();
 
-        await host.Services.GetRequiredService<IMessageBus>()!.PublishAsync(new PulsarListenerTestMessage());
+        await host.MessageBus()!.PublishAsync(new PulsarListenerTestMessage());
 
         await host.StopAsync();
 

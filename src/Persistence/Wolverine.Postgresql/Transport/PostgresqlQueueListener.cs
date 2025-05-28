@@ -58,6 +58,8 @@ SELECT message.{DatabaseConstants.Body} from message;
         _queueName = _queue.Name;
     }
 
+    public IHandlerPipeline? Pipeline => _receiver.Pipeline;
+
     public ValueTask CompleteAsync(Envelope envelope)
     {
         return ValueTask.CompletedTask;

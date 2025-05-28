@@ -120,6 +120,8 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue
 
     public Uri Address => _endpoint.Uri;
 
+    public IHandlerPipeline? Pipeline => _receiver.Pipeline;
+
     public async ValueTask CompleteAsync(Envelope envelope)
     {
         await _complete.PostAsync([envelope]);

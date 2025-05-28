@@ -1,3 +1,4 @@
+using Wolverine.Runtime;
 using Wolverine.Transports;
 
 namespace Wolverine.Http.Transport;
@@ -8,6 +9,8 @@ internal class NulloListener : IListener
     {
         Address = address;
     }
+
+    public IHandlerPipeline? Pipeline => null;
 
     public ValueTask CompleteAsync(Envelope envelope)
     {

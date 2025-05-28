@@ -76,6 +76,8 @@ internal class ExternalMessageTableListener : IListener
         }, _cancellation.Token);
     }
 
+    public IHandlerPipeline? Pipeline => _runtime.Pipeline;
+
     public ValueTask CompleteAsync(Envelope envelope)
     {
         return new ValueTask();

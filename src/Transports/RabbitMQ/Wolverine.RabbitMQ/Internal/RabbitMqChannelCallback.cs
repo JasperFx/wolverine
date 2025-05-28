@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using RabbitMQ.Client.Exceptions;
+using Wolverine.Runtime;
 using Wolverine.Transports;
 using Wolverine.Util.Dataflow;
 
@@ -33,6 +34,8 @@ internal class RabbitMqChannelCallback : IChannelCallback, IDisposable, ISupport
         Defer = new RetryBlock<RabbitMqEnvelope>((e, _) => e.DeferAsync().AsTask(), logger, cancellationToken);
         _deadLetterQueue = new RetryBlock<RabbitMqEnvelope>(moveToErrorQueueAsync, logger, cancellationToken);
     }
+
+    public IHandlerPipeline? Pipeline => null;
 
     public ILogger Logger { get; }
 
