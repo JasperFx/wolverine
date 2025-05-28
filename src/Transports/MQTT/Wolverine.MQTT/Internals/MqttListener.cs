@@ -2,6 +2,7 @@ using System.Text;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using MQTTnet.Client;
+using Wolverine.Runtime;
 using Wolverine.Transports;
 using Wolverine.Util.Dataflow;
 
@@ -53,6 +54,8 @@ internal class MqttListener : IListener
     {
         return ValueTask.CompletedTask;
     }
+
+    public IHandlerPipeline? Pipeline => _receiver.Pipeline;
 
     public ValueTask CompleteAsync(Envelope envelope)
     {

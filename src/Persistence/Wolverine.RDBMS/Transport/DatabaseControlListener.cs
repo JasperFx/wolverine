@@ -2,6 +2,7 @@ using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Weasel.Core;
 using Wolverine.RDBMS.Polling;
+using Wolverine.Runtime;
 using Wolverine.Transports;
 using Wolverine.Util.Dataflow;
 
@@ -52,6 +53,8 @@ internal class DatabaseControlListener : IListener
 
         _retryBlock = new RetryBlock<Envelope>(deleteEnvelopeAsync, logger, cancellationToken);
     }
+
+    public IHandlerPipeline? Pipeline => _receiver.Pipeline;
 
     public async ValueTask CompleteAsync(Envelope envelope)
     {

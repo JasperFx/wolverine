@@ -1,6 +1,7 @@
 using Confluent.Kafka;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
+using Wolverine.Runtime;
 using Wolverine.Transports;
 using Wolverine.Util;
 
@@ -98,6 +99,8 @@ public class KafkaListener : IListener, IDisposable
     }
 
     public ConsumerConfig Config { get; }
+
+    public IHandlerPipeline? Pipeline => _receiver.Pipeline;
 
     public ValueTask CompleteAsync(Envelope envelope)
     {

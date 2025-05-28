@@ -1,4 +1,6 @@
-﻿namespace Wolverine.Transports;
+﻿using Wolverine.Runtime;
+
+namespace Wolverine.Transports;
 
 public interface IListener : IChannelCallback, IAsyncDisposable
 {
@@ -20,6 +22,8 @@ public class CompoundListener : IListener
     {
         Address = address;
     }
+
+    public IHandlerPipeline? Pipeline => Inner.First().Pipeline;
 
     public ValueTask CompleteAsync(Envelope envelope)
     {

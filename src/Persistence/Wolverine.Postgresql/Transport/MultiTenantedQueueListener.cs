@@ -70,6 +70,8 @@ public class MultiTenantedQueueListener : IListener
         _logger.LogInformation("Started message listening for Postgresql queue {QueueName} on database {Database}", _queue.Name, store.Name);
     }
 
+    public IHandlerPipeline? Pipeline => _receiver.Pipeline;
+
     ValueTask IChannelCallback.CompleteAsync(Envelope envelope)
     {
         return new ValueTask();

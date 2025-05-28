@@ -27,6 +27,8 @@ internal class SqlServerQueueListener : IListener
         _scheduledTask = Task.Run(lookForScheduledMessagesAsync, _cancellation.Token);
     }
 
+    public IHandlerPipeline? Pipeline => _receiver.Pipeline;
+
     public ValueTask CompleteAsync(Envelope envelope)
     {
         return ValueTask.CompletedTask;

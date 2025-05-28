@@ -21,6 +21,8 @@ internal class InlineReceiver : IReceiver
         _settings = runtime.DurabilitySettings;
     }
 
+    public IHandlerPipeline Pipeline => _pipeline;
+
     public int QueueCount => 0;
 
     public void Dispose()

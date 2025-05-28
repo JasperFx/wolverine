@@ -1,4 +1,5 @@
-﻿using Wolverine.Runtime.WorkerQueues;
+﻿using Wolverine.Runtime;
+using Wolverine.Runtime.WorkerQueues;
 
 namespace Wolverine.Transports;
 
@@ -8,6 +9,8 @@ public interface IReceiver : IDisposable
     ValueTask ReceivedAsync(IListener listener, Envelope envelope);
 
     ValueTask DrainAsync();
+    
+    IHandlerPipeline Pipeline { get; }
 }
 
 internal class ReceiverWithRules : IReceiver, ILocalQueue
@@ -17,6 +20,8 @@ internal class ReceiverWithRules : IReceiver, ILocalQueue
         Inner = inner;
         Rules = rules.ToArray();
     }
+
+    public IHandlerPipeline Pipeline => Inner.Pipeline;
 
     public IReceiver Inner { get; }
 

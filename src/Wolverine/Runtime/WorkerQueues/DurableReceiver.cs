@@ -45,6 +45,8 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
 
         endpoint.ExecutionOptions.CancellationToken = _settings.Cancellation;
 
+        Pipeline = pipeline;
+
         _receiver = new ActionBlock<Envelope>(async envelope =>
         {
             if (_latched)
@@ -122,6 +124,8 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
             _deadLetterSender = dlq;
         }
     }
+
+    public IHandlerPipeline? Pipeline { get; }
 
     public bool ShouldPersistBeforeProcessing { get; set; }
 

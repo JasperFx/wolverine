@@ -75,7 +75,7 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
         }
     }
 
-    public IHandlerPipeline Pipeline { get; }
+    public IHandlerPipeline? Pipeline { get; }
 
     public Uri Uri { get; }
 

@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Sockets;
 using JasperFx.Core;
 using Wolverine.ComplianceTests;
+using Wolverine.Runtime;
 using Wolverine.Transports;
 using Wolverine.Transports.Sending;
 using Wolverine.Transports.Tcp;
@@ -98,6 +99,8 @@ public class StubReceiverCallback : IReceiver
     {
         return ValueTask.CompletedTask;
     }
+
+    public IHandlerPipeline Pipeline => null;
 
     public void Dispose()
     {

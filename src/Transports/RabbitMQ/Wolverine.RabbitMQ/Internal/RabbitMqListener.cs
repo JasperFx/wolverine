@@ -25,6 +25,8 @@ internal class RabbitMqInteropFriendlyCallback : IChannelCallback, ISupportDeadL
             new RetryBlock<Envelope>((e, _) => sender.SendAsync(e).AsTask(), runtime.Logger, runtime.Cancellation);
     }
 
+    public IHandlerPipeline? Pipeline => _inner.Pipeline;
+
     public ValueTask CompleteAsync(Envelope envelope)
     {
         return _inner.CompleteAsync(envelope);
@@ -178,6 +180,8 @@ internal class RabbitMqListener : RabbitMqChannelAgent, IListener, ISupportDeadL
     }
 
     public Uri Address { get; }
+
+    public IHandlerPipeline? Pipeline => _receiver.Pipeline;
 
     public ValueTask CompleteAsync(Envelope envelope)
     {

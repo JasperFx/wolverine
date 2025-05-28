@@ -190,7 +190,7 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
             throw new InvalidOperationException("No Envelope is active for this context");
         }
 
-        return Runtime.Pipeline.InvokeAsync(Envelope, _channel!);
+        return (_channel.Pipeline ?? Runtime.Pipeline).InvokeAsync(Envelope, _channel!);
     }
 
     public async ValueTask SendAcknowledgementAsync()
