@@ -114,7 +114,15 @@ builder.Host.UseWolverine(opts =>
     opts.Discovery.IncludeAssembly(typeof(CreateCustomer2).Assembly);
     opts.Discovery.IncludeAssembly(typeof(DiscoverFSharp).Assembly);
 
-    opts.OptimizeArtifactWorkflow();
+    opts.Services.CritterStackDefaults(x =>
+    {
+        x.Production.GeneratedCodeMode = TypeLoadMode.Static;
+        x.Production.ResourceAutoCreate = AutoCreate.None;
+
+        // These are defaults, but showing for completeness
+        x.Development.GeneratedCodeMode = TypeLoadMode.Dynamic;
+        x.Development.ResourceAutoCreate = AutoCreate.CreateOrUpdate;
+    });
     
     opts.Policies.Add<BroadcastClientMessages>();
 
