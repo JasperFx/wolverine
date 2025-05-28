@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using JasperFx.Core;
+using JasperFx.MultiTenancy;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime.Routing;
 using Wolverine.Transports;
@@ -13,7 +14,8 @@ public class MessageBus : IMessageBus
     
     // ReSharper disable once InconsistentNaming
     protected readonly List<Envelope> _outstanding = new();
-    
+    private string? _tenantId;
+
     public MessageBus(IWolverineRuntime runtime) : this(runtime, Activity.Current?.RootId ?? Guid.NewGuid().ToString())
     {
     }
@@ -49,7 +51,11 @@ public class MessageBus : IMessageBus
     public IEnvelopeTransaction? Transaction { get; protected set; }
     public Guid ConversationId { get; protected set; }
 
-    public string? TenantId { get; set; }
+    public string? TenantId
+    {
+        get => _tenantId;
+        set => _tenantId = Runtime.Options.Durability.TenantIdStyle.MaybeCorrectTenantId(value);
+    }
 
     public IDestinationEndpoint EndpointFor(string endpointName)
     {

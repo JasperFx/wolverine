@@ -20,6 +20,8 @@ public class multi_tenancy : IAsyncLifetime
             .UseWolverine(opts =>
             {
                 opts.Services.AddSingleton(theTracker);
+
+                opts.Durability.TenantIdStyle = TenantIdStyle.ForceLowerCase;
             })
             .StartAsync();
     }
@@ -27,6 +29,15 @@ public class multi_tenancy : IAsyncLifetime
     public async Task DisposeAsync()
     {
         await _host.StopAsync();
+    }
+
+    [Fact]
+    public void maybe_corrects_tenant_id_on_set()
+    {
+        var context = _host.MessageBus();
+        context.TenantId = "WRONG_CASE";
+        
+        context.TenantId.ShouldBe("wrong_case");
     }
 
     [Fact]
