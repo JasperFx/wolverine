@@ -202,24 +202,7 @@ public sealed partial class WolverineOptions
                 .Replace("Options", "");
         }
     }
-
-    /// <summary>
-    ///     Automatically rebuild the
-    /// </summary>
-    public void OptimizeArtifactWorkflow(TypeLoadMode productionMode = TypeLoadMode.Auto)
-    {
-        ProductionTypeLoadMode = productionMode;
-        Services.AddSingleton<IWolverineExtension, OptimizeArtifactWorkflow>();
-    }
-
-    public void OptimizeArtifactWorkflow(string developmentEnvironment, TypeLoadMode productionMode = TypeLoadMode.Auto)
-    {
-        ProductionTypeLoadMode = productionMode;
-        Services.AddSingleton<IWolverineExtension, OptimizeArtifactWorkflow>(s =>
-            new OptimizeArtifactWorkflow(s, developmentEnvironment)
-        );
-    }
-
+    
     /// <summary>
     ///     Produce a report of why or why not this Wolverine application
     ///     is finding or not finding methods from this handlerType

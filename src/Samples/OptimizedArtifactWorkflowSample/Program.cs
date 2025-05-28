@@ -1,4 +1,6 @@
 ﻿using IntegrationTests;
+using JasperFx;
+using JasperFx.CodeGeneration;
 using Marten;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -19,5 +21,16 @@ return await Host.CreateDefaultBuilder()
             .ToLocalQueue("tracked")
             .UseDurableInbox();
 
-        opts.OptimizeArtifactWorkflow();
+        opts.Services.CritterStackDefaults(x =>
+        {
+            x.Production.GeneratedCodeMode = TypeLoadMode.Static;
+            x.Production.ResourceAutoCreate = AutoCreate.None;
+
+            // Little draconian, but this might be helpful
+            x.Production.AssertAllPreGeneratedTypesExist = true;
+
+            // These are defaults, but showing for completeness
+            x.Development.GeneratedCodeMode = TypeLoadMode.Dynamic;
+            x.Development.ResourceAutoCreate = AutoCreate.CreateOrUpdate;
+        });
     }).RunWolverineAsync(args);

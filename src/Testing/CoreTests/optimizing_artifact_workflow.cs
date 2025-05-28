@@ -12,7 +12,15 @@ public class optimizing_artifact_workflow
     public async Task running_in_development_mode()
     {
         using var host = await Host.CreateDefaultBuilder()
-            .UseWolverine(opts => { opts.OptimizeArtifactWorkflow(); })
+            .UseWolverine(opts =>
+            {
+                opts.Services.CritterStackDefaults(x =>
+                {
+                    x.Development.SourceCodeWritingEnabled = true;
+                    x.Development.ResourceAutoCreate = AutoCreate.CreateOrUpdate;
+                    x.Development.GeneratedCodeMode = TypeLoadMode.Auto;
+                });
+            })
             .UseEnvironment("Development")
             .StartAsync();
 
@@ -27,7 +35,15 @@ public class optimizing_artifact_workflow
     public async Task running_in_production_mode_1()
     {
         using var host = await Host.CreateDefaultBuilder()
-            .UseWolverine(opts => { opts.OptimizeArtifactWorkflow(); })
+            .UseWolverine(opts =>
+            {
+                opts.Services.CritterStackDefaults(x =>
+                {
+                    x.Production.GeneratedCodeMode = TypeLoadMode.Auto;
+                    x.Production.SourceCodeWritingEnabled = false;
+                    x.Production.ResourceAutoCreate = AutoCreate.None;
+                });
+            })
             .UseEnvironment("Production")
             .StartAsync();
 
@@ -42,7 +58,15 @@ public class optimizing_artifact_workflow
     public async Task running_in_production_mode_2()
     {
         using var host = await Host.CreateDefaultBuilder()
-            .UseWolverine(opts => { opts.OptimizeArtifactWorkflow(TypeLoadMode.Static); })
+            .UseWolverine(opts =>
+            {
+                opts.Services.CritterStackDefaults(x =>
+                {
+                    x.Production.GeneratedCodeMode = TypeLoadMode.Static;
+                    x.Production.SourceCodeWritingEnabled = false;
+                    x.Production.ResourceAutoCreate = AutoCreate.None;
+                });
+            })
             .UseEnvironment("Production")
             .StartAsync();
 

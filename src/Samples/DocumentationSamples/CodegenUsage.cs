@@ -67,7 +67,18 @@ public class CodegenUsage
             {
                 // Use "Auto" type load mode at development time, but
                 // "Static" any other time
-                opts.OptimizeArtifactWorkflow();
+                opts.Services.CritterStackDefaults(x =>
+                {
+                    x.Production.GeneratedCodeMode = TypeLoadMode.Static;
+                    x.Production.ResourceAutoCreate = AutoCreate.None;
+
+                    // Little draconian, but this might be helpful
+                    x.Production.AssertAllPreGeneratedTypesExist = true;
+
+                    // These are defaults, but showing for completeness
+                    x.Development.GeneratedCodeMode = TypeLoadMode.Dynamic;
+                    x.Development.ResourceAutoCreate = AutoCreate.CreateOrUpdate;
+                });
             }).StartAsync();
 
         #endregion
