@@ -1,3 +1,4 @@
+using JasperFx;
 using JasperFx.CodeGeneration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -19,7 +20,7 @@ public class optimizing_artifact_workflow
 
         options.CodeGeneration.TypeLoadMode.ShouldBe(TypeLoadMode.Auto);
         options.CodeGeneration.SourceCodeWritingEnabled.ShouldBeTrue();
-        options.AutoBuildMessageStorageOnStartup.ShouldBeTrue();
+        options.AutoBuildMessageStorageOnStartup.ShouldBe(AutoCreate.CreateOrUpdate);
     }
 
     [Fact]
@@ -34,7 +35,7 @@ public class optimizing_artifact_workflow
 
         options.CodeGeneration.TypeLoadMode.ShouldBe(TypeLoadMode.Auto);
         options.CodeGeneration.SourceCodeWritingEnabled.ShouldBeFalse();
-        options.AutoBuildMessageStorageOnStartup.ShouldBeFalse();
+        options.AutoBuildMessageStorageOnStartup.ShouldBe(AutoCreate.None);
     }
 
     [Fact]
@@ -49,6 +50,6 @@ public class optimizing_artifact_workflow
 
         options.CodeGeneration.TypeLoadMode.ShouldBe(TypeLoadMode.Static);
         options.CodeGeneration.SourceCodeWritingEnabled.ShouldBeFalse();
-        options.AutoBuildMessageStorageOnStartup.ShouldBeFalse();
+        options.AutoBuildMessageStorageOnStartup.ShouldBe(AutoCreate.None);
     }
 }

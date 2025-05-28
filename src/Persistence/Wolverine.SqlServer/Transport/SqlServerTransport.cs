@@ -1,3 +1,4 @@
+using JasperFx;
 using JasperFx.Core;
 using Microsoft.Data.SqlClient;
 using Spectre.Console;
@@ -70,7 +71,7 @@ public class SqlServerTransport : BrokerTransport<SqlServerQueue>
 
     public override async ValueTask ConnectAsync(IWolverineRuntime runtime)
     {
-        AutoProvision = AutoProvision || runtime.Options.AutoBuildMessageStorageOnStartup;
+        AutoProvision = AutoProvision || runtime.Options.AutoBuildMessageStorageOnStartup != AutoCreate.None;
         
         var storage = runtime.Storage as SqlServerMessageStore;
 
