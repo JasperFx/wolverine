@@ -1,3 +1,4 @@
+using JasperFx;
 using JasperFx.Core;
 using Npgsql;
 using Spectre.Console;
@@ -35,7 +36,7 @@ public class PostgresqlTransport : BrokerTransport<PostgresqlQueue>, ITransportC
     public async ValueTask ConfigureAsync(IWolverineRuntime runtime)
     {
         // This is important, let the Postgres queues get built automatically
-        AutoProvision = AutoProvision || runtime.Options.AutoBuildMessageStorageOnStartup;
+        AutoProvision = AutoProvision || runtime.Options.AutoBuildMessageStorageOnStartup != AutoCreate.None;
         if (runtime.Storage is PostgresqlMessageStore store)
         {
             foreach (var queue in Queues)

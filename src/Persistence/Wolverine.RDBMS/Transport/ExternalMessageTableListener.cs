@@ -1,3 +1,4 @@
+using JasperFx;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Wolverine.Runtime;
@@ -47,7 +48,7 @@ internal class ExternalMessageTableListener : IListener
             // Wait a random amount to try to avoid contesting for the shared lock
             await Task.Delay(Random.Shared.Next(0, 2000), _cancellation.Token);
 
-            if (_runtimeOptions.AutoBuildMessageStorageOnStartup && _messageTable.AllowWolverineControl)
+            if (_runtimeOptions.AutoBuildMessageStorageOnStartup != AutoCreate.None && _messageTable.AllowWolverineControl)
             {
                 try
                 {

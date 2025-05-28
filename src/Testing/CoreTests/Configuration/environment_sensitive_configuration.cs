@@ -1,3 +1,4 @@
+using JasperFx;
 using JasperFx.CodeGeneration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -20,7 +21,7 @@ public class environment_sensitive_configuration
 
         options.CodeGeneration.TypeLoadMode.ShouldBe(TypeLoadMode.Auto);
         options.CodeGeneration.SourceCodeWritingEnabled.ShouldBeTrue();
-        options.AutoBuildMessageStorageOnStartup.ShouldBeTrue();
+        options.AutoBuildMessageStorageOnStartup.ShouldBe(AutoCreate.CreateOrUpdate);
     }
 
     [Fact]
@@ -35,7 +36,7 @@ public class environment_sensitive_configuration
 
         options.CodeGeneration.TypeLoadMode.ShouldBe(TypeLoadMode.Auto);
         options.CodeGeneration.SourceCodeWritingEnabled.ShouldBeTrue();
-        options.AutoBuildMessageStorageOnStartup.ShouldBeTrue();
+        options.AutoBuildMessageStorageOnStartup.ShouldBe(AutoCreate.CreateOrUpdate);
     }
 
     [Fact]
@@ -53,7 +54,7 @@ public class environment_sensitive_configuration
 
         options.CodeGeneration.TypeLoadMode.ShouldBe(TypeLoadMode.Auto);
         options.CodeGeneration.SourceCodeWritingEnabled.ShouldBeFalse();
-        options.AutoBuildMessageStorageOnStartup.ShouldBeFalse();
+        options.AutoBuildMessageStorageOnStartup.ShouldBe(AutoCreate.None);
     }
 
     [Fact]
@@ -73,7 +74,7 @@ public class environment_sensitive_configuration
 
         options.CodeGeneration.TypeLoadMode.ShouldBe(prodTypeLoadMode);
         options.CodeGeneration.SourceCodeWritingEnabled.ShouldBeFalse();
-        options.AutoBuildMessageStorageOnStartup.ShouldBeFalse();
+        options.AutoBuildMessageStorageOnStartup.ShouldBe(AutoCreate.None);
     }
 }
 

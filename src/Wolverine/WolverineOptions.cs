@@ -155,9 +155,9 @@ public sealed partial class WolverineOptions
 
     /// <summary>
     ///     Direct Wolverine to make any necessary database patches for envelope storage upon
-    ///     application start
+    ///     application start. Default is taken from JasperFxOptions, and is CreateOrDefault 
     /// </summary>
-    public bool AutoBuildMessageStorageOnStartup { get; set; } = true;
+    public AutoCreate AutoBuildMessageStorageOnStartup { get; set; } = AutoCreate.CreateOrUpdate;
 
     internal TypeLoadMode ProductionTypeLoadMode { get; set; }
 

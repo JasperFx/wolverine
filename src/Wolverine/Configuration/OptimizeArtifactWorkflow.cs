@@ -1,3 +1,4 @@
+using JasperFx;
 using JasperFx.CodeGeneration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -23,13 +24,13 @@ internal class OptimizeArtifactWorkflow : IWolverineExtension
         {
             options.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
             options.CodeGeneration.SourceCodeWritingEnabled = true;
-            options.AutoBuildMessageStorageOnStartup = true;
+            options.AutoBuildMessageStorageOnStartup = AutoCreate.CreateOrUpdate;
         }
         else
         {
             options.CodeGeneration.TypeLoadMode = options.ProductionTypeLoadMode;
             options.CodeGeneration.SourceCodeWritingEnabled = false;
-            options.AutoBuildMessageStorageOnStartup = false;
+            options.AutoBuildMessageStorageOnStartup = AutoCreate.None;
         }
     }
 }
