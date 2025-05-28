@@ -15,27 +15,27 @@ public class interop_friendly_dead_letter_queue_mechanics: IDisposable
     private readonly string QueueName = Guid.NewGuid().ToString();
     private IHost _host;
     private RabbitMqTransport theTransport;
-    private WolverineOptions theOptions = new WolverineOptions();
     private readonly string deadLetterQueueName;
 
     public interop_friendly_dead_letter_queue_mechanics()
     {
-        theOptions.UseRabbitMq().AutoProvision().AutoPurgeOnStartup();
-
-        theOptions.PublishAllMessages()
-            .ToRabbitQueue(QueueName);
-
-        theOptions.ListenToRabbitQueue(QueueName).DeadLetterQueueing(new DeadLetterQueue(QueueName + "_DLQ", DeadLetterQueueMode.InteropFriendly));
-
-        theOptions.LocalRoutingConventionDisabled = true;
-
         deadLetterQueueName = QueueName + "_DLQ";
     }
 
-        public async Task afterBootstrapping()
+     public async Task afterBootstrapping()
     {
         _host = await Host.CreateDefaultBuilder()
-            .UseWolverine(theOptions).StartAsync();
+            .UseWolverine(opts =>
+            {
+                opts.UseRabbitMq().AutoProvision().AutoPurgeOnStartup();
+
+                opts.PublishAllMessages()
+                    .ToRabbitQueue(QueueName);
+
+                opts.ListenToRabbitQueue(QueueName).DeadLetterQueueing(new DeadLetterQueue(QueueName + "_DLQ", DeadLetterQueueMode.InteropFriendly));
+
+                opts.LocalRoutingConventionDisabled = true;
+            }).StartAsync();
 
         theTransport = _host
             .Services
