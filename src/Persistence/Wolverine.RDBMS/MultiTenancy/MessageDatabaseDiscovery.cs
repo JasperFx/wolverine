@@ -1,3 +1,4 @@
+using JasperFx.Descriptors;
 using Weasel.Core.Migrations;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
@@ -47,5 +48,20 @@ public class MessageDatabaseDiscovery : IDatabaseSource
             var master = group.FirstOrDefault(x => x.IsMain);
             return master ?? group.First();
         }).OfType<IDatabase>().ToList();
+    }
+
+    public DatabaseCardinality Cardinality
+    {
+        get
+        {
+            if (_runtime.Storage is MultiTenantedMessageStore tenantedMessageStore)
+            {
+                return tenantedMessageStore.Source.Cardinality;
+            }
+            else
+            {
+                return DatabaseCardinality.Single;
+            }
+        }
     }
 }

@@ -110,11 +110,16 @@ public interface IPostgresqlBackedPersistence
 /// </summary>
 internal class PostgresqlBackedPersistence : IPostgresqlBackedPersistence, IWolverineExtension
 {
+    public PostgresqlBackedPersistence(DurabilitySettings settings)
+    {
+        EnvelopeStorageSchemaName = settings.MessageStorageSchemaName ?? "wolverine";
+    }
+
     // Gotta have one or the other. Maybe even just DbDataSource here
     public NpgsqlDataSource? DataSource { get; set; }
     public string? ConnectionString { get; set; }
     
-    public string EnvelopeStorageSchemaName { get; set; } = "wolverine";
+    public string EnvelopeStorageSchemaName { get; set; }
     
     // This needs to be an override, and we use JasperFxOptions first!
     public AutoCreate AutoCreate { get; set; } = JasperFx.AutoCreate.CreateOrUpdate;
