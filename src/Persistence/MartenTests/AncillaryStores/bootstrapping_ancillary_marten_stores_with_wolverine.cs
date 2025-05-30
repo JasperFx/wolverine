@@ -60,6 +60,8 @@ public class bootstrapping_ancillary_marten_stores_with_wolverine : IAsyncLifeti
                 #region sample_using_message_storage_schema_name
 
                 // THIS IS IMPORTANT FOR MODULAR MONOLITH USAGE!
+                // This helps Wolverine out to always utilize the same envelope storage
+                // for all modules for more efficient usage of resources
                 opts.Durability.MessageStorageSchemaName = "wolverine";
 
                 #endregion
