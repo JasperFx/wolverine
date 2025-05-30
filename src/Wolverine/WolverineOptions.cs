@@ -273,8 +273,10 @@ public sealed partial class WolverineOptions
             CodeGeneration.TypeLoadMode = jasperfx.ActiveProfile.GeneratedCodeMode;
         }
 
-        // Watch this!
-        Durability.TenantIdStyle = jasperfx.TenantIdStyle;
+        if (!Durability.TenantIdStyleHasChanged)
+        {
+            Durability.TenantIdStyle = jasperfx.TenantIdStyle;
+        }
 
         if (_autoBuildMessageStorageOnStartup == null)
         {
