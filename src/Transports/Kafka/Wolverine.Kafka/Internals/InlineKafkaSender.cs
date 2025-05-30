@@ -6,7 +6,7 @@ namespace Wolverine.Kafka.Internals;
 public class InlineKafkaSender : ISender, IDisposable
 {
     private readonly KafkaTopic _topic;
-    private readonly IProducer<string,string> _producer;
+    private readonly IProducer<string, byte[]> _producer;
 
     public InlineKafkaSender(KafkaTopic topic)
     {
