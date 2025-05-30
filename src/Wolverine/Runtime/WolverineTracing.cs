@@ -136,7 +136,7 @@ internal static class WolverineTracing
 
     public static Activity? StartExecuting(Envelope envelope)
     {
-        return StartEnvelopeActivity("process", envelope);
+        return StartEnvelopeActivity(envelope.MessageType ?? "process", envelope);
     }
 
     public static Activity? StartEnvelopeActivity(string spanName, Envelope envelope,
