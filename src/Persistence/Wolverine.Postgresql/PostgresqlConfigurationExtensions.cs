@@ -37,7 +37,7 @@ public static class PostgresqlConfigurationExtensions
     public static IPostgresqlBackedPersistence PersistMessagesWithPostgresql(this WolverineOptions options, string connectionString,
         string? schemaName = null)
     {
-        var persistence = new PostgresqlBackedPersistence
+        var persistence = new PostgresqlBackedPersistence(options.Durability)
         {
             ConnectionString = connectionString,
         };
@@ -62,7 +62,7 @@ public static class PostgresqlConfigurationExtensions
     public static IPostgresqlBackedPersistence PersistMessagesWithPostgresql(this WolverineOptions options, NpgsqlDataSource dataSource,
         string? schemaName = null)
     {
-        var persistence = new PostgresqlBackedPersistence
+        var persistence = new PostgresqlBackedPersistence(options.Durability)
         {
             DataSource = dataSource
         };

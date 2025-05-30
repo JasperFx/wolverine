@@ -15,7 +15,7 @@ public static class SqlServerConfigurationExtensions
     /// </summary>
     /// <param name="settings"></param>
     /// <param name="connectionString"></param>
-    /// <param name="schema"></param>
+    /// <param name="schema">Potentially override the schema name for Wolverine envelope storage. Default is to use WolverineOptions.Durability.MessageStorageSchemaName ?? "dbo"</param>
     public static ISqlServerBackedPersistence PersistMessagesWithSqlServer(this WolverineOptions options, string connectionString,
         string? schema = null)
     {
@@ -30,7 +30,7 @@ public static class SqlServerConfigurationExtensions
         }
         else
         {
-            extension.EnvelopeStorageSchemaName = "dbo";
+            extension.EnvelopeStorageSchemaName = options.Durability.MessageStorageSchemaName ?? "dbo";
         }
         
         options.Include(extension);
