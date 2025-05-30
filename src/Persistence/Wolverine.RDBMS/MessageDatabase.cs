@@ -1,7 +1,7 @@
 using System.Data;
 using System.Data.Common;
 using JasperFx.Core;
-using JasperFx.Core.Descriptors;
+using JasperFx.Descriptors;
 using Microsoft.Extensions.Logging;
 using Weasel.Core;
 using Weasel.Core.Migrations;

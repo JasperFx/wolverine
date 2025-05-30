@@ -1,4 +1,4 @@
-using JasperFx.Core.Descriptors;
+using JasperFx.Descriptors;
 using Wolverine.Logging;
 using Wolverine.Persistence.Durability.DeadLetterManagement;
 using Wolverine.Runtime;

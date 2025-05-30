@@ -1,7 +1,7 @@
 using JasperFx.CommandLine;
 using JasperFx.CommandLine.Descriptions;
-using JasperFx.Core.Descriptors;
 using JasperFx.Core.Reflection;
+using JasperFx.Descriptors;
 using Spectre.Console;
 using Wolverine.Runtime.Serialization;
 using Table = Spectre.Console.Table;

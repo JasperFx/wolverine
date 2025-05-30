@@ -1,4 +1,4 @@
-using JasperFx.Core.Descriptors;
+using JasperFx.Descriptors;
 using Raven.Client.Documents;
 using Wolverine.Persistence.Durability;
 using Wolverine.RavenDb.Internals.Durability;

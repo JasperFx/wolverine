@@ -1,6 +1,6 @@
 using ImTools;
 using JasperFx.Core;
-using JasperFx.Core.Descriptors;
+using JasperFx.Descriptors;
 using JasperFx.MultiTenancy;
 using Weasel.Core;
 

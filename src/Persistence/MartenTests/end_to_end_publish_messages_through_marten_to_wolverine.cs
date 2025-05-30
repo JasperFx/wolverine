@@ -5,9 +5,11 @@ using JasperFx;
 using JasperFx.Core;
 using JasperFx.Events;
 using JasperFx.Events.Daemon;
+using JasperFx.Events.Grouping;
 using JasperFx.Events.Projections;
 using Marten;
 using Marten.Events.Aggregation;
+using Marten.Events.Projections;
 using Marten.Schema;
 using Marten.Storage;
 using Microsoft.Extensions.DependencyInjection;
@@ -296,7 +298,6 @@ public class
                     m.DatabaseSchemaName = "mixed_tenancy";
                     m.Schema.For<Customer>().SingleTenanted();
                     m.Schema.For<Order2>().MultiTenanted();
-                    m.Events.EnableGlobalProjectionsForConjoinedTenancy = true;
                     m.Events.TenancyStyle = TenancyStyle.Conjoined;
 
                     m.Projections.Add<CustomerProjection>(ProjectionLifecycle.Inline);
@@ -380,8 +381,14 @@ public record CustomerActivated;
 
 public record CustomerMoved(string Location);
 
-public class CustomerProjection : SingleStreamProjection<Customer, Guid>
+public class CustomerProjection : MultiStreamProjection<Customer, Guid>
 {
+    public CustomerProjection()
+    {
+        TenancyGrouping = TenancyGrouping.AcrossTenants;
+        Identity<IEvent>(x => x.StreamId);
+    }
+
     public static Customer Create(CustomerAdded added) => new Customer { Name = added.Name };
 
     public void Apply(Customer customer, CustomerActivated _) => customer.IsActive = true;

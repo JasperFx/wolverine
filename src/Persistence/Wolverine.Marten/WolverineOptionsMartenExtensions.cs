@@ -1,8 +1,8 @@
 ﻿using JasperFx;
 using JasperFx.Core;
-using JasperFx.Core.Descriptors;
 using JasperFx.Core.IoC;
 using JasperFx.Core.Reflection;
+using JasperFx.Descriptors;
 using JasperFx.Events;
 using JasperFx.Events.Subscriptions;
 using Marten;
@@ -104,7 +104,7 @@ public static class WolverineOptionsMartenExtensions
                              store.Options.DatabaseSchemaName ?? "public";
 
 
-            if (store.Tenancy.Cardinality == DatabaseCardinality.Single)
+            if (store.Tenancy.As<IDatabaseUser>().Cardinality == DatabaseCardinality.Single)
             {
                 return BuildSinglePostgresqlMessageStore(schemaName, integration.AutoCreate, store, runtime, logger);
             }

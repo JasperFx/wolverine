@@ -4,8 +4,8 @@ using JasperFx;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
-using JasperFx.Core.Descriptors;
 using JasperFx.Core.Reflection;
+using JasperFx.Descriptors;
 using Microsoft.Extensions.DependencyInjection;
 using Wolverine.Configuration;
 using Wolverine.Persistence;
@@ -41,6 +41,8 @@ public enum MultipleHandlerBehavior
 public sealed partial class WolverineOptions
 {
     private readonly List<Action<WolverineOptions>> _lazyActions = [];
+    private AutoCreate? _autoBuildMessageStorageOnStartup;
+
     public WolverineOptions() : this(null)
     {
     }
@@ -157,9 +159,11 @@ public sealed partial class WolverineOptions
     ///     Direct Wolverine to make any necessary database patches for envelope storage upon
     ///     application start. Default is taken from JasperFxOptions, and is CreateOrDefault 
     /// </summary>
-    public AutoCreate AutoBuildMessageStorageOnStartup { get; set; } = AutoCreate.CreateOrUpdate;
-
-    internal TypeLoadMode ProductionTypeLoadMode { get; set; }
+    public AutoCreate AutoBuildMessageStorageOnStartup
+    {
+        get => _autoBuildMessageStorageOnStartup ?? AutoCreate.CreateOrUpdate;
+        set => _autoBuildMessageStorageOnStartup = value;
+    }
 
     /// <summary>
     ///     Descriptive name of the running service. Used in Wolverine diagnostics and testing support
@@ -256,4 +260,25 @@ public sealed partial class WolverineOptions
     }
 
     public Version? Version => ApplicationAssembly?.GetName().Version ?? Assembly.GetEntryAssembly()?.GetName().Version;
+
+    internal void ReadJasperFxOptions(JasperFxOptions jasperfx)
+    {
+        if (!CodeGeneration.SourceCodeWritingEnabledHasChanged)
+        {
+            CodeGeneration.SourceCodeWritingEnabled = jasperfx.ActiveProfile.SourceCodeWritingEnabled;
+        }
+
+        if (!CodeGeneration.TypeLoadModeHasChanged)
+        {
+            CodeGeneration.TypeLoadMode = jasperfx.ActiveProfile.GeneratedCodeMode;
+        }
+
+        // Watch this!
+        Durability.TenantIdStyle = jasperfx.TenantIdStyle;
+
+        if (_autoBuildMessageStorageOnStartup == null)
+        {
+            _autoBuildMessageStorageOnStartup = jasperfx.ActiveProfile.ResourceAutoCreate;
+        }
+    }
 }

@@ -1,4 +1,4 @@
-﻿using JasperFx.Core.Descriptors;
+﻿using JasperFx.Descriptors;
 using JasperFx.MultiTenancy;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;

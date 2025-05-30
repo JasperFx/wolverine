@@ -6,7 +6,7 @@ using Xunit;
 
 namespace CoreTests;
 
-public class optimizing_artifact_workflow
+public class critterstack_defaults_usage
 {
     [Fact]
     public async Task running_in_development_mode()
