@@ -57,9 +57,11 @@ public class DurabilitySettings
 
     /// <summary>
     /// For systems that use multi-tenancy, this controls how Wolverine does or does not "correct" the supplied tenant
-    /// id, with the default behavior being to use case-sensitive tenant ids
+    /// id, with the default behavior being to use case-sensitive tenant ids.
+    ///
+    /// Use the IServiceCollection.CritterStackDefaults() method to change this 
     /// </summary>
-    public TenantIdStyle TenantIdStyle { get; set; } = TenantIdStyle.CaseSensitive;
+    public TenantIdStyle TenantIdStyle { get; internal set; } = TenantIdStyle.CaseSensitive;
 
     /// <summary>
     /// If set, this establishes a default database schema name for all registered message

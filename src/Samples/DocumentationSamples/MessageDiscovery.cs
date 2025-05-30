@@ -7,9 +7,9 @@ namespace DocumentationSamples;
 
 public record CreateIssue(string Name) : IMessage;
 
-public record DeleteIssue(Guid Id) : ICommand;
+public record DeleteIssue(Guid Id) : IMessage;
 
-public record IssueCreated(Guid Id, string Name) : IEvent;
+public record IssueCreated(Guid Id, string Name) : IMessage;
 
 #endregion
 

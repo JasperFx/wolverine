@@ -2,8 +2,8 @@
 using ImTools;
 using JasperFx;
 using JasperFx.Core;
-using JasperFx.Core.Descriptors;
 using JasperFx.Core.Reflection;
+using JasperFx.Descriptors;
 using Microsoft.Extensions.Logging;
 using Npgsql;
 using NpgsqlTypes;

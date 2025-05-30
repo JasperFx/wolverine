@@ -109,6 +109,10 @@ public static class HostBuilderExtensions
 
         services.AddSingleton(s =>
         {
+            var jasperfx = s.GetRequiredService<JasperFxOptions>();
+
+            options.ReadJasperFxOptions(jasperfx);
+            
             var extensions = s.GetServices<IWolverineExtension>();
             options.ApplyExtensions(extensions.ToArray());
 

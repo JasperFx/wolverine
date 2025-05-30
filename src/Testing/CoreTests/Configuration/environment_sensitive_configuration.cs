@@ -28,7 +28,7 @@ public class environment_sensitive_configuration
                     x.Production.AssertAllPreGeneratedTypesExist = true;
 
                     // These are defaults, but showing for completeness
-                    x.Development.GeneratedCodeMode = TypeLoadMode.Dynamic;
+                    x.Development.GeneratedCodeMode = TypeLoadMode.Auto;
                     x.Development.ResourceAutoCreate = AutoCreate.CreateOrUpdate;
                 });
             })
@@ -57,7 +57,7 @@ public class environment_sensitive_configuration
                     x.Production.AssertAllPreGeneratedTypesExist = true;
 
                     // These are defaults, but showing for completeness
-                    x.Development.GeneratedCodeMode = TypeLoadMode.Dynamic;
+                    x.Development.GeneratedCodeMode = TypeLoadMode.Auto;
                     x.Development.ResourceAutoCreate = AutoCreate.CreateOrUpdate;
                 });
             })
@@ -88,6 +88,7 @@ public class environment_sensitive_configuration
 
                     // Little draconian, but this might be helpful
                     x.Production.AssertAllPreGeneratedTypesExist = true;
+                    x.Production.SourceCodeWritingEnabled = false;
 
                     // These are defaults, but showing for completeness
                     x.Development.GeneratedCodeMode = TypeLoadMode.Dynamic;
@@ -100,7 +101,7 @@ public class environment_sensitive_configuration
 
         var options = host.Services.GetRequiredService<WolverineOptions>();
 
-        options.CodeGeneration.TypeLoadMode.ShouldBe(TypeLoadMode.Auto);
+        options.CodeGeneration.TypeLoadMode.ShouldBe(TypeLoadMode.Static);
         options.CodeGeneration.SourceCodeWritingEnabled.ShouldBeFalse();
         options.AutoBuildMessageStorageOnStartup.ShouldBe(AutoCreate.None);
     }
@@ -124,6 +125,8 @@ public class environment_sensitive_configuration
 
                     // Little draconian, but this might be helpful
                     x.Production.AssertAllPreGeneratedTypesExist = true;
+
+                    x.Production.SourceCodeWritingEnabled = false;
 
                     // These are defaults, but showing for completeness
                     x.Development.GeneratedCodeMode = TypeLoadMode.Dynamic;

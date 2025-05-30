@@ -3,7 +3,6 @@ using System.Linq.Expressions;
 using FastExpressionCompiler;
 using ImTools;
 using JasperFx;
-using JasperFx.Core.Descriptors;
 using JasperFx.Core.Reflection;
 using JasperFx.MultiTenancy;
 using Microsoft.EntityFrameworkCore;

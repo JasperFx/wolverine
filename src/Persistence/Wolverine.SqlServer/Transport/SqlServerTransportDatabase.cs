@@ -1,6 +1,6 @@
 using JasperFx.Core;
-using JasperFx.Core.Descriptors;
 using JasperFx.Core.Reflection;
+using JasperFx.Descriptors;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
 using Weasel.Core;

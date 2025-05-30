@@ -1,5 +1,5 @@
 using ImTools;
-using JasperFx.Core.Descriptors;
+using JasperFx.Descriptors;
 using JasperFx.MultiTenancy;
 using Microsoft.Extensions.Logging;
 using Wolverine.Persistence.Durability;
