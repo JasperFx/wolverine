@@ -54,6 +54,7 @@ public enum MessageIdentity
 public class DurabilitySettings
 {
     private readonly CancellationTokenSource _cancellation = new();
+    private TenantIdStyle _tenantIdStyle = TenantIdStyle.CaseSensitive;
 
     /// <summary>
     /// For systems that use multi-tenancy, this controls how Wolverine does or does not "correct" the supplied tenant
@@ -61,7 +62,17 @@ public class DurabilitySettings
     ///
     /// Use the IServiceCollection.CritterStackDefaults() method to change this 
     /// </summary>
-    public TenantIdStyle TenantIdStyle { get; internal set; } = TenantIdStyle.CaseSensitive;
+    public TenantIdStyle TenantIdStyle
+    {
+        get => _tenantIdStyle;
+        internal set
+        {
+            _tenantIdStyle = value;
+            TenantIdStyleHasChanged = true;
+        }
+    }
+    
+    internal bool TenantIdStyleHasChanged { get; set; }
 
     /// <summary>
     /// If set, this establishes a default database schema name for all registered message
