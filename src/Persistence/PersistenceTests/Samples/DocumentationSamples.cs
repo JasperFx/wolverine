@@ -250,6 +250,11 @@ public class DocumentationSamples
         
         builder.UseWolverine(opts =>
         {
+            // This helps Wolverine to use a unified envelope storage across all
+            // modules, which in turn should help Wolverine be more efficient with
+            // your database
+            opts.Durability.MessageStorageSchemaName = "wolverine";
+            
             // Tell Wolverine that when you have more than one handler for the same
             // message type, they should be executed separately and automatically
             // "stuck" to separate local queues

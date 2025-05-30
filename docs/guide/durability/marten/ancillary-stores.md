@@ -39,6 +39,8 @@ theHost = await Host.CreateDefaultBuilder()
     {
 
         // THIS IS IMPORTANT FOR MODULAR MONOLITH USAGE!
+        // This helps Wolverine utilize the same envelope storage within the same database,
+        // and helps the system not waste resources
         opts.Durability.MessageStorageSchemaName = "wolverine";
 
         opts.Services.AddMarten(Servers.PostgresConnectionString).IntegrateWithWolverine();
