@@ -62,6 +62,7 @@ const config: UserConfig<DefaultTheme.Config> = {
                     items: [
                         {text: 'What is Wolverine?', link: '/introduction/whatiswolverine'},
                         {text: 'Getting Started', link: '/introduction/getting-started'},
+                        {text: 'Support Policy', link: '/introduction/support-policy'},
                         {text: 'Wolverine for MediatR Users', link: '/introduction/from-mediatr'},
                         {text: 'Best Practices', link: '/introduction/best-practices'}, 
                     ]
