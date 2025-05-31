@@ -104,13 +104,21 @@ public static class WolverineOptionsMartenExtensions
                              store.Options.DatabaseSchemaName ?? "public";
 
 
-            if (store.Tenancy.As<IDatabaseUser>().Cardinality == DatabaseCardinality.Single)
+            if (store.Tenancy.Cardinality == DatabaseCardinality.Single)
             {
                 return BuildSinglePostgresqlMessageStore(schemaName, integration.AutoCreate, store, runtime, logger);
             }
 
+            var masterDatabaseConnectionString = integration.MasterDatabaseConnectionString;
+            var masterDataSource = integration.MasterDataSource;
+
+            if (store.Tenancy is MasterTableTenancy masterTableTenancy)
+            {
+                masterDataSource = masterTableTenancy.TenantDatabase.DataSource;
+            }
+            
             return BuildMultiTenantedMessageDatabase(schemaName, integration.AutoCreate,
-                integration.MasterDatabaseConnectionString, integration.MasterDataSource, store, runtime, s);
+                masterDatabaseConnectionString, masterDataSource, store, runtime, s);
         });
 
         if (integration.UseWolverineManagedEventSubscriptionDistribution)

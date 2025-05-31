@@ -1,4 +1,5 @@
 using ImTools;
+using JasperFx;
 using JasperFx.Descriptors;
 using JasperFx.MultiTenancy;
 using Microsoft.Extensions.Logging;
@@ -45,6 +46,11 @@ internal class PostgresqlTenantedMessageStore : ITenantedMessageSource, IMessage
         {
             var connectionString = await _persistence.ConnectionStringTenancy.FindAsync(tenantId);
             store = buildStoreForConnectionString(connectionString);
+        }
+
+        if (_runtime.Options.AutoBuildMessageStorageOnStartup != AutoCreate.None)
+        {
+            await store.Admin.MigrateAsync();
         }
         
         _stores = _stores.AddOrUpdate(tenantId, store);
@@ -105,6 +111,12 @@ internal class PostgresqlTenantedMessageStore : ITenantedMessageSource, IMessage
                 if (!_stores.Contains(assignment.TenantId))
                 {
                     var store = buildStoreForConnectionString(assignment.Value);
+                    
+                    if (_runtime.Options.AutoBuildMessageStorageOnStartup != AutoCreate.None)
+                    {
+                        await store.Admin.MigrateAsync();
+                    }
+                    
                     _stores = _stores.AddOrUpdate(assignment.TenantId, store);
                 }
             }
@@ -119,6 +131,12 @@ internal class PostgresqlTenantedMessageStore : ITenantedMessageSource, IMessage
                 if (!_stores.Contains(assignment.TenantId))
                 {
                     var store = buildStoreForDataSource(assignment.Value);
+                    
+                    if (_runtime.Options.AutoBuildMessageStorageOnStartup != AutoCreate.None)
+                    {
+                        await store.Admin.MigrateAsync();
+                    }
+                    
                     _stores = _stores.AddOrUpdate(assignment.TenantId, store);
                 }
             }

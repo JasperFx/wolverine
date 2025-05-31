@@ -52,7 +52,7 @@ internal class MartenMessageDatabaseSource : IMessageDatabaseSource
         _runtime = runtime;
     }
 
-    public DatabaseCardinality Cardinality => _store.Options.Tenancy.As<IDatabaseUser>().Cardinality;
+    public DatabaseCardinality Cardinality => _store.Options.Tenancy.Cardinality;
 
     public async ValueTask<IMessageStore> FindAsync(string tenantId)
     {
@@ -115,8 +115,16 @@ internal class MartenMessageDatabaseSource : IMessageDatabaseSource
         var martenDatabases = await _store.Storage.AllDatabases();
         foreach (var martenDatabase in martenDatabases)
         {
-            var wolverineStore = createWolverineStore(martenDatabase);
-            _databases = _databases.AddOrUpdate(martenDatabase.Identifier, wolverineStore);
+            if (!_databases.Contains(martenDatabase.Identifier))
+            {
+                var wolverineStore = createWolverineStore(martenDatabase);
+                if (_runtime.Options.AutoBuildMessageStorageOnStartup != AutoCreate.None)
+                {
+                    await wolverineStore.Admin.MigrateAsync();
+                }
+                
+                _databases = _databases.AddOrUpdate(martenDatabase.Identifier, wolverineStore);
+            }
         }
     }
 

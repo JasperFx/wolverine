@@ -27,7 +27,7 @@ public class static_multi_tenancy : MultiTenancyContext
 
     protected override void configureWolverine(WolverineOptions opts)
     {
-        opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, "static_multi_tenancy")
+        opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, "static_multi_tenancy2")
             .RegisterStaticTenants(tenants =>
             {
                 tenants.Register("red", tenant1ConnectionString);
@@ -86,15 +86,15 @@ public class static_multi_tenancy : MultiTenancyContext
         var tables = await store.Main.As<PostgresqlMessageStore>().SchemaTables();
 
         var expected = @"
-static_multi_tenancy.blues
-static_multi_tenancy.reds
-static_multi_tenancy.wolverine_control_queue
-static_multi_tenancy.wolverine_dead_letters
-static_multi_tenancy.wolverine_incoming_envelopes
-static_multi_tenancy.wolverine_node_assignments
-static_multi_tenancy.wolverine_node_records
-static_multi_tenancy.wolverine_nodes
-static_multi_tenancy.wolverine_outgoing_envelopes
+static_multi_tenancy2.blues
+static_multi_tenancy2.reds
+static_multi_tenancy2.wolverine_control_queue
+static_multi_tenancy2.wolverine_dead_letters
+static_multi_tenancy2.wolverine_incoming_envelopes
+static_multi_tenancy2.wolverine_node_assignments
+static_multi_tenancy2.wolverine_node_records
+static_multi_tenancy2.wolverine_nodes
+static_multi_tenancy2.wolverine_outgoing_envelopes
 ".ReadLines().Where(x => x.IsNotEmpty()).ToArray();
 
         tables.OrderBy(x => x.QualifiedName).Select(x => x.QualifiedName).ToArray()
@@ -110,11 +110,11 @@ static_multi_tenancy.wolverine_outgoing_envelopes
         await store.Source.RefreshAsync();
 
         var expected = @"
-static_multi_tenancy.blues
-static_multi_tenancy.reds
-static_multi_tenancy.wolverine_dead_letters
-static_multi_tenancy.wolverine_incoming_envelopes
-static_multi_tenancy.wolverine_outgoing_envelopes
+static_multi_tenancy2.blues
+static_multi_tenancy2.reds
+static_multi_tenancy2.wolverine_dead_letters
+static_multi_tenancy2.wolverine_incoming_envelopes
+static_multi_tenancy2.wolverine_outgoing_envelopes
 ".ReadLines().Where(x => x.IsNotEmpty()).ToArray();
 
         foreach (var tenantId in new string[] { "red", "blue", "green" })
@@ -134,10 +134,10 @@ static_multi_tenancy.wolverine_outgoing_envelopes
             .ShouldBeOfType<MultiTenantedMessageStore>();
 
         var expected = @"
-wolverinedb://postgresql/localhost/postgres/static_multi_tenancy
-wolverinedb://postgresql/localhost/db1/static_multi_tenancy
-wolverinedb://postgresql/localhost/db3/static_multi_tenancy
-wolverinedb://postgresql/localhost/db2/static_multi_tenancy
+wolverinedb://postgresql/localhost/postgres/static_multi_tenancy2
+wolverinedb://postgresql/localhost/db1/static_multi_tenancy2
+wolverinedb://postgresql/localhost/db3/static_multi_tenancy2
+wolverinedb://postgresql/localhost/db2/static_multi_tenancy2
 ".ReadLines().Where(x => x.IsNotEmpty()).Select(x => new Uri(x)).OrderBy(x => x.ToString()).ToArray();
         
 

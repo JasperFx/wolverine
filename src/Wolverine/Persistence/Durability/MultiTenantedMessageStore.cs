@@ -1,3 +1,4 @@
+using ImTools;
 using JasperFx;
 using JasperFx.Core;
 using JasperFx.Descriptors;
@@ -28,6 +29,8 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
     private readonly RetryBlock<IEnvelopeCommand> _retryBlock;
     private readonly IWolverineRuntime _runtime;
     private bool _initialized;
+    
+    private ImHashMap<string, IMessageStore> _byTenant = ImHashMap<string, IMessageStore>.Empty;
 
 
     public MultiTenantedMessageStore(IMessageStore main, IWolverineRuntime runtime,
@@ -479,7 +482,27 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
             await InitializeAsync(_runtime);
         }
 
-        await executeOnAllAsync(d => d.Admin.MigrateAsync());
+        await Main.Admin.MigrateAsync();
+        
+        var exceptions = new List<Exception>();
+
+        foreach (var assignment in Source.AllActiveByTenant())
+        {
+            try
+            {
+                await assignment.Value.Admin.MigrateAsync();
+                _byTenant = _byTenant.AddOrUpdate(assignment.TenantId, assignment.Value);
+            }
+            catch (Exception e)
+            {
+                exceptions.Add(e);
+            }
+        }
+
+        if (exceptions.Count != 0)
+        {
+            throw new AggregateException(exceptions);
+        }
     }
 
     public IReadOnlyList<IMessageStore> ActiveDatabases()
@@ -487,11 +510,23 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
         return databases().ToArray();
     }
 
-    public ValueTask<IMessageStore> GetDatabaseAsync(string? tenantId)
+    public async ValueTask<IMessageStore> GetDatabaseAsync(string? tenantId)
     {
-        return tenantId.IsDefaultTenant() || tenantId == "Master"
-            ? new ValueTask<IMessageStore>(Main)
-            : Source.FindAsync(tenantId);
+        if (tenantId.IsDefaultTenant()) return Main;
+        if (tenantId.EqualsIgnoreCase(TransportConstants.Default)) return Main;
+        if (tenantId.EqualsIgnoreCase(StorageConstants.Main)) return Main;
+
+        if (_byTenant.TryFind(tenantId, out var store)) return store;
+
+        store = await Source.FindAsync(tenantId);
+        if (store != null && _runtime.Options.AutoBuildMessageStorageOnStartup != AutoCreate.None)
+        {
+            await store.Admin.MigrateAsync();
+        }
+
+        _byTenant = _byTenant.AddOrUpdate(tenantId, store);
+
+        return store;
     }
 
     private IEnumerable<IMessageStore> databases()
@@ -548,13 +583,7 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
 
         return null;
     }
-    
-    public IAgentFamily? BuildAgentFamily(IWolverineRuntime runtime)
-    {
-        throw new NotImplementedException();
-        //return new DurabilityAgentFamily(runtime);
-    }
-    
+
     internal interface IEnvelopeCommand
     {
         Task ExecuteAsync(CancellationToken cancellationToken);

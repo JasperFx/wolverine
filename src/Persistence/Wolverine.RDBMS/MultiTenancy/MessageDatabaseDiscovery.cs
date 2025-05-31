@@ -14,6 +14,33 @@ public class MessageDatabaseDiscovery : IDatabaseSource
         _runtime = runtime;
     }
 
+    public async ValueTask<DatabaseUsage> DescribeDatabasesAsync(CancellationToken token)
+    {
+        var usage = new DatabaseUsage { Cardinality = Cardinality };
+        
+        if (_runtime.Storage is MultiTenantedMessageStore tenants)
+        {
+            await tenants.InitializeAsync(_runtime);
+
+            usage.MainDatabase = tenants.Main.Describe();
+
+            await tenants.Source.RefreshAsync();
+            
+            usage.Databases.AddRange(tenants.Source.AllActive().OfType<IMessageDatabase>().Select(x => x.Describe()));
+        }
+        else if (_runtime.Storage is IMessageDatabase md)
+        {
+            usage.MainDatabase = md.Describe();
+            usage.Cardinality = DatabaseCardinality.Single;
+        }
+        else
+        {
+            usage.Cardinality = DatabaseCardinality.None;
+        }
+
+        return usage;
+    }
+
     public async ValueTask<IReadOnlyList<IDatabase>> BuildDatabases()
     {
         var list = new List<IMessageDatabase>();

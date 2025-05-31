@@ -1,3 +1,4 @@
+using JasperFx;
 using JasperFx.Core.Reflection;
 using Npgsql;
 using Shouldly;
@@ -22,7 +23,7 @@ public class basic_bootstrapping_and_database_configuration : MultiTenancyContex
     [Fact]
     public void should_have_the_specified_master_database_as_master()
     {
-        Stores.Main.Name.ShouldBe("Master");
+        Stores.Main.Name.ShouldBe(StorageConstants.Main);
         Stores.Main.As<IMessageDatabase>().SchemaName.ShouldBe("control");
 
         new NpgsqlConnectionStringBuilder(Stores.Main.As<IMessageDatabase>().DataSource.CreateConnection().ConnectionString)
@@ -101,7 +102,7 @@ public class basic_bootstrapping_and_database_configuration : MultiTenancyContex
     [Fact]
     public void only_the_master_database_is_the_master()
     {
-        foreach (var database in Stores.ActiveDatabases().OfType<IMessageDatabase>().Where(x => x.Name != "Master"))
+        foreach (var database in Stores.ActiveDatabases().OfType<IMessageDatabase>().Where(x => x.Name != StorageConstants.Main))
         {
             database.IsMain.ShouldBeFalse();
         }
