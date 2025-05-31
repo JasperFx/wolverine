@@ -15,7 +15,7 @@
     </ItemGroup>
 
     <ItemGroup>
-      <PackageReference Include="RavenDB.Client" Version="6.0.105" />
+      <PackageReference Include="RavenDB.Client" Version="7.0.2" />
     </ItemGroup>
 
 </Project>
