@@ -47,10 +47,13 @@ internal class ConstructorPlan : ServicePlan
         }
         
         trail.Add(descriptor);
+        
+        var implementationType = descriptor.IsKeyedService ? descriptor.KeyedImplementationType : descriptor.ImplementationType;
 
         try
         {
-            var constructors = FindPublicConstructorCandidates(descriptor.ImplementationType);
+            
+            var constructors = FindPublicConstructorCandidates(implementationType);
         
             // If no public constructors, get out of here
             if (!constructors.Any())
@@ -65,13 +68,43 @@ internal class ConstructorPlan : ServicePlan
                 return true;
             }
 
+            Func<ParameterInfo, bool> hasPlan = parameter =>
+            {
+                if (parameter.TryGetAttribute<FromKeyedServicesAttribute>(out var att))
+                {
+                    var descriptor = graph
+                        .RegistrationsFor(parameter.ParameterType)
+                        .Where(x => x.IsKeyedService)
+                        .FirstOrDefault(x => x.ServiceKey.ToString() == att.Key.ToString());
+
+                    if (descriptor == null) return false;
+
+                    return graph.PlanFor(descriptor, trail) is not InvalidPlan;
+                }
+
+                return graph.FindDefault(parameter.ParameterType, trail) is not InvalidPlan;
+            };
+
             var constructor = constructors
-                .Where(x => x.GetParameters().All(p => graph.FindDefault(p.ParameterType, trail) is not InvalidPlan))
+                .Where(x => x.GetParameters().All(x => hasPlan(x)))
                 .MinBy(x => x.GetParameters().Length);
 
             if (constructor != null)
             {
-                var dependencies = constructor.GetParameters().Select(x => graph.FindDefault(x.ParameterType, trail)).ToArray();
+                var dependencies = constructor.GetParameters().Select(x =>
+                {
+                    if (x.TryGetAttribute<FromKeyedServicesAttribute>(out var att))
+                    {
+                        var descriptor = graph
+                            .RegistrationsFor(x.ParameterType)
+                            .Where(x => x.IsKeyedService)
+                            .FirstOrDefault(x => x.ServiceKey.ToString() == att.Key.ToString());
+
+                        return graph.PlanFor(descriptor, trail);
+                    }
+                    
+                    return graph.FindDefault(x.ParameterType, trail);
+                }).ToArray();
 
                 if (dependencies.OfType<InvalidPlan>().Any() || dependencies.Any(x => x == null))
                 {
@@ -99,10 +132,6 @@ internal class ConstructorPlan : ServicePlan
         if (descriptor.Lifetime == ServiceLifetime.Singleton)
             throw new ArgumentOutOfRangeException(nameof(descriptor),
                 $"Only {ServiceLifetime.Scoped} or {ServiceLifetime.Transient} lifecycles are valid");
-#if NET8_0_OR_GREATER
-
-        if (descriptor.IsKeyedService) throw new ArgumentOutOfRangeException(nameof(descriptor), "Cannot yet support keyed services");
-#endif
 
         if (constructor.GetParameters().Length != dependencies.Length)
         {
@@ -159,8 +188,9 @@ internal class ConstructorPlan : ServicePlan
 
     public override Variable CreateVariable(ServiceVariables resolverVariables)
     {
-        var frame = new ConstructorFrame(Descriptor.ImplementationType, Constructor);
-        if (Descriptor.ImplementationType.CanBeCastTo<IDisposable>() || Descriptor.ImplementationType.CanBeCastTo<IAsyncDisposable>())
+        var implementationType = Descriptor.IsKeyedService ? Descriptor.KeyedImplementationType : Descriptor.ImplementationType;
+        var frame = new ConstructorFrame(implementationType, Constructor);
+        if (implementationType.CanBeCastTo<IDisposable>() || implementationType.CanBeCastTo<IAsyncDisposable>())
         {
             frame.Mode = ConstructorCallMode.UsingNestedVariable;
         }

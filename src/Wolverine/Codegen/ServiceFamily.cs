@@ -66,22 +66,40 @@ internal class ServiceFamily
             return new ServiceLocationPlan(descriptor);
         }
 
-#if NET8_0_OR_GREATER
-        if (descriptor.IsKeyedService)
-        {
-            throw new NotSupportedException("Wolverine is not yet able support keyed implementations in its code generation with the built in ServiceProvider. Wolverine *can* support keyed services with the Lamar IoC container. See https://jasperfx.github.io/lamar for more information");
-        }
-#endif
-
         if (descriptor.Lifetime == ServiceLifetime.Singleton)
         {
             return new SingletonPlan(descriptor);
+        }
+
+        if (descriptor.IsKeyedService)
+        {
+            if (descriptor.KeyedImplementationFactory != null)
+            {
+                return new ServiceLocationPlan(descriptor);
+            }
+
+            if (descriptor.KeyedImplementationType.IsNotPublic)
+            {
+                return new ServiceLocationPlan(descriptor);
+            }
+
+            if (!descriptor.KeyedImplementationType.IsConcrete())
+            {
+                return new InvalidPlan(descriptor);
+            }
+            
+            if (ConstructorPlan.TryBuildPlan(trail, descriptor, graph, out var plan2))
+            {
+                return plan2;
+            }
         }
 
         if (descriptor.ImplementationFactory != null)
         {
             return new ServiceLocationPlan(descriptor);
         }
+        
+        
         
         if (!descriptor.ImplementationType.IsConcrete())
         {

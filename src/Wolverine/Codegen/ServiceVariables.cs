@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Reflection;
 using JasperFx.CodeGeneration.Model;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -43,6 +44,11 @@ internal class ServiceVariables : IEnumerable<Variable>, IMethodVariables
     Variable IMethodVariables.FindVariable(Type type)
     {
         if (type == typeof(IServiceProvider)) return _serviceProvider.Value;
+        return null;
+    }
+
+    public Variable FindVariable(ParameterInfo parameter)
+    {
         return null;
     }
 

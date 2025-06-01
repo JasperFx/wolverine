@@ -27,6 +27,24 @@ because at least one dependency is directly using IServiceProvider or has an opa
     {
         return _services.CouldResolve(type);
     }
+    
+    public bool TryFindKeyedService(Type type, string key, out Variable? variable)
+    {
+        variable = default;
+        
+        var descriptor = _services.RegistrationsFor(type).Where(x => x.IsKeyedService)
+            .FirstOrDefault(x => Equals(x.ServiceKey, key));
+
+        if (descriptor == null)
+        {
+            return false;
+        }
+
+        var plan = _services.PlanFor(descriptor, []);
+
+        variable = createVariableForPlan(type, plan);
+        return variable != null;
+    }
 
     public Variable Create(Type type)
     {
@@ -37,8 +55,15 @@ because at least one dependency is directly using IServiceProvider or has an opa
         }
 
         var plan = _services.FindDefault(type, new());
+        return createVariableForPlan(type, plan);
+    }
+
+    private Variable createVariableForPlan(Type type, ServicePlan? plan)
+    {
         if (plan is InvalidPlan)
+        {
             throw new NotSupportedException($"Cannot build service type {type.FullNameInCode()} in any way");
+        }
 
         if (plan is null)
         {
@@ -62,7 +87,7 @@ because at least one dependency is directly using IServiceProvider or has an opa
 
         return standin;
     }
-    
+
     public void ReplaceVariables(IMethodVariables method)
     {
         if (_usesScopedContainerDirectly || _standins.Any(x => x.Plan.RequiresServiceProvider(method)))
@@ -86,7 +111,7 @@ because at least one dependency is directly using IServiceProvider or has an opa
         _scoped = new ScopedContainerCreation().Scoped;
         _standins.Clear();
     }
-    
+
     private void useServiceProvider(IMethodVariables method)
     {
         var written = false;
