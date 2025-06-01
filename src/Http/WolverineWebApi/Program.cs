@@ -63,6 +63,9 @@ builder.Services.AddAuthorization();
 builder.Services.AddDbContextWithWolverineIntegration<ItemsDbContext>(
     x => x.UseNpgsql(Servers.PostgresConnectionString));
 
+builder.Services.AddKeyedSingleton<IThing, RedThing>("Red");
+builder.Services.AddKeyedScoped<IThing, BlueThing>("Blue");
+builder.Services.AddKeyedTransient<IThing, GreenThing>("Green");
 
 builder.Services.AddMarten(opts =>
 {
