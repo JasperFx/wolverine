@@ -140,10 +140,10 @@ builder.UseWolverine(opts =>
         {
             opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Static;
 
-            opts.Services.AddJasperFx(j =>
+            opts.Services.CritterStackDefaults(cr =>
             {
                 // I'm only going to care about this in production
-                j.Production.AssertAllPreGeneratedTypesExist = true;
+                cr.Production.AssertAllPreGeneratedTypesExist = true;
             });
         }
     });
@@ -199,10 +199,21 @@ using var host = await Host.CreateDefaultBuilder()
     {
         // Use "Auto" type load mode at development time, but
         // "Static" any other time
-        opts.OptimizeArtifactWorkflow();
+        opts.Services.CritterStackDefaults(x =>
+        {
+            x.Production.GeneratedCodeMode = TypeLoadMode.Static;
+            x.Production.ResourceAutoCreate = AutoCreate.None;
+
+            // Little draconian, but this might be helpful
+            x.Production.AssertAllPreGeneratedTypesExist = true;
+
+            // These are defaults, but showing for completeness
+            x.Development.GeneratedCodeMode = TypeLoadMode.Dynamic;
+            x.Development.ResourceAutoCreate = AutoCreate.CreateOrUpdate;
+        });
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CodegenUsage.cs#L63-L73' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_use_optimized_workflow' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CodegenUsage.cs#L63-L84' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_use_optimized_workflow' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Which will use:

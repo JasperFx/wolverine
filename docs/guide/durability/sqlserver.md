@@ -161,7 +161,31 @@ that support dynamic discovery.
 To utilize Wolverine managed multi-tenancy, you have a couple main options. The simplest is just using a static configured
 set of tenant id to database connections like so:
 
-snippet: sample_static_tenant_registry_with_sqlserver
+<!-- snippet: sample_static_tenant_registry_with_sqlserver -->
+<a id='snippet-sample_static_tenant_registry_with_sqlserver'></a>
+```cs
+var builder = Host.CreateApplicationBuilder();
+
+var configuration = builder.Configuration;
+
+builder.UseWolverine(opts =>
+{
+    // First, you do have to have a "main" PostgreSQL database for messaging persistence
+    // that will store information about running nodes, agents, and non-tenanted operations
+    opts.PersistMessagesWithSqlServer(configuration.GetConnectionString("main"))
+
+        // Add known tenants at bootstrapping time
+        .RegisterStaticTenants(tenants =>
+        {
+            // Add connection strings for the expected tenant ids
+            tenants.Register("tenant1", configuration.GetConnectionString("tenant1"));
+            tenants.Register("tenant2", configuration.GetConnectionString("tenant2"));
+            tenants.Register("tenant3", configuration.GetConnectionString("tenant3"));
+        });
+});
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests/MultiTenancy/MultiTenancyDocumentationSamples.cs#L43-L65' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_static_tenant_registry_with_sqlserver' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 ::: warning
 Wolverine is not yet able to dynamically tear down tenants yet. That's long planned, and honestly probably only happens
@@ -174,7 +198,32 @@ to database connection string information is kept in a separate database table.
 
 Here's a possible usage of that model:
 
-snippet: sample_using_sqlserver_backed_master_table_tenancy
+<!-- snippet: sample_using_sqlserver_backed_master_table_tenancy -->
+<a id='snippet-sample_using_sqlserver_backed_master_table_tenancy'></a>
+```cs
+var builder = Host.CreateApplicationBuilder();
+
+var configuration = builder.Configuration;
+builder.UseWolverine(opts =>
+{
+    // You need a main database no matter what that will hold information about the Wolverine system itself
+    // and..
+    opts.PersistMessagesWithSqlServer(configuration.GetConnectionString("wolverine"))
+
+        // ...also a table holding the tenant id to connection string information
+        .UseMasterTableTenancy(seed =>
+        {
+            // These registrations are 100% just to seed data for local development
+            // Maybe you want to omit this during production?
+            // Or do something programmatic by looping through data in the IConfiguration?
+            seed.Register("tenant1", configuration.GetConnectionString("tenant1"));
+            seed.Register("tenant2", configuration.GetConnectionString("tenant2"));
+            seed.Register("tenant3", configuration.GetConnectionString("tenant3"));
+        });
+});
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests/MultiTenancy/MultiTenancyDocumentationSamples.cs#L98-L121' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_sqlserver_backed_master_table_tenancy' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 ::: info
 Wolverine's "master table tenancy" model was unsurprisingly based on Marten's [Master Table Tenancy](https://martendb.io/configuration/multitenancy.html#master-table-tenancy-model) feature
