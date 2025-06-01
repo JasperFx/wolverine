@@ -3,6 +3,7 @@ using System.Security.Claims;
 using Alba;
 using Alba.Security;
 using IntegrationTests;
+using JasperFx;
 using JasperFx.MultiTenancy;
 using Marten;
 using Marten.Metadata;
@@ -340,7 +341,7 @@ public class multi_tenancy_detection_and_integration : IAsyncDisposable, IDispos
         });
 
         (await theHost.GetAsText("/maybe?tenant=blue")).ShouldBe("blue");
-        (await theHost.GetAsText("/maybe")).ShouldBe("none");
+        (await theHost.GetAsText("/maybe")).ShouldBe(StorageConstants.DefaultTenantId);
     }
 
     [Fact]

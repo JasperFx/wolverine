@@ -16,7 +16,13 @@ public class end_to_end_with_conventional_routing : IDisposable
     {
         _sender = WolverineHost.For(opts =>
         {
-            opts.UseAzureServiceBusTesting().UseTopicAndSubscriptionConventionalRouting().AutoProvision().AutoPurgeOnStartup();
+            opts.UseAzureServiceBusTesting().UseTopicAndSubscriptionConventionalRouting(x =>
+            {
+                // Can't use the full name because of limitations on name length
+                x.SubscriptionNameForListener(t => t.Name.ToLowerInvariant());
+                x.TopicNameForListener(t => t.Name.ToLowerInvariant());
+                x.TopicNameForSender(t => t.Name.ToLowerInvariant());
+            }).AutoProvision().AutoPurgeOnStartup();
             opts.DisableConventionalDiscovery();
             opts.ServiceName = "Sender";
         });
@@ -32,6 +38,11 @@ public class end_to_end_with_conventional_routing : IDisposable
                     // its applicability to types
                     // as well as overriding any listener, sender, topic, or subscription
                     // options
+
+                    // Can't use the full name because of limitations on name length
+                    convention.SubscriptionNameForListener(t => t.Name.ToLowerInvariant());
+                    convention.TopicNameForListener(t => t.Name.ToLowerInvariant());
+                    convention.TopicNameForSender(t => t.Name.ToLowerInvariant());
                 })
 
                 .AutoProvision()

@@ -125,7 +125,7 @@ public partial class AzureServiceBusTransport : BrokerTransport<AzureServiceBusE
     {
         if (!SystemQueuesEnabled) return;
 
-        var queueName = $"wolverine.response.{runtime.DurabilitySettings.AssignedNodeNumber}";
+        var queueName = $"wolverine.response.{runtime.Options.ServiceName}.{runtime.DurabilitySettings.AssignedNodeNumber}";
 
         var queue = Queues[queueName];
 
