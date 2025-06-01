@@ -176,7 +176,10 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue
         }
 
         foreach (var attribute in _mapper.ToAttributes(envelope))
+        {
+            request.MessageAttributes ??= new();
             request.MessageAttributes.Add(attribute.Key, attribute.Value);
+        }
 
         await _parent.Client!.SendMessageAsync(request);
     }

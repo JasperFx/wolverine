@@ -19,7 +19,7 @@ public class Thing
     public string Title { get; set; }
 }
 
-public class ThingProjection : SingleStreamProjection<Thing, Guid>
+public class ThingProjection : SingleStreamProjection<Thing, string>
 {
 
     public static Thing Create(ThingCreated @event) => new() { Id = @event.Id, Title = @event.Title };

@@ -98,6 +98,8 @@ builder.Services.AddSingleton<Recorder>();
 // Need this.
 builder.Host.UseWolverine(opts =>
 {
+    opts.Durability.MessageStorageSchemaName = "wolverine";
+    
     // I'm speeding this up a lot for faster tests
     opts.Durability.ScheduledJobPollingTime = 250.Milliseconds(); 
     
@@ -129,8 +131,7 @@ builder.Host.UseWolverine(opts =>
     
     opts.Policies.Add<BroadcastClientMessages>();
 
-    //opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Dynamic;
-    opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
+    opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Dynamic;
 });
 
 builder.Services.ConfigureSystemTextJsonForWolverineOrMinimalApi(o =>

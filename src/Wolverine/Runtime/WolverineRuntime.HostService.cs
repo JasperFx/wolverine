@@ -42,6 +42,14 @@ public partial class WolverineRuntime
                 await Storage.Admin.MigrateAsync();
             }
 
+            if (Options.AutoBuildMessageStorageOnStartup != AutoCreate.None)
+            {
+                foreach (var ancillaryStore in AncillaryStores)
+                {
+                    await ancillaryStore.Admin.MigrateAsync();
+                }
+            }
+
             // Has to be done before initializing the storage
             Handlers.AddMessageHandler(typeof(IAgentCommand), new AgentCommandHandler(this));
             Storage.Initialize(this);

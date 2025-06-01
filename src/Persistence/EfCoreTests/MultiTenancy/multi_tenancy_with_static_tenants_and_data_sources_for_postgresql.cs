@@ -42,7 +42,7 @@ public class multi_tenancy_with_static_tenants_and_data_sources_for_postgresql :
         
         opts.Services.AddDbContextWithWolverineManagedMultiTenancyByDbDataSource<ItemsDbContext>((builder, dataSource, _) =>
         {
-            NpgsqlDbContextOptionsBuilderExtensions.UseNpgsql<ItemsDbContext>(builder, (DbDataSource)dataSource, b => b.MigrationsAssembly("MultiTenantedEfCoreWithPostgreSQL"));
+            builder.UseNpgsql<ItemsDbContext>((DbDataSource)dataSource, b => b.MigrationsAssembly("MultiTenantedEfCoreWithPostgreSQL"));
         }, AutoCreate.CreateOrUpdate);
 
         opts.Services.AddResourceSetupOnStartup();

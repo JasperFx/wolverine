@@ -244,13 +244,10 @@ public class AmazonSnsTopic : Endpoint, IBrokerQueue
                     throw new NotImplementedException("AmazonSnsSubscriptionType not implemented");
             }
 
-            var subscribeRequest = new SubscribeRequest(TopicArn, subscription.Protocol, endpoint)
-            {
-                Attributes =
-                {
-                    [nameof(AmazonSnsSubscriptionAttributes.RawMessageDelivery)] = subscription.Attributes.RawMessageDelivery.ToString()
-                }
-            };
+            var subscribeRequest = new SubscribeRequest(TopicArn, subscription.Protocol, endpoint);
+            subscribeRequest.Attributes ??= new();
+            subscribeRequest.Attributes[nameof(AmazonSnsSubscriptionAttributes.RawMessageDelivery)] =
+                subscription.Attributes.RawMessageDelivery.ToString();
 
             if (subscription.Attributes.FilterPolicy.IsNotEmpty())
             {
