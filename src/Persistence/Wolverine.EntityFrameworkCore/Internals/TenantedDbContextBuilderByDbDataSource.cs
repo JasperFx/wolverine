@@ -67,8 +67,7 @@ public class TenantedDbContextBuilderByDbDataSource<T> : IDbContextBuilder<T> wh
         var dbContext = _constructor(builder.Options);
 
         var transaction = new MappedEnvelopeTransaction(dbContext, messaging);
-        // ReSharper disable once MethodHasAsyncOverload
-        messaging.EnlistInOutbox(transaction);
+        await messaging.EnlistInOutboxAsync(transaction);
 
         return dbContext;
     }

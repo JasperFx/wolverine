@@ -80,7 +80,7 @@ public class DatabaseBatcher : IAsyncDisposable
     {
         try
         {
-            _internalCancellation.Cancel();
+            await _internalCancellation.CancelAsync();
 
             _batchingBlock.Complete();
             await _batchingBlock.Completion;
