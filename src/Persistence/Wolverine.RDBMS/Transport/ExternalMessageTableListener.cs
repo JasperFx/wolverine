@@ -89,12 +89,11 @@ internal class ExternalMessageTableListener : IListener
         return new ValueTask();
     }
 
-    public ValueTask DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
-        _cancellation.Cancel();
+        await _cancellation.CancelAsync();
 
         _task.SafeDispose();
-        return ValueTask.CompletedTask;
     }
 
     public Uri Address { get; }
