@@ -10,7 +10,9 @@ using Microsoft.EntityFrameworkCore;
 using JasperFx;
 using JasperFx.Events;
 using JasperFx.Events.Projections;
+using JasperFx.MultiTenancy;
 using JasperFx.Resources;
+using Marten.Linq.CreatedAt;
 using Wolverine;
 using Wolverine.AdminApi;
 using Wolverine.EntityFrameworkCore;
@@ -132,6 +134,25 @@ builder.Host.UseWolverine(opts =>
     opts.Policies.Add<BroadcastClientMessages>();
 
     opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Dynamic;
+});
+
+// These settings would apply to *both* Marten and Wolverine
+// if you happen to be using both
+builder.Services.CritterStackDefaults(x =>
+{
+    x.ServiceName = "MyService";
+    x.TenantIdStyle = TenantIdStyle.ForceLowerCase;
+    
+    // You probably won't have to configure this often,
+    // but if you do, this applies to both tools
+    x.ApplicationAssembly = typeof(Program).Assembly;
+    
+    x.Production.GeneratedCodeMode = TypeLoadMode.Static;
+    x.Production.ResourceAutoCreate = AutoCreate.None;
+
+    // These are defaults, but showing for completeness
+    x.Development.GeneratedCodeMode = TypeLoadMode.Dynamic;
+    x.Development.ResourceAutoCreate = AutoCreate.CreateOrUpdate;
 });
 
 builder.Services.ConfigureSystemTextJsonForWolverineOrMinimalApi(o =>

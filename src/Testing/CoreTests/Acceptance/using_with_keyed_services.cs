@@ -142,7 +142,9 @@ public class ThingHandler
         holder.ThingUser.Thing.ShouldBeOfType<RedThing>();
     }
     
-    public static void Handle(UseThingDirectly command, [FromKeyedServices("Blue")] IThing thing)
+    public static void Handle(
+        UseThingDirectly command, 
+        [FromKeyedServices("Blue")] IThing thing)
     {
         thing.ShouldBeOfType<BlueThing>();
     }
@@ -152,7 +154,8 @@ public class ThingHandler
         thing.ShouldBeOfType<RedThing>();
     }
 
-    public static void Handle(UseMultipleThings command, [FromKeyedServices("Green")] IThing green,
+    public static void Handle(UseMultipleThings command, 
+        [FromKeyedServices("Green")] IThing green,
         [FromKeyedServices("Red")] IThing red)
     {
         green.ShouldBeOfType<GreenThing>();
