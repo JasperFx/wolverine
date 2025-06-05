@@ -122,7 +122,15 @@ public class MqttTransport : TransportBase<MqttTopic>, IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        await Client.StopAsync();
+        try
+        {
+            // ReSharper disable once ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract
+            if (Client is not null)
+                await Client.StopAsync();
+        }
+        catch (ObjectDisposedException)
+        {
+        }
     }
 
     internal async ValueTask SubscribeToTopicAsync(string topicName, MqttListener listener, MqttTopic mqttTopic)
