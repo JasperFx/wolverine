@@ -16,9 +16,9 @@ builder.Services.AddWolverineHttp();
 
 builder.Host.UseWolverine(opts =>
 {
-    //opts.UseAmazonSqsTransportLocally();
+    opts.UseAmazonSqsTransportLocally().AutoProvision();
     
-    //opts.PublishMessage<ExtLog>().ToSqsQueue("ext-logs");
+    opts.PublishMessage<ExtLog>().ToSqsQueue("ext-logs");
 
     opts.UseRabbitMq().AutoProvision();
 
