@@ -61,7 +61,10 @@ public sealed partial class WolverineOptions
         CodeGeneration.Sources.Add(new TenantIdSource());
         CodeGeneration.Assemblies.Add(GetType().Assembly);
 
-        establishApplicationAssembly(assemblyName);
+        if (assemblyName != null)
+        {
+            establishApplicationAssembly(assemblyName);
+        }
         
         if (ApplicationAssembly != null)
         {
@@ -69,8 +72,6 @@ public sealed partial class WolverineOptions
         }
 
         Durability = new DurabilitySettings { AssignedNodeNumber = UniqueNodeId.ToString().GetDeterministicHashCode() };
-
-        deriveServiceName();
 
         Policies.Add<SagaPersistenceChainPolicy>();
         Policies.Add<SideEffectPolicy>();
@@ -168,7 +169,7 @@ public sealed partial class WolverineOptions
     /// <summary>
     ///     Descriptive name of the running service. Used in Wolverine diagnostics and testing support
     /// </summary>
-    public string ServiceName { get; set; } = Assembly.GetEntryAssembly()!.GetName().Name ?? "WolverineService";
+    public string ServiceName { get; set; }
 
     /// <summary>
     ///     This should probably *only* be used in development or testing
@@ -263,6 +264,18 @@ public sealed partial class WolverineOptions
 
     internal void ReadJasperFxOptions(JasperFxOptions jasperfx)
     {
+        ServiceName ??= jasperfx.ServiceName;
+        
+        if (_applicationAssembly == null)
+        {
+            ApplicationAssembly = jasperfx.ApplicationAssembly;
+
+            if (ApplicationAssembly == null)
+            {
+                establishApplicationAssembly(null);
+            }
+        }
+        
         if (!CodeGeneration.SourceCodeWritingEnabledHasChanged)
         {
             CodeGeneration.SourceCodeWritingEnabled = jasperfx.ActiveProfile.SourceCodeWritingEnabled;

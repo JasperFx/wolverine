@@ -28,11 +28,10 @@ public sealed partial class WolverineOptions
         set
         {
             _applicationAssembly = value;
-            deriveServiceName();
 
             if (value != null)
             {
-                HandlerGraph.Discovery.Assemblies.Add(value);
+                HandlerGraph.Discovery.Assemblies.Fill(value);
 
                 // ReSharper disable once ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract
                 if (CodeGeneration != null)
