@@ -23,27 +23,26 @@ public class respecting_jasper_fx_defaults
         // TODO -- check AutoCreate here too
     }
 
-    // TODO -- come back to this
-    // [Fact]
-    // public async Task use_jasper_fx_defaults()
-    // {
-    //     using var host = await Host.CreateDefaultBuilder()
-    //         .UseWolverine(opts =>
-    //         {
-    //             opts.Services.CritterStackDefaults(cr =>
-    //             {
-    //                 cr.ServiceName = "Special";
-    //                 cr.Development.GeneratedCodeMode = TypeLoadMode.Static;
-    //                 
-    //                 // TODO -- also do AutoCreate
-    //             });
-    //         })
-    //         .UseEnvironment("Development")
-    //         .StartAsync();
-    //     
-    //     var runtime = host.GetRuntime();
-    //     
-    //     runtime.Options.ServiceName.ShouldBe("Special");
-    //     runtime.Options.CodeGeneration.TypeLoadMode.ShouldBe(TypeLoadMode.Static);
-    // }
+    [Fact]
+    public async Task use_jasper_fx_defaults()
+    {
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.Services.CritterStackDefaults(cr =>
+                {
+                    cr.ServiceName = "Special";
+                    cr.Development.GeneratedCodeMode = TypeLoadMode.Static;
+                    
+                    // TODO -- also do AutoCreate
+                });
+            })
+            .UseEnvironment("Development")
+            .StartAsync();
+        
+        var runtime = host.GetRuntime();
+        
+        runtime.Options.ServiceName.ShouldBe("Special");
+        runtime.Options.CodeGeneration.TypeLoadMode.ShouldBe(TypeLoadMode.Static);
+    }
 }
