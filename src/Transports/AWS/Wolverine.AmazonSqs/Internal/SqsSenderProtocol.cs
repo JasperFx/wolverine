@@ -81,7 +81,7 @@ internal class OutgoingSqsBatch
     public async Task ProcessSuccessAsync(ISenderCallback callback, SendMessageBatchResponse response,
         OutgoingMessageBatch batch)
     {
-        if (!response.Failed.Any())
+        if (response.Failed == null || !response.Failed.Any())
         {
             await callback.MarkSuccessfulAsync(batch);
         }
