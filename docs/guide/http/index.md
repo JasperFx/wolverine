@@ -192,7 +192,17 @@ works on this, the simple amelioration is to either "just" pre-generate the code
 Or, you can opt for `Eager` initialization of the HTTP endpoints to side step this problem in development
 when pre-generating types isn't viable:
 
-snippet: sample_eager_http_warmup
+<!-- snippet: sample_eager_http_warmup -->
+<a id='snippet-sample_eager_http_warmup'></a>
+```cs
+var app = builder.Build();
+
+app.MapWolverineEndpoints(x => x.WarmUpRoutes = RouteWarmup.Eager);
+    
+return await app.RunJasperFxCommands(args);
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/CrazyStartingWebApp/Program.cs#L21-L29' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_eager_http_warmup' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 
 

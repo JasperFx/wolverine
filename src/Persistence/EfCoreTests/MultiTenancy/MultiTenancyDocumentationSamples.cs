@@ -1,9 +1,14 @@
+using JasperFx;
 using JasperFx.MultiTenancy;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Npgsql;
+using SharedPersistenceModels.Items;
+using SharedPersistenceModels.Orders;
 using Wolverine;
+using Wolverine.EntityFrameworkCore;
 using Wolverine.Postgresql;
 using Wolverine.SqlServer;
 
@@ -33,6 +38,11 @@ public class MultiTenancyDocumentationSamples
                     tenants.Register("tenant2", configuration.GetConnectionString("tenant2"));
                     tenants.Register("tenant3", configuration.GetConnectionString("tenant3"));
                 });
+            
+            opts.Services.AddDbContextWithWolverineManagedMultiTenancy<ItemsDbContext>((builder, connectionString, _) =>
+            {
+                builder.UseNpgsql(connectionString.Value, b => b.MigrationsAssembly("MultiTenantedEfCoreWithPostgreSQL"));
+            }, AutoCreate.CreateOrUpdate);
         });
 
         #endregion
@@ -60,6 +70,18 @@ public class MultiTenancyDocumentationSamples
                     tenants.Register("tenant2", configuration.GetConnectionString("tenant2"));
                     tenants.Register("tenant3", configuration.GetConnectionString("tenant3"));
                 });
+            
+            // Just to show that you *can* use more than one DbContext
+            opts.Services.AddDbContextWithWolverineManagedMultiTenancy<ItemsDbContext>((builder, connectionString, _) =>
+            {
+                // You might have to set the migration assembly
+                builder.UseSqlServer(connectionString.Value, b => b.MigrationsAssembly("MultiTenantedEfCoreWithSqlServer"));
+            }, AutoCreate.CreateOrUpdate);
+        
+            opts.Services.AddDbContextWithWolverineManagedMultiTenancy<OrdersDbContext>((builder, connectionString, _) =>
+            {
+                builder.UseSqlServer(connectionString.Value, b => b.MigrationsAssembly("MultiTenantedEfCoreWithSqlServer"));
+            }, AutoCreate.CreateOrUpdate);
         });
 
         #endregion
@@ -88,6 +110,7 @@ public class MultiTenancyDocumentationSamples
                     seed.Register("tenant2", configuration.GetConnectionString("tenant2"));
                     seed.Register("tenant3", configuration.GetConnectionString("tenant3"));
                 });
+
         });
 
         #endregion

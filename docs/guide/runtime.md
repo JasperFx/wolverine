@@ -176,7 +176,7 @@ take advantage of the persistent outbox mechanism in Wolverine. To opt into maki
 // I overrode the buffering limits just to show
 // that they exist for "back pressure"
 opts.ListenToAzureServiceBusQueue("incoming")
-    .UseDurableInbox(new BufferingLimits(1000, 200));
+.UseDurableInbox(new BufferingLimits(1000, 200));
 
 opts.PublishAllMessages().ToAzureServiceBusQueue("outgoing")
     .UseDurableOutbox();

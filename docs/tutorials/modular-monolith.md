@@ -83,6 +83,11 @@ builder.Services.AddMarten(opts =>
 
 builder.UseWolverine(opts =>
 {
+    // This helps Wolverine to use a unified envelope storage across all
+    // modules, which in turn should help Wolverine be more efficient with
+    // your database
+    opts.Durability.MessageStorageSchemaName = "wolverine";
+    
     // Tell Wolverine that when you have more than one handler for the same
     // message type, they should be executed separately and automatically
     // "stuck" to separate local queues
@@ -100,7 +105,7 @@ builder.UseWolverine(opts =>
     opts.Policies.AutoApplyTransactions();
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L234-L271' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_important_settings_for_modular_monoliths' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L234-L276' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_important_settings_for_modular_monoliths' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 See [Message Identity](/guide/durability/#message-identity) and [Multiple Handlers for the Same Message Type](/guide/handlers/#multiple-handlers-for-the-same-message-type)
@@ -439,9 +444,11 @@ by using this setting:
 <a id='snippet-sample_using_message_storage_schema_name'></a>
 ```cs
 // THIS IS IMPORTANT FOR MODULAR MONOLITH USAGE!
+// This helps Wolverine out to always utilize the same envelope storage
+// for all modules for more efficient usage of resources
 opts.Durability.MessageStorageSchemaName = "wolverine";
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AncillaryStores/bootstrapping_ancillary_marten_stores_with_wolverine.cs#L59-L64' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_message_storage_schema_name' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AncillaryStores/bootstrapping_ancillary_marten_stores_with_wolverine.cs#L60-L67' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_message_storage_schema_name' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 By setting any value for `WolverineOptions.Durability.MessageStorageSchemaName`, Wolverine will use that value for the database schema

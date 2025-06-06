@@ -52,6 +52,8 @@ public class using_storage_return_types_and_entity_attributes : StorageActionCom
     }
 }
 
+#region sample_TodoDbContext
+
 public class TodoDbContext : DbContext
 {
     public TodoDbContext(DbContextOptions<TodoDbContext> options) : base(options)
@@ -71,3 +73,5 @@ public class TodoDbContext : DbContext
         });
     }
 }
+
+#endregion

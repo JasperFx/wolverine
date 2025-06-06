@@ -129,7 +129,7 @@ public class Incident
     public bool ShouldDelete(Archived @event) => true;
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/IncidentService/IncidentService/Incident.cs#L74-L107' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_incident_aggregate' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/IncidentService/IncidentService/Incident.cs#L75-L108' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_incident_aggregate' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: info
@@ -168,7 +168,7 @@ public record IncidentClosed(
     Guid ClosedBy
 );
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/IncidentService/IncidentService/Incident.cs#L5-L31' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_incident_events' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/IncidentService/IncidentService/Incident.cs#L6-L32' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_incident_events' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Many people -- myself included -- prefer to use `record` types for the event types. I would deviate from that though
