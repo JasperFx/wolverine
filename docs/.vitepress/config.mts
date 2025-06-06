@@ -237,7 +237,14 @@ const config: UserConfig<DefaultTheme.Config> = {
                         {text: 'Sql Server Integration', link: '/guide/durability/sqlserver'},
                         {text: 'PostgreSQL Integration', link: '/guide/durability/postgresql'},
                         {text: 'RavenDb Integration', link: '/guide/durability/ravendb'},
-                        {text: 'Entity Framework Core Integration', link: '/guide/durability/efcore'},
+                        {text: 'Entity Framework Core Integration', collapsed: false, link: '/guide/durability/efcore', items: [
+                                {text: 'Transactional Middleware', link: '/guide/durability/efcore/transactional-middleware'},
+                                {text: 'Transactional Inbox and Outbox', link: '/guide/durability/efcore/outbox-and-inbox'},
+                                {text: 'Operation Side Effects', link: '/guide/durability/efcore/operations'},
+                                {text: 'Saga Storage', link: '/guide/durability/efcore/sagas'},
+                                {text: 'Multi-Tenancy', link: '/guide/durability/efcore/multi-tenancy'}
+                            
+                            ]},
                         {text: 'Managing Message Storage', link: '/guide/durability/managing'},
                         {text: 'Dead Letter Storage', link: '/guide/durability/dead-letter-storage'},
                         {text: 'Idempotent Message Delivery', link:'/guide/durability/idempotency'}
