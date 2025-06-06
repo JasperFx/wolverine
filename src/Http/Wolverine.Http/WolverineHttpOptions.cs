@@ -84,6 +84,21 @@ public interface ITenantDetectionPolicies
     void DefaultIs(string defaultTenantId);
 }
 
+public enum RouteWarmup
+{
+    /// <summary>
+    /// Let Wolverine "warm up" the route on its first usage. This is the default.
+    /// </summary>
+    Lazy,
+    
+    /// <summary>
+    /// If there is a chance of near simultaneous requests on application startup, use
+    /// this option to eagerly warm up all routes as part of application startup. This
+    /// slows down the "cold start", but eliminates possible concurrency issues on startup
+    /// </summary>
+    Eager
+}
+
 public class WolverineHttpOptions
 {
     public WolverineHttpOptions()
@@ -114,6 +129,12 @@ public class WolverineHttpOptions
             .Select(strategy => strategy.DetectTenantSynchronously(httpContext))
             .FirstOrDefault(tenantId => tenantId.IsNotEmpty());
     }
+
+    /// <summary>
+    /// Potentially control how the Wolverine HTTP routes are "warmed up" at runtime
+    /// to alleviate concurrent access problems
+    /// </summary>
+    public RouteWarmup WarmUpRoutes { get; set; } = RouteWarmup.Lazy;
 
     internal TenantIdDetection TenantIdDetection { get; } = new();
 

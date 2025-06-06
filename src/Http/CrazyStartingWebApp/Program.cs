@@ -18,11 +18,15 @@ builder.Services.AddWolverine(c =>
 builder.Services.AddWolverineHttp();
 builder.Services.AddHostedService<ClientHostedService>();
 
+#region sample_eager_http_warmup
+
 var app = builder.Build();
 
-app.MapWolverineEndpoints();
+app.MapWolverineEndpoints(x => x.WarmUpRoutes = RouteWarmup.Eager);
     
 return await app.RunJasperFxCommands(args);
+
+#endregion
 
 public static class Endpoint1
 {

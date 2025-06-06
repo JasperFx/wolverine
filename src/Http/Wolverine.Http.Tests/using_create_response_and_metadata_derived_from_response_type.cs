@@ -15,7 +15,7 @@ public class using_create_response_and_metadata_derived_from_response_type : Int
     {
         var chain = HttpChain.ChainFor<CreateEndpoint>(x => x.Create(null));
 
-        var endpoint = chain.BuildEndpoint();
+        var endpoint = chain.BuildEndpoint(RouteWarmup.Lazy);
 
         // Should remove the 200 OK response
         endpoint
