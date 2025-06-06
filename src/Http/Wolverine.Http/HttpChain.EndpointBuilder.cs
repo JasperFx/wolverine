@@ -48,8 +48,10 @@ public partial class HttpChain : IEndpointConventionBuilder
         return false;
     }
 
-    public RouteEndpoint BuildEndpoint()
+    public RouteEndpoint BuildEndpoint(RouteWarmup warmup)
     {
+        if (Endpoint != null) return Endpoint;
+        
         RequestDelegate? requestDelegate = null;
         if (_parent.Rules.TypeLoadMode == TypeLoadMode.Static)
         {
@@ -59,13 +61,22 @@ public partial class HttpChain : IEndpointConventionBuilder
         }
         else
         {
-            var handler = new Lazy<HttpHandler>(() =>
+            if (warmup == RouteWarmup.Eager)
             {
                 this.InitializeSynchronously(_parent.Rules, _parent, _parent.Container.Services);
-                return (HttpHandler)_parent.Container.QuickBuild(_handlerType);
-            });
+                var handler = (HttpHandler)_parent.Container.QuickBuild(_handlerType);
+                requestDelegate = c => handler.Handle(c);
+            }
+            else
+            {
+                var handler = new Lazy<HttpHandler>(() =>
+                {
+                    this.InitializeSynchronously(_parent.Rules, _parent, _parent.Container.Services);
+                    return (HttpHandler)_parent.Container.QuickBuild(_handlerType);
+                });
 
-            requestDelegate = c => handler.Value.Handle(c);
+                requestDelegate = c => handler.Value.Handle(c);
+            }
         }
 
         var builder = new RouteEndpointBuilder(requestDelegate, RoutePattern!, Order)
