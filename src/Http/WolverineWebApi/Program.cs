@@ -117,6 +117,7 @@ builder.Host.UseWolverine(opts =>
     
     opts.Policies.OnExceptionOfType(typeof(AlwaysDeadLetterException)).MoveToErrorQueue();
 
+    opts.ApplicationAssembly = typeof(Program).Assembly;
     opts.UseFluentValidation();
     opts.Discovery.IncludeAssembly(typeof(CreateCustomer2).Assembly);
     opts.Discovery.IncludeAssembly(typeof(DiscoverFSharp).Assembly);
