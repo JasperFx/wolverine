@@ -110,12 +110,12 @@ public static class KafkaTransportExtensions
         return new KafkaSubscriberConfiguration(topic);
     }
 
-    internal static Envelope CreateEnvelope(this IKafkaEnvelopeMapper mapper, string topicName, Message<string, string> message)
+    internal static Envelope CreateEnvelope(this IKafkaEnvelopeMapper mapper, string topicName, Message<string, byte[]> message)
     {
         var envelope = new Envelope
         {
             PartitionKey = message.Key,
-            Data = Encoding.Default.GetBytes(message.Value),
+            Data = message.Value,
             TopicName = topicName
         };
 
@@ -126,12 +126,12 @@ public static class KafkaTransportExtensions
         return envelope;
     }
 
-    internal static Message<string, string> CreateMessage(this IKafkaEnvelopeMapper mapper, Envelope envelope)
+    internal static Message<string, byte[]> CreateMessage(this IKafkaEnvelopeMapper mapper, Envelope envelope)
     {
-        var message = new Message<string, string>
+        var message = new Message<string, byte[]>
         {
             Key = !string.IsNullOrEmpty(envelope.PartitionKey) ? envelope.PartitionKey : envelope.Id.ToString(),
-            Value = Encoding.Default.GetString(envelope.Data),
+            Value = envelope.Data,
             Headers = new Headers()
         };
 
