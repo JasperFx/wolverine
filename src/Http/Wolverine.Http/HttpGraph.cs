@@ -95,7 +95,7 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollectionWithServ
 
         foreach (var policy in wolverineHttpOptions.Policies) policy.Apply(_chains, Rules, Container);
 
-        _endpoints.AddRange(_chains.Select(x => x.BuildEndpoint(RouteWarmup.Lazy)));
+        _endpoints.AddRange(_chains.Select(x => x.BuildEndpoint(wolverineHttpOptions.WarmUpRoutes)));
     }
 
     public override IChangeToken GetChangeToken()

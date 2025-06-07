@@ -72,7 +72,17 @@ public partial class HttpChain : IEndpointConventionBuilder
                 var handler = new Lazy<HttpHandler>(() =>
                 {
                     this.InitializeSynchronously(_parent.Rules, _parent, _parent.Container.Services);
-                    return (HttpHandler)_parent.Container.QuickBuild(_handlerType);
+
+                    try
+                    {
+                        return (HttpHandler)_parent.Container.QuickBuild(_handlerType);
+                    }
+                    catch (Exception e)
+                    {
+                        throw new InvalidOperationException(
+                            "Wolverine may be having trouble with concurrent access to the same route at startup. Set the WolverineHttpOptions.Warmup = Eager to work around this problem",
+                            e);
+                    }
                 });
 
                 requestDelegate = c => handler.Value.Handle(c);

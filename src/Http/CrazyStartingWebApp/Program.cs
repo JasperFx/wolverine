@@ -13,7 +13,7 @@ builder.Services.AddAuthorization();
 builder.Services.AddWolverine(c =>
 {
     //c.ApplicationAssembly = typeof(Endpoint1).Assembly;
-    c.CodeGeneration.TypeLoadMode = TypeLoadMode.Static;
+    //c.CodeGeneration.TypeLoadMode = TypeLoadMode.Static;
 });
 builder.Services.AddWolverineHttp();
 builder.Services.AddHostedService<ClientHostedService>();
