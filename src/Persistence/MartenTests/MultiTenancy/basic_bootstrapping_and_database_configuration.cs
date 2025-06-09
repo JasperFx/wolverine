@@ -62,7 +62,7 @@ public class basic_bootstrapping_and_database_configuration : MultiTenancyContex
     [Fact]
     public async Task tenant_databases_do_not_have_node_and_assignment_tables()
     {
-        foreach (var database in Stores.ActiveDatabases().OfType<IMessageDatabase>().Where(x => x.Name != "Master"))
+        foreach (var database in Stores.ActiveDatabases().OfType<IMessageDatabase>().Where(x => x.Name != "Main"))
         {
             await using var conn = (NpgsqlConnection)await database.DataSource.OpenConnectionAsync();
 
