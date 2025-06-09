@@ -7,6 +7,7 @@ using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
+using JasperFx.Descriptors;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Metadata;
@@ -25,7 +26,7 @@ using ServiceContainer = Wolverine.Runtime.ServiceContainer;
 
 namespace Wolverine.Http;
 
-public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICodeFile, IEndpointNameMetadata, IEndpointSummaryMetadata, IEndpointDescriptionMetadata
+public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICodeFile, IEndpointNameMetadata, IEndpointSummaryMetadata, IEndpointDescriptionMetadata, IDescribeMyself
 {
     public static bool IsValidResponseType(Type type)
     {
@@ -69,6 +70,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
     /// This may be overridden by some IResponseAware policies in place of the first
     /// create variable of the method call
     /// </summary>
+    [IgnoreDescription]
     public Variable? ResourceVariable { get; set; }
 
     // Make the assumption that the route argument has to match the parameter name
@@ -157,14 +159,19 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
 
     public bool NoContent { get; }
 
+    [IgnoreDescription]
     public MethodCall Method { get; }
+
+    public Type EndpointType => Method.HandlerType;
 
     public string? RouteName { get; set; }
 
+    [IgnoreDescription]
     public string? DisplayName { get; set; }
     
     public int Order { get; set; }
 
+    [IgnoreDescription]
     public IEnumerable<string> HttpMethods => _httpMethods;
 
     public Type? ResourceType { get; private set; }
@@ -194,6 +201,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
         RequestType ??= typeof(void);
     }
 
+    [IgnoreDescription]
     public RoutePattern? RoutePattern { get; private set; }
 
     public Type? RequestType
@@ -284,6 +292,23 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
     public override string ToString()
     {
         return _fileName!;
+    }
+
+    public OptionsDescription ToDescription()
+    {
+        var description = new OptionsDescription(this);
+        description.AddValue(nameof(HttpMethods), HttpMethods.ToArray());
+
+        description.AddValue("Route", RoutePattern.RawText);
+
+        if (Tags.Any())
+        {
+            description.AddValue("Tags", Tags.Select(pair => $"{pair.Key} = {pair.Value}").Join(", "));
+        }
+
+        description.AddValue("Endpoint", $"{Method.HandlerType.FullNameInCode()}.{Method.MethodSignature}");
+
+        return description;
     }
 
     public override bool RequiresOutbox()

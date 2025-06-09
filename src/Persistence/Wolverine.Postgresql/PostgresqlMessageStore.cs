@@ -401,15 +401,15 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
 
     public override DatabaseDescriptor Describe()
     {
-        if (Descriptor != null) return Descriptor;
-        
         var builder = new NpgsqlConnectionStringBuilder(DataSource?.ConnectionString ?? Settings.ConnectionString);
         var descriptor = new DatabaseDescriptor()
         {
             Engine = "PostgreSQL",
             ServerName = builder.Host ?? string.Empty,
             DatabaseName = builder.Database ?? string.Empty,
-            Subject = GetType().FullNameInCode()
+            Subject = GetType().FullNameInCode(),
+            SubjectUri = SubjectUri,
+            Identifier = Identifier
         };
 
         descriptor.Properties.Add(OptionsValue.Read(builder, x => x.Host));

@@ -37,22 +37,16 @@ public partial class WolverineRuntime
             // Build up the message handlers
             Handlers.Compile(Options, _container);
 
-            if (Options.AutoBuildMessageStorageOnStartup != AutoCreate.None && Storage is not NullMessageStore)
-            {
-                await Storage.Admin.MigrateAsync();
-            }
-
-            if (Options.AutoBuildMessageStorageOnStartup != AutoCreate.None)
-            {
-                foreach (var ancillaryStore in AncillaryStores)
-                {
-                    await ancillaryStore.Admin.MigrateAsync();
-                }
-            }
+            await tryMigrateStorage();
 
             // Has to be done before initializing the storage
             Handlers.AddMessageHandler(typeof(IAgentCommand), new AgentCommandHandler(this));
-            Storage.Initialize(this);
+            
+            if (Options.Durability.DurabilityAgentEnabled)
+            {
+                // TODO -- this needs to be async!
+                Storage.Initialize(this);
+            }
 
             // This MUST be done before the messaging transports are started up
             _hasStarted = true; // Have to do this before you can use MessageBus
@@ -99,6 +93,24 @@ public partial class WolverineRuntime
         {
             MessageTracking.LogException(e, message: "Failed to start the Wolverine messaging");
             throw;
+        }
+    }
+
+    private async Task tryMigrateStorage()
+    {
+        if (!Options.Durability.DurabilityAgentEnabled) return;
+        
+        if (Options.AutoBuildMessageStorageOnStartup != AutoCreate.None && Storage is not NullMessageStore)
+        {
+            await Storage.Admin.MigrateAsync();
+        }
+
+        if (Options.AutoBuildMessageStorageOnStartup != AutoCreate.None)
+        {
+            foreach (var ancillaryStore in AncillaryStores)
+            {
+                await ancillaryStore.Admin.MigrateAsync();
+            }
         }
     }
 
@@ -289,6 +301,8 @@ public partial class WolverineRuntime
 
         Options.ExternalTransportsAreStubbed = true;
         Options.Durability.DurabilityAgentEnabled = false;
+        Options.Durability.Mode = DurabilityMode.MediatorOnly;
+        Options.LightweightMode = true;
 
         return StartAsync(CancellationToken.None);
     }

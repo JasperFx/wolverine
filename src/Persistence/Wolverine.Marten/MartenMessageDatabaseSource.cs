@@ -160,7 +160,6 @@ internal class MartenMessageDatabaseSource : IMessageDatabaseSource
             database.As<PostgresqlDatabase>().DataSource,
             _runtime.LoggerFactory.CreateLogger<PostgresqlMessageStore>())
         {
-            Descriptor = database.As<PostgresqlDatabase>().Describe(),
             Name = database.Identifier ?? new NpgsqlConnectionStringBuilder(settings.ConnectionString).Database
         };
 

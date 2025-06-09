@@ -261,6 +261,9 @@ public sealed partial class WolverineOptions
     }
 
     public Version? Version => ApplicationAssembly?.GetName().Version ?? Assembly.GetEntryAssembly()?.GetName().Version;
+    
+    // This helps govern some command line work
+    internal bool LightweightMode { get; set; }
 
     internal void ReadJasperFxOptions(JasperFxOptions jasperfx)
     {

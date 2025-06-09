@@ -1,4 +1,5 @@
 using Alba;
+using Alba.Security;
 using Marten;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
@@ -38,7 +39,10 @@ public class end_to_end : IAsyncLifetime
         // I blame the AspNetCore team...
         JasperFxEnvironment.AutoStartHost = true;
 
-        _host = await AlbaHost.For<Program>();
+        var securityStub = new JwtSecurityStub()
+            .With("claim", "value");
+        
+        _host = await AlbaHost.For<Program>(securityStub);
 
         // Wiping out any leftover data in the database
         var store = _host.Services.GetRequiredService<IDocumentStore>();

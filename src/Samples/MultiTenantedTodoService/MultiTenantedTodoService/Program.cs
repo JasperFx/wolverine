@@ -1,6 +1,7 @@
 using Marten;
 using JasperFx;
 using JasperFx.Resources;
+using MultiTenantedTodoWebService;
 using Wolverine;
 using Wolverine.Http;
 using Wolverine.Marten;
@@ -14,6 +15,10 @@ var connectionString = "Host=localhost;Port=5433;Database=postgres;Username=post
 // Adding Marten for persistence
 builder.Services.AddMarten(m =>
     {
+        // Not necessary to do this for the runtime, but does help the codegen
+        // and diagnostics
+        m.Schema.For<Todo>();
+        
         // With multi-tenancy through a database per tenant
         m.MultiTenantedDatabases(tenancy =>
         {
@@ -79,6 +84,8 @@ app.MapWolverineEndpoints(opts =>
     // or pull the rip cord on the request and return a
     // 400 w/ ProblemDetails
     opts.TenantId.AssertExists();
+
+    opts.WarmUpRoutes = RouteWarmup.Eager;
 });
 
 #endregion

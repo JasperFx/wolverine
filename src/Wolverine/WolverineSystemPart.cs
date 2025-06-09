@@ -27,16 +27,21 @@ internal class WolverineSystemPart : SystemPartBase
         
         _runtime.Options.WriteToConsole();
         
+        AnsiConsole.WriteLine();
+        
         await _runtime.Options.HandlerGraph.WriteToConsole();
+        AnsiConsole.WriteLine();
         WriteMessageSubscriptions();
+        AnsiConsole.WriteLine();
         WriteSendingEndpoints();
+        AnsiConsole.WriteLine();
         WriteListeners();
+        AnsiConsole.WriteLine();
         WriteErrorHandling();
     }
     
     public void WriteMessageSubscriptions()
     {
-        AnsiConsole.Write("Message Routing");
         var messageTypes = _runtime.Options.Discovery.FindAllMessages(_runtime.Options.HandlerGraph);
 
         if (!messageTypes.Any())
@@ -45,12 +50,7 @@ internal class WolverineSystemPart : SystemPartBase
             return;
         }
 
-        writeMessageRouting(messageTypes);
-    }
-
-    private void writeMessageRouting(IReadOnlyList<Type> messageTypes)
-    {
-        var table = new Table().AddColumns("Message Type", "Destination", "Content Type");
+        var table = new Table(){Title = new TableTitle("Message Routing"){Style = new Style(decoration:Decoration.Bold)}}.AddColumns("Message Type", "Destination", "Content Type");
         foreach (var messageType in messageTypes.OrderBy(x => x.FullName))
         {
             var routes = _runtime.RoutingFor(messageType).Routes;
@@ -63,22 +63,15 @@ internal class WolverineSystemPart : SystemPartBase
 
         AnsiConsole.Write(table);
     }
-    
+
     public void WriteSendingEndpoints()
     {
-        AnsiConsole.Write("Sending Endpoints");
-
         // This just forces Wolverine to go find and build any extra sender agents
         var messageTypes = _runtime.Options.Discovery.FindAllMessages(_runtime.Options.HandlerGraph);
         foreach (var messageType in messageTypes) _runtime.RoutingFor(messageType);
 
 
-        writeEndpoints();
-    }
-
-    private void writeEndpoints()
-    {
-        var table = new Table();
+        var table = new Table(){Title = new TableTitle("Subscriptions"){Style = new Style(decoration:Decoration.Bold)}};
 
         table.AddColumn("Uri", c => c.NoWrap = true);
         table.AddColumn("Name");
@@ -103,12 +96,10 @@ internal class WolverineSystemPart : SystemPartBase
 
         AnsiConsole.Write(table);
     }
-    
+
     public void WriteListeners()
     {
-        AnsiConsole.Write("Listeners");
-        
-        var table = new Table();
+        var table = new Table(){Title = new TableTitle("Listeners"){Style = new Style(decoration:Decoration.Bold)}};
 
         table.AddColumn("Uri");
         table.AddColumn("Name");
