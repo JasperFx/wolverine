@@ -365,6 +365,12 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IAsy
     public async ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver, RabbitMqQueue queue)
     {
         var listener = await buildListener(runtime, receiver, queue);
+
+        if (queue.CustomListenerId != null && listener is ISupportMultipleConsumers multipleConsumersOnSameQueueListener)
+        {
+            multipleConsumersOnSameQueueListener.ConsumerId = queue.CustomListenerId ?? Guid.NewGuid().ToString();
+        }
+
         if (Tenants.Any() && queue.TenancyBehavior == TenancyBehavior.TenantAware)
         {
             var compound = new CompoundListener(queue.Uri);

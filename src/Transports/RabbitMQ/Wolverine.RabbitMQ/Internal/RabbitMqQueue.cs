@@ -85,6 +85,11 @@ public partial class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQu
     /// </summary>
     public DeadLetterQueue? DeadLetterQueue { get; set; }
 
+    /// <summary>
+    ///     The unique listener id that are actively listening to this queue.
+    /// </summary>
+    public string? CustomListenerId { get; set; }
+
     public override async ValueTask<bool> CheckAsync()
     {
         if (isSystemQueue())
