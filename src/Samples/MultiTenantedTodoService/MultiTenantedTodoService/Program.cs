@@ -56,6 +56,8 @@ builder.Host.UseWolverine(opts =>
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+builder.Services.AddWolverineHttp();
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -64,8 +66,6 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
-
-builder.Services.AddWolverineHttp();
 
 #region sample_configuring_tenant_id_detection_for_todo_service
 
