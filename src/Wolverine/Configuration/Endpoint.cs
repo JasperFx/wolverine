@@ -470,7 +470,7 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
 
         dict.Remove("binary/envelope");
 
-        return dict.Select(x => $"{x.Value.GetType().ShortNameInCode()} ({x.Key})").Join(", ");
+        return dict.Select(x => $"{x.Value.GetType().ShortNameInCode()}").Join(", ");
     }
 
     internal string ExecutionDescription()

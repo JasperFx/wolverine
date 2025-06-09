@@ -368,7 +368,8 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
             ServerName = builder.DataSource ?? string.Empty,
             DatabaseName = builder.InitialCatalog ?? string.Empty,
             Subject = GetType().FullNameInCode(),
-            SchemaOrNamespace = _settings.SchemaName
+            SchemaOrNamespace = _settings.SchemaName,
+            SubjectUri = SubjectUri
         };
 
         descriptor.Properties.Add(OptionsValue.Read(builder, x => x.ApplicationName));

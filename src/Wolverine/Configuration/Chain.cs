@@ -5,6 +5,7 @@ using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
+using JasperFx.Descriptors;
 using Wolverine.Attributes;
 using Wolverine.Logging;
 using Wolverine.Middleware;
@@ -27,6 +28,7 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
 
     public List<Frame> Postprocessors { get; } = [];
 
+    [IgnoreDescription]
     public Dictionary<string, object> Tags { get; } = new();
 
     public abstract string Description { get; }

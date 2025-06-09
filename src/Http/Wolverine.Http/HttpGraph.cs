@@ -39,14 +39,14 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollectionWithServ
         Container = container;
         Rules = _options.CodeGeneration;
     }
-
-    public IReadOnlyList<HttpChain> Chains => _chains;
-
+    
     internal IServiceContainer Container { get; }
 
     internal IEnumerable<IResourceWriterPolicy> WriterPolicies => _optionsWriterPolicies.Concat(_builtInWriterPolicies);
 
     public override IReadOnlyList<Endpoint> Endpoints => _endpoints;
+
+    public IReadOnlyList<HttpChain> Chains => _chains;
 
     IDisposable IChangeToken.RegisterChangeCallback(Action<object?> callback, object? state)
     {
@@ -63,12 +63,25 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollectionWithServ
     }
 
     public string ChildNamespace => "WolverineHandlers";
+    
+    [IgnoreDescription]
     public GenerationRules Rules { get; }
 
     public OptionsDescription ToDescription()
     {
-        // TODO -- get fancier!
-        return new OptionsDescription(this);
+        var description = new OptionsDescription(this);
+
+        var list = description.AddChildSet("Endpoints");
+        list.SummaryColumns = ["Route", "Endpoint", "HttpMethods"];
+
+        foreach (var chain in _chains)
+        {
+            var chainDescription = OptionsDescription.For(chain);
+            chainDescription.Title = chain.RoutePattern.RawText;
+            list.Rows.Add(chainDescription);
+        }
+
+        return description;
     }
 
     public void DiscoverEndpoints(WolverineHttpOptions wolverineHttpOptions)
