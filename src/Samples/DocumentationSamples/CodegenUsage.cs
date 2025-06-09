@@ -1,3 +1,4 @@
+using JasperFx;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Commands;
 using Microsoft.Extensions.Hosting;
@@ -43,8 +44,11 @@ public class CodegenUsage
                 {
                     opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Static;
 
-                    // You probably only ever want to do this in Production
-                    opts.Services.AssertAllExpectedPreBuiltTypesExistOnStartUp();
+                    opts.Services.CritterStackDefaults(cr =>
+                    {
+                        // I'm only going to care about this in production
+                        cr.Production.AssertAllPreGeneratedTypesExist = true;
+                    });
                 }
             });
 
@@ -63,7 +67,18 @@ public class CodegenUsage
             {
                 // Use "Auto" type load mode at development time, but
                 // "Static" any other time
-                opts.OptimizeArtifactWorkflow();
+                opts.Services.CritterStackDefaults(x =>
+                {
+                    x.Production.GeneratedCodeMode = TypeLoadMode.Static;
+                    x.Production.ResourceAutoCreate = AutoCreate.None;
+
+                    // Little draconian, but this might be helpful
+                    x.Production.AssertAllPreGeneratedTypesExist = true;
+
+                    // These are defaults, but showing for completeness
+                    x.Development.GeneratedCodeMode = TypeLoadMode.Dynamic;
+                    x.Development.ResourceAutoCreate = AutoCreate.CreateOrUpdate;
+                });
             }).StartAsync();
 
         #endregion

@@ -92,7 +92,7 @@ public class WriteFile : ISideEffect
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/using_custom_side_effect.cs#L41-L67' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_writefile-1' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/using_custom_side_effect.cs#L43-L69' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_writefile-1' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And now, let's teach Wolverine to call the `WriteAsync()` method on each `WriteFile` that is returned from a message handler

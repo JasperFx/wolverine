@@ -3,14 +3,16 @@
         <TargetFrameworks>net9.0</TargetFrameworks>
     </PropertyGroup>
     <ItemGroup>
-        <PackageReference Include="Lamar.Diagnostics" Version="14.0.1" />
+        <PackageReference Include="FSharp.Core" Version="9.0.300" />
+        <PackageReference Include="FSharp.Core" Version="9.0.202" />
         <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="7.0.2" />
         <PackageReference Include="Microsoft.AspNetCore.SignalR" Version="1.1.0" />
-        <PackageReference Include="Shouldly" Version="4.2.1" />
+        <PackageReference Include="Shouldly" Version="4.3.0" />
         <PackageReference Include="Swashbuckle.AspNetCore" Version="6.5.0" />
     </ItemGroup>
 
     <ItemGroup>
+        <ProjectReference Include="..\..\..\WolverineWebApiFSharp\WolverineWebApiFSharp.fsproj" />
         <ProjectReference Include="..\..\Persistence\Wolverine.EntityFrameworkCore\Wolverine.EntityFrameworkCore.csproj" />
         <ProjectReference Include="..\..\Persistence\Wolverine.Marten\Wolverine.Marten.csproj" />
         <ProjectReference Include="..\Wolverine.AdminApi\Wolverine.AdminApi.csproj" />
@@ -26,103 +28,14 @@
     </ItemGroup>
 
     <ItemGroup Condition="'$(targetframework)' == 'net9.0'">
-        <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.0" />
-        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.2" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.5" />
+        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.11" />
     </ItemGroup>
 
     <ItemGroup>
         <Compile Include="..\..\Servers.cs">
             <Link>Servers.cs</Link>
         </Compile>
-        <Compile Remove="Internal\Generated\WolverineHandlers\TelegramUpdatedHandler96651444.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\ReservationTimeoutHandler457905910.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\PUT_todos_id.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\PUT_todos2_id.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\POST_validate_user.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\POST_validate_customer.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\POST_validate2_customer.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\POST_users_sign_up.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\POST_status.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\POST_spawn2.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\POST_spawn.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\POST_some_id.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\POST_send_message5.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\POST_send_always_dead_letter.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\POST_reservation.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\POST_question.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\POST_publish_message1.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\POST_publish_marten_message.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\POST_problems.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\POST_orders_ship.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\POST_orders_orderId_ship4.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\POST_orders_orderId_ship3.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\POST_orders_orderId_ship2.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\POST_orders_itemready.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\POST_orders_id_confirm.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\POST_orders_create4.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\POST_orders_create3.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\POST_orders_create2.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\POST_orders_create.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\POST_notbody.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\POST_issue.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\POST_invoices_number_approve.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\POST_invoices_invoiceId_pay.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\POST_fromservices.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\POST_ef_publish.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\POST_ef_create.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\POST_convert_book.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\POST_authenticated.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\MessageThatAlwaysGoesToDeadLetterHandler1388008025.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\ItemCreatedHandler179438836.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\HttpMessage5Handler1463345875.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\HttpMessage4Handler102738066.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\HttpMessage3Handler300546461.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\HttpMessage2Handler1265537480.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\HttpMessage1Handler862252953.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\GET_write_to_id.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\GET_wildcard_name.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\GET_results_static.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\GET_result_async.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\GET_result.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\GET_querystring_string.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\GET_querystring_int_nullable.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\GET_querystring_int.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\GET_querystring_explicit.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\GET_querystring_enum.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\GET_querystring_decimal.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\GET_querystring_collection_string.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\GET_querystring_collection_int.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\GET_querystring_collection_guid.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\GET_querystring_collection_enum.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\GET_name_name.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\GET_middleware_simple.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\GET_middleware_intrinsic.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\GET_message_message.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\GET_invoices_soft_delete_id.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\GET_invoices_id.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\GET_invoices_compiled_id.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\GET_invoices_compiled_count.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\GET_invoices_approved.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\GET_http_response.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\GET_http_request.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\GET_http_principal.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\GET_http_identifier.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\GET_http_context.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\GET_hello.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\GET_headers_simple.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\GET_headers_int.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\GET_headers_accepts.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\GET_enum_direction.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\GET_document_required_separate_attributes_id.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\GET_document_required_document_attribute_only_id.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\GET_discovered.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\GET_data_id.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\GET_correlation.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\GET_api_myapp_registration_price.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\GET_age_age.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\DataHandler620835457.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\DELETE_validate_user_compound.cs" />
-        <Compile Remove="Internal\Generated\WolverineHandlers\DELETE_api_trainer.cs" />
     </ItemGroup>
 
 </Project>

@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Npgsql;
-using Oakton.Resources;
+using JasperFx.Resources;
 using Shouldly;
 using Wolverine;
 using Wolverine.EntityFrameworkCore;
@@ -55,34 +55,6 @@ public class application_of_transaction_middleware : IAsyncLifetime
     {
         await _host.StopAsync();
         _host.Dispose();
-    }
-
-    [Theory]
-    [InlineData(typeof(T1), true)]
-    [InlineData(typeof(T2), false)]
-    [InlineData(typeof(T3), false)]
-    [InlineData(typeof(T4), false)]
-    [InlineData(typeof(T5), false)]
-    public void sql_server_connection_matching(Type messageType, bool expected)
-    {
-        var provider = new SqlServerPersistenceFrameProvider();
-        var chain = theHandlers.ChainFor(messageType);
-
-        provider.CanApply(chain, theContainer).ShouldBe(expected);
-    }
-
-    [Theory]
-    [InlineData(typeof(T1), false)]
-    [InlineData(typeof(T2), true)]
-    [InlineData(typeof(T3), false)]
-    [InlineData(typeof(T4), false)]
-    [InlineData(typeof(T5), false)]
-    public void postgresql_connection_matching(Type messageType, bool expected)
-    {
-        var provider = new PostgresqlPersistenceFrameProvider();
-        var chain = theHandlers.ChainFor(messageType);
-
-        provider.CanApply(chain, theContainer).ShouldBe(expected);
     }
 
     [Theory]

@@ -35,6 +35,11 @@ internal class TrackedSession : ITrackedSession
         _primaryLogger = host.GetRuntime();
     }
 
+    public TrackedSession(IServiceProvider services) : this(new HostWrapper(services))
+    {
+        
+    }
+
     public TimeSpan Timeout { get; set; } = 5.Seconds();
 
     public bool AssertNoExceptions { get; set; } = true;
@@ -170,6 +175,16 @@ internal class TrackedSession : ITrackedSession
         _otherHosts.Add(host.GetRuntime());
     }
 
+    public void WatchOther(IServiceProvider services)
+    {
+        if (ReferenceEquals(services, _primaryHost.Services))
+        {
+            return;
+        }
+        
+        _otherHosts.Add((WolverineRuntime)services.GetRequiredService<IWolverineRuntime>());
+    }
+    
     public void AssertNoExceptionsWereThrown()
     {
         if (_exceptions.Count > 0)
@@ -270,14 +285,14 @@ internal class TrackedSession : ITrackedSession
             await Execution(context).WaitAsync(Timeout);
             _executionComplete = true;
         }
-        catch (TimeoutException)
+        catch (TimeoutException e)
         {
             cleanUp();
 
             var message =
                 BuildActivityMessage($"This {nameof(TrackedSession)} timed out before all activity completed.");
 
-            throw new TimeoutException(message);
+            throw new TimeoutException(message, e);
         }
         catch (Exception)
         {
@@ -416,4 +431,29 @@ internal class TrackedSession : ITrackedSession
 
         return $"{conditions}\n\n{activity}\\{exceptions}";
     }
+}
+
+internal class HostWrapper : IHost
+{
+    public HostWrapper(IServiceProvider services)
+    {
+        Services = services;
+    }
+
+    public void Dispose()
+    {
+        if (Services is IDisposable disposable) disposable.Dispose();
+    }
+
+    public Task StartAsync(CancellationToken cancellationToken = new CancellationToken())
+    {
+        return Task.CompletedTask;
+    }
+
+    public Task StopAsync(CancellationToken cancellationToken = new CancellationToken())
+    {
+        return Task.CompletedTask;
+    }
+
+    public IServiceProvider Services { get; }
 }

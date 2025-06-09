@@ -62,7 +62,7 @@ public class FailureRuleCollection : IEnumerable<FailureRule>
         return new MoveToErrorQueue(e);
     }
 
-    internal RetryInlineContinuation? TryFindInlineContinuation(Exception e, Envelope envelope)
+    internal IInlineContinuation? TryFindInlineContinuation(Exception e, Envelope envelope)
     {
         foreach (var rule in _rules)
         {
@@ -71,7 +71,7 @@ public class FailureRuleCollection : IEnumerable<FailureRule>
                 continue;
             }
 
-            if (continuation is RetryInlineContinuation retry)
+            if (continuation is IInlineContinuation retry)
             {
                 return retry;
             }

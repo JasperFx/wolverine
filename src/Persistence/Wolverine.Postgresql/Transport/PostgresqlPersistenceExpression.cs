@@ -22,6 +22,13 @@ public class PostgresqlPersistenceExpression : BrokerExpression<PostgresqlTransp
         return new PostgresqlSubscriberConfiguration(subscriberEndpoint);
     }
 
+    public PostgresqlPersistenceExpression TransportSchemaName(string schemaName)
+    {
+        schemaName.AssertValidSchemaName();
+        Transport.TransportSchemaName = schemaName;
+        return this;
+    }
+
     /// <summary>
     /// Disable inbox and outbox usage on all Sql Server Transport endpoints
     /// </summary>

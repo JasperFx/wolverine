@@ -41,4 +41,55 @@ public static class DocumentationSamples
 
         #endregion
     }
+
+    public static async Task disable_requeues()
+    {
+        #region sample_disable_requeue_for_pulsar
+
+        var builder = Host.CreateApplicationBuilder();
+        builder.UseWolverine(opts =>
+        {
+            opts.UsePulsar(c =>
+            {
+                var pulsarUri = builder.Configuration.GetValue<Uri>("pulsar");
+                c.ServiceUrl(pulsarUri);
+            });
+
+            // Listen for incoming messages from a Pulsar topic
+            opts.ListenToPulsarTopic("persistent://public/default/two")
+                .SubscriptionName("two")
+                .SubscriptionType(SubscriptionType.Exclusive)
+                
+                // Disable the requeue for this topic
+                .DisableRequeue()
+                
+                // And all the normal Wolverine options...
+                .Sequential();
+
+            // Disable requeue for all Pulsar endpoints
+            opts.DisablePulsarRequeue();
+        });
+
+        #endregion
+    }
+
+    public static async Task policy_configuration()
+    {
+        #region sample_pulsar_unsubscribe_on_close
+
+        var builder = Host.CreateApplicationBuilder();
+        builder.UseWolverine(opts =>
+        {
+            opts.UsePulsar(c =>
+            {
+                var pulsarUri = builder.Configuration.GetValue<Uri>("pulsar");
+                c.ServiceUrl(pulsarUri);
+            });
+
+            // Disable unsubscribe on close for all Pulsar endpoints
+            opts.UnsubscribePulsarOnClose(PulsarUnsubscribeOnClose.Disabled);
+        });
+
+        #endregion
+    }
 }

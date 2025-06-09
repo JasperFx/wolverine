@@ -60,7 +60,7 @@ public static void Configure(HttpChain chain)
 
 ## Swashbuckle and Wolverine
 
-[Swashbuckle](https://github.com/domaindrivendev/Swashbuckle.AspNetCore) is de facto the default OpenAPI tooling and it is added in by the default `dotnet new` templates for ASP.Net Core
+[Swashbuckle](https://github.com/domaindrivendev/Swashbuckle.AspNetCore) is de facto the OpenAPI tooling for ASP.Net Core
 applications. It's also very MVC Core-centric in its assumptions about how to generate OpenAPI metadata to describe endpoints.
 If you need to (or just want to), you can do quite a bit to control exactly how Swashbuckle works against
 Wolverine endpoints by using a custom `IOperationFilter` of your making that can use Wolverine's own `HttpChain` model
@@ -97,7 +97,7 @@ builder.Services.AddSwaggerGen(x =>
     x.OperationFilter<WolverineOperationFilter>();
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L43-L50' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_register_custom_swashbuckle_filter' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L51-L58' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_register_custom_swashbuckle_filter' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Operation Id
@@ -204,3 +204,15 @@ public class ValidatedCompoundEndpoint2
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Validation/ValidatedCompoundEndpoint.cs#L33-L61' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_optional_iresult_with_openapi_metadata' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+
+## With Microsoft.Extensions.ApiDescription.Server
+
+Just a heads up, if you are trying to use [Microsoft.Extensions.ApiDescription.Server](https://learn.microsoft.com/en-us/aspnet/core/fundamentals/openapi/aspnetcore-openapi?view=aspnetcore-9.0&tabs=net-cli%2Cvisual-studio-code#generate-openapi-documents-at-build-time) and
+you get an `ObjectDisposedException` error on compilation against the `IServiceProvider`, follow these steps to fix:
+
+1. Remove `Microsoft.Extensions.ApiDescription.Server` altogether
+2. Just run `dotnet run` to see why your application isn't able to start correctly, and fix *that* problem
+3. Add `Microsoft.Extensions.ApiDescription.Server` back
+
+For whatever reason, the source generator for OpenAPI tries to start the entire application, including Wolverine's
+`IHostedService`, and the whole thing blows up with that very unhelpful message if anything is wrong with the application.

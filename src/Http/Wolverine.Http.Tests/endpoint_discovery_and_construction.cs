@@ -14,6 +14,13 @@ public class endpoint_discovery_and_construction : IntegrationContext
     {
         HttpChains.Endpoints.Any().ShouldBeTrue();
     }
+    
+    [Fact]
+    public void discover_endpoint_returning_fsharp_taskunit()
+    {
+        var chain = HttpChains.ChainFor("POST", "/discovered-fsharp-unit");
+        chain.ShouldNotBeNull();
+    }
 
     [Fact]
     public void read_order_from_attribute()

@@ -1,4 +1,5 @@
 using IntegrationTests;
+using JasperFx;
 using JasperFx.CodeGeneration;
 using Marten;
 using Marten.Events;
@@ -8,7 +9,7 @@ using Marten.Internal.Sessions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Oakton.Resources;
+using JasperFx.Resources;
 using Shouldly;
 using Wolverine.ComplianceTests;
 using Wolverine.Attributes;

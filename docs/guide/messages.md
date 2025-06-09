@@ -100,9 +100,9 @@ types that will be published by the application by either implementing one of th
 ```cs
 public record CreateIssue(string Name) : IMessage;
 
-public record DeleteIssue(Guid Id) : ICommand;
+public record DeleteIssue(Guid Id) : IMessage;
 
-public record IssueCreated(Guid Id, string Name) : IEvent;
+public record IssueCreated(Guid Id, string Name) : IMessage;
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MessageDiscovery.cs#L6-L14' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_message_type_discovery' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->

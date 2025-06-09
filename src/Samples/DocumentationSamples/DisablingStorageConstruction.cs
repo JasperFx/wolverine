@@ -1,3 +1,4 @@
+using JasperFx;
 using Microsoft.Extensions.Hosting;
 using Wolverine;
 
@@ -14,7 +15,7 @@ public class DisablingStorageConstruction
             {
                 // Disable automatic database migrations for message
                 // storage
-                opts.AutoBuildMessageStorageOnStartup = false;
+                opts.AutoBuildMessageStorageOnStartup = AutoCreate.None;
             }).StartAsync();
 
         #endregion

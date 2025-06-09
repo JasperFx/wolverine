@@ -58,10 +58,11 @@ internal class SqlServerNodePersistence : DatabaseConstants, INodeAgentPersisten
     {
         var strings = node.Capabilities.Select(x => x.ToString()).Join(",");
 
-        var cmd = conn.CreateCommand($"insert into {_nodeTable} (id, uri, capabilities, description) OUTPUT Inserted.node_number values (@id, @uri, @capabilities, @description) ")
+        var cmd = conn.CreateCommand($"insert into {_nodeTable} (id, uri, capabilities, description, version) OUTPUT Inserted.node_number values (@id, @uri, @capabilities, @description, @version) ")
             .With("id", node.NodeId)
             .With("uri", (node.ControlUri ?? TransportConstants.LocalUri).ToString()).With("description", node.Description)
-            .With("capabilities", strings);
+            .With("capabilities", strings)
+            .With("version", node.Version.ToString());
 
         var raw = await cmd.ExecuteScalarAsync(cancellationToken);
         return raw;
@@ -132,7 +133,7 @@ internal class SqlServerNodePersistence : DatabaseConstants, INodeAgentPersisten
         await conn.OpenAsync(cancellationToken);
 
         var cmd = CommandExtensions.CreateCommand(conn,
-                $"select id, node_number, description, uri, started, health_check, capabilities from {_nodeTable} where id = @id;select id, node_id, started from {_assignmentTable} where node_id = @id;")
+                $"select {NodeColumns} from {_nodeTable} where id = @id;select id, node_id, started from {_assignmentTable} where node_id = @id;")
             .With("id", nodeId);
 
         WolverineNode returnValue = default!;
@@ -153,17 +154,6 @@ internal class SqlServerNodePersistence : DatabaseConstants, INodeAgentPersisten
         await reader.CloseAsync();
 
         return returnValue;
-    }
-
-    public async Task MarkHealthCheckAsync(Guid nodeId)
-    {
-        await using var conn = new SqlConnection(_settings.ConnectionString);
-        await conn.OpenAsync();
-
-        await conn.CreateCommand($"update {_nodeTable} set health_check = GETUTCDATE() where id = @id")
-            .With("id", nodeId).ExecuteNonQueryAsync();
-
-        await conn.CloseAsync();
     }
 
     public async Task MarkHealthCheckAsync(WolverineNode node, CancellationToken cancellationToken)
@@ -193,8 +183,14 @@ internal class SqlServerNodePersistence : DatabaseConstants, INodeAgentPersisten
             Started = await reader.GetFieldValueAsync<DateTimeOffset>(4),
             LastHealthCheck = await reader.GetFieldValueAsync<DateTimeOffset>(5)
         };
+        
+        if (!(await reader.IsDBNullAsync(6)))
+        {
+            var rawVersion = await reader.GetFieldValueAsync<string>(6);
+            node.Version = System.Version.Parse(rawVersion);
+        }
 
-        var capabilities = await reader.GetFieldValueAsync<string>(6);
+        var capabilities = await reader.GetFieldValueAsync<string>(7);
         if (capabilities.IsNotEmpty())
         {
             node.Capabilities.AddRange(capabilities.Split(',').Select(x => new Uri(x)));
@@ -249,68 +245,6 @@ internal class SqlServerNodePersistence : DatabaseConstants, INodeAgentPersisten
             .ExecuteNonQueryAsync(cancellationToken);
 
         await conn.CloseAsync();
-    }
-
-    public async Task<Guid?> MarkNodeAsLeaderAsync(Guid? originalLeader, Guid id)
-    {
-        await using var conn = new SqlConnection(_settings.ConnectionString);
-        await conn.OpenAsync();
-
-
-        var lockResult = await conn.TryGetGlobalLock(LeaderLockId);
-        if (lockResult)
-        {
-            var present = await currentLeaderAsync(conn);
-            if (present != originalLeader)
-            {
-                await conn.CloseAsync();
-                return present;
-            }
-
-            await conn.CreateCommand(
-                    $"delete from {_assignmentTable} where id = @id;insert into {_assignmentTable} (id, node_id) values (@id, @node);")
-                .With("id", NodeAgentController.LeaderUri.ToString())
-                .With("node", id)
-                .ExecuteNonQueryAsync();
-
-
-            await conn.CloseAsync();
-
-            return id;
-        }
-
-        var leader = await currentLeaderAsync(conn);
-        await conn.CloseAsync();
-
-        return leader;
-    }
-
-    private async Task<Guid?> currentLeaderAsync(SqlConnection conn)
-    {
-        var current = await conn
-            .CreateCommand(
-                $"select node_id from {_assignmentTable} where id = '{NodeAgentController.LeaderUri}'")
-            .ExecuteScalarAsync();
-
-        if (current is Guid nodeId)
-        {
-            return nodeId;
-        }
-
-        return null;
-    }
-
-    public async Task<IReadOnlyList<int>> LoadAllNodeAssignedIdsAsync()
-    {
-        await using var conn = new SqlConnection(_settings.ConnectionString);
-        await conn.OpenAsync();
-
-        var result = await conn.CreateCommand($"select node_number from {_nodeTable}")
-            .FetchListAsync<int>();
-
-        await conn.CloseAsync();
-
-        return result;
     }
 
     public Task LogRecordsAsync(params NodeRecord[] records)

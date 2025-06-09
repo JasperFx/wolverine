@@ -14,6 +14,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.Routing.Patterns;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.FSharp.Core;
 using Wolverine.Codegen;
 using Wolverine.Configuration;
 using Wolverine.Http.CodeGen;
@@ -58,7 +59,9 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
 
     private readonly HttpGraph _parent;
 
-    private readonly List<QuerystringVariable> _querystringVariables = [];
+    private readonly List<HttpElementVariable> _querystringVariables = [];
+
+    private readonly List<HttpElementVariable> _formValueVariables = [];
 
     public string OperationId { get; set; }
     
@@ -250,7 +253,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
 
     public bool HasResourceType()
     {
-        return ResourceType != null && ResourceType != typeof(void);
+        return ResourceType != null && ResourceType != typeof(void) && ResourceType != typeof(Unit);
     }
 
     public override bool ShouldFlushOutgoingMessages()
@@ -306,73 +309,160 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
 
         if (HasRequestType)
         {
-            Metadata.Accepts(RequestType, false, "application/json");
+            if(IsFormData){
+                Metadata.Accepts(RequestType, true, "application/x-www-form-urlencoded");
+            }else{
+                Metadata.Accepts(RequestType, false, "application/json");
+            }
         }
 
         foreach (var attribute in Method.HandlerType.GetCustomAttributes()) Metadata.WithMetadata(attribute);
         foreach (var attribute in Method.Method.GetCustomAttributes()) Metadata.WithMetadata(attribute);
     }
 
-    public QuerystringVariable? TryFindOrCreateQuerystringValue(ParameterInfo parameter)
+
+    public HttpElementVariable? TryFindOrCreateFormValue(ParameterInfo parameter)
     {
-        var key = parameter.Name;
+        var parameterName = parameter.Name;
+        var key = parameterName;
+        var parameterType = parameter.ParameterType;
+
+        if (parameter.TryGetAttribute<FromFormAttribute>(out var att) && att.Name.IsNotEmpty())
+        {
+            key = att.Name;
+        }
+
+        return TryFindOrCreateFormValue(parameterType, parameterName, key);
+    }
+    
+ public HttpElementVariable? TryFindOrCreateFormValue(Type parameterType, string parameterName, string? key = null){
+        key ??= parameterName;
+        var variable = _formValueVariables.FirstOrDefault(x => x.Name == key);
+        if (variable == null)
+        {   
+            if (parameterType == typeof(string))
+            {
+                variable = new ReadHttpFrame(BindingSource.Form, parameterType,key).Variable;
+                variable.Name = key;
+                _formValueVariables.Add(variable);
+            }
+            if (parameterType == typeof(string[]))
+            {
+                variable = new ParsedArrayFormValue(parameterType, parameterName).Variable;
+                variable.Name = key;
+                _formValueVariables.Add(variable);
+            }
+
+            if (parameterType.IsNullable())
+            {
+                var inner = parameterType.GetInnerTypeFromNullable();
+                if (RouteParameterStrategy.CanParse(inner))
+                {
+                    variable = new ReadHttpFrame(BindingSource.Form, parameterType,key).Variable;
+                    variable.Name = key;
+                    _formValueVariables.Add(variable);
+                }
+            }
+            
+            if (parameterType.IsArray && RouteParameterStrategy.CanParse(parameterType.GetElementType()))
+            {
+                variable = new ParsedArrayFormValue(parameterType, parameterName).Variable;
+                variable.Name = key;
+                _formValueVariables.Add(variable);
+            }
+
+            if (ParsedCollectionQueryStringValue.CanParse(parameterType))
+            {
+                variable = new ParsedCollectionFormValue(parameterType, parameterName).Variable;
+                variable.Name = key;
+                _formValueVariables.Add(variable);
+            }
+
+            if (RouteParameterStrategy.CanParse(parameterType))
+            {
+                variable = new ReadHttpFrame(BindingSource.Form, parameterType,key).Variable;
+                variable.Name = key;
+                _formValueVariables.Add(variable);
+            }
+        }
+        else if (variable.VariableType != parameterType)
+        {
+            throw new InvalidOperationException(
+                $"The form value parameter '{key}' cannot be used for multiple target types");
+        }
+
+        return variable;
+    }
+
+    public HttpElementVariable? TryFindOrCreateQuerystringValue(ParameterInfo parameter)
+    {
+        var parameterName = parameter.Name;
+        var key = parameterName;
+        var parameterType = parameter.ParameterType;
 
         if (parameter.TryGetAttribute<FromQueryAttribute>(out var att) && att.Name.IsNotEmpty())
         {
             key = att.Name;
         }
 
-        var variable = _querystringVariables.FirstOrDefault(x => x.Name == key);
+        return TryFindOrCreateQuerystringValue(parameterType, parameterName, key);
+    }
 
+    public HttpElementVariable? TryFindOrCreateQuerystringValue(Type parameterType, string parameterName, string? key = null)
+    {
+        key ??= parameterName;
+        var variable = _querystringVariables.FirstOrDefault(x => x.Name == key);
         if (variable == null)
         {
-            if (parameter.ParameterType == typeof(string))
+            if (parameterType == typeof(string))
             {
-                variable = new ReadStringQueryStringValue(key).Variable;
+                variable = new ReadHttpFrame(BindingSource.QueryString, parameterType, key).Variable;
                 variable.Name = key;
                 _querystringVariables.Add(variable);
             }
 
-            if (parameter.ParameterType == typeof(string[]))
+            if (parameterType == typeof(string[]))
             {
-                variable = new ParsedArrayQueryStringValue(parameter).Variable;
+                variable = new ParsedArrayQueryStringValue(parameterType, parameterName).Variable;
                 variable.Name = key;
                 _querystringVariables.Add(variable);
             }
 
-            if (parameter.ParameterType.IsNullable())
+            if (parameterType.IsNullable())
             {
-                var inner = parameter.ParameterType.GetInnerTypeFromNullable();
+                var inner = parameterType.GetInnerTypeFromNullable();
                 if (RouteParameterStrategy.CanParse(inner))
                 {
-                    variable = new ParsedNullableQueryStringValue(parameter).Variable;
+                    //variable = new ParsedNullableQueryStringValue(parameterType, parameterName).Variable;
+                    variable = new ReadHttpFrame(BindingSource.QueryString, parameterType, parameterName).Variable;
                     variable.Name = key;
                     _querystringVariables.Add(variable);
                 }
             }
             
-            if (parameter.ParameterType.IsArray && RouteParameterStrategy.CanParse(parameter.ParameterType.GetElementType()))
+            if (parameterType.IsArray && RouteParameterStrategy.CanParse(parameterType.GetElementType()))
             {
-                variable = new ParsedArrayQueryStringValue(parameter).Variable;
+                variable = new ParsedArrayQueryStringValue(parameterType, parameterName).Variable;
                 variable.Name = key;
                 _querystringVariables.Add(variable);
             }
 
-            if (ParsedCollectionQueryStringValue.CanParse(parameter.ParameterType))
+            if (ParsedCollectionQueryStringValue.CanParse(parameterType))
             {
-                variable = new ParsedCollectionQueryStringValue(parameter).Variable;
+                variable = new ParsedCollectionQueryStringValue(parameterType, parameterName).Variable;
                 variable.Name = key;
                 _querystringVariables.Add(variable);
             }
 
-            if (RouteParameterStrategy.CanParse(parameter.ParameterType))
+            if (RouteParameterStrategy.CanParse(parameterType))
             {
-                variable = new ParsedQueryStringValue(parameter).Variable;
+                //variable = new ParsedQueryStringValue(parameterType, parameterName).Variable;
+                variable = new ReadHttpFrame(BindingSource.QueryString, parameterType, parameterName).Variable;
                 variable.Name = key;
                 _querystringVariables.Add(variable);
             }
         }
-        else if (variable.VariableType != parameter.ParameterType)
+        else if (variable.VariableType != parameterType)
         {
             throw new InvalidOperationException(
                 $"The query string parameter '{key}' cannot be used for multiple target types");
@@ -392,19 +482,32 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
             return true;
         }
 
-        var matches = RoutePattern!.Parameters.Any(x => x.Name == parameter.Name);
-        if (matches)
+        var matchingRouteParameter = RoutePattern!.Parameters.FirstOrDefault(x => x.Name == parameter.Name);
+        if (matchingRouteParameter != null)
         {
+            var isOptional = matchingRouteParameter.IsOptional;
+            
             if (parameter.ParameterType == typeof(string))
             {
-                variable = new ReadStringRouteValue(parameter.Name!).Variable;
+                variable = new ReadHttpFrame(BindingSource.RouteValue, typeof(string), parameter.Name!, isOptional).Variable;
                 _routeVariables.Add(variable);
                 return true;
+            }
+            
+            if (parameter.ParameterType.IsNullable())
+            {
+                var inner = parameter.ParameterType.GetInnerTypeFromNullable();
+                if (RouteParameterStrategy.CanParse(inner))
+                {
+                    variable = new ReadHttpFrame(BindingSource.RouteValue, parameter.ParameterType, parameter.Name, isOptional).Variable;
+                    _routeVariables.Add(variable);
+                    return true;
+                }
             }
 
             if (RouteParameterStrategy.CanParse(parameter.ParameterType))
             {
-                variable = new ParsedRouteArgumentFrame(parameter).Variable;
+                variable = new ReadHttpFrame(BindingSource.RouteValue, parameter.ParameterType, parameter.Name, isOptional).Variable;
                 _routeVariables.Add(variable);
                 return true;
             }
@@ -427,16 +530,14 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
         var matches = RoutePattern!.Parameters.Any(x => x.Name.EqualsIgnoreCase(routeOrParameterName));
         if (matches)
         {
-            if (variableType == typeof(string))
+            if (variableType == typeof(string) || RouteParameterStrategy.CanParse(variableType))
             {
-                variable = new ReadStringRouteValue(routeOrParameterName).Variable;
-                _routeVariables.Add(variable);
-                return true;
-            }
-
-            if (RouteParameterStrategy.CanParse(variableType))
-            {
-                variable = new ParsedRouteArgumentFrame(variableType, routeOrParameterName).Variable;
+                var frame = new ReadHttpFrame(BindingSource.RouteValue, variableType, routeOrParameterName)
+                {
+                    Key = routeOrParameterName
+                };
+                
+                variable = frame.Variable;
                 _routeVariables.Add(variable);
                 return true;
             }
@@ -447,27 +548,40 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
 
     }
 
-    private readonly List<HeaderValueVariable> _headerVariables = [];
+    private readonly List<HttpElementVariable> _headerVariables = [];
 
-    public HeaderValueVariable GetOrCreateHeaderVariable(IFromHeaderMetadata metadata, ParameterInfo parameter)
+    public HttpElementVariable GetOrCreateHeaderVariable(IFromHeaderMetadata metadata, ParameterInfo parameter)
     {
         var existing =
             _headerVariables.FirstOrDefault(x => x.Name == metadata.Name && x.VariableType == parameter.ParameterType);
 
         if (existing != null) return existing;
 
-        if (parameter.ParameterType == typeof(string))
+        var frame = new ReadHttpFrame(BindingSource.Header, parameter.ParameterType, parameter.Name)
         {
-            var frame = new FromHeaderValue(metadata, parameter);
-            _headerVariables.Add(frame.Variable);
-            return frame.Variable;
-        }
-        else
+            Key = metadata.Name ?? parameter.Name
+        };
+        
+        _headerVariables.Add(frame.Variable);
+        
+        return frame.Variable;
+    }
+    
+    public HttpElementVariable GetOrCreateHeaderVariable(IFromHeaderMetadata metadata, PropertyInfo property)
+    {
+        var existing =
+            _headerVariables.FirstOrDefault(x => x.Name == metadata.Name && x.VariableType == property.PropertyType);
+
+        if (existing != null) return existing;
+
+        var frame = new ReadHttpFrame(BindingSource.Header, property.PropertyType, property.Name)
         {
-            var frame = new ParsedHeaderValue(metadata, parameter);
-            _headerVariables.Add(frame.Variable);
-            return frame.Variable;
-        }
+            Key = metadata.Name ?? property.Name
+        };
+        
+        _headerVariables.Add(frame.Variable);
+        
+        return frame.Variable;
     }
 
     string IEndpointNameMetadata.EndpointName => ToString();
@@ -478,4 +592,11 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
 
     [MemberNotNullWhen(true, nameof(RequestType))]
     public bool HasRequestType => RequestType != null && RequestType != typeof(void);
+
+    public bool IsFormData { get; internal set; }
+
+    internal Variable BuildJsonDeserializationVariable()
+    {
+        return _parent.BuildJsonDeserializationVariable(this);
+    }
 }

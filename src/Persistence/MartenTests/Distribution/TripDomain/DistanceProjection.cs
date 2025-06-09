@@ -1,3 +1,4 @@
+using JasperFx.Events;
 using Marten.Events;
 using Marten.Events.Projections;
 
@@ -7,7 +8,7 @@ public class DistanceProjection : EventProjection
 {
     public DistanceProjection()
     {
-        ProjectionName = "Distance";
+        Name = "Distance";
     }
 
     // Create a new Distance document based on a Travel event

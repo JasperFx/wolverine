@@ -98,6 +98,22 @@ public class AmazonSqsListenerConfiguration : ListenerConfiguration<AmazonSqsLis
 
         return this;
     }
+    
+    /// <summary>
+    ///     Configure this listener to receive a message from an SNS topic subscription
+    /// </summary>
+    /// <param name="internalMessageMapper">The mapper for message forwarded from the SNS topic</param>
+    /// <returns></returns>
+    public AmazonSqsListenerConfiguration ReceiveSnsTopicMessage(ISqsEnvelopeMapper? internalMessageMapper = null)
+    {
+        add(e =>
+        {
+            internalMessageMapper ??= new DefaultSqsEnvelopeMapper();
+            e.Mapper = new SnsTopicEnvelopeMapper(internalMessageMapper);
+        });
+
+        return this;
+    } 
 
     /// <summary>
     /// Utilize custom envelope mapping for SQS interoperability with external non-Wolverine systems

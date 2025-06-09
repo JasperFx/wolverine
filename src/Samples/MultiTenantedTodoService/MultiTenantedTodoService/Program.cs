@@ -1,6 +1,6 @@
 using Marten;
-using Oakton;
-using Oakton.Resources;
+using JasperFx;
+using JasperFx.Resources;
 using Wolverine;
 using Wolverine.Http;
 using Wolverine.Marten;
@@ -56,6 +56,8 @@ builder.Host.UseWolverine(opts =>
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+builder.Services.AddWolverineHttp();
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -64,8 +66,6 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
-
-builder.Services.AddWolverineHttp();
 
 #region sample_configuring_tenant_id_detection_for_todo_service
 
@@ -83,4 +83,4 @@ app.MapWolverineEndpoints(opts =>
 
 #endregion
 
-return await app.RunOaktonCommands(args);
+return await app.RunJasperFxCommands(args);

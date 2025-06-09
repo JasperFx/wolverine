@@ -30,6 +30,8 @@ public record RecordText(Guid Id, string Text);
 
 public class RecordTextHandler
 {
+    // Notice that the concrete WriteFile is the return type in the method signature
+    // and not the ISideEffect interface
     public WriteFile Handle(RecordText command)
     {
         return new WriteFile(command.Id + ".txt", command.Text);

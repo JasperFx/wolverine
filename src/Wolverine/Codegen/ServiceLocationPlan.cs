@@ -18,6 +18,17 @@ internal class ServiceLocationPlan : ServicePlan
 
     public override string WhyRequireServiceProvider(IMethodVariables method)
     {
+        if (Descriptor.IsKeyedService)
+        {
+            if (Descriptor.KeyedImplementationFactory != null)
+            {
+                return
+                    $"The service registration for {Descriptor.ServiceType.FullNameInCode()} is an 'opaque' lambda factory with the {Descriptor.Lifetime} lifetime and requires service location";
+            }
+
+            return $"Concrete type {Descriptor.KeyedImplementationType.FullNameInCode()} is not public, so requires service location";
+        }
+        
         if (Descriptor.ImplementationFactory != null)
         {
             return

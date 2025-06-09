@@ -1,10 +1,12 @@
 using JasperFx.Core.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Oakton.Resources;
+using JasperFx.Resources;
 using Shouldly;
 using Wolverine.Persistence;
 using Wolverine.Persistence.Durability;
+using Wolverine.Persistence.Durability.DeadLetterManagement;
+using Wolverine.Tracking;
 using Wolverine.Transports;
 using Wolverine.Util;
 using Xunit;
@@ -140,13 +142,13 @@ public abstract class DeadLetterAdminCompliance : IAsyncLifetime
     }
 
     private DeadLetterQueueCount summaryCount<TMessage, TException>(int expected, Uri? receivedAt = null,
-        string? databaseIdentifier = null)
+        Uri databaseIdentifier = null)
     {
         var uri = receivedAt ?? theGenerator.ReceivedAt;
         var messageType = typeof(TMessage).ToMessageTypeName();
         var exceptionType = typeof(TException).FullNameInCode();
 
-        databaseIdentifier ??= "default";
+        databaseIdentifier ??= theHost.GetRuntime().Storage.Uri;
 
         return new DeadLetterQueueCount(ServiceName, uri, messageType, exceptionType, databaseIdentifier, expected);
     }

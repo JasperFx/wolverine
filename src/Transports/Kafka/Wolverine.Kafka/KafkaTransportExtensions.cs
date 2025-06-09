@@ -29,6 +29,8 @@ public static class KafkaTransportExtensions
     /// <returns></returns>
     public static KafkaTransportExpression UseKafka(this WolverineOptions options, string bootstrapServers)
     {
+        // Automatic failure acks do not work with Kafka serialization failures
+        options.EnableAutomaticFailureAcks = false;
         var transport = options.KafkaTransport();
         transport.ConsumerConfig.BootstrapServers = bootstrapServers;
         transport.ProducerConfig.BootstrapServers = bootstrapServers;

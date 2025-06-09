@@ -1,10 +1,10 @@
+using JasperFx;
 using JasperFx.Core;
+using JasperFx.Events.Daemon;
+using JasperFx.Events.Projections;
 using Marten;
-using Marten.Events.Daemon.Resiliency;
 using Marten.Events.Projections;
-using Marten.Exceptions;
 using Npgsql;
-using Oakton;
 using TeleHealth.Common;
 using Wolverine;
 using Wolverine.ErrorHandling;
@@ -13,7 +13,7 @@ using Wolverine.Marten;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Host.ApplyOaktonExtensions();
+builder.Host.ApplyJasperFxExtensions();
 
 #region sample_configuring_wolverine_event_subscriptions
 
@@ -55,7 +55,6 @@ builder.Services.AddWolverineHttp();
 builder.Services.AddMarten(opts =>
 {
     // More stuff...
-    
 });
 
 #region sample_opting_into_wolverine_event_publishing
@@ -107,5 +106,5 @@ if (app.Environment.IsDevelopment())
 
 app.MapWolverineEndpoints();
 
-// This is using the Oakton library for command running
-await app.RunOaktonCommands(args);
+// This is using the JasperFx library for command running
+await app.RunJasperFxCommands(args);

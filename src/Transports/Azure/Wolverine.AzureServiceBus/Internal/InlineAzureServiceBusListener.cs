@@ -2,6 +2,7 @@ using Azure.Messaging.ServiceBus;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Logging;
+using Wolverine.Runtime;
 using Wolverine.Transports;
 using Wolverine.Transports.Sending;
 using Wolverine.Util.Dataflow;
@@ -108,6 +109,8 @@ public class InlineAzureServiceBusListener : IListener, ISupportDeadLetterQueue,
                 _endpoint.Uri);
         }
     }
+
+    public IHandlerPipeline? Pipeline => _receiver.Pipeline;
 
     public ValueTask CompleteAsync(Envelope envelope)
     {

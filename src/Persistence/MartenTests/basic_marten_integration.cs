@@ -1,11 +1,12 @@
 ﻿using IntegrationTests;
+using JasperFx;
 using JasperFx.Core.Reflection;
 using Marten;
 using Marten.Internal.Sessions;
 using Marten.Storage;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Oakton.Resources;
+using JasperFx.Resources;
 using Shouldly;
 using Weasel.Core;
 using Wolverine;
@@ -82,19 +83,19 @@ public class basic_marten_integration : PostgresqlContext, IAsyncLifetime
     }
 
     [Fact]
-    public void registers_document_store_in_a_usable_way()
+    public async Task registers_document_store_in_a_usable_way()
     {
         var doc = new FakeDoc { Id = Guid.NewGuid() };
 
         using (var session = theHost.DocumentStore().LightweightSession())
         {
             session.Store(doc);
-            session.SaveChanges();
+            await session.SaveChangesAsync();
         }
 
         using (var query = theHost.DocumentStore().QuerySession())
         {
-            query.Load<FakeDoc>(doc.Id).ShouldNotBeNull();
+            (await query.LoadAsync<FakeDoc>(doc.Id)).ShouldNotBeNull();
         }
     }
 
@@ -106,7 +107,7 @@ public class basic_marten_integration : PostgresqlContext, IAsyncLifetime
         var messageContext = new MessageContext(runtime);
         using var session = factory.QuerySession(messageContext);
 
-        session.As<QuerySession>().TenantId.ShouldBe(Tenancy.DefaultTenantId);
+        session.As<QuerySession>().TenantId.ShouldBe(StorageConstants.DefaultTenantId);
     }
 
     [Fact]
@@ -130,7 +131,7 @@ public class basic_marten_integration : PostgresqlContext, IAsyncLifetime
         var messageContext = new MessageContext(runtime);
         using var session = factory.OpenSession(messageContext);
 
-        session.As<QuerySession>().TenantId.ShouldBe(Tenancy.DefaultTenantId);
+        session.As<QuerySession>().TenantId.ShouldBe(StorageConstants.DefaultTenantId);
     }
 
     [Fact]

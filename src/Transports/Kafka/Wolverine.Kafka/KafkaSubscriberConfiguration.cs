@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Confluent.Kafka;
 using Wolverine.Configuration;
 
 namespace Wolverine.Kafka;
@@ -30,6 +31,24 @@ public class KafkaSubscriberConfiguration : SubscriberConfiguration<KafkaSubscri
     public KafkaSubscriberConfiguration PublishRawJson(JsonSerializerOptions? options = null)
     {
         add(e => e.Mapper = new JsonOnlyMapper(e, options ?? new JsonSerializerOptions()));
+        return this;
+    }
+
+    /// <summary>
+    /// Configure the producer config for only this topic. This overrides the default
+    /// settings at the transport level
+    /// </summary>
+    /// <param name="configuration"></param>
+    /// <returns></returns>
+    public KafkaSubscriberConfiguration ConfigureProducer(Action<ProducerConfig> configuration)
+    {
+        add(topic =>
+        {
+            var config = new ProducerConfig();
+            configuration(config);
+
+            topic.ProducerConfig = config;
+        });
         return this;
     }
 }

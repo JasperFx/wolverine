@@ -1,3 +1,4 @@
+using System.Net;
 using Alba;
 using Shouldly;
 using WolverineWebApi;
@@ -22,6 +23,16 @@ public class end_to_end : IntegrationContext
         });
 
         (await body.ReadAsTextAsync()).ShouldBe("Hello");
+    }
+    
+    [Fact]
+    public async Task post_returning_fsharp_taskunit()
+    {
+        var body = await Scenario(x =>
+        {
+            x.Post.Url("/discovered-fsharp-unit");
+            x.StatusCodeShouldBe(HttpStatusCode.NoContent);
+        });
     }
 
     [Fact]

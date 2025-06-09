@@ -3,7 +3,7 @@
     <ItemGroup>
         <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="7.0.2" />
         <PackageReference Include="Microsoft.AspNetCore.SignalR" Version="1.1.0" />
-        <PackageReference Include="Shouldly" Version="4.1.0" />
+        <PackageReference Include="Shouldly" Version="4.3.0" />
         <PackageReference Include="Swashbuckle.AspNetCore" Version="6.5.0" />
     </ItemGroup>
 
@@ -15,16 +15,6 @@
         <ProjectReference Include="..\Wolverine.Http.Marten\Wolverine.Http.Marten.csproj" />
         <ProjectReference Include="..\Wolverine.Http.Tests.DifferentAssembly\Wolverine.Http.Tests.DifferentAssembly.csproj" />
         <ProjectReference Include="..\Wolverine.Http\Wolverine.Http.csproj" />
-    </ItemGroup>
-
-    <ItemGroup Condition="'$(targetframework)' == 'net7.0'">
-        <PackageReference Include="Microsoft.EntityFrameworkCore" Version="[7.0.1, 8.0.0)" />
-        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="[7.0.1, 8.0.0)" />
-    </ItemGroup>
-
-    <ItemGroup Condition="'$(targetframework)' == 'net8.0'">
-        <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.11" />
-        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.11" />
     </ItemGroup>
 
     <ItemGroup>

@@ -1,6 +1,6 @@
 using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
-using Oakton;
+using JasperFx;
 using Shouldly;
 using Xunit;
 
@@ -44,7 +44,7 @@ public class StatefulResourceSmokeTests
     public async Task run_setup()
     {
         var result = await ConfigureBuilder(false)
-            .RunOaktonCommands(["resources", "setup"]);
+            .RunJasperFxCommands(["resources", "setup"]);
         result.ShouldBe(0);
     }
 
@@ -52,10 +52,10 @@ public class StatefulResourceSmokeTests
     public async Task statistics()
     {
         (await ConfigureBuilder(false)
-            .RunOaktonCommands(["resources", "setup"])).ShouldBe(0);
+            .RunJasperFxCommands(["resources", "setup"])).ShouldBe(0);
 
         var result = await ConfigureBuilder(false)
-            .RunOaktonCommands(["resources", "statistics"]);
+            .RunJasperFxCommands(["resources", "statistics"]);
 
         result.ShouldBe(0);
     }
@@ -64,10 +64,10 @@ public class StatefulResourceSmokeTests
     public async Task check_positive()
     {
         (await ConfigureBuilder(false)
-            .RunOaktonCommands(["resources", "setup"])).ShouldBe(0);
+            .RunJasperFxCommands(["resources", "setup"])).ShouldBe(0);
 
         var result = await ConfigureBuilder(false)
-            .RunOaktonCommands(["resources", "check"]);
+            .RunJasperFxCommands(["resources", "check"]);
 
         result.ShouldBe(0);
     }
@@ -76,7 +76,7 @@ public class StatefulResourceSmokeTests
     public async Task check_negative()
     {
         var result = await ConfigureBuilder(false, 10)
-            .RunOaktonCommands(["resources", "check"]);
+            .RunJasperFxCommands(["resources", "check"]);
 
         result.ShouldBe(1);
     }
@@ -85,20 +85,20 @@ public class StatefulResourceSmokeTests
     public async Task clear_state()
     {
         (await ConfigureBuilder(false, 20)
-            .RunOaktonCommands(["resources", "setup"])).ShouldBe(0);
+            .RunJasperFxCommands(["resources", "setup"])).ShouldBe(0);
 
         (await ConfigureBuilder(false, 20)
-            .RunOaktonCommands(["resources", "clear"])).ShouldBe(0);
+            .RunJasperFxCommands(["resources", "clear"])).ShouldBe(0);
     }
 
     [Fact]
     public async Task teardown()
     {
         (await ConfigureBuilder(false, 30)
-            .RunOaktonCommands(["resources", "setup"])).ShouldBe(0);
+            .RunJasperFxCommands(["resources", "setup"])).ShouldBe(0);
 
         (await ConfigureBuilder(false, 30)
-            .RunOaktonCommands(["resources", "teardown"])).ShouldBe(0);
+            .RunJasperFxCommands(["resources", "teardown"])).ShouldBe(0);
     }
 }
 

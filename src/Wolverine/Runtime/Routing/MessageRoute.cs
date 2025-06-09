@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using ImTools;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Wolverine.Attributes;
@@ -114,9 +115,24 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
         return envelope;
     }
 
-    public async Task<T> InvokeAsync<T>(object message, MessageBus bus,
+    public MessageSubscriptionDescriptor Describe()
+    {
+        return new MessageSubscriptionDescriptor
+        {
+            ContentType = Serializer.ContentType,
+            Endpoint = _endpoint.Uri
+        };
+    }
+        
+    public Task<T> InvokeAsync<T>(object message, MessageBus bus,
         CancellationToken cancellation = default,
         TimeSpan? timeout = null, string? tenantId = null)
+    {
+        return RemoteInvokeAsync<T>(message, bus, cancellation, timeout, tenantId);
+    }
+
+    internal async Task<T> RemoteInvokeAsync<T>(object message, MessageBus bus, CancellationToken cancellation,
+        TimeSpan? timeout, string? tenantId, string? topicName = null)
     {
         if (message == null)
         {
@@ -135,7 +151,8 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
         
         var envelope = new Envelope(message, Sender)
         {
-            TenantId = tenantId ?? bus.TenantId
+            TenantId = tenantId ?? bus.TenantId,
+            TopicName = topicName
         };
 
         foreach (var rule in Rules) rule.Modify(envelope);
@@ -151,7 +168,7 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
         envelope.DeliverWithin = timeout.Value;
         envelope.Sender = Sender;
 
-        bus.TrackEnvelopeCorrelation(envelope, Activity.Current);
+        @bus.TrackEnvelopeCorrelation(envelope, Activity.Current);
         
         // The request/reply envelope *must* use the envelope id for the conversation id
         // for proper tracking. See https://github.com/JasperFx/wolverine/issues/1176

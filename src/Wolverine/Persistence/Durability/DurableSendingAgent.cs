@@ -18,6 +18,7 @@ internal class DurableSendingAgent : SendingAgent
     private readonly RetryBlock<Envelope> _storeAndForward;
 
     private IList<Envelope> _queued = new List<Envelope>();
+    private readonly SemaphoreSlim _queueLock = new SemaphoreSlim(1, 1);
 
     public DurableSendingAgent(ISender sender, DurabilitySettings settings, ILogger logger,
         IMessageTracker messageLogger,
@@ -75,39 +76,66 @@ internal class DurableSendingAgent : SendingAgent
             return;
         }
 
-        var expiredInQueue = _queued.Where(x => x.IsExpired()).ToArray();
-        var expiredInBatch = batch.Messages.Where(x => x.IsExpired()).ToArray();
-
-        var expired = expiredInBatch.Concat(expiredInQueue).ToArray();
-        var all = _queued.Where(x => !expiredInQueue.Contains(x))
-            .Concat(batch.Messages.Where(x => !expiredInBatch.Contains(x)))
-            .ToList();
-
-        var reassigned = Array.Empty<Envelope>();
-        if (all.Count > Endpoint.MaximumEnvelopeRetryStorage)
+        await _queueLock.WaitAsync();
+        try
         {
-            reassigned = all.Skip(Endpoint.MaximumEnvelopeRetryStorage).ToArray();
+            var (expiredInQueue, notExpiredInQueue) = SplitByExpiration(_queued);
+            var (expiredInBatch, notExpiredInBatch) = SplitByExpiration(batch.Messages);
+
+            var expired = expiredInBatch.Concat(expiredInQueue).ToArray();
+            var all = notExpiredInBatch.Concat(notExpiredInQueue).ToList();
+
+            var (retained, reassigned) = TrimToMaxCapacity(all, Endpoint.MaximumEnvelopeRetryStorage);
+
+            await executeWithRetriesAsync(async () =>
+            {
+                await _outbox.DiscardAndReassignOutgoingAsync(expired, reassigned, TransportConstants.AnyNode);
+                _logger.DiscardedExpired(expired);
+            });
+
+            _queued = retained;
+        }
+        finally
+        {
+            _queueLock.Release();
         }
 
-        await executeWithRetriesAsync(async () =>
+        static (Envelope[] expired, Envelope[] notExpired) SplitByExpiration(IEnumerable<Envelope> messages)
         {
-            await _outbox.DiscardAndReassignOutgoingAsync(expired, reassigned, TransportConstants.AnyNode);
-            _logger.DiscardedExpired(expired);
-        });
+            var lookup = messages.ToLookup(x => x.IsExpired());
+            return (lookup[true].ToArray(), lookup[false].ToArray());
+        }
 
-        _queued = all.Take(Endpoint.MaximumEnvelopeRetryStorage).ToList();
+        static (List<Envelope> retained, Envelope[] reassigned) TrimToMaxCapacity(
+            List<Envelope> messages, int maxCapacity)
+        {
+            return messages.Count <= maxCapacity
+                ? (messages, Array.Empty<Envelope>())
+                : (messages.Take(maxCapacity).ToList(), messages.Skip(maxCapacity).ToArray());
+        }
     }
 
     protected override async Task afterRestartingAsync(ISender sender)
     {
-        var expired = _queued.Where(x => x.IsExpired()).ToArray();
-        if (expired.Length != 0)
+        Envelope[] toRetry;
+        await _queueLock.WaitAsync();
+        try
         {
-            await executeWithRetriesAsync(() => _outbox.DeleteOutgoingAsync(expired));
-        }
+            var lookup = _queued.ToLookup(x => x.IsExpired());
+            var expired = lookup[true].ToArray();
+            toRetry = lookup[false].ToArray();
 
-        var toRetry = _queued.Where(x => !x.IsExpired()).ToArray();
-        _queued = new List<Envelope>();
+            if (expired.Length != 0)
+            {
+                await executeWithRetriesAsync(() => _outbox.DeleteOutgoingAsync(expired));
+            }
+
+            _queued.Clear();
+        }
+        finally
+        {
+            _queueLock.Release();
+        }
 
         foreach (var envelope in toRetry) await _sending.PostAsync(envelope);
     }

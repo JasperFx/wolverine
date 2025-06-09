@@ -2,7 +2,7 @@ using JasperFx.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Oakton.Resources;
+using JasperFx.Resources;
 using Wolverine.Runtime.Agents;
 using Wolverine.Tracking;
 using Xunit;

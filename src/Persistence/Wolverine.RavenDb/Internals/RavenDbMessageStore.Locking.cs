@@ -28,7 +28,7 @@ public partial class RavenDbMessageStore
     {
         var newLock = new DistributedLock
         {
-            NodeId = _runtime!.Options.UniqueNodeId,
+            NodeId = _options.UniqueNodeId,
             ExpirationTime = DateTimeOffset.UtcNow.AddMinutes(5),
         };
         
@@ -69,7 +69,7 @@ public partial class RavenDbMessageStore
     {
         var newLock = new DistributedLock
         {
-            NodeId = _runtime!.Options.UniqueNodeId,
+            NodeId = _options.UniqueNodeId,
             ExpirationTime = DateTimeOffset.UtcNow.AddMinutes(5),
         };
         

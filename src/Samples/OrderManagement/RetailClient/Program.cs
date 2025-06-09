@@ -1,6 +1,7 @@
 ﻿// See https://aka.ms/new-console-template for more information
 
 using IntegrationTests;
+using JasperFx.Events;
 using Marten;
 using Marten.Events;
 using Messages;

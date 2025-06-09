@@ -1,4 +1,4 @@
-using Oakton.Resources;
+using JasperFx.Resources;
 using Wolverine.ComplianceTests.Compliance;
 
 namespace Wolverine.Kafka.Tests;

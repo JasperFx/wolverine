@@ -116,7 +116,7 @@ public class CommandsAreTransactional : IHandlerPolicy
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/transactional_frame_end_to_end.cs#L86-L100' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_commandsaretransactional' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/transactional_frame_end_to_end.cs#L136-L150' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_commandsaretransactional' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Then add the policy to your application like this:
@@ -131,5 +131,38 @@ using var host = await Host.CreateDefaultBuilder()
         opts.Policies.Add<CommandsAreTransactional>();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/transactional_frame_end_to_end.cs#L44-L53' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_commandsaretransactional' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/transactional_frame_end_to_end.cs#L66-L75' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_commandsaretransactional' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+
+## Using IDocumentOperations <Badge type="tip" text="3.14" />
+
+When using the transactional middleware with Marten, it's best to **not** directly call `IDocumentSession.SaveChangesAsync()`
+yourself because that negates the transactional middleware's ability to mark the transaction boundary and can cause
+unexpected problems with the outbox. As a way of preventing this problem, you can choose to directly use
+Marten's `IDocumentOperations` as an argument to your handler or endpoint methods, which is effectively `IDocumentSession` minus 
+the ability to commit the ongoing unit of work with a `SaveChangesAsync` API. 
+
+Here's an example:
+
+<!-- snippet: sample_using_IDocumentOperations -->
+<a id='snippet-sample_using_idocumentoperations'></a>
+```cs
+public class CreateDocCommand2Handler
+{
+    [Transactional]
+    public void Handle(
+        CreateDocCommand2 message, 
+        
+        // This is the IDocumentSession for the handler &
+        // transactional middleware, it's just that you're
+        // going to use the slimmer interface that won't let
+        // you accidentally call SaveChangesAysnc
+        IDocumentOperations operations)
+    {
+        operations.Store(new FakeDoc { Id = message.Id });
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/transactional_frame_end_to_end.cs#L91-L109' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_idocumentoperations' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+

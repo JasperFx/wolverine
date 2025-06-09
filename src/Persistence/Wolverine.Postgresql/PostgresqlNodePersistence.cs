@@ -48,10 +48,11 @@ internal class PostgresqlNodePersistence : DatabaseConstants, INodeAgentPersiste
     public async Task<int> PersistAsync(WolverineNode node, CancellationToken cancellationToken)
     {
         var cmd = _dataSource.CreateCommand(
-                $"insert into {_nodeTable} (id, uri, capabilities, description) values (:id, :uri, :capabilities, :description) returning node_number")
+                $"insert into {_nodeTable} (id, uri, capabilities, description, version) values (:id, :uri, :capabilities, :description, :version) returning node_number")
             .With("id", node.NodeId)
             .With("uri", (node.ControlUri ?? TransportConstants.LocalUri).ToString())
-            .With("description", node.Description);
+            .With("description", node.Description)
+            .With("version", node.Version.ToString());
 
         var strings = node.Capabilities.Select(x => x.ToString()).ToArray();
         cmd.With("capabilities", strings);
@@ -174,64 +175,12 @@ internal class PostgresqlNodePersistence : DatabaseConstants, INodeAgentPersiste
             .ExecuteNonQueryAsync(cancellationToken);
     }
 
-    public async Task<Guid?> MarkNodeAsLeaderAsync(Guid? originalLeader, Guid id)
-    {
-        await using var conn = await _dataSource.OpenConnectionAsync();
-
-        var lockResult = await conn.TryGetGlobalLock(LeaderLockId);
-        if (lockResult == AttainLockResult.Success)
-        {
-            var present = await currentLeaderAsync(conn);
-            if (present != originalLeader)
-            {
-                await conn.CloseAsync();
-                return present;
-            }
-
-            try
-            {
-                await conn.CreateCommand(
-                        $"insert into {_assignmentTable} (id, node_id) values (:id, :node) on conflict (id) do update set node_id = :node;")
-                    .With("id", NodeAgentController.LeaderUri.ToString())
-                    .With("node", id)
-                    .ExecuteNonQueryAsync();
-            }
-            catch (NpgsqlException e)
-            {
-                if (e.Message.Contains("violates foreign key constraint \"fkey_wolverine_node_assignments_node_id\""))
-                {
-                    return null;
-                }
-
-                throw;
-            }
-            finally
-            {
-                await conn.ReleaseGlobalLock(LeaderLockId);
-                await conn.CloseAsync();
-            }
-
-            return id;
-        }
-
-        var leader = await currentLeaderAsync(conn);
-        await conn.CloseAsync();
-
-        return leader;
-    }
-
     public async Task OverwriteHealthCheckTimeAsync(Guid nodeId, DateTimeOffset lastHeartbeatTime)
     {
         await _dataSource.CreateCommand($"update {_nodeTable} set health_check = :now where id = :id")
             .With("id", nodeId)
             .With("now", lastHeartbeatTime)
             .ExecuteNonQueryAsync();
-    }
-
-    public async Task MarkHealthCheckAsync(Guid nodeId)
-    {
-        await _dataSource.CreateCommand($"update {_nodeTable} set health_check = now() where id = :id")
-            .With("id", nodeId).ExecuteNonQueryAsync();
     }
 
     public async Task MarkHealthCheckAsync(WolverineNode node, CancellationToken token)
@@ -243,12 +192,6 @@ internal class PostgresqlNodePersistence : DatabaseConstants, INodeAgentPersiste
         {
             await PersistAsync(node, token);
         }
-    }
-
-    public async Task<IReadOnlyList<int>> LoadAllNodeAssignedIdsAsync()
-    {
-        return await _dataSource.CreateCommand($"select node_number from {_nodeTable}")
-            .FetchListAsync<int>();
     }
 
     public Task LogRecordsAsync(params NodeRecord[] records)
@@ -314,7 +257,13 @@ internal class PostgresqlNodePersistence : DatabaseConstants, INodeAgentPersiste
             LastHealthCheck = await reader.GetFieldValueAsync<DateTimeOffset>(5)
         };
 
-        var capabilities = await reader.GetFieldValueAsync<string[]>(6);
+        if (!(await reader.IsDBNullAsync(6)))
+        {
+            var rawVersion = await reader.GetFieldValueAsync<string>(6);
+            node.Version = System.Version.Parse(rawVersion);
+        }
+
+        var capabilities = await reader.GetFieldValueAsync<string[]>(7);
         node.Capabilities.AddRange(capabilities.Select(x => new Uri(x)));
 
         return node;

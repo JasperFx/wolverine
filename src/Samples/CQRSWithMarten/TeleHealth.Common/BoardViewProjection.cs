@@ -1,3 +1,4 @@
+using JasperFx.Events;
 using Marten;
 using Marten.Events;
 using Marten.Events.Aggregation;
@@ -5,19 +6,19 @@ using Marten.Events.Projections;
 
 namespace TeleHealth.Common;
 
-public class BoardViewProjection : ExperimentalMultiStreamProjection<BoardView, Guid>
+public class BoardViewProjection : MultiStreamProjection<BoardView, Guid>
 {
     public BoardViewProjection()
     {
         DeleteEvent<BoardFinished>();
-    }
+        
+        CustomGrouping((session, events, grouping) =>
+        {
+            //grouping.AddEvents<IBoardEvent>(x => x.BoardId, events);
+            grouping.AddEvents<IEvent<BoardStateEvent>>(x => x.StreamId, events);
 
-    protected override ValueTask GroupEvents(IEventGrouping<Guid> grouping, IQuerySession session, List<IEvent> events)
-    {
-        //grouping.AddEvents<IBoardEvent>(x => x.BoardId, events);
-        grouping.AddEventsWithMetadata<IEvent<BoardStateEvent>>(x => x.StreamId, events);
-
-        return ValueTask.CompletedTask;
+            return Task.CompletedTask;
+        });
     }
 
     // Using event metadata

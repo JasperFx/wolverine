@@ -269,7 +269,7 @@ public class ConditionalResponseHandler
 
 ## Schedule Response Messages
 
-You may want to raise a delayed or scheduled response. In this case you will need to return an <[linkto:documentation/integration/customizing_envelopes;title=Envelope]> for the response as shown below:
+You may want to raise a delayed or scheduled response. In this case you will need to return an `Envelope` for the response as shown below:
 
 <!-- snippet: sample_DelayedResponseHandler -->
 <a id='snippet-sample_delayedresponsehandler'></a>

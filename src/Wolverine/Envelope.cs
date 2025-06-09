@@ -1,5 +1,7 @@
-﻿using JasperFx.Core;
+﻿using JasperFx;
+using JasperFx.Core;
 using JasperFx.Core.Reflection;
+using JasperFx.MultiTenancy;
 using MassTransit;
 using Wolverine.Attributes;
 using Wolverine.Util;
@@ -7,7 +9,7 @@ using Wolverine.Util;
 namespace Wolverine;
 
 [MessageIdentity("envelope")]
-public partial class Envelope
+public partial class Envelope : IHasTenantId
 {
     public static readonly string PingMessageType = "wolverine-ping";
     private byte[]? _data;
@@ -271,7 +273,7 @@ public partial class Envelope
 
     /// <summary>
     /// Application defined message group identifier. Part of AMQP 1.0 spec as the "group-id" property. Session identifier
-    /// for Azure Service Bus.  MessageGroupId for Amazon SQS FIFO Queue
+    /// for Azure Service Bus.  MessageGroupId for Amazon SQS FIFO Queue. This is the Group Id for Kafka consumers, if there is one
     /// </summary>
     public string? GroupId { get; set; }
 
@@ -400,4 +402,9 @@ public partial class Envelope
     {
         return (Message?.GetType().Name ?? MessageType)!;
     }
+    
+    /// <summary>
+    /// For stream based transports (Kafka/RedPanda, this will reflect the message offset. This is strictly informational
+    /// </summary>
+    public long Offset { get; set; }
 }

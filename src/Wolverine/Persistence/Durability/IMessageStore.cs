@@ -1,4 +1,6 @@
-﻿using Wolverine.Runtime;
+﻿using JasperFx.Descriptors;
+using JasperFx.MultiTenancy;
+using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
 
 namespace Wolverine.Persistence.Durability;
@@ -47,8 +49,19 @@ public record DeadLetterEnvelope(
     bool Replayable
     );
 
+public interface IMessageStoreWithAgentSupport : IMessageStore
+{
+    IAgent BuildAgent(IWolverineRuntime runtime);
+}
+
 public interface IMessageStore : IAsyncDisposable
 {
+    /// <summary>
+    /// Unique identifier for a message store in case of systems that use multiple message
+    /// store databases. Must use the "messagedb" scheme, and reflect the database connection
+    /// </summary>
+    Uri Uri { get; }
+    
     // /// <summary>
     // /// Let's consuming services in Wolverine know that this message store
     // /// has been disposed and cannot be used in a "DrainAsync". This mostly
@@ -72,15 +85,23 @@ public interface IMessageStore : IAsyncDisposable
     /// <param name="runtime"></param>
     /// <returns></returns>
     void Initialize(IWolverineRuntime runtime);
-
+    
+    [Obsolete("Eliminate this in 4.0")]
     void Describe(TextWriter writer);
+
+    DatabaseDescriptor Describe();
 
     Task DrainAsync();
     IAgent StartScheduledJobs(IWolverineRuntime runtime);
 
-    IAgentFamily? BuildAgentFamily(IWolverineRuntime runtime);
     Task<IReadOnlyList<Envelope>> LoadPageOfGloballyOwnedIncomingAsync(Uri listenerAddress, int limit);
     Task ReassignIncomingAsync(int ownerId, IReadOnlyList<Envelope> incoming);
+    
+    
+    /// <summary>
+    /// Descriptive name for cases of multiple message stores
+    /// </summary>
+    string Name { get; }
 }
 
 public record IncomingCount(Uri Destination, int Count);
@@ -96,3 +117,9 @@ public interface IAncillaryMessageStore : IMessageStore
 public interface IAncillaryMessageStore<T> : IAncillaryMessageStore
 {
 }
+
+public interface ITenantedMessageSource : ITenantedSource<IMessageStore>
+{
+
+}
+

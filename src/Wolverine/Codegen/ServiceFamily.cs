@@ -66,22 +66,40 @@ internal class ServiceFamily
             return new ServiceLocationPlan(descriptor);
         }
 
-#if NET8_0_OR_GREATER
-        if (descriptor.IsKeyedService)
-        {
-            throw new NotSupportedException("Not quite able yet to support keyed implementations");
-        }
-#endif
-
         if (descriptor.Lifetime == ServiceLifetime.Singleton)
         {
             return new SingletonPlan(descriptor);
+        }
+
+        if (descriptor.IsKeyedService)
+        {
+            if (descriptor.KeyedImplementationFactory != null)
+            {
+                return new ServiceLocationPlan(descriptor);
+            }
+
+            if (descriptor.KeyedImplementationType.IsNotPublic)
+            {
+                return new ServiceLocationPlan(descriptor);
+            }
+
+            if (!descriptor.KeyedImplementationType.IsConcrete())
+            {
+                return new InvalidPlan(descriptor);
+            }
+            
+            if (ConstructorPlan.TryBuildPlan(trail, descriptor, graph, out var plan2))
+            {
+                return plan2;
+            }
         }
 
         if (descriptor.ImplementationFactory != null)
         {
             return new ServiceLocationPlan(descriptor);
         }
+        
+        
         
         if (!descriptor.ImplementationType.IsConcrete())
         {

@@ -1,3 +1,4 @@
+using ImTools;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Wolverine.Persistence.Durability;
@@ -142,6 +143,8 @@ public class EndpointCollection : IEndpointCollection
             {
                 _localSenders = _localSenders.AddOrUpdate(LocalTransport.QueueName(address), agent);
             }
+
+            _runtime.Observer.EndpointAdded(agent.Endpoint);
 
             return agent;
         }

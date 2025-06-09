@@ -11,7 +11,7 @@ namespace SqlServerTests.Sagas;
 
 public class saga_storage_operations : SqlServerContext
 {
-    private readonly SagaStorage<LightweightSaga,Guid> theStorage;
+    private readonly DatabaseSagaSchema<Guid, LightweightSaga> _theSchema;
 
     public saga_storage_operations()
     {
@@ -22,7 +22,7 @@ public class saga_storage_operations : SqlServerContext
         };
 
         var definition = new SagaTableDefinition(typeof(LightweightSaga), null);
-        theStorage = new SagaStorage<LightweightSaga, Guid>(definition, settings);
+        _theSchema = new DatabaseSagaSchema<Guid, LightweightSaga>(definition, settings);
     }
 
     [Fact]
@@ -33,7 +33,7 @@ public class saga_storage_operations : SqlServerContext
 
         using var tx = await conn.BeginTransactionAsync();
         
-        var saga = await theStorage.LoadAsync(Guid.NewGuid(), tx, CancellationToken.None);
+        var saga = await _theSchema.LoadAsync(Guid.NewGuid(), tx, CancellationToken.None);
         saga.ShouldBeNull();
     }
 
@@ -52,7 +52,7 @@ public class saga_storage_operations : SqlServerContext
 
         await Should.ThrowAsync<ArgumentException>(async () =>
         {
-            await theStorage.InsertAsync(saga, db, CancellationToken.None);
+            await _theSchema.InsertAsync(saga, db, CancellationToken.None);
         });
     }
 
@@ -69,11 +69,11 @@ public class saga_storage_operations : SqlServerContext
             Name = "Xavier Worthy",
         };
         
-        await theStorage.InsertAsync(saga, db, CancellationToken.None);
+        await _theSchema.InsertAsync(saga, db, CancellationToken.None);
         await db.CommitAsync();
         
         using var db2 = await conn.BeginTransactionAsync();
-        var saga2 = await theStorage.LoadAsync(saga.Id, db2, CancellationToken.None);
+        var saga2 = await _theSchema.LoadAsync(saga.Id, db2, CancellationToken.None);
         
         saga2.Name.ShouldBe("Xavier Worthy");
     }
@@ -91,14 +91,14 @@ public class saga_storage_operations : SqlServerContext
             Name = "Xavier Worthy",
         };
         
-        await theStorage.InsertAsync(saga, db, CancellationToken.None);
+        await _theSchema.InsertAsync(saga, db, CancellationToken.None);
 
         saga.Name = "Hollywood Brown";
-        await theStorage.UpdateAsync(saga, db, CancellationToken.None);
+        await _theSchema.UpdateAsync(saga, db, CancellationToken.None);
         await db.CommitAsync();
 
         using var db2 = await conn.BeginTransactionAsync();
-        var saga2 = await theStorage.LoadAsync(saga.Id, db2, CancellationToken.None);
+        var saga2 = await _theSchema.LoadAsync(saga.Id, db2, CancellationToken.None);
         
         saga2.Name.ShouldBe("Hollywood Brown");
     }
@@ -116,13 +116,13 @@ public class saga_storage_operations : SqlServerContext
             Name = "Xavier Worthy",
         };
         
-        await theStorage.InsertAsync(saga, db, CancellationToken.None);
+        await _theSchema.InsertAsync(saga, db, CancellationToken.None);
 
-        await theStorage.DeleteAsync(saga, db, CancellationToken.None);
+        await _theSchema.DeleteAsync(saga, db, CancellationToken.None);
         await db.CommitAsync();
 
         using var db2 = await conn.BeginTransactionAsync();
-        var saga2 = await theStorage.LoadAsync(saga.Id, db2, CancellationToken.None);
+        var saga2 = await _theSchema.LoadAsync(saga.Id, db2, CancellationToken.None);
         saga2.ShouldBeNull();
     }
 
@@ -143,17 +143,17 @@ public class saga_storage_operations : SqlServerContext
             Name = "Xavier Worthy",
         };
         
-        await theStorage.InsertAsync(saga, db, CancellationToken.None);
+        await _theSchema.InsertAsync(saga, db, CancellationToken.None);
 
         saga.Name = "Rashee Rice";
-        await theStorage.UpdateAsync(saga, db, CancellationToken.None);
+        await _theSchema.UpdateAsync(saga, db, CancellationToken.None);
 
         // I'm rewinding the version to make it throw
         saga.Version = 1;
 
         await Should.ThrowAsync<SagaConcurrencyException>(async () =>
         {
-            await theStorage.UpdateAsync(saga, db, CancellationToken.None);
+            await _theSchema.UpdateAsync(saga, db, CancellationToken.None);
         });
     }
 }

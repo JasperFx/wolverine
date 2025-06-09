@@ -181,13 +181,13 @@ public class TestMessageContext : IMessageContext
     public string? CorrelationId { get; set; }
     public Envelope? Envelope { get; }
 
-    Task IMessageBus.InvokeAsync(object message, CancellationToken cancellation, TimeSpan? timeout)
+    Task ICommandBus.InvokeAsync(object message, CancellationToken cancellation, TimeSpan? timeout)
     {
         _invoked.Add(message);
         return Task.CompletedTask;
     }
 
-    Task<T> IMessageBus.InvokeAsync<T>(object message, CancellationToken cancellation, TimeSpan? timeout)
+    Task<T> ICommandBus.InvokeAsync<T>(object message, CancellationToken cancellation, TimeSpan? timeout)
         where T : default
     {
         var envelope = new Envelope(message)

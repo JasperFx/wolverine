@@ -1,10 +1,13 @@
+using EfCoreTests.MultiTenancy;
 using IntegrationTests;
+using JasperFx;
 using JasperFx.Core.Reflection;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Oakton.Resources;
+using JasperFx.Resources;
+using SharedPersistenceModels.Items;
 using Shouldly;
 using Wolverine.ComplianceTests;
 using Weasel.Core;
@@ -28,7 +31,7 @@ public class EFCorePersistenceContext : BaseContext
     {
         builder.ConfigureServices((c, services) =>
             {
-                services.AddDbContext<SampleDbContext>(x => x.UseSqlServer(Servers.SqlServerConnectionString));
+                services.AddDbContext<ItemsDbContext>(x => x.UseSqlServer(Servers.SqlServerConnectionString));
                 services.AddDbContext<SampleMappedDbContext>(x => x.UseSqlServer(Servers.SqlServerConnectionString));
             })
             .UseWolverine(options =>
@@ -40,9 +43,11 @@ public class EFCorePersistenceContext : BaseContext
                 
                 options.Policies.ConfigureConventionalLocalRouting()
                     .CustomizeQueues((_, q) => q.UseDurableInbox());
+                
+                options.Policies.AutoApplyTransactions();
             });
 
-        ItemsTable = new Table("items");
+        ItemsTable = new Table(new DbObjectName("mt_items", "items"));
         ItemsTable.AddColumn<Guid>("Id").AsPrimaryKey();
         ItemsTable.AddColumn<string>("Name");
         ItemsTable.AddColumn<bool>("Approved");
@@ -73,7 +78,7 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
         var item = new Item { Id = Guid.NewGuid(), Name = "Hey"};
         await saveItem(item);
 
-        await Host.InvokeMessageAndWaitAsync(new ApproveItem(item.Id));
+        await Host.InvokeMessageAndWaitAsync(new ApproveItem2(item.Id));
 
         var existing = await loadItem(item.Id);
         existing.Approved.ShouldBeTrue();
@@ -83,7 +88,7 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
     {
         using var nested = Host.Services.CreateScope();
 
-        var context = nested.ServiceProvider.GetRequiredService<SampleDbContext>();
+        var context = nested.ServiceProvider.GetRequiredService<ItemsDbContext>();
         var item = await context.Items.FindAsync(id);
 
         return item;
@@ -93,7 +98,7 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
     {
         using var nested = Host.Services.CreateScope();
 
-        var context = nested.ServiceProvider.GetRequiredService<SampleDbContext>();
+        var context = nested.ServiceProvider.GetRequiredService<ItemsDbContext>();
         context.Items.Add(item);
         await context.SaveChangesAsync();
     }
@@ -112,11 +117,11 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
     {
         using var nested = Host.Services.CreateScope();
 
-        var context = nested.ServiceProvider.GetRequiredService<SampleDbContext>();
-        var outbox = nested.ServiceProvider.GetRequiredService<IDbContextOutbox<SampleDbContext>>();
+        var context = nested.ServiceProvider.GetRequiredService<ItemsDbContext>();
+        var outbox = nested.ServiceProvider.GetRequiredService<IDbContextOutbox<ItemsDbContext>>();
 
         outbox.DbContext.ShouldBeSameAs(context);
-        outbox.ShouldBeOfType<DbContextOutbox<SampleDbContext>>()
+        outbox.ShouldBeOfType<DbContextOutbox<ItemsDbContext>>()
             .Transaction.ShouldBeOfType<RawDatabaseEnvelopeTransaction>()
             .DbContext.ShouldBeSameAs(context);
     }
@@ -140,7 +145,7 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
     {
         using var nested = Host.Services.CreateScope();
 
-        var context = nested.ServiceProvider.GetRequiredService<SampleDbContext>();
+        var context = nested.ServiceProvider.GetRequiredService<ItemsDbContext>();
         var outbox = nested.ServiceProvider.GetRequiredService<IDbContextOutbox>();
 
         outbox.Enroll(context);
@@ -187,8 +192,8 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
 
         using (var nested = Host.Services.CreateScope())
         {
-            var messaging = nested.ServiceProvider.GetRequiredService<IDbContextOutbox<SampleDbContext>>()
-                .ShouldBeOfType<DbContextOutbox<SampleDbContext>>();
+            var messaging = nested.ServiceProvider.GetRequiredService<IDbContextOutbox<ItemsDbContext>>()
+                .ShouldBeOfType<DbContextOutbox<ItemsDbContext>>();
 
             await messaging.DbContext.Database.EnsureCreatedAsync();
 
@@ -268,7 +273,9 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
             var migration = await SchemaMigration.DetermineAsync(conn, ItemsTable);
             if (migration.Difference != SchemaPatchDifference.None)
             {
-                await new SqlServerMigrator().ApplyAllAsync(conn, migration, AutoCreate.CreateOrUpdate);
+                var sqlServerMigrator = new SqlServerMigrator();
+                
+                await sqlServerMigrator.ApplyAllAsync(conn, migration, AutoCreate.CreateOrUpdate);
             }
 
             await conn.CloseAsync();
@@ -288,7 +295,7 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
 
         using (var nested = Host.Services.CreateScope())
         {
-            var context = nested.ServiceProvider.GetRequiredService<SampleDbContext>();
+            var context = nested.ServiceProvider.GetRequiredService<ItemsDbContext>();
             var messaging = nested.ServiceProvider.GetRequiredService<IDbContextOutbox>();
 
             messaging.Enroll(context);
@@ -304,7 +311,7 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
 
         using (var nested = Host.Services.CreateScope())
         {
-            var context = nested.ServiceProvider.GetRequiredService<SampleDbContext>();
+            var context = nested.ServiceProvider.GetRequiredService<ItemsDbContext>();
             (await context.Items.FindAsync(id)).ShouldNotBeNull();
         }
     }
@@ -356,7 +363,7 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
 
         using (var nested = Host.Services.CreateScope())
         {
-            var outbox = nested.ServiceProvider.GetRequiredService<IDbContextOutbox<SampleDbContext>>();
+            var outbox = nested.ServiceProvider.GetRequiredService<IDbContextOutbox<ItemsDbContext>>();
 
             outbox.DbContext.Items.Add(new Item { Id = id, Name = "Bill" });
             await outbox.SendAsync(new OutboxedMessage { Id = id });
@@ -369,7 +376,7 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
 
         using (var nested = Host.Services.CreateScope())
         {
-            var context = nested.ServiceProvider.GetRequiredService<SampleDbContext>();
+            var context = nested.ServiceProvider.GetRequiredService<ItemsDbContext>();
             (await context.Items.FindAsync(id)).ShouldNotBeNull();
         }
     }
@@ -429,7 +436,7 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
 
         using (var nested = Host.Services.CreateScope())
         {
-            var context = nested.ServiceProvider.GetRequiredService<SampleDbContext>();
+            var context = nested.ServiceProvider.GetRequiredService<ItemsDbContext>();
             var messaging = nested.ServiceProvider.GetRequiredService<IDbContextOutbox>();
 
             messaging.Enroll(context);
@@ -534,18 +541,4 @@ public class Pass
     public string To { get; set; }
 }
 
-public record ApproveItem(Guid Id);
 
-public static class ApproveItemHandler
-{
-    public static ValueTask<Item> LoadAsync(ApproveItem command, SampleDbContext dbContext)
-    {
-        return dbContext.Items.FindAsync(command.Id);
-    }
-
-    [Transactional]
-    public static void Handle(ApproveItem command, Item item)
-    {
-        item.Approved = true;
-    }
-}

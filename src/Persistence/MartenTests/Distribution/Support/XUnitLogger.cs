@@ -52,7 +52,7 @@ public class XUnitLogger : ILogger
             logLevel == LogLevel.Information) return;
         if (_categoryName == "Wolverine.Transports.ListeningAgent" &&
             logLevel == LogLevel.Information) return;
-        if (_categoryName == "Oakton.Resources.ResourceSetupHostService" &&
+        if (_categoryName == "JasperFx.Resources.ResourceSetupHostService" &&
             logLevel == LogLevel.Information) return;
         if (_categoryName == "Wolverine.Configuration.HandlerDiscovery" &&
             logLevel == LogLevel.Information) return;

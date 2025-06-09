@@ -1,3 +1,4 @@
+using ImTools;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
@@ -136,7 +137,7 @@ public class ServiceContainer : IServiceProviderIsService, IServiceContainer
             }
 
             var list = new List<ServiceDescriptor>();
-            var plan = planFor(family.Default, list);
+            var plan = PlanFor(family.Default, list);
             return plan.FindDependencies().Distinct().ToArray();
         }
         catch (Exception e)
@@ -150,7 +151,7 @@ public class ServiceContainer : IServiceProviderIsService, IServiceContainer
         return false;
     }
 
-    private ServicePlan planFor(ServiceDescriptor descriptor, List<ServiceDescriptor> trail)
+    internal ServicePlan PlanFor(ServiceDescriptor descriptor, List<ServiceDescriptor> trail)
     {
         if (descriptor == null)
         {
@@ -192,7 +193,7 @@ public class ServiceContainer : IServiceProviderIsService, IServiceContainer
         var descriptor = findDefaultDescriptor(type);
         if (descriptor == null) return false;
         
-        plan = planFor(descriptor, trail);
+        plan = PlanFor(descriptor, trail);
         return plan is not InvalidPlan;
     }
     
@@ -281,7 +282,7 @@ public class ServiceContainer : IServiceProviderIsService, IServiceContainer
 
     internal IReadOnlyList<ServicePlan> FindAll(Type serviceType, List<ServiceDescriptor> trail)
     {
-        return findFamily(serviceType).Services.Select(descriptor => planFor(descriptor, trail)).ToArray();
+        return findFamily(serviceType).Services.Select(descriptor => PlanFor(descriptor, trail)).ToArray();
     }
 
     public object BuildFromType(Type concreteType)
@@ -320,9 +321,30 @@ public class ServiceContainer : IServiceProviderIsService, IServiceContainer
         var constructor = concreteType.GetConstructors().Single();
         var args = constructor
             .GetParameters()
-            .Select(x => _provider.GetService(x.ParameterType))
+            .Select(x =>
+            {
+                if (x.TryGetAttribute<FromKeyedServicesAttribute>(out var att))
+                {
+                    return typeof(IFinder<>).CloseAndBuildAs<IFinder>(x.ParameterType).Find(_provider, att.Key.ToString());
+                }
+                
+                return _provider.GetService(x.ParameterType);
+            })
             .ToArray();
 
         return Activator.CreateInstance(concreteType, args);
+    }
+
+    private interface IFinder
+    {
+        object Find(IServiceProvider provider, string key);
+    }
+
+    private class IFinder<T> : IFinder
+    {
+        public object Find(IServiceProvider provider, string key)
+        {
+            return provider.GetKeyedService<T>(key);
+        }
     }
 }

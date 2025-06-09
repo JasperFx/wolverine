@@ -3,7 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-using Oakton.Resources;
+using JasperFx.Resources;
 using Shouldly;
 using Wolverine.Persistence;
 using Wolverine.Persistence.Durability;
@@ -120,7 +120,7 @@ public abstract class DurabilityComplianceContext<TTriggerHandler, TItemCreatedH
         await theSender.ResetResourceState();
     }
 
-    protected abstract ItemCreated loadItem(IHost receiver, Guid id);
+    protected abstract Task<ItemCreated> loadItemAsync(IHost receiver, Guid id);
 
 
     protected abstract Task withContext(IHost sender, MessageContext context,

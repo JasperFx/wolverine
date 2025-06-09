@@ -27,6 +27,8 @@ internal class SqlServerQueueListener : IListener
         _scheduledTask = Task.Run(lookForScheduledMessagesAsync, _cancellation.Token);
     }
 
+    public IHandlerPipeline? Pipeline => _receiver.Pipeline;
+
     public ValueTask CompleteAsync(Envelope envelope)
     {
         return ValueTask.CompletedTask;
@@ -37,20 +39,17 @@ internal class SqlServerQueueListener : IListener
         await _queue.SendAsync(envelope, _cancellation.Token);
     }
 
-    public ValueTask DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
-        _cancellation.Cancel();
+        await _cancellation.CancelAsync();
         _task.SafeDispose();
         _scheduledTask.SafeDispose();
-        return ValueTask.CompletedTask;
     }
 
     public Uri Address => _queue.Uri;
-    public ValueTask StopAsync()
+    public async ValueTask StopAsync()
     {
-        _cancellation.Cancel();
-
-        return ValueTask.CompletedTask;
+        await _cancellation.CancelAsync();
     }
 
     private async Task lookForScheduledMessagesAsync()

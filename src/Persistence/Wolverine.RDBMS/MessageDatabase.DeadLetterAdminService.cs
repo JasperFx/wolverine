@@ -2,6 +2,7 @@ using System.Data;
 using Wolverine.Persistence.Durability;
 using JasperFx.Core;
 using Weasel.Core;
+using Wolverine.Persistence.Durability.DeadLetterManagement;
 using Wolverine.RDBMS.Durability;
 
 namespace Wolverine.RDBMS;
@@ -47,7 +48,7 @@ public abstract partial class MessageDatabase<T> : IDeadLetterAdminService
                 var exceptionType = await reader.GetFieldValueAsync<string>(2, token);
                 var count = await reader.GetFieldValueAsync<int>(3, token);
                 
-                envelopes.Add(new DeadLetterQueueCount(serviceName, uri, messageType, exceptionType, Name, count));
+                envelopes.Add(new DeadLetterQueueCount(serviceName, uri, messageType, exceptionType, Uri, count));
             }
         }
         finally
@@ -59,7 +60,7 @@ public abstract partial class MessageDatabase<T> : IDeadLetterAdminService
     }
 
     public Task<IReadOnlyList<DeadLetterQueueCount>> SummarizeByDatabaseAsync(string serviceName,
-        string databaseIdentifier,
+        Uri database,
         TimeRange range,
         CancellationToken token)
     {

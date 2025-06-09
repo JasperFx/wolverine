@@ -2,7 +2,8 @@ using Alba;
 using Marten;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
-using Oakton;
+using JasperFx;
+using JasperFx.CommandLine;
 using Shouldly;
 using TodoWebService;
 using Wolverine.Tracking;
@@ -17,7 +18,7 @@ public class end_to_end : IAsyncLifetime
     {
         // Sorry folks, this is a hidden trap
         // I blame the AspNetCore team...
-        OaktonEnvironment.AutoStartHost = true;
+        JasperFxEnvironment.AutoStartHost = true;
 
         _host = await AlbaHost.For<Program>();
 

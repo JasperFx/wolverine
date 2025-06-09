@@ -34,7 +34,7 @@ public class SqlServerSagaHost : ISagaHost
         var messageStore = _host.Services.GetRequiredService<IMessageStore>()
             .ShouldBeOfType<SqlServerMessageStore>();
 
-        var sagaStorage = messageStore.SagaStorageFor<T, Guid>();
+        var sagaStorage = messageStore.SagaSchemaFor<T, Guid>();
         await using var conn = new SqlConnection(Servers.SqlServerConnectionString);
         await conn.OpenAsync();
         var tx = await conn.BeginTransactionAsync();
@@ -49,7 +49,7 @@ public class SqlServerSagaHost : ISagaHost
         var messageStore = _host.Services.GetRequiredService<IMessageStore>()
             .ShouldBeOfType<SqlServerMessageStore>();
 
-        var sagaStorage = messageStore.SagaStorageFor<T, int>();
+        var sagaStorage = messageStore.SagaSchemaFor<T, int>();
         await using var conn = new SqlConnection(Servers.SqlServerConnectionString);
         await conn.OpenAsync();
 
@@ -65,7 +65,7 @@ public class SqlServerSagaHost : ISagaHost
         var messageStore = _host.Services.GetRequiredService<IMessageStore>()
             .ShouldBeOfType<SqlServerMessageStore>();
 
-        var sagaStorage = messageStore.SagaStorageFor<T, long>();
+        var sagaStorage = messageStore.SagaSchemaFor<T, long>();
         await using var conn = new SqlConnection(Servers.SqlServerConnectionString);
         await conn.OpenAsync();
 
@@ -81,7 +81,7 @@ public class SqlServerSagaHost : ISagaHost
         var messageStore = _host.Services.GetRequiredService<IMessageStore>()
             .ShouldBeOfType<SqlServerMessageStore>();
 
-        var sagaStorage = messageStore.SagaStorageFor<T, string>();
+        var sagaStorage = messageStore.SagaSchemaFor<T, string>();
         await using var conn = new SqlConnection(Servers.SqlServerConnectionString);
         await conn.OpenAsync();
 

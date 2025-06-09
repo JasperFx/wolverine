@@ -1,6 +1,7 @@
 ﻿using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Reflection;
+using ImTools;
 using JasperFx.CodeGeneration;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
@@ -167,7 +168,7 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
         // If none, use the default
         if (sticky == null)
         {
-            if (!chain.Handlers.Any())
+            if (!chain.HasDefaultNonStickyHandlers())
             {
                 throw new NoHandlerForEndpointException(messageType, endpoint.Uri);
             }
@@ -221,7 +222,7 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
         {
             handler = chain.Handler;
         }
-        else if (!chain.Handlers.Any())
+        else if (!chain.HasDefaultNonStickyHandlers())
         {
             throw new NoHandlerForEndpointException(messageType);
         }
@@ -455,5 +456,33 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
 
         _messageTypes = _messageTypes.AddOrUpdate(messageType.ToMessageTypeName(), messageType);
         _replyTypes = _replyTypes.Add(messageType);
+    }
+
+    public IEnumerable<HandlerChain> AllChains()
+    {
+        foreach (var chain in Chains)
+        {
+            if (chain.Handlers.Any()) yield return chain;
+
+            foreach (var handlerChain in chain.ByEndpoint)
+            {
+                yield return handlerChain;
+            }
+        }
+    }
+
+    public IEnumerable<Type> AllMessageTypes()
+    {
+        foreach (var chain in Chains)
+        {
+            yield return chain.MessageType;
+
+            foreach (var publishedType in chain.PublishedTypes()) yield return publishedType;
+        }
+
+        foreach (var entry in _messageTypes.Enumerate())
+        {
+            yield return entry.Value;
+        }
     }
 }

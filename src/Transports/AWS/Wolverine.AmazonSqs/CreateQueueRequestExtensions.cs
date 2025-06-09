@@ -14,6 +14,7 @@ public static class CreateQueueRequestExtensions
     /// <returns></returns>
     public static AmazonSqsQueue MaximumMessageSize(this AmazonSqsQueue queue, int maximumSize)
     {
+        queue.Configuration.Attributes ??= new();
         queue.Configuration.Attributes[QueueAttributeName.MaximumMessageSize] = maximumSize.ToString();
 
         return queue;
@@ -28,6 +29,7 @@ public static class CreateQueueRequestExtensions
     /// <returns></returns>
     public static AmazonSqsQueue MessageRetentionPeriod(this AmazonSqsQueue queue, int numberOfSeconds)
     {
+        queue.Configuration.Attributes ??= new();
         queue.Configuration.Attributes[QueueAttributeName.MessageRetentionPeriod] = numberOfSeconds.ToString();
         return queue;
     }
@@ -41,6 +43,7 @@ public static class CreateQueueRequestExtensions
     /// <returns></returns>
     public static AmazonSqsQueue ReceiveMessageWaitTimeSeconds(this AmazonSqsQueue queue, int numberOfSeconds)
     {
+        queue.Configuration.Attributes ??= new();
         queue.Configuration.Attributes[QueueAttributeName.ReceiveMessageWaitTimeSeconds] = numberOfSeconds.ToString();
         return queue;
     }
@@ -54,6 +57,7 @@ public static class CreateQueueRequestExtensions
     /// <returns></returns>
     public static AmazonSqsQueue VisibilityTimeout(this AmazonSqsQueue queue, int numberOfSeconds)
     {
+        queue.Configuration.Attributes ??= new();
         queue.Configuration.Attributes[QueueAttributeName.VisibilityTimeout] = numberOfSeconds.ToString();
         return queue;
     }

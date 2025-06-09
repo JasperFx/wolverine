@@ -28,7 +28,7 @@ public class node_persistence : NodePersistenceCompliance
         {
             ConnectionString = Servers.PostgresConnectionString,
             SchemaName = "nodes",
-            IsMaster = true
+            IsMain = true
         };
 
         var database = new PostgresqlMessageStore(settings, new DurabilitySettings(),

@@ -47,6 +47,23 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IAsy
         
     }
 
+    public override Uri ResourceUri
+    {
+        get
+        {
+            if (ConnectionFactory == null) return new Uri("rabbitmq://");
+
+            var resourceUri = new Uri($"rabbitmq://{ConnectionFactory.HostName}");
+
+            if (ConnectionFactory.VirtualHost.IsNotEmpty())
+            {
+                resourceUri = new Uri(resourceUri, ConnectionFactory.VirtualHost);
+            }
+            
+            return resourceUri;
+        }
+    }
+
     internal LightweightCache<string, RabbitMqTenant> Tenants { get; } = new();
 
     private void configureDefaults(ConnectionFactory factory)
@@ -221,7 +238,9 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IAsy
     {
         if (DeclareRequestReplySystemQueue)
         {
-            var queueName = $"wolverine.response.{runtime.DurabilitySettings.AssignedNodeNumber}";
+            // We switched back to using a Guid to disambiguate Wolverine nodes
+            // that might be connecting to the same broker but within different apps
+            var queueName = $"wolverine.response.{Guid.NewGuid()}";
 
             var queue = new RabbitMqQueue(queueName, this, EndpointRole.System)
             {

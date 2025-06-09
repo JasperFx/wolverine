@@ -1,3 +1,5 @@
+using JasperFx;
+using JasperFx.Core.Reflection;
 using Npgsql;
 using Shouldly;
 using Weasel.Postgresql;
@@ -21,10 +23,10 @@ public class basic_bootstrapping_and_database_configuration : MultiTenancyContex
     [Fact]
     public void should_have_the_specified_master_database_as_master()
     {
-        Databases.Master.Name.ShouldBe("Master");
-        Databases.Master.SchemaName.ShouldBe("control");
+        Stores.Main.Name.ShouldBe(StorageConstants.Main);
+        Stores.Main.As<IMessageDatabase>().SchemaName.ShouldBe("control");
 
-        new NpgsqlConnectionStringBuilder(Databases.Master.DataSource.CreateConnection().ConnectionString)
+        new NpgsqlConnectionStringBuilder(Stores.Main.As<IMessageDatabase>().DataSource.CreateConnection().ConnectionString)
             .Database.ShouldBe("postgres");
     }
 
@@ -32,17 +34,17 @@ public class basic_bootstrapping_and_database_configuration : MultiTenancyContex
     public void knows_about_tenant_databases()
     {
         // 3 tenant databases
-        Databases.ActiveDatabases().Count.ShouldBe(4);
+        Stores.ActiveDatabases().Count.ShouldBe(4);
 
-        Databases.ActiveDatabases().ShouldContain(x => x.Name == "tenant1");
-        Databases.ActiveDatabases().ShouldContain(x => x.Name == "tenant2");
-        Databases.ActiveDatabases().ShouldContain(x => x.Name == "tenant3");
+        Stores.ActiveDatabases().ShouldContain(x => x.Name == "tenant1");
+        Stores.ActiveDatabases().ShouldContain(x => x.Name == "tenant2");
+        Stores.ActiveDatabases().ShouldContain(x => x.Name == "tenant3");
     }
 
     [Fact]
     public async Task tenant_databases_have_envelope_tables()
     {
-        foreach (var database in Databases.ActiveDatabases().Where(x => x.Name != "Master"))
+        foreach (var database in Stores.ActiveDatabases().OfType<IMessageDatabase>().Where(x => x.Name != "Master"))
         {
             await using var conn = (NpgsqlConnection)await database.DataSource.OpenConnectionAsync();
 
@@ -60,7 +62,7 @@ public class basic_bootstrapping_and_database_configuration : MultiTenancyContex
     [Fact]
     public async Task tenant_databases_do_not_have_node_and_assignment_tables()
     {
-        foreach (var database in Databases.ActiveDatabases().Where(x => x.Name != "Master"))
+        foreach (var database in Stores.ActiveDatabases().OfType<IMessageDatabase>().Where(x => x.Name != "Main"))
         {
             await using var conn = (NpgsqlConnection)await database.DataSource.OpenConnectionAsync();
 
@@ -76,13 +78,13 @@ public class basic_bootstrapping_and_database_configuration : MultiTenancyContex
     [Fact]
     public async Task finds_database_for_default_is_master()
     {
-        (await Databases.GetDatabaseAsync(TransportConstants.Default)).ShouldBeSameAs(Databases.Master);
+        (await Stores.GetDatabaseAsync(TransportConstants.Default)).ShouldBeSameAs(Stores.Main);
     }
 
     [Fact]
     public async Task master_database_has_every_storage_table()
     {
-        await using var conn = (NpgsqlConnection)await Databases.Master.DataSource.OpenConnectionAsync();
+        await using var conn = (NpgsqlConnection)await Stores.Main.As<IMessageDatabase>().DataSource.OpenConnectionAsync();
 
         var tables = (await conn.ExistingTablesAsync()).Where(x => x.Schema == "control").ToArray();
         tables.ShouldContain(x => x.Name == DatabaseConstants.IncomingTable);
@@ -100,11 +102,11 @@ public class basic_bootstrapping_and_database_configuration : MultiTenancyContex
     [Fact]
     public void only_the_master_database_is_the_master()
     {
-        foreach (var database in Databases.ActiveDatabases().Where(x => x.Name != "Master"))
+        foreach (var database in Stores.ActiveDatabases().OfType<IMessageDatabase>().Where(x => x.Name != StorageConstants.Main))
         {
-            database.IsMaster.ShouldBeFalse();
+            database.IsMain.ShouldBeFalse();
         }
 
-        Databases.Master.IsMaster.ShouldBeTrue();
+        Stores.Main.As<IMessageDatabase>().IsMain.ShouldBeTrue();
     }
 }

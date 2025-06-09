@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using IntegrationTests;
 using JasperFx.Core;
 using Marten;
@@ -34,8 +35,16 @@ public class send_by_topics : IDisposable
                     exchange.BindTopic("color.green").ToQueue("green");
                     exchange.BindTopic("color.blue").ToQueue("blue");
                     exchange.BindTopic("color.*").ToQueue("all");
+                    
+                    // Need this to be able to go to ONLY the green receiver for a test
+                    exchange.BindTopic("special").ToQueue("green");
                 });
 
+                opts.Discovery.DisableConventionalDiscovery()
+                    .IncludeType<TriggerTopicMessageHandler>();
+
+                opts.ServiceName = "TheSender";
+  
                 opts.PublishMessagesToRabbitMqExchange<RoutedMessage>("wolverine.topics", m => m.TopicName);
             }).Start();
 
@@ -71,6 +80,16 @@ public class send_by_topics : IDisposable
         theThirdReceiver?.Dispose();
     }
 
+    [Fact]
+    public void topic_route_creates_descriptor()
+    {
+        var route = theSender.GetRuntime().RoutingFor(typeof(PurpleMessage)).Routes.Single();
+
+        var descriptor = route.Describe();
+        descriptor.Endpoint.ShouldBe(new Uri("rabbitmq://exchange/wolverine.topics"));
+        descriptor.ContentType.ShouldBe("application/json");
+    }
+    
     [Fact]
     public void topic_name_needs_to_be_set_on_envelope_as_part_of_routing()
     {
@@ -110,6 +129,34 @@ public class send_by_topics : IDisposable
             .Where(x => x.MessageEventType == MessageEventType.Received)
             .Select(x => x.ServiceName)
             .Single().ShouldBe("Third");
+    }
+
+    [Fact]
+    public async Task request_reply_through_topic_exchange()
+    {
+        Func<IMessageContext,Task> action = async c =>
+        {
+            // This should get handled by only the Green receiver 
+            // according to the configuration at the top
+            var message = new RoutedMessage{TopicName = "special"};
+            await c.InvokeAsync<RoutedResponse>(message);
+        };
+        
+        var session = await theSender
+            .TrackActivity()
+            .IncludeExternalTransports()
+            .AlsoTrack(theGreenReceiver, theBlueReceiver, theThirdReceiver)
+            .ExecuteAndWaitAsync(action);
+        
+        session.Executed.SingleRecord<RoutedMessage>()
+            .ServiceName.ShouldBe("Green");
+    }
+
+    [Fact]
+    public async Task remove_request_reply_with_topics()
+    {
+        var bus = theSender.MessageBus();
+        
     }
 
     [Fact]
@@ -164,6 +211,7 @@ public class send_by_topics : IDisposable
     {
         var session = await theSender
             .TrackActivity()
+            .Timeout(30.Seconds())
             .IncludeExternalTransports()
             .WaitForMessageToBeReceivedAt<FirstMessage>(theBlueReceiver)
             .AlsoTrack(theGreenReceiver, theBlueReceiver, theThirdReceiver)
@@ -414,21 +462,33 @@ public class RoutedMessage
     public Guid Id { get; set; } = Guid.NewGuid();
 }
 
+public class RoutedResponse
+{
+    public Guid Id { get; set; }
+}
+
 public class TriggerTopicMessage;
+
+public class TriggerTopicMessageHandler
+{
+    public static object Handle(TriggerTopicMessage message)
+    {
+        return new FirstMessage().ToTopic("color.blue", new DeliveryOptions { ScheduleDelay = 1.Seconds() });
+    }
+}
 
 public class MessagesHandler
 {
-    public static void Handle(RoutedMessage message)
+    public static RoutedResponse Handle(RoutedMessage message)
     {
+        return new RoutedResponse { Id = message.Id };
     }
 
-    public object Handle(TriggerTopicMessage message)
-    {
-        return new FirstMessage().ToTopic("color.blue", new DeliveryOptions { ScheduleDelay = 3.Seconds() });
-    }
+
 
     public void Handle(FirstMessage message)
     {
+        Debug.WriteLine("Got " + message);
     }
 
     public void Handle(SecondMessage message)

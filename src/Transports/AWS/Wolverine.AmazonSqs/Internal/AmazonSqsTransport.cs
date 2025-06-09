@@ -21,6 +21,8 @@ public class AmazonSqsTransport : BrokerTransport<AmazonSqsQueue>
         IdentifierDelimiter = "-";
     }
 
+    public override Uri ResourceUri => new Uri(Config.ServiceURL);
+
     internal AmazonSqsTransport(IAmazonSQS client) : this()
     {
         Client = client;

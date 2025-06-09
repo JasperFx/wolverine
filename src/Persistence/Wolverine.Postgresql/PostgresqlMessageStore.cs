@@ -1,13 +1,15 @@
 ﻿using System.Data.Common;
+using ImTools;
+using JasperFx;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
+using JasperFx.Descriptors;
 using Microsoft.Extensions.Logging;
 using Npgsql;
 using NpgsqlTypes;
 using Weasel.Core;
 using Weasel.Core.Migrations;
 using Weasel.Postgresql;
-using Weasel.Postgresql.Tables;
 using Wolverine.Logging;
 using Wolverine.Persistence.Durability;
 using Wolverine.Postgresql.Schema;
@@ -19,6 +21,7 @@ using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.WorkerQueues;
 using Wolverine.Transports;
 using DbCommandBuilder = Weasel.Core.DbCommandBuilder;
+using Table = Weasel.Postgresql.Tables.Table;
 
 namespace Wolverine.Postgresql;
 
@@ -36,7 +39,7 @@ internal class PostgresqlMessageStore<T> : PostgresqlMessageStore, IAncillaryMes
     public Type MarkerType => typeof(T);
 }
 
-internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>, IDatabaseSagaStorage
+internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
 {
     private readonly string _deleteOutgoingEnvelopesSql;
     private readonly string _discardAndReassignOutgoingSql;
@@ -45,7 +48,7 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>, IData
 
     private readonly List<ISchemaObject> _externalTables = new();
     
-    private ImHashMap<Type, ISagaStorage> _sagaStorage = ImHashMap<Type, ISagaStorage>.Empty;
+    private ImHashMap<Type, IDatabaseSagaSchema> _sagaStorage = ImHashMap<Type, IDatabaseSagaSchema>.Empty;
 
 
     public PostgresqlMessageStore(DatabaseSettings databaseSettings, DurabilitySettings settings, NpgsqlDataSource dataSource,
@@ -62,7 +65,7 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>, IData
 
     public PostgresqlMessageStore(DatabaseSettings databaseSettings, DurabilitySettings settings, NpgsqlDataSource dataSource,
         ILogger<PostgresqlMessageStore> logger, IEnumerable<SagaTableDefinition> sagaTypes) : base(databaseSettings, dataSource,
-        settings, logger, new PostgresqlMigrator(), "public")
+        settings, logger, new PostgresqlMigrator(), PostgresqlProvider.Instance)
     {
         _reassignIncomingSql =
             $"update {SchemaName}.{DatabaseConstants.IncomingTable} set owner_id = @owner, status = '{EnvelopeStatus.Incoming}' where id = ANY(@ids)";
@@ -75,18 +78,34 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>, IData
         _discardAndReassignOutgoingSql = _deleteOutgoingEnvelopesSql +
                                          $";update {SchemaName}.{DatabaseConstants.OutgoingTable} set owner_id = @node where id = ANY(@rids)";
 
-        DataSource = dataSource ?? throw new ArgumentNullException(nameof(dataSource));
+        NpgsqlDataSource = dataSource ?? throw new ArgumentNullException(nameof(dataSource));
 
         AdvisoryLock = new AdvisoryLock(dataSource, logger, Identifier);
         
         foreach (var sagaTableDefinition in sagaTypes)
         {
-            var storage = typeof(SagaStorage<,>).CloseAndBuildAs<ISagaStorage>(sagaTableDefinition, _settings, sagaTableDefinition.SagaType, sagaTableDefinition.IdMember.GetMemberType());
+            var storage = typeof(DatabaseSagaSchema<,>).CloseAndBuildAs<IDatabaseSagaSchema>(sagaTableDefinition, _settings, sagaTableDefinition.SagaType, sagaTableDefinition.IdMember.GetMemberType());
             _sagaStorage = _sagaStorage.AddOrUpdate(sagaTableDefinition.SagaType, storage);
         }
     }
 
-    public NpgsqlDataSource DataSource { get; }
+    public NpgsqlDataSource NpgsqlDataSource { get; }
+    
+    /// <summary>
+    ///     Fetch a list of the existing tables in the database
+    /// </summary>
+    /// <param name="database"></param>
+    /// <returns></returns>
+    public async Task<IReadOnlyList<DbObjectName>> SchemaTables(CancellationToken ct = default)
+    {
+        var schemaNames = AllSchemaNames();
+
+        await using var conn = CreateConnection();
+
+        await conn.OpenAsync(ct).ConfigureAwait(false);
+
+        return await conn.ExistingTablesAsync(schemas: schemaNames, ct: ct).ConfigureAwait(false);
+    }
 
     protected override INodeAgentPersistence? buildNodeStorage(DatabaseSettings databaseSettings,
         DbDataSource dataSource)
@@ -217,7 +236,7 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>, IData
         cmd.With("replay", true);
         var param = new NpgsqlParameter("ids", NpgsqlDbType.Array | NpgsqlDbType.Uuid) { Value = ids };
         cmd.Parameters.Add(param);
-        await using var conn = await DataSource.OpenConnectionAsync(_cancellation);
+        await using var conn = await NpgsqlDataSource.OpenConnectionAsync(_cancellation);
         cmd.Connection = conn;
         try
         {
@@ -237,7 +256,7 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>, IData
         var cmd = builder.Compile();
         var param = new NpgsqlParameter("ids", NpgsqlDbType.Array | NpgsqlDbType.Uuid) { Value = ids };
         cmd.Parameters.Add(param);
-        await using var conn = await DataSource.OpenConnectionAsync(_cancellation);
+        await using var conn = await NpgsqlDataSource.OpenConnectionAsync(_cancellation);
         cmd.Connection = conn;
         try
         {
@@ -309,7 +328,7 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>, IData
 
         if (HasDisposed) return;
 
-        await using var conn = await DataSource.OpenConnectionAsync(cancellationToken);
+        await using var conn = await NpgsqlDataSource.OpenConnectionAsync(cancellationToken);
         try
         {
             var tx = await conn.BeginTransactionAsync(cancellationToken);
@@ -380,6 +399,76 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>, IData
         await conn.CloseAsync();
     }
 
+    public override DatabaseDescriptor Describe()
+    {
+        if (Descriptor != null) return Descriptor;
+        
+        var builder = new NpgsqlConnectionStringBuilder(DataSource?.ConnectionString ?? Settings.ConnectionString);
+        var descriptor = new DatabaseDescriptor()
+        {
+            Engine = "PostgreSQL",
+            ServerName = builder.Host ?? string.Empty,
+            DatabaseName = builder.Database ?? string.Empty,
+            Subject = GetType().FullNameInCode()
+        };
+
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.Host));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.Port));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.Database));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.Username));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.ApplicationName));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.Enlist));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.SearchPath));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.ClientEncoding));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.Encoding));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.Timezone));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.SslMode));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.SslNegotiation));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.CheckCertificateRevocation));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.KerberosServiceName));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.IncludeRealm));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.PersistSecurityInfo));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.LogParameters));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.IncludeErrorDetail));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.ChannelBinding));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.Pooling));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.MinPoolSize));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.MaxPoolSize));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.ConnectionIdleLifetime));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.ConnectionPruningInterval));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.ConnectionLifetime));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.Timeout));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.CommandTimeout));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.CancellationTimeout));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.TargetSessionAttributes));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.LoadBalanceHosts));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.HostRecheckSeconds));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.KeepAlive));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.TcpKeepAlive));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.TcpKeepAliveTime));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.TcpKeepAliveInterval));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.ReadBufferSize));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.WriteBufferSize));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.SocketReceiveBufferSize));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.SocketSendBufferSize));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.MaxAutoPrepare));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.AutoPrepareMinUsages));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.NoResetOnClose));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.Options));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.ArrayNullabilityMode));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.Multiplexing));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.WriteCoalescingBufferThresholdBytes));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.LoadTableComposites));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.ServerCompatibilityMode));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.TrustServerCertificate));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.InternalCommandTimeout));
+
+        descriptor.Properties.RemoveAll(x => x.Name.ContainsIgnoreCase("password"));
+        descriptor.Properties.RemoveAll(x => x.Name.ContainsIgnoreCase("certificate"));
+
+        return descriptor;
+    }
+
     public override IEnumerable<ISchemaObject> AllObjects()
     {
         yield return new OutgoingEnvelopeTable(SchemaName);
@@ -391,7 +480,7 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>, IData
             yield return table;
         }
 
-        if (_settings.IsMaster)
+        if (_settings.IsMain)
         {
             var nodeTable = new Table(new DbObjectName(SchemaName, DatabaseConstants.NodeTableName));
             nodeTable.AddColumn<Guid>("id").AsPrimaryKey();
@@ -400,6 +489,7 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>, IData
             nodeTable.AddColumn<string>("uri").NotNull();
             nodeTable.AddColumn<DateTimeOffset>("started").DefaultValueByExpression("now()").NotNull();
             nodeTable.AddColumn<DateTimeOffset>("health_check").NotNull().DefaultValueByExpression("now()");
+            nodeTable.AddColumn<string>("version");
             nodeTable.AddColumn("capabilities", "text[]").AllowNulls();
 
             yield return nodeTable;
@@ -425,6 +515,14 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>, IData
                 yield return queueTable;
             }
 
+            if (_settings.AddTenantLookupTable)
+            {
+                var tenantTable = new Table(new DbObjectName(SchemaName, DatabaseConstants.TenantsTableName));
+                tenantTable.AddColumn<string>(StorageConstants.TenantIdColumn).AsPrimaryKey();
+                tenantTable.AddColumn<string>(StorageConstants.ConnectionStringColumn).NotNull();
+                yield return tenantTable;
+            }
+
             var eventTable = new Table(new DbObjectName(SchemaName, DatabaseConstants.NodeRecordTableName));
             eventTable.AddColumn("id", "SERIAL").AsPrimaryKey();
             eventTable.AddColumn<int>("node_number").NotNull();
@@ -433,15 +531,17 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>, IData
             eventTable.AddColumn<string>("description").AllowNulls();
             yield return eventTable;
 
-            foreach (var table in _otherTables)
-            {
-                yield return table;
-            }
+
+        }
+        
+        foreach (var table in _otherTables)
+        {
+            yield return table;
+        }
             
-            foreach (var entry in _sagaStorage.Enumerate())
-            {
-                yield return entry.Value.Table;
-            }
+        foreach (var entry in _sagaStorage.Enumerate())
+        {
+            yield return entry.Value.Table;
         }
     }
 
@@ -451,77 +551,22 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>, IData
     {
         _otherTables.Add(table);
     }
-    
-    public SagaStorage<T, TId> SagaStorageFor<T, TId>() where T : Saga
+
+    public override DatabaseSagaSchema<T, TId> SagaSchemaFor<T, TId>()
     {
         if (_sagaStorage.TryFind(typeof(T), out var raw))
         {
-            if (raw is SagaStorage<T, TId> sagaStorage)
+            if (raw is DatabaseSagaSchema<T, TId> sagaStorage)
             {
                 return sagaStorage;
             }
         }
         
         var definition = new SagaTableDefinition(typeof(T), null);
-        var storage = new SagaStorage<T, TId>(definition, _settings);
+        var storage = new DatabaseSagaSchema<T, TId>(definition, _settings);
         _sagaStorage = _sagaStorage.AddOrUpdate(typeof(T), storage);
         
         return storage;
     }
 
-    public Task InsertAsync<T>(T saga, DbTransaction transaction, CancellationToken cancellationToken) where T : Saga
-    {
-        if (_sagaStorage.TryFind(typeof(T), out var raw))
-        {
-            if (raw is ISagaStorage<T> sagaStorage)
-            {
-                return sagaStorage.InsertAsync(saga, transaction, cancellationToken);
-            }
-        }
-
-        var definition = new SagaTableDefinition(typeof(T), null);
-        var storage = typeof(SagaStorage<,>).CloseAndBuildAs<ISagaStorage<T>>(definition, _settings, typeof(T), definition.IdMember.GetMemberType());
-        _sagaStorage = _sagaStorage.AddOrUpdate(typeof(T), storage);
-        
-        return storage.InsertAsync(saga, transaction, cancellationToken);
-    }
-
-    public Task UpdateAsync<T>(T saga, DbTransaction transaction, CancellationToken cancellationToken) where T : Saga
-    {
-        if (_sagaStorage.TryFind(typeof(T), out var raw))
-        {
-            if (raw is ISagaStorage<T> sagaStorage)
-            {
-                return sagaStorage.UpdateAsync(saga, transaction, cancellationToken);
-            }
-        }
-
-        var definition = new SagaTableDefinition(typeof(T), null);
-        var storage = typeof(SagaStorage<,>).CloseAndBuildAs<ISagaStorage<T>>(definition, _settings, typeof(T), definition.IdMember.GetMemberType());
-        _sagaStorage = _sagaStorage.AddOrUpdate(typeof(T), storage);
-        
-        return storage.UpdateAsync(saga, transaction, cancellationToken);
-    }
-
-    public Task DeleteAsync<T>(T saga, DbTransaction transaction, CancellationToken cancellationToken) where T : Saga
-    {
-        if (_sagaStorage.TryFind(typeof(T), out var raw))
-        {
-            if (raw is ISagaStorage<T> sagaStorage)
-            {
-                return sagaStorage.DeleteAsync(saga, transaction, cancellationToken);
-            }
-        }
-
-        var definition = new SagaTableDefinition(typeof(T), null);
-        var storage = typeof(SagaStorage<,>).CloseAndBuildAs<ISagaStorage<T>>(definition, _settings, typeof(T), definition.IdMember.GetMemberType());
-        _sagaStorage = _sagaStorage.AddOrUpdate(typeof(T), storage);
-        
-        return storage.DeleteAsync(saga, transaction, cancellationToken);
-    }
-
-    public Task<T?> LoadAsync<T, TId>(TId id, DbTransaction tx, CancellationToken cancellationToken) where T : Saga
-    {
-        return SagaStorageFor<T, TId>().LoadAsync(id, tx, cancellationToken);
-    }
 }

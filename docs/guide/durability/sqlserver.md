@@ -149,5 +149,118 @@ _listener = await Host.CreateDefaultBuilder()
 
 See the details on [Lightweight Saga Storage](/guide/durability/sagas.html#lightweight-saga-storage) for more information.
 
+## Multi-Tenancy <Badge type="tip" text="4.0" />
+
+You can utilize multi-tenancy through separate databases for each tenant with SQL Server and Wolverine. If utilizing the SQL Server transport 
+with multi-tenancy through separate databases per tenant, the SQL Server
+queues will be built and monitored for each tenant database as well as any main, non-tenanted database. Also, Wolverine is able to utilize
+completely different message storage for its transactional inbox and outbox for each unique database including any main database.
+Wolverine is able to activate additional durability agents for itself for any tenant databases added at runtime for tenancy modes
+that support dynamic discovery.
+
+To utilize Wolverine managed multi-tenancy, you have a couple main options. The simplest is just using a static configured
+set of tenant id to database connections like so:
+
+<!-- snippet: sample_static_tenant_registry_with_sqlserver -->
+<a id='snippet-sample_static_tenant_registry_with_sqlserver'></a>
+```cs
+var builder = Host.CreateApplicationBuilder();
+
+var configuration = builder.Configuration;
+
+builder.UseWolverine(opts =>
+{
+    // First, you do have to have a "main" PostgreSQL database for messaging persistence
+    // that will store information about running nodes, agents, and non-tenanted operations
+    opts.PersistMessagesWithSqlServer(configuration.GetConnectionString("main"))
+
+        // Add known tenants at bootstrapping time
+        .RegisterStaticTenants(tenants =>
+        {
+            // Add connection strings for the expected tenant ids
+            tenants.Register("tenant1", configuration.GetConnectionString("tenant1"));
+            tenants.Register("tenant2", configuration.GetConnectionString("tenant2"));
+            tenants.Register("tenant3", configuration.GetConnectionString("tenant3"));
+        });
+    
+    // Just to show that you *can* use more than one DbContext
+    opts.Services.AddDbContextWithWolverineManagedMultiTenancy<ItemsDbContext>((builder, connectionString, _) =>
+    {
+        // You might have to set the migration assembly
+        builder.UseSqlServer(connectionString.Value, b => b.MigrationsAssembly("MultiTenantedEfCoreWithSqlServer"));
+    }, AutoCreate.CreateOrUpdate);
+
+    opts.Services.AddDbContextWithWolverineManagedMultiTenancy<OrdersDbContext>((builder, connectionString, _) =>
+    {
+        builder.UseSqlServer(connectionString.Value, b => b.MigrationsAssembly("MultiTenantedEfCoreWithSqlServer"));
+    }, AutoCreate.CreateOrUpdate);
+});
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests/MultiTenancy/MultiTenancyDocumentationSamples.cs#L53-L87' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_static_tenant_registry_with_sqlserver' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+::: warning
+Wolverine is not yet able to dynamically tear down tenants yet. That's long planned, and honestly probably only happens
+when an outside company sponsors that work.
+:::
+
+If you need to be able to add new tenants at runtime or just have more tenants than is comfortable living in static configuration
+or plenty of other reasons I could think of, you can also use Wolverine's "master table tenancy" approach where tenant id
+to database connection string information is kept in a separate database table.
+
+Here's a possible usage of that model:
+
+<!-- snippet: sample_using_sqlserver_backed_master_table_tenancy -->
+<a id='snippet-sample_using_sqlserver_backed_master_table_tenancy'></a>
+```cs
+var builder = Host.CreateApplicationBuilder();
+
+var configuration = builder.Configuration;
+builder.UseWolverine(opts =>
+{
+    // You need a main database no matter what that will hold information about the Wolverine system itself
+    // and..
+    opts.PersistMessagesWithSqlServer(configuration.GetConnectionString("wolverine"))
+
+        // ...also a table holding the tenant id to connection string information
+        .UseMasterTableTenancy(seed =>
+        {
+            // These registrations are 100% just to seed data for local development
+            // Maybe you want to omit this during production?
+            // Or do something programmatic by looping through data in the IConfiguration?
+            seed.Register("tenant1", configuration.GetConnectionString("tenant1"));
+            seed.Register("tenant2", configuration.GetConnectionString("tenant2"));
+            seed.Register("tenant3", configuration.GetConnectionString("tenant3"));
+        });
+});
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests/MultiTenancy/MultiTenancyDocumentationSamples.cs#L121-L144' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_sqlserver_backed_master_table_tenancy' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+::: info
+Wolverine's "master table tenancy" model was unsurprisingly based on Marten's [Master Table Tenancy](https://martendb.io/configuration/multitenancy.html#master-table-tenancy-model) feature
+and even shares a little bit of supporting code now.
+:::
+
+Here's some more important background on the multi-tenancy support:
+
+* Wolverine is spinning up a completely separate "durability agent" across the application to recover stranded messages in
+  the transactional inbox and outbox, and that's done automatically for you
+* The lightweight saga support for PostgreSQL absolutely works with this model of multi-tenancy
+* Wolverine is able to manage all of its database tables including the tenant table itself (`wolverine_tenants`) across both the
+  main database and all the tenant databases including schema migrations
+* Wolverine's transactional middleware is aware of the multi-tenancy and can connect to the correct database based on the `IMesageContext.TenantId`
+  or utilize the tenant id detection in Wolverine.HTTP as well
+* You can "plug in" a custom implementation of `ITenantSource<string>` to manage tenant id to connection string assignments in whatever way works for your deployed system
+
+
+
+
+
+
+
+
+
+
 
 

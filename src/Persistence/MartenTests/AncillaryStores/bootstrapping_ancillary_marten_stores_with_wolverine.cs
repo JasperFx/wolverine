@@ -1,19 +1,18 @@
-using System.Diagnostics;
 using IntegrationTests;
 using JasperFx.Core;
+using JasperFx.Resources;
 using Marten;
 using MartenTests.MultiTenancy;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Npgsql;
-using Oakton.Resources;
 using Shouldly;
-using Wolverine.ComplianceTests;
 using Weasel.Core;
 using Weasel.Core.Migrations;
 using Weasel.Postgresql;
 using Weasel.Postgresql.Migrations;
 using Wolverine;
+using Wolverine.ComplianceTests;
 using Wolverine.Marten;
 using Wolverine.Marten.Publishing;
 using Wolverine.Persistence.Durability;
@@ -25,26 +24,90 @@ using Xunit.Abstractions;
 
 namespace MartenTests.AncillaryStores;
 
-/*
- * TODO
- * Test w/o basic AddMarten registration
- *
- *
- * 
- */
-
 public class bootstrapping_ancillary_marten_stores_with_wolverine : IAsyncLifetime
 {
     private readonly ITestOutputHelper _output;
-    private IHost theHost;
     private string tenant1ConnectionString;
     private string tenant2ConnectionString;
     private string tenant3ConnectionString;
     private DurabilityAgentFamily theFamily;
+    private IHost theHost;
 
     public bootstrapping_ancillary_marten_stores_with_wolverine(ITestOutputHelper output)
     {
         _output = output;
+    }
+
+    public async Task InitializeAsync()
+    {
+        await using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
+        await conn.OpenAsync();
+        await conn.DropSchemaAsync("players");
+
+        tenant1ConnectionString = await CreateDatabaseIfNotExists(conn, "tenant1");
+        tenant2ConnectionString = await CreateDatabaseIfNotExists(conn, "tenant2");
+        tenant3ConnectionString = await CreateDatabaseIfNotExists(conn, "tenant3");
+
+        await dropSchemaOnDatabase(tenant1ConnectionString, "things");
+        await dropSchemaOnDatabase(tenant2ConnectionString, "things");
+        await dropSchemaOnDatabase(tenant3ConnectionString, "things");
+
+        #region sample_bootstrapping_with_ancillary_marten_stores
+
+        theHost = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                #region sample_using_message_storage_schema_name
+
+                // THIS IS IMPORTANT FOR MODULAR MONOLITH USAGE!
+                // This helps Wolverine out to always utilize the same envelope storage
+                // for all modules for more efficient usage of resources
+                opts.Durability.MessageStorageSchemaName = "wolverine";
+
+                #endregion
+
+                opts.Services.AddMarten(Servers.PostgresConnectionString).IntegrateWithWolverine();
+
+                opts.Policies.AutoApplyTransactions();
+                opts.Durability.Mode = DurabilityMode.Solo;
+
+                opts.Services.AddMartenStore<IPlayerStore>(m =>
+                    {
+                        m.Connection(Servers.PostgresConnectionString);
+                        m.DatabaseSchemaName = "players";
+                    })
+                    .IntegrateWithWolverine()
+
+                    // Add a subscription
+                    .SubscribeToEvents(new ColorsSubscription())
+
+                    // Forward events to wolverine handlers
+                    .PublishEventsToWolverine("PlayerEvents", x => { x.PublishEvent<ColorsUpdated>(); });
+
+                // Look at that, it even works with Marten multi-tenancy through separate databases!
+                opts.Services.AddMartenStore<IThingStore>(m =>
+                {
+                    m.MultiTenantedDatabases(tenancy =>
+                    {
+                        tenancy.AddSingleTenantDatabase(tenant1ConnectionString, "tenant1");
+                        tenancy.AddSingleTenantDatabase(tenant2ConnectionString, "tenant2");
+                        tenancy.AddSingleTenantDatabase(tenant3ConnectionString, "tenant3");
+                    });
+                    m.DatabaseSchemaName = "things";
+                }).IntegrateWithWolverine(masterDatabaseConnectionString: Servers.PostgresConnectionString);
+
+                opts.Services.AddResourceSetupOnStartup();
+            }).StartAsync();
+
+        #endregion
+
+        theFamily = new DurabilityAgentFamily(theHost.GetRuntime());
+    }
+
+    public async Task DisposeAsync()
+    {
+        await theHost.StopAsync();
+        theHost.Dispose();
     }
 
     private async Task<string> CreateDatabaseIfNotExists(NpgsqlConnection conn, string databaseName)
@@ -62,78 +125,12 @@ public class bootstrapping_ancillary_marten_stores_with_wolverine : IAsyncLifeti
         return builder.ConnectionString;
     }
 
-    public async Task InitializeAsync()
-    {
-        await using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
-        await conn.OpenAsync();
-        await conn.DropSchemaAsync("players");
-
-        tenant1ConnectionString = await CreateDatabaseIfNotExists(conn, "tenant1");
-        tenant2ConnectionString = await CreateDatabaseIfNotExists(conn, "tenant2");
-        tenant3ConnectionString = await CreateDatabaseIfNotExists(conn, "tenant3");
-        
-        await dropSchemaOnDatabase(tenant1ConnectionString, "things");
-        await dropSchemaOnDatabase(tenant2ConnectionString, "things");
-        await dropSchemaOnDatabase(tenant3ConnectionString, "things");
-
-        #region sample_bootstrapping_with_ancillary_marten_stores
-
-        theHost = await Host.CreateDefaultBuilder()
-            .UseWolverine(opts =>
-            {
-                opts.Services.AddMarten(Servers.PostgresConnectionString).IntegrateWithWolverine();
-
-                opts.Policies.AutoApplyTransactions();
-                opts.Durability.Mode = DurabilityMode.Solo;
-
-                opts.Services.AddMartenStore<IPlayerStore>(m =>
-                {
-                    m.Connection(Servers.PostgresConnectionString);
-                    m.DatabaseSchemaName = "players";
-                })
-                    .IntegrateWithWolverine()
-                    
-                    // Add a subscription
-                    .SubscribeToEvents(new ColorsSubscription())
-                    
-                    // Forward events to wolverine handlers
-                    .PublishEventsToWolverine("PlayerEvents", x =>
-                    {
-                        x.PublishEvent<ColorsUpdated>();
-                    });
-                
-                // Look at that, it even works with Marten multi-tenancy through separate databases!
-                opts.Services.AddMartenStore<IThingStore>(m =>
-                {
-                    m.MultiTenantedDatabases(tenancy =>
-                    {
-                        tenancy.AddSingleTenantDatabase(tenant1ConnectionString, "tenant1");
-                        tenancy.AddSingleTenantDatabase(tenant2ConnectionString, "tenant2");
-                        tenancy.AddSingleTenantDatabase(tenant3ConnectionString, "tenant3");
-                    });
-                    m.DatabaseSchemaName = "things";
-                }).IntegrateWithWolverine(masterDatabaseConnectionString:Servers.PostgresConnectionString);
-
-                opts.Services.AddResourceSetupOnStartup();
-            }).StartAsync();
-
-            #endregion
-
-        theFamily = new DurabilityAgentFamily(theHost.GetRuntime());
-    }
-
     private async Task dropSchemaOnDatabase(string connectionString, string schemaName)
     {
         using var conn = new NpgsqlConnection(connectionString);
         await conn.OpenAsync();
         await conn.DropSchemaAsync(schemaName);
         await conn.CloseAsync();
-    }
-
-    public async Task DisposeAsync()
-    {
-        await theHost.StopAsync();
-        theHost.Dispose();
     }
 
     [Fact]
@@ -149,9 +146,8 @@ public class bootstrapping_ancillary_marten_stores_with_wolverine : IAsyncLifeti
     {
         theHost.DocumentStore<IThingStore>().ShouldNotBeNull();
         var ancillaries = theHost.Services.GetServices<IAncillaryMessageStore>();
-        ancillaries.OfType<MultiTenantedMessageDatabase<IThingStore>>().Any()
+        ancillaries.OfType<MultiTenantedMessageStore<IThingStore>>().Any()
             .ShouldBeTrue();
-            
     }
 
     [Fact]
@@ -159,7 +155,7 @@ public class bootstrapping_ancillary_marten_stores_with_wolverine : IAsyncLifeti
     {
         theHost.Services.GetRequiredService<OutboxedSessionFactory<IPlayerStore>>()
             .ShouldNotBeNull();
-        
+
         theHost.Services.GetRequiredService<OutboxedSessionFactory<IThingStore>>()
             .ShouldNotBeNull();
     }
@@ -169,15 +165,13 @@ public class bootstrapping_ancillary_marten_stores_with_wolverine : IAsyncLifeti
     {
         var databaseSources = theHost.Services.GetServices<IDatabaseSource>();
         var source = databaseSources
-            .OfType<MartenMessageDatabaseDiscovery>()
+            .OfType<MessageDatabaseDiscovery>()
             .Single();
 
         var databases = await source.BuildDatabases();
-        
-        databases.OfType<PostgresqlMessageStore<IPlayerStore>>().Count().ShouldBe(1);
-        
+
         // 3 tenant databases + 1 master database
-        databases.Where(x => x is not PostgresqlMessageStore<IPlayerStore>).OfType<PostgresqlMessageStore>().Select(x => x.Name)
+        databases.OfType<PostgresqlMessageStore>().Select(x => x.Name)
             .OrderBy(x => x)
             .ShouldHaveTheSameElementsAs("default", "tenant1", "tenant2", "tenant3");
     }
@@ -185,12 +179,10 @@ public class bootstrapping_ancillary_marten_stores_with_wolverine : IAsyncLifeti
     [Fact]
     public async Task builds_out_envelope_schema()
     {
-        await assertTablesExist(Servers.PostgresConnectionString, "public");
-        await assertTablesExist(Servers.PostgresConnectionString, "players");
-        await assertTablesExist(Servers.PostgresConnectionString, "things"); // master db
-        await assertTablesExist(tenant1ConnectionString, "things");
-        await assertTablesExist(tenant2ConnectionString, "things");
-        await assertTablesExist(tenant3ConnectionString, "things");
+        await assertTablesExist(Servers.PostgresConnectionString, "wolverine");
+        await assertTablesExist(tenant1ConnectionString, "wolverine");
+        await assertTablesExist(tenant2ConnectionString, "wolverine");
+        await assertTablesExist(tenant3ConnectionString, "wolverine");
     }
 
     private async Task assertTablesExist(string connectionString, string schemaName)
@@ -209,28 +201,24 @@ public class bootstrapping_ancillary_marten_stores_with_wolverine : IAsyncLifeti
     public async Task find_all_the_agents()
     {
         var agents = await theFamily.AllKnownAgentsAsync();
-        
-        agents.ShouldContain(new Uri("wolverinedb://default/"));
-        agents.ShouldContain(new Uri("wolverinedb://default/IPlayerStore"));
-        agents.ShouldContain(new Uri("wolverinedb://master/IThingStore"));
-        agents.ShouldContain(new Uri("wolverinedb://tenant3/IThingStore"));
-        agents.ShouldContain(new Uri("wolverinedb://tenant2/IThingStore"));
-        agents.ShouldContain(new Uri("wolverinedb://tenant1/IThingStore"));
+
+        agents.ShouldContain(new Uri("wolverinedb://postgresql/localhost/postgres/wolverine"));
+        agents.ShouldContain(new Uri("wolverinedb://postgresql/localhost/tenant3/wolverine"));
+        agents.ShouldContain(new Uri("wolverinedb://postgresql/localhost/tenant2/wolverine"));
+        agents.ShouldContain(new Uri("wolverinedb://postgresql/localhost/tenant1/wolverine"));
     }
 
     [Theory]
-    [InlineData("wolverinedb://default/")]
-    [InlineData("wolverinedb://default/IPlayerStore")]
-    [InlineData("wolverinedb://master/IThingStore")]
-    [InlineData("wolverinedb://tenant1/IThingStore")]
-    [InlineData("wolverinedb://tenant2/IThingStore")]
-    [InlineData("wolverinedb://tenant3/IThingStore")]
+    [InlineData("wolverinedb://postgresql/localhost/postgres/wolverine")]
+    [InlineData("wolverinedb://postgresql/localhost/tenant2/wolverine")]
+    [InlineData("wolverinedb://postgresql/localhost/tenant1/wolverine")]
+    [InlineData("wolverinedb://postgresql/localhost/tenant3/wolverine")]
     public async Task build_each_agent_smoke_test(string uriString)
     {
         var uri = uriString.ToUri();
         var agent = await theFamily.BuildAgentAsync(uri, theHost.GetRuntime());
         agent.ShouldNotBeNull();
-        
+
         agent.Uri.ShouldBe(uri);
     }
 
@@ -260,7 +248,7 @@ public static class PlayerMessageHandler
     // Using a Marten side effect just like normal
     public static IMartenOp Handle(PlayerMessage message)
     {
-        return MartenOps.Store(new Player{Id = message.Id});
+        return MartenOps.Store(new Player { Id = message.Id });
     }
 }
 
@@ -269,6 +257,7 @@ public static class PlayerMessageHandler
 #region sample_separate_marten_stores
 
 public interface IPlayerStore : IDocumentStore;
+
 public interface IThingStore : IDocumentStore;
 
 #endregion
@@ -278,10 +267,7 @@ public class Player
     public string Id { get; set; }
 }
 
-
-
 public class Thing
 {
     public string Id { get; set; }
 }
-

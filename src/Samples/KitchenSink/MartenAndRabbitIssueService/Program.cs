@@ -2,8 +2,8 @@ using IntegrationTests;
 using Marten;
 using MartenAndRabbitIssueService;
 using MartenAndRabbitMessages;
-using Oakton;
-using Oakton.Resources;
+using JasperFx;
+using JasperFx.Resources;
 using Wolverine;
 using Wolverine.Marten;
 using Wolverine.RabbitMQ;
@@ -12,7 +12,7 @@ using Wolverine.RabbitMQ;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Host.ApplyOaktonExtensions();
+builder.Host.ApplyJasperFxExtensions();
 
 builder.Host.UseWolverine(opts =>
 {
@@ -65,6 +65,6 @@ var app = builder.Build();
 app.MapGet("/", () => "Hello World!");
 
 // Actually important to return the exit code here!
-return await app.RunOaktonCommands(args);
+return await app.RunJasperFxCommands(args);
 
 #endregion

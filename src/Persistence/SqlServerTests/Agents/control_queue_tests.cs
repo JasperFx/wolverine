@@ -3,7 +3,7 @@ using IntegrationTests;
 using JasperFx.Core;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Hosting;
-using Oakton.Resources;
+using JasperFx.Resources;
 using Shouldly;
 using Weasel.SqlServer;
 using Wolverine;

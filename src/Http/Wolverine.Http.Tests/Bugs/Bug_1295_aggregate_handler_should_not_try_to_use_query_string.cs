@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using Alba;
 using IntegrationTests;
+using JasperFx.Events;
 using Marten;
 using Marten.Events;
 using Microsoft.AspNetCore.Builder;

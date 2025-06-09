@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Wolverine.Persistence.Durability;
 using Wolverine.Transports;
 
 namespace Wolverine.Runtime.Agents;
@@ -23,12 +24,15 @@ public partial class NodeAgentController
 
     // May be valuable later
     private DateTimeOffset? _lastAssignmentCheck;
+    private readonly IWolverineObserver _observer;
 
 
     internal NodeAgentController(IWolverineRuntime runtime,
         INodeAgentPersistence persistence,
         IEnumerable<IAgentFamily> agentControllers, ILogger logger, CancellationToken cancellation)
     {
+        _observer = runtime.Observer;
+        
         _runtime = runtime;
         _persistence = persistence;
         foreach (var agentController in agentControllers)
@@ -43,11 +47,8 @@ public partial class NodeAgentController
 
         if (runtime.Options.Durability.DurabilityAgentEnabled)
         {
-            var family = _runtime.Storage.BuildAgentFamily(runtime);
-            if (family != null)
-            {
-                _agentFamilies[family.Scheme] = family;
-            }
+            var family = new DurabilityAgentFamily(runtime);
+            _agentFamilies[family.Scheme] = family;
         }
 
         foreach (var family in runtime.Options.Transports.OfType<IAgentFamilySource>().SelectMany(x => x.BuildAgentFamilySources(runtime)))
@@ -92,7 +93,8 @@ public partial class NodeAgentController
             }
             
             await _persistence.DeleteAsync(_runtime.Options.UniqueNodeId, _runtime.DurabilitySettings.AssignedNodeNumber);
-            await _persistence.LogRecordsAsync(NodeRecord.For(_runtime.Options, NodeRecordType.NodeStopped));
+
+            await _observer.NodeStopped();
         }
         catch (Exception e)
         {
@@ -137,8 +139,7 @@ public partial class NodeAgentController
         try
         {
             await agent.StartAsync(_cancellation.Token);
-            await _persistence.LogRecordsAsync(NodeRecord.For(_runtime.Options, NodeRecordType.AgentStarted,
-                agentUri));
+            await _observer.AgentStarted(agentUri);
 
             _logger.LogInformation("Successfully started agent {AgentUri} on Node {NodeNumber}", agentUri,
                 _runtime.Options.Durability.AssignedNodeNumber);
@@ -152,6 +153,8 @@ public partial class NodeAgentController
 
         try
         {
+            // Side step FK problems and timing issues
+            await _persistence.MarkHealthCheckAsync(WolverineNode.For(_runtime.Options), _cancellation.Token);
             await _persistence.AddAssignmentAsync(_runtime.Options.UniqueNodeId, agentUri, _cancellation.Token);
         }
         catch (Exception e)
@@ -171,8 +174,8 @@ public partial class NodeAgentController
                 _agents.TryRemove(agentUri, out _);
                 _logger.LogInformation("Successfully stopped agent {AgentUri} on node {NodeNumber}", agentUri,
                     _runtime.Options.Durability.AssignedNodeNumber);
-                await _persistence.LogRecordsAsync(NodeRecord.For(_runtime.Options, NodeRecordType.AgentStopped,
-                    agentUri));
+
+                await _observer.AgentStopped(agentUri);
             }
             catch (Exception e)
             {

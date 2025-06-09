@@ -1,7 +1,9 @@
 ﻿using System.Net;
 using System.Net.Sockets;
 using System.Threading.Tasks.Dataflow;
+using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Logging;
+using Wolverine.Runtime;
 
 namespace Wolverine.Transports.Tcp;
 
@@ -68,6 +70,8 @@ public class SocketListener : IListener, IDisposable
             _socketHandling = null;
         }
     }
+
+    public IHandlerPipeline? Pipeline => _receiver.Pipeline;
 
     public ValueTask CompleteAsync(Envelope envelope)
     {

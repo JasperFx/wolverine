@@ -1,49 +1,44 @@
+using JasperFx.CommandLine;
+using JasperFx.CommandLine.Descriptions;
 using JasperFx.Core.Reflection;
-using Oakton.Descriptions;
+using JasperFx.Descriptors;
 using Spectre.Console;
 using Wolverine.Runtime.Serialization;
+using Table = Spectre.Console.Table;
+using Tree = Spectre.Console.Tree;
 
 namespace Wolverine;
 
-public partial class WolverineOptions : IDescribedSystemPart, IWriteToConsole
+public partial class WolverineOptions : IDescribeMyself
 {
-    async Task IDescribedSystemPart.Write(TextWriter writer)
+
+    internal void WriteToConsole()
     {
-        foreach (var transport in Transports.Where(x => x.Endpoints().Any()))
-        {
-            await writer.WriteLineAsync(transport.Name);
-
-            foreach (var endpoint in transport.Endpoints())
-            {
-                await writer.WriteLineAsync(
-                    $"{endpoint.Uri}, Incoming: {endpoint.IsListener}, Reply Uri: {endpoint.IsUsedForReplies}");
-            }
-
-            await writer.WriteLineAsync();
-        }
-    }
-
-    string IDescribedSystemPart.Title => "Wolverine Options";
-
-    Task IWriteToConsole.WriteToConsole()
-    {
+        AnsiConsole.Write("Wolverine Options");
+        
         AnsiConsole.WriteLine();
 
         var root = new Tree(new Markup($"[bold]Service Name: {ServiceName.EscapeMarkup()}[/]"));
-
-        writeAssemblies(root);
-        writeExtensions(root);
-        writeSerializers(root);
 
         root.AddNode(nameof(DefaultExecutionTimeout)).AddNode(DefaultExecutionTimeout.ToString());
         root.AddNode(nameof(AutoBuildMessageStorageOnStartup)).AddNode(AutoBuildMessageStorageOnStartup.ToString());
         root.AddNode(nameof(CodeGeneration.TypeLoadMode)).AddNode(CodeGeneration.TypeLoadMode.ToString());
         root.AddNode(nameof(ExternalTransportsAreStubbed)).AddNode(ExternalTransportsAreStubbed.ToString());
-
+        
+        writeAssemblies(root);
+        writeExtensions(root);
+        writeSerializers(root);
+        
         AnsiConsole.Write(root);
 
-        return Task.CompletedTask;
+        // TODO -- make all this fancier
+        foreach (var part in Parts)
+        {
+            OptionDescriptionWriter.Write(part.ToDescription());
+        }
     }
+
+    internal List<IDescribeMyself> Parts { get; } = new();
 
     private void writeSerializers(Tree root)
     {
@@ -92,5 +87,23 @@ public partial class WolverineOptions : IDescribedSystemPart, IWriteToConsole
     internal Dictionary<string, IMessageSerializer> ToSerializerDictionary()
     {
         return _serializers.ToDictionary(x => x.Key, x => x.Value);
+    }
+
+    public OptionsDescription ToDescription()
+    {
+        var description = new OptionsDescription(this);
+        description.AddValue("Version", GetType().Assembly.GetName().Version?.ToString());
+
+        description.AddChildSet("Transports", Transports);
+        description.AddChildSet("Endpoints", Transports.SelectMany(x => x.Endpoints()));
+        description.AddChildSet("Handlers", HandlerGraph.AllChains());
+        
+        // TODO -- add application assembly
+        // TODO -- add handler assemblies
+        // TODO -- add handlers, correlated to sticky endpoints as necessary
+        // TODO -- add transports
+        // TODO -- add endpoints underneath each transport
+
+        return description;
     }
 }

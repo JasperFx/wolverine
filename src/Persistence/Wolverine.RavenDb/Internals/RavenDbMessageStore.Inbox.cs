@@ -109,7 +109,7 @@ public partial class RavenDbMessageStore : IMessageInbox
 
     public async Task MarkIncomingEnvelopeAsHandledAsync(Envelope envelope)
     {
-        var expirationTime = DateTimeOffset.UtcNow.Add(_runtime.Options.Durability.KeepAfterMessageHandling);
+        var expirationTime = DateTimeOffset.UtcNow.Add(_options.Durability.KeepAfterMessageHandling);
         
         var query = $@"
             from IncomingMessages as m
@@ -139,7 +139,7 @@ public partial class RavenDbMessageStore : IMessageInbox
 
     public async Task MarkIncomingEnvelopeAsHandledAsync(IReadOnlyList<Envelope> envelopes)
     {
-        var expirationTime = DateTimeOffset.UtcNow.Add(_runtime.Options.Durability.KeepAfterMessageHandling);
+        var expirationTime = DateTimeOffset.UtcNow.Add(_options.Durability.KeepAfterMessageHandling);
         
         var query = $@"
             from IncomingMessages as m

@@ -1,4 +1,6 @@
+using JasperFx;
 using JasperFx.Core.Reflection;
+using JasperFx.Events;
 using Marten;
 using Marten.Events;
 using Marten.Internal;
@@ -41,8 +43,8 @@ public class MartenIntegration : IWolverineExtension, IEventForwarding
         options.CodeGeneration.Sources.Add(new MartenBackedPersistenceMarker());
 
         options.CodeGeneration.InsertFirstPersistenceStrategy<MartenPersistenceFrameProvider>();
-
         options.CodeGeneration.Sources.Add(new SessionVariableSource());
+        options.CodeGeneration.Sources.Add(new DocumentOperationsSource());
 
         options.Policies.Add<MartenAggregateHandlerStrategy>();
 

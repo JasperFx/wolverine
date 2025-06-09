@@ -16,7 +16,7 @@ public static async Task invoking_by_tenant(IMessageBus bus)
         await bus.InvokeForTenantAsync<TodoCreated>("tenant2", new CreateTodo("Update the Documentation"));
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/MultiTenantedTodoService/MultiTenantedTodoWebService.Tests/end_to_end.cs#L96-L108' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_invoking_by_tenant' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/MultiTenantedTodoService/MultiTenantedTodoWebService.Tests/end_to_end.cs#L97-L109' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_invoking_by_tenant' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 When using this syntax, any [cascaded messages](/guide/handlers/cascading) will also be tagged with the same tenant id.
@@ -35,7 +35,7 @@ public static async Task publish_by_tenant(IMessageBus bus)
         new DeliveryOptions { TenantId = "tenant3" });
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/MultiTenantedTodoService/MultiTenantedTodoWebService.Tests/end_to_end.cs#L110-L118' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_publish_by_tenant' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/MultiTenantedTodoService/MultiTenantedTodoWebService.Tests/end_to_end.cs#L111-L119' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_publish_by_tenant' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Cascading Messages
@@ -75,27 +75,7 @@ or conditional logic, or some other reason.
 To that end, you can inject the `Wolverine.Persistence.TenantId` into any Wolverine message handler or HTTP endpoint method
 to get easy access to the tenant id:
 
-<!-- snippet: sample_TenantId -->
-<a id='snippet-sample_tenantid'></a>
-```cs
-/// <summary>
-/// Strong typed identifier for the tenant id within a Wolverine message handler
-/// or HTTP endpoint that is using multi-tenancy
-/// </summary>
-/// <param name="Value">The active tenant id. Note that this can be null</param>
-public record TenantId(string Value)
-{
-    public const string DefaultTenantId = "*DEFAULT*";
-
-    /// <summary>
-    /// Is there a non-default tenant id?
-    /// </summary>
-    /// <returns></returns>
-    public bool IsEmpty() => Value.IsEmpty() || Value == DefaultTenantId;
-}
-```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Persistence/TenantId.cs#L9-L27' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_tenantid' title='Start of snippet'>anchor</a></sup>
-<!-- endSnippet -->
+TODO/FIX: snippet: sample_TenantId
 
 There's really nothing to it other than just pulling that type in as a parameter argument to a message handler:
 
@@ -112,7 +92,7 @@ public static class SomeCommandHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/multi_tenancy.cs#L108-L120' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_injecting_tenant_id' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/multi_tenancy.cs#L120-L132' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_injecting_tenant_id' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In tests, you can create that `TenantId` value just by:

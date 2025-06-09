@@ -1,5 +1,5 @@
-using Oakton;
-using Oakton.Resources;
+using JasperFx;
+using JasperFx.Resources;
 using Pinger;
 using Wolverine;
 using Wolverine.RabbitMQ;
@@ -9,9 +9,10 @@ using Wolverine.RabbitMQ;
 return await Host.CreateDefaultBuilder(args)
     .UseWolverine(opts =>
     {
+        opts.ApplicationAssembly = typeof(Program).Assembly;
+
         // Listen for messages coming into the pongs queue
-        opts
-            .ListenToRabbitQueue("pongs");
+        opts.ListenToRabbitQueue("pongs");
 
         // Publish messages to the pings queue
         opts.PublishMessage<PingMessage>().ToRabbitExchange("pings");
@@ -31,6 +32,6 @@ return await Host.CreateDefaultBuilder(args)
         // This will send ping messages on a continuous
         // loop
         opts.Services.AddHostedService<PingerService>();
-    }).RunOaktonCommands(args);
+    }).RunJasperFxCommands(args);
 
 #endregion

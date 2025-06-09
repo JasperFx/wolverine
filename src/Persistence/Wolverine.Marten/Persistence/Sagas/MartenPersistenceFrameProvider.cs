@@ -63,8 +63,8 @@ internal class MartenPersistenceFrameProvider : IPersistenceFrameProvider
         if (chain.ReturnVariablesOfType<IMartenOp>().Any()) return true;
 
         var serviceDependencies = chain
-            .ServiceDependencies(container, new []{typeof(IDocumentSession), typeof(IQuerySession)}).ToArray();
-        return serviceDependencies.Any(x => x == typeof(IDocumentSession) || x.Closes(typeof(IEventStream<>)));
+            .ServiceDependencies(container, new []{typeof(IDocumentSession), typeof(IQuerySession), typeof(IDocumentOperations)}).ToArray();
+        return serviceDependencies.Any(x => x == typeof(IDocumentSession) || x == typeof(IDocumentOperations) || x.Closes(typeof(IEventStream<>)));
     }
 
     public Frame DetermineLoadFrame(IServiceContainer container, Type sagaType, Variable sagaId)
@@ -97,9 +97,9 @@ internal class MartenPersistenceFrameProvider : IPersistenceFrameProvider
         return new DocumentSessionOperationFrame(saga, nameof(IDocumentSession.Delete));
     }
 
-    public Frame DetermineStoreFrame(Variable variable, IServiceContainer container)
+    public Frame DetermineStoreFrame(Variable saga, IServiceContainer container)
     {
-        return new DocumentSessionOperationFrame(variable, nameof(IDocumentSession.Store));
+        return new DocumentSessionOperationFrame(saga, nameof(IDocumentSession.Store));
     }
 
     public Frame DetermineDeleteFrame(Variable variable, IServiceContainer container)

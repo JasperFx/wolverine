@@ -1,7 +1,9 @@
+using ImTools;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
+using JasperFx.Events.Daemon;
+using JasperFx.Events.Projections;
 using Marten;
-using Marten.Events.Daemon;
 using Marten.Events.Daemon.Coordination;
 using Marten.Storage;
 using Microsoft.Extensions.Hosting;
@@ -46,13 +48,13 @@ internal class ProjectionAgents : IStaticAgentFamily, IProjectionCoordinator
         return SupportedAgentsAsync();
     }
 
-    private IEnumerable<Uri> allAgentUris(IReadOnlyList<IMartenDatabase> databases, IReadOnlyList<AsyncProjectionShard> shards)
+    private IEnumerable<Uri> allAgentUris(IReadOnlyList<IMartenDatabase> databases, ShardName[] shards)
     {
         foreach (var database in databases)
         {
             foreach (var shard in shards)
             {
-                yield return UriFor(database.Identifier, shard.Name.Identity);
+                yield return UriFor(database.Identifier, shard.Identity);
             }
         }
     }
@@ -81,9 +83,9 @@ internal class ProjectionAgents : IStaticAgentFamily, IProjectionCoordinator
     public async ValueTask<IReadOnlyList<Uri>> SupportedAgentsAsync()
     {
         var databases = await _store.Storage.AllDatabases();
-        var shards = _store.As<DocumentStore>().Options.Projections.AllShards();
+        var shardNames = _store.As<DocumentStore>().Options.Projections.AllShards().Select(x => x.Name).ToArray();
 
-        return allAgentUris(databases, shards).ToList();
+        return allAgentUris(databases, shardNames).ToList();
     }
 
     public ValueTask EvaluateAssignmentsAsync(AssignmentGrid assignments)

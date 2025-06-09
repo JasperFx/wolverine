@@ -12,13 +12,34 @@ public class KafkaTransport : BrokerTransport<KafkaTopic>
     public Cache<string, KafkaTopic> Topics { get; }
 
     public ProducerConfig ProducerConfig { get; } = new();
+    public Action<ProducerBuilder<string, string>> ConfigureProducerBuilders { get; internal set; } = _ => {};
+
     public ConsumerConfig ConsumerConfig { get; } = new();
+    public Action<ConsumerBuilder<string, string>> ConfigureConsumerBuilders { get; internal set; } = _ => {};
 
     public AdminClientConfig AdminClientConfig { get; } = new();
+    public Action<AdminClientBuilder> ConfigureAdminClientBuilders { get; internal set; } = _ => {};
 
     public KafkaTransport() : base("kafka", "Kafka Topics")
     {
         Topics = new Cache<string, KafkaTopic>(topicName => new KafkaTopic(this, topicName, EndpointRole.Application));
+    }
+
+    public override Uri ResourceUri
+    {
+        get
+        {
+            var uri = new Uri($"{Protocol}://");
+
+            var bootstrap = ConsumerConfig.BootstrapServers ??
+                            ProducerConfig.BootstrapServers ?? AdminClientConfig.BootstrapServers;
+            if (bootstrap.IsNotEmpty())
+            {
+                uri = new Uri(uri, bootstrap);
+            }
+            
+            return uri;
+        }
     }
 
     protected override IEnumerable<KafkaTopic> endpoints()
@@ -53,5 +74,26 @@ public class KafkaTransport : BrokerTransport<KafkaTopic>
     public override IEnumerable<PropertyColumn> DiagnosticColumns()
     {
         yield break;
+    }
+
+    internal IProducer<string, string> CreateProducer(ProducerConfig? config)
+    {
+        var producerBuilder = new ProducerBuilder<string, string>(config ?? ProducerConfig);
+        ConfigureProducerBuilders(producerBuilder);
+        return producerBuilder.Build();
+    }
+
+    internal IConsumer<string, string> CreateConsumer(ConsumerConfig? config)
+    {
+        var consumerBuilder = new ConsumerBuilder<string, string>(config ?? ConsumerConfig);
+        ConfigureConsumerBuilders(consumerBuilder);
+        return consumerBuilder.Build();
+    }
+
+    internal IAdminClient CreateAdminClient()
+    {
+        var adminClientBuilder = new AdminClientBuilder(AdminClientConfig);
+        ConfigureAdminClientBuilders(adminClientBuilder);
+        return adminClientBuilder.Build();
     }
 }

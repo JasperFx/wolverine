@@ -2,11 +2,11 @@ using Marten.Events.Aggregation;
 
 namespace MartenTests.Distribution.TripDomain;
 
-public class TripProjection : SingleStreamProjection<Trip>
+public class TripProjection : SingleStreamProjection<Trip, Guid>
 {
     public TripProjection()
     {
-        ProjectionName = "Trip";
+        Name = "Trip";
 
         DeleteEvent<TripAborted>();
     }
@@ -45,12 +45,12 @@ public class TripProjection : SingleStreamProjection<Trip>
     }
 }
 
-public class Trip2Projection : SingleStreamProjection<Trip>
+public class Trip2Projection : SingleStreamProjection<Trip, Guid>
 {
     public Trip2Projection()
     {
-        ProjectionName = "Trip";
-        ProjectionVersion = 2;
+        Name = "Trip";
+        Version = 2;
 
         DeleteEvent<TripAborted>();
     }

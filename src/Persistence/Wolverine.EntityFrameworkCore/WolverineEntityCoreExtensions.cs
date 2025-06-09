@@ -1,6 +1,12 @@
+using System.Data.Common;
+using JasperFx;
+using JasperFx.Core.Reflection;
+using JasperFx.MultiTenancy;
+using JasperFx.Resources;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Wolverine.EntityFrameworkCore.Internals;
 using Wolverine.Persistence.Durability;
 using Wolverine.RDBMS;
@@ -36,23 +42,132 @@ public static class WolverineEntityCoreExtensions
         return addDbContextWithWolverineIntegration<T>(services, configure, wolverineDatabaseSchema);
     }
 
+    /// <summary>
+    /// Register a DbContext type that should use the separately configured Wolverine managed multi-tenancy
+    /// for separate databases per tenant
+    /// </summary>
+    /// <param name="services"></param>
+    /// <param name="dbContextConfiguration"></param>
+    /// <param name="autoCreate">Should this application try to create missing databases and apply missing migrations at application startup? Default is None, all other options will create the databases.</param>
+    /// <typeparam name="T"></typeparam>
+    /// <returns></returns>
+    /// <exception cref="InvalidOperationException"></exception>
+    public static IServiceCollection AddDbContextWithWolverineManagedMultiTenancy<T>(this IServiceCollection services,
+        Action<DbContextOptionsBuilder<T>, ConnectionString, TenantId> dbContextConfiguration, AutoCreate autoCreate = AutoCreate.None) where T : DbContext
+    {
+        services.TryAddSingleton<IDbContextOutboxFactory, DbContextOutboxFactory>();
+        
+        // For code generation
+        services.AddSingleton<IWolverineExtension, EntityFrameworkCoreBackedPersistence<T>>();
+        
+        // STRICTLY FOR EF CORE MIGRATIONS!!!!
+        services.AddScoped<T>(s =>
+        {
+            return (T)s.GetRequiredService<IDbContextBuilder<T>>().BuildForMain();
+        });
+
+        services.AddSingleton<DbContextOptions<T>>(s =>
+        {
+            var builder = s.GetRequiredService<IDbContextBuilder<T>>();
+            return builder.BuildOptionsForMain();
+        });
+        
+        services.AddSingleton<IDbContextBuilder<T>>(s =>
+        {
+            var store = s.GetRequiredService<IMessageStore>();
+            var tenanted = store as MultiTenantedMessageStore;
+            if (tenanted == null || tenanted.Main is not IMessageDatabase)
+            {
+                throw new InvalidOperationException(
+                    $"Configured multi-tenanted usage of {typeof(T).FullNameInCode()} requires multi-tenanted Wolverine database storage");
+            }
+
+            return new TenantedDbContextBuilderByConnectionString<T>(s, tenanted, dbContextConfiguration);
+        });
+
+        services.AddSingleton<IDbContextBuilder>(s => s.GetRequiredService<IDbContextBuilder<T>>());
+
+        if (autoCreate != AutoCreate.None)
+        {
+            services.AddSingleton<IResourceCreator, TenantedDbContextInitializer<T>>();
+        }
+
+        // TODO -- need a multi-tenanted version of this
+        // services.TryAddScoped(typeof(IDbContextOutbox<>), typeof(DbContextOutbox<>));
+        // services.TryAddScoped<IDbContextOutbox, DbContextOutbox>();
+
+        return services;
+    }
+    
+    /// <summary>
+    /// Register a DbContext type that should use the separately configured Wolverine managed multi-tenancy
+    /// for separate databases per tenant using DbDataSource. This option is necessary when using EF Core *with*
+    /// Marten managed Multi-Tenancy
+    /// </summary>
+    /// <param name="services"></param>
+    /// <param name="dbContextConfiguration"></param>
+    /// <param name="autoCreate">Should this application try to create missing databases and apply missing migrations at application startup? Default is None, all other options will create the databases.</param>
+    /// <typeparam name="T"></typeparam>
+    /// <returns></returns>
+    /// <exception cref="InvalidOperationException"></exception>
+    public static IServiceCollection AddDbContextWithWolverineManagedMultiTenancyByDbDataSource<T>(this IServiceCollection services,
+        Action<DbContextOptionsBuilder<T>, DbDataSource, TenantId> dbContextConfiguration, AutoCreate autoCreate = AutoCreate.None) where T : DbContext
+    {
+        services.TryAddSingleton<IDbContextOutboxFactory, DbContextOutboxFactory>();
+        
+        // For code generation
+        services.AddSingleton<IWolverineExtension, EntityFrameworkCoreBackedPersistence<T>>();
+        
+        // STRICTLY FOR EF CORE MIGRATIONS!!!!
+        services.AddScoped<T>(s =>
+        {
+            return (T)s.GetRequiredService<IDbContextBuilder<T>>().BuildForMain();
+        });
+
+        services.AddSingleton<DbContextOptions<T>>(s =>
+        {
+            var builder = s.GetRequiredService<IDbContextBuilder<T>>();
+            return builder.BuildOptionsForMain();
+        });
+        
+        services.AddSingleton<IDbContextBuilder<T>>(s =>
+        {
+            var store = s.GetRequiredService<IMessageStore>();
+            var tenanted = store as MultiTenantedMessageStore;
+            if (tenanted == null || tenanted.Main is not IMessageDatabase)
+            {
+                throw new InvalidOperationException(
+                    $"Configured multi-tenanted usage of {typeof(T).FullNameInCode()} requires multi-tenanted Wolverine database storage");
+            }
+
+            return new TenantedDbContextBuilderByDbDataSource<T>(s, tenanted, dbContextConfiguration);
+        });
+
+        services.AddSingleton<IDbContextBuilder>(s => s.GetRequiredService<IDbContextBuilder<T>>());
+
+        if (autoCreate != AutoCreate.None)
+        {
+            services.AddSingleton<IResourceCreator, TenantedDbContextInitializer<T>>();
+        }
+
+        return services;
+    }
+
+
     private static IServiceCollection addDbContextWithWolverineIntegration<T>(IServiceCollection services, Action<IServiceProvider, DbContextOptionsBuilder> configure, string? wolverineDatabaseSchema = null) where T : DbContext
     {
+        services.TryAddSingleton<IDbContextOutboxFactory, DbContextOutboxFactory>();
+        
         services.AddDbContext<T>((s, b) =>
         {
             configure(s, b);
             b.ReplaceService<IModelCustomizer, WolverineModelCustomizer>();
         }, ServiceLifetime.Scoped, ServiceLifetime.Singleton);
 
-        services.AddSingleton<IWolverineExtension, EntityFrameworkCoreBackedPersistence>();
+        services.TryAddSingleton<IWolverineExtension, EntityFrameworkCoreBackedPersistence>();
         
-        services.AddScoped(typeof(IDbContextOutbox<>), typeof(DbContextOutbox<>));
-        services.AddScoped<IDbContextOutbox, DbContextOutbox>();
-
-        services.AddSingleton<WolverineDbContextCustomizationOptions>(_ =>
-            string.IsNullOrEmpty(wolverineDatabaseSchema)
-                ? WolverineDbContextCustomizationOptions.Default
-                : new WolverineDbContextCustomizationOptions {DatabaseSchema = wolverineDatabaseSchema});
+        services.TryAddScoped(typeof(IDbContextOutbox<>), typeof(DbContextOutbox<>));
+        services.TryAddScoped<IDbContextOutbox, DbContextOutbox>();
 
         return services;
     }
@@ -66,6 +181,7 @@ public static class WolverineEntityCoreExtensions
     {
         try
         {
+            options.Services.TryAddSingleton<IDbContextOutboxFactory, DbContextOutboxFactory>();
             options.Services.AddScoped(typeof(IDbContextOutbox<>), typeof(DbContextOutbox<>));
             options.Services.AddScoped<IDbContextOutbox, DbContextOutbox>();
         }

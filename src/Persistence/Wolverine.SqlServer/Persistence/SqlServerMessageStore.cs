@@ -1,14 +1,16 @@
 ﻿using System.Data;
 using System.Data.Common;
+using ImTools;
+using JasperFx;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
+using JasperFx.Descriptors;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
 using Weasel.Core;
 using Weasel.SqlServer;
-using Weasel.SqlServer.Tables;
 using Wolverine.Logging;
-using Wolverine.Persistence.Durability;
+using Wolverine.Persistence.Durability.DeadLetterManagement;
 using Wolverine.RDBMS;
 using Wolverine.RDBMS.Sagas;
 using Wolverine.RDBMS.Transport;
@@ -19,27 +21,24 @@ using Wolverine.SqlServer.Schema;
 using Wolverine.SqlServer.Util;
 using Wolverine.Transports;
 using DbCommandBuilder = Weasel.Core.DbCommandBuilder;
+using Table = Weasel.SqlServer.Tables.Table;
 
 namespace Wolverine.SqlServer.Persistence;
 
-public class SqlServerMessageStore : MessageDatabase<SqlConnection>, IDatabaseSagaStorage
+public class SqlServerMessageStore : MessageDatabase<SqlConnection>
 {
     private readonly string _findAtLargeEnvelopesSql;
-    private readonly string _moveToDeadLetterStorageSql;
     private readonly string _scheduledLockId;
-    private ImHashMap<Type, ISagaStorage> _sagaStorage = ImHashMap<Type, ISagaStorage>.Empty;
+    private ImHashMap<Type, IDatabaseSagaSchema> _sagaStorage = ImHashMap<Type, IDatabaseSagaSchema>.Empty;
     
     private readonly List<ISchemaObject> _externalTables = new();
-
-
+    
     public SqlServerMessageStore(DatabaseSettings database, DurabilitySettings settings,
         ILogger<SqlServerMessageStore> logger, IEnumerable<SagaTableDefinition> sagaTypes)
-        : base(database, SqlClientFactory.Instance.CreateDataSource(database.ConnectionString), settings, logger, new SqlServerMigrator(), "dbo")
+        : base(database, SqlClientFactory.Instance.CreateDataSource(database.ConnectionString), settings, logger, new SqlServerMigrator(), SqlServerProvider.Instance)
     {
         _findAtLargeEnvelopesSql =
             $"select top (@limit) {DatabaseConstants.IncomingFields} from {database.SchemaName}.{DatabaseConstants.IncomingTable} where owner_id = {TransportConstants.AnyNode} and status = '{EnvelopeStatus.Incoming}' and {DatabaseConstants.ReceivedAt} = @address";
-
-        _moveToDeadLetterStorageSql = $"EXEC {SchemaName}.uspDeleteIncomingEnvelopes @IDLIST;";
 
         _scheduledLockId = "Wolverine:Scheduled:" + database.ScheduledJobLockId.ToString();
         AdvisoryLock = new AdvisoryLock(() => new SqlConnection(database.ConnectionString),
@@ -47,7 +46,7 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>, IDatabaseSa
 
         foreach (var sagaTableDefinition in sagaTypes)
         {
-            var storage = typeof(SagaStorage<,>).CloseAndBuildAs<ISagaStorage>(sagaTableDefinition, _settings, sagaTableDefinition.SagaType, sagaTableDefinition.IdMember.GetMemberType());
+            var storage = typeof(DatabaseSagaSchema<,>).CloseAndBuildAs<IDatabaseSagaSchema>(sagaTableDefinition, _settings, sagaTableDefinition.IdMember.GetMemberType(), sagaTableDefinition.SagaType);
             _sagaStorage = _sagaStorage.AddOrUpdate(sagaTableDefinition.SagaType, storage);
         }
     }
@@ -360,6 +359,33 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>, IDatabaseSa
         }
     }
 
+    public override DatabaseDescriptor Describe()
+    {
+        var builder = new SqlConnectionStringBuilder(_settings.ConnectionString);
+        var descriptor = new DatabaseDescriptor()
+        {
+            Engine = "SqlServer",
+            ServerName = builder.DataSource ?? string.Empty,
+            DatabaseName = builder.InitialCatalog ?? string.Empty,
+            Subject = GetType().FullNameInCode(),
+            SchemaOrNamespace = _settings.SchemaName
+        };
+
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.ApplicationName));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.Enlist));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.PersistSecurityInfo));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.Pooling));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.MinPoolSize));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.MaxPoolSize));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.CommandTimeout));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.TrustServerCertificate));
+
+        descriptor.Properties.RemoveAll(x => x.Name.ContainsIgnoreCase("password"));
+        descriptor.Properties.RemoveAll(x => x.Name.ContainsIgnoreCase("certificate"));
+
+        return descriptor;
+    }
+
     public override IEnumerable<ISchemaObject> AllObjects()
     {
         yield return new OutgoingEnvelopeTable(SchemaName);
@@ -377,7 +403,7 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>, IDatabaseSa
             yield return table;
         }
         
-        if (_settings.IsMaster)
+        if (_settings.IsMain)
         {
             var nodeTable = new Table(new DbObjectName(SchemaName, DatabaseConstants.NodeTableName));
             nodeTable.AddColumn<Guid>("id").AsPrimaryKey();
@@ -386,6 +412,7 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>, IDatabaseSa
             nodeTable.AddColumn<string>("uri").NotNull();
             nodeTable.AddColumn<DateTimeOffset>("started").DefaultValueByExpression("GETUTCDATE()").NotNull();
             nodeTable.AddColumn<DateTimeOffset>("health_check").DefaultValueByExpression("GETUTCDATE()").NotNull();
+            nodeTable.AddColumn<string>("version");
             nodeTable.AddColumn("capabilities", "nvarchar(max)").AllowNulls();
 
             yield return nodeTable;
@@ -409,6 +436,14 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>, IDatabaseSa
 
                 yield return queueTable;
             }
+            
+            if (_settings.AddTenantLookupTable)
+            {
+                var tenantTable = new Table(new DbObjectName(SchemaName, DatabaseConstants.TenantsTableName));
+                tenantTable.AddColumn(StorageConstants.TenantIdColumn, "varchar(100)").AsPrimaryKey();
+                tenantTable.AddColumn(StorageConstants.ConnectionStringColumn, "varchar(500)").NotNull();
+                yield return tenantTable;
+            }
 
             var eventTable = new Table(new DbObjectName(SchemaName, DatabaseConstants.NodeRecordTableName));
             eventTable.AddColumn<int>("id").AutoNumber().AsPrimaryKey();
@@ -425,76 +460,20 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>, IDatabaseSa
         }
     }
 
-    public SagaStorage<T, TId> SagaStorageFor<T, TId>() where T : Saga
+    public override IDatabaseSagaSchema<TId, TSaga> SagaSchemaFor<TSaga, TId>() 
     {
-        if (_sagaStorage.TryFind(typeof(T), out var raw))
+        if (_sagaStorage.TryFind(typeof(TSaga), out var raw))
         {
-            if (raw is SagaStorage<T, TId> sagaStorage)
+            if (raw is DatabaseSagaSchema<TId, TSaga> sagaStorage)
             {
                 return sagaStorage;
             }
         }
         
-        var definition = new SagaTableDefinition(typeof(T), null);
-        var storage = new SagaStorage<T, TId>(definition, _settings);
-        _sagaStorage = _sagaStorage.AddOrUpdate(typeof(T), storage);
+        var definition = new SagaTableDefinition(typeof(TSaga), null);
+        var storage = new DatabaseSagaSchema<TId, TSaga>(definition, _settings);
+        _sagaStorage = _sagaStorage.AddOrUpdate(typeof(TSaga), storage);
         
         return storage;
-    }
-
-    public Task InsertAsync<T>(T saga, DbTransaction transaction, CancellationToken cancellationToken) where T : Saga
-    {
-        if (_sagaStorage.TryFind(typeof(T), out var raw))
-        {
-            if (raw is ISagaStorage<T> sagaStorage)
-            {
-                return sagaStorage.InsertAsync(saga, transaction, cancellationToken);
-            }
-        }
-
-        var definition = new SagaTableDefinition(typeof(T), null);
-        var storage = typeof(SagaStorage<,>).CloseAndBuildAs<ISagaStorage<T>>(definition, _settings, typeof(T), definition.IdMember.GetMemberType());
-        _sagaStorage = _sagaStorage.AddOrUpdate(typeof(T), storage);
-        
-        return storage.InsertAsync(saga, transaction, cancellationToken);
-    }
-
-    public Task UpdateAsync<T>(T saga, DbTransaction transaction, CancellationToken cancellationToken) where T : Saga
-    {
-        if (_sagaStorage.TryFind(typeof(T), out var raw))
-        {
-            if (raw is ISagaStorage<T> sagaStorage)
-            {
-                return sagaStorage.UpdateAsync(saga, transaction, cancellationToken);
-            }
-        }
-
-        var definition = new SagaTableDefinition(typeof(T), null);
-        var storage = typeof(SagaStorage<,>).CloseAndBuildAs<ISagaStorage<T>>(definition, _settings, typeof(T), definition.IdMember.GetMemberType());
-        _sagaStorage = _sagaStorage.AddOrUpdate(typeof(T), storage);
-        
-        return storage.UpdateAsync(saga, transaction, cancellationToken);
-    }
-
-    public Task DeleteAsync<T>(T saga, DbTransaction transaction, CancellationToken cancellationToken) where T : Saga
-    {
-        if (_sagaStorage.TryFind(typeof(T), out var raw))
-        {
-            if (raw is ISagaStorage<T> sagaStorage)
-            {
-                return sagaStorage.DeleteAsync(saga, transaction, cancellationToken);
-            }
-        }
-
-        var definition = new SagaTableDefinition(typeof(T), null);
-        var storage = typeof(SagaStorage<,>).CloseAndBuildAs<ISagaStorage<T>>(definition, _settings, typeof(T), definition.IdMember.GetMemberType());
-        _sagaStorage = _sagaStorage.AddOrUpdate(typeof(T), storage);
-        
-        return storage.DeleteAsync(saga, transaction, cancellationToken);
-    }
-
-    public Task<T?> LoadAsync<T, TId>(TId id, DbTransaction tx, CancellationToken cancellationToken) where T : Saga
-    {
-        return SagaStorageFor<T, TId>().LoadAsync(id, tx, cancellationToken);
     }
 }

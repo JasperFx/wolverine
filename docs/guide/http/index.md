@@ -183,9 +183,26 @@ integration](/guide/durability/marten/) (or Wolverine's [EF Core integration](/g
 you potentially get a very low ceremony approach to writing HTTP services that *also* utilizes Wolverine's [durable outbox](/guide/durability/)
 without giving up anything in regards to crafting effective and accurate OpenAPI metadata about your services.
 
+## Eager Warmup <Badge type="tip" text="4.1" />
 
+Wolverine.HTTP has a known issue with applications that make simultaneous requests to the same endpoint
+at start up where the runtime code generation can blow up if the first requests come in together. While the Wolverine team
+works on this, the simple amelioration is to either "just" pre-generate the code ahead of time. See [Working with Code Generation](/guide/codegen) for more information on this.
 
+Or, you can opt for `Eager` initialization of the HTTP endpoints to side step this problem in development
+when pre-generating types isn't viable:
 
+<!-- snippet: sample_eager_http_warmup -->
+<a id='snippet-sample_eager_http_warmup'></a>
+```cs
+var app = builder.Build();
+
+app.MapWolverineEndpoints(x => x.WarmUpRoutes = RouteWarmup.Eager);
+    
+return await app.RunJasperFxCommands(args);
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/CrazyStartingWebApp/Program.cs#L21-L29' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_eager_http_warmup' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 
 

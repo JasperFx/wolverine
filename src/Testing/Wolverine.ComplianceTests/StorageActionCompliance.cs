@@ -291,6 +291,8 @@ public record MaybeInsertTodo(string Id, string Name, bool ShouldInsert);
 public record ReturnNullInsert;
 public record ReturnNullStorageAction;
 
+#region sample_TodoHandler_to_demonstrate_storage_operations
+
 public static class TodoHandler
 {
     public static Insert<Todo> Handle(CreateTodo command) => Storage.Insert(new Todo
@@ -388,6 +390,8 @@ public static class TodoHandler
         return Storage.Update(todo);
     }
 }
+
+#endregion
 
 public record CompleteTodo(string Id);
 public record MaybeCompleteTodo(string Id);

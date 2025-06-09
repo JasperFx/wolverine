@@ -1,4 +1,5 @@
 using JasperFx.Core;
+using JasperFx.MultiTenancy;
 
 namespace Wolverine;
 
@@ -53,7 +54,32 @@ public enum MessageIdentity
 public class DurabilitySettings
 {
     private readonly CancellationTokenSource _cancellation = new();
+    private TenantIdStyle _tenantIdStyle = TenantIdStyle.CaseSensitive;
 
+    /// <summary>
+    /// For systems that use multi-tenancy, this controls how Wolverine does or does not "correct" the supplied tenant
+    /// id, with the default behavior being to use case-sensitive tenant ids.
+    ///
+    /// Use the IServiceCollection.CritterStackDefaults() method to change this 
+    /// </summary>
+    public TenantIdStyle TenantIdStyle
+    {
+        get => _tenantIdStyle;
+        internal set
+        {
+            _tenantIdStyle = value;
+            TenantIdStyleHasChanged = true;
+        }
+    }
+    
+    internal bool TenantIdStyleHasChanged { get; set; }
+
+    /// <summary>
+    /// If set, this establishes a default database schema name for all registered message
+    /// storage databases. Use this with a modular monolith approach where all modules target the same physical database. The default is null.
+    /// </summary>
+    public string? MessageStorageSchemaName { get; set; } = null;
+    
     /// <summary>
     /// Control and optimize the durability agent behavior within Wolverine applications
     /// </summary>

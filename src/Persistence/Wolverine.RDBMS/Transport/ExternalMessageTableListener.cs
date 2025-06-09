@@ -1,3 +1,4 @@
+using JasperFx;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Wolverine.Runtime;
@@ -47,7 +48,7 @@ internal class ExternalMessageTableListener : IListener
             // Wait a random amount to try to avoid contesting for the shared lock
             await Task.Delay(Random.Shared.Next(0, 2000), _cancellation.Token);
 
-            if (_runtimeOptions.AutoBuildMessageStorageOnStartup && _messageTable.AllowWolverineControl)
+            if (_runtimeOptions.AutoBuildMessageStorageOnStartup != AutoCreate.None && _messageTable.AllowWolverineControl)
             {
                 try
                 {
@@ -76,6 +77,8 @@ internal class ExternalMessageTableListener : IListener
         }, _cancellation.Token);
     }
 
+    public IHandlerPipeline? Pipeline => _runtime.Pipeline;
+
     public ValueTask CompleteAsync(Envelope envelope)
     {
         return new ValueTask();
@@ -86,12 +89,11 @@ internal class ExternalMessageTableListener : IListener
         return new ValueTask();
     }
 
-    public ValueTask DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
-        _cancellation.Cancel();
+        await _cancellation.CancelAsync();
 
         _task.SafeDispose();
-        return ValueTask.CompletedTask;
     }
 
     public Uri Address { get; }

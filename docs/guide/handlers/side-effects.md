@@ -62,7 +62,7 @@ public class WriteFile : ISideEffect
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/using_custom_side_effect.cs#L41-L67' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_writefile-1' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/using_custom_side_effect.cs#L43-L69' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_writefile-1' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And the matching message type, message handler, and a settings class for configuration:
@@ -81,13 +81,15 @@ public record RecordText(Guid Id, string Text);
 
 public class RecordTextHandler
 {
+    // Notice that the concrete WriteFile is the return type in the method signature
+    // and not the ISideEffect interface
     public WriteFile Handle(RecordText command)
     {
         return new WriteFile(command.Id + ".txt", command.Text);
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/using_custom_side_effect.cs#L20-L39' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_recordtexthandler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/using_custom_side_effect.cs#L20-L41' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_recordtexthandler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 At runtime, Wolverine is generating this code to handle the `RecordText` message:
@@ -122,6 +124,9 @@ available to the actual message handler like:
 * Message metadata from `Envelope`
 
 You can find more usages of side effect return values in the [Marten side effect operations](/guide/durability/marten/operations).
+
+Please note that it's not valid to return `ISideEffect` as the return type of your method. Wolverine will throw an exception
+asking you to return the concrete type (or at least an abstract or interface type that has the `Execute` or `ExecuteAsync` method).
 
 ## Storage Side Effects <Badge type="tip" text="3.6" />
 
@@ -250,7 +255,7 @@ public static class StoreManyHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/Wolverine.ComplianceTests/StorageActionCompliance.cs#L427-L445' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_unit_of_work_as_side_effect' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/Wolverine.ComplianceTests/StorageActionCompliance.cs#L431-L449' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_unit_of_work_as_side_effect' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The `UnitOfWork<T>` is really just a `List<IStorageAction<T>>` that can relay zero to many storage

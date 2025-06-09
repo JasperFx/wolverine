@@ -1,10 +1,12 @@
 #nullable enable
 
 using System.Threading.Tasks.Dataflow;
+using ImTools;
+using JasperFx.CommandLine.Descriptions;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
+using JasperFx.Descriptors;
 using Microsoft.Extensions.Logging;
-using Oakton.Descriptions;
 using Wolverine.ErrorHandling;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Routing;
@@ -119,6 +121,7 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
     /// <summary>
     /// In the case of using "sticky handlers"
     /// </summary>
+    [IgnoreDescription]
     public List<Type> StickyHandlers { get; } = new();
 
     /// <summary>
@@ -145,12 +148,14 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
     /// <summary>
     ///     Local message buffering limits and restart thresholds for back pressure mechanics
     /// </summary>
+    [ChildDescription]
     public BufferingLimits BufferingLimits { get; set; } = new(1000, 500);
 
     /// <summary>
     ///     If present, adds a circuit breaker to the active listening agent
     ///     for this endpoint at runtime
     /// </summary>
+    [ChildDescription]
     public CircuitBreakerOptions? CircuitBreakerOptions { get; set; }
 
     public IList<Subscription> Subscriptions { get; } = new List<Subscription>();
@@ -196,6 +201,7 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
     ///     Get or override the default message serializer for just this endpoint
     /// </summary>
     /// <exception cref="ArgumentNullException"></exception>
+    [IgnoreDescription]
     public IMessageSerializer? DefaultSerializer
     {
         get => _defaultSerializer;
@@ -224,6 +230,7 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
     ///     Configuration for the local TPL Dataflow queue for listening endpoints configured as either
     ///     BufferedInMemory or Durable
     /// </summary>
+    [ChildDescription]
     public ExecutionDataflowBlockOptions ExecutionOptions { get; set; } = new();
 
     /// <summary>
@@ -236,7 +243,10 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
     /// </summary>
     public bool IsUsedForReplies { get; set; }
 
+    [IgnoreDescription]
     public IList<IEnvelopeRule> OutgoingRules { get; } = new List<IEnvelopeRule>();
+    
+    [IgnoreDescription]
     public IList<IEnvelopeRule> IncomingRules { get; } = new List<IEnvelopeRule>();
 
     /// <summary>

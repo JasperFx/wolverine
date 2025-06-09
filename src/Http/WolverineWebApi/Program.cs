@@ -2,11 +2,17 @@ using IntegrationTests;
 using JasperFx.CodeGeneration;
 using JasperFx.Core;
 using Marten;
+using Marten.Events;
+using Marten.Events.Projections;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
-using Oakton;
-using Oakton.Resources;
+using JasperFx;
+using JasperFx.Events;
+using JasperFx.Events.Projections;
+using JasperFx.MultiTenancy;
+using JasperFx.Resources;
+using Marten.Linq.CreatedAt;
 using Wolverine;
 using Wolverine.AdminApi;
 using Wolverine.EntityFrameworkCore;
@@ -21,7 +27,9 @@ using Wolverine.Marten;
 using WolverineWebApi;
 using WolverineWebApi.Marten;
 using WolverineWebApi.Samples;
+using WolverineWebApi.Things;
 using WolverineWebApi.WebSockets;
+using WolverineWebApiFSharp;
 
 #region sample_adding_http_services
 
@@ -57,6 +65,9 @@ builder.Services.AddAuthorization();
 builder.Services.AddDbContextWithWolverineIntegration<ItemsDbContext>(
     x => x.UseNpgsql(Servers.PostgresConnectionString));
 
+builder.Services.AddKeyedSingleton<IThing, RedThing>("Red");
+builder.Services.AddKeyedScoped<IThing, BlueThing>("Blue");
+builder.Services.AddKeyedTransient<IThing, GreenThing>("Green");
 
 builder.Services.AddMarten(opts =>
 {
@@ -70,7 +81,17 @@ builder.Services.AddMarten(opts =>
     opts.Events.UseIdentityMapForAggregates = true;
 }).IntegrateWithWolverine();
 
+builder.Services.AddMartenStore<IThingStore>(options =>
+{
+    options.Connection(Servers.PostgresConnectionString);
+    options.DatabaseSchemaName        = "things";
 
+    // Configure the event store to use strings as identifiers to support resource names.
+    options.Events.StreamIdentity = StreamIdentity.AsString;
+
+    // Add projections
+    options.Projections.Add<ThingProjection>(ProjectionLifecycle.Inline);
+}).IntegrateWithWolverine();
 
 builder.Services.AddResourceSetupOnStartup();
 
@@ -79,6 +100,8 @@ builder.Services.AddSingleton<Recorder>();
 // Need this.
 builder.Host.UseWolverine(opts =>
 {
+    opts.Durability.MessageStorageSchemaName = "wolverine";
+    
     // I'm speeding this up a lot for faster tests
     opts.Durability.ScheduledJobPollingTime = 250.Milliseconds(); 
     
@@ -94,14 +117,43 @@ builder.Host.UseWolverine(opts =>
     
     opts.Policies.OnExceptionOfType(typeof(AlwaysDeadLetterException)).MoveToErrorQueue();
 
+    opts.ApplicationAssembly = typeof(Program).Assembly;
     opts.UseFluentValidation();
     opts.Discovery.IncludeAssembly(typeof(CreateCustomer2).Assembly);
+    opts.Discovery.IncludeAssembly(typeof(DiscoverFSharp).Assembly);
 
-    opts.OptimizeArtifactWorkflow();
+    opts.Services.CritterStackDefaults(x =>
+    {
+        x.Production.GeneratedCodeMode = TypeLoadMode.Static;
+        x.Production.ResourceAutoCreate = AutoCreate.None;
+
+        // These are defaults, but showing for completeness
+        x.Development.GeneratedCodeMode = TypeLoadMode.Dynamic;
+        x.Development.ResourceAutoCreate = AutoCreate.CreateOrUpdate;
+    });
     
     opts.Policies.Add<BroadcastClientMessages>();
 
-    opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
+    opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Dynamic;
+});
+
+// These settings would apply to *both* Marten and Wolverine
+// if you happen to be using both
+builder.Services.CritterStackDefaults(x =>
+{
+    x.ServiceName = "MyService";
+    x.TenantIdStyle = TenantIdStyle.ForceLowerCase;
+    
+    // You probably won't have to configure this often,
+    // but if you do, this applies to both tools
+    x.ApplicationAssembly = typeof(Program).Assembly;
+    
+    x.Production.GeneratedCodeMode = TypeLoadMode.Static;
+    x.Production.ResourceAutoCreate = AutoCreate.None;
+
+    // These are defaults, but showing for completeness
+    x.Development.GeneratedCodeMode = TypeLoadMode.Dynamic;
+    x.Development.ResourceAutoCreate = AutoCreate.CreateOrUpdate;
 });
 
 builder.Services.ConfigureSystemTextJsonForWolverineOrMinimalApi(o =>
@@ -236,4 +288,4 @@ app.MapPutToWolverine<CustomRequest, CustomResponse>("/wolverine/request");
 
     #endregion
 
-await app.RunOaktonCommands(args);
+await app.RunJasperFxCommands(args);
