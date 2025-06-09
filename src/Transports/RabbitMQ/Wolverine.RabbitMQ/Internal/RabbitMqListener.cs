@@ -45,7 +45,7 @@ internal class RabbitMqInteropFriendlyCallback : IChannelCallback, ISupportDeadL
     public bool NativeDeadLetterQueueEnabled => true;
 }
 
-internal class RabbitMqListener : RabbitMqChannelAgent, IListener, ISupportDeadLetterQueue
+internal class RabbitMqListener : RabbitMqChannelAgent, IListener, ISupportDeadLetterQueue, ISupportMultipleConsumers
 {
     private readonly IChannelCallback _callback;
     private readonly CancellationToken _cancellation = CancellationToken.None;
@@ -214,4 +214,8 @@ internal class RabbitMqListener : RabbitMqChannelAgent, IListener, ISupportDeadL
     {
         await Channel!.BasicAckAsync(deliveryTag, true, _cancellation);
     }
+
+    public string? ConsumerId { get; set; }
+    public Uri BaseAddress => Queue.Uri;
+    public Uri ConsumerAddress => new Uri($"{Queue.Uri}?consumer={ConsumerId}");
 }

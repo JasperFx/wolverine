@@ -135,7 +135,17 @@ public partial class Envelope
     internal void MarkReceived(IListener listener, DateTimeOffset now, DurabilitySettings settings)
     {
         Listener = listener;
-        Destination = listener.Address;
+
+        // If this is a stream with multiple consumers, use the consumer-specific address
+        if (listener is ISupportMultipleConsumers multiConsumerListener)
+        {
+            Destination = multiConsumerListener.ConsumerAddress;
+        }
+        else
+        {
+            Destination = listener.Address;
+        }
+
         if (IsScheduledForLater(now))
         {
             Status = EnvelopeStatus.Scheduled;

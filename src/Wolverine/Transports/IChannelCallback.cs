@@ -27,6 +27,29 @@ public interface ISupportNativeScheduling
     Task MoveToScheduledUntilAsync(Envelope envelope, DateTimeOffset time);
 }
 
+/// <summary>
+/// Marks a listener as supporting multiple consumers reading from the same stream or queue,
+/// allowing the system to differentiate between multiple listeners with the same URI
+/// </summary>
+public interface ISupportMultipleConsumers
+{
+    /// <summary>
+    /// Gets a unique identifier for this specific consumer instance
+    /// </summary>
+    string? ConsumerId { get; internal set; }
+
+    /// <summary>
+    /// Gets the base address without any consumer-specific information
+    /// </summary>
+    Uri BaseAddress { get; }
+
+    /// <summary>
+    /// Gets the consumer-specific address that can be used to uniquely identify this consumer instance
+    /// when storing messages
+    /// </summary>
+    Uri ConsumerAddress { get; }
+}
+
 public interface IChannelCallback
 {
     IHandlerPipeline? Pipeline { get; }

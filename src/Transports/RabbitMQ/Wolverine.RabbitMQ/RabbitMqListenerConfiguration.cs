@@ -198,4 +198,19 @@ public class RabbitMqListenerConfiguration : ListenerConfiguration<RabbitMqListe
 
         return this;
     }
+
+    /// <summary>
+    /// Override the default listener id for this endpoint. This is useful in case of fanout scenarios where multiple consumers are listening to the same queue like with RMQ streams
+    /// </summary>
+    /// <param name="customListenerId"></param>
+    /// <returns></returns>
+    public RabbitMqListenerConfiguration WithCustomListenerId(string? customListenerId = null)
+    {
+        add(e =>
+        {
+            e.CustomListenerId = customListenerId ?? Guid.NewGuid().ToString();
+        });
+
+        return this;
+    }
 }
