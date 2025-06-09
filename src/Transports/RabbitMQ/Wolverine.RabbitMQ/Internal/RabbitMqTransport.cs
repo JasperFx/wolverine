@@ -368,7 +368,7 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IAsy
 
         if (queue.CustomListenerId != null && listener is ISupportMultipleConsumers multipleConsumersOnSameQueueListener)
         {
-            multipleConsumersOnSameQueueListener.ConsumerId = queue.CustomListenerId ?? Guid.NewGuid().ToString();
+            multipleConsumersOnSameQueueListener.ConsumerId = queue.CustomListenerId;
         }
 
         if (Tenants.Any() && queue.TenancyBehavior == TenancyBehavior.TenantAware)

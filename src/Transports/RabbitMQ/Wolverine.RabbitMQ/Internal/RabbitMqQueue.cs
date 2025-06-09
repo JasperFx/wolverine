@@ -86,7 +86,7 @@ public partial class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQu
     public DeadLetterQueue? DeadLetterQueue { get; set; }
 
     /// <summary>
-    ///     The unique listener id that are actively listening to this queue.
+    ///     The unique id for listener that is actively listening to this queue.
     /// </summary>
     public string? CustomListenerId { get; set; }
 
