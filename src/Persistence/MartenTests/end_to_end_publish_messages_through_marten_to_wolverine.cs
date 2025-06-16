@@ -12,6 +12,7 @@ using Marten.Events.Aggregation;
 using Marten.Events.Projections;
 using Marten.Schema;
 using Marten.Storage;
+using MartenTests.AggregateHandlerWorkflow;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Npgsql;

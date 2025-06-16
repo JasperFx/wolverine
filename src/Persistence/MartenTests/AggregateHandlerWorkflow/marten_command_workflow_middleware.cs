@@ -1,22 +1,21 @@
 using IntegrationTests;
 using JasperFx;
 using JasperFx.CodeGeneration;
+using JasperFx.Resources;
 using Marten;
 using Marten.Events;
 using Marten.Events.Projections;
-using Marten.Exceptions;
 using Marten.Internal.Sessions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using JasperFx.Resources;
 using Shouldly;
-using Wolverine.ComplianceTests;
 using Wolverine.Attributes;
+using Wolverine.ComplianceTests;
 using Wolverine.Marten;
 using Wolverine.Tracking;
 
-namespace MartenTests;
+namespace MartenTests.AggregateHandlerWorkflow;
 
 public class marten_command_workflow_middleware : PostgresqlContext, IDisposable
 {

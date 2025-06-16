@@ -37,12 +37,15 @@ public sealed partial class HandlerDiscovery
             typeNotFound = true;
         }
 
-        if (typeNotFound)
+        if (typeNotFound && !_conventionalDiscoveryDisabled)
         {
             return writer.ToString();
         }
 
-        writer.WriteLine($"Successfully found {candidateType.FullNameInCode()} during scanning.");
+        if (!_conventionalDiscoveryDisabled)
+        {
+            writer.WriteLine($"Successfully found {candidateType.FullNameInCode()} during scanning.");
+        }
         writer.WriteLine("Methods:");
         writer.WriteLine();
 
