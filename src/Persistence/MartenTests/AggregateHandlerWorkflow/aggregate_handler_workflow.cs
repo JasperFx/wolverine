@@ -3,18 +3,18 @@ using IntegrationTests;
 using JasperFx.CodeGeneration;
 using JasperFx.Core;
 using JasperFx.Events;
+using JasperFx.Resources;
 using Marten;
 using Marten.Events;
 using Marten.Events.Projections;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using JasperFx.Resources;
 using Shouldly;
 using Wolverine;
 using Wolverine.Marten;
 using Wolverine.Tracking;
 
-namespace MartenTests;
+namespace MartenTests.AggregateHandlerWorkflow;
 
 public class aggregate_handler_workflow: PostgresqlContext, IAsyncLifetime
 {
@@ -441,3 +441,4 @@ public class Response
     public int CCount { get; set; }
     public int DCount { get; set; }
 }
+

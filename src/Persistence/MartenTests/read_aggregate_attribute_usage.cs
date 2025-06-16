@@ -2,6 +2,7 @@ using IntegrationTests;
 using JasperFx.Resources;
 using Marten;
 using Marten.Events.Projections;
+using MartenTests.AggregateHandlerWorkflow;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Shouldly;

@@ -1,14 +1,13 @@
 using JasperFx.CodeGeneration;
 using Marten.Schema;
 using NSubstitute;
+using Shouldly;
 using Wolverine.Configuration;
 using Wolverine.Marten;
-using Wolverine.Runtime.Handlers;
-using Shouldly;
-using Wolverine.Codegen;
 using Wolverine.Runtime;
+using Wolverine.Runtime.Handlers;
 
-namespace MartenTests;
+namespace MartenTests.AggregateHandlerWorkflow;
 
 public class AggregateHandlerAttributeTests
 {

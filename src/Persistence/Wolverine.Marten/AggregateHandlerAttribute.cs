@@ -4,6 +4,7 @@ using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
+using JasperFx.Events;
 using JasperFx.Events.Aggregation;
 using JasperFx.Events.Daemon;
 using Marten;
@@ -11,6 +12,7 @@ using Marten.Events;
 using Marten.Events.Aggregation;
 using Marten.Linq.Members;
 using Marten.Schema;
+using Microsoft.Extensions.DependencyInjection;
 using Wolverine.Attributes;
 using Wolverine.Codegen;
 using Wolverine.Configuration;
@@ -67,17 +69,36 @@ public class AggregateHandlerAttribute : ModifyChainAttribute
 
     public override void Modify(IChain chain, GenerationRules rules, IServiceContainer container)
     {
+        // ReSharper disable once CanSimplifyDictionaryLookupWithTryAdd
         if (chain.Tags.ContainsKey(nameof(AggregateHandlerAttribute))) return;
+        
         chain.Tags.Add(nameof(AggregateHandlerAttribute),"true");
 
         CommandType = chain.InputType();
         if (CommandType == null)
             throw new InvalidOperationException(
                 $"Cannot apply Marten aggregate handler workflow to chain {chain} because it has no input type");
-
+        
         AggregateType ??= DetermineAggregateType(chain);
-        AggregateIdMember = DetermineAggregateIdMember(AggregateType, CommandType);
-        VersionMember = DetermineVersionMember(CommandType);
+
+        if (CommandType.Closes(typeof(IEvent<>)))
+        {
+            var concreteEventType = typeof(Event<>).MakeGenericType(CommandType.GetGenericArguments()[0]);
+            
+            // This CANNOT work if you capture the version, because there's no way to know if the aggregate version
+            // has advanced
+            //VersionMember = concreteEventType.GetProperty(nameof(IEvent.Version));
+            
+            var options = container.Services.GetRequiredService<StoreOptions>();
+            AggregateIdMember = options.Events.StreamIdentity == StreamIdentity.AsGuid
+                ? concreteEventType.GetProperty(nameof(IEvent.StreamId), BindingFlags.Public | BindingFlags.Instance | BindingFlags.FlattenHierarchy)
+                : concreteEventType.GetProperty(nameof(IEvent.StreamKey), BindingFlags.Public | BindingFlags.Instance | BindingFlags.FlattenHierarchy);
+        }
+        else
+        {
+            AggregateIdMember = DetermineAggregateIdMember(AggregateType, CommandType);
+            VersionMember = DetermineVersionMember(CommandType);
+        }
 
         var sessionCreator = MethodCall.For<OutboxedSessionFactory>(x => x.OpenSession(null!));
         chain.Middleware.Add(sessionCreator);
@@ -206,7 +227,7 @@ public class AggregateHandlerAttribute : ModifyChainAttribute
             return stream.ParameterType.GetGenericArguments().Single();
         }
 
-        if (parameters.Length >= 2 && parameters[1].ParameterType.IsConcrete())
+        if (parameters.Length >= 2 && (parameters[1].ParameterType.IsConcrete() || parameters[1].ParameterType.Closes(typeof(IEvent<>))))
         {
             return parameters[1].ParameterType;
         }
