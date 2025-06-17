@@ -217,6 +217,8 @@ public class MiddlewarePolicy : IChainPolicy
                 {
                     AssertMethodDoesNotHaveDuplicateReturnValues(call);
 
+                    chain.ApplyParameterMatching(call);
+
                     foreach (var frame in wrapBeforeFrame(chain, call, rules)) yield return frame;
                 }
             }
@@ -275,7 +277,9 @@ public class MiddlewarePolicy : IChainPolicy
                 }
                 else
                 {
-                    yield return new MethodCall(MiddlewareType, after);
+                    var methodCall = new MethodCall(MiddlewareType, after);
+                    chain.ApplyParameterMatching(methodCall);
+                    yield return methodCall;
                 }
             }
         }

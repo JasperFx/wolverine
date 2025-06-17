@@ -17,6 +17,8 @@ namespace Wolverine.Configuration;
 /// </summary>
 public interface IChain
 {
+    void ApplyParameterMatching(MethodCall call);
+    
     /// <summary>
     ///     Frames that would be initially placed in front of
     ///     the primary action(s)

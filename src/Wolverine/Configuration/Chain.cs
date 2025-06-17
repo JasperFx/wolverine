@@ -24,6 +24,7 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
     where TModifyAttribute : Attribute, IModifyChain<TChain>
 {
     private readonly List<Type> _dependencies = [];
+    public abstract void ApplyParameterMatching(MethodCall call);
     public List<Frame> Middleware { get; } = [];
 
     public List<Frame> Postprocessors { get; } = [];

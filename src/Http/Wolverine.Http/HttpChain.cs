@@ -624,4 +624,9 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
     {
         return _parent.BuildJsonDeserializationVariable(this);
     }
+
+    public override void ApplyParameterMatching(MethodCall call)
+    {
+        _parent.ApplyParameterMatching(this, call);
+    }
 }
