@@ -105,6 +105,7 @@ internal class MqttEnvelopeMapper : IMqttEnvelopeMapper
         envelope.Data = incoming.PayloadSegment.ToArray();
 
         envelope.MessageType = _topic.MessageTypeName;
+        envelope.TopicName = incoming.Topic;
 
         foreach (var property in incoming.UserProperties)
         {
