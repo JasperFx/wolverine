@@ -222,6 +222,18 @@ public class ListenerConfiguration<TSelf, TEndpoint> : DelayedEndpointConfigurat
         add(e => e.MessageType = messageType);
         return this.As<TSelf>();
     }
+    
+    /// <summary>
+    ///     Apply a custom configuration to the underlying endpoint for
+    ///     interoperability with non-Wolverine systems.
+    /// </summary>
+    /// <param name="configure">The action to configure the endpoint for interop.</param>
+    /// <returns>The current listener configuration instance.</returns>
+    public TSelf UseInterop(Action<TEndpoint> configure)
+    {
+        add(configure);
+        return this.As<TSelf>();
+    }
 }
 
 public enum ProcessingOrder

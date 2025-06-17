@@ -150,6 +150,18 @@ public class SubscriberConfiguration<T, TEndpoint> : DelayedEndpointConfiguratio
         add(e => e.OutgoingRules.Add(rule));
         return this.As<T>();
     }
+    
+    /// <summary>
+    ///     Apply a custom configuration to the underlying endpoint for
+    ///     interoperability with non-Wolverine systems.
+    /// </summary>
+    /// <param name="configure">The action to configure the endpoint for interop.</param>
+    /// <returns>The current subscriber configuration instance.</returns>
+    public T UseInterop(Action<TEndpoint> configure)
+    {
+        add(configure);
+        return this.As<T>();
+    }
 }
 
 internal class SubscriberConfiguration : SubscriberConfiguration<ISubscriberConfiguration, Endpoint>,
