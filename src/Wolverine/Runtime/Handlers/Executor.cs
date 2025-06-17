@@ -116,7 +116,6 @@ internal class Executor : IExecutor
         {
             activity?.SetStatus(ActivityStatusCode.Error, e.GetType().Name);
             _tracker.ExecutionFinished(envelope, e);
-            _logger.LogError(e, "Inline invocation of {Message} failed", envelope.Message);
             throw;
         }
         finally
@@ -228,7 +227,7 @@ internal class Executor : IExecutor
         }
         catch (Exception e)
         {
-            _logger.LogError(e, "Invocation failed!");
+            _logger.LogError(e, "Invocation of {Message} failed!", context.Envelope.Message);
 
             var retry = _rules.TryFindInlineContinuation(e, context.Envelope);
             if (retry == null)
