@@ -23,8 +23,9 @@ internal class RequiredEntityPolicy : IHttpPolicy
 
                 foreach (var parameter in requiredParameters)
                 {
-                    var frame = new SetStatusCodeAndReturnIfEntityIsNullFrame(parameter.ParameterType);
-                    chain.Middleware.Add(frame);
+                    var loadFrame = chain.Middleware.First(m => m.Creates.Any(x => x.VariableType == parameter.ParameterType));
+                    var stopFrame = new SetStatusCodeAndReturnIfEntityIsNullFrame(parameter.ParameterType);
+                    chain.Middleware.Insert(chain.Middleware.IndexOf(loadFrame) + 1, stopFrame);
                 }
             }
         }
