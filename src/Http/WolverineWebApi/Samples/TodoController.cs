@@ -169,3 +169,35 @@ public static class Update2Endpoint
         return todo;
     }
 }
+
+public static class UpdateEndpoint3
+{
+    // Find required Todo entity for the route handler below
+    public static Task<Todo?> LoadAsync(int id, IDocumentSession session)
+        => session.LoadAsync<Todo>(id);
+
+    public static IResult Validate([Required] Todo? todo)
+    {
+        return todo.IsComplete
+            ? Results.ValidationProblem([new("IsComplere", ["Completed Todo cannot be updated"])])
+            : WolverineContinue.Result();
+    }
+
+    [WolverinePut("/todos3/{id:int}")]
+    public static StoreDoc<Todo> Put(
+        // Route argument
+        int id,
+
+        // The request body
+        UpdateRequest request,
+
+        // Entity loaded by the method above,
+        // but note the [Required] attribute
+        [Required] Todo? todo)
+    {
+        todo.Name = request.Name;
+        todo.IsComplete = request.IsComplete;
+
+        return MartenOps.Store(todo);
+    }
+}

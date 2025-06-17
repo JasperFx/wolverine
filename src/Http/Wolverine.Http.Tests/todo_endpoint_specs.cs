@@ -58,4 +58,14 @@ public class todo_endpoint_specs : IntegrationContext
             opts.StatusCodeShouldBe(404);
         });
     }
+
+    [Fact]
+    public async Task get_an_automatic_404_when_related_entity_does_not_exist_with_validation()
+    {
+        await Scenario(opts =>
+        {
+            opts.Put.Json(new UpdateRequest("Second", true)).ToUrl("/todos3/1222222222");
+            opts.StatusCodeShouldBe(404);
+        });
+    }
 }
