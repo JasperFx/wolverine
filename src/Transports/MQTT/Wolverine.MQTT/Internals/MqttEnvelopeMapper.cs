@@ -5,7 +5,7 @@ using Wolverine.Runtime.Serialization;
 
 namespace Wolverine.MQTT.Internals;
 
-internal class MqttEnvelopeMapper : IMqttEnvelopeMapper
+public class MqttEnvelopeMapper : IMqttEnvelopeMapper
 {
     private readonly MqttTopic _topic;
 

@@ -5,11 +5,10 @@ using Wolverine.Transports;
 
 namespace Wolverine.Kafka.Internals;
 
-internal class KafkaEnvelopeMapper : EnvelopeMapper<Message<string, byte[]>, Message<string, byte[]>>, IKafkaEnvelopeMapper
+public class KafkaEnvelopeMapper : EnvelopeMapper<Message<string, byte[]>, Message<string, byte[]>>, IKafkaEnvelopeMapper
 {
     public KafkaEnvelopeMapper(Endpoint endpoint) : base(endpoint)
     {
-
     }
 
     protected override void writeOutgoingHeader(Message<string, byte[]> outgoing, string key, string value)
