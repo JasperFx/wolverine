@@ -149,6 +149,11 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
     /// </summary>
     public bool TelemetryEnabled { get; set; } = true;
 
+    public override void ApplyParameterMatching(MethodCall call)
+    {
+        // Nothing
+    }
+
     /// <summary>
     ///     A textual description of this HandlerChain
     /// </summary>

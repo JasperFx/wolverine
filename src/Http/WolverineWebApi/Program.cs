@@ -134,7 +134,7 @@ builder.Host.UseWolverine(opts =>
     
     opts.Policies.Add<BroadcastClientMessages>();
 
-    opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Dynamic;
+    opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
 });
 
 // These settings would apply to *both* Marten and Wolverine
