@@ -222,7 +222,7 @@ public partial class HttpChain
 
     private void fillRequestType(ApiDescription apiDescription)
     {
-        if (HasRequestType && !IsFormData)
+        if (HasRequestType && !IsFormData && apiDescription.HttpMethod != "GET")
         {
             var parameterDescription = new ApiParameterDescription
             {
