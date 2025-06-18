@@ -10,7 +10,7 @@ Unlike [cascading messages](/guide/handlers/cascading), "side effects" are proce
 transaction.
 :::
 
-At times, you may with to make Wolverine message handlers (or HTTP endpoints) be [pure functions](https://en.wikipedia.org/wiki/Pure_function)
+At times, you may wish to make Wolverine message handlers (or HTTP endpoints) be [pure functions](https://en.wikipedia.org/wiki/Pure_function)
 as a way of making the handler code itself easier to test or even just to understand. All the same, your application
 will almost certainly be interacting with the outside world of databases, file systems, and external infrastructure of all types.
 Not to worry though, Wolverine has some facility to allow you to declare the *[side effects](https://en.wikipedia.org/wiki/Side_effect_(computer_science))*
