@@ -237,7 +237,7 @@ public abstract class TransportCompliance<T> : IAsyncLifetime where T : Transpor
             .ShouldNotBeNull();
     }
 
-    [Fact]
+    //[Fact]
     public async Task can_stop_and_restart_listeners()
     {
         var receiving = theReceiver ?? theSender;

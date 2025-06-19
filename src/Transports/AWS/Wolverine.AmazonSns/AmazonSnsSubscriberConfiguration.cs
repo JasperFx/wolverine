@@ -59,7 +59,12 @@ public class
     {
         var attributes = new AmazonSnsSubscriptionAttributes();
         configure?.Invoke(attributes);
-        add(e => e.TopicSubscriptions.Add(new AmazonSnsSubscription(queueName, AmazonSnsSubscriptionType.Sqs, attributes)));
+        add(e =>
+        {
+            e.TopicSubscriptions.Add(new AmazonSnsSubscription(queueName, AmazonSnsSubscriptionType.Sqs, attributes));
+            e.Parent.SQS.Queues.FillDefault(queueName);
+        });
+        
         return this;
     }
 }
