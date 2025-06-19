@@ -1,8 +1,10 @@
 using FluentValidation;
+using JasperFx;
 using JasperFx.Core.IoC;
 using JasperFx.Core.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 using Wolverine.ErrorHandling;
 using Wolverine.FluentValidation.Internals;
 
@@ -43,6 +45,21 @@ public static class WolverineFluentValidationExtensions
         {
             if (behavior == RegistrationBehavior.DiscoverAndRegisterValidators)
             {
+                if (options.ApplicationAssembly == null)
+                {
+                    using var provider = options.Services.BuildServiceProvider();
+                    var jasperFxOptions = provider.GetService<IOptions<JasperFxOptions>>();
+                    if (jasperFxOptions.Value != null)
+                    {
+                        options.ApplicationAssembly = jasperFxOptions.Value.ApplicationAssembly;
+                    }
+                    else
+                    {
+                        throw new InvalidOperationException(
+                            "Wolverine (and JasperFx) have not been able to determine the ApplicationAssembly. Please set that explicitly");
+                    }
+                }
+                
                 options.Services.Scan(x =>
                 {
                     foreach (var assembly in options.Assemblies) x.Assembly(assembly);
