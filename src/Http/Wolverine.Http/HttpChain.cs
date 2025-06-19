@@ -443,6 +443,12 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
             {
                 variable = new ReadHttpFrame(BindingSource.QueryString, parameterType, key).Variable;
                 variable.Name = key;
+
+                if (variable.Usage == "tenantId")
+                {
+                    variable.OverrideName("tenantIdString");
+                }
+                
                 _querystringVariables.Add(variable);
             }
 
