@@ -239,7 +239,7 @@ public class AmazonSnsTopic : Endpoint, IBrokerQueue
                     var getQueueResponse = await sqsClient.GetQueueUrlAsync(subscription.Endpoint);
                     endpoint = await getSqsSubscriptionEndpointAsync(sqsClient, getQueueResponse.QueueUrl);
                     
-                    await setQueuePolicyForTopic(sqsClient, getQueueResponse.QueueUrl, endpoint, TopicArn);
+                    await setQueuePolicyForTopic(sqsClient, new (getQueueResponse.QueueUrl, endpoint,  TopicArn));
                     break;
                 default:
                     throw new NotImplementedException("AmazonSnsSubscriptionType not implemented");
@@ -279,31 +279,14 @@ public class AmazonSnsTopic : Endpoint, IBrokerQueue
         return getAttributesResponse.QueueARN;
     }
 
-    private async Task setQueuePolicyForTopic(IAmazonSQS client, string queueUrl, string queueArn, string topicArn)
+    private async Task setQueuePolicyForTopic(IAmazonSQS client, SqsTopicDescription description)
     {
-        var queuePolicy = $$"""
-                            {
-                              "Version": "2012-10-17",
-                              "Statement": [{
-                                  "Effect": "Allow",
-                                  "Principal": {
-                                      "Service": "sns.amazonaws.com"
-                                  },
-                                  "Action": "sqs:SendMessage",
-                                  "Resource": "{{queueArn}}",
-                                  "Condition": {
-                                    "ArnEquals": {
-                                        "aws:SourceArn": "{{topicArn}}"
-                                    }
-                                  }
-                              }]
-                            }
-                            """;
+        var queuePolicy = Parent.QueuePolicyBuilder(description);
 
         await client.SetQueueAttributesAsync(
             new SetQueueAttributesRequest
             {
-                QueueUrl = queueUrl,
+                QueueUrl = description.QueueUrl,
                 Attributes = new Dictionary<string, string> { {"Policy", queuePolicy } }
             });
     }

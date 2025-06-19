@@ -35,7 +35,7 @@ public static class AmazonSnsTransportExtensions
         var transport = options.AmazonSnsTransport();
         return new AmazonSnsTransportConfiguration(transport, options);
     }
-
+    
     public static AmazonSnsTransportConfiguration UseAmazonSnsTransport(this WolverineOptions options)
     {
         var transport = options.AmazonSnsTransport();

@@ -126,4 +126,32 @@ public class AmazonSnsTransport : BrokerTransport<AmazonSnsTopic>
         var credentials = CredentialSource(runtime);
         return new AmazonSQSClient(credentials, SQS.Config);
     }
+
+    /// <summary>
+    /// Override to customize the queue policy for permissions for an AWS SQS queue that subscribes to
+    /// an SNS topic
+    /// </summary>
+    public Func<SqsTopicDescription, string> QueuePolicyBuilder { get; set; } = description =>
+    {
+        var queuePolicy = $$"""
+                            {
+                              "Version": "2012-10-17",
+                              "Statement": [{
+                                  "Effect": "Allow",
+                                  "Principal": {
+                                      "Service": "sns.amazonaws.com"
+                                  },
+                                  "Action": "sqs:SendMessage",
+                                  "Resource": "{{description.QueueArn}}",
+                                  "Condition": {
+                                    "ArnEquals": {
+                                        "aws:SourceArn": "{{description.TopicArn}}"
+                                    }
+                                  }
+                              }]
+                            }
+                            """;
+
+        return queuePolicy;
+    };
 }

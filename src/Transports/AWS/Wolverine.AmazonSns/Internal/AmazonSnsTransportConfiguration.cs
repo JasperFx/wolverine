@@ -21,6 +21,20 @@ public class AmazonSnsTransportConfiguration : BrokerExpression<AmazonSnsTranspo
     {
         return new AmazonSnsSubscriberConfiguration(subscriberEndpoint);
     }
+    
+    /// <summary>
+    /// Override Wolverine's default queue policy that is set on SQS queues configured
+    /// by the SNS transport from a subscription
+    /// </summary>
+    /// <param name="builder"></param>
+    /// <returns></returns>
+    /// <exception cref="ArgumentNullException"></exception>
+    public AmazonSnsTransportConfiguration QueuePolicyForSqsSubscriptions(
+        Func<SqsTopicDescription, string> builder)
+    {
+        Transport.QueuePolicyBuilder = builder ?? throw new ArgumentNullException(nameof(builder));
+        return this;
+    }
 
     /// <summary>
     ///     Add credentials for the connection to AWS SQS
