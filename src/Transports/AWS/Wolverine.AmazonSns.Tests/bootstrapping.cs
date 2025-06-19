@@ -17,7 +17,7 @@ public class bootstrapping
         var transport = options.AmazonSnsTransport();
 
         // Just a smoke test on configuration here
-        var topicNames = await transport.SnsClient.ListTopicsAsync("wolverine");
+        var topicNames = await transport.SnsClient.ListTopicsAsync("0");
     }
 
     [Fact]
@@ -37,7 +37,7 @@ public class bootstrapping
         var transport = options.AmazonSnsTransport();
 
         // Just a smoke test on configuration here
-        var response = await transport.SnsClient.ListTopicsAsync("wolverine");
+        var response = await transport.SnsClient.ListTopicsAsync("0");
         var topic = response.Topics.FirstOrDefault(x => x.TopicArn.Contains(topicName));
         topic.ShouldNotBeNull();
         topic.TopicArn.ShouldNotBeNull();
@@ -62,7 +62,7 @@ public class bootstrapping
         var options = host.Services.GetRequiredService<WolverineOptions>();
         var transport = options.AmazonSnsTransport();
 
-        var response = await transport.SnsClient.ListTopicsAsync("wolverine");
+        var response = await transport.SnsClient.ListTopicsAsync("0");
         var topic = response.Topics.FirstOrDefault(x => x.TopicArn.Contains(topicName));
         topic.ShouldNotBeNull();
         topic.TopicArn.ShouldNotBeNull();

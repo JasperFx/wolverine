@@ -2,6 +2,7 @@
 using Amazon.SimpleNotificationService;
 using Amazon.SQS;
 using JasperFx.Core;
+using Wolverine.AmazonSqs.Internal;
 using Wolverine.Runtime;
 using Wolverine.Transports;
 
@@ -32,14 +33,13 @@ public class AmazonSnsTransport : BrokerTransport<AmazonSnsTopic>
     public LightweightCache<string, AmazonSnsTopic> Topics { get; }
     
     public AmazonSimpleNotificationServiceConfig SnsConfig { get; } = new();
-    public AmazonSQSConfig SqsConfig { get; } = new();
-    
     internal IAmazonSimpleNotificationService? SnsClient { get; private set; }
     internal IAmazonSQS? SqsClient { get; private set; }
 
     public int LocalStackPort { get; set; }
 
     public bool UseLocalStackInDevelopment { get; set; }
+    internal AmazonSqsTransport SQS { get; set; }
 
     // TODO duplicated code in SqsTransport
     public static string SanitizeSnsName(string identifier)
@@ -102,7 +102,7 @@ public class AmazonSnsTransport : BrokerTransport<AmazonSnsTopic>
     {
         CredentialSource = _ => new BasicAWSCredentials("ignore", "ignore");
         SnsConfig.ServiceURL = $"http://localhost:{port}";
-        SqsConfig.ServiceURL = $"http://localhost:{port}";
+        SQS.Config.ServiceURL = $"http://localhost:{port}";
     }
     
     private IAmazonSimpleNotificationService buildSnsClient(IWolverineRuntime runtime)
@@ -120,10 +120,10 @@ public class AmazonSnsTransport : BrokerTransport<AmazonSnsTopic>
     {
         if (CredentialSource == null)
         {
-            return new AmazonSQSClient(SqsConfig);
+            return new AmazonSQSClient(SQS.Config);
         }
 
         var credentials = CredentialSource(runtime);
-        return new AmazonSQSClient(credentials, SqsConfig);
+        return new AmazonSQSClient(credentials, SQS.Config);
     }
 }
