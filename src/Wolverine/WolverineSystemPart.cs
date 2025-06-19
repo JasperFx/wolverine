@@ -14,6 +14,8 @@ namespace Wolverine;
 
 internal class WolverineSystemPart : SystemPartBase
 {
+    public static bool WithinDescription = false;
+    
     private readonly WolverineRuntime _runtime;
 
     public WolverineSystemPart(IWolverineRuntime runtime) : base("Wolverine", new Uri("wolverine://" + runtime.Options.ServiceName))
@@ -23,6 +25,7 @@ internal class WolverineSystemPart : SystemPartBase
 
     public override async Task WriteToConsole()
     {
+        WithinDescription = true;
         await _runtime.StartLightweightAsync();
         
         _runtime.Options.WriteToConsole();
@@ -56,8 +59,8 @@ internal class WolverineSystemPart : SystemPartBase
             var routes = _runtime.RoutingFor(messageType).Routes;
             foreach (var route in routes.OfType<MessageRoute>())
             {
-                table.AddRow(messageType.FullNameInCode(), route.Sender.Destination.ToString(),
-                    route.Serializer.ContentType);
+                table.AddRow(messageType.FullNameInCode(), route.Uri.ToString(),
+                    route.Serializer?.ContentType ?? "application/json");
             }
         }
 
