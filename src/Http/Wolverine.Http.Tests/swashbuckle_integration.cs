@@ -53,4 +53,21 @@ public class swashbuckle_integration : IntegrationContext
         var (item, op) = FindOpenApiDocument(OperationType.Post, "/users/sign-up");
         op.Tags.ShouldContain(x => x.Name == "Users");
     }
+
+	[Fact]
+	public async Task request_body_not_required_with_primitive_query_string()
+	{
+		var endpoint = EndpointFor("/querystring/datetime");
+
+		var (item, op) = FindOpenApiDocument(OperationType.Get, "/querystring/datetime");
+		op.RequestBody.ShouldBeNull();
+	}
+
+	[Fact]
+	public async Task request_body_not_required_with_complex_query_string()
+	{
+		var endpoint = EndpointFor("/api/bigquery");
+		var (_, op) = FindOpenApiDocument(OperationType.Get, "/api/bigquery");
+		op.RequestBody.ShouldBeNull();
+	}
 }
