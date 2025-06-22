@@ -56,6 +56,21 @@ public class ListenerConfiguration<TSelf, TEndpoint> : DelayedEndpointConfigurat
         return this.As<TSelf>();
     }
 
+    /// <summary>
+    /// "Pin" this endpoint so that it is only active on the leader node
+    /// </summary>
+    /// <returns></returns>
+    public TSelf ListenOnlyAtLeader()
+    {
+        add(e =>
+        {
+            e.ListenerScope = ListenerScope.PinnedToLeader;
+            e.IsListener = true;
+        });
+
+        return this.As<TSelf>();
+    }
+
     public TSelf ListenWithStrictOrdering(string? endpointName = null)
     {
         if (_endpoint is LocalQueue)

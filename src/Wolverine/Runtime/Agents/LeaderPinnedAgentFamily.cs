@@ -3,17 +3,17 @@ using Wolverine.Configuration;
 
 namespace Wolverine.Runtime.Agents;
 
-internal class ExclusiveListenerAgent : IAgent
+internal class LeaderPinnedListenerAgent : IAgent
 {
     private readonly Endpoint _endpoint;
     private readonly IWolverineRuntime _runtime;
 
-    public ExclusiveListenerAgent(Endpoint endpoint, IWolverineRuntime runtime)
+    public LeaderPinnedListenerAgent(Endpoint endpoint, IWolverineRuntime runtime)
     {
         _endpoint = endpoint;
         _runtime = runtime;
 
-        Uri = new Uri($"{ExclusiveListenerFamily.SchemeName}://{_endpoint.EndpointName}");
+        Uri = new Uri($"{LeaderPinnedListenerFamily.SchemeName}://{_endpoint.EndpointName}");
     }
 
     public Task StartAsync(CancellationToken cancellationToken)
@@ -32,19 +32,19 @@ internal class ExclusiveListenerAgent : IAgent
     public AgentStatus Status { get; set; } = AgentStatus.Started;
 }
 
-internal class ExclusiveListenerFamily : IStaticAgentFamily
+public class LeaderPinnedListenerFamily : IStaticAgentFamily
 {
     private readonly IWolverineRuntime _runtime;
-    internal const string SchemeName = "wolverine-listener";
+    internal const string SchemeName = "wolverine-leader-listener";
 
     private readonly WolverineOptions _options;
-    private readonly Dictionary<Uri,ExclusiveListenerAgent> _agents;
+    private readonly Dictionary<Uri,LeaderPinnedListenerAgent> _agents;
 
-    public ExclusiveListenerFamily(IWolverineRuntime runtime)
+    public LeaderPinnedListenerFamily(IWolverineRuntime runtime)
     {
         _runtime = runtime;
 
-        _agents = _runtime.Endpoints.ExclusiveListeners().Select(e => new ExclusiveListenerAgent(e, runtime))
+        _agents = _runtime.Endpoints.LeaderPinnedListeners().Select(e => new LeaderPinnedListenerAgent(e, runtime))
             .ToDictionary(e => e.Uri);
     }
 
@@ -73,7 +73,10 @@ internal class ExclusiveListenerFamily : IStaticAgentFamily
 
     public ValueTask EvaluateAssignmentsAsync(AssignmentGrid assignments)
     {
-        assignments.DistributeEvenly(SchemeName);
+        foreach (var agentUri in _agents.Keys)
+        {
+            assignments.RunOnLeader(agentUri);
+        }
 
         return new ValueTask();
     }

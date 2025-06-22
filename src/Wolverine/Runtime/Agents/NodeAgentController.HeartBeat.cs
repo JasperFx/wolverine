@@ -88,6 +88,10 @@ public partial class NodeAgentController
 
         await _observer.AssumedLeadership();
 
+        // This is important, some of the assignment logic depends on knowing what the leader is
+        var self = nodes.FirstOrDefault(x => x.NodeId == _runtime.Options.UniqueNodeId);
+        self.AssignAgents([LeaderUri]);
+        
         return await EvaluateAssignmentsAsync(nodes);
     }
 

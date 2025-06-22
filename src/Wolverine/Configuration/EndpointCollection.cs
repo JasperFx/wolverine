@@ -31,6 +31,12 @@ public interface IEndpointCollection : IAsyncDisposable
     /// </summary>
     /// <returns></returns>
     IReadOnlyList<Endpoint> ExclusiveListeners();
+    
+    /// <summary>
+    /// Endpoints where the message listener should only be active on the leader node
+    /// </summary>
+    /// <returns></returns>
+    IReadOnlyList<Endpoint> LeaderPinnedListeners();
 
     Task StartListenerAsync(Endpoint endpoint, CancellationToken cancellationToken);
     Task StopListenerAsync(Endpoint endpoint, CancellationToken cancellationToken);
@@ -195,6 +201,22 @@ public class EndpointCollection : IEndpointCollection
 
         return allEndpoints
             .Where(x => x is { IsListener: true, ListenerScope: ListenerScope.Exclusive })
+            .ToList();
+    }
+
+    public IReadOnlyList<Endpoint> LeaderPinnedListeners()
+    {
+        var allEndpoints = _options
+            .Transports
+            .AllEndpoints().ToArray();
+
+        foreach (var endpoint in allEndpoints)
+        {
+            endpoint.Compile(_runtime);
+        }
+
+        return allEndpoints
+            .Where(x => x is { IsListener: true, ListenerScope: ListenerScope.PinnedToLeader })
             .ToList();
     }
 

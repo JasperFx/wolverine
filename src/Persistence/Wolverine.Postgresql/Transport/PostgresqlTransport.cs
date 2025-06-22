@@ -161,6 +161,8 @@ public class PostgresqlTransport : BrokerTransport<PostgresqlQueue>, ITransportC
         }
         
         if (Queues.Any(x => x is { IsListener: true, ListenerScope: ListenerScope.Exclusive }))
+        {
             yield return new StickyPostgresqlQueueListenerAgentFamily(runtime);
+        }
     }
 }
