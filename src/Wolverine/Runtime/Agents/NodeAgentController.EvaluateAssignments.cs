@@ -17,6 +17,7 @@ public partial class NodeAgentController
         {
             // At least use the current node
             nodes = new List<WolverineNode> { WolverineNode.For(_runtime.Options) };
+            nodes[0].AssignAgents([LeaderUri]);
         }
         
         var grid = new AssignmentGrid();

@@ -43,6 +43,7 @@ public partial class NodeAgentController
         if (runtime.Options.Durability.Mode == DurabilityMode.Balanced)
         {
             _agentFamilies[ExclusiveListenerFamily.SchemeName] = new ExclusiveListenerFamily(runtime);
+            _agentFamilies[LeaderPinnedListenerFamily.SchemeName] = new LeaderPinnedListenerFamily(runtime);
         }
 
         if (runtime.Options.Durability.DurabilityAgentEnabled)

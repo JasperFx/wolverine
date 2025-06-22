@@ -97,7 +97,13 @@ public enum ListenerScope
     /// If this endpoint is a listener, it should only be active on a single node.
     /// This is mostly appropriate for
     /// </summary>
-    Exclusive
+    Exclusive, 
+    
+    /// <summary>
+    /// This listening endpoint should only be active on leader nodes (or when running in Solo). This
+    /// setting is probably only useful for administrative functions
+    /// </summary>
+    PinnedToLeader
 }
 
 /// <summary>

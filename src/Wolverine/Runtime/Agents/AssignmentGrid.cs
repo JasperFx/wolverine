@@ -42,6 +42,8 @@ public class AssignmentGrid
     {
         var node = new Node(this, wolverineNode.AssignedNodeNumber, wolverineNode.NodeId, wolverineNode.Capabilities);
         node.ControlUri = wolverineNode.ControlUri;
+
+        node.IsLeader = wolverineNode.ActiveAgents.Contains(NodeAgentController.LeaderUri);
         
         _nodes.Add(node);
 
