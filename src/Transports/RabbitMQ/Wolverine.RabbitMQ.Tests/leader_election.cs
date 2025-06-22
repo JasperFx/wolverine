@@ -1,8 +1,11 @@
 using IntegrationTests;
+using JasperFx.Core;
 using Npgsql;
 using Weasel.Postgresql;
 using Wolverine.ComplianceTests;
 using Wolverine.Postgresql;
+using Wolverine.Runtime.Agents;
+using Wolverine.Tracking;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -16,8 +19,10 @@ public class leader_election : LeadershipElectionCompliance
 
     protected override void configureNode(WolverineOptions opts)
     {
-        opts.UseRabbitMq().EnableWolverineControlQueues();
+        opts.UseRabbitMq().EnableWolverineControlQueues().DisableDeadLetterQueueing();
         opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, "registry");
+
+        opts.ListenToRabbitQueue("admin").ListenOnlyAtLeader();
     }
 
     protected override async Task beforeBuildingHost()

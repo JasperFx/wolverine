@@ -45,9 +45,11 @@ public abstract class LeadershipElectionCompliance : IAsyncLifetime
         }
     }
 
+    public IHost OriginalHost => _originalHost;
+
     protected abstract void configureNode(WolverineOptions options);
 
-    private async Task<IHost> startHostAsync()
+    protected async Task<IHost> startHostAsync()
     {
         var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
