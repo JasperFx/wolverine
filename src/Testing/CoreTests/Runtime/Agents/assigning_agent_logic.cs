@@ -487,4 +487,5 @@ public class assigning_agent_logic
         grid.AgentFor(blue1).AssignedNode.ShouldBe(node3);
 
     }
+
 }

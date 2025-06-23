@@ -34,6 +34,7 @@ public class leader_pinned_listener : IAsyncDisposable
         var host =  await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                // This is where I'm adding in the custom ILoggerProvider
                 opts.Services.AddSingleton<ILoggerProvider>(new OutputLoggerProvider(_output));
                 
                 opts.UseRabbitMq().DisableDeadLetterQueueing().EnableWolverineControlQueues().AutoProvision();
@@ -157,6 +158,7 @@ public class XUnitLogger : ILogger
             return;
         }
 
+        // Obviously this is crude and you would do something different here...
         if (_categoryName == "Wolverine.Transports.Sending.BufferedSendingAgent" &&
             logLevel == LogLevel.Information) return;
         if (_categoryName == "Wolverine.Runtime.WolverineRuntime" &&
@@ -173,7 +175,7 @@ public class XUnitLogger : ILogger
         var text = formatter(state, exception);
         if (_ignoredStrings.Any(x => text.Contains(x))) return;
 
-            _testOutputHelper.WriteLine($"{_categoryName}/{logLevel}: {text}");
+        _testOutputHelper.WriteLine($"{_categoryName}/{logLevel}: {text}");
 
         if (exception != null)
         {
