@@ -96,7 +96,7 @@ Do utilize Wolverine's
 
 ## Enough navel gazing, show me code already!
 
-Let's just jump into a couple simple examples. First, let's say you're building a message handler that processes a `ProcessOrder`
+Let's just jump into a couple simple examples. First, let's say you're building a message handler that processes a `PlaceOrder`
 command. With this example, I'm going to use [Marten](/guide/durability/marten) for object persistence, but it's just not that different with Wolverine's 
 [EF Core](/guide/durability/efcore) or [RavenDb](/guide/durability/ravendb) integration. 
 
