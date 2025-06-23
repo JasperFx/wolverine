@@ -13,6 +13,10 @@ var builder = WebApplication.CreateBuilder(args);
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 
+//builder swagger commands
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
+
 builder.Services.AddMarten(opts =>
 {
     var connectionString = builder.Configuration.GetConnectionString("Marten");
@@ -59,6 +63,10 @@ if (app.Environment.IsDevelopment())
 }
 
 app.MapWolverineEndpoints();
+
+app.UseSwagger();
+app.UseSwaggerUI();
+app.MapGet("/", () => Results.Redirect("/swagger"));
 
 // Using the expanded command line options for the Critter Stack
 // that are helpful for code generation, database migrations, and diagnostics
