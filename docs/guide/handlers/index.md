@@ -233,7 +233,7 @@ Wolverine has been baking an embarrassingly long time and had that implemented y
 
 The first argument always has to be the message type, but after that, you can accept:
 
-* Additional services from your application's Lamar IoC container
+* Additional services from your application's IoC container
 * `Envelope` from Wolverine to interrogate metadata about the current message
 * `IMessageContext` or `IMessageBus` from Wolverine scoped to the current message being handled
 * `CancellationToken` for the current message execution to check for timeouts or system shut down
