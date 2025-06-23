@@ -125,7 +125,7 @@ return await Host.CreateDefaultBuilder(args)
 
     // Executing with Oakton as the command line parser to unlock
     // quite a few utilities and diagnostics in our Wolverine application
-    .RunOaktonCommands(args);
+    .RunJasperFxCommands(args);
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/OpenTelemetry/Subscriber1/Program.cs#L10-L46' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_headless_service' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
