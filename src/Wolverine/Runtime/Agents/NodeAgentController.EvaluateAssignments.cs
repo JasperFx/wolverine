@@ -7,7 +7,9 @@ public partial class NodeAgentController
     public AssignmentGrid? LastAssignments { get; internal set; }
 
     // Tested w/ integration tests all the way
-    public async Task<AgentCommands> EvaluateAssignmentsAsync(IReadOnlyList<WolverineNode> nodes)
+    public async Task<AgentCommands> EvaluateAssignmentsAsync(
+        IReadOnlyList<WolverineNode> nodes,
+        AgentRestrictions restrictions)
     {
         using var activity = WolverineTracing.ActivitySource.StartActivity("wolverine_node_assignments");
 
@@ -37,7 +39,10 @@ public partial class NodeAgentController
                 var allAgents = await controller.AllKnownAgentsAsync();
                 grid.WithAgents(allAgents
                     .ToArray()); // Just in case something has gotten lost, and this is master anyway
-
+                
+                // Apply this every time to pick up any agents from above
+                grid.ApplyRestrictions(restrictions);
+                
                 await controller.EvaluateAssignmentsAsync(grid);
             }
             catch (Exception e)

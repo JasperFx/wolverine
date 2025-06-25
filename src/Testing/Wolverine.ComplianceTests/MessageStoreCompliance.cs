@@ -6,6 +6,7 @@ using JasperFx.Resources;
 using Shouldly;
 using Wolverine.Persistence.Durability;
 using Wolverine.Persistence.Durability.DeadLetterManagement;
+using Wolverine.Runtime.Agents;
 using Wolverine.Transports;
 using Xunit;
 
@@ -776,6 +777,58 @@ public abstract class MessageStoreCompliance : IAsyncLifetime
         stored.Any(x => x.Id == list[2].Id).ShouldBeFalse();
         stored.Any(x => x.Id == list[3].Id).ShouldBeFalse();
         stored.Any(x => x.Id == list[7].Id).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task persist_and_load_pin_and_pause_restrictions()
+    {
+        await thePersistence.Admin.ClearAllAsync();
+        
+        var restriction1 = new AgentRestriction(Guid.NewGuid(), new Uri("fake://1"), AgentRestrictionType.Pinned, 1);
+        var restriction2 = new AgentRestriction(Guid.NewGuid(), new Uri("fake://2"), AgentRestrictionType.Pinned, 2);
+        var restriction3 = new AgentRestriction(Guid.NewGuid(), new Uri("fake://3"), AgentRestrictionType.Pinned, 3);
+        
+        var restriction4 = new AgentRestriction(Guid.NewGuid(), new Uri("fake://4"), AgentRestrictionType.Paused, 0);
+        var restriction5 = new AgentRestriction(Guid.NewGuid(), new Uri("fake://5"), AgentRestrictionType.Paused, 0);
+        var restriction6 = new AgentRestriction(Guid.NewGuid(), new Uri("fake://6"), AgentRestrictionType.Paused, 0);
+
+        IReadOnlyList<AgentRestriction> restrictions = [restriction1, restriction2, restriction3, restriction4, restriction5, restriction6];
+        await thePersistence.Nodes.PersistAgentRestrictionsAsync(
+            restrictions,
+            CancellationToken.None);
+
+        var state = await thePersistence.Nodes.LoadNodeAgentStateAsync(CancellationToken.None);
+
+        state.Restrictions.Current.OrderBy(x => x.AgentUri.ToString()).ShouldBe(restrictions.OrderBy(x => x.AgentUri.ToString()));
+    }
+    
+    [Fact]
+    public async Task persist_then_overwrite_with_none_restriction_deletes()
+    {
+        await thePersistence.Admin.ClearAllAsync();
+        
+        var restriction1 = new AgentRestriction(Guid.NewGuid(), new Uri("fake://1"), AgentRestrictionType.Pinned, 1);
+        var restriction2 = new AgentRestriction(Guid.NewGuid(), new Uri("fake://2"), AgentRestrictionType.Pinned, 2);
+        var restriction3 = new AgentRestriction(Guid.NewGuid(), new Uri("fake://3"), AgentRestrictionType.Pinned, 3);
+        
+        var restriction4 = new AgentRestriction(Guid.NewGuid(), new Uri("fake://4"), AgentRestrictionType.Paused, 0);
+        var restriction5 = new AgentRestriction(Guid.NewGuid(), new Uri("fake://5"), AgentRestrictionType.Paused, 0);
+        var restriction6 = new AgentRestriction(Guid.NewGuid(), new Uri("fake://6"), AgentRestrictionType.Paused, 0);
+
+        IReadOnlyList<AgentRestriction> restrictions = [restriction1, restriction2, restriction3, restriction4, restriction5, restriction6];
+        await thePersistence.Nodes.PersistAgentRestrictionsAsync(
+            restrictions,
+            CancellationToken.None);
+
+        await thePersistence.Nodes.PersistAgentRestrictionsAsync(
+        [
+            restriction3 with { Type = AgentRestrictionType.None },
+            restriction4 with { Type = AgentRestrictionType.None }
+        ], CancellationToken.None);
+
+        var state = await thePersistence.Nodes.LoadNodeAgentStateAsync(CancellationToken.None);
+
+        state.Restrictions.Current.OrderBy(x => x.AgentUri.ToString()).ShouldBe([restriction1, restriction2, restriction5, restriction6]);
     }
 
 }
