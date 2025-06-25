@@ -65,7 +65,7 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
         var parts = new List<string>
         {
             descriptor.Engine.ToLowerInvariant(),
-            descriptor.ServerName,
+            descriptor.ServerName.Split(',')[0],
             descriptor.DatabaseName,
             _schemaName
         };

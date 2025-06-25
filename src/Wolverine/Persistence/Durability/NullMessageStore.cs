@@ -270,6 +270,17 @@ internal class NullNodeAgentPersistence : INodeAgentPersistence
         return Task.FromResult((IReadOnlyList<WolverineNode>)Array.Empty<WolverineNode>());
     }
 
+    public Task PersistAgentRestrictionsAsync(IReadOnlyList<AgentRestriction> restrictions,
+        CancellationToken cancellationToken)
+    {
+        return Task.CompletedTask;
+    }
+
+    public Task<NodeAgentState> LoadNodeAgentStateAsync(CancellationToken cancellationToken)
+    {
+        return Task.FromResult(new NodeAgentState([], new AgentRestrictions([])));
+    }
+
     public Task AssignAgentsAsync(Guid nodeId, IReadOnlyList<Uri> agents, CancellationToken cancellationToken)
     {
         return Task.CompletedTask;

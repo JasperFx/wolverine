@@ -88,6 +88,7 @@ public class static_multi_tenancy : MultiTenancyContext
         var expected = @"
 static_multi_tenancy2.blues
 static_multi_tenancy2.reds
+static_multi_tenancy2.wolverine_agent_restrictions
 static_multi_tenancy2.wolverine_control_queue
 static_multi_tenancy2.wolverine_dead_letters
 static_multi_tenancy2.wolverine_incoming_envelopes

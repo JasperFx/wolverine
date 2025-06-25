@@ -24,6 +24,7 @@ internal class PostgresqlNodePersistence : DatabaseConstants, INodeAgentPersiste
     private readonly DbObjectName _nodeTable;
 
     private readonly DatabaseSettings _settings;
+    private readonly DbObjectName _restrictionTable;
 
     public PostgresqlNodePersistence(DatabaseSettings settings, PostgresqlMessageStore database,
         NpgsqlDataSource dataSource)
@@ -33,6 +34,7 @@ internal class PostgresqlNodePersistence : DatabaseConstants, INodeAgentPersiste
         _dataSource = dataSource ?? throw new ArgumentNullException(nameof(dataSource));
         var schemaName = settings.SchemaName ?? "public";
         _nodeTable = new DbObjectName(schemaName, NodeTableName);
+        _restrictionTable = new DbObjectName(schemaName, DatabaseConstants.AgentRestrictionsTableName);
         _assignmentTable =
             new DbObjectName(schemaName, NodeAssignmentsTableName);
 
@@ -104,6 +106,82 @@ internal class PostgresqlNodePersistence : DatabaseConstants, INodeAgentPersiste
         await reader.CloseAsync();
 
         return nodes;
+    }
+
+    public async Task PersistAgentRestrictionsAsync(IReadOnlyList<AgentRestriction> restrictions,
+        CancellationToken cancellationToken)
+    {
+        var builder = new BatchBuilder();
+        foreach (var restriction in restrictions)
+        {
+            builder.StartNewCommand();
+            
+            if (restriction.Type == AgentRestrictionType.None)
+            {
+                builder.Append($"delete from {_restrictionTable} where id = ");
+                builder.AppendParameter(restriction.Id);
+            }
+            else
+            {
+                builder.Append(
+                    $"insert into {_restrictionTable} (id, uri, type, node) values (");
+                builder.AppendParameters(restriction.Id, restriction.AgentUri.ToString(), restriction.Type.ToString(), restriction.NodeNumber);
+                builder.Append(") on conflict(id) do update set node = ");
+                builder.AppendParameter(restriction.NodeNumber);
+            }
+        }
+        
+        var batch = builder.Compile();
+        await using var conn = await _dataSource.OpenConnectionAsync(cancellationToken);
+        batch.Connection = conn;
+        await batch.ExecuteNonQueryAsync(cancellationToken);
+        await conn.CloseAsync();
+    }
+
+    public async Task<NodeAgentState> LoadNodeAgentStateAsync(CancellationToken cancellationToken)
+    {
+        var nodes = new List<WolverineNode>();
+        var restrictions = new List<AgentRestriction>();
+        
+        await using var cmd = _dataSource.CreateCommand(
+            $"select {NodeColumns} from {_nodeTable};select {Id}, {NodeId}, {Started} from {_assignmentTable};select id, uri, type, node from {_restrictionTable}");
+        
+        await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            var node = await readNodeAsync(reader);
+            nodes.Add(node);
+        }
+        
+        var dict = nodes.ToDictionary(x => x.NodeId);
+        
+        await reader.NextResultAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            var agentId = new Uri(await reader.GetFieldValueAsync<string>(0, cancellationToken));
+            var nodeId = await reader.GetFieldValueAsync<Guid>(1, cancellationToken);
+        
+            dict[nodeId].ActiveAgents.Add(agentId);
+        }
+
+        await reader.NextResultAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            var id = await reader.GetFieldValueAsync<Guid>(0, cancellationToken);
+            var uriString = await reader.GetFieldValueAsync<string>(1, cancellationToken);
+            var typeString = await reader.GetFieldValueAsync<string>(2, cancellationToken);
+            var nodeNumber = await reader.GetFieldValueAsync<int>(3, cancellationToken);
+
+            // TODO -- harden this against garbage data
+            var restriction = new AgentRestriction(id, new Uri(uriString),
+                Enum.Parse<AgentRestrictionType>(typeString), nodeNumber);
+                
+            restrictions.Add(restriction);
+        }
+        
+        await reader.CloseAsync();
+        
+        return new(nodes, new AgentRestrictions(restrictions.ToArray()));
     }
 
     public async Task<WolverineNode?> LoadNodeAsync(Guid nodeId, CancellationToken cancellationToken)
