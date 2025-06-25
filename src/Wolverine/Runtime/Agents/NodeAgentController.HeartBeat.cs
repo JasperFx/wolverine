@@ -36,7 +36,8 @@ public partial class NodeAgentController
         // write health check regardless, and due to GH-1232, pass in the whole node so you can do an upsert
         await _persistence.MarkHealthCheckAsync(WolverineNode.For(_runtime.Options), _cancellation.Token);
 
-        var nodes = await _persistence.LoadAllNodesAsync(_cancellation.Token);
+        var (nodes, restrictions) = await _persistence.LoadNodeAgentStateAsync(_cancellation.Token);
+        
 
         // Check for stale nodes that are no longer writing health checks
         var staleTime = DateTimeOffset.UtcNow.Subtract(_runtime.Options.Durability.StaleNodeTimeout);
@@ -49,14 +50,14 @@ public partial class NodeAgentController
         if (_persistence.HasLeadershipLock())
         {
             IsLeader = true;
-            return await EvaluateAssignmentsAsync(nodes);
+            return await EvaluateAssignmentsAsync(nodes, restrictions);
         }
 
         try
         {
             if (await _persistence.TryAttainLeadershipLockAsync(_cancellation.Token))
             {
-                return await tryStartLeadershipAsync(nodes);
+                return await tryStartLeadershipAsync(nodes, restrictions);
             }
         }
         catch (Exception e)
@@ -67,7 +68,8 @@ public partial class NodeAgentController
         return AgentCommands.Empty;
     }
 
-    private async Task<AgentCommands> tryStartLeadershipAsync(IReadOnlyList<WolverineNode> nodes)
+    private async Task<AgentCommands> tryStartLeadershipAsync(IReadOnlyList<WolverineNode> nodes,
+        AgentRestrictions restrictions)
     {
         try
         {
@@ -92,7 +94,7 @@ public partial class NodeAgentController
         var self = nodes.FirstOrDefault(x => x.NodeId == _runtime.Options.UniqueNodeId);
         self.AssignAgents([LeaderUri]);
         
-        return await EvaluateAssignmentsAsync(nodes);
+        return await EvaluateAssignmentsAsync(nodes, restrictions);
     }
 
     private async Task ejectStaleNodes(IReadOnlyList<WolverineNode> staleNodes)

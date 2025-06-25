@@ -25,6 +25,8 @@ public class AgentRestrictions
         _current = [..restrictions];
     }
 
+    public IReadOnlyList<AgentRestriction> Current => _current;
+
     public IEnumerable<AgentRestriction> FindPinnedAgents()
     {
         return _current.Where(x => x.Type == AgentRestrictionType.Pinned);

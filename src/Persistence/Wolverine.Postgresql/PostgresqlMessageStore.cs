@@ -530,7 +530,14 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
             eventTable.AddColumn<DateTimeOffset>("timestamp").DefaultValueByExpression("now()").NotNull();
             eventTable.AddColumn<string>("description").AllowNulls();
             yield return eventTable;
-
+            
+            var restrictionTable =
+                new Table(new DbObjectName(SchemaName, DatabaseConstants.AgentRestrictionsTableName));
+            restrictionTable.AddColumn<Guid>("id").AsPrimaryKey();
+            restrictionTable.AddColumn<string>("uri").NotNull();
+            restrictionTable.AddColumn<string>("type").NotNull();
+            restrictionTable.AddColumn<int>("node").NotNull().DefaultValue(0);
+            yield return restrictionTable;
 
         }
         
