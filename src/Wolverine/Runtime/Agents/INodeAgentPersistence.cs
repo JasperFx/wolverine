@@ -1,5 +1,7 @@
 namespace Wolverine.Runtime.Agents;
 
+public record NodeAgentState(IReadOnlyList<WolverineNode> Nodes, AgentRestrictions Restrictions);
+
 /// <summary>
 ///     Persistence provider for Wolverine node and agent assignment information
 /// </summary>
@@ -9,7 +11,14 @@ public interface INodeAgentPersistence
 
     Task<int> PersistAsync(WolverineNode node, CancellationToken cancellationToken);
     Task DeleteAsync(Guid nodeId, int assignedNodeNumber);
+    
+    [Obsolete("Will be removed later, no longer used by internals")]
     Task<IReadOnlyList<WolverineNode>> LoadAllNodesAsync(CancellationToken cancellationToken);
+
+    Task PersistAgentRestrictionsAsync(IReadOnlyList<AgentRestriction> restrictions,
+        CancellationToken cancellationToken);
+    
+    Task<NodeAgentState> LoadNodeAgentStateAsync(CancellationToken cancellationToken);
 
     Task AssignAgentsAsync(Guid nodeId, IReadOnlyList<Uri> agents, CancellationToken cancellationToken);
 
@@ -32,4 +41,5 @@ public interface INodeAgentPersistence
     Task<bool> TryAttainLeadershipLockAsync(CancellationToken token);
 
     Task ReleaseLeadershipLockAsync();
+    
 }
