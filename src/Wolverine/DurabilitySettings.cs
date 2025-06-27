@@ -196,6 +196,12 @@ public class DurabilitySettings
     public bool DeadLetterQueueExpirationEnabled { get; set; }
 
     /// <summary>
+    /// Configurable time to keep records in the wolverine_node_records storage (or equivalent) for node records.
+    /// Default is 5 days
+    /// </summary>
+    public TimeSpan NodeEventRecordExpirationTime { get; set; } = 5.Days();
+
+    /// <summary>
     ///     Get or set the logical Wolverine service name. By default, this is
     ///     derived from the name of a custom WolverineOptions
     /// </summary>

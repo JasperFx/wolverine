@@ -1,6 +1,7 @@
 ﻿using IntegrationTests;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
+using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -12,6 +13,7 @@ using Wolverine.Persistence.Durability;
 using Wolverine.RDBMS;
 using Wolverine.RDBMS.Durability;
 using Wolverine.RDBMS.Polling;
+using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.WorkerQueues;
 using Wolverine.SqlServer;
 using Wolverine.Tracking;
@@ -148,5 +150,57 @@ public class SqlServerMessageStoreTests : MessageStoreCompliance
         stored.OwnerId.ShouldBe(durabilitySettings.AssignedNodeNumber);
         stored.Status.ShouldBe(EnvelopeStatus.Incoming);
     }
+    
+        [Fact]
+    public async Task delete_old_log_node_records()
+    {
+        var nodeRecord1 = new NodeRecord()
+        {
+            AgentUri = new Uri("fake://one"), 
+            Description = "Started", 
+            Id = Guid.NewGuid().ToString(), 
+            NodeNumber = 1,
+            RecordType = NodeRecordType.AgentStarted, ServiceName = "MyService",
+            Timestamp = DateTimeOffset.UtcNow.Subtract(10.Days())
+        };
+        
+        var nodeRecord2 = new NodeRecord()
+        {
+            AgentUri = new Uri("fake://one"), 
+            Description = "Started", 
+            Id = Guid.NewGuid().ToString(), 
+            NodeNumber = 2,
+            RecordType = NodeRecordType.AgentStarted, ServiceName = "MyService",
+            Timestamp = DateTimeOffset.UtcNow.Subtract(4.Days())
+        };
+
+        var messageDatabase = thePersistence.As<IMessageDatabase>();
+        var log = new PersistNodeRecord(messageDatabase.Settings, [nodeRecord1, nodeRecord2]);
+        await theHost.InvokeAsync(new DatabaseOperationBatch(messageDatabase, [log]));
+
+        using var conn = new SqlConnection(Servers.SqlServerConnectionString);
+        await conn.OpenAsync();
+        await conn.CreateCommand(
+                $"update receiver.{DatabaseConstants.NodeRecordTableName} set timestamp = @time where node_number = 2")
+            .With("time", DateTimeOffset.UtcNow.Subtract(10.Days()))
+            .ExecuteNonQueryAsync();
+        await conn.CloseAsync();
+        
+        var recent2 = await thePersistence.Nodes.FetchRecentRecordsAsync(100);
+        
+        recent2.Any().ShouldBeTrue();
+
+        var op = new DeleteOldNodeEventRecords((IMessageDatabase)thePersistence,
+            new DurabilitySettings { NodeEventRecordExpirationTime = 5.Days() });
+        
+        var batch = new DatabaseOperationBatch((IMessageDatabase)thePersistence, [op]);
+        await theHost.InvokeAsync(batch);
+
+        var recent = await thePersistence.Nodes.FetchRecentRecordsAsync(100);
+        
+        recent.Any().ShouldBeTrue();
+        recent.Any(x => x.Id == nodeRecord2.Id).ShouldBeFalse();
+    }
+
 
 }
