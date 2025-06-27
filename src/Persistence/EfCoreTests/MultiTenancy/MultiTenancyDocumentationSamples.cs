@@ -1,4 +1,5 @@
 using JasperFx;
+using JasperFx.Core;
 using JasperFx.MultiTenancy;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -8,6 +9,8 @@ using Npgsql;
 using SharedPersistenceModels.Items;
 using SharedPersistenceModels.Orders;
 using Wolverine;
+using Wolverine.ComplianceTests;
+using Wolverine.ComplianceTests.Scheduling;
 using Wolverine.EntityFrameworkCore;
 using Wolverine.Postgresql;
 using Wolverine.SqlServer;
@@ -179,6 +182,38 @@ public class OurFancyPostgreSQLMultiTenancy : IWolverineExtension
                 tenants.Register("tenant1", _provider.GetRequiredKeyedService<NpgsqlDataSource>("tenant2"));
                 tenants.Register("tenant1", _provider.GetRequiredKeyedService<NpgsqlDataSource>("tenant3"));
             });
+    }
+}
+
+#endregion
+
+#region sample_using_IDbContextOutboxFactory
+
+public class MyMessageHandler
+{
+    private readonly IDbContextOutboxFactory _factory;
+
+    public MyMessageHandler(IDbContextOutboxFactory factory)
+    {
+        _factory = factory;
+    }
+
+    public async Task HandleAsync(CreateItem command, string tenantId, CancellationToken cancellationToken)
+    {
+        // Get an EF Core DbContext wrapped in a Wolverine IDbContextOutbox<ItemsDbContext>
+        // for message sending wrapped in a transaction spanning the DbContext and Wolverine
+        var outbox = await _factory.CreateForTenantAsync<ItemsDbContext>(tenantId, cancellationToken);
+        var item = new Item { Name = command.Name, Id = CombGuidIdGeneration.NewGuid() };
+
+        outbox.DbContext.Items.Add(item);
+        
+        // Don't worry, this messages doesn't *actually* get sent until
+        // the transaction succeeds
+        await outbox.PublishAsync(new ItemCreated { Id = item.Id });
+
+        // Save and commit the unit of work with the outgoing message,
+        // then "flush" the outgoing messages through Wolverine
+        await outbox.SaveChangesAndFlushMessagesAsync(cancellationToken);
     }
 }
 

@@ -29,6 +29,10 @@ would, but you also need to specify a "master" database connection string for Wo
 // Adding Marten for persistence
 builder.Services.AddMarten(m =>
     {
+        // Not necessary to do this for the runtime, but does help the codegen
+        // and diagnostics
+        m.Schema.For<Todo>();
+        
         // With multi-tenancy through a database per tenant
         m.MultiTenantedDatabases(tenancy =>
         {
@@ -43,7 +47,7 @@ builder.Services.AddMarten(m =>
     })
     .IntegrateWithWolverine(x => x.MasterDatabaseConnectionString = connectionString);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/MultiTenantedTodoService/MultiTenantedTodoService/Program.cs#L12-L31' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_wolverine_for_marten_multi_tenancy' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/MultiTenantedTodoService/MultiTenantedTodoService/Program.cs#L13-L36' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_wolverine_for_marten_multi_tenancy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And you'll probably want this as well to make sure the message storage is in all the databases upfront:
@@ -53,7 +57,7 @@ And you'll probably want this as well to make sure the message storage is in all
 ```cs
 builder.Services.AddResourceSetupOnStartup();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/MultiTenantedTodoService/MultiTenantedTodoService/Program.cs#L33-L37' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_add_resource_setup_on_startup' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/MultiTenantedTodoService/MultiTenantedTodoService/Program.cs#L38-L42' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_add_resource_setup_on_startup' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Lastly, this is the Wolverine set up:
@@ -73,7 +77,7 @@ builder.Host.UseWolverine(opts =>
     opts.Policies.UseDurableLocalQueues();
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/MultiTenantedTodoService/MultiTenantedTodoService/Program.cs#L39-L53' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_setup_for_marten_multitenancy' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/MultiTenantedTodoService/MultiTenantedTodoService/Program.cs#L44-L58' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_setup_for_marten_multitenancy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 From there, you should be completely ready to use Marten + Wolverine with usages like this:

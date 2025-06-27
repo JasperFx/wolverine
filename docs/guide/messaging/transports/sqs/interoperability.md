@@ -86,7 +86,7 @@ public class CustomSqsMapper : ISqsEnvelopeMapper
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L308-L340' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_custom_sqs_mapper' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L309-L341' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_custom_sqs_mapper' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And apply this to any or all of your SQS endpoints with the configuration fluent interface as shown in this sample:
@@ -99,11 +99,12 @@ using var host = await Host.CreateDefaultBuilder()
     {
         opts.UseAmazonSqsTransport()
             .UseConventionalRouting()
+            .DisableAllNativeDeadLetterQueues()
             .ConfigureListeners(l => l.InteropWith(new CustomSqsMapper()))
             .ConfigureSenders(s => s.InteropWith(new CustomSqsMapper()));
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L293-L304' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_apply_custom_sqs_mapping' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L293-L305' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_apply_custom_sqs_mapping' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Receive messages from Amazon SNS
