@@ -110,10 +110,15 @@ public interface IPostgresqlBackedPersistence
 /// </summary>
 internal class PostgresqlBackedPersistence : IPostgresqlBackedPersistence, IWolverineExtension
 {
-    public PostgresqlBackedPersistence(DurabilitySettings settings)
+    private readonly WolverineOptions _options;
+
+    public PostgresqlBackedPersistence(DurabilitySettings settings, WolverineOptions options)
     {
+        _options = options;
         EnvelopeStorageSchemaName = settings.MessageStorageSchemaName ?? "wolverine";
     }
+    
+    internal bool AlreadyIncluded { get; set; }
 
     // Gotta have one or the other. Maybe even just DbDataSource here
     public NpgsqlDataSource? DataSource { get; set; }
@@ -227,7 +232,17 @@ internal class PostgresqlBackedPersistence : IPostgresqlBackedPersistence, IWolv
     {
         if (configure != null)
         {
-            _transportConfigurations.Add(configure);
+            if (AlreadyIncluded)
+            {
+                var transport = _options.Transports.GetOrCreate<PostgresqlTransport>();
+
+                var expression = new PostgresqlPersistenceExpression(transport, _options);
+                configure(expression);
+            }
+            else
+            {
+                _transportConfigurations.Add(configure);
+            }
         }
         return this;
     }
@@ -240,6 +255,7 @@ internal class PostgresqlBackedPersistence : IPostgresqlBackedPersistence, IWolv
 
     IPostgresqlBackedPersistence IPostgresqlBackedPersistence.SchemaName(string schemaName)
     {
+        schemaName.AssertValidSchemaName();
         EnvelopeStorageSchemaName = schemaName;
         return this;
     }
@@ -305,4 +321,6 @@ internal class PostgresqlBackedPersistence : IPostgresqlBackedPersistence, IWolv
     /// This is any default connection strings by tenant that should be loaded at start up time
     /// </summary>
     public StaticConnectionStringSource? TenantConnections { get; set; }
+
+    
 }

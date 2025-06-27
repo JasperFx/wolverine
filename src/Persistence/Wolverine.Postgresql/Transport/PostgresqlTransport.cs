@@ -45,6 +45,8 @@ public class PostgresqlTransport : BrokerTransport<PostgresqlQueue>, ITransportC
                 store.AddTable(queue.ScheduledTable);
             }
 
+            MessageStorageSchemaName = store.SchemaName;
+
             Store = store;
         }
         else if (runtime.Storage is MultiTenantedMessageStore tenants)
@@ -57,6 +59,8 @@ public class PostgresqlTransport : BrokerTransport<PostgresqlQueue>, ITransportC
                 {
                     if (messageStore is PostgresqlMessageStore s)
                     {
+                        MessageStorageSchemaName = s.SchemaName;
+                        
                         foreach (var queue in Queues)
                         {
                             s.AddTable(queue.QueueTable);

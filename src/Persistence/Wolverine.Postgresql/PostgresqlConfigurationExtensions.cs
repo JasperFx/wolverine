@@ -37,9 +37,10 @@ public static class PostgresqlConfigurationExtensions
     public static IPostgresqlBackedPersistence PersistMessagesWithPostgresql(this WolverineOptions options, string connectionString,
         string? schemaName = null)
     {
-        var persistence = new PostgresqlBackedPersistence(options.Durability)
+        var persistence = new PostgresqlBackedPersistence(options.Durability, options)
         {
             ConnectionString = connectionString,
+            AlreadyIncluded = true
         };
 
         if (schemaName.IsNotEmpty())
@@ -62,7 +63,7 @@ public static class PostgresqlConfigurationExtensions
     public static IPostgresqlBackedPersistence PersistMessagesWithPostgresql(this WolverineOptions options, NpgsqlDataSource dataSource,
         string? schemaName = null)
     {
-        var persistence = new PostgresqlBackedPersistence(options.Durability)
+        var persistence = new PostgresqlBackedPersistence(options.Durability, options)
         {
             DataSource = dataSource
         };
@@ -74,6 +75,8 @@ public static class PostgresqlConfigurationExtensions
         }
 
         options.Include(persistence);
+
+        persistence.AlreadyIncluded = true;
 
         return persistence;
     }
