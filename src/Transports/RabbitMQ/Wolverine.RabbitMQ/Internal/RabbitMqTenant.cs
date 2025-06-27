@@ -28,13 +28,13 @@ internal class RabbitMqTenant
         if (VirtualHostName.IsNotEmpty())
         {
             var props = typeof(ConnectionFactory).GetProperties();
-            
+
             Transport.ConfigureFactory(f =>
             {
                 foreach (var prop in props)
                 {
                     if (!prop.CanWrite) continue;
-                
+
                     prop.SetValue(f, prop.GetValue(parent.ConnectionFactory));
                 }
 
@@ -42,7 +42,20 @@ internal class RabbitMqTenant
             });
         }
 
+        CloneDeadLetterQueue(parent);
+
         return Transport!;
+    }
+
+    private void CloneDeadLetterQueue(RabbitMqTransport parent)
+    {
+        // Copy the parent dead letter queue configuration to the tenant
+        Transport.DeadLetterQueue.Mode = parent.DeadLetterQueue.Mode;
+        Transport.DeadLetterQueue.QueueName = parent.DeadLetterQueue.QueueName;
+        Transport.DeadLetterQueue.ExchangeName = parent.DeadLetterQueue.ExchangeName;
+        Transport.DeadLetterQueue.BindingName = parent.DeadLetterQueue.BindingName;
+        Transport.DeadLetterQueue.ConfigureQueue = parent.DeadLetterQueue.ConfigureQueue;
+        Transport.DeadLetterQueue.ConfigureExchange = parent.DeadLetterQueue.ConfigureExchange;
     }
 
     public Task ConnectAsync(RabbitMqTransport parent, IWolverineRuntime runtime)
