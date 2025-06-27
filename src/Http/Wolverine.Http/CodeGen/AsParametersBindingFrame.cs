@@ -143,6 +143,11 @@ internal class AsParametersBindingFrame : SyncFrame
             var queryStringName = qatt.Name ?? memberName;
             variable =
                 chain.TryFindOrCreateQuerystringValue(memberType, queryStringName);
+            
+            if (variable is null)
+            {
+                variable = new QueryStringBindingFrame(memberType, chain).Variable;
+            }
 
             return true;
         }
@@ -204,6 +209,11 @@ internal class AsParametersBindingFrame : SyncFrame
             var queryStringName = qatt.Name ?? memberName;
             variable =
                 chain.TryFindOrCreateQuerystringValue(memberType, queryStringName);
+
+            if (variable is null)
+            {
+                variable = new QueryStringBindingFrame(memberType, chain).Variable;
+            }
 
             return true;
         }
