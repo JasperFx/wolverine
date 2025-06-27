@@ -91,14 +91,7 @@ internal class DurabilityAgent : IAgent
 
         _recoveryTimer = new Timer(_ =>
         {
-            var operations = new IDatabaseOperation[]
-            {
-                new CheckRecoverableIncomingMessagesOperation(_database, _runtime.Endpoints, _settings, _logger),
-                new CheckRecoverableOutgoingMessagesOperation(_database, _runtime, _logger),
-                new DeleteExpiredEnvelopesOperation(
-                    new DbObjectName(_database.SchemaName, DatabaseConstants.IncomingTable), DateTimeOffset.UtcNow),
-                new MoveReplayableErrorMessagesToIncomingOperation(_database)
-            };
+            var operations = buildOperationBatch();
 
             var batch = new DatabaseOperationBatch(_database, operations);
             _runningBlock.Post(batch);
@@ -124,6 +117,42 @@ internal class DurabilityAgent : IAgent
         }
 
         return Task.CompletedTask;
+    }
+
+    private DateTimeOffset? _lastNodeRecordPruneTime;
+
+    private bool isTimeToPruneNodeEventRecords()
+    {
+        if (_lastNodeRecordPruneTime == null) return true;
+
+        if (DateTimeOffset.UtcNow.Subtract(_lastNodeRecordPruneTime.Value) > 1.Hours()) return true;
+
+        return false;
+    }
+
+    private IDatabaseOperation[] buildOperationBatch()
+    {
+        if (_database.Settings.IsMain && isTimeToPruneNodeEventRecords())
+        {
+            return
+            [
+                new CheckRecoverableIncomingMessagesOperation(_database, _runtime.Endpoints, _settings, _logger),
+                new CheckRecoverableOutgoingMessagesOperation(_database, _runtime, _logger),
+                new DeleteExpiredEnvelopesOperation(
+                    new DbObjectName(_database.SchemaName, DatabaseConstants.IncomingTable), DateTimeOffset.UtcNow),
+                new MoveReplayableErrorMessagesToIncomingOperation(_database),
+                new DeleteOldNodeEventRecords(_database, _settings)
+            ];
+        }
+        
+        return
+        [
+            new CheckRecoverableIncomingMessagesOperation(_database, _runtime.Endpoints, _settings, _logger),
+            new CheckRecoverableOutgoingMessagesOperation(_database, _runtime, _logger),
+            new DeleteExpiredEnvelopesOperation(
+                new DbObjectName(_database.SchemaName, DatabaseConstants.IncomingTable), DateTimeOffset.UtcNow),
+            new MoveReplayableErrorMessagesToIncomingOperation(_database)
+        ];
     }
 
     public void StartScheduledJobPolling()
