@@ -2,7 +2,7 @@
 
 ::: tip
 Unlike some other .NET messaging frameworks, Wolverine does not require specific message handlers to be registered
-at a certain 
+at a certain listening endpoint like a Rabbit MQ queue or Kafka topic.
 :::
 
 A vital piece of Wolverine is defining or configuring endpoints where Wolverine "listens" for incoming messages to 
