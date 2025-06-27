@@ -27,8 +27,7 @@ internal class FromQueryAttributeUsage : IParameterStrategy
         if (parameter.ParameterType.IsTypeOrNullableOf<TimeOnly>()) return false;
         if (parameter.ParameterType.IsTypeOrNullableOf<TimeSpan>()) return false;
         if (parameter.ParameterType.IsTypeOrNullableOf<Guid>()) return false;
-        
-        chain.RequestType = parameter.ParameterType;
+
         variable = new QueryStringBindingFrame(parameter.ParameterType, chain).Variable;
         return true;
     }
