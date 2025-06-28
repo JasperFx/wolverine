@@ -17,6 +17,17 @@ public static class WolverineHostMessageTrackingExtensions
     }
 
     /// <summary>
+    /// Retrieves the assigned node number for this host. Maybe not be
+    /// useful outside of tests for Wolverine itself:)
+    /// </summary>
+    /// <param name="host"></param>
+    /// <returns></returns>
+    public static int NodeNumber(this IHost host)
+    {
+        return host.GetRuntime().Options.Durability.AssignedNodeNumber;
+    }
+
+    /// <summary>
     ///     Advanced usage of the 'ExecuteAndWait()' message tracking and coordination for automated testing.
     ///     Use this configuration if you want to coordinate message tracking across multiple Wolverine
     ///     applications running in the same process
