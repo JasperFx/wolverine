@@ -26,8 +26,4 @@ public interface IAgentRuntime
     /// </summary>
     /// <returns></returns>
     void DisableHealthChecks();
-
-    // bool TryFindActiveAgent(Uri agentUri, out IAgent agent);
-    //
-    // bool TryFindAgentLocation(Uri agentUri, out NodeDestination destination);
 }
