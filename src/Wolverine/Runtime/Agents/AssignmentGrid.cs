@@ -214,6 +214,8 @@ public partial class AssignmentGrid
 
     public void ApplyRestrictions(AgentRestrictions restrictions)
     {
+        Restrictions = restrictions;
+        
         // Assume that the AssignmentGrid is completely fleshed out with the 
         // known agents and nodes at this point
         foreach (var pin in restrictions.Pins())
@@ -249,4 +251,6 @@ public partial class AssignmentGrid
         }
         
     }
+
+    public AgentRestrictions? Restrictions { get; set; }
 }
