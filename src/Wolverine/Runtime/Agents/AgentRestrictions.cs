@@ -109,4 +109,9 @@ public class AgentRestrictions
     {
         throw new NotImplementedException();
     }
+
+    public bool HasAnyDifferencesFrom(AgentRestriction[] serviceRestrictions)
+    {
+        throw new NotImplementedException();
+    }
 }
