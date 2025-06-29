@@ -1,3 +1,4 @@
+using ImTools;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Logging;
@@ -110,6 +111,17 @@ public partial class WolverineRuntime : IAgentRuntime
         if (_healthCheckLoop == null) return;
 
         NodeController?.CancelHeartbeatChecking();
+    }
+
+    public async Task ApplyRestrictionsAsync(AgentRestrictions restrictions, CancellationToken cancellationToken)
+    {
+        await KickstartHealthDetectionAsync();
+        
+        var (nodes, assignments) = await Storage.Nodes.LoadNodeAgentStateAsync(cancellationToken);
+        assignments.MergeChanges(restrictions);
+        await Storage.Nodes.PersistAgentRestrictionsAsync(assignments.FindChanges(), cancellationToken);
+
+        await NodeController!.EvaluateAssignmentsAsync(nodes, assignments);
     }
 
     public IAgentRuntime Agents => this;

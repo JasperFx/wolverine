@@ -104,4 +104,9 @@ public class AgentRestrictions
         _current.Remove(current);
         _current.Add(replaced);
     }
+
+    public void MergeChanges(AgentRestrictions other)
+    {
+        throw new NotImplementedException();
+    }
 }
