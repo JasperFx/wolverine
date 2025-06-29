@@ -26,4 +26,12 @@ public interface IAgentRuntime
     /// </summary>
     /// <returns></returns>
     void DisableHealthChecks();
+
+    /// <summary>
+    /// Applies new agent restrictions
+    /// </summary>
+    /// <param name="restrictions"></param>
+    /// <param name="cancellationToken"></param>
+    /// <returns></returns>
+    Task ApplyRestrictionsAsync(AgentRestrictions restrictions, CancellationToken cancellationToken);
 }
