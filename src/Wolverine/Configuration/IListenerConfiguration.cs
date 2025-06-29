@@ -116,6 +116,12 @@ public interface IListenerConfiguration<T> : IEndpointConfiguration<T>
     /// <param name="handlerType"></param>
     /// <returns></returns>
     T AddStickyHandler(Type handlerType);
+
+    /// <summary>
+    /// "Pin" this endpoint so that it is only active on the leader node
+    /// </summary>
+    /// <returns></returns>
+    public T ListenOnlyAtLeader();
 }
 
 public interface IListenerConfiguration : IListenerConfiguration<IListenerConfiguration>;
