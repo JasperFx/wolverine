@@ -48,7 +48,7 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
 
     public ITenantedMessageSource Source { get; }
 
-    public Uri Uri => new Uri($"{PersistenceConstants.AgentScheme}://multitenanted");
+    public Uri Uri => new($"{PersistenceConstants.AgentScheme}://multitenanted");
 
 
     public IMessageStore Main { get; }
