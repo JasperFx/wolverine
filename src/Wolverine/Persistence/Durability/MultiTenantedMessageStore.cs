@@ -50,6 +50,7 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
 
     public ITenantedMessageSource Source { get; }
 
+    public Uri Uri => new($"{PersistenceConstants.AgentScheme}://multitenanted");
 
     public IMessageStore Main { get; }
 
@@ -316,8 +317,6 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
         foreach (var value in dict.Values) await _retryBlock.PostAsync(value);
     }
 
-    public Uri Uri => new($"{PersistenceConstants.AgentScheme}://multitenanted");
-
     public async Task ReassignIncomingAsync(int ownerId, IReadOnlyList<Envelope> incoming)
     {
         string tenantId = null;
@@ -532,6 +531,16 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
     Task<IReadOnlyList<WolverineNode>> INodeAgentPersistence.LoadAllNodesAsync(CancellationToken cancellationToken)
     {
         return Main.Nodes.LoadAllNodesAsync(cancellationToken);
+    }
+
+    Task INodeAgentPersistence.PersistAgentRestrictionsAsync(IReadOnlyList<AgentRestriction> restrictions, CancellationToken cancellationToken)
+    {
+        return Main.Nodes.PersistAgentRestrictionsAsync(restrictions, cancellationToken);
+    }
+
+    Task<NodeAgentState> INodeAgentPersistence.LoadNodeAgentStateAsync(CancellationToken cancellationToken)
+    {
+        return Main.Nodes.LoadNodeAgentStateAsync(cancellationToken);
     }
 
     Task INodeAgentPersistence.AssignAgentsAsync(Guid nodeId, IReadOnlyList<Uri> agents,
