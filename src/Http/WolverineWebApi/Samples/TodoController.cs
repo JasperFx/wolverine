@@ -1,9 +1,12 @@
-using System.ComponentModel.DataAnnotations;
+using JasperFx.CodeGeneration;
+using JasperFx.CodeGeneration.Frames;
 using Marten;
 using Microsoft.AspNetCore.Mvc;
+using System.ComponentModel.DataAnnotations;
 using Wolverine;
 using Wolverine.Http;
 using Wolverine.Marten;
+using Wolverine.Runtime;
 
 namespace WolverineWebApi.Samples;
 
@@ -170,7 +173,7 @@ public static class Update2Endpoint
     }
 }
 
-public static class UpdateEndpoint3
+public static class UpdateEndpointWithValidation
 {
     // Find required Todo entity for the route handler below
     public static Task<Todo?> LoadAsync(int id, IDocumentSession session)
@@ -183,7 +186,7 @@ public static class UpdateEndpoint3
             : WolverineContinue.Result();
     }
 
-    [WolverinePut("/todos3/{id:int}")]
+    [WolverinePut("/todos/validation/{id:int}")]
     public static StoreDoc<Todo> Put(
         // Route argument
         int id,
@@ -199,5 +202,68 @@ public static class UpdateEndpoint3
         todo.IsComplete = request.IsComplete;
 
         return MartenOps.Store(todo);
+    }
+}
+
+public static class UpdateEndpointWithMiddleware
+{
+    [WolverinePut("/todos/middleware/{id:int}")]
+    public static StoreDoc<Todo> Put(
+        // Route argument
+        int id,
+
+        // The request body
+        UpdateRequest request,
+
+        // Entity loaded by the method above,
+        // but note the [Required] attribute
+        [Required] Todo? todo)
+    {
+        todo.Name = request.Name;
+        todo.IsComplete = request.IsComplete;
+
+        return MartenOps.Store(todo);
+    }
+}
+
+public class LoadTodoMiddleware
+{
+    // Find required Todo entity for the route handler below
+    public static Task<Todo?> LoadAsync(int id, IDocumentSession session)
+        => session.LoadAsync<Todo>(id);
+}
+
+public static class UpdateEndpointWithPolicy
+{
+    [WolverinePut("/todos/policy/{id:int}")]
+    public static StoreDoc<Todo> Put(
+        // Route argument
+        int id,
+
+        // The request body
+        UpdateRequest request,
+
+        // Entity loaded by the method above,
+        // but note the [Required] attribute
+        [Required] Todo? todo)
+    {
+        todo.Name = request.Name;
+        todo.IsComplete = request.IsComplete;
+
+        return MartenOps.Store(todo);
+    }
+}
+
+public class LoadTodoPolicy : IHttpPolicy
+{
+    public void Apply(IReadOnlyList<HttpChain> chains, GenerationRules rules, IServiceContainer container)
+    {
+        foreach (var chain in chains)
+        {
+            if (chain.EndpointType == typeof(UpdateEndpointWithPolicy))
+            {
+                chain.Middleware.Insert(0, new MethodCall(typeof(LoadTodoMiddleware), nameof(LoadTodoMiddleware.LoadAsync)));
+            }
+        }
     }
 }
