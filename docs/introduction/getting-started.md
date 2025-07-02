@@ -99,7 +99,7 @@ Alright, let's talk about what we wrote up above:
 2. We registered the `UserRepository` and `IssueRepository` services
 3. We created a couple [Minimal API](https://docs.microsoft.com/en-us/aspnet/core/fundamentals/minimal-apis?view=aspnetcore-6.0) endpoints
 
-See also: [Wolverine as Command Bus](/guide/in-memory-bus)
+See also: [Wolverine as Command Bus](/guide/messaging/transports/local.html)
 
 The two Web API functions directly delegate to Wolverine's `IMessageBus.InvokeAsync()` method.
 In that method, Wolverine will direct the command to the correct handler and invoke that handler
