@@ -149,4 +149,70 @@ public class AgentRestrictionsTests
         
     }
 
+    [Fact]
+    public void merge_changes_a_none_clears_that_restriction()
+    {
+        var r5 = new AgentRestriction(Guid.NewGuid(), new Uri("fake://three"), AgentRestrictionType.Paused, 5);
+
+        var r6 = new AgentRestriction(Guid.NewGuid(), new Uri("fake://six"), AgentRestrictionType.Paused, 10);
+
+        var none = new AgentRestriction(r6.Id, r6.AgentUri, AgentRestrictionType.None, 0);
+
+        var restrictions = new AgentRestrictions([r5, r6]);
+        restrictions.MergeChanges(new AgentRestrictions([none]));
+
+        var @override = restrictions.FindChanges().Single();
+        @override.Type.ShouldBe(AgentRestrictionType.None);
+        @override.AgentUri.ShouldBe(r6.AgentUri);
+    }
+    
+    [Fact]
+    public void merge_changes_a_none_clears_that_restriction_2()
+    {
+        var r5 = new AgentRestriction(Guid.NewGuid(), new Uri("fake://three"), AgentRestrictionType.Paused, 5);
+
+        var r6 = new AgentRestriction(Guid.NewGuid(), new Uri("fake://six"), AgentRestrictionType.Pinned, 0);
+
+        var none = new AgentRestriction(r6.Id, r6.AgentUri, AgentRestrictionType.None, 0);
+
+        var restrictions = new AgentRestrictions([r5, r6]);
+        restrictions.MergeChanges(new AgentRestrictions([none]));
+
+        var @override = restrictions.FindChanges().Single();
+        @override.Type.ShouldBe(AgentRestrictionType.None);
+        @override.AgentUri.ShouldBe(r6.AgentUri);
+    }
+
+    [Fact]
+    public void add_a_pin_in_merge()
+    {
+        var r5 = new AgentRestriction(Guid.NewGuid(), new Uri("fake://three"), AgentRestrictionType.Paused, 5);
+
+        var r6 = new AgentRestriction(Guid.NewGuid(), new Uri("fake://six"), AgentRestrictionType.Pinned, 0);
+
+        var restrictions = new AgentRestrictions([r5]);
+        restrictions.MergeChanges(new AgentRestrictions([r6]));
+
+        var @override = restrictions.FindChanges().Single();
+        @override.Type.ShouldBe(AgentRestrictionType.Pinned);
+        @override.AgentUri.ShouldBe(r6.AgentUri);
+        @override.NodeNumber.ShouldBe(r6.NodeNumber);
+    }
+    
+    [Fact]
+    public void add_a_pause_in_merge()
+    {
+        var r5 = new AgentRestriction(Guid.NewGuid(), new Uri("fake://three"), AgentRestrictionType.Paused, 5);
+
+        var r6 = new AgentRestriction(Guid.NewGuid(), new Uri("fake://six"), AgentRestrictionType.Paused, 0);
+
+        var restrictions = new AgentRestrictions([r5]);
+        restrictions.MergeChanges(new AgentRestrictions([r6]));
+
+        var @override = restrictions.FindChanges().Single();
+        @override.Type.ShouldBe(AgentRestrictionType.Paused);
+        @override.AgentUri.ShouldBe(r6.AgentUri);
+        @override.NodeNumber.ShouldBe(0);
+    }
+
 }
