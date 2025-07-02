@@ -11,7 +11,13 @@ public enum AgentRestrictionType
     None
 }
 
-public record AgentRestriction(Guid Id, Uri AgentUri, AgentRestrictionType Type, int NodeNumber);
+public record AgentRestriction(Guid Id, Uri AgentUri, AgentRestrictionType Type, int NodeNumber)
+{
+    public bool Matches(AgentRestriction other)
+    {
+        return AgentUri == other.AgentUri && Type == other.Type && NodeNumber == other.NodeNumber;
+    }
+}
 
 public class AgentRestrictions
 {
@@ -112,6 +118,7 @@ public class AgentRestrictions
 
     public bool HasAnyDifferencesFrom(AgentRestriction[] serviceRestrictions)
     {
-        throw new NotImplementedException();
+        return serviceRestrictions.Length != Current.Count ||
+               serviceRestrictions.Any(x => !Current.Any(c => c.Matches(x)));
     }
 }
