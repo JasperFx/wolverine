@@ -113,7 +113,24 @@ public class AgentRestrictions
 
     public void MergeChanges(AgentRestrictions other)
     {
-        throw new NotImplementedException();
+        foreach (var restriction in other.Current)
+        {
+            switch (restriction.Type)
+            {
+                case AgentRestrictionType.None:
+                    RemovePin(restriction.AgentUri);
+                    RestartAgent(restriction.AgentUri);
+                    break;
+                
+                case AgentRestrictionType.Paused:
+                    PauseAgent(restriction.AgentUri);
+                    break;
+                
+                case AgentRestrictionType.Pinned:
+                    PinAgent(restriction.AgentUri, restriction.NodeNumber);
+                    break;
+            }
+        }
     }
 
     public bool HasAnyDifferencesFrom(AgentRestriction[] serviceRestrictions)
