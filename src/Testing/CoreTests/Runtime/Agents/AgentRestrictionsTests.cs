@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Wolverine.Runtime.Agents;
 using Xunit;
 
@@ -31,6 +32,19 @@ public class AgentRestrictionsTests
         restriction.Type.ShouldBe(AgentRestrictionType.Pinned);
         restriction.AgentUri.ShouldBe(restriction.AgentUri);
         restriction.Id.ShouldBe(original.Id);
+    }
+
+    [Fact]
+    public void can_bi_directionally_json_serialize_with_STJ()
+    {
+        var original = new AgentRestriction(Guid.NewGuid(), new Uri("fake://two"), AgentRestrictionType.Pinned, 5);
+        var restrictions = new AgentRestrictions([original]);
+
+        var json = JsonSerializer.Serialize(restrictions);
+
+        var restrictions2 = JsonSerializer.Deserialize<AgentRestrictions>(json);
+
+        restrictions.Current.ShouldBe(restrictions2.Current);
     }
 
     [Fact]
