@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json.Serialization;
 using JasperFx.Core;
 
 namespace Wolverine.Runtime.Agents;
@@ -22,8 +23,11 @@ public record AgentRestriction(Guid Id, Uri AgentUri, AgentRestrictionType Type,
 public class AgentRestrictions
 {
     private readonly AgentRestriction[] _originals;
-    private readonly List<AgentRestriction> _current;
+    private readonly List<AgentRestriction> _current = new();
 
+    public AgentRestrictions()
+    {
+    }
 
     public AgentRestrictions(AgentRestriction[] restrictions)
     {
@@ -31,7 +35,15 @@ public class AgentRestrictions
         _current = [..restrictions];
     }
 
-    public IReadOnlyList<AgentRestriction> Current => _current;
+    public IReadOnlyList<AgentRestriction> Current
+    {
+        get => _current;
+        set
+        {
+            _current.Clear();
+            _current.AddRange(value);
+        }
+    }
 
     public IEnumerable<AgentRestriction> FindPinnedAgents()
     {
