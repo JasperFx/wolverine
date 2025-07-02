@@ -238,8 +238,11 @@ app.MapWolverineEndpoints(opts =>
     // Only want this middleware on endpoints on this one handler
     opts.AddMiddleware(typeof(BeforeAndAfterMiddleware),
         chain => chain.Method.HandlerType == typeof(MiddlewareEndpoints));
+    opts.AddMiddleware(typeof(LoadTodoMiddleware),
+        chain => chain.Method.HandlerType == typeof(UpdateEndpointWithMiddleware));
+    opts.AddPolicy<LoadTodoPolicy>();
 
-#region sample_user_marten_compiled_query_policy
+    #region sample_user_marten_compiled_query_policy
     opts.UseMartenCompiledQueryResultPolicy();
 #endregion
 

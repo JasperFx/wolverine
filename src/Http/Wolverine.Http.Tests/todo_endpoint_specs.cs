@@ -12,8 +12,12 @@ public class todo_endpoint_specs : IntegrationContext
     {
     }
 
-    [Fact]
-    public async Task wolverine_can_handle_route_constraints()
+    [Theory]
+    [InlineData("/todos/")]
+    [InlineData("/todos/validation/")]
+    [InlineData("/todos/middleware/")]
+    [InlineData("/todos/policy/")]
+    public async Task wolverine_can_handle_route_constraints(string baseUrl)
     {
         await using var session = Store.LightweightSession();
         var todo = new Todo { Name = "First", IsComplete = false };
@@ -22,7 +26,7 @@ public class todo_endpoint_specs : IntegrationContext
 
         await Scenario(opts =>
         {
-            opts.Put.Json(new UpdateRequest("Second", true)).ToUrl("/todos/" + todo.Id);
+            opts.Put.Json(new UpdateRequest("Second", true)).ToUrl(baseUrl + todo.Id);
             opts.StatusCodeShouldBe(204);
         });
 
@@ -64,7 +68,27 @@ public class todo_endpoint_specs : IntegrationContext
     {
         await Scenario(opts =>
         {
-            opts.Put.Json(new UpdateRequest("Second", true)).ToUrl("/todos3/1222222222");
+            opts.Put.Json(new UpdateRequest("Second", true)).ToUrl("/todos/validation/1222222222");
+            opts.StatusCodeShouldBe(404);
+        });
+    }
+
+    [Fact]
+    public async Task get_an_automatic_404_when_related_entity_does_not_exist_with_middleware()
+    {
+        await Scenario(opts =>
+        {
+            opts.Put.Json(new UpdateRequest("Second", true)).ToUrl("/todos/middleware/1222222222");
+            opts.StatusCodeShouldBe(404);
+        });
+    }
+
+    [Fact]
+    public async Task get_an_automatic_404_when_related_entity_does_not_exist_with_policy()
+    {
+        await Scenario(opts =>
+        {
+            opts.Put.Json(new UpdateRequest("Second", true)).ToUrl("/todos/policy/1222222222");
             opts.StatusCodeShouldBe(404);
         });
     }
