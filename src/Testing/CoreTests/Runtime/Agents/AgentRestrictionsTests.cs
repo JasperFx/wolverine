@@ -127,4 +127,26 @@ public class AgentRestrictionsTests
         changed.AgentUri.ShouldBe(original.AgentUri);
     }
 
+    [Fact]
+    public void has_any_differences()
+    {
+        var r1 = new AgentRestriction(Guid.NewGuid(), new Uri("fake://three"), AgentRestrictionType.Pinned, 5);
+        var r2 = new AgentRestriction(Guid.NewGuid(), new Uri("fake://three"), AgentRestrictionType.Pinned, 5);
+        var r3 = new AgentRestriction(Guid.NewGuid(), new Uri("fake://four"), AgentRestrictionType.Pinned, 5);
+        var r4 = new AgentRestriction(Guid.NewGuid(), new Uri("fake://three"), AgentRestrictionType.Pinned, 6);
+        var r5 = new AgentRestriction(Guid.NewGuid(), new Uri("fake://three"), AgentRestrictionType.Paused, 5);
+
+        var r6 = new AgentRestriction(Guid.NewGuid(), new Uri("fake://six"), AgentRestrictionType.Paused, 10);
+        
+        new AgentRestrictions([r1]).HasAnyDifferencesFrom([r1]).ShouldBeFalse();
+        new AgentRestrictions([r1]).HasAnyDifferencesFrom([r2]).ShouldBeFalse();
+        
+        new AgentRestrictions([r1, r3]).HasAnyDifferencesFrom([r4]).ShouldBeTrue();
+        new AgentRestrictions([r1, r3]).HasAnyDifferencesFrom([r4, r5, r6]).ShouldBeTrue();
+        new AgentRestrictions([r1, r3]).HasAnyDifferencesFrom([r1, r3, r6]).ShouldBeTrue();
+        new AgentRestrictions([r1, r3, r6]).HasAnyDifferencesFrom([r1, r3]).ShouldBeTrue();
+        
+        
+    }
+
 }
