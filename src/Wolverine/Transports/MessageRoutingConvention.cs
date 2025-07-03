@@ -2,6 +2,7 @@ using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
+using Wolverine.Runtime.RemoteInvocation;
 using Wolverine.Runtime.Routing;
 using Wolverine.Util;
 
@@ -98,6 +99,11 @@ public abstract class MessageRoutingConvention<TTransport, TListener, TSubscribe
         }
 
         if (!_typeFilters.Matches(messageType))
+        {
+            yield break;
+        }
+
+        if (messageType.CanBeCastTo<INotToBeRouted>() || messageType == typeof(Envelope))
         {
             yield break;
         }
