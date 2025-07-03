@@ -5,7 +5,7 @@ namespace Wolverine.Runtime.RemoteInvocation;
 /// <summary>
 ///     Successful receipt of an outgoing message
 /// </summary>
-public class Acknowledgement : ISerializable
+public class Acknowledgement : ISerializable, INotToBeRouted
 {
     /// <summary>
     ///     The message id of the original request

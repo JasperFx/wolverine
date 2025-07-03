@@ -10,7 +10,7 @@ namespace Wolverine;
 ///     Group of related, outgoing messages to use as a cascading message
 ///     mechanism in Wolverine message handlers
 /// </summary>
-public class OutgoingMessages : List<object>, IWolverineReturnType
+public class OutgoingMessages : List<object>, IWolverineReturnType, INotToBeRouted
 {
     /// <summary>
     ///     Send a message back to the original sender
