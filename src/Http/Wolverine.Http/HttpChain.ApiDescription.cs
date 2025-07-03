@@ -97,7 +97,7 @@ public partial class HttpChain
                     Name = parameter.Name,
                     ParameterType = parameter.ParameterType
                 },
-                Type = typeof(IFormFile),
+                Type = parameter.ParameterType,
                 IsRequired = true
             };
 
