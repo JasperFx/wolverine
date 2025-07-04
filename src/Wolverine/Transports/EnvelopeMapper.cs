@@ -24,10 +24,11 @@ public interface IEnvelopeMapper<TIncoming, TOutgoing> : IOutgoingMapper<TOutgoi
 
 public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIncoming, TOutgoing>
 {
+    /// <summary>yyyy-MM-dd HH:mm:ss:ffffff Z</summary>
     private const string DateTimeOffsetFormat = "yyyy-MM-dd HH:mm:ss:ffffff Z";
     private readonly Endpoint _endpoint;
 
-    private readonly Dictionary<PropertyInfo, string> _envelopeToHeader = new();
+    private readonly Lazy<Dictionary<PropertyInfo, string>> _envelopeToHeader;
 
     private readonly Dictionary<PropertyInfo, Action<Envelope, TOutgoing>> _envelopeToOutgoing = new();
 
@@ -35,13 +36,36 @@ public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIn
     private readonly Lazy<Action<Envelope, TIncoming>> _mapIncoming;
     private readonly Lazy<Action<Envelope, TOutgoing>> _mapOutgoing;
 
+    /// <summary>
+    ///     Map the headers and properties of an incoming message to an Envelope.
+    /// </summary>
+    protected Action<Envelope, TIncoming> MapIncoming => _mapIncoming.Value;
+    
+    /// <summary>
+    ///     Map the headers and properties of an Envelope to an outgoing message.
+    /// </summary>
+    protected Action<Envelope, TOutgoing> MapOutgoing => _mapOutgoing.Value;
+
     public EnvelopeMapper(Endpoint endpoint)
     {
         _endpoint = endpoint;
 
         _mapIncoming = new Lazy<Action<Envelope, TIncoming>>(compileIncoming);
         _mapOutgoing = new Lazy<Action<Envelope, TOutgoing>>(compileOutgoing);
+        
+        _envelopeToHeader = new Lazy<Dictionary<PropertyInfo, string>>(() =>
+        {
+            var dict = new Dictionary<PropertyInfo, string>();
+            MapPropertiesToHeaders();
+            return dict;
+        });
+    }
 
+    /// <summary>
+    ///     Map the properties on the Envelope to headers.
+    /// </summary>
+    protected virtual void MapPropertiesToHeaders()
+    {
         MapPropertyToHeader(x => x.CorrelationId!, EnvelopeConstants.CorrelationIdKey);
         MapPropertyToHeader(x => x.SagaId!, EnvelopeConstants.SagaIdKey);
         MapPropertyToHeader(x => x.Id, EnvelopeConstants.IdKey);
@@ -67,39 +91,69 @@ public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIn
         MapPropertyToHeader(x => x.Attempts, EnvelopeConstants.AttemptsKey);
     }
 
+    /// <summary>
+    ///    Get all headers that are mapped from the Envelope to the outgoing message.
+    /// </summary>
+    /// <returns>The header keys.</returns>
     public IEnumerable<string> AllHeaders()
     {
-        return _envelopeToHeader.Values;
+        return _envelopeToHeader.Value.Values;
     }
 
-    public void MapIncomingToEnvelope(Envelope envelope, TIncoming incoming)
+    /// <summary>
+    ///     Map the incoming message to an Envelope.
+    ///     By default, this will map incoming headers and properties to the Envelope
+    ///     using <see cref="MapIncoming"/>, and set the serializer based on the content type of the incoming message.
+    ///
+    ///     If no matching serializer is found on the Endpoint, the default serializer
+    ///     from the Endpoint configuration will be used.
+    /// </summary>
+    /// <param name="envelope">The envelope to map to.</param>
+    /// <param name="incoming">The incoming message to map from.</param>
+    public virtual void MapIncomingToEnvelope(Envelope envelope, TIncoming incoming)
     {
-        _mapIncoming.Value(envelope, incoming);
+        MapIncoming(envelope, incoming);
 
         var contentType = envelope.ContentType;
         var serializer = _endpoint.TryFindSerializer(contentType) ?? _endpoint.DefaultSerializer;
         envelope.Serializer = serializer;
     }
 
-    public void MapEnvelopeToOutgoing(Envelope envelope, TOutgoing outgoing)
+    /// <summary>
+    ///     Map the Envelope to an outgoing message.
+    ///     By default, this will map outgoing headers and properties to the outgoing message
+    ///     using <see cref="MapOutgoing"/>, and set the <see cref="TransportConstants.ProtocolVersion"/> header.
+    /// </summary>
+    /// <param name="envelope">The envelope to map from.</param>
+    /// <param name="outgoing">The outgoing message to map to.</param>
+    public virtual void MapEnvelopeToOutgoing(Envelope envelope, TOutgoing outgoing)
     {
-
-        _mapOutgoing.Value(envelope, outgoing);
+        MapOutgoing(envelope, outgoing);
         writeOutgoingHeader(outgoing, TransportConstants.ProtocolVersion, "1.0"); // fancier later
     }
 
     /// <summary>
-    ///     This endpoint will assume that any unidentified incoming message types
-    ///     are the supplied message type. This is meant primarily for interaction
-    ///     with incoming messages from MassTransit
+    ///     Configure the EnvelopeMapper to assume that all unidentified messages are
+    ///     of the specified message type.
+    /// 
+    ///     This is meant primarily for interaction with incoming messages from MassTransit.
     /// </summary>
-    /// <param name="messageType"></param>
+    /// <param name="messageType">The message type to assume for unidentified messages.</param>
     public void ReceivesMessage(Type messageType)
     {
         _incomingToEnvelope[ReflectionHelper.GetProperty<Envelope>(x => x.MessageType!)] =
             (e, _) => e.MessageType = messageType.ToMessageTypeName();
     }
 
+    /// <summary>
+    ///     Map a property on the Envelope with custom read and write actions.
+    ///
+    ///     The properties are mapped <b>after</b> the headers are written, so
+    ///     you can use the headers in your custom logic if needed.
+    /// </summary>
+    /// <param name="property">The property on the Envelope to map.</param>
+    /// <param name="readFromIncoming">The action to read the property value from the incoming message.</param>
+    /// <param name="writeToOutgoing">The action to write the property value to the outgoing message.</param>
     public void MapProperty(Expression<Func<Envelope, object>> property, Action<Envelope, TIncoming> readFromIncoming,
         Action<Envelope, TOutgoing> writeToOutgoing)
     {
@@ -108,6 +162,15 @@ public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIn
         _envelopeToOutgoing[prop] = writeToOutgoing;
     }
 
+    /// <summary>
+    ///     Map a property on the Envelope to the outgoing message with a custom write action.
+    ///
+    ///     This is useful when you need to write complex types or perform custom logic.
+    ///     The properties are mapped <b>after</b> the headers are written, so 
+    ///     you can use the headers in your custom logic if needed.
+    /// </summary>
+    /// <param name="property">The property on the Envelope to map.</param>
+    /// <param name="writeToOutgoing">The action to write the property value to the outgoing message.</param>
     public void MapOutgoingProperty(Expression<Func<Envelope, object>> property,
         Action<Envelope, TOutgoing> writeToOutgoing)
     {
@@ -115,10 +178,15 @@ public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIn
         _envelopeToOutgoing[prop] = writeToOutgoing;
     }
 
+    /// <summary>
+    ///     Map a property on the Envelope to a header key.
+    /// </summary>
+    /// <param name="property">The property on the Envelope to map.</param>
+    /// <param name="headerKey">The header key to map the property to.</param>
     public void MapPropertyToHeader(Expression<Func<Envelope, object>> property, string headerKey)
     {
         var prop = ReflectionHelper.GetProperty(property);
-        _envelopeToHeader[prop] = headerKey;
+        _envelopeToHeader.Value[prop] = headerKey;
     }
 
     private Action<Envelope, TIncoming> compileIncoming()
@@ -148,7 +216,7 @@ public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIn
             writeHeaders
         };
 
-        foreach (var pair in _envelopeToHeader.Where(x => !_envelopeToOutgoing.ContainsKey(x.Key)))
+        foreach (var pair in _envelopeToHeader.Value.Where(x => !_envelopeToOutgoing.ContainsKey(x.Key)))
         {
             var getMethod = getString!;
             if (pair.Key.PropertyType == typeof(Uri))
@@ -231,7 +299,7 @@ public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIn
             writeHeaders
         };
 
-        var headers = _envelopeToHeader.Where(x => !_incomingToEnvelope.ContainsKey(x.Key));
+        var headers = _envelopeToHeader.Value.Where(x => !_incomingToEnvelope.ContainsKey(x.Key));
         foreach (var pair in headers)
         {
             var setMethod = setString!;
@@ -287,36 +355,74 @@ public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIn
         return lambda.CompileFast();
     }
 
+    /// <summary>
+    ///     Write any "other" headers from the envelope to the outgoing message.
+    ///
+    ///     This is specifically for custom headers that are included with messages
+    ///     that are not recognized or processed by Wolverine itself.
+    /// </summary>
+    /// <param name="outgoing">The outgoing message to write headers to.</param>
+    /// <param name="envelope">The envelope containing the headers.</param>
     protected void writeOutgoingOtherHeaders(TOutgoing outgoing, Envelope envelope)
     {
-        var reserved = _envelopeToHeader.Values.ToArray();
+        var reserved = _envelopeToHeader.Value.Values.ToArray();
 
         foreach (var header in envelope.Headers.Where(x => !reserved.Contains(x.Key)))
             writeOutgoingHeader(outgoing, header.Key, header.Value!);
     }
 
+    /// <summary>
+    ///     Write a header to the outgoing message.
+    /// </summary>
+    /// <param name="outgoing">The outgoing message.</param>
+    /// <param name="key">The key of the header to write.</param>
+    /// <param name="value">The value of the header to write.</param>
     protected abstract void writeOutgoingHeader(TOutgoing outgoing, string key, string value);
+    
+    /// <summary>
+    ///     Try to read a header from the incoming message.
+    /// </summary>
+    /// <param name="incoming">The incoming message.</param>
+    /// <param name="key">The key of the header to read.</param>
+    /// <param name="value">The value of the header if it exists, otherwise null.</param>
+    /// <returns>A flag indicating whether the header was found.</returns>
     protected abstract bool tryReadIncomingHeader(TIncoming incoming, string key, out string? value);
 
     /// <summary>
-    ///     This is strictly for "other" headers that are passed along that are not
-    ///     used by Wolverine
+    ///     Write any "other" headers from the incoming message to the envelope.
+    /// 
+    ///     This is specifically for custom headers that are included with messages
+    ///     but are not recognized or processed by Wolverine itself.
     /// </summary>
-    /// <param name="incoming"></param>
-    /// <param name="envelope"></param>
+    /// <param name="incoming">The incoming message.</param>
+    /// <param name="envelope">The envelope to write the headers to.</param>
     protected virtual void writeIncomingHeaders(TIncoming incoming, Envelope envelope)
     {
         // nothing
     }
 
-    protected string[] readStringArray(TIncoming incoming, string key)
+    /// <summary>
+    ///     Read a header value as a string array.
+    ///     By default, this will split the header value by commas.
+    /// </summary>
+    /// <param name="incoming">The incoming message.</param>
+    /// <param name="key">The key of the header to read.</param>
+    /// <returns>The string array value of the header, or an empty array if the header is not present.</returns>
+    protected virtual string[] readStringArray(TIncoming incoming, string key)
     {
         return tryReadIncomingHeader(incoming, key, out var value)
             ? value!.Split(',')
             : [];
     }
 
-    protected int readInt(TIncoming incoming, string key)
+    /// <summary>
+    ///     Read a header value as an integer.
+    ///     By default, this will return 0 if the header is not present or cannot be parsed.
+    /// </summary>
+    /// <param name="incoming">The incoming message.</param>
+    /// <param name="key">The key of the header to read.</param>
+    /// <returns>The integer value of the header, or 0 if the header is not present or cannot be parsed.</returns>
+    protected virtual int readInt(TIncoming incoming, string key)
     {
         if (tryReadIncomingHeader(incoming, key, out var raw))
         {
@@ -326,24 +432,44 @@ public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIn
             }
         }
 
-        return default;
+        return 0;
     }
 
-    protected string? readString(TIncoming incoming, string key)
+    /// <summary>
+    ///     Read a header value as a string.
+    /// </summary>
+    /// <param name="incoming">The incoming message.</param>
+    /// <param name="key">The key of the header to read.</param>
+    /// <returns>The string value of the header, or null if the header is not present.</returns>
+    protected virtual string? readString(TIncoming incoming, string key)
     {
         return tryReadIncomingHeader(incoming, key, out var value)
             ? value
             : null;
     }
 
-    protected Uri? readUri(TIncoming incoming, string key)
+    /// <summary>
+    ///     Read a header value as a Uri.
+    /// </summary>
+    /// <param name="incoming">The incoming message.</param>
+    /// <param name="key">The key of the header to read.</param>
+    /// <returns>The Uri value of the header, or null if the header is not present or cannot be parsed.</returns>
+    protected virtual Uri? readUri(TIncoming incoming, string key)
     {
         return tryReadIncomingHeader(incoming, key, out var value)
             ? new Uri(value!)
             : null;
     }
 
-    protected void writeStringArray(TOutgoing outgoing, string key, string[]? value)
+    /// <summary>
+    ///     Write a string array as a header value.
+    ///     By default, this will join the array elements with commas.
+     ///    If the value is null, no header will be written.
+    /// </summary>
+    /// <param name="outgoing">The outgoing message.</param>
+    /// <param name="key">The key of the header to write.</param>
+    /// <param name="value">The string array value to write.</param>
+    protected virtual void writeStringArray(TOutgoing outgoing, string key, string[]? value)
     {
         if (value != null)
         {
@@ -351,7 +477,15 @@ public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIn
         }
     }
 
-    protected void writeUri(TOutgoing outgoing, string key, Uri? value)
+    /// <summary>
+    ///     Write a Uri as a header value.
+    ///     By default, this will write the header value as the string representation of the Uri.
+    ///     If the value is null, no header will be written.
+    /// </summary>
+    /// <param name="outgoing">The outgoing message.</param>
+    /// <param name="key">The key of the header to write.</param>
+    /// <param name="value">The Uri value to write.</param>
+    protected virtual void writeUri(TOutgoing outgoing, string key, Uri? value)
     {
         if (value != null)
         {
@@ -359,7 +493,13 @@ public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIn
         }
     }
 
-    protected void writeString(TOutgoing outgoing, string key, string? value)
+    /// <summary>
+    ///     Write a string as a header value.
+    /// </summary>
+    /// <param name="outgoing">The outgoing message.</param>
+    /// <param name="key">The key of the header to write.</param>
+    /// <param name="value">The string value to write.</param>
+    protected virtual void writeString(TOutgoing outgoing, string key, string? value)
     {
         if (value != null)
         {
@@ -367,12 +507,27 @@ public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIn
         }
     }
 
-    protected void writeInt(TOutgoing outgoing, string key, int value)
+    /// <summary>
+    ///     Write an integer as a header value.
+    ///     By default, this will write the header value as a string representation of the integer.
+    /// </summary>
+    /// <param name="outgoing">The outgoing message.</param>
+    /// <param name="key">The key of the header to write.</param>
+    /// <param name="value">The integer value to write.</param>
+    protected virtual void writeInt(TOutgoing outgoing, string key, int value)
     {
         writeOutgoingHeader(outgoing, key, value.ToString());
     }
 
-    protected void writeGuid(TOutgoing outgoing, string key, Guid value)
+    /// <summary>
+    ///     Write a Guid as a header value.
+    ///     By default, this will write the header value as a string representation of the Guid.
+    ///     If the Guid is empty, no header will be written.
+    /// </summary>
+    /// <param name="outgoing">The outgoing message.</param>
+    /// <param name="key">The key of the header to write.</param>
+    /// <param name="value">The Guid value to write.</param>
+    protected virtual void writeGuid(TOutgoing outgoing, string key, Guid value)
     {
         if (value != Guid.Empty)
         {
@@ -380,7 +535,15 @@ public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIn
         }
     }
 
-    protected void writeBoolean(TOutgoing outgoing, string key, bool value)
+    /// <summary>
+    ///     Write a boolean as a header value.
+    ///     By default, this will write the header value as "true" if the boolean is true.
+    ///     Otherwise, no header will be written.
+    /// </summary>
+    /// <param name="outgoing">The outgoing message.</param>
+    /// <param name="key">The key of the header to write.</param>
+    /// <param name="value">The boolean value to write.</param>
+    protected virtual void writeBoolean(TOutgoing outgoing, string key, bool value)
     {
         if (value)
         {
@@ -388,7 +551,18 @@ public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIn
         }
     }
 
-    protected void writeNullableDateTimeOffset(TOutgoing outgoing, string key, DateTimeOffset? value)
+    /// <summary>
+    ///     Write a DateTimeOffset as a header value.
+    ///     By default, this will write the header value as a string in
+    ///     the format "<inheritdoc cref="DateTimeOffsetFormat"/>".
+    ///     If the value is null, no header will be written.
+    ///
+    ///     Note: The DateTimeOffset is converted to UTC before writing, so <b>the offset is not preserved</b>.
+    /// </summary>
+    /// <param name="outgoing">The outgoing message.</param>
+    /// <param name="key">The key of the header to write.</param>
+    /// <param name="value">The DateTimeOffset value to write.</param>
+    protected virtual void writeNullableDateTimeOffset(TOutgoing outgoing, string key, DateTimeOffset? value)
     {
         if (value.HasValue)
         {
@@ -396,12 +570,33 @@ public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIn
         }
     }
 
-    protected void writeDateTimeOffset(TOutgoing outgoing, string key, DateTimeOffset value)
+    /// <summary>
+    ///     Write a DateTimeOffset as a header value.
+    ///     By default, this will write the header value as a string in
+    ///     the format "<inheritdoc cref="DateTimeOffsetFormat"/>".
+    /// 
+    ///     Note: The DateTimeOffset is converted to UTC before writing, so <b>the offset is not preserved</b>.
+    /// </summary>
+    /// <param name="outgoing">The outgoing message.</param>
+    /// <param name="key">The key of the header to write.</param>
+    /// <param name="value">The DateTimeOffset value to write.</param>
+    protected virtual void writeDateTimeOffset(TOutgoing outgoing, string key, DateTimeOffset value)
     {
         writeOutgoingHeader(outgoing, key, value.ToUniversalTime().ToString(DateTimeOffsetFormat));
     }
 
-    protected Guid readGuid(TIncoming incoming, string key)
+    /// <summary>
+    ///     Read a header value as a Guid.
+    ///     By default, this will return <see cref="Guid.Empty"/> if the header is
+    ///     not present or cannot be parsed.
+    /// </summary>
+    /// <param name="incoming">The incoming message.</param>
+    /// <param name="key">The key of the header to read.</param>
+    /// <returns>
+    ///     The Guid value of the header, or <see cref="Guid.Empty"/> if the header is
+    ///     not present or cannot be parsed.
+    /// </returns>
+    protected virtual Guid readGuid(TIncoming incoming, string key)
     {
         if (tryReadIncomingHeader(incoming, key, out var raw))
         {
@@ -414,7 +609,16 @@ public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIn
         return Guid.Empty;
     }
 
-    protected bool readBoolean(TIncoming incoming, string key)
+    /// <summary>
+    ///     Read a header value as a boolean.
+    ///     By default, this will return false if the header is not present or cannot be parsed.
+    /// </summary>
+    /// <param name="incoming">The incoming message.</param>
+    /// <param name="key">The key of the header to read.</param>
+    /// <returns>
+    ///     The boolean value of the header, or false if the header is not present or cannot be parsed.
+    /// </returns>
+    protected virtual bool readBoolean(TIncoming incoming, string key)
     {
         if (tryReadIncomingHeader(incoming, key, out var raw))
         {
@@ -427,7 +631,18 @@ public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIn
         return false;
     }
 
-    protected DateTimeOffset readDateTimeOffset(TIncoming incoming, string key)
+    /// <summary>
+    ///     Read a header value as a DateTimeOffset.
+    ///     By default, this will return the default value if the header is not present or
+    ///     cannot be parsed from the expected format "<inheritdoc cref="DateTimeOffsetFormat"/>".
+    /// </summary>
+    /// <param name="incoming">The incoming message.</param>
+    /// <param name="key">The key of the header to read.</param>
+    /// <returns>
+    ///     The DateTimeOffset value of the header, or default(DateTimeOffset) if
+    ///     the header is not present or cannot be parsed.
+    /// </returns>
+    protected virtual DateTimeOffset readDateTimeOffset(TIncoming incoming, string key)
     {
         if (tryReadIncomingHeader(incoming, key, out var raw))
         {
@@ -440,7 +655,17 @@ public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIn
         return default;
     }
 
-    protected DateTimeOffset? readNullableDateTimeOffset(TIncoming incoming, string key)
+    /// <summary>
+    ///     Read a header value as a nullable DateTimeOffset.
+    ///     By default, this will return null if the header is not present or
+    ///     cannot be parsed from the expected format "<inheritdoc cref="DateTimeOffsetFormat"/>".
+    /// </summary>
+    /// <param name="incoming">The incoming message.</param>
+    /// <param name="key">The key of the header to read.</param>
+    /// <returns>
+    ///     The nullable DateTimeOffset value of the header, or null if the header is not present or cannot be parsed.
+    /// </returns>
+    protected virtual DateTimeOffset? readNullableDateTimeOffset(TIncoming incoming, string key)
     {
         if (tryReadIncomingHeader(incoming, key, out var raw))
         {

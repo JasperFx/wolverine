@@ -14,7 +14,7 @@ namespace Wolverine.RabbitMQ.Internal;
 /// </summary>
 public interface IRabbitMqEnvelopeMapper : IEnvelopeMapper<IReadOnlyBasicProperties, IBasicProperties>;
 
-internal class RabbitMqEnvelopeMapper : EnvelopeMapper<IReadOnlyBasicProperties, IBasicProperties>, IRabbitMqEnvelopeMapper
+public class RabbitMqEnvelopeMapper : EnvelopeMapper<IReadOnlyBasicProperties, IBasicProperties>, IRabbitMqEnvelopeMapper
 {
     public RabbitMqEnvelopeMapper(Endpoint endpoint, IWolverineRuntime runtime) : base(endpoint)
     {
