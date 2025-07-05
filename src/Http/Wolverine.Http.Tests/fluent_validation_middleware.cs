@@ -1,5 +1,7 @@
 using Alba;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Shouldly;
 using Wolverine.Http.Tests.DifferentAssembly.Validation;
 using WolverineWebApi.Validation;
 
@@ -38,7 +40,8 @@ public class fluent_validation_middleware : IntegrationContext
 
         // Just proving that we have ProblemDetails content
         // in the request
-        var problems = results.ReadAsJson<ProblemDetails>();
+        var problems = results.ReadAsJson<HttpValidationProblemDetails>();
+        problems.Errors["FirstName"].ShouldNotBeEmpty();
     }
     [Fact]
     public async Task one_validator_sad_path_in_different_assembly()
@@ -82,7 +85,8 @@ public class fluent_validation_middleware : IntegrationContext
             x.StatusCodeShouldBe(400);
         });
 
-        var problems = results.ReadAsJson<ProblemDetails>();
+        var problems = results.ReadAsJson<HttpValidationProblemDetails>();
+        problems.Errors["Password"].ShouldNotBeEmpty();
     }
 
     [Fact]
