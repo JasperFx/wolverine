@@ -409,7 +409,7 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
             var nodeTable = new Table(new DbObjectName(SchemaName, DatabaseConstants.NodeTableName));
             nodeTable.AddColumn<Guid>("id").AsPrimaryKey();
             nodeTable.AddColumn<int>("node_number").AutoNumber().NotNull();
-            nodeTable.AddColumn<string>("description").NotNull();
+            nodeTable.AddColumn("description", "nvarchar(max)").NotNull();
             nodeTable.AddColumn<string>("uri").NotNull();
             nodeTable.AddColumn<DateTimeOffset>("started").DefaultValueByExpression("GETUTCDATE()").NotNull();
             nodeTable.AddColumn<DateTimeOffset>("health_check").DefaultValueByExpression("GETUTCDATE()").NotNull();
