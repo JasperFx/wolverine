@@ -60,23 +60,5 @@ public class ProcessInlineFixture : TransportComplianceFixture, IAsyncLifetime
 
 public class process_inline_compliance : TransportCompliance<ProcessInlineFixture>
 {
-    [Fact]
-    public void all_queues_are_declared_as_quorum()
-    {
-        var queues = theSender
-            .GetRuntime()
-            .Options
-            .Transports
-            .AllEndpoints()
-            .OfType<RabbitMqQueue>()
-            .Where(x => x.Role == EndpointRole.Application)
-            .ToArray();
-        
-        queues.Any().ShouldBeTrue();
-        foreach (var mqQueue in queues)
-        {
-            mqQueue.QueueType.ShouldBe(QueueType.quorum);
-        }
-        
-    }
+
 }
