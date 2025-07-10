@@ -152,7 +152,7 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
             throw new InvalidOperationException("No Envelope is active for this context");
         }
 
-        if (_channel is ISupportDeadLetterQueue c && c.NativeDeadLetterQueueEnabled)
+        if (_channel is ISupportDeadLetterQueue { NativeDeadLetterQueueEnabled: true } c)
         {
             if (Envelope.Batch != null)
             {
@@ -181,6 +181,9 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
             // If persistable, persist
             await Storage.Inbox.MoveToDeadLetterStorageAsync(Envelope, exception);
         }
+
+        // If this is Inline
+        await _channel.CompleteAsync(Envelope);
     }
 
     public Task RetryExecutionNowAsync()
