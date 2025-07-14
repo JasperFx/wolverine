@@ -145,6 +145,11 @@ public partial class HttpChain
             return true;
         }
         
+        if ((source == ValueSource.FromQueryString || source == ValueSource.Anything) && FindQuerystringVariable(valueType, valueName, out variable))
+        {
+            return true;
+        }
+        
         if (HasRequestType)
         {
             var requestType = InputType();

@@ -172,6 +172,20 @@ public static class MarkItemEndpoint
         return new OrderShipped();
     }
 
+    #region sample_using_aggregate_attribute_query_parameter
+    
+    [WolverinePost("/orders/ship/from-query"), EmptyResponse]
+    // The OrderShipped return value is treated as an event being posted
+    // to a Marten even stream
+    // instead of as the HTTP response body because of the presence of
+    // the [EmptyResponse] attribute
+    public static OrderShipped ShipFromQuery([FromQuery] Guid id, [Aggregate] Order order)
+    {
+        return new OrderShipped();
+    }
+
+    #endregion
+
     [Transactional]
     [WolverinePost("/orders/create")]
     public static OrderStatus StartOrder(StartOrder command, IDocumentSession session)
@@ -305,6 +319,9 @@ public static class MarkItemEndpoint
     
     [WolverineGet("/orders/V1.0/latest/{id}")]
     public static Order GetLatestV1(Guid id, [ReadAggregate] Order order) => order;
+    
+    [WolverineGet("/orders/latest/from-query")]
+    public static Order GetLatestFromQuery([FromQuery] Guid id, [ReadAggregate] Order order) => order;
 }
 
 #region sample_using_[FromQuery]_binding

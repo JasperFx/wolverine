@@ -174,6 +174,32 @@ public class using_aggregate_handler_workflow(AppFixture fixture) : IntegrationC
         order.ShouldNotBeNull();
         order.Shipped.HasValue.ShouldBeTrue();
     }
+    
+    [Fact]
+    public async Task use_aggregate_in_endpoint_from_query_param_in_url()
+    {
+        var result1 = await Scenario(x =>
+        {
+            x.Post.Json(new StartOrder(["Socks", "Shoes", "Shirt"])).ToUrl("/orders/create");
+        });
+
+        var status1 = result1.ReadAsJson<OrderStatus>();
+        status1.ShouldNotBeNull();
+
+        await Scenario(x =>
+        {
+            x.Post.Url($"/orders/ship/from-query?id={status1.OrderId}");
+
+            x.StatusCodeShouldBe(204);
+        });
+
+        await using var session = Store.LightweightSession();
+
+        var order = await session.Events.AggregateStreamAsync<Order>(status1.OrderId);
+
+        order.ShouldNotBeNull();
+        order.Shipped.HasValue.ShouldBeTrue();
+    }
 
     [Fact]
     public async Task use_stream_collision_policy()

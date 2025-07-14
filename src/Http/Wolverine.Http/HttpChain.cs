@@ -418,6 +418,23 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
 
         return variable;
     }
+ 
+    public bool FindQuerystringVariable(Type variableType, string routeOrParameterName, [NotNullWhen(true)]out Variable? variable)
+    {
+        var matched = Method.Method.GetParameters()
+            .FirstOrDefault(x => x.ParameterType == variableType && x.Name != null && x.Name.EqualsIgnoreCase(routeOrParameterName));
+        if (matched is not null)
+        {
+            variable = TryFindOrCreateQuerystringValue(matched);
+            if (variable is not null)
+            {
+                return true;
+            }
+        }
+
+        variable = null;
+        return false;
+    }
 
     public HttpElementVariable? TryFindOrCreateQuerystringValue(ParameterInfo parameter)
     {

@@ -76,11 +76,6 @@ public abstract class WolverineParameterAttribute : Attribute
         {
             return true;
         }
-        
-        if (chain.TryFindVariable("id", ValueSource, idType, out variable))
-        {
-            return true;
-        }
 
         variable = default;
         return false;
