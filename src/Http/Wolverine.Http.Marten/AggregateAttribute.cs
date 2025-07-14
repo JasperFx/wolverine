@@ -149,6 +149,16 @@ public class AggregateAttribute : HttpChainParameterAttribute
             return v3;
         }
 
+        if (chain.FindQuerystringVariable(idType, "id", out var v4))
+        {
+            return v4;
+        }
+
+        if (chain.FindQuerystringVariable(idType, $"{AggregateType.Name.ToCamelCase()}Id", out var v5))
+        {
+            return v5;
+        }
+        
         return null;
     }
 
