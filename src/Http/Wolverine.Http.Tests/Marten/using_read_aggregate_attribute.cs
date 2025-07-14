@@ -47,4 +47,19 @@ public class using_read_aggregate_attribute(AppFixture fixture) : IntegrationCon
             x.StatusCodeShouldBe(404);
         });
     }
+    
+    [Fact]
+    public async Task happy_path_reading_aggregate_from_query()
+    {
+        var id = Guid.NewGuid();
+
+        // Creating a new order
+        await Scenario(x =>
+        {
+            x.Post.Json(new StartOrderWithId(id, ["Socks", "Shoes", "Shirt"])).ToUrl("/orders/create4");
+        });
+
+        var result = await Host.GetAsJson<Order>("/orders/latest/from-query?id=" + id);
+        result.Items.Keys.ShouldContain("Socks");
+    }
 }

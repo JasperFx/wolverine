@@ -305,6 +305,9 @@ public static class MarkItemEndpoint
     
     [WolverineGet("/orders/V1.0/latest/{id}")]
     public static Order GetLatestV1(Guid id, [ReadAggregate] Order order) => order;
+    
+    [WolverineGet("/orders/latest/from-query")]
+    public static Order GetLatestFromQuery([FromQuery] Guid id, [ReadAggregate] Order order) => order;
 }
 
 #region sample_using_[FromQuery]_binding
