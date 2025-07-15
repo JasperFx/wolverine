@@ -12,7 +12,6 @@
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
         <PackageReference Include="GitHubActionsTestLogger" Version="2.4.1" PrivateAssets="All" />
-        <PackageReference Include="Dapper" Version="2.1.35" />
     </ItemGroup>
 
     <ItemGroup>
