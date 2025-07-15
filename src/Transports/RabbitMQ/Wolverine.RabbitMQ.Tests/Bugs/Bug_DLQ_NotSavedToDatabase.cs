@@ -15,7 +15,7 @@
 // Investigation: This test demonstrates the current behavior and investigates whether
 // this is the intended design or if there's a configuration issue.
 //
-// See also: https://github.com/JasperFx/wolverine/issues/<your-issue-number>
+// See also: https://github.com/JasperFx/wolverine/issues/1568
 
 using System;
 using System.Threading.Tasks;
