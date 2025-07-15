@@ -12,12 +12,14 @@
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
         <PackageReference Include="GitHubActionsTestLogger" Version="2.4.1" PrivateAssets="All" />
+        <PackageReference Include="Dapper" Version="2.1.35" />
     </ItemGroup>
 
     <ItemGroup>
         <ProjectReference Include="..\..\..\Extensions\Wolverine.FluentValidation\Wolverine.FluentValidation.csproj" />
         <ProjectReference Include="..\..\..\Persistence\Wolverine.Marten\Wolverine.Marten.csproj"/>
         <ProjectReference Include="..\Wolverine.RabbitMQ\Wolverine.RabbitMQ.csproj"/>
+        <ProjectReference Include="..\..\..\Persistence\Wolverine.SqlServer\Wolverine.SqlServer.csproj" />
         <ProjectReference Include="..\..\..\Testing\Wolverine.ComplianceTests\Wolverine.ComplianceTests.csproj" />
     </ItemGroup>
 
