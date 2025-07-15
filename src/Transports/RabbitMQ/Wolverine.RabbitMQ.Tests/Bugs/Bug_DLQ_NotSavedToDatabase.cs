@@ -26,6 +26,8 @@ using Shouldly;
 using Wolverine;
 using Wolverine.Runtime;
 using Wolverine.SqlServer;
+using Wolverine.Persistence.Durability;
+using Wolverine.Persistence.Durability.DeadLetterManagement;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -182,18 +184,12 @@ public class Bug_DLQ_NotSavedToDatabase : IDisposable
 
     private async Task SendMessageAndCheckDLQ(IHost host, string connectionString, string queueName, string testDescription)
     {
-        // Print all tables in the current database for debugging
-        await using (var debugConn = new SqlConnection(connectionString))
-        {
-            await debugConn.OpenAsync();
-            var tables = await debugConn.QueryAsync<string>(
-                "SELECT TABLE_SCHEMA + '.' + TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE'");
-            _output.WriteLine($"Tables in database for {testDescription}:");
-            foreach (var table in tables)
-            {
-                _output.WriteLine(table);
-            }
-        }
+        // Get the message store from the host
+        var messageStore = host.Services.GetRequiredService<IMessageStore>();
+        
+        // Print counts before sending message
+        var initialCounts = await messageStore.Admin.FetchCountsAsync();
+        _output.WriteLine($"Initial counts for {testDescription}: Incoming={initialCounts.Incoming}, Outgoing={initialCounts.Outgoing}, DeadLetter={initialCounts.DeadLetter}");
 
         // Send message using a scope
         using (var scope = host.Services.CreateScope())
@@ -205,19 +201,21 @@ public class Bug_DLQ_NotSavedToDatabase : IDisposable
             // Wait for processing
             await Task.Delay(5000);
 
-            // Check the DLQ table for the message
-            await using var conn = new SqlConnection(connectionString);
-            await conn.OpenAsync();
+            // Check the DLQ using Wolverine's API instead of raw SQL
+            var finalCounts = await messageStore.Admin.FetchCountsAsync();
+            _output.WriteLine($"Final counts for {testDescription}: Incoming={finalCounts.Incoming}, Outgoing={finalCounts.Outgoing}, DeadLetter={finalCounts.DeadLetter}");
             
-            // Print the count and all entries in the DLQ table for debugging
-            var dlqCount = await conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM wolverine.wolverine_dead_letters");
-            _output.WriteLine($"DLQ count for {testDescription}: {dlqCount}");
+            // Query dead letters using Wolverine's API
+            var deadLetterQuery = new DeadLetterEnvelopeQueryParameters
+            {
+                Limit = 100
+            };
+            var deadLetterResults = await messageStore.DeadLetters.QueryDeadLetterEnvelopesAsync(deadLetterQuery);
             
-            var allDeadLetters = await conn.QueryAsync($"SELECT * FROM wolverine.wolverine_dead_letters");
-            _output.WriteLine($"All dead letters for {testDescription}: {allDeadLetters.ToList().Count} entries");
+            _output.WriteLine($"Dead letter results for {testDescription}: {deadLetterResults.DeadLetterEnvelopes.Count} entries");
             
             // This should contain the failed message, but currently doesn't due to the bug
-            allDeadLetters.ShouldNotBeEmpty();
+            deadLetterResults.DeadLetterEnvelopes.ShouldNotBeEmpty();
         }
     }
 
