@@ -27,11 +27,19 @@ using Wolverine;
 using Wolverine.Runtime;
 using Wolverine.SqlServer;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace Wolverine.RabbitMQ.Tests.Bugs;
 
 public class Bug_DLQ_NotSavedToDatabase
 {
+    private readonly ITestOutputHelper _output;
+
+    public Bug_DLQ_NotSavedToDatabase(ITestOutputHelper output)
+    {
+        _output = output;
+    }
+
     [Fact]
     public async Task message_that_fails_in_handler_should_be_saved_to_sql_dlq_but_is_not()
     {
@@ -63,8 +71,8 @@ public class Bug_DLQ_NotSavedToDatabase
         var transport = runtime.Options.RabbitMqTransport();
         var staticQ = transport.Queues[staticQueue];
         var instanceQ = transport.Queues[instanceQueue];
-        Console.WriteLine($"staticQueue.DeadLetterQueue: {(staticQ.DeadLetterQueue == null ? "null" : staticQ.DeadLetterQueue.Mode.ToString())}");
-        Console.WriteLine($"instanceQueue.DeadLetterQueue: {(instanceQ.DeadLetterQueue == null ? "null" : instanceQ.DeadLetterQueue.Mode.ToString())}");
+        _output.WriteLine($"staticQueue.DeadLetterQueue: {(staticQ.DeadLetterQueue == null ? "null" : staticQ.DeadLetterQueue.Mode.ToString())}");
+        _output.WriteLine($"instanceQueue.DeadLetterQueue: {(instanceQ.DeadLetterQueue == null ? "null" : instanceQ.DeadLetterQueue.Mode.ToString())}");
 
         // Print all tables in the current database for debugging
         await using (var debugConn = new SqlConnection(connectionString))
@@ -72,10 +80,10 @@ public class Bug_DLQ_NotSavedToDatabase
             await debugConn.OpenAsync();
             var tables = await debugConn.QueryAsync<string>(
                 "SELECT TABLE_SCHEMA + '.' + TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE'");
-            Console.WriteLine("Tables in database:");
+            _output.WriteLine("Tables in database:");
             foreach (var table in tables)
             {
-                Console.WriteLine(table);
+                _output.WriteLine(table);
             }
         }
 
@@ -96,11 +104,11 @@ public class Bug_DLQ_NotSavedToDatabase
             await conn.OpenAsync();
             // Print the count and all entries in the DLQ table for debugging
             var dlqCount = await conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM wolverine.wolverine_dead_letters");
-            Console.WriteLine($"DLQ count: {dlqCount}");
+            _output.WriteLine($"DLQ count: {dlqCount}");
             var allDeadLetters = await conn.QueryAsync($"SELECT * FROM wolverine.wolverine_dead_letters");
             foreach (var row in allDeadLetters)
             {
-                Console.WriteLine(row);
+                _output.WriteLine(row.ToString());
             }
             var staticDeadLetter = await conn.QueryFirstOrDefaultAsync($"SELECT * FROM wolverine.wolverine_dead_letters WHERE body LIKE '%{staticMessage.Id}%'");
             var instanceDeadLetter = await conn.QueryFirstOrDefaultAsync($"SELECT * FROM wolverine.wolverine_dead_letters WHERE body LIKE '%{instanceMessage.Id}%'");
