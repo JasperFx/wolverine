@@ -89,15 +89,17 @@ internal class HttpTransportExecutor
         envelope.Destination = $"http://localhost{httpContext.Request.Path}".ToUri();
         envelope.DoNotCascadeResponse = true;
         envelope.Serializer = _runtime.Options.FindSerializer(envelope.ContentType);
-        
-        if (!_runtime.Pipeline.TryDeserializeEnvelope(envelope, out var continuation))
+
+        var deserializeResult = await _runtime.Pipeline.TryDeserializeEnvelope(envelope);
+
+        if (deserializeResult != NullContinuation.Instance)
         {
-            if (continuation is NoHandlerContinuation)
+            if (deserializeResult is NoHandlerContinuation)
             {
                 return Results.Problem($"No handler for the requested message type {envelope.MessageType}", statusCode:400);
             }
 
-            if (continuation is MoveToErrorQueue move)
+            if (deserializeResult is MoveToErrorQueue move)
             {
                 _logger.LogError(move.Exception, "Error executing message of type {MessageType}", envelope.MessageType);
                 return Results.Problem($"Execution error for requested message type {envelope.MessageType}",

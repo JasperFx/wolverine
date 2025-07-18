@@ -35,7 +35,7 @@ public class InlineKafkaSender : ISender, IDisposable
 
     public async ValueTask SendAsync(Envelope envelope)
     {
-        var message = _topic.Mapper.CreateMessage(envelope);
+        var message = await _topic.Mapper.CreateMessage(envelope);
 
         await _producer.ProduceAsync(envelope.TopicName ?? _topic.TopicName, message);
         _producer.Flush();
