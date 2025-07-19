@@ -5,6 +5,7 @@ using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
 using Wolverine.Logging;
 using Wolverine.Runtime.Handlers;
+using Wolverine.Runtime.Serialization;
 using Wolverine.Transports;
 
 namespace Wolverine.Runtime;
@@ -106,7 +107,7 @@ public class HandlerPipeline : IHandlerPipeline
         }
     }
 
-    public bool TryDeserializeEnvelope(Envelope envelope, out IContinuation continuation)
+    public async ValueTask<IContinuation> TryDeserializeEnvelope(Envelope envelope)
     {
         // Try to deserialize
         try
@@ -127,29 +128,31 @@ public class HandlerPipeline : IHandlerPipeline
 
             if (_graph.TryFindMessageType(envelope.MessageType, out var messageType))
             {
-                envelope.Message = serializer.ReadFromData(messageType, envelope);
+                if (serializer is IAsyncMessageSerializer asyncMessageSerializer)
+                {
+                    envelope.Message = await asyncMessageSerializer.ReadFromDataAsync(messageType, envelope);
+                }
+                else
+                {
+                    envelope.Message = serializer.ReadFromData(messageType, envelope);
+                }
             }
             else
             {
-                continuation = new NoHandlerContinuation(_runtime.MissingHandlers(), _runtime);
-                return false;
+                return new NoHandlerContinuation(_runtime.MissingHandlers(), _runtime);
             }
 
             if (envelope.Message == null)
             {
-                continuation = new MoveToErrorQueue(new InvalidOperationException(
+                return new MoveToErrorQueue(new InvalidOperationException(
                     "No message body could be de-serialized from the raw data in this envelope"));
-
-                return false;
             }
 
-            continuation = NullContinuation.Instance;
-            return true;
+            return NullContinuation.Instance;
         }
         catch (Exception? e)
         {
-            continuation = new MoveToErrorQueue(e);
-            return false;
+            return new MoveToErrorQueue(e);
         }
         finally
         {
@@ -157,19 +160,20 @@ public class HandlerPipeline : IHandlerPipeline
         }
     }
 
-    private Task<IContinuation> executeAsync(MessageContext context, Envelope envelope, Activity? activity)
+    private async Task<IContinuation> executeAsync(MessageContext context, Envelope envelope, Activity? activity)
     {
         if (envelope.IsExpired())
         {
-            return Task.FromResult<IContinuation>(DiscardEnvelope.Instance);
+            return DiscardEnvelope.Instance;
         }
 
         if (envelope.Message == null)
         {
-            if (!TryDeserializeEnvelope(envelope, out var serializationError))
+            var deserializationResult = await TryDeserializeEnvelope(envelope);
+            if(deserializationResult != NullContinuation.Instance)
             {
                 activity?.SetStatus(ActivityStatusCode.Error, "Serialization Failure");
-                return Task.FromResult(serializationError);
+                return deserializationResult;
             }
         }
         else
@@ -180,11 +184,11 @@ public class HandlerPipeline : IHandlerPipeline
         if (envelope.IsResponse)
         {
             _runtime.Replies.Complete(envelope);
-            return Task.FromResult<IContinuation>(MessageSucceededContinuation.Instance);
+            return MessageSucceededContinuation.Instance;
         }
 
         var executor = _executors[envelope.Message!.GetType()];
 
-        return executor.ExecuteAsync(context, _cancellation);
+        return await executor.ExecuteAsync(context, _cancellation);
     }
 }

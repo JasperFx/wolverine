@@ -15,3 +15,13 @@ public interface IMessageSerializer
 
     byte[] WriteMessage(object message);
 }
+
+/// <summary>
+///  Async version of <seealso cref="IMessageSerializer"/>
+/// </summary>
+public interface IAsyncMessageSerializer : IMessageSerializer
+{
+    ValueTask<byte[]> WriteAsync(Envelope envelope);
+
+    ValueTask<object?> ReadFromDataAsync(Type messageType, Envelope envelope);
+}

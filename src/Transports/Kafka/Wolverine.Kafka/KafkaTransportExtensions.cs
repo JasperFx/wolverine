@@ -126,12 +126,13 @@ public static class KafkaTransportExtensions
         return envelope;
     }
 
-    internal static Message<string, byte[]> CreateMessage(this IKafkaEnvelopeMapper mapper, Envelope envelope)
+    internal static async ValueTask<Message<string, byte[]>> CreateMessage(this IKafkaEnvelopeMapper mapper, Envelope envelope)
     {
+        var data = await envelope.GetDataAsync();
         var message = new Message<string, byte[]>
         {
             Key = !string.IsNullOrEmpty(envelope.PartitionKey) ? envelope.PartitionKey : envelope.Id.ToString(),
-            Value = envelope.Data,
+            Value = data,
             Headers = new Headers()
         };
 
