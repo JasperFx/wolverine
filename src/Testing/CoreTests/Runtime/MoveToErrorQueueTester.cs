@@ -23,6 +23,8 @@ public class MoveToErrorQueueTester
     [Fact]
     public async Task should_send_a_failure_ack_if_not_local()
     {
+        theRuntime.Options.EnableAutomaticFailureAcks = true;
+        
         theEnvelope.Destination = new Uri("tcp://localhost:9000");
         
         await theContinuation.ExecuteAsync(theLifecycle, theRuntime, DateTimeOffset.Now, null);

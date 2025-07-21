@@ -26,9 +26,9 @@ public class WolverineOptionsTests
     }
     
     [Fact]
-    public void failure_acks_are_enabled_by_default()
+    public void failure_acks_are_NOT_enabled_by_default()
     {
-        new WolverineOptions().EnableAutomaticFailureAcks.ShouldBeTrue();
+        new WolverineOptions().EnableAutomaticFailureAcks.ShouldBeFalse();
     }
     
     [Fact]
