@@ -15,6 +15,7 @@ using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
 using Wolverine.Logging;
 using Wolverine.Middleware;
+using Wolverine.Persistence.Sagas;
 using Wolverine.Runtime.Routing;
 using Wolverine.Transports.Local;
 using Wolverine.Transports.Stub;
@@ -83,6 +84,9 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
     public HandlerChain(WolverineOptions options, IGrouping<Type, HandlerCall> grouping, HandlerGraph parent) : this(
         grouping.Key, parent)
     {
+        // ReSharper disable once VirtualMemberCallInConstructor
+        validateAgainstInvalidSagaMethods(grouping);
+
         Handlers.AddRange(grouping);
 
         var i = 0;
@@ -106,6 +110,16 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
             foreach (var handlerCall in grouping)
                 // ReSharper disable once VirtualMemberCallInConstructor
                 tryAssignStickyEndpoints(handlerCall, options);
+        }
+    }
+
+    protected virtual void validateAgainstInvalidSagaMethods(IGrouping<Type, HandlerCall> grouping)
+    {
+        var illegalSagas = grouping.Where(x => x.HandlerType.CanBeCastTo<Saga>() && x.Method.IsStatic).ToArray();
+        if (illegalSagas.Any())
+        {
+            throw new InvalidSagaException(
+                $"Illegal static method {illegalSagas.Select(x => x.ToString()).Join(", ")}. Handler methods for existing saga data mush be instance methods");
         }
     }
 
