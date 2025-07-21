@@ -17,6 +17,9 @@ public partial class WolverineRuntime
 
     public async Task StartAsync(CancellationToken cancellationToken)
     {
+        // Make this idempotent because the AddResourceSetupOnStartup() can cause it to bootstrap twice
+        if (_hasStarted) return;
+        
         try
         {
             Logger.LogInformation("Starting Wolverine messaging for application assembly {Assembly}",
@@ -96,8 +99,12 @@ public partial class WolverineRuntime
         }
     }
 
+    private bool _hasMigratedStorage;
+
     private async Task tryMigrateStorage()
     {
+        if (_hasMigratedStorage) return;
+        
         if (!Options.Durability.DurabilityAgentEnabled) return;
         
         if (Options.AutoBuildMessageStorageOnStartup != AutoCreate.None && Storage is not NullMessageStore)
@@ -112,6 +119,8 @@ public partial class WolverineRuntime
                 await ancillaryStore.Admin.MigrateAsync();
             }
         }
+
+        _hasMigratedStorage = true;
     }
 
     private bool _hasAppliedAsyncExtensions = false;
