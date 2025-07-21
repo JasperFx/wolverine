@@ -281,7 +281,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
 
     public override Type? InputType()
     {
-        return HasRequestType ? RequestType : null;
+        return HasRequestType ? RequestType : ComplexQueryStringType;
     }
 
     public override Frame[] AddStopConditionIfNull(Variable variable)
@@ -642,6 +642,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
     public bool HasRequestType => RequestType != null && RequestType != typeof(void);
 
     public bool IsFormData { get; internal set; }
+    public Type? ComplexQueryStringType { get; set; }
 
     internal Variable BuildJsonDeserializationVariable()
     {
