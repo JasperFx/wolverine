@@ -52,7 +52,8 @@ public class KafkaTopic : Endpoint, IBrokerEndpoint
 
     public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
     {
-        var listener = new KafkaListener(this, ConsumerConfig ?? Parent.ConsumerConfig,
+        var config = ConsumerConfig ?? Parent.ConsumerConfig;
+        var listener = new KafkaListener(this, config,
             Parent.CreateConsumer(ConsumerConfig), receiver, runtime.LoggerFactory.CreateLogger<KafkaListener>());
         return ValueTask.FromResult((IListener)listener);
     }

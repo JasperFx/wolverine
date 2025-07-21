@@ -71,6 +71,8 @@ public class DocumentationSamples
                     
                     // Override the consumer configuration for only this 
                     // topic
+                    // This is NOT combinatorial with the ConfigureConsumers() call above
+                    // and completely replaces the parent configuration
                     .ConfigureConsumer(config =>
                     {
                         // This will also set the Envelope.GroupId for any

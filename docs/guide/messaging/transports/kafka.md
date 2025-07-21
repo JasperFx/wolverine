@@ -13,6 +13,10 @@ To use [Kafka](https://www.confluent.io/what-is-apache-kafka/) as a messaging tr
 dotnet add WolverineFx.Kafka
 ```
 
+```warning
+The configuration in `ConfigureConsumer()` for each topic completely overwrites any previous configuration
+```
+
 To connect to Kafka, use this syntax:
 
 <!-- snippet: sample_bootstrapping_with_kafka -->
