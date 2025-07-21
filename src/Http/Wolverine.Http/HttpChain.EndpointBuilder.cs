@@ -61,7 +61,7 @@ public partial class HttpChain : IEndpointConventionBuilder
         }
         else
         {
-            if (warmup == RouteWarmup.Eager)
+            if (warmup == RouteWarmup.Eager && !DynamicCodeBuilder.WithinCodegenCommand)
             {
                 this.InitializeSynchronously(_parent.Rules, _parent, _parent.Container.Services);
                 var handler = (HttpHandler)_parent.Container.QuickBuild(_handlerType);

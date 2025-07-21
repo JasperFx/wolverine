@@ -191,6 +191,11 @@ public static class WolverineHttpEndpointRouteBuilderExtensions
         options.Endpoints = new HttpGraph(runtime.Options, serviceProvider.GetRequiredService<IServiceContainer>());
 
         configure?.Invoke(options);
+        
+        if (Environment.CommandLine.Contains("codegen", StringComparison.OrdinalIgnoreCase))
+        {
+            options.WarmUpRoutes = RouteWarmup.Lazy;
+        }
 
         options.JsonSerializerOptions = new Lazy<JsonSerializerOptions>(() => serviceProvider.GetService<IOptions<JsonOptions>>()?.Value?.SerializerOptions ?? new JsonSerializerOptions());
 
