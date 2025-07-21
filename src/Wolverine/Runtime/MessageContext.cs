@@ -448,6 +448,9 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
     internal void ReadEnvelope(Envelope? originalEnvelope, IChannelCallback channel)
     {
         Envelope = originalEnvelope ?? throw new ArgumentNullException(nameof(originalEnvelope));
+
+        originalEnvelope.MaybeCorrectReplyUri();
+        
         CorrelationId = originalEnvelope.CorrelationId;
         ConversationId = originalEnvelope.Id;
         _channel = channel;

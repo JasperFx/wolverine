@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using JasperFx.Core;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Serialization;
@@ -35,7 +36,7 @@ public partial class Envelope
         Serializer = message is ISerializable ? IntrinsicSerializer.Instance : agent.Endpoint.DefaultSerializer;
         ContentType = Serializer!.ContentType;
         Destination = agent.Destination;
-        ReplyUri = agent.ReplyUri;
+        ReplyUri = agent.ReplyUri?.MaybeCorrectScheme(agent.Destination.Scheme);
     }
 
     internal Envelope(object message, IMessageSerializer writer)
@@ -333,5 +334,13 @@ public partial class Envelope
     internal bool IsFromLocalDurableQueue()
     {
         return Sender is DurableLocalQueue;
+    }
+
+    internal void MaybeCorrectReplyUri()
+    {
+        if (ReplyUri != null && Destination != null)
+        {
+            ReplyUri = ReplyUri.MaybeCorrectScheme(Destination.Scheme);
+        }
     }
 }
