@@ -1,5 +1,11 @@
 # Sagas
 
+::: tip
+To be honest, we're just not going to get hung up on "process manager" vs. "saga" here. The key point is that what 
+Wolverine is calling a "saga" really just means a long running, multi-step process where you need to track some state
+between the steps. If that annoys Greg Young, then ¯\_(ツ)_/¯.
+:::
+
 As is so common in these docs, I would direct you to this from the old "EIP" book: [Process Manager](http://www.enterpriseintegrationpatterns.com/patterns/messaging/ProcessManager.html). A stateful saga in Wolverine is used
 to coordinate long running workflows or to break large, logical transactions into a series of smaller steps. A stateful saga
 in Wolverine consists of a couple parts:
@@ -392,7 +398,9 @@ The following method names are meaningful in `Saga` types:
 | `Orchestrate`, `Orchestrates`        | Called only when the identified saga already exists |
 | `NotFound`                           | Only called if the identified saga does not already exist, and there is no matching `Start` handler for the incoming message |
 
-
+Note that only `Start`, `Starts`, or `NotFound` methods can be static methods because these methods logically assume that the
+identified `Saga` does not yet exist. Wolverine as of 4.6 will assert that other named `Saga` methods are instance
+methods to try to head off confusion.
 
 ## When Sagas are Not Found
 
