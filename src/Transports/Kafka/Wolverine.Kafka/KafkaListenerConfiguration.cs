@@ -60,7 +60,8 @@ public class KafkaListenerConfiguration : ListenerConfiguration<KafkaListenerCon
     
     /// <summary>
     /// Configure the consumer config for only this topic. This overrides the default
-    /// settings at the transport level
+    /// settings at the transport level. This is not combinatorial with the parent configuration
+    /// and overwrites all ConsumerConfig from the parent
     /// </summary>
     /// <param name="configuration"></param>
     /// <returns></returns>
