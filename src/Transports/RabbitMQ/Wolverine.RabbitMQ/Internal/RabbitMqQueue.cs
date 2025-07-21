@@ -368,8 +368,14 @@ public partial class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQu
 
     public override bool TryBuildDeadLetterSender(IWolverineRuntime runtime, out ISender? deadLetterSender)
     {
-        var dlq = _parent.Queues[DeadLetterQueue?.QueueName ?? _parent.DeadLetterQueue.QueueName];
-        deadLetterSender = dlq.CreateSender(runtime);
-        return true;
+        if (DeadLetterQueue is { Mode: DeadLetterQueueMode.Native })
+        {
+            var dlq = _parent.Queues[DeadLetterQueue?.QueueName ?? _parent.DeadLetterQueue.QueueName];
+            deadLetterSender = dlq.CreateSender(runtime);
+            return true;
+        }
+
+        deadLetterSender = default;
+        return false;
     }
 }
