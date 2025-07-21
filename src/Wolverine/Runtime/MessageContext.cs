@@ -296,7 +296,7 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
     /// <param name="context"></param>
     /// <exception cref="ArgumentOutOfRangeException"></exception>
     /// <returns></returns>
-    public ValueTask RespondToSenderAsync(object response)
+    public override ValueTask RespondToSenderAsync(object response)
     {
         if (Envelope == null)
         {
@@ -311,8 +311,6 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
 
         return EndpointFor(Envelope.ReplyUri).SendAsync(response);
     }
-
-    public Envelope? Envelope { get; protected set; }
 
     internal async Task CopyToAsync(IEnvelopeTransaction other)
     {
