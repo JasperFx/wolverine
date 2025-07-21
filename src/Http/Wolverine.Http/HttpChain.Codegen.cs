@@ -32,7 +32,10 @@ public partial class HttpChain
 
     void ICodeFile.AssembleTypes(GeneratedAssembly assembly)
     {
-        if (_generatedType != null) return;
+        if (_generatedType != null)
+        {
+            return;
+        }
         
         lock (_locker)
         {
