@@ -112,3 +112,12 @@ await host.StartAsync();
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L83-L111' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setting_aws_credentials' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+
+## Connecting to Multiple Brokers <Badge type="tip" text="4.7" />
+
+Wolverine supports interacting with multiple Amazon SQS brokers within one application like this:
+
+snippet: sample_using_multiple_sqs_brokers
+
+Note that the `Uri` scheme within Wolverine for any endpoints from a "named" Amazon SQS broker is the name that you supply
+for the broker. So in the example above, you might see `Uri` values for `emea://colors` or `americas://red`.

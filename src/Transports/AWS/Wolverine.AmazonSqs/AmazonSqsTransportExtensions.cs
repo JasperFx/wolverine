@@ -13,11 +13,11 @@ public static class AmazonSqsTransportExtensions
     /// </summary>
     /// <param name="endpoints"></param>
     /// <returns></returns>
-    internal static AmazonSqsTransport AmazonSqsTransport(this WolverineOptions endpoints)
+    internal static AmazonSqsTransport AmazonSqsTransport(this WolverineOptions endpoints, BrokerName? name = null)
     {
         var transports = endpoints.As<WolverineOptions>().Transports;
 
-        return transports.GetOrCreate<AmazonSqsTransport>();
+        return transports.GetOrCreate<AmazonSqsTransport>(name);
     }
 
     /// <summary>
@@ -44,6 +44,33 @@ public static class AmazonSqsTransportExtensions
         configuration(transport.Config);
         return new AmazonSqsTransportConfiguration(transport, options);
     }
+    
+    /// <summary>
+    /// Add an additional, named broker connection to Amazon SQS
+    /// </summary>
+    /// <param name="options"></param>
+    /// <param name="name"></param>
+    /// <returns></returns>
+    public static AmazonSqsTransportConfiguration AddNamedAmazonSqsBroker(this WolverineOptions options, BrokerName name)
+    {
+        var transport = options.AmazonSqsTransport(name);
+        return new AmazonSqsTransportConfiguration(transport, options);
+    }
+
+    /// <summary>
+    /// Add an additional, named broker connection to Amazon SQS
+    /// </summary>
+    /// <param name="options"></param>
+    /// <param name="name"></param>
+    /// <param name="configuration"></param>
+    /// <returns></returns>
+    public static AmazonSqsTransportConfiguration AddNamedAmazonSqsBroker(this WolverineOptions options, BrokerName name,
+        Action<AmazonSQSConfig> configuration)
+    {
+        var transport = options.AmazonSqsTransport(name);
+        configuration(transport.Config);
+        return new AmazonSqsTransportConfiguration(transport, options);
+    }
 
     /// <summary>
     ///     Sets up a connection to a locally running Amazon SQS LocalStack
@@ -55,6 +82,22 @@ public static class AmazonSqsTransportExtensions
         int port = 4566)
     {
         var transport = options.AmazonSqsTransport();
+
+        transport.ConnectToLocalStack(port);
+
+        return new AmazonSqsTransportConfiguration(transport, options);
+    }
+    
+    /// <summary>
+    ///     Sets up a connection to a locally running Amazon SQS LocalStack
+    ///     broker for development or testing purposes
+    /// </summary>
+    /// <param name="port">Port for SQS. Default is 4566</param>
+    /// <returns></returns>
+    public static AmazonSqsTransportConfiguration UseAmazonSqsTransportLocallyAsNamedBroker(this WolverineOptions options, BrokerName name,
+        int port = 4566)
+    {
+        var transport = options.AmazonSqsTransport(name);
 
         transport.ConnectToLocalStack(port);
 
@@ -83,6 +126,29 @@ public static class AmazonSqsTransportExtensions
 
         return new AmazonSqsListenerConfiguration(endpoint);
     }
+    
+    /// <summary>
+    ///     Listen for incoming messages at the designated Amazon SQS queue by name
+    /// </summary>
+    /// <param name="endpoints"></param>
+    /// <param name="queueName">The name of the SQS queue</param>
+    /// <param name="configure">
+    ///     Optional configuration for this SQS queue if being initialized by Wolverine
+    ///     <returns></returns>
+    public static AmazonSqsListenerConfiguration ListenToSqsQueueOnNamedBroker(this WolverineOptions endpoints, BrokerName name, string queueName,
+        Action<AmazonSqsQueue>? configure = null)
+    {
+        var transport = endpoints.AmazonSqsTransport(name);
+
+        var corrected = transport.MaybeCorrectName(queueName);
+        var endpoint = transport.EndpointForQueue(corrected);
+        endpoint.EndpointName = queueName;
+        endpoint.IsListener = true;
+
+        configure?.Invoke(endpoint);
+
+        return new AmazonSqsListenerConfiguration(endpoint);
+    }
 
     /// <summary>
     ///     Publish matching messages directly to an Amazon SQS queue
@@ -94,6 +160,28 @@ public static class AmazonSqsTransportExtensions
     {
         var transports = publishing.As<PublishingExpression>().Parent.Transports;
         var transport = transports.GetOrCreate<AmazonSqsTransport>();
+
+        var corrected = transport.MaybeCorrectName(queueName);
+
+        var endpoint = transport.EndpointForQueue(corrected);
+        endpoint.EndpointName = queueName;
+
+        // This is necessary unfortunately to hook up the subscription rules
+        publishing.To(endpoint.Uri);
+
+        return new AmazonSqsSubscriberConfiguration(endpoint);
+    }
+    
+    /// <summary>
+    ///     Publish matching messages directly to an Amazon SQS queue
+    /// </summary>
+    /// <param name="publishing"></param>
+    /// <param name="queueName">The name of the SQS queue</param>
+    /// <returns></returns>
+    public static AmazonSqsSubscriberConfiguration ToSqsQueueOnNamedBroker(this IPublishToExpression publishing, BrokerName name, string queueName)
+    {
+        var transports = publishing.As<PublishingExpression>().Parent.Transports;
+        var transport = transports.GetOrCreate<AmazonSqsTransport>(name);
 
         var corrected = transport.MaybeCorrectName(queueName);
 
