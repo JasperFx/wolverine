@@ -193,3 +193,12 @@ public static class KafkaInstrumentation
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/DocumentationSamples.cs#L97-L110' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_kafkainstrumentation_middleware' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+
+## Connecting to Multiple Brokers <Badge type="tip" text="4.7" />
+
+Wolverine supports interacting with multiple Kafka brokers within one application like this:
+
+snippet: sample_using_multiple_kafka_brokers
+
+Note that the `Uri` scheme within Wolverine for any endpoints from a "named" Kafka broker is the name that you supply
+for the broker. So in the example above, you might see `Uri` values for `emea://colors` or `americas://red`.

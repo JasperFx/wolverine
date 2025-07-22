@@ -20,7 +20,12 @@ public class KafkaTransport : BrokerTransport<KafkaTopic>
     public AdminClientConfig AdminClientConfig { get; } = new();
     public Action<AdminClientBuilder> ConfigureAdminClientBuilders { get; internal set; } = _ => {};
 
-    public KafkaTransport() : base("kafka", "Kafka Topics")
+    public KafkaTransport() : this("kafka")
+    {
+        
+    }
+
+    public KafkaTransport(string protocol) : base(protocol, "Kafka Topics")
     {
         Topics = new Cache<string, KafkaTopic>(topicName => new KafkaTopic(this, topicName, EndpointRole.Application));
     }
