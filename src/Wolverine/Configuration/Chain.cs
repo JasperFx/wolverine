@@ -9,6 +9,7 @@ using JasperFx.Descriptors;
 using Wolverine.Attributes;
 using Wolverine.Logging;
 using Wolverine.Middleware;
+using Wolverine.Persistence;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
 
@@ -160,6 +161,11 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
 
     public abstract bool TryFindVariable(string valueName, ValueSource source, Type valueType, out Variable variable);
     public abstract Frame[] AddStopConditionIfNull(Variable variable);
+
+    public virtual Frame[] AddStopConditionIfNull(Variable data, Variable? identity, IDataRequirement requirement)
+    {
+        return AddStopConditionIfNull(data);
+    }
 
     private static Type[] _typesToIgnore = new Type[]
     {

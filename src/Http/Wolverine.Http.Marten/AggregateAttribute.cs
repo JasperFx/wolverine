@@ -1,4 +1,5 @@
 using System.Reflection;
+using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
@@ -7,6 +8,7 @@ using JasperFx.Events;
 using Marten;
 using Marten.Events;
 using Microsoft.AspNetCore.Http;
+using Wolverine.Configuration;
 using Wolverine.Marten;
 using Wolverine.Marten.Codegen;
 using Wolverine.Marten.Publishing;
@@ -51,15 +53,21 @@ public class AggregateAttribute : HttpChainParameterAttribute
     /// </summary>
     public ConcurrencyStyle LoadStyle { get; set; } = ConcurrencyStyle.Optimistic;
 
+    public override Variable Modify(IChain chain, ParameterInfo parameter, IServiceContainer container, GenerationRules rules)
+    {
+        throw new NotImplementedException();
+    }
 
     public override Variable Modify(HttpChain chain, ParameterInfo parameter, IServiceContainer container)
     {
+        // TODO -- this goes away soon-ish
         if (chain.Method.Method.GetParameters().Count(x => x.HasAttribute<AggregateAttribute>()) > 1)
         {
             throw new InvalidOperationException(
                 "It is only possible (today) to use a single [Aggregate] attribute on an HTTP handler method. Maybe use [ReadAggregate] if all you need is the projected data");
         }
         
+        // TODO -- watch this!!!
         chain.Metadata.Produces(404);
 
         AggregateType = parameter.ParameterType;

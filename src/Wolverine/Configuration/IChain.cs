@@ -5,6 +5,7 @@ using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
 using Wolverine.Attributes;
 using Wolverine.Logging;
+using Wolverine.Persistence;
 using Wolverine.Runtime;
 
 namespace Wolverine.Configuration;
@@ -133,6 +134,12 @@ public interface IChain
     /// </summary>
     /// <param name="variable"></param>
     Frame[] AddStopConditionIfNull(Variable variable);
+
+    /// <summary>
+    /// Used by code generation to add a middleware Frame that aborts the processing if the variable is null
+    /// </summary>
+    /// <param name="variable"></param>
+    Frame[] AddStopConditionIfNull(Variable data, Variable? identity, IDataRequirement requirement);
 }
 
 #endregion
