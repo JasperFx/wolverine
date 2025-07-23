@@ -250,7 +250,7 @@ public partial class Envelope : IHasTenantId
     /// <summary>
     ///     Id of the immediate message or workflow that caused this envelope to be sent
     /// </summary>
-    public Guid ConversationId { get; internal set; }
+    public Guid ConversationId { get; set; }
 
     /// <summary>
     ///     Location that this message should be sent
@@ -261,7 +261,7 @@ public partial class Envelope : IHasTenantId
     ///     The open telemetry activity parent id. Wolverine uses this to correctly correlate connect
     ///     activity across services
     /// </summary>
-    public string? ParentId { get; internal set; }
+    public string? ParentId { get; set; }
 
     /// <summary>
     ///     User defined tenant identifier for multi-tenancy strategies. This is
