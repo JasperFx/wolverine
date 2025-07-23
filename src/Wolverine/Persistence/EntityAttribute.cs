@@ -2,7 +2,6 @@ using System.Reflection;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
-using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Wolverine.Attributes;
 using Wolverine.Configuration;
@@ -84,6 +83,18 @@ public class EntityAttribute : WolverineParameterAttribute, IDataRequirement
 
     public string? NotFoundMessage { get; set; }
     public MissingDataBehavior? MissingBehavior { get; set; }
+    
+    /// <summary>
+    /// Should Wolverine consider soft-deleted entities to be missing if deleted. I.e., if an entity
+    /// can be found, but is marked as deleted, is this considered a "good" entity and the message handling
+    /// or HTTP execution should continue?
+    /// 
+    ///     If the document is soft-deleted, whether the endpoint should receive the document (<c>true</c>) or NULL (
+    ///     <c>false</c>).
+    ///     Set it to <c>false</c> and combine it with <see cref="Required" /> so a 404 will be returned for soft-deleted
+    ///     documents.
+    /// </summary>
+    public bool MaybeSoftDeleted { get; set; } = true;
 
     public override Variable Modify(IChain chain, ParameterInfo parameter, IServiceContainer container,
         GenerationRules rules)
@@ -111,6 +122,12 @@ public class EntityAttribute : WolverineParameterAttribute, IDataRequirement
         var frame = provider.DetermineLoadFrame(container, parameter.ParameterType, identity);
         
         var entity = frame.Creates.First(x => x.VariableType == parameter.ParameterType);
+        
+        if (MaybeSoftDeleted is false)
+        {
+            var softDeleteFrames = provider.DetermineFrameToNullOutMaybeSoftDeleted(entity);
+            chain.Middleware.AddRange(softDeleteFrames);
+        }
         
         if (Required)
         {

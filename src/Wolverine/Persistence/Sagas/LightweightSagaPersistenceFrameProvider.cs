@@ -104,4 +104,6 @@ public class LightweightSagaPersistenceFrameProvider : IPersistenceFrameProvider
     {
         throw new NotSupportedException();
     }
+
+    public Frame[] DetermineFrameToNullOutMaybeSoftDeleted(Variable entity) => [];
 }
