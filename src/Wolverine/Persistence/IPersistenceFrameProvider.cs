@@ -47,6 +47,8 @@ public interface IPersistenceFrameProvider
     Frame DetermineDeleteFrame(Variable variable, IServiceContainer container);
 
     Frame DetermineStorageActionFrame(Type entityType, Variable action, IServiceContainer container);
+
+    Frame[] DetermineFrameToNullOutMaybeSoftDeleted(Variable entity);
 }
 
 
