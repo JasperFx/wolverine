@@ -15,7 +15,7 @@ namespace Wolverine.Persistence;
 /// Use this when you absolutely have to keep a number of Frames together
 /// and not allowing the topological sort to break them up
 /// </summary>
-internal class LoadEntityFrameBlock : Frame
+public class LoadEntityFrameBlock : Frame
 {
     private readonly Frame[] _guardFrames;
     private readonly Frame _creator;
@@ -64,7 +64,7 @@ internal class LoadEntityFrameBlock : Frame
 /// Apply this on a message handler method, an HTTP endpoint method, or any "before" middleware method parameter
 /// to direct Wolverine to use a known persistence strategy to resolve the entity from the request or message
 /// </summary>
-public class EntityAttribute : WolverineParameterAttribute
+public class EntityAttribute : WolverineParameterAttribute, IDataRequirement
 {
     public EntityAttribute()
     {
@@ -81,6 +81,9 @@ public class EntityAttribute : WolverineParameterAttribute
     /// execution to continue? Default is true. 
     /// </summary>
     public bool Required { get; set; } = true;
+
+    public string? NotFoundMessage { get; set; }
+    public MissingDataBehavior? MissingBehavior { get; set; }
 
     public override Variable Modify(IChain chain, ParameterInfo parameter, IServiceContainer container,
         GenerationRules rules)
@@ -111,7 +114,7 @@ public class EntityAttribute : WolverineParameterAttribute
         
         if (Required)
         {
-            var otherFrames = chain.AddStopConditionIfNull(entity);
+            var otherFrames = chain.AddStopConditionIfNull(entity, identity, this);
             
             var block = new LoadEntityFrameBlock(entity, otherFrames);
             chain.Middleware.Add(block);

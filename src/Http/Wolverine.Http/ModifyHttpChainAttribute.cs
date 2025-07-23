@@ -2,6 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Model;
+using Wolverine.Attributes;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
 
@@ -27,7 +28,7 @@ public abstract class ModifyHttpChainAttribute : Attribute, IModifyChain<HttpCha
 ///     middleware or error handling rules
 /// </summary>
 [AttributeUsage(AttributeTargets.Parameter)]
-public abstract class HttpChainParameterAttribute : Attribute
+public abstract class HttpChainParameterAttribute : WolverineParameterAttribute
 {
     /// <summary>
     ///     Called by Wolverine during bootstrapping to modify the code generation
