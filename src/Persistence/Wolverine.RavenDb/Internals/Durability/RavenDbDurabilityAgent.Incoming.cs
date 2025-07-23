@@ -44,7 +44,7 @@ public partial class RavenDbDurabilityAgent
             var envelopes = await _parent.LoadPageOfGloballyOwnedIncomingAsync(listener, _settings.RecoveryBatchSize);
             await _parent.ReassignIncomingAsync(_settings.AssignedNodeNumber, envelopes);
 
-            circuit.EnqueueDirectly(envelopes);
+            await circuit.EnqueueDirectlyAsync(envelopes);
             _logger.RecoveredIncoming(envelopes);
 
             _logger.LogInformation("Successfully recovered {Count} messages from the inbox for listener {Listener}",

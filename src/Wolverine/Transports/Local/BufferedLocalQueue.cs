@@ -31,12 +31,14 @@ internal class BufferedLocalQueue : BufferedReceiver, ISendingAgent, IListenerCi
         return ValueTask.CompletedTask;
     }
 
-    void IListenerCircuit.EnqueueDirectly(IEnumerable<Envelope> envelopes)
+    Task IListenerCircuit.EnqueueDirectlyAsync(IEnumerable<Envelope> envelopes)
     {
         foreach (var envelope in envelopes)
         {
             EnqueueDirectly(envelope);
         }
+
+        return Task.CompletedTask;
     }
 
     public Uri Destination { get; }

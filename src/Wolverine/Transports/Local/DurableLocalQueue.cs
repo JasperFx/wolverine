@@ -68,14 +68,16 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
 
     int IListenerCircuit.QueueCount => _receiver?.QueueCount ?? 0;
 
-    void IListenerCircuit.EnqueueDirectly(IEnumerable<Envelope> envelopes)
+    Task IListenerCircuit.EnqueueDirectlyAsync(IEnumerable<Envelope> envelopes)
     {
         if (_receiver == null)
         {
-            return;
+            return Task.CompletedTask;
         }
 
         foreach (var envelope in envelopes) _receiver.Enqueue(envelope);
+
+        return Task.CompletedTask;
     }
 
     public async ValueTask PauseAsync(TimeSpan pauseTime)

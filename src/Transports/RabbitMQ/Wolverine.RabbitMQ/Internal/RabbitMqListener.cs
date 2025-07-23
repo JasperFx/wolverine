@@ -55,6 +55,7 @@ internal class RabbitMqListener : RabbitMqChannelAgent, IListener, ISupportDeadL
     private readonly RabbitMqTransport _transport;
     private readonly IReceiver _receiver;
     private readonly Lazy<ISender> _sender;
+    private string? _consumerId;
 
     public RabbitMqListener(IWolverineRuntime runtime,
         RabbitMqQueue queue, RabbitMqTransport transport, IReceiver receiver) : base(transport.UseSenderConnectionOnly ? transport.SendingConnection : transport.ListeningConnection,
@@ -62,6 +63,7 @@ internal class RabbitMqListener : RabbitMqChannelAgent, IListener, ISupportDeadL
     {
         Queue = queue;
         Address = queue.Uri;
+        ConsumerAddress = Address;
 
         _sender = new Lazy<ISender>(() => Queue.ResolveSender(runtime));
         _cancellation.Register(() =>
@@ -215,7 +217,24 @@ internal class RabbitMqListener : RabbitMqChannelAgent, IListener, ISupportDeadL
         await Channel!.BasicAckAsync(deliveryTag, true, _cancellation);
     }
 
-    public string? ConsumerId { get; set; }
+    public string? ConsumerId
+    {
+        get => _consumerId;
+        set
+        {
+            _consumerId = value;
+
+            if (value == null)
+            {
+                ConsumerAddress = Address;
+            }
+            else
+            {
+                ConsumerAddress = new Uri($"{Address}?consumer={_consumerId}");
+            }
+        }
+    }
+
     public Uri BaseAddress => Queue.Uri;
-    public Uri ConsumerAddress => new Uri($"{Queue.Uri}?consumer={ConsumerId}");
+    public Uri ConsumerAddress { get; private set; }
 }
