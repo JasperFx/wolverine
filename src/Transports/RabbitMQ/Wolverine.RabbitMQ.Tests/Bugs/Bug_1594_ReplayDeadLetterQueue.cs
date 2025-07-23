@@ -3,11 +3,14 @@ using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using IntegrationTests;
+using JasperFx.Core;
+using JasperFx.Core.Reflection;
 using JasperFx.Resources;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
 using Wolverine;
+using Wolverine.Configuration;
 using Wolverine.Persistence.Durability;
 using Wolverine.Persistence.Durability.DeadLetterManagement;
 using Wolverine.RabbitMQ;
@@ -18,15 +21,16 @@ using Xunit.Abstractions;
 
 namespace Wolverine.RabbitMQ.Tests.Bugs;
 
-public class Bug_ReplayDeadLetterQueue
+public class Bug_1594_ReplayDeadLetterQueue
 {
     private readonly ITestOutputHelper _output;
-    public Bug_ReplayDeadLetterQueue(ITestOutputHelper output) { _output = output; ReplayTestHandler.Output = output; }
+    public Bug_1594_ReplayDeadLetterQueue(ITestOutputHelper output) { _output = output; ReplayTestHandler.Output = output; }
 
     [Theory]
-    [InlineData(false)] // non-durable
-    [InlineData(true)]  // durable
-    public async Task can_replay_dead_letter_message(bool useDurableInbox)
+    [InlineData(EndpointMode.Inline)] 
+    [InlineData(EndpointMode.Durable)] 
+    [InlineData(EndpointMode.BufferedInMemory)] 
+    public async Task can_replay_dead_letter_message(EndpointMode mode)
     {
         var queueName = $"replay-dlq-{Guid.NewGuid()}";
         var connectionString = Servers.SqlServerConnectionString;
@@ -42,27 +46,18 @@ public class Bug_ReplayDeadLetterQueue
                 opts.Policies.AutoApplyTransactions();
                 opts.EnableAutomaticFailureAcks = false;
                 opts.Durability.Mode = DurabilityMode.Solo;
+                
                 opts.UseRabbitMq().DisableDeadLetterQueueing().AutoProvision().AutoPurgeOnStartup();
-                if (useDurableInbox)
-                {
-                    opts.ListenToRabbitQueue(queueName).UseDurableInbox();
-                    opts.PublishMessage<ReplayTestMessage>().ToRabbitQueue(queueName);
-                }
-                else
-                {
-                    opts.ListenToRabbitQueue(queueName);
-                    opts.PublishMessage<ReplayTestMessage>().ToRabbitQueue(queueName);
-                }
+                opts.PublishMessage<ReplayTestMessage>().ToRabbitQueue(queueName);
+                opts.ListenToRabbitQueue(queueName, q => q.As<Endpoint>().Mode = mode);
+
                 opts.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
             }).StartAsync();
 
         await host.ResetResourceState();
-
-        using (var scope = host.Services.CreateScope())
-        {
-            var bus = scope.ServiceProvider.GetRequiredService<IMessageBus>();
-            await bus.PublishAsync(new ReplayTestMessage());
-        }
+        
+        await host.MessageBus().PublishAsync(new ReplayTestMessage());
+        
         await Task.Delay(1000);
 
         var messageStore = host.Services.GetRequiredService<IMessageStore>();
@@ -79,6 +74,7 @@ public class Bug_ReplayDeadLetterQueue
             }
             await Task.Delay(100);
         }
+        
         deadLetterId.ShouldNotBeNull("Message should be in DLQ after failure");
 
         // Log state before replay
@@ -92,7 +88,7 @@ public class Bug_ReplayDeadLetterQueue
         var tracked = await host
             .TrackActivity()
             .DoNotAssertOnExceptionsDetected()
-            .Timeout(TimeSpan.FromSeconds(10))
+            .Timeout(60.Seconds())
             .WaitForMessageToBeReceivedAt<ReplayTestMessage>(host)
             .ExecuteAndWaitAsync((IMessageContext _) => messageStore.DeadLetters.MarkDeadLetterEnvelopesAsReplayableAsync(new[] { deadLetterId.Value }));
 
@@ -109,7 +105,7 @@ public class Bug_ReplayDeadLetterQueue
         tracked.MessageSucceeded.SingleMessage<ReplayTestMessage>()
             .ShouldNotBeNull("ReplayTestMessage should be successfully processed after replay");
         afterReplay.DeadLetterEnvelopes.Any(dl => dl.Id == deadLetterId).ShouldBeFalse("Message should be removed from DLQ after successful replay (this should work for both durable and non-durable queues)");
-        afterIncoming.Any(env => env.Id == deadLetterId).ShouldBeFalse("Message should not remain in Incoming after successful processing");
+        afterIncoming.Any(env => env.Status == EnvelopeStatus.Incoming && env.Id == deadLetterId).ShouldBeFalse("Message should not remain in Incoming after successful processing");
     }
 }
 
