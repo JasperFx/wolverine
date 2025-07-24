@@ -69,7 +69,7 @@ public class RetryBlock<T> : IDisposable
         _block = new ActionBlock<Item>(executeAsync, options);
     }
 
-    public int MaximumAttempts { get; set; } = 3;
+    public int MaximumAttempts { get; set; } = 4;
     public TimeSpan[] Pauses { get; set; } = [50.Milliseconds(), 100.Milliseconds(), 250.Milliseconds()];
 
     public void Dispose()
@@ -85,19 +85,14 @@ public class RetryBlock<T> : IDisposable
         _block.Post(item);
     }
 
-    public async Task PostAsync(T message)
+    public Task PostAsync(T message)
     {
-        if (_cancellationToken.IsCancellationRequested) return;
+        if (_cancellationToken.IsCancellationRequested) return Task.CompletedTask;
 
-        try
-        {
-            await _handler.ExecuteAsync(message, _cancellationToken);
-        }
-        catch (Exception e)
-        {
-            _logger.LogError(e, "Error while trying to retry {Item}", message);
-            Post(message);
-        }
+        Post(message);
+
+        return _block.Completion;
+
     }
 
     public TimeSpan DeterminePauseTime(int attempt)
@@ -118,12 +113,17 @@ public class RetryBlock<T> : IDisposable
         {
             item.Attempts++;
 
-            var pause = DeterminePauseTime(item.Attempts);
-            await Task.Delay(pause, _cancellationToken);
+            // Wait only after first attempt
+            if (item.Attempts > 1)
+            {
+                var pause = DeterminePauseTime(item.Attempts);
+                await Task.Delay(pause, _cancellationToken);
+            }
 
             await _handler.ExecuteAsync(item.Message, _cancellationToken);
 
             _logger.LogDebug("Completed {Item}", item.Message);
+            _block.Complete();
         }
         catch (Exception e)
         {
@@ -139,6 +139,8 @@ public class RetryBlock<T> : IDisposable
             {
                 _logger.LogInformation("Discarding message {Message} after {Attempts} attempts", item.Message,
                     item.Attempts);
+
+                throw;
             }
         }
     }
