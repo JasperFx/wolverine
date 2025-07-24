@@ -1,24 +1,24 @@
 namespace Wolverine.Persistence;
 
-public enum MissingDataBehavior
+public enum OnMissing
 {
     /// <summary>
     /// Default behavior. In a message handler, the execution will just stop after logging that the data was missing. In an HTTP
     /// endpoint the request will stop w/ an empty body and 404 status code
     /// </summary>
-    NotFound404,
+    Simple404,
     
     /// <summary>
     /// In a message handler, the execution will log that the required data is missing and stop execution. In an HTTP
     /// endpoint the request will stop w/ a 400 response and a ProblemDetails body describing the missing data
     /// </summary>
-    ProblemDetails400,
+    ProblemDetailsWith400,
     
     /// <summary>
     /// In a message handler, the execution will log that the required data is missing and stop execution. In an HTTP
-    /// endpoint the request will stop w/ a 404 response and a ProblemDetails body describing the missing data
+    /// endpoint the request will stop w/ a 404 status code response and a ProblemDetails body describing the missing data
     /// </summary>
-    NotFoundProblemDetails404,
+    ProblemDetailsWith404,
     
     /// <summary>
     /// Throws a RequiredDataMissingException using the MissingMessage
@@ -36,6 +36,6 @@ public class RequiredDataMissingException : Exception
 public interface IDataRequirement
 {
     bool Required { get; set; }
-    string? NotFoundMessage { get; set; }
-    MissingDataBehavior? MissingBehavior { get; set; }
+    string MissingMessage { get; set; }
+    OnMissing OnMissing { get; set; }
 }
