@@ -394,8 +394,8 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
                 return [frame, new HandlerContinuationFrame(frame)];
                 
             default:
-                // Come back here. 
-                throw new NotImplementedException("Have to deal w/ this");
+                var message = requirement.MissingMessage ?? $"Unknown {data.VariableType.NameInCode()} with identity {{Id}}";
+                return [new ThrowRequiredDataMissingExceptionFrame(data, identity, message)];
         }
     }
 
