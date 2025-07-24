@@ -36,6 +36,22 @@ public abstract class HttpHandler
         return tenantId;
     }
 
+    public Task WriteProblems(int statusCode, string message, HttpContext context, object? identity)
+    {
+        if (identity != null)
+        {
+            message = message.Replace("{Id}", identity.ToString());
+        }
+        
+        var problems = new ProblemDetails
+        {
+            Status = statusCode,
+            Detail = message
+        };
+
+        return Results.Problem(problems).ExecuteAsync(context);
+    }
+
     public Task WriteTenantIdNotFound(HttpContext context)
     {
         return Results.Problem(new ProblemDetails

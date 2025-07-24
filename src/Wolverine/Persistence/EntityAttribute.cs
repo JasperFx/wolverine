@@ -74,6 +74,8 @@ public class EntityAttribute : WolverineParameterAttribute, IDataRequirement
     {
         ValueSource = ValueSource.Anything;
     }
+    
+    
 
     /// <summary>
     /// Is the existence of this entity required for the rest of the handler action or HTTP endpoint
@@ -81,8 +83,8 @@ public class EntityAttribute : WolverineParameterAttribute, IDataRequirement
     /// </summary>
     public bool Required { get; set; } = true;
 
-    public string? NotFoundMessage { get; set; }
-    public MissingDataBehavior? MissingBehavior { get; set; }
+    public string MissingMessage { get; set; }
+    public OnMissing OnMissing { get; set; } = OnMissing.Simple404;
     
     /// <summary>
     /// Should Wolverine consider soft-deleted entities to be missing if deleted. I.e., if an entity

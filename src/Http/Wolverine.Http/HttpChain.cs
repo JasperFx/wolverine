@@ -21,6 +21,7 @@ using Wolverine.Configuration;
 using Wolverine.Http.CodeGen;
 using Wolverine.Http.Metadata;
 using Wolverine.Http.Policies;
+using Wolverine.Persistence;
 using Wolverine.Runtime;
 using ServiceContainer = Wolverine.Runtime.ServiceContainer;
 
@@ -287,6 +288,26 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
     public override Frame[] AddStopConditionIfNull(Variable variable)
     {
         return [new SetStatusCodeAndReturnIfEntityIsNullFrame(variable)];
+    }
+
+    public override Frame[] AddStopConditionIfNull(Variable data, Variable? identity, IDataRequirement requirement)
+    {
+        var message = requirement.MissingMessage ?? $"Unknown {data.VariableType.NameInCode()} with identity {{Id}}";
+        
+        // TODO -- want to use WolverineOptions here for a default
+        switch (requirement.OnMissing)
+        {
+            case OnMissing.Simple404:
+                return [new SetStatusCodeAndReturnIfEntityIsNullFrame(data)];
+                
+            case OnMissing.ProblemDetailsWith400:
+                return [new WriteProblemDetailsIfNull(data, identity, message, 400)];
+            case OnMissing.ProblemDetailsWith404:
+                return [new WriteProblemDetailsIfNull(data, identity, message, 404)];
+                
+            default:
+                return [new ThrowRequiredDataMissingExceptionFrame(data, identity, message)];
+        }
     }
 
     public override string ToString()
