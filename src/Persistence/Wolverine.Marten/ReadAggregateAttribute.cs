@@ -16,7 +16,7 @@ namespace Wolverine.Marten;
 /// <summary>
 /// Use Marten's FetchLatest() API to retrieve the parameter value
 /// </summary>
-public class ReadAggregateAttribute : WolverineParameterAttribute
+public class ReadAggregateAttribute : WolverineParameterAttribute, IDataRequirement
 {
     public ReadAggregateAttribute()
     {
@@ -34,6 +34,9 @@ public class ReadAggregateAttribute : WolverineParameterAttribute
     /// </summary>
     public bool Required { get; set; } = true;
 
+    public string MissingMessage { get; set; }
+    public OnMissing OnMissing { get; set; }
+
     public override Variable Modify(IChain chain, ParameterInfo parameter, IServiceContainer container, GenerationRules rules)
     {
         // I know it's goofy that this refers to the saga, but it should work fine here too
@@ -48,7 +51,7 @@ public class ReadAggregateAttribute : WolverineParameterAttribute
         
         if (Required)
         {
-            var otherFrames = chain.AddStopConditionIfNull(frame.Aggregate);
+            var otherFrames = chain.AddStopConditionIfNull(frame.Aggregate, identity, this);
             
             var block = new LoadEntityFrameBlock(frame.Aggregate, otherFrames);
             chain.Middleware.Add(block);
