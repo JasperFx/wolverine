@@ -96,7 +96,7 @@ public static Invoice GetSoftDeleted([Document(Required = true, MaybeSoftDeleted
 <!-- endSnippet -->
 
 
-## Marten Aggregate Workflow 
+## Marten Aggregate Workflow
 
 The http endpoints can play inside the full "critter stack" combination with [Marten](https://martendb.io) with Wolverine's [specific
 support for Event Sourcing and CQRS](/guide/durability/marten/event-sourcing). Originally this has been done
@@ -104,6 +104,17 @@ by just mimicking the command handler mechanism and having all the inputs come i
 Wolverine 1.10 added a more HTTP-centric approach using route arguments. 
 
 ### Using Route Arguments
+
+::: tip
+The `[Aggregate]` attribute was originally meant for the "aggregate handler workflow" where Wolverine is interacting with
+Marten with the assumption that it will be appending events to Marten streams and getting you ready for versioning assertions.
+
+If all you need is a read only copy of Marten aggregate data, the `[ReadAggregate]` is a lighter weight option. 
+
+Also, the `[WriteAggregate]` attribute has the exact same behavior as the older `[Aggregate]`, but is available in both
+message handlers and HTTP endpoints. You may want to prefer `[WriteAggregate]` just to be more clear in the code about
+what's happening.
+:::
 
 To opt into the Wolverine + Marten "aggregate workflow", but use data from route arguments for the aggregate id,
 use the new `[Aggregate]` attribute from Wolverine.Http.Marten on endpoint method parameters like shown below:
