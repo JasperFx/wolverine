@@ -25,7 +25,7 @@ internal class HttpChainFluentValidationPolicy : IHttpPolicy
 
         if (registered.Count() == 1)
         {
-            chain.Metadata.ProducesProblem(400);
+            chain.Metadata.ProducesValidationProblem(400);
 
             var method =
                 typeof(FluentValidationHttpExecutor).GetMethod(nameof(FluentValidationHttpExecutor.ExecuteOne))!
@@ -41,7 +41,7 @@ internal class HttpChainFluentValidationPolicy : IHttpPolicy
         }
         else if (registered.Count() > 1)
         {
-            chain.Metadata.ProducesProblem(400);
+            chain.Metadata.ProducesValidationProblem(400);
 
             var method =
                 typeof(FluentValidationHttpExecutor).GetMethod(nameof(FluentValidationHttpExecutor.ExecuteMany))!
