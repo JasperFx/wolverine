@@ -129,10 +129,15 @@ public enum ValueSource
     /// <summary>
     /// The value should be sourced by a route argument of an HTTP request
     /// </summary>
-    RouteValue
+    RouteValue,
+    
+    /// <summary>
+    /// The value should be sourced by a query string parameter of an HTTP request
+    /// </summary>
+    FromQueryString
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Attributes/ModifyChainAttribute.cs#L17-L37' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_valuesource' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Attributes/ModifyChainAttribute.cs#L17-L42' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_valuesource' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Some other facts to know about `[Entity]` usage:

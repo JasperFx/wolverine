@@ -1,9 +1,9 @@
 # Aggregate Handlers and Event Sourcing
 
 ::: tip
-You can forgo the `[AggregateHandler]` attribute by instead naming your message handler type with the `AggregateHandler` suffix
-if the Wolverine/Marten integration is applied to your application. Do note that you will still have to use the attribute to opt into
-exclusive write locking.
+Only use the "aggregate handler workflow" is you are wanting to potentially write new events to an existing event stream. If all you
+need in a message handler or HTTP endpoint is a read-only copy of an event streamed aggregate from Marten, use the `[ReadAggregate]` attribute
+instead that has a little bit lighter weight runtime within Marten.
 :::
 
 See the [OrderEventSourcingSample project on GitHub](https://github.com/JasperFx/wolverine/tree/main/src/Persistence/OrderEventSourcingSample) for more samples.
@@ -227,6 +227,40 @@ public class MarkItemReadyHandler1442193977 : MessageHandler
 
 As you probably guessed, there are some naming conventions or other questions you need to be aware of
 before you use this middleware strategy.
+
+Alternatively, there is also the newer `[WriteAttribute]` usage, with this example being a functional alternative
+mark up:
+
+snippet: sample_MarkItemReadyHandler_with_WriteAggregate
+
+The `[WriteAggregate]` attribute also opts into the "aggregate handler workflow", but is placed at the parameter level
+instead of the class level. This was added to extend the "aggregate handler workflow" to operations that involve multiple
+event streams in one transaction. 
+
+::: tip
+`[WriteAggregate]` works equally on message handlers as it does on HTTP endpoints. In fact, the older `[Aggregate]` attribute
+in Wolverine.Http.Marten is now just a subclass of `[WriteAggregate]`.
+:::
+
+## Validation on Stream Existence <Badge type="tip" text="4.8" />
+
+By default, the "aggregate handler workflow" does no validation on whether or not the identified event stream actually 
+exists at runtime, and it's possible to receive a null for the aggregate in this example if the aggregate does not exist:
+
+snippet: sample_MarkItemReadyHandler_with_WriteAggregate
+
+As long as you handle the case where the requested is null, you can even effectively start a new stream by emitting events
+from your handler or HTTP endpoint. 
+
+If you do want to protect message handlers or HTTP endpoints from acting on missing streams because of bad user inputs
+(or who knows what, it's a chaotic world and you should never trust your system is receiving valid input), you now have 
+some options to mark the aggregate itself as required and even control how Wolverine deals with the aggregate being missing 
+as shown in these sample signatures below:
+
+snippet: sample_validation_on_aggregate_being_missing_in_aggregate_handler_workflow
+
+The `Required`, `OnMissing`, and `MissingMessage` properties behave consistently on all Wolverine attributes
+like `[Entity]` or `[WriteAggregate]` or `[ReadAggregate]`.
 
 ### Handler Method Signatures
 
@@ -542,3 +576,12 @@ The aggregate/stream identity is found with the same rules as the `[Entity]` or 
 1. You can specify a particular request body property name or route argument
 2. Look for a request body property or route argument named "EntityTypeId"
 3. Look for a request body property or route argument named "Id" or "id"
+
+You can override the validation rules for how Wolverine handles an aggregate / event stream not being found
+by setting these properties on `[ReadAttribute]` (which is much more useful for HTTP endpoints):
+
+snippet: sample_read_aggregate_fine_grained_validation_control
+
+There is also an option with `OnMissing` to throw a `RequiredDataMissingException` exception if a required data element
+is missing. This option is probably most useful with message handlers where you may want to key off the exception with custom
+error handling rules.
