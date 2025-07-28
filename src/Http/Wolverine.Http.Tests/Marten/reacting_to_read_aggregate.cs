@@ -77,6 +77,38 @@ public class reacting_to_read_aggregate : IAsyncLifetime
         });
     }
     
+    [Fact]
+    public async Task post_write_404_by_default_on_missing_on_write()
+    {
+        await theHost.Scenario(x =>
+        {
+            x.Post.Url("/letters4/" + Guid.NewGuid());
+            x.StatusCodeShouldBe(404);
+        });
+    }
+
+    [Fact]
+    public async Task not_required_still_functions_on_write()
+    {
+        var result = await theHost.Scenario(x =>
+        {
+            x.Post.Url("/letters5/" + Guid.NewGuid());
+        });
+        
+        result.ReadAsText().ShouldBe("No Letters");
+    }
+
+    [Fact]
+    public async Task missing_with_problem_details_on_write()
+    {
+        var result = await theHost.Scenario(x =>
+        {
+            x.Post.Url("/letters6/" + Guid.NewGuid());
+            x.StatusCodeShouldBe(404);
+            x.ContentTypeShouldBe("application/problem+json");
+        });
+    }
+    
 }
 
 public static class LetterAggregateEndpoint
@@ -95,6 +127,22 @@ public static class LetterAggregateEndpoint
     // Straight up 404 & problem details on missing
     [WolverineGet("/letters3/{id}")]
     public static LetterAggregate GetLetter3([ReadAggregate(OnMissing = OnMissing.ProblemDetailsWith404)] LetterAggregate letters) => letters;
+
+    
+    // Straight up 404 on missing
+    [WolverinePost("/letters4/{id}")]
+    public static LetterAggregate PostLetter4([WriteAggregate(Required = true)] LetterAggregate letters) => letters;
+    
+    // Not required
+    [WolverinePost("/letters5/{id}")]
+    public static string PostLetter5([WriteAggregate(Required = false)] LetterAggregate letters)
+    {
+        return letters == null ? "No Letters" : "Got Letters";
+    }
+    
+    // Straight up 404 & problem details on missing
+    [WolverinePost("/letters6/{id}")]
+    public static LetterAggregate PostLetter6([WriteAggregate(Required = true, OnMissing = OnMissing.ProblemDetailsWith404)] LetterAggregate letters) => letters;
 
 }
 
