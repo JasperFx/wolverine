@@ -11,17 +11,20 @@ internal class MissingAggregateCheckFrame : SyncFrame
 {
     private readonly MemberInfo _aggregateIdMember;
     private readonly Type _aggregateType;
+    private readonly Variable _identity;
     private readonly Type _commandType;
     private readonly Variable _eventStream;
     private Variable? _command;
 
-    public MissingAggregateCheckFrame(Type aggregateType, Type commandType, MemberInfo aggregateIdMember,
+    public MissingAggregateCheckFrame(Type aggregateType, Variable identity,
         Variable eventStream)
     {
         _aggregateType = aggregateType;
-        _commandType = commandType;
-        _aggregateIdMember = aggregateIdMember;
+        _identity = identity;
         _eventStream = eventStream;
+        
+        uses.Add(identity);
+        uses.Add(eventStream);
     }
 
     public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
@@ -33,7 +36,7 @@ internal class MissingAggregateCheckFrame : SyncFrame
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
         writer.WriteLine(
-            $"if ({_eventStream.Usage}.{nameof(IEventStream<string>.Aggregate)} == null) throw new {typeof(UnknownAggregateException).FullNameInCode()}(typeof({_aggregateType.FullNameInCode()}), {_command!.Usage}.{_aggregateIdMember.Name});");
+            $"if ({_eventStream.Usage}.{nameof(IEventStream<string>.Aggregate)} == null) throw new {typeof(UnknownAggregateException).FullNameInCode()}(typeof({_aggregateType.FullNameInCode()}), {_identity.Usage});");
 
         Next?.GenerateCode(method, writer);
     }

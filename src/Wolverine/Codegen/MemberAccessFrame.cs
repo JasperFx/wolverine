@@ -4,9 +4,13 @@ using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
 
-namespace Wolverine.Http.Marten;
+namespace Wolverine.Codegen;
 
-internal class MemberAccessFrame : SyncFrame
+/// <summary>
+/// Generates a variable for a value of a member off of the designated parent variable type
+/// </summary>
+// TODO -- move this to JasperFx
+public class MemberAccessFrame : SyncFrame
 {
     private readonly Type _targetType;
     private readonly MemberInfo _member;

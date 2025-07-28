@@ -10,20 +10,31 @@ namespace Wolverine.Marten.Codegen;
 
 internal class OpenMartenSessionFrame : AsyncFrame
 {
+    private readonly Type _sessionType;
     private Variable? _context;
     private Variable? _factory;
     private Variable? _martenFactory;
     private Variable _tenantId;
+    private bool _justCast;
 
     public OpenMartenSessionFrame(Type sessionType)
     {
+        _sessionType = sessionType;
         ReturnVariable = new Variable(sessionType, this);
     }
 
     public Variable ReturnVariable { get; }
+    
+    
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
+        if (_justCast)
+        {
+            Next?.GenerateCode(method, writer);
+            return;
+        }
+        
         var methodName = ReturnVariable.VariableType == typeof(IQuerySession)
             ? nameof(OutboxedSessionFactory.QuerySession)
             : nameof(OutboxedSessionFactory.OpenSession);
@@ -49,6 +60,18 @@ internal class OpenMartenSessionFrame : AsyncFrame
 
     public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
     {
+        if (_sessionType == typeof(IQuerySession))
+        {
+            _justCast = true;
+            var documentSession = chain.TryFindVariable(typeof(IDocumentSession), VariableSource.All);
+            if (documentSession != null)
+            {
+                yield return documentSession;
+                ReturnVariable.OverrideName($"(({typeof(IQuerySession)}){documentSession.Usage})");
+                yield break;
+            }
+        }
+        
         // Honestly, this is mostly to get the ordering correct
         if (chain.TryFindVariableByName(typeof(string), PersistenceConstants.TenantIdVariableName, out var tenant))
         {
