@@ -113,6 +113,8 @@ public class reacting_to_read_aggregate : IAsyncLifetime
 
 public static class LetterAggregateEndpoint
 {
+    #region sample_read_aggregate_fine_grained_validation_control
+
     // Straight up 404 on missing
     [WolverineGet("/letters1/{id}")]
     public static LetterAggregate GetLetter1([ReadAggregate] LetterAggregate letters) => letters;
@@ -129,6 +131,8 @@ public static class LetterAggregateEndpoint
     public static LetterAggregate GetLetter3([ReadAggregate(OnMissing = OnMissing.ProblemDetailsWith404)] LetterAggregate letters) => letters;
 
     
+
+    #endregion
     // Straight up 404 on missing
     [WolverinePost("/letters4/{id}")]
     public static LetterAggregate PostLetter4([WriteAggregate(Required = true)] LetterAggregate letters) => letters;

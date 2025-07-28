@@ -28,7 +28,7 @@ var host = await Host.CreateDefaultBuilder()
             .AutoPurgeOnStartup();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L31-L48' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_simplistic_aws_sqs_setup' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L66-L83' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_simplistic_aws_sqs_setup' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -58,7 +58,7 @@ builder.UseWolverine(opts =>
 using var host = builder.Build();
 await host.StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L53-L78' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_config_aws_sqs_connection' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L88-L113' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_config_aws_sqs_connection' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -76,7 +76,7 @@ var host = await Host.CreateDefaultBuilder()
         opts.UseAmazonSqsTransportLocally();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L16-L26' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_connect_to_sqs_and_localstack' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L51-L61' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_connect_to_sqs_and_localstack' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And lastly, if you want to explicitly supply an access and secret key for your credentials to SQS, you can use this syntax:
@@ -110,14 +110,45 @@ builder.UseWolverine(opts =>
 using var host = builder.Build();
 await host.StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L83-L111' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setting_aws_credentials' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L118-L146' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setting_aws_credentials' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Connecting to Multiple Brokers <Badge type="tip" text="4.7" />
 
 Wolverine supports interacting with multiple Amazon SQS brokers within one application like this:
 
-snippet: sample_using_multiple_sqs_brokers
+<!-- snippet: sample_using_multiple_sqs_brokers -->
+<a id='snippet-sample_using_multiple_sqs_brokers'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.UseAmazonSqsTransport(config =>
+        {
+            // Add configuration for connectivity
+        });
+        
+        opts.AddNamedAmazonSqsBroker(new BrokerName("americas"), config =>
+        {
+            // Add configuration for connectivity
+        });
+        
+        opts.AddNamedAmazonSqsBroker(new BrokerName("emea"), config =>
+        {
+            // Add configuration for connectivity
+        });
+
+        // Or explicitly make subscription rules
+        opts.PublishMessage<SenderConfigurationTests.ColorMessage>()
+            .ToSqsQueueOnNamedBroker(new BrokerName("emea"), "colors");
+
+        // Listen to topics
+        opts.ListenToSqsQueueOnNamedBroker(new BrokerName("americas"), "red");
+        // Other configuration
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L17-L46' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_multiple_sqs_brokers' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 Note that the `Uri` scheme within Wolverine for any endpoints from a "named" Amazon SQS broker is the name that you supply
 for the broker. So in the example above, you might see `Uri` values for `emea://colors` or `americas://red`.
