@@ -1,5 +1,10 @@
 using Alba;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.DependencyInjection;
+using Shouldly;
 using Wolverine.Http.Tests.DifferentAssembly.Validation;
 using WolverineWebApi.Validation;
 
@@ -9,6 +14,19 @@ public class fluent_validation_middleware : IntegrationContext
 {
     public fluent_validation_middleware(AppFixture fixture) : base(fixture)
     {
+    }
+
+    [Fact]
+    public void adds_problem_validation_to_open_api_metadata()
+    {
+        var endpoints = Host.Services.GetServices<EndpointDataSource>().SelectMany(x => x.Endpoints).OfType<RouteEndpoint>()
+            .ToList();
+
+        var endpoint = endpoints.Single(x => x.RoutePattern.RawText == "/validate/customer");
+
+        var produces = endpoint.Metadata.OfType<IProducesResponseTypeMetadata>().Single(x => x.Type == typeof(HttpValidationProblemDetails));
+        produces.StatusCode.ShouldBe(400);
+        produces.ContentTypes.Single().ShouldBe("application/problem+json");
     }
 
     [Fact]
@@ -36,9 +54,9 @@ public class fluent_validation_middleware : IntegrationContext
             x.StatusCodeShouldBe(400);
         });
 
-        // Just proving that we have ProblemDetails content
+        // Just proving that we have HttpValidationProblemDetails content
         // in the request
-        var problems = results.ReadAsJson<ProblemDetails>();
+        var problems = results.ReadAsJson<HttpValidationProblemDetails>();
     }
     [Fact]
     public async Task one_validator_sad_path_in_different_assembly()
@@ -52,9 +70,9 @@ public class fluent_validation_middleware : IntegrationContext
             x.StatusCodeShouldBe(400);
         });
 
-        // Just proving that we have ProblemDetails content
+        // Just proving that we have HttpValidationProblemDetails content
         // in the request
-        var problems = results.ReadAsJson<ProblemDetails>();
+        var problems = results.ReadAsJson<HttpValidationProblemDetails>();
     }
 
     [Fact]
@@ -82,7 +100,7 @@ public class fluent_validation_middleware : IntegrationContext
             x.StatusCodeShouldBe(400);
         });
 
-        var problems = results.ReadAsJson<ProblemDetails>();
+        var problems = results.ReadAsJson<HttpValidationProblemDetails>();
     }
 
     [Fact]
@@ -97,6 +115,6 @@ public class fluent_validation_middleware : IntegrationContext
             x.StatusCodeShouldBe(400);
         });
 
-        var problems = results.ReadAsJson<ProblemDetails>();
+        var problems = results.ReadAsJson<HttpValidationProblemDetails>();
     }
 }
