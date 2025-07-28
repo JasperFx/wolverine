@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Reflection;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
@@ -38,18 +39,18 @@ internal record AggregateHandling(IDataRequirement Requirement)
         var loader = GenerateLoadAggregateCode(chain);
         var firstCall = chain.HandlerCalls().First();
 
-        var aggregate = loader.ReturnVariable!;
+        var eventStream = loader.ReturnVariable!;
         
         if (AggregateType == firstCall.HandlerType)
         {
             chain.Middleware.Add(new MissingAggregateCheckFrame(AggregateType, AggregateId,
-                aggregate));
+                eventStream));
         }
 
         DetermineEventCaptureHandling(chain, firstCall, AggregateType);
 
         ValidateMethodSignatureForEmittedEvents(chain, firstCall, chain);
-        RelayAggregateToHandlerMethod(aggregate, chain, firstCall, AggregateType);
+        var aggregate = RelayAggregateToHandlerMethod(eventStream, chain, firstCall, AggregateType);
 
         return aggregate;
     }
@@ -182,6 +183,11 @@ internal record AggregateHandling(IDataRequirement Requirement)
     internal Variable RelayAggregateToHandlerMethod(Variable eventStream, IChain chain, MethodCall firstCall,
         Type aggregateType)
     {
+        if (aggregateType.Name == "LetterAggregate")
+        {
+            Debug.WriteLine("Here");
+        }
+        
         Variable aggregateVariable = new MemberAccessVariable(eventStream,
             typeof(IEventStream<>).MakeGenericType(aggregateType).GetProperty(nameof(IEventStream<string>.Aggregate)));
 
