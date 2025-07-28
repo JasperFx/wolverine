@@ -9,10 +9,9 @@ namespace Wolverine.Marten.Codegen;
 
 internal class LoadAggregateFrame<T> : MethodCall where T : class
 {
-    private readonly AggregateHandlerAttribute _att;
-    private Variable? _command;
+    private readonly AggregateHandling _att;
 
-    public LoadAggregateFrame(AggregateHandlerAttribute att) : base(typeof(IEventStoreOperations), FindMethod(att))
+    public LoadAggregateFrame(AggregateHandling att) : base(typeof(IEventStoreOperations), FindMethod(att))
     {
         _att = att;
         CommentText = "Loading Marten aggregate";
@@ -23,27 +22,18 @@ internal class LoadAggregateFrame<T> : MethodCall where T : class
 
     public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
     {
-        _command = chain.FindVariable(_att.CommandType!);
-        yield return _command;
-
-        Arguments[0] = new Variable(_att.AggregateIdMember.GetRawMemberType(),"aggregateId");
-        if (_att.LoadStyle == ConcurrencyStyle.Optimistic && _att.VersionMember != null)
+        Arguments[0] = _att.AggregateId;
+        if (_att is { LoadStyle: ConcurrencyStyle.Optimistic, Version: not null })
         {
-            Arguments[1] = new MemberAccessVariable(_command, _att.VersionMember);
+            Arguments[1] = _att.Version;
         }
 
         foreach (var variable in base.FindVariables(chain)) yield return variable;
     }
 
-    public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
+    internal static MethodInfo FindMethod(AggregateHandling att)
     {
-        writer.WriteLine($"var aggregateId = {_command.Usage}.{_att.AggregateIdMember.Name};");
-        base.GenerateCode(method, writer);
-    }
-
-    internal static MethodInfo FindMethod(AggregateHandlerAttribute att)
-    {
-        var isGuidIdentified = att.AggregateIdMember!.GetMemberType() == typeof(Guid);
+        var isGuidIdentified = att.AggregateId!.VariableType == typeof(Guid);
 
         if (att.LoadStyle == ConcurrencyStyle.Exclusive)
         {
@@ -52,7 +42,7 @@ internal class LoadAggregateFrame<T> : MethodCall where T : class
                 : ReflectionHelper.GetMethod<IEventStoreOperations>(x => x.FetchForExclusiveWriting<T>(string.Empty, default))!;
         }
 
-        if (att.VersionMember == null)
+        if (att.Version == null)
         {
             return isGuidIdentified
                 ? ReflectionHelper.GetMethod<IEventStoreOperations>(x => x.FetchForWriting<T>(Guid.Empty, default))!

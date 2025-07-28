@@ -1,4 +1,5 @@
 using JasperFx.CodeGeneration;
+using JasperFx.CodeGeneration.Model;
 using Marten.Schema;
 using NSubstitute;
 using Shouldly;
@@ -14,16 +15,8 @@ public class AggregateHandlerAttributeTests
     [Fact]
     public void determine_version_member_for_aggregate()
     {
-        AggregateHandlerAttribute.DetermineVersionMember(typeof(Invoice))
+        AggregateHandling.DetermineVersionMember(typeof(Invoice))
             .Name.ShouldBe(nameof(Invoice.Version));
-    }
-
-    [Fact]
-    public void determine_aggregate_type_when_it_is_explicitly_passed_in()
-    {
-        new AggregateHandlerAttribute { AggregateType = typeof(Invoice) }
-            .DetermineAggregateType(Substitute.For<IChain>())
-            .ShouldBe(typeof(Invoice));
     }
 
     [Fact]
@@ -31,7 +24,7 @@ public class AggregateHandlerAttributeTests
     {
         var chain = HandlerChain.For<InvoiceHandler>(x => x.Handle(default(ApproveInvoice), default),
             new HandlerGraph());
-        new AggregateHandlerAttribute().DetermineAggregateType(chain)
+        AggregateHandling.DetermineAggregateType(chain)
             .ShouldBe(typeof(Invoice));
     }
 
@@ -41,7 +34,7 @@ public class AggregateHandlerAttributeTests
         var chain = HandlerChain.For<InvoiceHandler>(x => x.Handle(default), new HandlerGraph());
         Should.Throw<InvalidOperationException>(() =>
         {
-            new AggregateHandlerAttribute().DetermineAggregateType(chain);
+            AggregateHandling.DetermineAggregateType(chain);
         });
     }
 
@@ -68,21 +61,21 @@ public class AggregateHandlerAttributeTests
     [Fact]
     public void determine_aggregate_id_from_command_type()
     {
-        AggregateHandlerAttribute.DetermineAggregateIdMember(typeof(Invoice), typeof(ApproveInvoice))
+        AggregateHandling.DetermineAggregateIdMember(typeof(Invoice), typeof(ApproveInvoice))
             .Name.ShouldBe(nameof(ApproveInvoice.InvoiceId));
     }
 
     [Fact]
     public void determine_aggregate_id_with_identity_attribute_help()
     {
-        AggregateHandlerAttribute.DetermineAggregateIdMember(typeof(Invoice), typeof(RejectInvoice))
+        AggregateHandling.DetermineAggregateIdMember(typeof(Invoice), typeof(RejectInvoice))
             .Name.ShouldBe(nameof(RejectInvoice.Something));
     }
 
     [Fact]
     public void determine_aggregate_id_with_identity_attribute_bypass()
     {
-        AggregateHandlerAttribute.DetermineAggregateIdMember(typeof(Invoice), typeof(AggregateIdConventionBypassingCommand))
+        AggregateHandling.DetermineAggregateIdMember(typeof(Invoice), typeof(AggregateIdConventionBypassingCommand))
             .Name.ShouldBe(nameof(AggregateIdConventionBypassingCommand.StreamId));
     }
 
@@ -91,7 +84,7 @@ public class AggregateHandlerAttributeTests
     {
         Should.Throw<InvalidOperationException>(() =>
         {
-            AggregateHandlerAttribute.DetermineAggregateIdMember(typeof(Invoice), typeof(BadCommand));
+            AggregateHandling.DetermineAggregateIdMember(typeof(Invoice), typeof(BadCommand));
         });
     }
 }

@@ -298,11 +298,14 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
         switch (requirement.OnMissing)
         {
             case OnMissing.Simple404:
+                Metadata.Produces(404);
                 return [new SetStatusCodeAndReturnIfEntityIsNullFrame(data)];
                 
             case OnMissing.ProblemDetailsWith400:
+                Metadata.Produces(400, contentType: "application/problem+json");
                 return [new WriteProblemDetailsIfNull(data, identity, message, 400)];
             case OnMissing.ProblemDetailsWith404:
+                Metadata.Produces(404, contentType: "application/problem+json");
                 return [new WriteProblemDetailsIfNull(data, identity, message, 404)];
                 
             default:

@@ -60,11 +60,6 @@ public abstract class WolverineParameterAttribute : Attribute
 
     protected bool tryFindIdentityVariable(IChain chain, ParameterInfo parameter, Type idType, out Variable variable)
     {
-        if (parameter.Name == "invoice")
-        {
-            Debug.WriteLine("Here");
-        }
-        
         if (ArgumentName.IsNotEmpty())
         {
             if (chain.TryFindVariable(ArgumentName, ValueSource, idType, out variable))
