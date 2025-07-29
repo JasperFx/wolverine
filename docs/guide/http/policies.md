@@ -132,7 +132,7 @@ If you need special handling of a primary return type you can implement `IResour
 ```cs
 opts.AddResourceWriterPolicy<CustomResourceWriterPolicy>();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L251-L253' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_register_resource_writer_policy' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L254-L256' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_register_resource_writer_policy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Resource writer policies registered this way will be applied in order before all built in policies.
