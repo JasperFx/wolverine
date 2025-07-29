@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<Description>Protobuf serialization for Wolverine Applications</Description>
+		<PackageId>WolverineFx.Protobuf</PackageId>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\..\Wolverine\Wolverine.csproj"/>
+	</ItemGroup>
+
+</Project>
