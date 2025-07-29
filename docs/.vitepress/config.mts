@@ -78,7 +78,8 @@ const config: UserConfig<DefaultTheme.Config> = {
                         {text: 'Vertical Slice Architecture', link: '/tutorials/vertical-slice-architecture'},
                         {text: 'Modular Monoliths', link: '/tutorials/modular-monolith'},
                         {text: 'Event Sourcing and CQRS with Marten', link: '/tutorials/cqrs-with-marten'},
-                        {text: 'Railway Programming with Wolverine', link: '/tutorials/railway-programming'}
+                        {text: 'Railway Programming with Wolverine', link: '/tutorials/railway-programming'},
+                        {text: 'Interoperability with Non-Wolverine Systems', link: '/tutorials/interop'}
                     ]
                 },
                 {
