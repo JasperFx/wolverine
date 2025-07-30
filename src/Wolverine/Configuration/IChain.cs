@@ -10,6 +10,24 @@ using Wolverine.Runtime;
 
 namespace Wolverine.Configuration;
 
+internal static class ChainExtensions
+{
+    public static bool MatchesScope(this IChain chain, MethodInfo method)
+    {
+        if (chain == null) return true;
+
+        if (method.TryGetAttribute<ScopedMiddlewareAttribute>(out var att))
+        {
+            if (att.Scoping == MiddlewareScoping.Anywhere) return true;
+
+            return att.Scoping == chain.Scoping;
+        }
+
+        // All good if no attribute
+        return true;
+    }
+}
+
 #region sample_IChain
 
 /// <summary>

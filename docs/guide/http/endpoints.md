@@ -336,5 +336,34 @@ public static string GetNow(DateTimeOffset now) // using the custom parameter st
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/CustomParameterEndpoint.cs#L7-L15' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_http_endpoint_receiving_now' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Http Endpoint / Message Handler Combo
+
+Here's a common scenario that has come up from Wolverine users. Let's say that you have some kind of logical command message that 
+your system needs to handle that might come in from the outside from either HTTP clients or from asynchronous messaging. 
+Folks have frequently asked about how to reuse code between the message handling invocation and the HTTP endpoint. You've
+got a handful of options:
+
+1. Build a message handler and have the HTTP endpoint just delegate to `IMessageBus.InvokeAsync()` with the message
+2. Have both the message handler and HTTP endpoint delegate to shared code, whether that be a shared service, just a static method somewhere, or even
+   have the HTTP endpoint code directly call the concrete message handler
+3. Use a hybrid Message Handler / HTTP Endpoint because Wolverine can do that!
+
+To make a single class and method be both a message handler and HTTP endpoint, just add a `[Wolverine{HttpVerb}]` attribute
+with the route directly on your message handler. As long as that method follows Wolverine's normal naming rules for message
+discovery, Wolverine will treat it as both a message handler and as an HTTP endpoint. Here's an example from our tests:
+
+snippet: sample_using_problem_details_in_message_handler
+
+If you are using Wolverine.HTTP in your application, Wolverine is able to treat `ProblemDetails` similar to the built in
+`HandlerContinuation` when running inside of message handlers.
+
+If you have some middleware methods that should only apply specifically when running as a handler or when running as an HTTP endpoint,
+you can utilize `MiddlewareScoping` directives with `[WolverineBefore]`, `[WolverineAfter]`, or `[WolverineFinally]` attributes to 
+limit the applicability of individual middleware methods. 
+
+::: info
+There is no runtime filtering here because the `MiddlewareScoping` impacts the generated code around your hybrid message handler / 
+HTTP endpoint method, and Wolverine already generates code separately for the two use cases. 
+:::
 
 

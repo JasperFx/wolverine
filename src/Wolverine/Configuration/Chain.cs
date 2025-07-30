@@ -274,7 +274,7 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
         var handlerTypes = HandlerCalls().Select(x => x.HandlerType).Distinct();
         foreach (var handlerType in handlerTypes)
         {
-            var befores = MiddlewarePolicy.FilterMethods<WolverineBeforeAttribute>(handlerType.GetMethods(),
+            var befores = MiddlewarePolicy.FilterMethods<WolverineBeforeAttribute>(this, handlerType.GetMethods(),
                 MiddlewarePolicy.BeforeMethodNames);
 
             foreach (var before in befores)
@@ -301,7 +301,7 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
                 }
             }
 
-            var afters = MiddlewarePolicy.FilterMethods<WolverineAfterAttribute>(handlerType.GetMethods(),
+            var afters = MiddlewarePolicy.FilterMethods<WolverineAfterAttribute>(this, handlerType.GetMethods(),
                 MiddlewarePolicy.AfterMethodNames).ToArray();
 
             if (afters.Any())
