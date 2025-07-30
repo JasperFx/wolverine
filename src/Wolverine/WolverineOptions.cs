@@ -1,15 +1,12 @@
 ﻿using System.Reflection;
 using System.Runtime.CompilerServices;
-using JasperFx;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
-using JasperFx.Core.Reflection;
-using JasperFx.Descriptors;
+using JasperFx.Core.Descriptions;
 using Microsoft.Extensions.DependencyInjection;
 using Wolverine.Configuration;
 using Wolverine.Persistence;
-using Wolverine.Persistence.MultiTenancy;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Runtime.Scheduled;
 using Wolverine.Runtime.Serialization;
@@ -41,8 +38,6 @@ public enum MultipleHandlerBehavior
 public sealed partial class WolverineOptions
 {
     private readonly List<Action<WolverineOptions>> _lazyActions = [];
-    private AutoCreate? _autoBuildMessageStorageOnStartup;
-
     public WolverineOptions() : this(null)
     {
     }
@@ -61,11 +56,9 @@ public sealed partial class WolverineOptions
         CodeGeneration.Sources.Add(new TenantIdSource());
         CodeGeneration.Assemblies.Add(GetType().Assembly);
 
-        if (assemblyName != null)
-        {
-            establishApplicationAssembly(assemblyName);
-        }
-        
+        establishApplicationAssembly(assemblyName);
+
+
         if (ApplicationAssembly != null)
         {
             CodeGeneration.Assemblies.Add(ApplicationAssembly);
@@ -73,13 +66,13 @@ public sealed partial class WolverineOptions
 
         Durability = new DurabilitySettings { AssignedNodeNumber = UniqueNodeId.ToString().GetDeterministicHashCode() };
 
+        deriveServiceName();
+
         Policies.Add<SagaPersistenceChainPolicy>();
         Policies.Add<SideEffectPolicy>();
         Policies.Add<ResponsePolicy>();
         Policies.Add<OutgoingMessagesPolicy>();
     }
-
-    public Uri SubjectUri => new Uri("wolverine://" + ServiceName.Sanitize());
 
     /// <summary>
     /// How should Wolverine treat message handlers for the same message type?
@@ -117,17 +110,6 @@ public sealed partial class WolverineOptions
     public IPolicies Policies => this;
 
     /// <summary>
-    /// You may want to let Wolverine "know" about a message type upfront that would otherwise
-    /// be discovered at runtime so that Wolverine can build in diagnostics or apply message routing
-    /// upfront
-    /// </summary>
-    /// <param name="messageType"></param>
-    public void RegisterMessageType(Type messageType)
-    {
-        HandlerGraph.RegisterMessageType(messageType);
-    }
-
-    /// <summary>
     /// </summary>
     [IgnoreDescription]
     public TransportCollection Transports { get; }
@@ -158,18 +140,16 @@ public sealed partial class WolverineOptions
 
     /// <summary>
     ///     Direct Wolverine to make any necessary database patches for envelope storage upon
-    ///     application start. Default is taken from JasperFxOptions, and is CreateOrDefault 
+    ///     application start
     /// </summary>
-    public AutoCreate AutoBuildMessageStorageOnStartup
-    {
-        get => _autoBuildMessageStorageOnStartup ?? AutoCreate.CreateOrUpdate;
-        set => _autoBuildMessageStorageOnStartup = value;
-    }
+    public bool AutoBuildMessageStorageOnStartup { get; set; } = true;
+
+    internal TypeLoadMode ProductionTypeLoadMode { get; set; }
 
     /// <summary>
     ///     Descriptive name of the running service. Used in Wolverine diagnostics and testing support
     /// </summary>
-    public string ServiceName { get; set; }
+    public string ServiceName { get; set; } = Assembly.GetEntryAssembly()!.GetName().Name ?? "WolverineService";
 
     /// <summary>
     ///     This should probably *only* be used in development or testing
@@ -191,9 +171,9 @@ public sealed partial class WolverineOptions
 
     /// <summary>
     /// Should message failures automatically try to send a failure acknowledgement message back to the
-    /// original caller. Default is *false* as of Wolverine 4.6
+    /// original caller. Default is true.
     /// </summary>
-    public bool EnableAutomaticFailureAcks { get; set; } = false;
+    public bool EnableAutomaticFailureAcks { get; set; } = true;
 
     private void deriveServiceName()
     {
@@ -207,7 +187,24 @@ public sealed partial class WolverineOptions
                 .Replace("Options", "");
         }
     }
-    
+
+    /// <summary>
+    ///     Automatically rebuild the
+    /// </summary>
+    public void OptimizeArtifactWorkflow(TypeLoadMode productionMode = TypeLoadMode.Auto)
+    {
+        ProductionTypeLoadMode = productionMode;
+        Services.AddSingleton<IWolverineExtension, OptimizeArtifactWorkflow>();
+    }
+
+    public void OptimizeArtifactWorkflow(string developmentEnvironment, TypeLoadMode productionMode = TypeLoadMode.Auto)
+    {
+        ProductionTypeLoadMode = productionMode;
+        Services.AddSingleton<IWolverineExtension, OptimizeArtifactWorkflow>(s =>
+            new OptimizeArtifactWorkflow(s, developmentEnvironment)
+        );
+    }
+
     /// <summary>
     ///     Produce a report of why or why not this Wolverine application
     ///     is finding or not finding methods from this handlerType
@@ -260,46 +257,6 @@ public sealed partial class WolverineOptions
         return Transports.SelectMany(x => x.Endpoints()).Where(x => x.StickyHandlers.Contains(handlerType));
     }
 
-    public Version? Version => ApplicationAssembly?.GetName().Version ?? Assembly.GetEntryAssembly()?.GetName().Version;
-    
-    // This helps govern some command line work
-    internal bool LightweightMode { get; set; }
-
-    internal void ReadJasperFxOptions(JasperFxOptions jasperfx)
-    {
-        ServiceName ??= jasperfx.ServiceName;
-        
-        if (_applicationAssembly == null)
-        {
-            ApplicationAssembly = jasperfx.ApplicationAssembly;
-
-            if (ApplicationAssembly == null)
-            {
-                establishApplicationAssembly(null);
-            }
-        }
-        
-        if (!CodeGeneration.SourceCodeWritingEnabledHasChanged)
-        {
-            CodeGeneration.SourceCodeWritingEnabled = jasperfx.ActiveProfile.SourceCodeWritingEnabled;
-        }
-
-        if (!CodeGeneration.TypeLoadModeHasChanged)
-        {
-            CodeGeneration.TypeLoadMode = jasperfx.ActiveProfile.GeneratedCodeMode;
-        }
-
-        if (!Durability.TenantIdStyleHasChanged)
-        {
-            Durability.TenantIdStyle = jasperfx.TenantIdStyle;
-        }
-
-        if (_autoBuildMessageStorageOnStartup == null)
-        {
-            _autoBuildMessageStorageOnStartup = jasperfx.ActiveProfile.ResourceAutoCreate;
-        }
-    }
-    
     public void RegisterMessageType(Type messageType, string messageAlias)
     {
         HandlerGraph.RegisterMessageType(messageType, messageAlias);
