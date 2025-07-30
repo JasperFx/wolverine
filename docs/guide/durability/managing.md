@@ -122,7 +122,9 @@ can use this command to apply any outstanding database changes necessary to brin
 ```bash
 dotnet run -- db-apply
 ```
- or this option -- but just know that this will also clear out any existing message data:
+> NOTE: See the [Exporting SQL Scripts](#exporting-sql-scripts) section down the page for details of applying migrations when integrating with Marten
+
+or this option -- but just know that this will also clear out any existing message data:
 
 ```bash
 dotnet run -- storage rebuild
@@ -165,6 +167,28 @@ If you just want to export the SQL to create the necessary database objects, you
 dotnet run -- db-dump export.sql
 ```
 where `export.sql` should be a file name.
+
+### Marten integration
+
+When integrating with Marten, scripts must be generated seperately for both Marten and Wolverine resources.  
+Resources are separated into databases and can be listed as below:
+
+```bash
+dotnet run -- db-list
+# ┌────────────────────────────────────────┬───────────────────────────┐
+# │ DatabaseUri                            │ SubjectUri                │
+# ├────────────────────────────────────────┼───────────────────────────┤
+# │ postgresql://localhost/postgres/orders │ marten://store/           │
+# │ postgresql://localhost/postgres        │ wolverine://messages/main │
+# └────────────────────────────────────────┴───────────────────────────┘
+```
+
+Once you've identified the database, pass the `-d` parameter with the `SubjectUri` from the output above to the `db-dump` command:
+
+```bash
+dotnet run -- db-dump -d marten://store/ export_marten.sql
+dotnet run -- db-dump -d wolverine://messages/main export_wolverine.sql
+```
 
 ## Disabling All Persistence <Badge type="tip" text="3.6" />
 
