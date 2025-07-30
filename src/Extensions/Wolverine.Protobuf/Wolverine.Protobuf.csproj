@@ -6,7 +6,11 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-		<ProjectReference Include="..\..\Wolverine\Wolverine.csproj"/>
+	  <PackageReference Include="Google.Protobuf" Version="3.31.1" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\..\Wolverine\Wolverine.csproj" />
 	</ItemGroup>
 
 </Project>
