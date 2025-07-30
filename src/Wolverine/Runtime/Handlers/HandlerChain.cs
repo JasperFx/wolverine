@@ -164,6 +164,8 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
     /// </summary>
     public bool TelemetryEnabled { get; set; } = true;
 
+    public override MiddlewareScoping Scoping => MiddlewareScoping.MessageHandlers;
+
     public override void ApplyParameterMatching(MethodCall call)
     {
         // Nothing

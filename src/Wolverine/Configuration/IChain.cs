@@ -18,6 +18,8 @@ namespace Wolverine.Configuration;
 /// </summary>
 public interface IChain
 {
+    MiddlewareScoping Scoping { get; }
+    
     void ApplyParameterMatching(MethodCall call);
     
     /// <summary>

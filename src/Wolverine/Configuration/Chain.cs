@@ -28,6 +28,8 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
     public abstract void ApplyParameterMatching(MethodCall call);
     public List<Frame> Middleware { get; } = [];
 
+    public abstract MiddlewareScoping Scoping { get; }
+
     public List<Frame> Postprocessors { get; } = [];
 
     [IgnoreDescription]
