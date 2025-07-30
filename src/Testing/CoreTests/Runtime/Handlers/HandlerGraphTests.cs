@@ -34,7 +34,39 @@ public class HandlerGraphTests
         graph.TryFindMessageType(typeof(IMessageMarker).ToMessageTypeName(), out var markedType).ShouldBeTrue();
         markedType.ShouldBe(typeof(MarkedMessage));
     }
+    
+    [Fact]
+    public async Task register_message_type()
+    {
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.RegisterMessageType(typeof(DummyMessage), "custom-alias");
+            }).StartAsync();
+
+        var graph = host.Services.GetRequiredService<HandlerGraph>();
+
+        graph.TryFindMessageType(typeof(DummyMessage).ToMessageTypeName(), out _).ShouldBeFalse();
+        
+        graph.TryFindMessageType("custom-alias", out var type).ShouldBeTrue();
+        type.ShouldBe(typeof(DummyMessage));
+    }
+    
+    [Fact]
+    public async Task register_message_types_with_same_alias_throws_invalid_operation_exception()
+    {
+        await Should.ThrowAsync<InvalidOperationException>(async () =>
+        {
+            using var host = await Host.CreateDefaultBuilder()
+                .UseWolverine(opts =>
+                {
+                    opts.RegisterMessageType(typeof(DummyMessage), "custom-alias");
+                    opts.RegisterMessageType(typeof(string), "custom-alias");
+                }).StartAsync();
+        });
+    }
 }
+public class DummyMessage { }
 
 public interface IMessageMarker;
 

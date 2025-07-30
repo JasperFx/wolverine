@@ -256,4 +256,9 @@ public sealed partial class WolverineOptions
     {
         return Transports.SelectMany(x => x.Endpoints()).Where(x => x.StickyHandlers.Contains(handlerType));
     }
+
+    public void RegisterMessageType(Type messageType, string messageAlias)
+    {
+        HandlerGraph.RegisterMessageType(messageType, messageAlias);
+    }
 }
