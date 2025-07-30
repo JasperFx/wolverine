@@ -126,6 +126,8 @@ public partial class HttpChain
         return apiDescription;
     }
 
+    public override MiddlewareScoping Scoping => MiddlewareScoping.HttpEndpoints;
+
     public override void UseForResponse(MethodCall methodCall)
     {
         if (methodCall.ReturnVariable == null)
