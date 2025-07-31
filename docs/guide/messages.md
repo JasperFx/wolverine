@@ -12,7 +12,7 @@ to the proper handler that can handle that message. Here's some facts about mess
 
 The default serialization option is [System.Text.Json](https://learn.microsoft.com/en-us/dotnet/api/system.text.json?view=net-8.0), as this is now mature, seems to work with just about anything now, and sets you up
 for relatively easy integration with a range of external non-Wolverine applications. You also have the option to fall back
-to Newtonsoft.JSON or to use higher performance [MemoryPack](/guide/messages.html#memorypack-serialization) or [MessagePack](/guide/messages.html#messagepack-serialization) integrations with Wolverine.
+to Newtonsoft.JSON or to use higher performance [MemoryPack](/guide/messages.html#memorypack-serialization) or [MessagePack](/guide/messages.html#messagepack-serialization) or [Protobuf](/guide/messages.html#protobuf-serialization) integrations with Wolverine.
 
 ## Message Type Name or Alias
 
@@ -295,7 +295,44 @@ using var host = await Host.CreateDefaultBuilder()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Extensions/Wolverine.MemoryPack.Tests/Samples.cs#L24-L39' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_memorypack_on_selected_endpoints' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+### Protobuf Serialization
 
+Wolverine supports Google's data interchange format [Protobuf](https://github.com/protocolbuffers/protobuf) through the `WolverineFx.Protobuf` Nuget package.
+To enable Protobuf serialization through the entire application, use:
+
+<!-- snippet: sample_using_protobuf_for_the_default_for_the_app -->
+<a id='snippet-sample_using_protobuf_for_the_default_for_the_app'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        // Make Protobuf the default serializer throughout this application
+        opts.UseProtobufSerialization();
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Extensions/Wolverine.Protobuf.Tests/Samples.cs#L10-L19' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_protobuf_for_the_default_for_the_app' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Likewise, you can use Protobuf on selected endpoints like this:
+
+<!-- snippet: sample_using_protobuf_on_selected_endpoints -->
+<a id='snippet-sample_using_protobuf_on_selected_endpoints'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        // Use Protobuf on a local queue
+        opts.LocalQueue("one").UseProtobufSerialization();
+
+        // Use Protobuf on a listening endpoint
+        opts.ListenAtPort(2223).UseProtobufSerialization();
+
+        // Use Protobuf on one subscriber
+        opts.PublishAllMessages().ToPort(2222).UseProtobufSerialization();
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Extensions/Wolverine.Protobuf.Tests/Samples.cs#L24-L39' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_protobuf_on_selected_endpoints' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 
 
