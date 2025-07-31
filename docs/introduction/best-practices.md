@@ -229,6 +229,47 @@ By and large, Wolverine kind of wants you to use fewer abstractions and keep a s
 about "pure function" handlers for alternatives to jamming more abstracted services into an IoC container in order to 
 create separation of concerns and testability.
 
+::: warning Troubleshooting  
+When familiarizing yourself with Wolverine, it can be daunting to troubleshoot the failure modes of the different approaches to IOC and dependency management.  
+Below are some steps to take if you run into issues  
+:::
+
+#### Inspect the generated code
+Pre-generate the code to see exactly what is happening at runtime:
+```bash
+dotnet run -- codegen write
+```
+Look at the generated code in the `./Internal/Generated/WolverineHandlers/` folder and look for creation of an `IServiceScope` as below:
+
+```csharp
+using var serviceScope = _serviceScopeFactory.CreateScope();
+```
+
+If this line is present, any services resolved through this scope will not share state with the Wolverine runtime.
+
+What this means in practice is that services resolved through the `IServiceProvider` that have a dependency on Wolverine resources such as the current message `Envelope` or the `IMessageContext` will have invalid objects for the current operation.
+
+#### Example
+```csharp
+public class BadService(IServiceProvider serviceProvider, IMessageContext context)
+{
+    // The `context` parameter here would be different from the context parameter in `GoodService`,
+    // and the tenantId would be *DEFAULT*
+    public void DoThings()
+    {
+        Console.WriteLine($"Current tenantId is {messageContext.tenantId}");
+    }
+}
+
+public class GoodService(IMessageContext context)
+{
+    public void DoThings()
+    {
+        Console.WriteLine($"Current tenantId is {messageContext.tenantId}");
+    }
+}
+```
+
 ## Vertical Slice Architecture
 
 ::: tip
