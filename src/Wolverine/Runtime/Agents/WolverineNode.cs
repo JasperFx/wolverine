@@ -9,18 +9,18 @@ public class WolverineNode
         get => NodeId.ToString();
         set => NodeId = Guid.Parse(value);
     }
-    
+
     public Guid NodeId { get; set; }
     public int AssignedNodeNumber { get; set; } = 1; // Important, this can NEVER be 0
     public Uri? ControlUri { get; set; }
     public string Description { get; set; } = Environment.MachineName;
 
     public List<Uri> Capabilities { get; set; } = new();
-    
+
     public List<Uri> ActiveAgents { get; set; } = new();
     public DateTimeOffset Started { get; set; }
     public DateTimeOffset LastHealthCheck { get; set; } = DateTimeOffset.Now;
-    
+
     public bool IsLeader()
     {
         return ActiveAgents.Contains(NodeAgentController.LeaderUri);
@@ -38,7 +38,8 @@ public class WolverineNode
             Version = options.Version,
             NodeId = options.UniqueNodeId,
             ControlUri = options.Transports.NodeControlEndpoint?.Uri,
-            LastHealthCheck = DateTimeOffset.UtcNow
+            LastHealthCheck = DateTimeOffset.UtcNow,
+            Capabilities = options.Capabilities,
         };
     }
 
