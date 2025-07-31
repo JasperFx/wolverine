@@ -1,14 +1,13 @@
-﻿using System.Reflection;
-using System.Runtime.CompilerServices;
-using JasperFx;
+﻿using JasperFx;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using JasperFx.Descriptors;
 using Microsoft.Extensions.DependencyInjection;
+using System.Reflection;
+using System.Runtime.CompilerServices;
 using Wolverine.Configuration;
-using Wolverine.Persistence;
 using Wolverine.Persistence.MultiTenancy;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Runtime.Scheduled;
@@ -26,7 +25,7 @@ public enum MultipleHandlerBehavior
     /// type are combined into a single logical message handler
     /// </summary>
     ClassicCombineIntoOneLogicalHandler,
-    
+
     /// <summary>
     /// Force Wolverine to make each individual handler for a message type be
     /// processed completely independently. This is common when you may be publishing
@@ -65,7 +64,7 @@ public sealed partial class WolverineOptions
         {
             establishApplicationAssembly(assemblyName);
         }
-        
+
         if (ApplicationAssembly != null)
         {
             CodeGeneration.Assemblies.Add(ApplicationAssembly);
@@ -93,6 +92,11 @@ public sealed partial class WolverineOptions
 
     [IgnoreDescription]
     public Guid UniqueNodeId { get; } = Guid.NewGuid();
+
+    /// <summary>
+    /// Custom capabilities that will be copied to the node
+    /// </summary>
+    public List<Uri> Capabilities { get; set; } = [];
 
     /// <summary>
     ///     Configure or extend how Wolverine does the runtime (or build ahead time) code generation
@@ -179,7 +183,7 @@ public sealed partial class WolverineOptions
 
     [IgnoreDescription]
     internal LocalTransport LocalRouting => Transports.GetOrCreate<LocalTransport>();
-    
+
     internal bool LocalRoutingConventionDisabled { get; set; }
 
     /// <summary>
@@ -207,7 +211,7 @@ public sealed partial class WolverineOptions
                 .Replace("Options", "");
         }
     }
-    
+
     /// <summary>
     ///     Produce a report of why or why not this Wolverine application
     ///     is finding or not finding methods from this handlerType
@@ -261,14 +265,14 @@ public sealed partial class WolverineOptions
     }
 
     public Version? Version => ApplicationAssembly?.GetName().Version ?? Assembly.GetEntryAssembly()?.GetName().Version;
-    
+
     // This helps govern some command line work
     internal bool LightweightMode { get; set; }
 
     internal void ReadJasperFxOptions(JasperFxOptions jasperfx)
     {
         ServiceName ??= jasperfx.ServiceName;
-        
+
         if (_applicationAssembly == null)
         {
             ApplicationAssembly = jasperfx.ApplicationAssembly;
@@ -278,7 +282,7 @@ public sealed partial class WolverineOptions
                 establishApplicationAssembly(null);
             }
         }
-        
+
         if (!CodeGeneration.SourceCodeWritingEnabledHasChanged)
         {
             CodeGeneration.SourceCodeWritingEnabled = jasperfx.ActiveProfile.SourceCodeWritingEnabled;
