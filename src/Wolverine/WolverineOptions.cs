@@ -117,6 +117,34 @@ public sealed partial class WolverineOptions
     public MessageGroupingRules MessageGrouping { get; } 
 
     
+    /// For advanced usages, this gives you the ability to register pre-canned message handling
+    /// that does not require any code generation. 
+    /// </summary>
+    /// <param name="messageType"></param>
+    /// <param name="handler"></param>
+    public void AddMessageHandler(Type messageType, IMessageHandler handler)
+    {
+        HandlerGraph.RegisterMessageType(messageType);
+        HandlerGraph.AddMessageHandler(messageType, handler);
+
+        // For error handling and other policies
+        if (handler is MessageHandler h)
+        {
+            h.Chain = new HandlerChain(messageType, HandlerGraph);
+        }
+    }
+
+    /// <summary>
+    /// For advanced usages, this gives you the ability to register pre-canned message handling
+    /// that does not require any code generation. 
+    /// </summary>
+    /// <param name="handler"></param>
+    /// <typeparam name="T"></typeparam>
+    public void AddMessageHandler<T>(MessageHandler<T> handler)
+    {
+        AddMessageHandler(typeof(T), handler);
+        handler.ConfigureChain(handler.Chain); // Yeah, this is 100% a tell, don't ask violation
+    }
 
     [IgnoreDescription]
     public Guid UniqueNodeId { get; } = Guid.NewGuid();
