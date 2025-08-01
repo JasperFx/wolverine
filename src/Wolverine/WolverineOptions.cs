@@ -299,4 +299,9 @@ public sealed partial class WolverineOptions
             _autoBuildMessageStorageOnStartup = jasperfx.ActiveProfile.ResourceAutoCreate;
         }
     }
+    
+    public void RegisterMessageType(Type messageType, string messageAlias)
+    {
+        HandlerGraph.RegisterMessageType(messageType, messageAlias);
+    }
 }
