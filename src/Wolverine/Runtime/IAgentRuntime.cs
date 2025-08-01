@@ -34,4 +34,13 @@ public interface IAgentRuntime
     /// <param name="cancellationToken"></param>
     /// <returns></returns>
     Task ApplyRestrictionsAsync(AgentRestrictions restrictions, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Try to find an actively running agent of the type T
+    /// </summary>
+    /// <param name="agentUri"></param>
+    /// <param name="agent"></param>
+    /// <typeparam name="T"></typeparam>
+    /// <returns></returns>
+    bool TryFindActiveAgent<T>(Uri agentUri, out T agent) where T : class;
 }

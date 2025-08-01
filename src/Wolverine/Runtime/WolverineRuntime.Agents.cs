@@ -124,6 +124,18 @@ public partial class WolverineRuntime : IAgentRuntime
         await NodeController!.EvaluateAssignmentsAsync(nodes, assignments);
     }
 
+    public bool TryFindActiveAgent<T>(Uri agentUri, out T agent) where T : class
+    {
+        agent = default!;
+        if (NodeController.Agents.TryGetValue(agentUri, out var raw))
+        {
+            agent = raw as T;
+            return agent != null;
+        }
+
+        return false;
+    }
+
     public IAgentRuntime Agents => this;
 
     private async Task startAgentsAsync()
