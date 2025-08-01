@@ -202,6 +202,12 @@ public class DurabilitySettings
     public TimeSpan NodeEventRecordExpirationTime { get; set; } = 5.Days();
 
     /// <summary>
+    /// When this option is enabled retry block used in InlineSendingAgent will synchronously wait on sending task to assure the message is send. 
+    /// When set to <see langword="false"/> default behavior is used so InlineSendingAgent agent will try to send a message and when failed it will give control to caller and retry on other thread in async manner
+    /// </summary>
+    public bool UseSyncRetryBlock { get; set; }
+
+    /// <summary>
     ///     Get or set the logical Wolverine service name. By default, this is
     ///     derived from the name of a custom WolverineOptions
     /// </summary>
