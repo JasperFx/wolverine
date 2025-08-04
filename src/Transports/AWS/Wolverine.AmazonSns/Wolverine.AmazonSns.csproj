@@ -6,7 +6,7 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\..\..\Wolverine\Wolverine.csproj"/>
+        <ProjectReference Include="..\Wolverine.AmazonSqs\Wolverine.AmazonSqs.csproj" />
     </ItemGroup>
 
     <ItemGroup>

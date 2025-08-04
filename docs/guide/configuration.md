@@ -20,11 +20,6 @@ and as such it can be used to configure directives about:
 
 ![Wolverine Configuration Model](/configuration-model.png)
 
-::: info
-At this point, Wolverine only supports [IHostBuilder](https://learn.microsoft.com/en-us/dotnet/api/microsoft.extensions.hosting.ihostbuilder?view=dotnet-plat-ext-7.0) for bootstrapping, but may also support the newer [HostApplicationBuilder](https://learn.microsoft.com/en-us/dotnet/api/microsoft.extensions.hosting.hostapplicationbuilder?view=dotnet-plat-ext-7.0)
-model in the future.
-:::
-
 ## With ASP.NET Core
 
 ::: info

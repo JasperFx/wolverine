@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
+using Wolverine.Attributes;
 using Wolverine.Http;
 
 namespace WolverineWebApi;
@@ -34,10 +35,10 @@ public record NumberMessage(int Number);
 
 #endregion
 
+#region sample_using_problem_details_in_message_handler
+
 public static class NumberMessageHandler
 {
-    #region sample_using_problem_details_in_message_handler
-
     public static ProblemDetails Validate(NumberMessage message)
     {
         if (message.Number > 5)
@@ -52,7 +53,24 @@ public static class NumberMessageHandler
         // All good, keep on going!
         return WolverineContinue.NoProblems;
     }
-    
+
+    // This "Before" method would only be utilized as
+    // an HTTP endpoint
+    [WolverineBefore(MiddlewareScoping.HttpEndpoints)]
+    public static void BeforeButOnlyOnHttp(HttpContext context)
+    {
+        Debug.WriteLine("Got an HTTP request for " + context.TraceIdentifier);
+        CalledBeforeOnlyOnHttpEndpoints = true;
+    }
+
+    // This "Before" method would only be utilized as
+    // a message handler
+    [WolverineBefore(MiddlewareScoping.MessageHandlers)]
+    public static void BeforeButOnlyOnMessageHandlers()
+    {
+        CalledBeforeOnlyOnMessageHandlers = true;
+    }
+
     // Look at this! You can use this as an HTTP endpoint too!
     [WolverinePost("/problems2")]
     public static void Handle(NumberMessage message)
@@ -61,7 +79,10 @@ public static class NumberMessageHandler
         Handled = true;
     }
 
-    #endregion
 
+    // These properties are just a cheap trick in Wolverine internal tests
     public static bool Handled { get; set; }
+    public static bool CalledBeforeOnlyOnMessageHandlers { get; set; }
+    public static bool CalledBeforeOnlyOnHttpEndpoints { get; set; }
 }
+#endregion

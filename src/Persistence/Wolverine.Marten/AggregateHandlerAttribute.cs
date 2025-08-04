@@ -4,35 +4,20 @@ using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
-using JasperFx.Events.Aggregation;
-using JasperFx.Events.Daemon;
+using JasperFx.Events;
 using Marten;
 using Marten.Events;
-using Marten.Events.Aggregation;
-using Marten.Linq.Members;
-using Marten.Schema;
+using Microsoft.Extensions.DependencyInjection;
 using Wolverine.Attributes;
 using Wolverine.Codegen;
 using Wolverine.Configuration;
 using Wolverine.Marten.Codegen;
-using Wolverine.Marten.Publishing;
+using Wolverine.Marten.Persistence.Sagas;
+using Wolverine.Persistence;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
 
 namespace Wolverine.Marten;
-
-/// <summary>
-/// Tells Wolverine handlers that this value contains a
-/// list of events to be appended to the current stream
-/// </summary>
-public class Events : List<object>, IWolverineReturnType
-{
-    public static Events operator +(Events events, object @event)
-    {
-        events.Add(@event);
-        return events;
-    }
-}
 
 /// <summary>
 ///     Applies middleware to Wolverine message actions to apply a workflow with concurrency protections for
@@ -40,10 +25,8 @@ public class Events : List<object>, IWolverineReturnType
 ///     on new events to persist to the aggregate stream.
 /// </summary>
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method)]
-public class AggregateHandlerAttribute : ModifyChainAttribute
+public class AggregateHandlerAttribute : ModifyChainAttribute, IDataRequirement
 {
-    private static readonly Type _versioningBaseType = typeof(AggregateVersioning<>);
-
     public AggregateHandlerAttribute(ConcurrencyStyle loadStyle)
     {
         LoadStyle = loadStyle;
@@ -67,175 +50,47 @@ public class AggregateHandlerAttribute : ModifyChainAttribute
 
     public override void Modify(IChain chain, GenerationRules rules, IServiceContainer container)
     {
-        if (chain.Tags.ContainsKey(nameof(AggregateHandlerAttribute))) return;
-        chain.Tags.Add(nameof(AggregateHandlerAttribute),"true");
+        // ReSharper disable once CanSimplifyDictionaryLookupWithTryAdd
+        if (chain.Tags.ContainsKey(nameof(AggregateHandlerAttribute)))
+        {
+            return;
+        }
+
+        chain.Tags.Add(nameof(AggregateHandlerAttribute), "true");
 
         CommandType = chain.InputType();
         if (CommandType == null)
+        {
             throw new InvalidOperationException(
                 $"Cannot apply Marten aggregate handler workflow to chain {chain} because it has no input type");
-
-        AggregateType ??= DetermineAggregateType(chain);
-        AggregateIdMember = DetermineAggregateIdMember(AggregateType, CommandType);
-        VersionMember = DetermineVersionMember(CommandType);
-
-        var sessionCreator = MethodCall.For<OutboxedSessionFactory>(x => x.OpenSession(null!));
-        chain.Middleware.Add(sessionCreator);
-
-        var firstCall = chain.HandlerCalls().First();
-
-        var loader = generateLoadAggregateCode(chain);
-        if (AggregateType == firstCall.HandlerType)
-        {
-            chain.Middleware.Add(new MissingAggregateCheckFrame(AggregateType, CommandType, AggregateIdMember,
-                loader.ReturnVariable!));
         }
 
-        // Use the active document session as an IQuerySession instead of creating a new one
-        firstCall.TrySetArgument(new Variable(typeof(IQuerySession), sessionCreator.ReturnVariable!.Usage));
+        AggregateType ??= AggregateHandling.DetermineAggregateType(chain);
 
-        DetermineEventCaptureHandling(chain, firstCall, AggregateType);
-
-        ValidateMethodSignatureForEmittedEvents(chain, firstCall, chain);
-        RelayAggregateToHandlerMethod(loader.ReturnVariable, firstCall, AggregateType);
-
-        chain.Postprocessors.Add(MethodCall.For<IDocumentSession>(x => x.SaveChangesAsync(default)));
+        (AggregateIdMember, VersionMember) =
+            AggregateHandling.DetermineAggregateIdAndVersion(AggregateType, CommandType, container);
         
-        new AggregateHandling(AggregateType, new Variable(AggregateIdMember.GetRawMemberType(), "aggregateId")).Store(chain);
+        
+
+        var aggregateFrame = new MemberAccessFrame(CommandType, AggregateIdMember,
+            $"{Variable.DefaultArgName(AggregateType)}_Id");
+        
+        var versionFrame = VersionMember == null ? null : new MemberAccessFrame(CommandType,VersionMember, $"{Variable.DefaultArgName(CommandType)}_Version");
+
+        var handling = new AggregateHandling(this)
+        {
+            AggregateType = AggregateType,
+            AggregateId = aggregateFrame.Variable,
+            LoadStyle = LoadStyle,
+            Version = versionFrame?.Variable
+        };
+        
+        handling.Apply(chain, container);
     }
 
-    internal static void DetermineEventCaptureHandling(IChain chain, MethodCall firstCall, Type aggregateType)
-    {
-        var asyncEnumerable = firstCall.Creates.FirstOrDefault(x => x.VariableType == typeof(IAsyncEnumerable<object>));
-        if (asyncEnumerable != null)
-        {
-            asyncEnumerable.UseReturnAction(_ =>
-            {
-                return typeof(ApplyEventsFromAsyncEnumerableFrame<>).CloseAndBuildAs<Frame>(asyncEnumerable,
-                    aggregateType);
-            });
-
-            return;
-        }
-
-        var eventsVariable = firstCall.Creates.FirstOrDefault(x => x.VariableType == typeof(Events)) ??
-                             firstCall.Creates.FirstOrDefault(x =>
-                                 x.VariableType.CanBeCastTo<IEnumerable<object>>() &&
-                                 !x.VariableType.CanBeCastTo<IWolverineReturnType>());
-
-        if (eventsVariable != null)
-        {
-            eventsVariable.UseReturnAction(
-                v => typeof(RegisterEventsFrame<>).CloseAndBuildAs<MethodCall>(eventsVariable, aggregateType)
-                    .WrapIfNotNull(v), "Append events to the Marten event stream");
-
-            return;
-        }
-
-        // If there's no return value of Events or IEnumerable<object>, and there's also no parameter of IEventStream<Aggregate>,
-        // then assume that the default behavior of each return value is to be an event
-        if (!firstCall.Method.GetParameters().Any(x => x.ParameterType.Closes(typeof(IEventStream<>))))
-        {
-            chain.ReturnVariableActionSource = new EventCaptureActionSource(aggregateType);
-        }
-    }
-
-    internal static Variable RelayAggregateToHandlerMethod(Variable eventStream, MethodCall firstCall, Type aggregateType)
-    {
-        var aggregateVariable = new MemberAccessVariable(eventStream,
-            typeof(IEventStream<>).MakeGenericType(aggregateType).GetProperty("Aggregate"));
-
-        if (firstCall.HandlerType == aggregateType)
-        {
-            // If the handle method is on the aggregate itself
-            firstCall.Target = aggregateVariable;
-        }
-        else
-        {
-            firstCall.TrySetArgument(aggregateVariable);
-        }
-
-        return aggregateVariable;
-    }
-
-    internal static void ValidateMethodSignatureForEmittedEvents(IChain chain, MethodCall firstCall,
-        IChain handlerChain)
-    {
-        if (firstCall.Method.ReturnType == typeof(Task) || firstCall.Method.ReturnType == typeof(void))
-        {
-            var parameters = chain.HandlerCalls().First().Method.GetParameters();
-            var stream = parameters.FirstOrDefault(x => x.ParameterType.Closes(typeof(IEventStream<>)));
-            if (stream == null)
-            {
-                throw new InvalidOperationException(
-                    $"No events are emitted from handler {handlerChain} even though it is marked as an action that would emit Marten events. Either return the events from the handler, or use the IEventStream<T> service as an argument.");
-            }
-        }
-    }
-
-    private MethodCall generateLoadAggregateCode(IChain chain)
-    {
-        chain.Middleware.Add(new EventStoreFrame());
-        var loader = typeof(LoadAggregateFrame<>).CloseAndBuildAs<MethodCall>(this, AggregateType!);
-
-
-        chain.Middleware.Add(loader);
-        return loader;
-    }
-
-    internal static MemberInfo DetermineVersionMember(Type aggregateType)
-    {
-        // The first arg doesn't matter
-        var versioning =
-            _versioningBaseType.CloseAndBuildAs<IAggregateVersioning>(AggregationScope.SingleStream, aggregateType);
-        return versioning.VersionMember;
-    }
-
-    internal Type DetermineAggregateType(IChain chain)
-    {
-        if (AggregateType != null)
-        {
-            return AggregateType;
-        }
-
-        var firstCall = chain.HandlerCalls().First();
-        var parameters = firstCall.Method.GetParameters();
-        var stream = parameters.FirstOrDefault(x => x.ParameterType.Closes(typeof(IEventStream<>)));
-        if (stream != null)
-        {
-            return stream.ParameterType.GetGenericArguments().Single();
-        }
-
-        if (parameters.Length >= 2 && parameters[1].ParameterType.IsConcrete())
-        {
-            return parameters[1].ParameterType;
-        }
-
-        // Assume that the handler type itself is the aggregate
-        if (firstCall.HandlerType.HasAttribute<AggregateHandlerAttribute>())
-        {
-            return firstCall.HandlerType;
-        }
-
-        throw new InvalidOperationException(
-            $"Unable to determine a Marten aggregate type for {chain}. You may need to explicitly specify the aggregate type in a {nameof(AggregateHandlerAttribute)} attribute");
-    }
-
-    internal static MemberInfo DetermineAggregateIdMember(Type aggregateType, Type commandType)
-    {
-        var conventionalMemberName = $"{aggregateType.Name}Id";
-        var member = commandType.GetMembers().FirstOrDefault(x => x.HasAttribute<IdentityAttribute>())
-                     ?? commandType.GetMembers().FirstOrDefault(x =>
-                         x.Name.EqualsIgnoreCase(conventionalMemberName) || x.Name.EqualsIgnoreCase("Id"));
-
-        if (member == null)
-        {
-            throw new InvalidOperationException(
-                $"Unable to determine the aggregate id for aggregate type {aggregateType.FullNameInCode()} on command type {commandType.FullNameInCode()}. Either make a property or field named '{conventionalMemberName}', or decorate a member with the {typeof(IdentityAttribute).FullNameInCode()} attribute");
-        }
-
-        return member;
-    }
+    public bool Required { get; set; }
+    public string MissingMessage { get; set; }
+    public OnMissing OnMissing { get; set; }
 }
 
 internal class ApplyEventsFromAsyncEnumerableFrame<T> : AsyncFrame, IReturnVariableAction
@@ -249,6 +104,18 @@ internal class ApplyEventsFromAsyncEnumerableFrame<T> : AsyncFrame, IReturnVaria
         uses.Add(_returnValue);
     }
 
+    public string Description => "Apply events to Marten event stream";
+
+    public new IEnumerable<Type> Dependencies()
+    {
+        yield break;
+    }
+
+    public IEnumerable<Frame> Frames()
+    {
+        yield return this;
+    }
+
     public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
     {
         _stream = chain.FindVariable(typeof(IEventStream<T>));
@@ -260,20 +127,9 @@ internal class ApplyEventsFromAsyncEnumerableFrame<T> : AsyncFrame, IReturnVaria
         var variableName = (typeof(T).Name + "Event").ToCamelCase();
 
         writer.WriteComment(Description);
-        writer.Write($"await foreach (var {variableName} in {_returnValue.Usage}) {_stream!.Usage}.{nameof(IEventStream<string>.AppendOne)}({variableName});");
+        writer.Write(
+            $"await foreach (var {variableName} in {_returnValue.Usage}) {_stream!.Usage}.{nameof(IEventStream<string>.AppendOne)}({variableName});");
         Next?.GenerateCode(method, writer);
-    }
-
-    public string Description => "Apply events to Marten event stream";
-
-    public new IEnumerable<Type> Dependencies()
-    {
-        yield break;
-    }
-
-    public IEnumerable<Frame> Frames()
-    {
-        yield return this;
     }
 }
 
@@ -288,7 +144,6 @@ internal class EventCaptureActionSource : IReturnVariableActionSource
 
     public IReturnVariableAction Build(IChain chain, Variable variable)
     {
-
         return new ActionSource(_aggregateType, variable);
     }
 
@@ -304,6 +159,7 @@ internal class EventCaptureActionSource : IReturnVariableActionSource
         }
 
         public string Description => "Append event to event stream for aggregate " + _aggregateType.FullNameInCode();
+
         public IEnumerable<Type> Dependencies()
         {
             yield break;

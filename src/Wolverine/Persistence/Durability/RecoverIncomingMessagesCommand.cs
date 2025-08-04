@@ -39,7 +39,7 @@ public class RecoverIncomingMessagesCommand : IAgentCommand
         var envelopes = await _store.LoadPageOfGloballyOwnedIncomingAsync(_count.Destination, pageSize);
         await _store.ReassignIncomingAsync(_settings.AssignedNodeNumber, envelopes);
 
-        _circuit.EnqueueDirectly(envelopes);
+        await _circuit.EnqueueDirectlyAsync(envelopes);
         _logger.RecoveredIncoming(envelopes);
 
         _logger.LogInformation("Successfully recovered {Count} messages from the inbox for listener {Listener}",

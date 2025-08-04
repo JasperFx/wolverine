@@ -7,7 +7,7 @@ using Wolverine.Transports;
 
 namespace Wolverine.Runtime;
 
-public class MessageBus : IMessageBus
+public class MessageBus : IMessageBus, IMessageContext
 {
     public static MessageBus Build(IWolverineRuntime runtime, string correlationId) =>
         new MessageBus(runtime, correlationId);
@@ -42,6 +42,11 @@ public class MessageBus : IMessageBus
     }
 
     public string? CorrelationId { get; set; }
+    public Envelope? Envelope { get; protected set; }
+    public virtual ValueTask RespondToSenderAsync(object response)
+    {
+        throw new NotSupportedException("Not supported from MessageBus, only within message handlers executing against MessageContext");
+    }
 
     public IWolverineRuntime Runtime { get; }
     public IMessageStore Storage { get; protected set; }
@@ -146,6 +151,13 @@ public class MessageBus : IMessageBus
         {
             throw new ArgumentNullException(nameof(message));
         }
+        
+        // Check for both so you don't get an infinite loop
+        // from TimeoutMessage
+        if (options == null && message is ISendMyself m)
+        {
+            return m.ApplyAsync(this);
+        }
 
         Runtime.AssertHasStarted();
         assertNotMediatorOnly();
@@ -162,6 +174,13 @@ public class MessageBus : IMessageBus
         if (message == null)
         {
             throw new ArgumentNullException(nameof(message));
+        }
+
+        // Check for both so you don't get an infinite loop
+        // from TimeoutMessage
+        if (options == null && message is ISendMyself m)
+        {
+            return m.ApplyAsync(this);
         }
 
         Runtime.AssertHasStarted();

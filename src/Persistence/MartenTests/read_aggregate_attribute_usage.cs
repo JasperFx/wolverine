@@ -2,10 +2,12 @@ using IntegrationTests;
 using JasperFx.Resources;
 using Marten;
 using Marten.Events.Projections;
+using MartenTests.AggregateHandlerWorkflow;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
 using Wolverine;
+using Wolverine.Attributes;
 using Wolverine.Marten;
 
 namespace MartenTests;
@@ -86,6 +88,16 @@ public static class FindLettersHandler
     public static LetterAggregateEnvelope Handle(FindAggregate command, [ReadAggregate] LetterAggregate aggregate)
     {
         return new LetterAggregateEnvelope(aggregate);
+    }
+    
+    [WolverineHandler]
+    public static LetterAggregateEnvelope Handle2(
+        FindAggregate command, 
+        
+        // Just showing you that you can disable the validation
+        [ReadAggregate(Required = false)] LetterAggregate aggregate)
+    {
+        return aggregate == null ? null : new LetterAggregateEnvelope(aggregate);
     }
 }
 

@@ -368,7 +368,8 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
             ServerName = builder.DataSource ?? string.Empty,
             DatabaseName = builder.InitialCatalog ?? string.Empty,
             Subject = GetType().FullNameInCode(),
-            SchemaOrNamespace = _settings.SchemaName
+            SchemaOrNamespace = _settings.SchemaName,
+            SubjectUri = SubjectUri
         };
 
         descriptor.Properties.Add(OptionsValue.Read(builder, x => x.ApplicationName));
@@ -408,8 +409,8 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
             var nodeTable = new Table(new DbObjectName(SchemaName, DatabaseConstants.NodeTableName));
             nodeTable.AddColumn<Guid>("id").AsPrimaryKey();
             nodeTable.AddColumn<int>("node_number").AutoNumber().NotNull();
-            nodeTable.AddColumn<string>("description").NotNull();
-            nodeTable.AddColumn<string>("uri").NotNull();
+            nodeTable.AddColumn("description", "varchar(max)").NotNull();
+            nodeTable.AddColumn("uri", "varchar(500)").NotNull();
             nodeTable.AddColumn<DateTimeOffset>("started").DefaultValueByExpression("GETUTCDATE()").NotNull();
             nodeTable.AddColumn<DateTimeOffset>("health_check").DefaultValueByExpression("GETUTCDATE()").NotNull();
             nodeTable.AddColumn<string>("version");
@@ -418,7 +419,7 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
             yield return nodeTable;
 
             var assignmentTable = new Table(new DbObjectName(SchemaName, DatabaseConstants.NodeAssignmentsTableName));
-            assignmentTable.AddColumn<string>("id").AsPrimaryKey();
+            assignmentTable.AddColumn("id", "varchar(500)").AsPrimaryKey();
             assignmentTable.AddColumn<Guid>("node_id").ForeignKeyTo(nodeTable.Identifier, "id", onDelete:CascadeAction.Cascade);
             assignmentTable.AddColumn<DateTimeOffset>("started").DefaultValueByExpression("GETUTCDATE()").NotNull();
 
@@ -448,7 +449,7 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
             var eventTable = new Table(new DbObjectName(SchemaName, DatabaseConstants.NodeRecordTableName));
             eventTable.AddColumn<int>("id").AutoNumber().AsPrimaryKey();
             eventTable.AddColumn<int>("node_number").NotNull();
-            eventTable.AddColumn<string>("event_name").NotNull();
+            eventTable.AddColumn("event_name", "varchar(500)").NotNull();
             eventTable.AddColumn<DateTimeOffset>("timestamp").DefaultValueByExpression("GETUTCDATE()").NotNull();
             eventTable.AddColumn("description", "varchar(500)").AllowNulls();
             yield return eventTable;

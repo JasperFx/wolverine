@@ -70,6 +70,11 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
             _schemaName
         };
 
+        if (databaseSettings.IsMain)
+        {
+            SubjectUri = new Uri("wolverine://messages/main");
+        }
+
         Uri = new Uri($"{PersistenceConstants.AgentScheme}://{parts.Where(x => x.IsNotEmpty()).Join("/")}");
     }
 
@@ -84,11 +89,7 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
     }
 
     public Uri Uri { get; protected set; } = new Uri("null://null");
-
-    // This would be set from the parent database, if one exists. Example would be from
-    // gleaning Wolverine message storage off of Marten storage databases
-    public DatabaseDescriptor? Descriptor { get; set; }
-
+    
     public IAdvisoryLock AdvisoryLock { get; protected set; }
 
     public ILogger Logger { get; }
@@ -166,6 +167,8 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
             runtime.Options.Transports.NodeControlEndpoint = transport.ControlEndpoint;
         }
     }
+
+    public Uri SubjectUri { get; set; } = new Uri("wolverine://messages");
 
     public IMessageStoreAdmin Admin => this;
 

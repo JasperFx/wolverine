@@ -127,7 +127,35 @@ public class Bootstrapping
             {
                 opts.UseAmazonSnsTransport()
                     // Without this, the SubscribeSqsQueue() call does nothing
-                    .AutoProvision();
+                    // This tells Wolverine to try to ensure all topics, subscriptions,
+                    // and SQS queues exist at runtime 
+                    .AutoProvision()
+                    
+                    // *IF* you need to use some kind of custom queue policy in your
+                    // SQS queues *and* want to use AutoProvision() as well, this is 
+                    // the hook to customize that policy. This is the default though that
+                    // we're just showing for an example
+                    .QueuePolicyForSqsSubscriptions(description =>
+                    {
+                        return $$"""
+                                 {
+                                   "Version": "2012-10-17",
+                                   "Statement": [{
+                                       "Effect": "Allow",
+                                       "Principal": {
+                                           "Service": "sns.amazonaws.com"
+                                       },
+                                       "Action": "sqs:SendMessage",
+                                       "Resource": "{{description.QueueArn}}",
+                                       "Condition": {
+                                         "ArnEquals": {
+                                             "aws:SourceArn": "{{description.TopicArn}}"
+                                         }
+                                       }
+                                   }]
+                                 }
+                                 """;
+                    });
 
                 opts.PublishMessage<Message1>()
                     .ToSnsTopic("outbound1")
@@ -142,4 +170,5 @@ public class Bootstrapping
 
         #endregion
     }
+    
 }

@@ -108,7 +108,7 @@ which is just not suitable if you need delivery guarantees of that work. Wolveri
 with its in memory, local queues such that work will *not* be lost in the case of errors. Moreover, using the Wolverine local queues
 allows you to take advantage of Wolverine's error handling capabilities for a much more resilient system that you'll achieve with MediatR.
 
-`INotificationHandler` in Wolverine is just a message handler. You can publish messages anytime through the `IMessageBus.PublishAsync()` API, but if you're just
+The equivalent of `INotificationHandler` in Wolverine is just a message handler. You can publish messages anytime through the `IMessageBus.PublishAsync()` API, but if you're just
 needing to publish additional messages (either commands or events, to Wolverine it's all just a message), you can utilize Wolverine's
 [cascading message](/guide/handlers/cascading) usage as a way of building more testable handler methods. 
 

@@ -1,10 +1,12 @@
 ﻿using System.Reflection;
+using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
 using Marten;
 using Marten.Events;
 using Marten.Metadata;
+using Marten.Storage.Metadata;
 using Wolverine.Configuration;
 using Wolverine.Marten.Codegen;
 using Wolverine.Persistence;
@@ -24,7 +26,9 @@ internal class MartenPersistenceFrameProvider : IPersistenceFrameProvider
     public Type DetermineSagaIdType(Type sagaType, IServiceContainer container)
     {
         var store = container.GetInstance<IDocumentStore>();
-        return store.Options.FindOrResolveDocumentType(sagaType).IdType;
+        var documentType = store.Options.FindOrResolveDocumentType(sagaType);
+
+        return documentType.IdType;
     }
 
     public void ApplyTransactionSupport(IChain chain, IServiceContainer container)
@@ -118,6 +122,46 @@ internal class MartenPersistenceFrameProvider : IPersistenceFrameProvider
         return call;
     }
 
+    public Frame[] DetermineFrameToNullOutMaybeSoftDeleted(Variable entity)
+    {
+        return [new SetVariableToNullIfSoftDeletedFrame(entity)];
+    }
+}
+
+internal class SetVariableToNullIfSoftDeletedFrame : AsyncFrame
+{
+    private Variable _entity;
+    private Variable _documentSession;
+    private Variable _entityMetadata;
+
+    public SetVariableToNullIfSoftDeletedFrame(Variable entity)
+    {
+        _entity = entity;
+    }
+
+    public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        writer.WriteComment("If the document is soft deleted, set the variable to null");
+
+        writer.Write($"var {_entityMetadata.Usage} = {_entity.Usage} != null");
+        writer.Write($"    ? await {_documentSession.Usage}.{nameof(IDocumentSession.MetadataForAsync)}({_entity.Usage}).ConfigureAwait(false)");
+        writer.Write($"    : null;");
+            
+        writer.Write($"BLOCK:if ({_entityMetadata.Usage}?.{nameof(DocumentMetadata.Deleted)} == true)");
+        writer.Write($"{_entity.Usage} = null;");
+        writer.FinishBlock();
+            
+        Next?.GenerateCode(method, writer);
+    }
+
+    public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
+    {
+        _documentSession = chain.FindVariable(typeof(IDocumentSession));
+        yield return _documentSession;
+
+        _entityMetadata = new Variable(typeof(DocumentMetadata), _entity.Usage + "Metadata", this);
+        yield return _entityMetadata;
+    }
 }
 
 public static class MartenStorageActionApplier

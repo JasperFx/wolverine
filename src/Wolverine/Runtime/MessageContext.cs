@@ -153,7 +153,7 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
             throw new InvalidOperationException("No Envelope is active for this context");
         }
 
-        if (_channel is ISupportDeadLetterQueue c && c.NativeDeadLetterQueueEnabled)
+        if (_channel is ISupportDeadLetterQueue { NativeDeadLetterQueueEnabled: true } c)
         {
             if (Envelope.Batch != null)
             {
@@ -182,6 +182,9 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
             // If persistable, persist
             await Storage.Inbox.MoveToDeadLetterStorageAsync(Envelope, exception);
         }
+
+        // If this is Inline
+        await _channel.CompleteAsync(Envelope);
     }
 
     public Task RetryExecutionNowAsync()
@@ -293,7 +296,7 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
     /// <param name="context"></param>
     /// <exception cref="ArgumentOutOfRangeException"></exception>
     /// <returns></returns>
-    public ValueTask RespondToSenderAsync(object response)
+    public override ValueTask RespondToSenderAsync(object response)
     {
         if (Envelope == null)
         {
@@ -308,8 +311,6 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
 
         return EndpointFor(Envelope.ReplyUri).SendAsync(response);
     }
-
-    public Envelope? Envelope { get; protected set; }
 
     internal async Task CopyToAsync(IEnvelopeTransaction other)
     {
@@ -445,6 +446,9 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
     internal void ReadEnvelope(Envelope? originalEnvelope, IChannelCallback channel)
     {
         Envelope = originalEnvelope ?? throw new ArgumentNullException(nameof(originalEnvelope));
+
+        originalEnvelope.MaybeCorrectReplyUri();
+        
         CorrelationId = originalEnvelope.CorrelationId;
         ConversationId = originalEnvelope.Id;
         _channel = channel;

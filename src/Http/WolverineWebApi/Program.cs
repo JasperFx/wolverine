@@ -117,7 +117,6 @@ builder.Host.UseWolverine(opts =>
     
     opts.Policies.OnExceptionOfType(typeof(AlwaysDeadLetterException)).MoveToErrorQueue();
 
-    opts.ApplicationAssembly = typeof(Program).Assembly;
     opts.UseFluentValidation();
     opts.Discovery.IncludeAssembly(typeof(CreateCustomer2).Assembly);
     opts.Discovery.IncludeAssembly(typeof(DiscoverFSharp).Assembly);
@@ -134,7 +133,7 @@ builder.Host.UseWolverine(opts =>
     
     opts.Policies.Add<BroadcastClientMessages>();
 
-    opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Dynamic;
+    opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
 });
 
 // These settings would apply to *both* Marten and Wolverine
@@ -239,8 +238,11 @@ app.MapWolverineEndpoints(opts =>
     // Only want this middleware on endpoints on this one handler
     opts.AddMiddleware(typeof(BeforeAndAfterMiddleware),
         chain => chain.Method.HandlerType == typeof(MiddlewareEndpoints));
+    opts.AddMiddleware(typeof(LoadTodoMiddleware),
+        chain => chain.Method.HandlerType == typeof(UpdateEndpointWithMiddleware));
+    opts.AddPolicy<LoadTodoPolicy>();
 
-#region sample_user_marten_compiled_query_policy
+    #region sample_user_marten_compiled_query_policy
     opts.UseMartenCompiledQueryResultPolicy();
 #endregion
 

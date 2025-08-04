@@ -85,7 +85,11 @@ builder.Host.UseWolverine(opts =>
     // just to see things work
     opts.PublishAllMessages()
         .ToRabbitExchange("issue_events", exchange => exchange.BindQueue("issue_events"))
-        .UseDurableOutbox();
+        .UseDurableOutbox()
+        // Even when calling AddResourceSetupOnStartup(), we still
+        // need to AutoProvision to ensure any declared queues, exchanges, or
+        // bindings with the Rabbit MQ broker to be built as part of bootstrapping time
+        .AutoProvision();
 
     opts.ListenToRabbitQueue("issue_events").UseDurableInbox();
 

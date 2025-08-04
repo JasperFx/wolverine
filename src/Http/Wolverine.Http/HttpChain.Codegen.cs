@@ -32,8 +32,15 @@ public partial class HttpChain
 
     void ICodeFile.AssembleTypes(GeneratedAssembly assembly)
     {
+        if (_generatedType != null)
+        {
+            return;
+        }
+        
         lock (_locker)
         {
+            if (_generatedType != null) return;
+
             assembly.UsingNamespaces!.Fill(typeof(RoutingHttpContextExtensions).Namespace);
             assembly.UsingNamespaces.Fill("System.Linq");
             assembly.UsingNamespaces.Fill("System");

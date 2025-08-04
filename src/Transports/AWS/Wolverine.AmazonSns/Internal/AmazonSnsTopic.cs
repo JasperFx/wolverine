@@ -14,8 +14,6 @@ namespace Wolverine.AmazonSns.Internal;
 
 public class AmazonSnsTopic : Endpoint, IBrokerQueue
 {
-    private readonly AmazonSnsTransport _parent;
-    
     private bool _initialized;
     
     private ISnsEnvelopeMapper _mapper = new DefaultSnsEnvelopeMapper();
@@ -23,7 +21,7 @@ public class AmazonSnsTopic : Endpoint, IBrokerQueue
     internal AmazonSnsTopic(string topicName, AmazonSnsTransport parent) 
         : base(new Uri($"{AmazonSnsTransport.SnsProtocol}://{topicName}"), EndpointRole.Application)
     {
-        _parent = parent;
+        Parent = parent;
         
         TopicName = topicName;
         EndpointName = topicName;
@@ -33,7 +31,9 @@ public class AmazonSnsTopic : Endpoint, IBrokerQueue
         
         MessageBatchSize = 10;
     }
-    
+
+    internal AmazonSnsTransport Parent { get; }
+
     /// <summary>
     ///     Pluggable strategy for interoperability with non-Wolverine systems. Customizes how the incoming SNS requests
     ///     are read and how outgoing messages are written to SNS
@@ -53,12 +53,12 @@ public class AmazonSnsTopic : Endpoint, IBrokerQueue
     
     public async ValueTask<bool> CheckAsync()
     {
-        return await _parent.SnsClient!.FindTopicAsync(TopicName) is not null;
+        return await Parent.SnsClient!.FindTopicAsync(TopicName) is not null;
     }
 
     public async ValueTask TeardownAsync(ILogger logger)
     {
-        var client = _parent.SnsClient!;
+        var client = Parent.SnsClient!;
 
         if (TopicArn.IsEmpty())
         {
@@ -78,7 +78,7 @@ public class AmazonSnsTopic : Endpoint, IBrokerQueue
 
     public ValueTask SetupAsync(ILogger logger)
     {
-        return new ValueTask(setupAsync(_parent.SnsClient!));
+        return new ValueTask(setupAsync(Parent.SnsClient!));
     }
     
     public ValueTask PurgeAsync(ILogger logger)
@@ -89,7 +89,7 @@ public class AmazonSnsTopic : Endpoint, IBrokerQueue
     
     public async ValueTask<Dictionary<string, string>> GetAttributesAsync()
     {
-        var client = _parent.SnsClient!;
+        var client = Parent.SnsClient!;
 
         await loadTopicArnIfEmptyAsync(client);
         
@@ -121,10 +121,11 @@ public class AmazonSnsTopic : Endpoint, IBrokerQueue
 
         foreach (var attribute in _mapper.ToAttributes(envelope))
         {
+            request.MessageAttributes ??= new();
             request.MessageAttributes.Add(attribute.Key, attribute.Value);
         }
         
-        await _parent.SnsClient!.PublishAsync(request);
+        await Parent.SnsClient!.PublishAsync(request);
     }
     
     public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
@@ -141,7 +142,7 @@ public class AmazonSnsTopic : Endpoint, IBrokerQueue
         }
         
         var protocol = new SnsSenderProtocol(runtime, this,
-            _parent.SnsClient ?? throw new InvalidOperationException("Parent transport has not been initialized"));
+            Parent.SnsClient ?? throw new InvalidOperationException("Parent transport has not been initialized"));
         return new BatchedSender(this, protocol, runtime.Cancellation,
             runtime.LoggerFactory.CreateLogger<SnsSenderProtocol>());
     }
@@ -155,14 +156,14 @@ public class AmazonSnsTopic : Endpoint, IBrokerQueue
         
         try
         {
-            var client = _parent.SnsClient;
+            var client = Parent.SnsClient;
 
             if (client == null)
             {
                 throw new InvalidOperationException($"Parent {nameof(AmazonSnsTransport)} has not been initialized");
             }
 
-            if (_parent.AutoProvision)
+            if (Parent.AutoProvision)
             {
                 await setupAsync(client);
                 logger.LogInformation("Tried to create Amazon SNS topic {Name} if missing", TopicName);
@@ -217,7 +218,7 @@ public class AmazonSnsTopic : Endpoint, IBrokerQueue
     {
         // If you have more than 100 subscriptions on one topic this code breaks
         var subscriptionResponse = await client.ListSubscriptionsByTopicAsync(TopicArn);
-        foreach (var subscription in subscriptionResponse.Subscriptions.Where(x =>
+        foreach (var subscription in (subscriptionResponse?.Subscriptions ?? []).Where(x =>
                      TopicSubscriptions.FirstOrDefault(y => y.SubscriptionArn == x.SubscriptionArn) is null))
         {
             TopicSubscriptions.Add(new AmazonSnsSubscription(subscription));
@@ -226,7 +227,7 @@ public class AmazonSnsTopic : Endpoint, IBrokerQueue
 
     private async Task createTopicSubscriptionsAsync(IAmazonSimpleNotificationService client)
     {
-        var sqsClient = _parent.SqsClient!;
+        var sqsClient = Parent.SqsClient!;
                 
         foreach (var subscription in TopicSubscriptions)
         {
@@ -238,7 +239,7 @@ public class AmazonSnsTopic : Endpoint, IBrokerQueue
                     var getQueueResponse = await sqsClient.GetQueueUrlAsync(subscription.Endpoint);
                     endpoint = await getSqsSubscriptionEndpointAsync(sqsClient, getQueueResponse.QueueUrl);
                     
-                    await setQueuePolicyForTopic(sqsClient, getQueueResponse.QueueUrl, endpoint, TopicArn);
+                    await setQueuePolicyForTopic(sqsClient, new (getQueueResponse.QueueUrl, endpoint,  TopicArn));
                     break;
                 default:
                     throw new NotImplementedException("AmazonSnsSubscriptionType not implemented");
@@ -278,31 +279,14 @@ public class AmazonSnsTopic : Endpoint, IBrokerQueue
         return getAttributesResponse.QueueARN;
     }
 
-    private async Task setQueuePolicyForTopic(IAmazonSQS client, string queueUrl, string queueArn, string topicArn)
+    private async Task setQueuePolicyForTopic(IAmazonSQS client, SqsTopicDescription description)
     {
-        var queuePolicy = $$"""
-                            {
-                              "Version": "2012-10-17",
-                              "Statement": [{
-                                  "Effect": "Allow",
-                                  "Principal": {
-                                      "Service": "sns.amazonaws.com"
-                                  },
-                                  "Action": "sqs:SendMessage",
-                                  "Resource": "{{queueArn}}",
-                                  "Condition": {
-                                    "ArnEquals": {
-                                        "aws:SourceArn": "{{topicArn}}"
-                                    }
-                                  }
-                              }]
-                            }
-                            """;
+        var queuePolicy = Parent.QueuePolicyBuilder(description);
 
         await client.SetQueueAttributesAsync(
             new SetQueueAttributesRequest
             {
-                QueueUrl = queueUrl,
+                QueueUrl = description.QueueUrl,
                 Attributes = new Dictionary<string, string> { {"Policy", queuePolicy } }
             });
     }

@@ -28,6 +28,8 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         persistenceService = dbContextType!;
         return dbContextType != null;
     }
+    
+    public Frame[] DetermineFrameToNullOutMaybeSoftDeleted(Variable entity) => [];
 
     public Type DetermineSagaIdType(Type sagaType, IServiceContainer container)
     {

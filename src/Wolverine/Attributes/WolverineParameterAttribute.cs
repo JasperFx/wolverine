@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Reflection;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
@@ -73,11 +74,6 @@ public abstract class WolverineParameterAttribute : Attribute
         }
         
         if (chain.TryFindVariable("Id", ValueSource, idType, out variable))
-        {
-            return true;
-        }
-        
-        if (chain.TryFindVariable("id", ValueSource, idType, out variable))
         {
             return true;
         }

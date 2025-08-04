@@ -17,4 +17,4 @@ This makes Wolverine relatively easy to use in combination with many of the most
 
 ## .NET Version Compatibility
 
-Marten aligns with the [.NET Core Support Lifecycle](https://dotnet.microsoft.com/platform/support/policy/dotnet-core) to determine platform support. New major releases will drop versions of .NET that have fallen out of support.
+Wolverine aligns with the [.NET Core Support Lifecycle](https://dotnet.microsoft.com/platform/support/policy/dotnet-core) to determine platform support. New major releases will drop versions of .NET that have fallen out of support.

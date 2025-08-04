@@ -116,6 +116,7 @@ public class Incident
     {
     }
 
+    public void Apply(IncidentLogged _) { }
     public void Apply(AgentRespondedToIncident _) => HasOutstandingResponseToCustomer = false;
 
     public void Apply(CustomerRespondedToIncident _) => HasOutstandingResponseToCustomer = true;
@@ -129,7 +130,7 @@ public class Incident
     public bool ShouldDelete(Archived @event) => true;
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/IncidentService/IncidentService/Incident.cs#L75-L108' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_incident_aggregate' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/IncidentService/IncidentService/Incident.cs#L75-L109' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_incident_aggregate' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: info
@@ -344,7 +345,7 @@ As a little tip, I've added this bit of marker code to the very bottom of our `P
 // application in a test harness project. Only a convenience
 public partial class Program{}
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/IncidentService/IncidentService/Program.cs#L68-L74' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_program_marker' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/IncidentService/IncidentService/Program.cs#L76-L82' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_program_marker' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Having that above, I'll switch to the test harness project and create a shared fixture to bootstrap

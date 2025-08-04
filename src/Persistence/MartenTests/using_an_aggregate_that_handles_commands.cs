@@ -7,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using JasperFx.Resources;
+using MartenTests.AggregateHandlerWorkflow;
 using Shouldly;
 using Wolverine;
 using Wolverine.Marten;

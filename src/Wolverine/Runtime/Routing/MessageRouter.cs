@@ -11,8 +11,10 @@ public class MessageRouter<T> : MessageRouterBase<T>
         Routes = routes.ToArray();
 
         // ReSharper disable once VirtualMemberCallInConstructor
-        foreach (var route in Routes.OfType<MessageRoute>().Where(x => x.Sender.Endpoint is LocalQueue))
+        foreach (var route in Routes.OfType<MessageRoute>().Where(x => x.Sender?.Endpoint is LocalQueue))
+        {
             route.Rules.Fill(HandlerRules);
+        }
     }
 
     public override IMessageRoute[] Routes { get; }

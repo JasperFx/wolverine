@@ -97,7 +97,7 @@ public partial class HttpChain
                     Name = parameter.Name,
                     ParameterType = parameter.ParameterType
                 },
-                Type = typeof(IFormFile),
+                Type = parameter.ParameterType,
                 IsRequired = true
             };
 
@@ -126,6 +126,8 @@ public partial class HttpChain
         return apiDescription;
     }
 
+    public override MiddlewareScoping Scoping => MiddlewareScoping.HttpEndpoints;
+
     public override void UseForResponse(MethodCall methodCall)
     {
         if (methodCall.ReturnVariable == null)
@@ -141,6 +143,11 @@ public partial class HttpChain
     public override bool TryFindVariable(string valueName, ValueSource source, Type valueType, out Variable variable)
     {
         if ((source == ValueSource.RouteValue || source == ValueSource.Anything) && FindRouteVariable(valueType, valueName, out variable))
+        {
+            return true;
+        }
+        
+        if ((source == ValueSource.FromQueryString || source == ValueSource.Anything) && FindQuerystringVariable(valueType, valueName, out variable))
         {
             return true;
         }
@@ -222,7 +229,7 @@ public partial class HttpChain
 
     private void fillRequestType(ApiDescription apiDescription)
     {
-        if (HasRequestType && !IsFormData)
+        if (HasRequestType && !IsFormData && apiDescription.HttpMethod != "GET")
         {
             var parameterDescription = new ApiParameterDescription
             {

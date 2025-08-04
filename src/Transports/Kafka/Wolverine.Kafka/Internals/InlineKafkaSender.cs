@@ -6,7 +6,7 @@ namespace Wolverine.Kafka.Internals;
 public class InlineKafkaSender : ISender, IDisposable
 {
     private readonly KafkaTopic _topic;
-    private readonly IProducer<string,string> _producer;
+    private readonly IProducer<string, byte[]> _producer;
 
     public InlineKafkaSender(KafkaTopic topic)
     {
@@ -35,7 +35,7 @@ public class InlineKafkaSender : ISender, IDisposable
 
     public async ValueTask SendAsync(Envelope envelope)
     {
-        var message = _topic.Mapper.CreateMessage(envelope);
+        var message = await _topic.Mapper.CreateMessage(envelope);
 
         await _producer.ProduceAsync(envelope.TopicName ?? _topic.TopicName, message);
         _producer.Flush();

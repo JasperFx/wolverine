@@ -1,6 +1,7 @@
 using Confluent.Kafka;
 using Confluent.Kafka.Admin;
 using Microsoft.Extensions.Logging;
+using System.Text;
 using Wolverine.Configuration;
 using Wolverine.Kafka.Internals;
 using Wolverine.Runtime;
@@ -51,7 +52,8 @@ public class KafkaTopic : Endpoint, IBrokerEndpoint
 
     public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
     {
-        var listener = new KafkaListener(this, ConsumerConfig ?? Parent.ConsumerConfig,
+        var config = ConsumerConfig ?? Parent.ConsumerConfig;
+        var listener = new KafkaListener(this, config,
             Parent.CreateConsumer(ConsumerConfig), receiver, runtime.LoggerFactory.CreateLogger<KafkaListener>());
         return ValueTask.FromResult((IListener)listener);
     }
@@ -70,10 +72,10 @@ public class KafkaTopic : Endpoint, IBrokerEndpoint
         try
         {
             using var client = Parent.CreateProducer(ProducerConfig);
-            await client.ProduceAsync(TopicName, new Message<string, string>
+            await client.ProduceAsync(TopicName, new Message<string, byte[]>
             {
                 Key = "ping",
-                Value = "ping"
+                Value = Encoding.Default.GetBytes("ping")
             });
 
 

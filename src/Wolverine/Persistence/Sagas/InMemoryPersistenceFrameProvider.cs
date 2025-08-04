@@ -111,6 +111,8 @@ public class InMemoryPersistenceFrameProvider : IPersistenceFrameProvider
         call.Arguments[0] = action;
         return call;
     }
+
+    public Frame[] DetermineFrameToNullOutMaybeSoftDeleted(Variable entity) => [];
 }
 
 internal class InMemorySagaPersistorStore<T> : MethodCall

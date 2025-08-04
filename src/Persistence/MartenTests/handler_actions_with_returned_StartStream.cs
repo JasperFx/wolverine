@@ -5,6 +5,7 @@ using Marten.Events;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using JasperFx.Resources;
+using MartenTests.AggregateHandlerWorkflow;
 using Shouldly;
 using Wolverine;
 using Wolverine.Marten;

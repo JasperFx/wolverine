@@ -404,6 +404,9 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
     {
         if (call.HandlerType.CanBeCastTo<Saga>())
         {
+            if (call.Method.Name == SagaChain.NotFound) return true;
+            
+            // Legal for Start() methods to be be a static 
             if (!call.Method.IsStatic) return true;
 
             if (call.Method.Name.EqualsIgnoreCase("Start")) return true;

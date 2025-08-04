@@ -2,6 +2,7 @@ using Amazon.SimpleNotificationService;
 using Amazon.SQS;
 using JasperFx.Core.Reflection;
 using Wolverine.AmazonSns.Internal;
+using Wolverine.AmazonSqs.Internal;
 using Wolverine.Configuration;
 
 namespace Wolverine.AmazonSns;
@@ -18,7 +19,10 @@ public static class AmazonSnsTransportExtensions
     {
         var transports = endpoints.As<WolverineOptions>().Transports;
 
-        return transports.GetOrCreate<AmazonSnsTransport>();
+        var transport = transports.GetOrCreate<AmazonSnsTransport>();
+        transport.SQS ??= transports.GetOrCreate<AmazonSqsTransport>();
+
+        return transport;
     }
 
     /// <summary>
@@ -31,7 +35,7 @@ public static class AmazonSnsTransportExtensions
         var transport = options.AmazonSnsTransport();
         return new AmazonSnsTransportConfiguration(transport, options);
     }
-
+    
     public static AmazonSnsTransportConfiguration UseAmazonSnsTransport(this WolverineOptions options)
     {
         var transport = options.AmazonSnsTransport();
@@ -50,7 +54,7 @@ public static class AmazonSnsTransportExtensions
         Action<AmazonSimpleNotificationServiceConfig, AmazonSQSConfig> configuration)
     {
         var transport = options.AmazonSnsTransport();
-        configuration(transport.SnsConfig, transport.SqsConfig);
+        configuration(transport.SnsConfig, transport.SQS.Config);
         return new AmazonSnsTransportConfiguration(transport, options);
     }
 

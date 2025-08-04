@@ -9,7 +9,7 @@ namespace Wolverine.Kafka.Internals;
 
 public class KafkaListener : IListener, IDisposable
 {
-    private readonly IConsumer<string,string> _consumer;
+    private readonly IConsumer<string, byte[]> _consumer;
     private CancellationTokenSource _cancellation = new();
     private readonly Task _runner;
     private readonly IReceiver _receiver;
@@ -17,7 +17,7 @@ public class KafkaListener : IListener, IDisposable
     private readonly QualityOfService _qualityOfService;
 
     public KafkaListener(KafkaTopic topic, ConsumerConfig config,
-        IConsumer<string, string> consumer, IReceiver receiver,
+        IConsumer<string, byte[]> consumer, IReceiver receiver,
         ILogger<KafkaListener> logger)
     {
         Address = topic.Uri;

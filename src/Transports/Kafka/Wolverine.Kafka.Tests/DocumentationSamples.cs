@@ -71,6 +71,8 @@ public class DocumentationSamples
                     
                     // Override the consumer configuration for only this 
                     // topic
+                    // This is NOT combinatorial with the ConfigureConsumers() call above
+                    // and completely replaces the parent configuration
                     .ConfigureConsumer(config =>
                     {
                         // This will also set the Envelope.GroupId for any
@@ -92,6 +94,34 @@ public class DocumentationSamples
 
         #endregion
     }
+
+    public static async Task use_named_brokers()
+    {
+        #region sample_using_multiple_kafka_brokers
+
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.UseKafka("localhost:9092");
+                opts.AddNamedKafkaBroker(new BrokerName("americas"), "americas-kafka:9092");
+                opts.AddNamedKafkaBroker(new BrokerName("emea"), "emea-kafka:9092");
+
+                // Just publish all messages to Kafka topics
+                // based on the message type (or message attributes)
+                // This will get fancier in the near future
+                opts.PublishAllMessages().ToKafkaTopicsOnNamedBroker(new BrokerName("americas"));
+
+                // Or explicitly make subscription rules
+                opts.PublishMessage<ColorMessage>()
+                    .ToKafkaTopicOnNamedBroker(new BrokerName("emea"), "colors");
+
+                // Listen to topics
+                opts.ListenToKafkaTopicOnNamedBroker(new BrokerName("americas"), "red");
+                // Other configuration
+            }).StartAsync();
+
+        #endregion
+    }
 }
 
 #region sample_KafkaInstrumentation_middleware
@@ -108,3 +138,4 @@ public static class KafkaInstrumentation
 }
 
 #endregion
+

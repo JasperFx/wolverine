@@ -90,14 +90,14 @@ internal class OutgoingSnsBatch
     public async Task ProcessSuccessAsync(ISenderCallback callback, PublishBatchResponse response,
         OutgoingMessageBatch batch)
     {
-        if (!response.Failed.Any())
+        if (response.Failed == null || !response.Failed.Any())
         {
             await callback.MarkSuccessfulAsync(batch);
         }
         else
         {
             var fails = new List<Envelope>();
-            foreach (var fail in response.Failed)
+            foreach (var fail in response.Failed ?? [])
             {
                 if (_envelopes.TryGetValue(fail.Id, out var env))
                 {
@@ -106,7 +106,7 @@ internal class OutgoingSnsBatch
             }
 
             var successes = new List<Envelope>();
-            foreach (var success in response.Successful)
+            foreach (var success in response.Successful ?? [])
             {
                 if (_envelopes.TryGetValue(success.Id, out var env))
                 {

@@ -13,6 +13,10 @@ To use [Kafka](https://www.confluent.io/what-is-apache-kafka/) as a messaging tr
 dotnet add WolverineFx.Kafka
 ```
 
+```warning
+The configuration in `ConfigureConsumer()` for each topic completely overwrites any previous configuration
+```
+
 To connect to Kafka, use this syntax:
 
 <!-- snippet: sample_bootstrapping_with_kafka -->
@@ -80,6 +84,8 @@ using var host = await Host.CreateDefaultBuilder()
             
             // Override the consumer configuration for only this 
             // topic
+            // This is NOT combinatorial with the ConfigureConsumers() call above
+            // and completely replaces the parent configuration
             .ConfigureConsumer(config =>
             {
                 // This will also set the Envelope.GroupId for any
@@ -98,7 +104,7 @@ using var host = await Host.CreateDefaultBuilder()
         opts.Services.AddResourceSetupOnStartup();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/DocumentationSamples.cs#L10-L93' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_with_kafka' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/DocumentationSamples.cs#L10-L95' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_with_kafka' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The various `Configure*****()` methods provide quick access to the full API of the Confluent Kafka library for security
@@ -187,5 +193,39 @@ public static class KafkaInstrumentation
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/DocumentationSamples.cs#L97-L110' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_kafkainstrumentation_middleware' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/DocumentationSamples.cs#L127-L140' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_kafkainstrumentation_middleware' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+
+## Connecting to Multiple Brokers <Badge type="tip" text="4.7" />
+
+Wolverine supports interacting with multiple Kafka brokers within one application like this:
+
+<!-- snippet: sample_using_multiple_kafka_brokers -->
+<a id='snippet-sample_using_multiple_kafka_brokers'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.UseKafka("localhost:9092");
+        opts.AddNamedKafkaBroker(new BrokerName("americas"), "americas-kafka:9092");
+        opts.AddNamedKafkaBroker(new BrokerName("emea"), "emea-kafka:9092");
+
+        // Just publish all messages to Kafka topics
+        // based on the message type (or message attributes)
+        // This will get fancier in the near future
+        opts.PublishAllMessages().ToKafkaTopicsOnNamedBroker(new BrokerName("americas"));
+
+        // Or explicitly make subscription rules
+        opts.PublishMessage<ColorMessage>()
+            .ToKafkaTopicOnNamedBroker(new BrokerName("emea"), "colors");
+
+        // Listen to topics
+        opts.ListenToKafkaTopicOnNamedBroker(new BrokerName("americas"), "red");
+        // Other configuration
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/DocumentationSamples.cs#L100-L123' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_multiple_kafka_brokers' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Note that the `Uri` scheme within Wolverine for any endpoints from a "named" Kafka broker is the name that you supply
+for the broker. So in the example above, you might see `Uri` values for `emea://colors` or `americas://red`.

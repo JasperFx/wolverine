@@ -1,5 +1,6 @@
 import { withMermaid } from "vitepress-plugin-mermaid"
 import { DefaultTheme, UserConfig } from 'vitepress'
+import llmstxt from 'vitepress-plugin-llms'
 
 const config: UserConfig<DefaultTheme.Config> = {
     base: '/',
@@ -257,7 +258,10 @@ const config: UserConfig<DefaultTheme.Config> = {
     markdown: {
         linkify: false
     },
-    ignoreDeadLinks: true
+    ignoreDeadLinks: true,
+    vite: {
+        plugins: [llmstxt()]
+    }
 }
 
 export default withMermaid(config);

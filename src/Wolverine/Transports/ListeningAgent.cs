@@ -16,7 +16,7 @@ public interface IListenerCircuit
     ValueTask PauseAsync(TimeSpan pauseTime);
     ValueTask StartAsync();
 
-    void EnqueueDirectly(IEnumerable<Envelope> envelopes);
+    Task EnqueueDirectlyAsync(IEnumerable<Envelope> envelopes);
 }
 
 public interface IListeningAgent : IListenerCircuit
@@ -99,9 +99,14 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
 
     public int QueueCount => _receiver is ILocalQueue q ? q.QueueCount : 0;
 
-    public void EnqueueDirectly(IEnumerable<Envelope> envelopes)
+    public async Task EnqueueDirectlyAsync(IEnumerable<Envelope> envelopes)
     {
-        if (_receiver is ILocalQueue queue)
+        if (_receiver is BufferedReceiver)
+        {
+            // Agent is latched if listener is null
+            await _receiver.ReceivedAsync(new RetryOnInlineChannelCallback(Listener, _runtime), envelopes.ToArray());
+        }
+        else if (_receiver is ILocalQueue queue)
         {
             var uniqueNodeId = _runtime.DurabilitySettings.AssignedNodeNumber;
             foreach (var envelope in envelopes)
@@ -109,6 +114,11 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
                 envelope.OwnerId = uniqueNodeId;
                 queue.Enqueue(envelope);
             }
+        }
+        else if (_receiver is InlineReceiver inline)
+        {
+            // Agent is latched if listener is null
+            await inline.ReceivedAsync(new RetryOnInlineChannelCallback(Listener, _runtime), envelopes.ToArray());
         }
         else
         {
@@ -289,5 +299,48 @@ internal class Restarter : IDisposable
     {
         _cancellation.Cancel();
         _task.SafeDispose();
+    }
+}
+
+internal class RetryOnInlineChannelCallback : IListener
+{
+    private readonly IListener _inner;
+    private readonly IWolverineRuntime _runtime;
+
+    public RetryOnInlineChannelCallback(IListener inner, IWolverineRuntime runtime)
+    {
+        _inner = inner;
+        _runtime = runtime;
+    }
+
+    public IHandlerPipeline? Pipeline => _inner.Pipeline;
+    public async ValueTask CompleteAsync(Envelope envelope)
+    {
+        try
+        {
+            await _runtime.Storage.Inbox.MarkIncomingEnvelopeAsHandledAsync(envelope);
+        }
+        catch (Exception e)
+        {
+            _runtime.Logger.LogError(e, "Error trying to mark a message as handled in the transactional inbox");
+        }
+
+        await _inner.CompleteAsync(envelope);
+    }
+
+    public ValueTask DeferAsync(Envelope envelope)
+    {
+        return _inner.DeferAsync(envelope);
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        return new ValueTask();
+    }
+
+    public Uri Address => _inner.Address;
+    public ValueTask StopAsync()
+    {
+        return new ValueTask();
     }
 }

@@ -191,9 +191,9 @@ public sealed partial class WolverineOptions
 
     /// <summary>
     /// Should message failures automatically try to send a failure acknowledgement message back to the
-    /// original caller. Default is true.
+    /// original caller. Default is *false* as of Wolverine 4.6
     /// </summary>
-    public bool EnableAutomaticFailureAcks { get; set; } = true;
+    public bool EnableAutomaticFailureAcks { get; set; } = false;
 
     private void deriveServiceName()
     {
@@ -261,6 +261,9 @@ public sealed partial class WolverineOptions
     }
 
     public Version? Version => ApplicationAssembly?.GetName().Version ?? Assembly.GetEntryAssembly()?.GetName().Version;
+    
+    // This helps govern some command line work
+    internal bool LightweightMode { get; set; }
 
     internal void ReadJasperFxOptions(JasperFxOptions jasperfx)
     {

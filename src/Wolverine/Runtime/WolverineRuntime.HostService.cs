@@ -17,6 +17,9 @@ public partial class WolverineRuntime
 
     public async Task StartAsync(CancellationToken cancellationToken)
     {
+        // Make this idempotent because the AddResourceSetupOnStartup() can cause it to bootstrap twice
+        if (_hasStarted) return;
+        
         try
         {
             Logger.LogInformation("Starting Wolverine messaging for application assembly {Assembly}",
@@ -37,22 +40,16 @@ public partial class WolverineRuntime
             // Build up the message handlers
             Handlers.Compile(Options, _container);
 
-            if (Options.AutoBuildMessageStorageOnStartup != AutoCreate.None && Storage is not NullMessageStore)
-            {
-                await Storage.Admin.MigrateAsync();
-            }
-
-            if (Options.AutoBuildMessageStorageOnStartup != AutoCreate.None)
-            {
-                foreach (var ancillaryStore in AncillaryStores)
-                {
-                    await ancillaryStore.Admin.MigrateAsync();
-                }
-            }
+            await tryMigrateStorage();
 
             // Has to be done before initializing the storage
             Handlers.AddMessageHandler(typeof(IAgentCommand), new AgentCommandHandler(this));
-            Storage.Initialize(this);
+            
+            if (Options.Durability.DurabilityAgentEnabled)
+            {
+                // TODO -- this needs to be async!
+                Storage.Initialize(this);
+            }
 
             // This MUST be done before the messaging transports are started up
             _hasStarted = true; // Have to do this before you can use MessageBus
@@ -100,6 +97,30 @@ public partial class WolverineRuntime
             MessageTracking.LogException(e, message: "Failed to start the Wolverine messaging");
             throw;
         }
+    }
+
+    private bool _hasMigratedStorage;
+
+    private async Task tryMigrateStorage()
+    {
+        if (_hasMigratedStorage) return;
+        
+        if (!Options.Durability.DurabilityAgentEnabled) return;
+        
+        if (Options.AutoBuildMessageStorageOnStartup != AutoCreate.None && Storage is not NullMessageStore)
+        {
+            await Storage.Admin.MigrateAsync();
+        }
+
+        if (Options.AutoBuildMessageStorageOnStartup != AutoCreate.None)
+        {
+            foreach (var ancillaryStore in AncillaryStores)
+            {
+                await ancillaryStore.Admin.MigrateAsync();
+            }
+        }
+
+        _hasMigratedStorage = true;
     }
 
     private bool _hasAppliedAsyncExtensions = false;
@@ -289,6 +310,8 @@ public partial class WolverineRuntime
 
         Options.ExternalTransportsAreStubbed = true;
         Options.Durability.DurabilityAgentEnabled = false;
+        Options.Durability.Mode = DurabilityMode.MediatorOnly;
+        Options.LightweightMode = true;
 
         return StartAsync(CancellationToken.None);
     }

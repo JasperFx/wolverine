@@ -67,7 +67,35 @@ public class multi_tenancy_internals
         var transport = new RabbitMqTransport();
         var expression = new RabbitMqTransportExpression(transport, new WolverineOptions());
         expression.AddTenant("one", c => c.HostName = "server2");
-        
+
         transport.Tenants["one"].Transport.ConnectionFactory.HostName.ShouldBe("server2");
+    }
+
+    [Fact]
+    public void global_dead_letter_queueing_applies_to_new_tenants()
+    {
+        var transport = new RabbitMqTransport();
+        transport.ConfigureFactory(_ => { });
+        var expression = new RabbitMqTransportExpression(transport, new WolverineOptions());
+
+        expression.CustomizeDeadLetterQueueing(new DeadLetterQueue("errors"));
+        expression.AddTenant("one", "vh1");
+
+        var tenantTransport = transport.Tenants["one"].Compile(transport);
+        tenantTransport.DeadLetterQueue.QueueName.ShouldBe("errors");
+    }
+
+    [Fact]
+    public void global_dead_letter_queueing_applies_to_existing_tenants()
+    {
+        var transport = new RabbitMqTransport();
+        transport.ConfigureFactory(_ => { });
+        var expression = new RabbitMqTransportExpression(transport, new WolverineOptions());
+
+        expression.AddTenant("one", "vh1");
+        expression.CustomizeDeadLetterQueueing(new DeadLetterQueue("errors"));
+
+        var tenantTransport = transport.Tenants["one"].Compile(transport);
+        tenantTransport.DeadLetterQueue.QueueName.ShouldBe("errors");
     }
 }

@@ -30,7 +30,12 @@ builder.Host.UseWolverine(opts =>
         // how you *could* customize the connection to Rabbit MQ
         factory.HostName = "localhost";
         factory.Port = 5672;
-    });
+    })        
+        
+    // Even when calling AddResourceSetupOnStartup(), we still
+    // need to AutoProvision to ensure any declared queues, exchanges, or
+    // bindings with the Rabbit MQ broker to be built as part of bootstrapping time
+    .AutoProvision();;
 });
 
 // This is actually important, this directs

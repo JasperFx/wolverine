@@ -11,11 +11,12 @@ namespace Wolverine.RabbitMQ.Internal;
 internal class RabbitMqSender : RabbitMqChannelAgent, ISender
 {
     private readonly RabbitMqEndpoint _endpoint;
+    private readonly RoutingMode _routingType;
+    private readonly IWolverineRuntime _runtime;
     private readonly CachedString _exchangeName;
     private readonly bool _isDurable;
-    private readonly string _key;
+    private readonly CachedString _routingKey;
     private readonly IRabbitMqEnvelopeMapper _mapper;
-    private readonly Func<Envelope, CachedString> _toRoutingKey;
 
     public RabbitMqSender(RabbitMqEndpoint endpoint, RabbitMqTransport transport,
         RoutingMode routingType, IWolverineRuntime runtime) : base(
@@ -26,28 +27,39 @@ internal class RabbitMqSender : RabbitMqChannelAgent, ISender
         _isDurable = endpoint.Mode == EndpointMode.Durable;
 
         _exchangeName = new CachedString(endpoint.ExchangeName);
-        _key = endpoint.RoutingKey();
-
-        _toRoutingKey = routingType == RoutingMode.Static ? _ => new CachedString(_key) : x =>
+        
+        if (routingType == RoutingMode.Static)
         {
-            if (x.TopicName.IsEmpty() && x.Message == null)
-            {
-                try
-                {
-                    runtime.Pipeline.TryDeserializeEnvelope(x, out var _);
-                }
-                catch (Exception e)
-                {
-                    Logger.LogError(e, "Error trying to deserialize an envelope in order to determine the topic name");
-                }
-            }
-            
-            return new CachedString(TopicRouting.DetermineTopicName(x));
-        };
+            _routingKey = new CachedString(endpoint.RoutingKey());
+        }
 
         _mapper = endpoint.BuildMapper(runtime);
         _endpoint = endpoint;
+        _routingType = routingType;
+        _runtime = runtime;
     }
+
+    private async ValueTask<CachedString> ToRoutingKeyAsync(Envelope envelope)
+    {
+        if(_routingKey != null)
+        {
+            return _routingKey;
+        }   
+
+        if (envelope.TopicName.IsEmpty() && envelope.Message == null)
+        {
+            try
+            {
+                await _runtime.Pipeline.TryDeserializeEnvelope(envelope);
+            }
+            catch (Exception e)
+            {
+                Logger.LogError(e, "Error trying to deserialize an envelope in order to determine the topic name");
+            }
+        }
+        return new CachedString(TopicRouting.DetermineTopicName(envelope));       
+    }
+
 
     public bool SupportsNativeScheduledSend => false;
     public Uri Destination { get; }
@@ -75,7 +87,7 @@ internal class RabbitMqSender : RabbitMqChannelAgent, ISender
 
         _mapper.MapEnvelopeToOutgoing(envelope, props);
 
-        var routingKey = _toRoutingKey(envelope);
+        var routingKey = await ToRoutingKeyAsync(envelope);
         await Channel.BasicPublishAsync(_exchangeName, routingKey, false, props, envelope.Data);
     }
 

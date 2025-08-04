@@ -1,0 +1,9 @@
+﻿syntax = "proto3";
+
+package Wolverine.Protobuf.Tests;
+
+option csharp_namespace = "Wolverine.Protobuf.Tests.Messages";
+
+message TestProtobufMessage {
+  string Name = 1;
+}

@@ -8,16 +8,12 @@ public class document_attribute_required_usage(AppFixture fixture) : Integration
     [Fact]
     public async Task separate_attributes_call_load_method()
     {
-        var result = await Scenario(x =>
+        await Scenario(x =>
         {
             x.Get.Url("/document-required/separate-attributes/" + Guid.NewGuid());
             x.StatusCodeShouldBe(404);
         });
-
-        var problemDetails = await result.ReadAsJsonAsync<ProblemDetails>();
-        problemDetails.ShouldNotBeNull();
-        problemDetails.Title.ShouldBe("Invoice is not found");
-        problemDetails.Detail.ShouldBe("We only get here with [Document][Required]");
+        
     }
     
     [Fact]

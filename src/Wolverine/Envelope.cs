@@ -4,6 +4,7 @@ using JasperFx.Core.Reflection;
 using JasperFx.MultiTenancy;
 using MassTransit;
 using Wolverine.Attributes;
+using Wolverine.Runtime.Serialization;
 using Wolverine.Util;
 
 namespace Wolverine;
@@ -120,6 +121,30 @@ public partial class Envelope : IHasTenantId
         get => _scheduleDelay;
     }
 
+    public async ValueTask<byte[]?> GetDataAsync()
+    {
+        if (_data != null)
+        {
+            return _data;
+        }
+        AssertMessage();
+
+        if(Serializer is IAsyncMessageSerializer asyncMessaeSerializer)
+        {
+            try
+            {
+                _data = await asyncMessaeSerializer.WriteAsync(this);
+            }
+            catch (Exception e)
+            {
+                throw new WolverineSerializationException(
+                    $"Error trying to serialize message of type {Message.GetType().FullNameInCode()} with serializer {Serializer}", e);
+            }
+        }
+
+        return Data;
+    }
+
     /// <summary>
     ///     The raw, serialized message data
     /// </summary>
@@ -132,10 +157,7 @@ public partial class Envelope : IHasTenantId
                 return _data;
             }
 
-            if (_message == null)
-            {
-                throw new WolverineSerializationException($"Cannot ensure data is present when there is no message. The Message Type Name is '{MessageType}'");
-            }
+            AssertMessage();
 
             if (Serializer == null)
             {
@@ -144,7 +166,7 @@ public partial class Envelope : IHasTenantId
                     _data = serializable.Write();
                     return _data;
                 }
-                
+
                 throw new WolverineSerializationException($"No data or writer is known for this envelope of message type {_message.GetType().FullNameInCode()}");
             }
 
@@ -161,6 +183,14 @@ public partial class Envelope : IHasTenantId
             return _data;
         }
         set => _data = value;
+    }
+
+    private void AssertMessage()
+    {
+        if (_message == null)
+        {
+            throw new WolverineSerializationException($"Cannot ensure data is present when there is no message. The Message Type Name is '{MessageType}'");
+        }
     }
 
     internal int? MessagePayloadSize => _data?.Length;
@@ -220,7 +250,7 @@ public partial class Envelope : IHasTenantId
     /// <summary>
     ///     Id of the immediate message or workflow that caused this envelope to be sent
     /// </summary>
-    public Guid ConversationId { get; internal set; }
+    public Guid ConversationId { get; set; }
 
     /// <summary>
     ///     Location that this message should be sent
@@ -231,7 +261,7 @@ public partial class Envelope : IHasTenantId
     ///     The open telemetry activity parent id. Wolverine uses this to correctly correlate connect
     ///     activity across services
     /// </summary>
-    public string? ParentId { get; internal set; }
+    public string? ParentId { get; set; }
 
     /// <summary>
     ///     User defined tenant identifier for multi-tenancy strategies. This is
