@@ -56,4 +56,23 @@ public class header_binding : IntegrationContext
 
         HeaderUsingEndpoint.Day.ShouldBe("Friday");
     }
+    
+    [Fact]
+    public async Task from_header_in_middleware()
+    {
+        var result = await Scenario(s =>
+        {
+            s.Get.Url("/middleware/header");
+            s.WithRequestHeader("x-handler", "handler");
+            s.WithRequestHeader("x-before", "before");
+            s.WithRequestHeader("x-middleware", "middleware");
+            s.StatusCodeShouldBeOk();
+        });
+
+        var response = await result.ReadAsJsonAsync<MiddlewareEndpoint.Result>();
+        
+        response.Handler.ShouldBe("handler");
+        response.Before.ShouldBe("before");
+        response.Middleware.ShouldBe("middleware");
+    }
 }

@@ -21,10 +21,10 @@ using var host = await Host.CreateDefaultBuilder()
     {
         // Disable automatic database migrations for message
         // storage
-        opts.AutoBuildMessageStorageOnStartup = false;
+        opts.AutoBuildMessageStorageOnStartup = AutoCreate.None;
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/DisablingStorageConstruction.cs#L10-L20' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disable_auto_build_envelope_storage' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/DisablingStorageConstruction.cs#L11-L21' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disable_auto_build_envelope_storage' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Programmatic Management
@@ -83,13 +83,13 @@ builder.Host.UseResourceSetupOnStartup();
 Assuming that you are using [Oakton](https://jasperfx.github.io/oakton) as your command line parser in your Wolverine application as
 shown in this last line of a .NET 6/7 `Program` code file:
 
-<!-- snippet: sample_using_oakton_for_command_line_parsing -->
-<a id='snippet-sample_using_oakton_for_command_line_parsing'></a>
+<!-- snippet: sample_using_jasperfx_for_command_line_parsing -->
+<a id='snippet-sample_using_jasperfx_for_command_line_parsing'></a>
 ```cs
-// Opt into using Oakton for command parsing
-await app.RunOaktonCommands(args);
+// Opt into using JasperFx for command parsing
+await app.RunJasperFxCommands(args);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/EFCoreSample/ItemService/Program.cs#L85-L90' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_oakton_for_command_line_parsing' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/EFCoreSample/ItemService/Program.cs#L85-L90' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_jasperfx_for_command_line_parsing' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And you're using the message persistence from either the `WolverineFx.SqlServer` or `WolverineFx.Postgresql`
@@ -122,7 +122,9 @@ can use this command to apply any outstanding database changes necessary to brin
 ```bash
 dotnet run -- db-apply
 ```
- or this option -- but just know that this will also clear out any existing message data:
+> NOTE: See the [Exporting SQL Scripts](#exporting-sql-scripts) section down the page for details of applying migrations when integrating with Marten
+
+or this option -- but just know that this will also clear out any existing message data:
 
 ```bash
 dotnet run -- storage rebuild
@@ -165,6 +167,28 @@ If you just want to export the SQL to create the necessary database objects, you
 dotnet run -- db-dump export.sql
 ```
 where `export.sql` should be a file name.
+
+### Marten integration
+
+When integrating with Marten, scripts must be generated seperately for both Marten and Wolverine resources.  
+Resources are separated into databases and can be listed as below:
+
+```bash
+dotnet run -- db-list
+# ┌────────────────────────────────────────┬───────────────────────────┐
+# │ DatabaseUri                            │ SubjectUri                │
+# ├────────────────────────────────────────┼───────────────────────────┤
+# │ postgresql://localhost/postgres/orders │ marten://store/           │
+# │ postgresql://localhost/postgres        │ wolverine://messages/main │
+# └────────────────────────────────────────┴───────────────────────────┘
+```
+
+Once you've identified the database, pass the `-d` parameter with the `SubjectUri` from the output above to the `db-dump` command:
+
+```bash
+dotnet run -- db-dump -d marten://store/ export_marten.sql
+dotnet run -- db-dump -d wolverine://messages/main export_wolverine.sql
+```
 
 ## Disabling All Persistence <Badge type="tip" text="3.6" />
 

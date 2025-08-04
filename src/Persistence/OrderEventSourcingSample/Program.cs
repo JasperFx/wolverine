@@ -1,7 +1,6 @@
 using JasperFx.Core;
 using Marten;
-using Marten.Exceptions;
-using Oakton;
+using JasperFx;
 using OrderEventSourcingSample;
 using Wolverine;
 using Wolverine.ErrorHandling;
@@ -10,7 +9,7 @@ using Wolverine.Marten;
 var builder = WebApplication.CreateBuilder(args);
 
 // Not 100% necessary, but enables some extra command line diagnostics
-builder.Host.ApplyOaktonExtensions();
+builder.Host.ApplyJasperFxExtensions();
 
 // Adding Marten
 builder.Services.AddMarten(opts =>
@@ -47,4 +46,4 @@ app.UseSwaggerUI();
 app.MapPost("/items/ready", (MarkItemReady command, IMessageBus bus) => bus.InvokeAsync(command));
 app.MapGet("/", () => Results.Redirect("/swagger"));
 
-return await app.RunOaktonCommands(args);
+return await app.RunJasperFxCommands(args);

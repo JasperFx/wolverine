@@ -3,6 +3,7 @@ using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
+using Wolverine.Runtime;
 using Wolverine.Transports;
 using Wolverine.Transports.Sending;
 using Wolverine.Util.Dataflow;
@@ -49,6 +50,8 @@ public class BatchedAzureServiceBusListener : IListener, ISupportDeadLetterQueue
             new RetryBlock<AzureServiceBusEnvelope>((e, c) => e.DeadLetterAsync(_cancellation.Token, deadLetterReason:e.Exception?.GetType().NameInCode(), deadLetterErrorDescription:e.Exception?.Message), logger,
                 _cancellation.Token);
     }
+
+    public IHandlerPipeline? Pipeline => _wolverineReceiver.Pipeline;
 
     public ValueTask CompleteAsync(Envelope envelope)
     {

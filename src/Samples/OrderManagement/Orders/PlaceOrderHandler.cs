@@ -1,3 +1,4 @@
+using JasperFx.Events;
 using Marten;
 using Marten.Events;
 using Marten.Events.Aggregation;
@@ -8,7 +9,7 @@ namespace Orders;
 
 public record PurchaseOrder(string Id, string Status = "Placed");
 
-public class PurchaseOrderProjection : SingleStreamProjection<PurchaseOrder>
+public class PurchaseOrderProjection : SingleStreamProjection<PurchaseOrder, string>
 {
     public static PurchaseOrder Create(
         IEvent<OrderPlaced> @event

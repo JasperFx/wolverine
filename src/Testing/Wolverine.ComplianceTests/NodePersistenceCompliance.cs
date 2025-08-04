@@ -39,7 +39,7 @@ public abstract class NodePersistenceCompliance : IAsyncLifetime
             NodeId = id,
             ControlUri = new Uri($"dbcontrol://{id}"),
             Description = Environment.MachineName,
-
+            Version = new Version(1,2,3,0)
         };
 
         node.Capabilities.Add(new Uri("red://"));
@@ -54,6 +54,7 @@ public abstract class NodePersistenceCompliance : IAsyncLifetime
         persisted.AssignedNodeNumber.ShouldBe(assignedId);
         persisted.ControlUri.ShouldBe(node.ControlUri);
         persisted.Description.ShouldBe(node.Description);
+        persisted.Version.ShouldBe(new Version(1,2,3,0));
 
         persisted.Capabilities.ShouldHaveTheSameElementsAs(node.Capabilities.ToArray());
     }
@@ -192,49 +193,11 @@ public abstract class NodePersistenceCompliance : IAsyncLifetime
         {
             NodeId = id,
             ControlUri = $"dbcontrol://{id}".ToUri(),
-            AssignedNodeNumber = ++_count
+            AssignedNodeNumber = ++_count,
+            Version = new Version(2, 0, 1)
         };
     }
 
-    [Fact]
-    public async Task mark_leadership_with_no_current_leader()
-    {
-        var node1 = createNode();
-
-        var assignedId = await _database.Nodes.PersistAsync(node1, CancellationToken.None);
-
-        await _database.Nodes.MarkNodeAsLeaderAsync(null, node1.NodeId);
-
-        var nodes = await _database.Nodes.LoadAllNodesAsync(CancellationToken.None);
-        var persisted = nodes.Single();
-
-        persisted.IsLeader().ShouldBeTrue();
-    }
-
-    [Fact]
-    public async Task mark_leadership_happy_path_with_existing_leader()
-    {
-        var node1 = createNode();
-        var node2 = createNode();
-        var node3 = createNode();
-
-        await _database.Nodes.PersistAsync(node1, CancellationToken.None);
-        await _database.Nodes.PersistAsync(node2, CancellationToken.None);
-        await _database.Nodes.PersistAsync(node3, CancellationToken.None);
-
-        await _database.Nodes.MarkNodeAsLeaderAsync(null, node1.NodeId);
-
-        var assigned = await _database.Nodes.MarkNodeAsLeaderAsync(node1.NodeId, node3.NodeId);
-        assigned.ShouldBe(node3.NodeId);
-
-        var nodes = await _database.Nodes.LoadAllNodesAsync(CancellationToken.None);
-        var persistedNode3 = nodes.Single(x => x.NodeId == node3.NodeId);
-        persistedNode3.IsLeader().ShouldBeTrue();
-
-        var persistedNode1 = nodes.Single(x => x.NodeId == node1.NodeId);
-        persistedNode1.IsLeader().ShouldBeFalse();
-    }
-    
     [Fact]
     public async Task update_health_check_smoke_test()
     {

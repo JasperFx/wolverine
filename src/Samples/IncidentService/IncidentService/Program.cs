@@ -1,8 +1,8 @@
 using IncidentService;
 using Marten;
-using Marten.Events.Daemon.Resiliency;
 using Marten.Events.Projections;
-using Oakton;
+using JasperFx;
+using JasperFx.Events.Daemon;
 using Wolverine;
 using Wolverine.Http;
 using Wolverine.Marten;
@@ -12,6 +12,10 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
+
+//builder swagger commands
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
 
 builder.Services.AddMarten(opts =>
 {
@@ -60,9 +64,13 @@ if (app.Environment.IsDevelopment())
 
 app.MapWolverineEndpoints();
 
+app.UseSwagger();
+app.UseSwaggerUI();
+app.MapGet("/", () => Results.Redirect("/swagger"));
+
 // Using the expanded command line options for the Critter Stack
 // that are helpful for code generation, database migrations, and diagnostics
-return await app.RunOaktonCommands(args);
+return await app.RunJasperFxCommands(args);
 
 
 #region sample_Program_marker

@@ -2,7 +2,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using NSubstitute;
-using Oakton.Resources;
+using JasperFx.Resources;
 using Wolverine.ComplianceTests;
 using Wolverine.ComplianceTests.Fakes;
 using Wolverine.Configuration;
@@ -20,9 +20,15 @@ public class WolverineOptionsTests
     private readonly WolverineOptions theSettings = new();
 
     [Fact]
-    public void failure_acks_are_enabled_by_default()
+    public void publish_agent_events_should_be_false_by_default()
     {
-        new WolverineOptions().EnableAutomaticFailureAcks.ShouldBeTrue();
+        new WolverineOptions().Policies.PublishAgentEvents.ShouldBeFalse();
+    }
+    
+    [Fact]
+    public void failure_acks_are_NOT_enabled_by_default()
+    {
+        new WolverineOptions().EnableAutomaticFailureAcks.ShouldBeFalse();
     }
     
     [Fact]

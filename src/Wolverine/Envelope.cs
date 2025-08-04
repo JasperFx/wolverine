@@ -1,13 +1,16 @@
-﻿using JasperFx.Core;
+﻿using JasperFx;
+using JasperFx.Core;
 using JasperFx.Core.Reflection;
+using JasperFx.MultiTenancy;
 using MassTransit;
 using Wolverine.Attributes;
+using Wolverine.Runtime.Serialization;
 using Wolverine.Util;
 
 namespace Wolverine;
 
 [MessageIdentity("envelope")]
-public partial class Envelope
+public partial class Envelope : IHasTenantId
 {
     public static readonly string PingMessageType = "wolverine-ping";
     private byte[]? _data;
@@ -118,6 +121,30 @@ public partial class Envelope
         get => _scheduleDelay;
     }
 
+    public async ValueTask<byte[]?> GetDataAsync()
+    {
+        if (_data != null)
+        {
+            return _data;
+        }
+        AssertMessage();
+
+        if(Serializer is IAsyncMessageSerializer asyncMessaeSerializer)
+        {
+            try
+            {
+                _data = await asyncMessaeSerializer.WriteAsync(this);
+            }
+            catch (Exception e)
+            {
+                throw new WolverineSerializationException(
+                    $"Error trying to serialize message of type {Message.GetType().FullNameInCode()} with serializer {Serializer}", e);
+            }
+        }
+
+        return Data;
+    }
+
     /// <summary>
     ///     The raw, serialized message data
     /// </summary>
@@ -130,10 +157,7 @@ public partial class Envelope
                 return _data;
             }
 
-            if (_message == null)
-            {
-                throw new WolverineSerializationException($"Cannot ensure data is present when there is no message. The Message Type Name is '{MessageType}'");
-            }
+            AssertMessage();
 
             if (Serializer == null)
             {
@@ -142,7 +166,7 @@ public partial class Envelope
                     _data = serializable.Write();
                     return _data;
                 }
-                
+
                 throw new WolverineSerializationException($"No data or writer is known for this envelope of message type {_message.GetType().FullNameInCode()}");
             }
 
@@ -159,6 +183,14 @@ public partial class Envelope
             return _data;
         }
         set => _data = value;
+    }
+
+    private void AssertMessage()
+    {
+        if (_message == null)
+        {
+            throw new WolverineSerializationException($"Cannot ensure data is present when there is no message. The Message Type Name is '{MessageType}'");
+        }
     }
 
     internal int? MessagePayloadSize => _data?.Length;
@@ -218,7 +250,7 @@ public partial class Envelope
     /// <summary>
     ///     Id of the immediate message or workflow that caused this envelope to be sent
     /// </summary>
-    public Guid ConversationId { get; internal set; }
+    public Guid ConversationId { get; set; }
 
     /// <summary>
     ///     Location that this message should be sent
@@ -229,7 +261,7 @@ public partial class Envelope
     ///     The open telemetry activity parent id. Wolverine uses this to correctly correlate connect
     ///     activity across services
     /// </summary>
-    public string? ParentId { get; internal set; }
+    public string? ParentId { get; set; }
 
     /// <summary>
     ///     User defined tenant identifier for multi-tenancy strategies. This is
@@ -271,7 +303,7 @@ public partial class Envelope
 
     /// <summary>
     /// Application defined message group identifier. Part of AMQP 1.0 spec as the "group-id" property. Session identifier
-    /// for Azure Service Bus.  MessageGroupId for Amazon SQS FIFO Queue
+    /// for Azure Service Bus.  MessageGroupId for Amazon SQS FIFO Queue. This is the Group Id for Kafka consumers, if there is one
     /// </summary>
     public string? GroupId { get; set; }
 
@@ -400,4 +432,9 @@ public partial class Envelope
     {
         return (Message?.GetType().Name ?? MessageType)!;
     }
+    
+    /// <summary>
+    /// For stream based transports (Kafka/RedPanda, this will reflect the message offset. This is strictly informational
+    /// </summary>
+    public long Offset { get; set; }
 }

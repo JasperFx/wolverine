@@ -1,7 +1,8 @@
+using JasperFx;
 using Marten;
-using Marten.Events.Daemon.Resiliency;
 using Marten.Events.Projections;
-using Oakton;
+using JasperFx.Events.Daemon;
+using JasperFx.Events.Projections;
 using TeleHealth.Common;
 
 var builder = Host.CreateDefaultBuilder()
@@ -19,4 +20,4 @@ var builder = Host.CreateDefaultBuilder()
             .AddAsyncDaemon(DaemonMode.HotCold);
     });
 
-return await builder.RunOaktonCommands(args);
+return await builder.RunJasperFxCommands(args);

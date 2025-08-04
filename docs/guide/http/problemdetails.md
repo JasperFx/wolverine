@@ -137,7 +137,7 @@ public static ProblemDetails Before(IShipOrder command, Order order)
     return WolverineContinue.NoProblems;
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L97-L111' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_before_on_http_aggregate' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L100-L114' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_before_on_http_aggregate' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Within Message Handlers <Badge type="tip" text="3.0" />

@@ -1,3 +1,4 @@
+using ImTools;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Npgsql;
@@ -122,7 +123,7 @@ public class PostgresqlQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint
         _hasInitialized = true;
     }
 
-    internal NpgsqlDataSource DataSource => Parent.Store?.DataSource ?? throw new InvalidOperationException("The PostgreSQL transport has not been successfully initialized");
+    internal NpgsqlDataSource DataSource => Parent.Store?.NpgsqlDataSource ?? throw new InvalidOperationException("The PostgreSQL transport has not been successfully initialized");
 
     public ValueTask SendAsync(Envelope envelope)
     {
@@ -132,16 +133,16 @@ public class PostgresqlQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint
 
     private async ValueTask forEveryDatabase(Func<NpgsqlDataSource, string, Task> action)
     {
-        if (Parent?.Store?.DataSource != null)
+        if (Parent?.Store?.NpgsqlDataSource != null)
         {
-            await action(Parent.Store.DataSource, Parent.Store.Identifier);
+            await action(Parent.Store.NpgsqlDataSource, Parent.Store.Identifier);
         }
 
         if (Parent?.Databases != null)
         {
-            foreach (var database in Parent.Databases.AllDatabases().OfType<PostgresqlMessageStore>())
+            foreach (var database in Parent.Databases.ActiveDatabases().OfType<PostgresqlMessageStore>())
             {
-                await action(database.DataSource, database.Identifier);
+                await action(database.NpgsqlDataSource, database.Identifier);
             }
         }
     }

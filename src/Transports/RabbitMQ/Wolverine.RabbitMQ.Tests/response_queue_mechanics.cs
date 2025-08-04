@@ -20,7 +20,9 @@ public class response_queue_mechanics : IAsyncLifetime
             .UseWolverine(opts =>
             {
                 opts.ServiceName = "MyApp";
-                opts.UseRabbitMq();
+                opts.UseRabbitMq().AutoProvision();
+                
+                
             }).StartAsync();
 
         var options = _host.Services.GetRequiredService<WolverineOptions>();

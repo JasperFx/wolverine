@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Hosting;
-using Oakton.Resources;
-
+using Microsoft.Extensions.Logging;
+using JasperFx.Resources;
 namespace Wolverine.Kafka.Tests;
 
 public class DocumentationSamples
@@ -29,6 +29,23 @@ public class DocumentationSamples
                     .ConfigureProducers(producer =>
                     {
                         // configure only producers
+                    })
+                    
+                    .ConfigureProducerBuilders(builder =>
+                    {
+                        // there are some options that are only exposed
+                        // on the ProducerBuilder
+                    })
+                    
+                    .ConfigureConsumerBuilders(builder =>
+                    {
+                        // there are some Kafka client options that
+                        // are only exposed from the builder
+                    })
+                    
+                    .ConfigureAdminClientBuilders(builder =>
+                    {
+                        // configure admin client builders
                     });
 
                 // Just publish all messages to Kafka topics
@@ -38,11 +55,32 @@ public class DocumentationSamples
 
                 // Or explicitly make subscription rules
                 opts.PublishMessage<ColorMessage>()
-                    .ToKafkaTopic("colors");
+                    .ToKafkaTopic("colors")
+                    
+                    // Override the producer configuration for just this topic
+                    .ConfigureProducer(config =>
+                    {
+                        config.BatchSize = 100;
+                        config.EnableGaplessGuarantee = true;
+                        config.EnableIdempotence = true;
+                    });
 
                 // Listen to topics
                 opts.ListenToKafkaTopic("red")
-                    .ProcessInline();
+                    .ProcessInline()
+                    
+                    // Override the consumer configuration for only this 
+                    // topic
+                    // This is NOT combinatorial with the ConfigureConsumers() call above
+                    // and completely replaces the parent configuration
+                    .ConfigureConsumer(config =>
+                    {
+                        // This will also set the Envelope.GroupId for any
+                        // received messages at this topic
+                        config.GroupId = "foo";
+                        
+                        // Other configuration
+                    });
 
                 opts.ListenToKafkaTopic("green")
                     .BufferedInMemory();
@@ -56,4 +94,48 @@ public class DocumentationSamples
 
         #endregion
     }
+
+    public static async Task use_named_brokers()
+    {
+        #region sample_using_multiple_kafka_brokers
+
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.UseKafka("localhost:9092");
+                opts.AddNamedKafkaBroker(new BrokerName("americas"), "americas-kafka:9092");
+                opts.AddNamedKafkaBroker(new BrokerName("emea"), "emea-kafka:9092");
+
+                // Just publish all messages to Kafka topics
+                // based on the message type (or message attributes)
+                // This will get fancier in the near future
+                opts.PublishAllMessages().ToKafkaTopicsOnNamedBroker(new BrokerName("americas"));
+
+                // Or explicitly make subscription rules
+                opts.PublishMessage<ColorMessage>()
+                    .ToKafkaTopicOnNamedBroker(new BrokerName("emea"), "colors");
+
+                // Listen to topics
+                opts.ListenToKafkaTopicOnNamedBroker(new BrokerName("americas"), "red");
+                // Other configuration
+            }).StartAsync();
+
+        #endregion
+    }
 }
+
+#region sample_KafkaInstrumentation_middleware
+
+public static class KafkaInstrumentation
+{
+    // Just showing what data elements are available to use for 
+    // extra instrumentation when listening to Kafka topics
+    public static void Before(Envelope envelope, ILogger logger)
+    {
+        logger.LogDebug("Received message from Kafka topic {TopicName} with Offset={Offset} and GroupId={GroupId}", 
+            envelope.TopicName, envelope.Offset, envelope.GroupId);
+    }
+}
+
+#endregion
+

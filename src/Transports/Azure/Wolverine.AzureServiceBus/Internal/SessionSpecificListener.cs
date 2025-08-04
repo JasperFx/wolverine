@@ -3,6 +3,7 @@ using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
+using Wolverine.Runtime;
 using Wolverine.Transports;
 using Wolverine.Transports.Sending;
 using Wolverine.Util.Dataflow;
@@ -96,6 +97,8 @@ internal class AzureServiceBusSessionListener : IListener
             }
         }
     }
+
+    public IHandlerPipeline? Pipeline => _receiver.Pipeline;
 
     public ValueTask CompleteAsync(Envelope envelope)
     {
@@ -224,6 +227,8 @@ internal class SessionSpecificListener : IListener, ISupportDeadLetterQueue
                 message.MessageId);
         }
     }
+
+    public IHandlerPipeline? Pipeline => _receiver.Pipeline;
 
     public ValueTask CompleteAsync(Envelope envelope)
     {

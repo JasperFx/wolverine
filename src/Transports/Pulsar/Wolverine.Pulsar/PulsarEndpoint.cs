@@ -28,6 +28,8 @@ public class PulsarEndpoint : Endpoint
     public string? TopicName { get; private set; }
     public string SubscriptionName { get; internal set; } = "Wolverine";
     public SubscriptionType SubscriptionType { get; internal set; } = SubscriptionType.Exclusive;
+    public bool EnableRequeue { get; internal set; } = true;
+    public bool UnsubscribeOnClose { get; internal set; } = true;
 
     /// <summary>
     ///     Use to override the dead letter topic for this endpoint

@@ -1,3 +1,4 @@
+using JasperFx;
 using JasperFx.Core;
 using Npgsql;
 using Spectre.Console;
@@ -7,6 +8,7 @@ using Wolverine.RDBMS.MultiTenancy;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
 using Wolverine.Transports;
+using MultiTenantedMessageStore = Wolverine.Persistence.Durability.MultiTenantedMessageStore;
 
 namespace Wolverine.Postgresql.Transport;
 
@@ -18,6 +20,8 @@ public class PostgresqlTransport : BrokerTransport<PostgresqlQueue>, ITransportC
     {
         Queues = new LightweightCache<string, PostgresqlQueue>(name => new PostgresqlQueue(name, this));
     }
+
+    public override Uri ResourceUri => new Uri("postgresql-transport://");
 
     /// <summary>
     /// Schema name for the queue and scheduled message tables
@@ -32,7 +36,7 @@ public class PostgresqlTransport : BrokerTransport<PostgresqlQueue>, ITransportC
     public async ValueTask ConfigureAsync(IWolverineRuntime runtime)
     {
         // This is important, let the Postgres queues get built automatically
-        AutoProvision = AutoProvision || runtime.Options.AutoBuildMessageStorageOnStartup;
+        AutoProvision = AutoProvision || runtime.Options.AutoBuildMessageStorageOnStartup != AutoCreate.None;
         if (runtime.Storage is PostgresqlMessageStore store)
         {
             foreach (var queue in Queues)
@@ -41,30 +45,37 @@ public class PostgresqlTransport : BrokerTransport<PostgresqlQueue>, ITransportC
                 store.AddTable(queue.ScheduledTable);
             }
 
+            MessageStorageSchemaName = store.SchemaName;
+
             Store = store;
         }
-        else if (runtime.Storage is MultiTenantedMessageDatabase tenants)
+        else if (runtime.Storage is MultiTenantedMessageStore tenants)
         {
-            Store = tenants.Master as PostgresqlMessageStore;
+            Store = tenants.Main as PostgresqlMessageStore;
 
-            await tenants.ConfigureDatabaseAsync(messageStore =>
+            if (tenants.Source is IMessageDatabaseSource source)
             {
-                if (messageStore is PostgresqlMessageStore s)
+                await source.ConfigureDatabaseAsync(messageStore =>
                 {
-                    foreach (var queue in Queues)
+                    if (messageStore is PostgresqlMessageStore s)
                     {
-                        s.AddTable(queue.QueueTable);
-                        s.AddTable(queue.ScheduledTable);
+                        MessageStorageSchemaName = s.SchemaName;
+                        
+                        foreach (var queue in Queues)
+                        {
+                            s.AddTable(queue.QueueTable);
+                            s.AddTable(queue.ScheduledTable);
+                        }
                     }
-                }
-                else
-                {
-                    throw new InvalidOperationException(
-                        "The PostgreSQL backed transport can only be used with PostgreSQL is the active envelope storage mechanism");
-                }
+                    else
+                    {
+                        throw new InvalidOperationException(
+                            "The PostgreSQL backed transport can only be used with PostgreSQL is the active envelope storage mechanism");
+                    }
 
-                return new ValueTask();
-            });
+                    return new ValueTask();
+                });
+            }
         }
         else
         {
@@ -97,9 +108,9 @@ public class PostgresqlTransport : BrokerTransport<PostgresqlQueue>, ITransportC
         {
             Store = store;
         }
-        else if (runtime.Storage is MultiTenantedMessageDatabase tenants)
+        else if (runtime.Storage is MultiTenantedMessageStore tenants)
         {
-            Store = tenants.Master as PostgresqlMessageStore ??
+            Store = tenants.Main as PostgresqlMessageStore ??
                     throw new ArgumentOutOfRangeException(
                         "The PostgreSQL transport can only be used if PostgreSQL is the backing message store");
 
@@ -110,7 +121,7 @@ public class PostgresqlTransport : BrokerTransport<PostgresqlQueue>, ITransportC
         await runtime.Storage.Admin.CheckConnectivityAsync(CancellationToken.None);
     }
 
-    internal MultiTenantedMessageDatabase? Databases { get; set; }
+    internal MultiTenantedMessageStore? Databases { get; set; }
 
     internal PostgresqlMessageStore? Store { get; set; }
 
@@ -127,7 +138,7 @@ public class PostgresqlTransport : BrokerTransport<PostgresqlQueue>, ITransportC
         NpgsqlDataSource dataSource = null;
         if (Store is PostgresqlMessageStore store)
         {
-            dataSource = store.DataSource;
+            dataSource = store.NpgsqlDataSource;
         }
 
         await using var conn = await dataSource.OpenConnectionAsync();
@@ -144,7 +155,7 @@ public class PostgresqlTransport : BrokerTransport<PostgresqlQueue>, ITransportC
 
     IEnumerable<IAgentFamily> IAgentFamilySource.BuildAgentFamilySources(IWolverineRuntime runtime)
     {
-        if (runtime.Storage is not MultiTenantedMessageDatabase)
+        if (runtime.Storage is not MultiTenantedMessageStore)
         {
             yield break;
         }

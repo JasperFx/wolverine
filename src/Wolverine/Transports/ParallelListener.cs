@@ -1,4 +1,5 @@
 using JasperFx.Core;
+using Wolverine.Runtime;
 
 namespace Wolverine.Transports;
 
@@ -16,6 +17,9 @@ public class ParallelListener : IListener, IDisposable
     {
         foreach (var listener in _listeners.OfType<IDisposable>()) listener.SafeDispose();
     }
+
+    // Really only for retries anyway
+    public IHandlerPipeline? Pipeline => _listeners.First().Pipeline;
 
     // These should never be called, but still
     public ValueTask CompleteAsync(Envelope envelope) =>

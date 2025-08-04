@@ -1,10 +1,12 @@
 ﻿using System.Diagnostics;
 using IntegrationTests;
+using JasperFx;
+using JasperFx.CommandLine.Descriptions;
 using JasperFx.Core;
 using Marten;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Oakton.Resources;
+using JasperFx.Resources;
 using Shouldly;
 using Spectre.Console;
 using Wolverine.ComplianceTests;
@@ -45,7 +47,7 @@ public class end_to_end
     }
 
     [Fact]
-    public void rabbitmq_transport_is_exposed_as_a_resource()
+    public async Task rabbitmq_transport_is_exposed_as_a_resource()
     {
         var queueName = RabbitTesting.NextQueueName();
         using var publisher = WolverineHost.For(opts =>
@@ -67,12 +69,16 @@ public class end_to_end
             opts.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
         });
 
-        publisher.Services.GetServices<IStatefulResourceSource>().SelectMany(x => x.FindResources())
-            .OfType<BrokerResource>().Any(x => x.Name == new RabbitMqTransport().Name).ShouldBeTrue();
+        var sources = publisher.Services.GetServices<ISystemPart>();
+        foreach (var source in sources)
+        {
+            var resources = await source.FindResources();
+            resources.OfType<BrokerResource>().Any(x => x.Name == new RabbitMqTransport().Name).ShouldBeTrue();
+        }
     }
 
     [Fact]
-    public void rabbitmq_transport_is_NOT_exposed_as_a_resource_if_external_transports_are_stubbed()
+    public async Task rabbitmq_transport_is_NOT_exposed_as_a_resource_if_external_transports_are_stubbed()
     {
         var queueName = RabbitTesting.NextQueueName();
         using var publisher = WolverineHost.For(opts =>
@@ -95,8 +101,12 @@ public class end_to_end
             opts.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
         });
 
-        publisher.Services.GetServices<IStatefulResourceSource>().SelectMany(x => x.FindResources())
-            .OfType<BrokerResource>().Any(x => x.Name == new RabbitMqTransport().Name).ShouldBeFalse();
+        var sources = publisher.Services.GetServices<ISystemPart>();
+        foreach (var source in sources)
+        {
+            var resources = await source.FindResources();
+            resources.OfType<BrokerResource>().Any(x => x.Name == new RabbitMqTransport().Name).ShouldBeFalse();
+        }
     }
 
     [Fact]

@@ -2,6 +2,6 @@
 
 public class ItemCreated
 {
-    public Guid Id;
-    public string Name;
+    public Guid Id { get; set; }
+    public string Name { get; set; }
 }

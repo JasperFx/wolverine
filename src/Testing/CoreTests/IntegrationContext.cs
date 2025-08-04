@@ -6,7 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
-using Oakton.Resources;
+using JasperFx.Resources;
 using Wolverine.ComplianceTests;
 using Wolverine.ComplianceTests.Compliance;
 using Wolverine.Runtime;
@@ -24,14 +24,18 @@ public class DefaultApp : IDisposable
             .UseLamar()
             .UseWolverine(opts =>
             {
-                opts.MessageExecutionLogLevel(LogLevel.Information);
-                opts.MessageSuccessLogLevel(LogLevel.Debug);
+                opts.Policies.MessageExecutionLogLevel(LogLevel.Information);
+                opts.Policies.MessageSuccessLogLevel(LogLevel.Debug);
                 
                 opts.IncludeType<MessageConsumer>();
                 opts.IncludeType<InvokedMessageHandler>();
 
                 opts.Services.AddSingleton(Substitute.For<IIdentityService>());
                 opts.Services.AddSingleton(Substitute.For<ITrackedTaskRepository>());
+                
+                opts.RegisterMessageType(typeof(ExplicitMessage1));
+                opts.RegisterMessageType(typeof(ExplicitMessage2));
+                opts.RegisterMessageType(typeof(ExplicitMessage3));
             })
             .UseResourceSetupOnStartup(StartupAction.ResetState).Start();
     }
@@ -92,3 +96,7 @@ public class IntegrationContext : IDisposable, IClassFixture<DefaultApp>
         return Handlers.HandlerFor<T>().As<MessageHandler>().Chain;
     }
 }
+
+public record ExplicitMessage1;
+public record ExplicitMessage2;
+public record ExplicitMessage3;

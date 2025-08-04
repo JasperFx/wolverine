@@ -3,6 +3,7 @@ using System.Text.Json;
 using Amazon.Runtime;
 using Amazon.SQS;
 using Amazon.SQS.Model;
+using CoreTests.Configuration;
 using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
 using Wolverine.ComplianceTests.Compliance;
@@ -11,6 +12,40 @@ namespace Wolverine.AmazonSqs.Tests.Samples;
 
 public class Bootstrapping
 {
+    public static async Task use_named_brokers()
+    {
+        #region sample_using_multiple_sqs_brokers
+
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.UseAmazonSqsTransport(config =>
+                {
+                    // Add configuration for connectivity
+                });
+                
+                opts.AddNamedAmazonSqsBroker(new BrokerName("americas"), config =>
+                {
+                    // Add configuration for connectivity
+                });
+                
+                opts.AddNamedAmazonSqsBroker(new BrokerName("emea"), config =>
+                {
+                    // Add configuration for connectivity
+                });
+
+                // Or explicitly make subscription rules
+                opts.PublishMessage<SenderConfigurationTests.ColorMessage>()
+                    .ToSqsQueueOnNamedBroker(new BrokerName("emea"), "colors");
+
+                // Listen to topics
+                opts.ListenToSqsQueueOnNamedBroker(new BrokerName("americas"), "red");
+                // Other configuration
+            }).StartAsync();
+
+        #endregion
+    }
+    
     public async Task for_local_development()
     {
         #region sample_connect_to_sqs_and_localstack
@@ -229,6 +264,43 @@ public class Bootstrapping
 
         #endregion
     }
+    
+    
+    public async Task receive_sns_topic_metadata()
+    {
+        #region sample_receive_sns_topic_metadata_in_sqs
+
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.UseAmazonSqsTransport();
+
+                opts.ListenToSqsQueue("incoming")
+                    // Interops with SNS structured metadata
+                    .ReceiveSnsTopicMessage();
+            }).StartAsync();
+
+        #endregion
+    }
+    
+    public async Task receive_sns_topic_metadata_with_custom_mapper()
+    {
+        #region sample_receive_sns_topic_metadata_with_custom_mapper_in_sqs
+
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.UseAmazonSqsTransport();
+
+                opts.ListenToSqsQueue("incoming")
+                    // Interops with SNS structured metadata
+                    .ReceiveSnsTopicMessage(
+                        // Sets inner mapper for original message
+                        new RawJsonSqsEnvelopeMapper(typeof(Message1), new JsonSerializerOptions()));
+            }).StartAsync();
+
+        #endregion
+    }
 
     public async Task publish_raw_json()
     {
@@ -260,6 +332,7 @@ public class Bootstrapping
             {
                 opts.UseAmazonSqsTransport()
                     .UseConventionalRouting()
+                    .DisableAllNativeDeadLetterQueues()
                     .ConfigureListeners(l => l.InteropWith(new CustomSqsMapper()))
                     .ConfigureSenders(s => s.InteropWith(new CustomSqsMapper()));
             }).StartAsync();
@@ -301,3 +374,4 @@ public class CustomSqsMapper : ISqsEnvelopeMapper
 }
 
 #endregion
+

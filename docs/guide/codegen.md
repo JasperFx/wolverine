@@ -58,7 +58,7 @@ using var host = await Host.CreateDefaultBuilder()
         opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CodegenUsage.cs#L12-L32' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_codegen_type_load_mode' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CodegenUsage.cs#L13-L33' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_codegen_type_load_mode' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 At development time, use the `Dynamic` mode if you are actively changing handler
@@ -79,7 +79,19 @@ thinks is the application assembly (more on this in the troubleshooting guide be
 Most of the facilities shown here will require the [Oakton command line integration](./command-line).
 :::
 
+## Embedding Codegen in Docker
+
+At this point, the most successful mechanism and sweet spot is to run the codegen as `Dynamic` at development time, but generating
+the code artifacts just in time for production deployments. From Wolverine's sibling project Marten, see this section on [Application project setup](https://martendb.io/devops/devops.html#application-project-set-up)
+for embedding the code generation directly into your Docker images for deployment.
+
 ## Troubleshooting Code Generation Issues
+
+::: warning
+There's nothing magic about the `Auto` mode, and Wolverine isn't (yet) doing any file comparisons against the generated code and
+the current version of the application. At this point, the Wolverine community recommends against using the `Auto` mode
+for code generation as it has not added much value and can cause some confusion.
+:::
 
 In all cases, don't hesitate to reach out to the Wolverine team in the Discord link at the top right of this page to 
 ask for help with any codegen related issues.
@@ -128,15 +140,18 @@ builder.UseWolverine(opts =>
         {
             opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Static;
 
-            // You probably only ever want to do this in Production
-            opts.Services.AssertAllExpectedPreBuiltTypesExistOnStartUp();
+            opts.Services.CritterStackDefaults(cr =>
+            {
+                // I'm only going to care about this in production
+                cr.Production.AssertAllPreGeneratedTypesExist = true;
+            });
         }
     });
 
 using var host = builder.Build();
 await host.StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CodegenUsage.cs#L37-L54' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_asserting_all_pre_built_types_exist_upfront' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CodegenUsage.cs#L38-L58' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_asserting_all_pre_built_types_exist_upfront' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Do note that you would have to opt into using the environment checks on application startup, and maybe even force .NET
@@ -184,10 +199,21 @@ using var host = await Host.CreateDefaultBuilder()
     {
         // Use "Auto" type load mode at development time, but
         // "Static" any other time
-        opts.OptimizeArtifactWorkflow();
+        opts.Services.CritterStackDefaults(x =>
+        {
+            x.Production.GeneratedCodeMode = TypeLoadMode.Static;
+            x.Production.ResourceAutoCreate = AutoCreate.None;
+
+            // Little draconian, but this might be helpful
+            x.Production.AssertAllPreGeneratedTypesExist = true;
+
+            // These are defaults, but showing for completeness
+            x.Development.GeneratedCodeMode = TypeLoadMode.Dynamic;
+            x.Development.ResourceAutoCreate = AutoCreate.CreateOrUpdate;
+        });
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CodegenUsage.cs#L59-L69' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_use_optimized_workflow' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CodegenUsage.cs#L63-L84' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_use_optimized_workflow' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Which will use:

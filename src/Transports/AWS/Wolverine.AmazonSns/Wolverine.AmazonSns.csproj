@@ -1,0 +1,17 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <PackageId>WolverineFx.AmazonSns</PackageId>
+        <Description>Amazon SNS transport for Wolverine applications</Description>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Wolverine.AmazonSqs\Wolverine.AmazonSqs.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="AWSSDK.SimpleNotificationService" Version="4.0.0.4" />
+        <PackageReference Include="AWSSDK.SQS" Version="4.0.0.4" />
+    </ItemGroup>
+
+</Project>

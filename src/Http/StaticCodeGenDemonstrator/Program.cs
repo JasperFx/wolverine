@@ -1,5 +1,5 @@
 using JasperFx.CodeGeneration;
-using Oakton;
+using JasperFx;
 using Wolverine;
 using Wolverine.ErrorHandling;
 using Wolverine.Http;
@@ -30,7 +30,7 @@ if (app.Environment.IsDevelopment())
 
 app.MapWolverineEndpoints();
 
-return await app.RunOaktonCommands(args);
+return await app.RunJasperFxCommands(args);
 
 public static class TestEndpoint
 {

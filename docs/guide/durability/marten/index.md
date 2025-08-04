@@ -13,6 +13,13 @@ used together. At this point, adding the `WolverineFx.Marten` Nuget dependency t
 * Effectively use Wolverine and Marten together for a [Decider](https://thinkbeforecoding.com/post/2021/12/17/functional-event-sourcing-decider) function workflow with event sourcing
 * Selectively publish events captured by Marten through Wolverine messaging
 * Process events captured by Marten through Wolverine message handlers through either [subscriptions](./subscriptions) or the older [event forwarding](./event-forwarding).
+* Publish messages raised by [Marten projection "side effects"](https://martendb.io/events/projections/aggregate-projections.html#raising-events-messages-or-other-operations-in-aggregation-projections) through Wolverine messaging
+
+::: warning
+Just a heads up, it is possible to publish messages from Marten projection "side effects" to Wolverine, even within `Inline`
+projections, **but**, if you want to have Wolverine messages published from a Marten `IInitialData`, you'll need to wrap that
+within its own `IHostedService` service that is registered **after** Wolverine in your IoC container service registrations.
+:::
 
 ## Getting Started
 
@@ -23,7 +30,7 @@ in your application (and Wolverine itself!), you next need to add the Wolverine 
 <a id='snippet-sample_integrating_wolverine_with_marten'></a>
 ```cs
 var builder = WebApplication.CreateBuilder(args);
-builder.Host.ApplyOaktonExtensions();
+builder.Host.ApplyJasperFxExtensions();
 
 builder.Services.AddMarten(opts =>
     {
@@ -54,7 +61,7 @@ builder.Host.UseWolverine(opts =>
 <a id='snippet-sample_integrating_wolverine_with_marten-1'></a>
 ```cs
 var builder = WebApplication.CreateBuilder(args);
-builder.Host.ApplyOaktonExtensions();
+builder.Host.ApplyJasperFxExtensions();
 
 builder.Services.AddMarten(opts =>
     {

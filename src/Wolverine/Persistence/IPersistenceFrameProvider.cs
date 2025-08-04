@@ -1,6 +1,7 @@
 ﻿using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using Wolverine.Configuration;
+using Wolverine.Persistence.Sagas;
 using Wolverine.Runtime;
 
 namespace Wolverine.Persistence;
@@ -31,10 +32,10 @@ public interface IPersistenceFrameProvider
     /// Create an "upsert" Frame for the variable. Not every persistence provider will be able to support this
     /// and should throw NotSupportedException if it does not
     /// </summary>
-    /// <param name="variable"></param>
+    /// <param name="saga"></param>
     /// <param name="container"></param>
     /// <returns></returns>
-    Frame DetermineStoreFrame(Variable variable, IServiceContainer container);
+    Frame DetermineStoreFrame(Variable saga, IServiceContainer container);
 
     /// <summary>
     /// Create a delete Frame for the variable, not every persistence provider will be able to support this
@@ -46,17 +47,9 @@ public interface IPersistenceFrameProvider
     Frame DetermineDeleteFrame(Variable variable, IServiceContainer container);
 
     Frame DetermineStorageActionFrame(Type entityType, Variable action, IServiceContainer container);
+
+    Frame[] DetermineFrameToNullOutMaybeSoftDeleted(Variable entity);
 }
 
-public interface ISagaOperation
-{
-    Variable Saga { get; }
-    SagaOperationType Operation { get; }
-}
 
-public enum SagaOperationType
-{
-    InsertAsync,
-    UpdateAsync,
-    DeleteAsync
-}
+

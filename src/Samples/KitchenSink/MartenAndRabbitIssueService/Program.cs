@@ -2,8 +2,8 @@ using IntegrationTests;
 using Marten;
 using MartenAndRabbitIssueService;
 using MartenAndRabbitMessages;
-using Oakton;
-using Oakton.Resources;
+using JasperFx;
+using JasperFx.Resources;
 using Wolverine;
 using Wolverine.Marten;
 using Wolverine.RabbitMQ;
@@ -12,7 +12,7 @@ using Wolverine.RabbitMQ;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Host.ApplyOaktonExtensions();
+builder.Host.ApplyJasperFxExtensions();
 
 builder.Host.UseWolverine(opts =>
 {
@@ -30,7 +30,12 @@ builder.Host.UseWolverine(opts =>
         // how you *could* customize the connection to Rabbit MQ
         factory.HostName = "localhost";
         factory.Port = 5672;
-    });
+    })        
+        
+    // Even when calling AddResourceSetupOnStartup(), we still
+    // need to AutoProvision to ensure any declared queues, exchanges, or
+    // bindings with the Rabbit MQ broker to be built as part of bootstrapping time
+    .AutoProvision();;
 });
 
 // This is actually important, this directs
@@ -65,6 +70,6 @@ var app = builder.Build();
 app.MapGet("/", () => "Hello World!");
 
 // Actually important to return the exit code here!
-return await app.RunOaktonCommands(args);
+return await app.RunJasperFxCommands(args);
 
 #endregion

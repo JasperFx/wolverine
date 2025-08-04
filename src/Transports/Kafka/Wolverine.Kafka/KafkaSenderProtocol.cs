@@ -7,12 +7,12 @@ namespace Wolverine.Kafka;
 public class KafkaSenderProtocol : ISenderProtocol, IDisposable
 {
     private readonly KafkaTopic _topic;
-    private readonly IProducer<string,string> _producer;
+    private readonly IProducer<string, byte[]> _producer;
 
     public KafkaSenderProtocol(KafkaTopic topic)
     {
         _topic = topic;
-        _producer = new ProducerBuilder<string, string>(_topic.Parent.ProducerConfig).Build();
+        _producer = _topic.Parent.CreateProducer(_topic.ProducerConfig);
     }
 
     public async Task SendBatchAsync(ISenderCallback callback, OutgoingMessageBatch batch)
@@ -21,9 +21,11 @@ public class KafkaSenderProtocol : ISenderProtocol, IDisposable
         {
             // TODO -- separate try/catch here!
 
-            var message = _topic.Mapper.CreateMessage(envelope);
+            var message = await _topic.Mapper.CreateMessage(envelope);
             await _producer.ProduceAsync(envelope.TopicName ?? _topic.TopicName, message);
         }
+
+        _producer.Flush();
 
         await callback.MarkSuccessfulAsync(batch);
     }

@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using JasperFx.Core;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Serialization;
@@ -35,7 +36,7 @@ public partial class Envelope
         Serializer = message is ISerializable ? IntrinsicSerializer.Instance : agent.Endpoint.DefaultSerializer;
         ContentType = Serializer!.ContentType;
         Destination = agent.Destination;
-        ReplyUri = agent.ReplyUri;
+        ReplyUri = agent.ReplyUri?.MaybeCorrectScheme(agent.Destination.Scheme);
     }
 
     internal Envelope(object message, IMessageSerializer writer)
@@ -135,7 +136,17 @@ public partial class Envelope
     internal void MarkReceived(IListener listener, DateTimeOffset now, DurabilitySettings settings)
     {
         Listener = listener;
-        Destination = listener.Address;
+
+        // If this is a stream with multiple consumers, use the consumer-specific address
+        if (listener is ISupportMultipleConsumers multiConsumerListener)
+        {
+            Destination = multiConsumerListener.ConsumerAddress;
+        }
+        else
+        {
+            Destination = listener.Address;
+        }
+
         if (IsScheduledForLater(now))
         {
             Status = EnvelopeStatus.Scheduled;
@@ -230,7 +241,24 @@ public partial class Envelope
 
         _enqueued = true;
 
-        if (Sender.Latched) return;
+        if (Sender.Latched)
+        {
+            // If the sender is latched, it indicates that the endpoint is currently unavailable 
+            // (e.g., due to a network disconnection or a failure in the transport).
+            // In such cases, we should *not* attempt to send the message immediately.
+            //
+            // Instead, if the sender is a SendingAgent, we explicitly mark the envelope as failed 
+            // so that it will be retried later when the connection is re-established. 
+            //
+            // This conditional block ensures that latched agents skip enqueuing the message, 
+            // but still track the failure to maintain durability and retry logic.
+            if (Sender is SendingAgent sendingAgent)
+            {
+                await sendingAgent.MarkProcessingFailureAsync(this, null);
+            }
+
+            return;
+        }
 
         if (Sender.Endpoint?.TelemetryEnabled ?? false)
         {
@@ -306,5 +334,13 @@ public partial class Envelope
     internal bool IsFromLocalDurableQueue()
     {
         return Sender is DurableLocalQueue;
+    }
+
+    internal void MaybeCorrectReplyUri()
+    {
+        if (ReplyUri != null && Destination != null)
+        {
+            ReplyUri = ReplyUri.MaybeCorrectScheme(Destination.Scheme);
+        }
     }
 }

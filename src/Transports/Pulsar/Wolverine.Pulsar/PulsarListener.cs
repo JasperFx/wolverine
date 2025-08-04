@@ -16,9 +16,11 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
     private readonly IConsumer<ReadOnlySequence<byte>>? _retryConsumer;
     private readonly CancellationTokenSource _localCancellation;
     private readonly Task? _receivingLoop;
+    private readonly PulsarSender? _sender;
+    private readonly bool _enableRequeue;
+    private readonly bool _unsubscribeOnClose;
+    private readonly IReceiver _receiver;
     private readonly Task? _receivingRetryLoop;
-    private readonly PulsarSender _sender;
-    private IReceiver _receiver;
     private PulsarEndpoint _endpoint;
     private IProducer<ReadOnlySequence<byte>>? _retryLetterQueueProducer;
     private IProducer<ReadOnlySequence<byte>>? _dlqProducer;
@@ -33,7 +35,15 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
 
         Address = endpoint.Uri;
 
-        _sender = new PulsarSender(runtime, endpoint, transport, _cancellation);
+        _enableRequeue = endpoint.EnableRequeue;
+
+        if (_enableRequeue)
+        {
+            _sender = new PulsarSender(runtime, endpoint, transport, _cancellation);
+        }
+
+        _unsubscribeOnClose = endpoint.UnsubscribeOnClose;
+
         var mapper = endpoint.BuildMapper(runtime);
 
         _localCancellation = new CancellationTokenSource();
@@ -162,9 +172,11 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
         return ValueTask.CompletedTask;
     }
 
+    public IHandlerPipeline? Pipeline => _receiver.Pipeline;
+
     public async ValueTask DeferAsync(Envelope envelope)
     {
-        if (envelope is PulsarEnvelope e)
+        if (_enableRequeue && _sender is not null && envelope is PulsarEnvelope e)
         {
             await _consumer!.Acknowledge(e.MessageData, _cancellation);
             await _sender.SendAsync(envelope);
@@ -195,8 +207,10 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
             await _dlqProducer.DisposeAsync();
         }
 
-
-        await _sender.DisposeAsync();
+        if (_sender != null)
+        {
+            await _sender.DisposeAsync();
+        }
 
         _receivingLoop!.Dispose();
         _receivingRetryLoop?.Dispose();
@@ -211,7 +225,11 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
             return;
         }
 
-        await _consumer.Unsubscribe(_cancellation);
+        if (_unsubscribeOnClose)
+        {
+            await _consumer.Unsubscribe(_cancellation);
+        }
+
         await _consumer.RedeliverUnacknowledgedMessages(_cancellation);
 
 
@@ -224,7 +242,12 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
 
     public async Task<bool> TryRequeueAsync(Envelope envelope)
     {
-        if (envelope is PulsarEnvelope)
+        if (!_enableRequeue)
+        {
+            throw new InvalidOperationException("Requeue is not enabled for this endpoint");
+        }
+
+        if (_sender is not null && envelope is PulsarEnvelope)
         {
             await _sender.SendAsync(envelope);
             return true;

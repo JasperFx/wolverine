@@ -59,7 +59,7 @@ public class initializing_endpoints_from_method_call : IntegrationContext
     public void capturing_the_http_method_metadata()
     {
         var chain = HttpChain.ChainFor<FakeEndpoint>(x => x.SayHello());
-        var endpoint = chain.BuildEndpoint();
+        var endpoint = chain.BuildEndpoint(RouteWarmup.Lazy);
 
         var metadata = endpoint.Metadata.OfType<HttpMethodMetadata>().Single();
         metadata.HttpMethods.Single().ShouldBe("GET");
@@ -71,7 +71,7 @@ public class initializing_endpoints_from_method_call : IntegrationContext
         var chain = HttpChain.ChainFor(typeof(TestEndpoints), nameof(TestEndpoints.PostJson));
         chain.RequestType.ShouldBe(typeof(Question));
 
-        var endpoint = chain.BuildEndpoint();
+        var endpoint = chain.BuildEndpoint(RouteWarmup.Lazy);
 
         var metadata = endpoint.Metadata.OfType<IAcceptsMetadata>()
             .Single();
@@ -86,7 +86,7 @@ public class initializing_endpoints_from_method_call : IntegrationContext
         var chain = HttpChain.ChainFor(typeof(TestEndpoints), nameof(TestEndpoints.PostJson));
         chain.ResourceType.ShouldBe(typeof(ArithmeticResults));
 
-        var endpoint = chain.BuildEndpoint();
+        var endpoint = chain.BuildEndpoint(RouteWarmup.Lazy);
         var metadata = endpoint.Metadata.OfType<IProducesResponseTypeMetadata>().ToArray();
         metadata.Length.ShouldBeGreaterThanOrEqualTo(2);
 
@@ -129,7 +129,7 @@ public class initializing_endpoints_from_method_call : IntegrationContext
     public void pick_up_metadata_from_attribute_on_handler_type()
     {
         var chain = HttpChain.ChainFor<SecuredEndpoint>(x => x.Greetings());
-        var endpoint = chain.BuildEndpoint();
+        var endpoint = chain.BuildEndpoint(RouteWarmup.Lazy);
 
         endpoint.Metadata.OfType<AuthorizeAttribute>().ShouldNotBeNull();
     }
@@ -138,7 +138,7 @@ public class initializing_endpoints_from_method_call : IntegrationContext
     public void pick_up_metadata_from_attribute_on_method()
     {
         var chain = HttpChain.ChainFor<IndividualEndpoint>(x => x.Goodbypes());
-        var endpoint = chain.BuildEndpoint();
+        var endpoint = chain.BuildEndpoint(RouteWarmup.Lazy);
 
         endpoint.Metadata.OfType<AuthorizeAttribute>().ShouldNotBeNull();
     }

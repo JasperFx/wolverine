@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
-using Oakton.Resources;
+using JasperFx.Resources;
 using Shouldly;
 using Wolverine.Tracking;
 using Xunit.Abstractions;

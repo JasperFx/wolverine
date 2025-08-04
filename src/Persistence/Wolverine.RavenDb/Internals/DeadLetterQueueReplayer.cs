@@ -27,7 +27,7 @@ public class DeadLetterQueueReplayer : IHostedService
 
     public async Task StartAsync(CancellationToken cancellationToken)
     {
-        var options = new SubscriptionCreationOptions
+        var options = new PredicateSubscriptionCreationOptions()
         {
             ArchivedDataProcessingBehavior = ArchivedDataProcessingBehavior.ExcludeArchived,
             

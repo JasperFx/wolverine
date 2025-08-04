@@ -4,7 +4,7 @@ using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
-using Oakton.Resources;
+using JasperFx.Resources;
 using Shouldly;
 using Weasel.SqlServer;
 using Wolverine;
@@ -101,7 +101,7 @@ public class message_store_initialization_and_configuration : SqlServerContext, 
         var settings = new DatabaseSettings
         {
             ConnectionString = Servers.SqlServerConnectionString,
-            IsMaster = false,
+            IsMain = false,
             SchemaName = "registry"
         };
 

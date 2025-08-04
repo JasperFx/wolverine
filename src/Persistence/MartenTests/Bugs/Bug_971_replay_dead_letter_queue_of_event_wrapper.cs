@@ -1,15 +1,16 @@
 using System.Diagnostics;
 using IntegrationTests;
 using JasperFx.Core;
+using JasperFx.Events;
+using JasperFx.Events.Daemon;
 using Marten;
 using Marten.Events;
-using Marten.Events.Daemon.Resiliency;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
 using Wolverine;
 using Wolverine.ErrorHandling;
 using Wolverine.Marten;
-using Wolverine.Persistence.Durability;
+using Wolverine.Persistence.Durability.DeadLetterManagement;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Tracking;
 
@@ -34,12 +35,11 @@ public class Bug_971_replay_dead_letter_queue_of_event_wrapper
                     .AddAsyncDaemon(DaemonMode.Solo)
                     .IntegrateWithWolverine()
                     .PublishEventsToWolverine("MaybeErrors", r => r.PublishEvent<ErrorCausingEvent>());
-                
             }).StartAsync();
 
         var runtime = host.GetRuntime();
         await runtime.Storage.Admin.RebuildAsync();
-        
+
         ErrorCausingEventHandler.ShouldThrow = true;
 
         using (var session = host.DocumentStore().LightweightSession())
@@ -52,7 +52,7 @@ public class Bug_971_replay_dead_letter_queue_of_event_wrapper
 
         Func<IMessageContext, Task> tryReplayEventMessage = async _ =>
         {
-            bool hasReplayed = false;
+            var hasReplayed = false;
 
             var count = 0;
             while (true)
@@ -79,7 +79,10 @@ public class Bug_971_replay_dead_letter_queue_of_event_wrapper
 
                 await Task.Delay(250.Milliseconds());
 
-                if (count > 1000) throw new TimeoutException("Never found dead letter queue messages");
+                if (count > 1000)
+                {
+                    throw new TimeoutException("Never found dead letter queue messages");
+                }
             }
         };
 
@@ -92,28 +95,22 @@ public class Bug_971_replay_dead_letter_queue_of_event_wrapper
 
         tracked.MessageSucceeded.SingleMessage<IEvent<ErrorCausingEvent>>()
             .ShouldNotBeNull();
-
-
-        
     }
 }
 
-
-
 public class ErrorCausingEvent
 {
-    
 }
 
 public static class ErrorCausingEventHandler
 {
+    public static bool ShouldThrow { get; set; } = true;
+
     public static void Configure(HandlerChain chain)
     {
         chain.OnException<BadImageFormatException>()
             .MoveToErrorQueue();
     }
-    
-    public static bool ShouldThrow { get; set; } = true;
 
     // public static void Handle(Event<ErrorCausingEvent> e)
     // {
@@ -122,8 +119,11 @@ public static class ErrorCausingEventHandler
 
     public static void Handle(IEvent<ErrorCausingEvent> e)
     {
-        if (ShouldThrow) throw new BadImageFormatException("boom");
-        
+        if (ShouldThrow)
+        {
+            throw new BadImageFormatException("boom");
+        }
+
         Debug.WriteLine("All good");
     }
 }

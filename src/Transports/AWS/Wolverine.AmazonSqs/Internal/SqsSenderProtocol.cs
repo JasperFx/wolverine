@@ -81,14 +81,14 @@ internal class OutgoingSqsBatch
     public async Task ProcessSuccessAsync(ISenderCallback callback, SendMessageBatchResponse response,
         OutgoingMessageBatch batch)
     {
-        if (!response.Failed.Any())
+        if (response.Failed == null || !response.Failed.Any())
         {
             await callback.MarkSuccessfulAsync(batch);
         }
         else
         {
             var fails = new List<Envelope>();
-            foreach (var fail in response.Failed)
+            foreach (var fail in response?.Failed ?? [])
             {
                 if (_envelopes.TryGetValue(fail.Id, out var env))
                 {
@@ -97,7 +97,7 @@ internal class OutgoingSqsBatch
             }
 
             var successes = new List<Envelope>();
-            foreach (var success in response.Successful)
+            foreach (var success in response?.Successful ?? [])
             {
                 if (_envelopes.TryGetValue(success.Id, out var env))
                 {
@@ -108,7 +108,10 @@ internal class OutgoingSqsBatch
             await callback.MarkSuccessfulAsync(new OutgoingMessageBatch(batch.Destination,
                 successes.Concat(_mappingFailures).ToList()));
 
-            await callback.MarkProcessingFailureAsync(new OutgoingMessageBatch(batch.Destination, fails));
+            if (fails.Any())
+            {
+                await callback.MarkProcessingFailureAsync(new OutgoingMessageBatch(batch.Destination, fails));
+            }
         }
     }
 }

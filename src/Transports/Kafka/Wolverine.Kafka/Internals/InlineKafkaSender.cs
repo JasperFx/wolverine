@@ -6,15 +6,17 @@ namespace Wolverine.Kafka.Internals;
 public class InlineKafkaSender : ISender, IDisposable
 {
     private readonly KafkaTopic _topic;
-    private readonly IProducer<string,string> _producer;
+    private readonly IProducer<string, byte[]> _producer;
 
     public InlineKafkaSender(KafkaTopic topic)
     {
         _topic = topic;
         Destination = topic.Uri;
-        _producer = new ProducerBuilder<string, string>(_topic.Parent.ProducerConfig).Build();
-        
+        _producer = _topic.Parent.CreateProducer(topic.ProducerConfig);
+        Config = topic.ProducerConfig ?? _topic.Parent.ProducerConfig;
     }
+
+    public ProducerConfig Config { get; }
 
     public bool SupportsNativeScheduledSend => false;
     public Uri Destination { get; }
@@ -31,11 +33,12 @@ public class InlineKafkaSender : ISender, IDisposable
         }
     }
 
-    public ValueTask SendAsync(Envelope envelope)
+    public async ValueTask SendAsync(Envelope envelope)
     {
-        var message = _topic.Mapper.CreateMessage(envelope);
-        
-        return new ValueTask(_producer.ProduceAsync(envelope.TopicName ?? _topic.TopicName, message));
+        var message = await _topic.Mapper.CreateMessage(envelope);
+
+        await _producer.ProduceAsync(envelope.TopicName ?? _topic.TopicName, message);
+        _producer.Flush();
     }
 
     public void Dispose()

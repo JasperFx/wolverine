@@ -1,7 +1,7 @@
 using IntegrationTests;
 using Microsoft.Extensions.Hosting;
 using Npgsql;
-using Oakton.Resources;
+using JasperFx.Resources;
 using Shouldly;
 using Weasel.Core;
 using Weasel.Postgresql;

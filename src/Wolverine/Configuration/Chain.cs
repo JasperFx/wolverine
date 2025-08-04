@@ -5,9 +5,11 @@ using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
+using JasperFx.Descriptors;
 using Wolverine.Attributes;
 using Wolverine.Logging;
 using Wolverine.Middleware;
+using Wolverine.Persistence;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
 
@@ -23,10 +25,14 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
     where TModifyAttribute : Attribute, IModifyChain<TChain>
 {
     private readonly List<Type> _dependencies = [];
+    public abstract void ApplyParameterMatching(MethodCall call);
     public List<Frame> Middleware { get; } = [];
+
+    public abstract MiddlewareScoping Scoping { get; }
 
     public List<Frame> Postprocessors { get; } = [];
 
+    [IgnoreDescription]
     public Dictionary<string, object> Tags { get; } = new();
 
     public abstract string Description { get; }
@@ -158,6 +164,11 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
     public abstract bool TryFindVariable(string valueName, ValueSource source, Type valueType, out Variable variable);
     public abstract Frame[] AddStopConditionIfNull(Variable variable);
 
+    public virtual Frame[] AddStopConditionIfNull(Variable data, Variable? identity, IDataRequirement requirement)
+    {
+        return AddStopConditionIfNull(data);
+    }
+
     private static Type[] _typesToIgnore = new Type[]
     {
         typeof(DateOnly),
@@ -263,7 +274,7 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
         var handlerTypes = HandlerCalls().Select(x => x.HandlerType).Distinct();
         foreach (var handlerType in handlerTypes)
         {
-            var befores = MiddlewarePolicy.FilterMethods<WolverineBeforeAttribute>(handlerType.GetMethods(),
+            var befores = MiddlewarePolicy.FilterMethods<WolverineBeforeAttribute>(this, handlerType.GetMethods(),
                 MiddlewarePolicy.BeforeMethodNames);
 
             foreach (var before in befores)
@@ -290,7 +301,7 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
                 }
             }
 
-            var afters = MiddlewarePolicy.FilterMethods<WolverineAfterAttribute>(handlerType.GetMethods(),
+            var afters = MiddlewarePolicy.FilterMethods<WolverineAfterAttribute>(this, handlerType.GetMethods(),
                 MiddlewarePolicy.AfterMethodNames).ToArray();
 
             if (afters.Any())

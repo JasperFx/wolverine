@@ -1,4 +1,5 @@
 using JasperFx.Core;
+using JasperFx.Events;
 using Marten.Events;
 
 namespace TeleHealth.Common;

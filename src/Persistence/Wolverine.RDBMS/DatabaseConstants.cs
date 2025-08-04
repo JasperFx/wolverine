@@ -27,6 +27,7 @@ public class DatabaseConstants
 
     public const string NodeTableName = "wolverine_nodes";
     public const string NodeAssignmentsTableName = "wolverine_node_assignments";
+    public const string TenantsTableName = "wolverine_tenants";
 
     public const string ReceivedAt = "received_at"; // add to all
     public const string SentAt = "sent_at"; // add to all
@@ -52,5 +53,5 @@ public class DatabaseConstants
     public static readonly string Started = "started";
     public static readonly string HealthCheck = "health_check";
     public static readonly string Capabilities = "capabilities";
-    public static readonly string NodeColumns = $"{Id}, {NodeNumber}, {Description}, {Uri}, {Started}, {HealthCheck}, {Capabilities}";
+    public static readonly string NodeColumns = $"{Id}, {NodeNumber}, {Description}, {Uri}, {Started}, {HealthCheck}, {Version}, {Capabilities}";
 }

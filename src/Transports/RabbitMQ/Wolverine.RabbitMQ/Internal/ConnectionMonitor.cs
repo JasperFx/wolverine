@@ -2,7 +2,6 @@ using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
-using Wolverine.Runtime;
 
 namespace Wolverine.RabbitMQ.Internal;
 
@@ -41,6 +40,7 @@ internal class ConnectionMonitor : IAsyncDisposable, IConnectionMonitor
         _connection.ConnectionUnblockedAsync += connectionOnConnectionUnblockedAsync;
         _connection.ConnectionBlockedAsync += connectionOnConnectionBlockedAsync;
         _connection.CallbackExceptionAsync += connectionOnCallbackExceptionAsync;
+        _connection.RecoverySucceededAsync += connectionOnRecoverySucceededAsync;
     }
 
     public Task<IChannel> CreateChannelAsync()
@@ -71,6 +71,16 @@ internal class ConnectionMonitor : IAsyncDisposable, IConnectionMonitor
     public void Track(RabbitMqChannelAgent agent)
     {
         _agents.Add(agent);
+    }
+
+    private async Task connectionOnRecoverySucceededAsync(object sender, AsyncEventArgs @event)
+    {
+        foreach (var agent in _agents)
+        {
+            await agent.ReconnectedAsync();
+        }
+
+        _logger.LogInformation("RabbitMQ connection is recovered successfully");
     }
 
     private Task connectionOnCallbackExceptionAsync(object? sender, CallbackExceptionEventArgs e)

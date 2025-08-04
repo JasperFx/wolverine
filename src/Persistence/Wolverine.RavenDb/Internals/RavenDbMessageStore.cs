@@ -1,3 +1,4 @@
+using JasperFx.Descriptors;
 using Raven.Client.Documents;
 using Wolverine.Persistence.Durability;
 using Wolverine.RavenDb.Internals.Durability;
@@ -26,6 +27,10 @@ public partial class RavenDbMessageStore : IMessageStore
         _scheduledLockId = "wolverine/scheduled";
     }
 
+    public string Name => _store.Identifier;
+
+    public Uri Uri => new("ravendb://durability");
+
     public string IdentityFor(Envelope envelope) => _identity(envelope);
 
     public ValueTask DisposeAsync()
@@ -49,6 +54,15 @@ public partial class RavenDbMessageStore : IMessageStore
     public void Describe(TextWriter writer)
     {
         writer.WriteLine("RavenDb backed Wolverine envelope storage");
+    }
+
+    public DatabaseDescriptor Describe()
+    {
+        return new DatabaseDescriptor(this)
+        {
+            Engine = "ravendb",
+            DatabaseName = _store.Identifier
+        };
     }
 
     public Task DrainAsync()

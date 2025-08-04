@@ -58,6 +58,8 @@ public class FakeTransport : BrokerTransport<FakeEndpoint>
         throw new NotImplementedException();
     }
 
+    public override Uri ResourceUri { get; } = new Uri("fake://transport");
+
     public override ValueTask ConnectAsync(IWolverineRuntime runtime)
     {
         throw new NotImplementedException();

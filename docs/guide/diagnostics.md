@@ -4,14 +4,14 @@ Wolverine can be configuration intensive, allows for quite a bit of customizatio
 quite a bit of external infrastructure. All of those things can be problematic, so Wolverine tries to provide diagnostic tools
 to unwind what's going on inside the application and the application's configuration. 
 
-Many of the diagnostics explained in this page are part of the [Oakton command line integration](https://jasperfx.github.io/oakton). As a reminder,
-to utilize this command line integration, you need to apply Oakton as your command line parser as shown in the last line of the quickstart
+Many of the diagnostics explained in this page are part of the [JasperFx command line integration](https://jasperfx.github.io/oakton) <== NOT SURE OF THE RIGHT URL. As a reminder,
+to utilize this command line integration, you need to apply JasperFx as your command line parser as shown in the last line of the quickstart
 sample `Program.cs` file:
 
 <!-- snippet: sample_Quickstart_Program -->
 <a id='snippet-sample_quickstart_program'></a>
 ```cs
-using Oakton;
+using JasperFx;
 using Quickstart;
 using Wolverine;
 
@@ -46,10 +46,10 @@ app.UseSwaggerUI();
 
 app.MapGet("/", () => Results.Redirect("/swagger"));
 
-// Opt into using Oakton for command line parsing
+// Opt into using JasperFx for command line parsing
 // to unlock built in diagnostics and utility tools within
 // your Wolverine application
-return await app.RunOaktonCommands(args);
+return await app.RunJasperFxCommands(args);
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Quickstart/Program.cs#L1-L43' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_quickstart_program' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
@@ -185,6 +185,6 @@ public static void using_preview_subscriptions(IMessageBus bus)
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Runtime/Routing/routing_rules.cs#L73-L87' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_preview_subscriptions' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Runtime/Routing/routing_rules.cs#L90-L104' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_preview_subscriptions' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 

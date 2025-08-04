@@ -16,6 +16,7 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue
     private readonly RetryBlock<AmazonSqsEnvelope> _requeueBlock;
     private readonly Task _task;
     private readonly AmazonSqsTransport _transport;
+    private readonly IReceiver _receiver;
 
     public SqsListener(IWolverineRuntime runtime, AmazonSqsQueue queue, AmazonSqsTransport transport,
         IReceiver receiver)
@@ -28,6 +29,7 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue
         var logger = runtime.LoggerFactory.CreateLogger<SqsListener>();
         _queue = queue;
         _transport = transport;
+        _receiver = receiver;
 
         if (_queue.DeadLetterQueueName != null && !transport.DisableDeadLetterQueues)
         {
@@ -51,6 +53,8 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue
             new RetryBlock<Envelope>(async (e, _) => { await _deadLetterQueue!.SendMessageAsync(e, logger); }, logger,
                 runtime.Cancellation);
 
+        _receiver = receiver;
+
         _task = Task.Run(async () =>
         {
             while (!_cancellation.Token.IsCancellationRequested)
@@ -65,7 +69,7 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue
 
                     failedCount = 0;
 
-                    if (results.Messages.Any())
+                    if (results.Messages != null && results.Messages.Any())
                     {
                         var envelopes = new List<Envelope>(results.Messages.Count);
                         foreach (var message in results.Messages)
@@ -116,7 +120,7 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue
                     failedCount++;
                     var pauseTime = failedCount > 5 ? 1.Seconds() : (failedCount * 100).Milliseconds();
 
-                    logger.LogError(e, "Error while trying to retrieve messages from Azure Service Bus {Uri}",
+                    logger.LogError(e, "Error while trying to retrieve messages from SQS Queue {Uri}",
                         queue.Uri);
                     await Task.Delay(pauseTime);
                 }
@@ -133,6 +137,8 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue
 
         return ValueTask.CompletedTask;
     }
+
+    public IHandlerPipeline? Pipeline => _receiver.Pipeline;
 
     public async ValueTask DeferAsync(Envelope envelope)
     {

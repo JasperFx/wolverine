@@ -43,6 +43,11 @@ public class SagaChain : HandlerChain
         SagaIdMember = DetermineSagaIdMember(MessageType, SagaType);
     }
 
+    protected override void validateAgainstInvalidSagaMethods(IGrouping<Type, HandlerCall> grouping)
+    {
+        // Nothing
+    }
+
     protected override void tryAssignStickyEndpoints(HandlerCall handlerCall, WolverineOptions options)
     {
         // nope, don't do this with saga chains 
@@ -88,6 +93,13 @@ public class SagaChain : HandlerChain
 
         ExistingCalls = findByNames(Orchestrate, Orchestrates, StartOrHandle, StartsOrHandles, Handle, Handles,
             Consume, Consumes);
+
+        var statics = ExistingCalls.Where(x => x.Method.IsStatic);
+        if (statics.Any())
+        {
+            throw new InvalidSagaException(
+                $"It is not legal to use static methods to operate on existing sagas. Use NotFound() for handling non-existent sagas for the identity");
+        }
 
         Handlers.Clear();
 
@@ -158,6 +170,9 @@ public class SagaChain : HandlerChain
         var ifNotCompleted = buildFrameForConditionalInsert(sagaVariable, frameProvider, container);
         frames.Add(ifNotCompleted);
     }
+
+    // Always true!
+    internal override bool HasDefaultNonStickyHandlers() => true;
 
     internal IEnumerable<Frame> DetermineSagaDoesNotExistSteps(Variable sagaId, Variable saga,
         IPersistenceFrameProvider frameProvider, IServiceContainer container)

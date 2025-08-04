@@ -34,7 +34,7 @@ internal class WaitForMessage<T> : ITrackedCondition
 
     public override string ToString()
     {
-        var description = $"Wait for message of type {typeof(T).GetFullName()} to be received";
+        var description = $"Wait for message of type {typeof(T).FullNameInCode()} to be received";
         if (UniqueNodeId != Guid.Empty)
         {
             description += " at node " + UniqueNodeId;

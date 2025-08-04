@@ -15,7 +15,7 @@ hero:
   actions:
     - theme: brand
       text: Get Started
-      link: /tutorials/getting-started
+      link: /introduction/whatiswolverine
 
 features:
 - title: 💪 Write Less Code

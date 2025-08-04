@@ -1,9 +1,10 @@
 ﻿using System.Diagnostics;
 using Wolverine.Runtime;
+using Wolverine.Runtime.Handlers;
 
 namespace Wolverine.ErrorHandling;
 
-internal class RetryInlineContinuation : IContinuation, IContinuationSource
+internal class RetryInlineContinuation : IContinuation, IContinuationSource, IInlineContinuation
 {
     public static readonly RetryInlineContinuation Instance = new();
 
@@ -44,5 +45,17 @@ internal class RetryInlineContinuation : IContinuation, IContinuationSource
     public override string ToString()
     {
         return "Retry Now";
+    }
+
+    public async ValueTask<InvokeResult> ExecuteInlineAsync(IEnvelopeLifecycle lifecycle, IWolverineRuntime runtime,
+        DateTimeOffset now,
+        Activity? activity, CancellationToken cancellation)
+    {
+        if (Delay.HasValue)
+        {
+            await Task.Delay(Delay.Value, cancellation).ConfigureAwait(false);
+        }
+
+        return InvokeResult.TryAgain;
     }
 }

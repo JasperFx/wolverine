@@ -1,12 +1,14 @@
 using System.Runtime.CompilerServices;
-using Oakton;
+using JasperFx;
+using JasperFx.CommandLine;
 using Wolverine.Attributes;
 
 [assembly: JasperFx.Core.TypeScanning.IgnoreAssembly]
-[assembly: OaktonCommandAssembly]
+[assembly: JasperFxAssembly]
 [assembly: WolverineFeature]
 
 [assembly: InternalsVisibleTo("CoreTests")]
+[assembly: InternalsVisibleTo("Wolverine.CritterWatch")]
 [assembly: InternalsVisibleTo("DataGenerator")]
 [assembly: InternalsVisibleTo("DiagnosticsTests")]
 [assembly: InternalsVisibleTo("PolicyTests")]

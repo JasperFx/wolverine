@@ -40,9 +40,9 @@ var app = builder.Build();
 
 // Other ASP.Net Core configuration...
 
-// Using Oakton opens up command line utilities for managing
+// Using JasperFx opens up command line utilities for managing
 // the message storage
-return await app.RunOaktonCommands(args);
+return await app.RunJasperFxCommands(args);
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L164-L190' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setup_postgresql_storage' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
@@ -126,8 +126,154 @@ lost if held in memory when the application shuts down unexpectedly.
 
 ## Multi-Tenancy
 
-If utilizing the PostgreSQL transport with Marten multi-tenancy through separate databases per tenant, the PostgreSQL
-queues will be built an monitored for each tenant database as well as any master database.
+As of Wolverine 4.0, you have two ways to use multi-tenancy through separate databases per tenant with PostgreSQL:
+
+1. Using [Marten's multi-tenancy support](https://martendb.io/configuration/multitenancy.html) and the `IntegrateWithWolverine()` option
+2. Directly configure PostgreSQL databases with Wolverine managed multi-tenancy <Badge type="tip" text="4.0" />
+
+In both cases, if utilizing the PostgreSQL transport with multi-tenancy through separate databases per tenant, the PostgreSQL
+queues will be built and monitored for each tenant database as well as any main, non-tenanted database. Also, Wolverine is able to utilize
+completely different message storage for its transactional inbox and outbox for each unique database including any main database.
+Wolverine is able to activate additional durability agents for itself for any tenant databases added at runtime for tenancy modes
+that support dynamic discovery. 
+
+To utilize Wolverine managed multi-tenancy, you have a couple main options. The simplest is just using a static configured
+set of tenant id to database connections like so:
+
+<!-- snippet: sample_static_tenant_registry_with_postgresql -->
+<a id='snippet-sample_static_tenant_registry_with_postgresql'></a>
+```cs
+var builder = Host.CreateApplicationBuilder();
+
+var configuration = builder.Configuration;
+
+builder.UseWolverine(opts =>
+{
+    // First, you do have to have a "main" PostgreSQL database for messaging persistence
+    // that will store information about running nodes, agents, and non-tenanted operations
+    opts.PersistMessagesWithPostgresql(configuration.GetConnectionString("main"))
+
+        // Add known tenants at bootstrapping time
+        .RegisterStaticTenants(tenants =>
+        {
+            // Add connection strings for the expected tenant ids
+            tenants.Register("tenant1", configuration.GetConnectionString("tenant1"));
+            tenants.Register("tenant2", configuration.GetConnectionString("tenant2"));
+            tenants.Register("tenant3", configuration.GetConnectionString("tenant3"));
+        });
+    
+    opts.Services.AddDbContextWithWolverineManagedMultiTenancy<ItemsDbContext>((builder, connectionString, _) =>
+    {
+        builder.UseNpgsql(connectionString.Value, b => b.MigrationsAssembly("MultiTenantedEfCoreWithPostgreSQL"));
+    }, AutoCreate.CreateOrUpdate);
+});
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests/MultiTenancy/MultiTenancyDocumentationSamples.cs#L24-L51' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_static_tenant_registry_with_postgresql' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Since the underlying [Npgsql library](https://www.npgsql.org/) supports the `DbDataSource` concept, and you might need to use this for a variety of reasons, you can also
+directly configure `NpgsqlDataSource` objects for each tenant. This one might be a little more involved, but let's start
+by saying that you might be using Aspire to configure PostgreSQL and both the main and tenant databases. In this usage,
+Aspire will register `NpgsqlDataSource` services as `Singleton` scoped in your IoC container. We can build an `IWolverineExtension`
+that utilizes the IoC container to register Wolverine like so:
+
+<!-- snippet: sample_OurFancyPostgreSQLMultiTenancy -->
+<a id='snippet-sample_ourfancypostgresqlmultitenancy'></a>
+```cs
+public class OurFancyPostgreSQLMultiTenancy : IWolverineExtension
+{
+    private readonly IServiceProvider _provider;
+
+    public OurFancyPostgreSQLMultiTenancy(IServiceProvider provider)
+    {
+        _provider = provider;
+    }
+
+    public void Configure(WolverineOptions options)
+    {
+        options.PersistMessagesWithPostgresql(_provider.GetRequiredService<NpgsqlDataSource>())
+            .RegisterStaticTenantsByDataSource(tenants =>
+            {
+                tenants.Register("tenant1", _provider.GetRequiredKeyedService<NpgsqlDataSource>("tenant1"));
+                tenants.Register("tenant1", _provider.GetRequiredKeyedService<NpgsqlDataSource>("tenant2"));
+                tenants.Register("tenant1", _provider.GetRequiredKeyedService<NpgsqlDataSource>("tenant3"));
+            });
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests/MultiTenancy/MultiTenancyDocumentationSamples.cs#L165-L188' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_ourfancypostgresqlmultitenancy' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+And add that to the greater application like so:
+
+<!-- snippet: sample_adding_our_fancy_postgresql_multi_tenancy -->
+<a id='snippet-sample_adding_our_fancy_postgresql_multi_tenancy'></a>
+```cs
+var host = Host.CreateDefaultBuilder()
+    .UseWolverine()
+    .ConfigureServices(services =>
+    {
+        services.AddSingleton<IWolverineExtension, OurFancyPostgreSQLMultiTenancy>();
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests/MultiTenancy/MultiTenancyDocumentationSamples.cs#L152-L161' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_adding_our_fancy_postgresql_multi_tenancy' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+::: warning
+Neither Marten nor Wolverine is able to dynamically tear down tenants yet. That's long planned, and honestly probably only happens
+when an outside company sponsors that work.
+:::
+
+If you need to be able to add new tenants at runtime or just have more tenants than is comfortable living in static configuration
+or plenty of other reasons I could think of, you can also use Wolverine's "master table tenancy" approach where tenant id
+to database connection string information is kept in a separate database table. 
+
+Here's a possible usage of that model:
+
+<!-- snippet: sample_using_postgresql_backed_master_table_tenancy -->
+<a id='snippet-sample_using_postgresql_backed_master_table_tenancy'></a>
+```cs
+var builder = Host.CreateApplicationBuilder();
+
+var configuration = builder.Configuration;
+builder.UseWolverine(opts =>
+{
+    // You need a main database no matter what that will hold information about the Wolverine system itself
+    // and..
+    opts.PersistMessagesWithPostgresql(configuration.GetConnectionString("wolverine"))
+
+        // ...also a table holding the tenant id to connection string information
+        .UseMasterTableTenancy(seed =>
+        {
+            // These registrations are 100% just to seed data for local development
+            // Maybe you want to omit this during production?
+            // Or do something programmatic by looping through data in the IConfiguration?
+            seed.Register("tenant1", configuration.GetConnectionString("tenant1"));
+            seed.Register("tenant2", configuration.GetConnectionString("tenant2"));
+            seed.Register("tenant3", configuration.GetConnectionString("tenant3"));
+        });
+
+});
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests/MultiTenancy/MultiTenancyDocumentationSamples.cs#L95-L119' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_postgresql_backed_master_table_tenancy' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+::: info
+Wolverine's "master table tenancy" model was unsurprisingly based on Marten's [Master Table Tenancy](https://martendb.io/configuration/multitenancy.html#master-table-tenancy-model) feature
+and even shares a little bit of supporting code now.
+:::
+
+Here's some more important background on the multi-tenancy support:
+
+* Wolverine is spinning up a completely separate "durability agent" across the application to recover stranded messages in
+  the transactional inbox and outbox, and that's done automatically for you
+* The lightweight saga support for PostgreSQL absolutely works with this model of multi-tenancy
+* Wolverine is able to manage all of its database tables including the tenant table itself (`wolverine_tenants`) across both the
+  main database and all the tenant databases including schema migrations
+* Wolverine's transactional middleware is aware of the multi-tenancy and can connect to the correct database based on the `IMesageContext.TenantId`
+  or utilize the tenant id detection in Wolverine.HTTP as well
+* You can "plug in" a custom implementation of `ITenantSource<string>` to manage tenant id to connection string assignments in whatever way works for your deployed system
+
 
 ## Lightweight Saga Usage <Badge type="tip" text="3.0" />
 

@@ -2,12 +2,10 @@ using System.Diagnostics.CodeAnalysis;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.Core;
-using JasperFx.Core.Reflection;
+using JasperFx.Descriptors;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Primitives;
-using Oakton.Descriptions;
-using Spectre.Console;
 using Wolverine.Configuration;
 using Wolverine.Http.CodeGen;
 using Wolverine.Http.Resources;
@@ -16,14 +14,9 @@ using Endpoint = Microsoft.AspNetCore.Http.Endpoint;
 
 namespace Wolverine.Http;
 
-public partial class HttpGraph : EndpointDataSource, ICodeFileCollectionWithServices, IChangeToken, IDescribedSystemPart,
-    IWriteToConsole
+public partial class HttpGraph : EndpointDataSource, ICodeFileCollectionWithServices, IChangeToken, IDescribeMyself
 {
     public static readonly string Context = "httpContext";
-
-    private readonly List<HttpChain> _chains = [];
-    private readonly List<RouteEndpoint> _endpoints = [];
-    private readonly WolverineOptions _options;
 
     private readonly List<IResourceWriterPolicy> _builtInWriterPolicies =
     [
@@ -34,6 +27,10 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollectionWithServ
         new JsonResourceWriterPolicy()
     ];
 
+    private readonly List<HttpChain> _chains = [];
+    private readonly List<RouteEndpoint> _endpoints = [];
+    private readonly WolverineOptions _options;
+
     private readonly List<IResourceWriterPolicy> _optionsWriterPolicies = [];
 
     public HttpGraph(WolverineOptions options, IServiceContainer container)
@@ -42,14 +39,14 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollectionWithServ
         Container = container;
         Rules = _options.CodeGeneration;
     }
-
-    public IReadOnlyList<HttpChain> Chains => _chains;
-
+    
     internal IServiceContainer Container { get; }
 
     internal IEnumerable<IResourceWriterPolicy> WriterPolicies => _optionsWriterPolicies.Concat(_builtInWriterPolicies);
 
     public override IReadOnlyList<Endpoint> Endpoints => _endpoints;
+
+    public IReadOnlyList<HttpChain> Chains => _chains;
 
     IDisposable IChangeToken.RegisterChangeCallback(Action<object?> callback, object? state)
     {
@@ -66,32 +63,25 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollectionWithServ
     }
 
     public string ChildNamespace => "WolverineHandlers";
+    
+    [IgnoreDescription]
     public GenerationRules Rules { get; }
 
-    Task IDescribedSystemPart.Write(TextWriter writer)
+    public OptionsDescription ToDescription()
     {
-        return writer.WriteLineAsync("Use console output.");
-    }
+        var description = new OptionsDescription(this);
 
-    string IDescribedSystemPart.Title => "Wolverine Http Endpoints";
+        var list = description.AddChildSet("Endpoints");
+        list.SummaryColumns = ["Route", "Endpoint", "HttpMethods"];
 
-    Task IWriteToConsole.WriteToConsole()
-    {
-        var table = new Table()
-            .AddColumns("Route", "Http Method", "Handler Method", "Generated Type Name");
-
-        foreach (var chain in _chains.OrderBy(x => x.RoutePattern!.RawText))
+        foreach (var chain in _chains)
         {
-            var handlerCode = $"{chain.Method.HandlerType.FullNameInCode()}.{chain.Method.Method.Name}()";
-            var verbs = chain.HttpMethods.Select(x => x.ToUpper()).Join("/");
-
-            table.AddRow(chain.RoutePattern!.RawText.EscapeMarkup(), verbs, handlerCode.EscapeMarkup(),
-                chain.Description.EscapeMarkup());
+            var chainDescription = OptionsDescription.For(chain);
+            chainDescription.Title = chain.RoutePattern.RawText;
+            list.Rows.Add(chainDescription);
         }
 
-        AnsiConsole.Write(table);
-
-        return Task.CompletedTask;
+        return description;
     }
 
     public void DiscoverEndpoints(WolverineHttpOptions wolverineHttpOptions)
@@ -100,10 +90,12 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollectionWithServ
         var logger = Container.GetInstance<ILogger<HttpGraph>>();
 
         var calls = source.FindActions();
-        logger.LogInformation("Found {Count} Wolverine HTTP endpoints in assemblys {Assemblies}", calls.Length, _options.Assemblies.Select(x => x.GetName().Name).Join(", "));
+        logger.LogInformation("Found {Count} Wolverine HTTP endpoints in assemblys {Assemblies}", calls.Length,
+            _options.Assemblies.Select(x => x.GetName().Name).Join(", "));
         if (calls.Length == 0)
         {
-            logger.LogWarning("Found no Wolverine HTTP endpoints. If this is not expected, check the assemblies being scanned. See https://wolverine.netlify.app/guide/http/integration.html#discovery for more information");
+            logger.LogWarning(
+                "Found no Wolverine HTTP endpoints. If this is not expected, check the assemblies being scanned. See https://wolverine.netlify.app/guide/http/integration.html#discovery for more information");
         }
 
         _chains.AddRange(calls.Select(x => new HttpChain(x, this)));
@@ -112,14 +104,11 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollectionWithServ
         _optionsWriterPolicies.AddRange(wolverineHttpOptions.ResourceWriterPolicies);
 
         var policies = _options.Policies.OfType<IChainPolicy>();
-        foreach (var policy in policies)
-        {
-            policy.Apply(_chains, Rules, Container);
-        }
+        foreach (var policy in policies) policy.Apply(_chains, Rules, Container);
 
         foreach (var policy in wolverineHttpOptions.Policies) policy.Apply(_chains, Rules, Container);
 
-        _endpoints.AddRange(_chains.Select(x => x.BuildEndpoint()));
+        _endpoints.AddRange(_chains.Select(x => x.BuildEndpoint(wolverineHttpOptions.WarmUpRoutes)));
     }
 
     public override IChangeToken GetChangeToken()
@@ -127,7 +116,7 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollectionWithServ
         return this;
     }
 
-    public HttpChain? ChainFor(string httpMethod, [StringSyntax("Route")]string urlPattern)
+    public HttpChain? ChainFor(string httpMethod, [StringSyntax("Route")] string urlPattern)
     {
         return _chains.FirstOrDefault(x => x.HttpMethods.Contains(httpMethod) && x.RoutePattern!.RawText == urlPattern);
     }

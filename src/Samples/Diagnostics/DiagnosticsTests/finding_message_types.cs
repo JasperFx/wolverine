@@ -14,6 +14,12 @@ public class finding_message_types : IntegrationContext
     }
 
     [Fact]
+    public void should_find_explicit_messages()
+    {
+        theMessages.ShouldContain(typeof(PublishedMessage));
+    }
+
+    [Fact]
     public void should_find_all_message_types_from_handlers()
     {
         theMessages.ShouldContain(typeof(CreateInvoice));

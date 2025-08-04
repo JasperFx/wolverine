@@ -7,7 +7,7 @@ using Wolverine.Util.Dataflow;
 
 namespace Wolverine.Transports.Sending;
 
-internal abstract class SendingAgent : ISendingAgent, ISenderCallback, ISenderCircuit, IAsyncDisposable
+public abstract class SendingAgent : ISendingAgent, ISenderCallback, ISenderCircuit, IAsyncDisposable
 {
     private readonly ILogger _logger;
     private readonly IMessageTracker _messageLogger;
@@ -17,6 +17,7 @@ internal abstract class SendingAgent : ISendingAgent, ISenderCallback, ISenderCi
     protected readonly DurabilitySettings _settings;
     private CircuitWatcher? _circuitWatcher;
     private int _failureCount;
+    private readonly SemaphoreSlim _failureCountLock = new SemaphoreSlim(1, 1);
 
 
     public SendingAgent(ILogger logger, IMessageTracker messageLogger, ISender sender, DurabilitySettings settings,
@@ -34,6 +35,8 @@ internal abstract class SendingAgent : ISendingAgent, ISenderCallback, ISenderCi
 
         _sending = new RetryBlock<Envelope>(senderDelegate, logger, _settings.Cancellation, Endpoint.ExecutionOptions);
     }
+
+    public ISender Sender => _sender;
 
     public virtual ValueTask DisposeAsync()
     {
@@ -104,17 +107,14 @@ internal abstract class SendingAgent : ISendingAgent, ISenderCallback, ISenderCi
 
     TimeSpan ISenderCircuit.RetryInterval => Endpoint.PingIntervalForCircuitResume;
 
-    Task ISenderCircuit.ResumeAsync(CancellationToken cancellationToken)
+    async Task ISenderCircuit.ResumeAsync(CancellationToken cancellationToken)
     {
         using var activity = WolverineTracing.ActivitySource.StartActivity(WolverineTracing.SendingResumed);
         activity?.SetTag(WolverineTracing.EndpointAddress, Endpoint.Uri);
-        
-        _circuitWatcher?.SafeDispose();
-        _circuitWatcher = null;
 
-        Unlatch();
+        await MarkSuccessAsync();
 
-        return executeWithRetriesAsync(() => afterRestartingAsync(_sender));
+        await executeWithRetriesAsync(() => afterRestartingAsync(_sender));
     }
 
     public Endpoint Endpoint { get; }
@@ -261,35 +261,48 @@ internal abstract class SendingAgent : ISendingAgent, ISenderCallback, ISenderCi
             return;
         }
 
-        _failureCount++;
-
-        if (_failureCount >= Endpoint.FailuresBeforeCircuitBreaks)
+        await _failureCountLock.WaitAsync();
+        try
         {
-            using var activity = WolverineTracing.ActivitySource.StartActivity(WolverineTracing.SendingPaused);
-            activity?.SetTag(WolverineTracing.StopReason, WolverineTracing.TooManySenderFailures);
-            activity?.SetTag(WolverineTracing.EndpointAddress, Endpoint.Uri);
-            
-            await LatchAndDrainAsync();
-            await EnqueueForRetryAsync(batch);
+            _failureCount++;
 
-            _circuitWatcher = new CircuitWatcher(this, _settings.Cancellation);
+            if (_failureCount >= Endpoint.FailuresBeforeCircuitBreaks)
+            {
+                using var activity = WolverineTracing.ActivitySource.StartActivity(WolverineTracing.SendingPaused);
+                activity?.SetTag(WolverineTracing.StopReason, WolverineTracing.TooManySenderFailures);
+                activity?.SetTag(WolverineTracing.EndpointAddress, Endpoint.Uri);
+
+                await LatchAndDrainAsync();
+                await EnqueueForRetryAsync(batch);
+
+                _circuitWatcher ??= new CircuitWatcher(this, _settings.Cancellation);
+                return;
+            }
         }
-        else
+        finally
         {
-            foreach (var envelope in batch.Messages) await _sending.PostAsync(envelope);
+            _failureCountLock.Release();
         }
+
+        foreach (var envelope in batch.Messages) await _sending.PostAsync(envelope);
     }
 
     public abstract Task EnqueueForRetryAsync(OutgoingMessageBatch batch);
 
-    public Task MarkSuccessAsync()
+    public async Task MarkSuccessAsync()
     {
-        _failureCount = 0;
-        Unlatch();
-        _circuitWatcher?.SafeDispose();
-        _circuitWatcher = null;
-
-        return Task.CompletedTask;
+        await _failureCountLock.WaitAsync();
+        try
+        {
+            _failureCount = 0;
+            Unlatch();
+            _circuitWatcher?.SafeDispose();
+            _circuitWatcher = null;
+        }
+        finally
+        {
+            _failureCountLock.Release();
+        }
     }
 
     public Task MarkProcessingFailureAsync(Envelope outgoing, Exception? exception)

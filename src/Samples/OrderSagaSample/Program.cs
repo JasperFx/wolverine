@@ -1,8 +1,8 @@
 #region sample_bootstrapping_order_saga_sample
 
 using Marten;
-using Oakton;
-using Oakton.Resources;
+using JasperFx;
+using JasperFx.Resources;
 using OrderSagaSample;
 using Wolverine;
 using Wolverine.Marten;
@@ -10,7 +10,7 @@ using Wolverine.Marten;
 var builder = WebApplication.CreateBuilder(args);
 
 // Not 100% necessary, but enables some extra command line diagnostics
-builder.Host.ApplyOaktonExtensions();
+builder.Host.ApplyJasperFxExtensions();
 
 // Adding Marten
 builder.Services.AddMarten(opts =>
@@ -48,6 +48,6 @@ app.MapGet("/", (HttpResponse response) =>
 app.UseSwagger();
 app.UseSwaggerUI();
 
-return await app.RunOaktonCommands(args);
+return await app.RunJasperFxCommands(args);
 
 #endregion

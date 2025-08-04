@@ -1,6 +1,6 @@
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
-using Oakton.Resources;
+using JasperFx.Resources;
 using Spectre.Console;
 using Spectre.Console.Rendering;
 using Wolverine.Runtime;
@@ -16,7 +16,12 @@ public class BrokerResource : IStatefulResource
     {
         _transport = transport;
         _runtime = runtime;
+
+        SubjectUri = new Uri(runtime.Options.SubjectUri, "messagebroker");
     }
+
+    public Uri SubjectUri { get; }
+    public Uri ResourceUri => _transport.ResourceUri;
 
     public async Task Check(CancellationToken token)
     {

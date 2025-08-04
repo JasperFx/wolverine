@@ -13,6 +13,8 @@ namespace Wolverine.RavenDb.Internals;
 
 public class RavenDbPersistenceFrameProvider : IPersistenceFrameProvider
 {
+    public Frame[] DetermineFrameToNullOutMaybeSoftDeleted(Variable entity) => [];
+    
     public void ApplyTransactionSupport(IChain chain, IServiceContainer container)
     {
         if (!chain.Middleware.OfType<TransactionalFrame>().Any())
@@ -92,9 +94,9 @@ public class RavenDbPersistenceFrameProvider : IPersistenceFrameProvider
         return new DeleteDocumentFrame(saga);
     }
 
-    public Frame DetermineStoreFrame(Variable variable, IServiceContainer container)
+    public Frame DetermineStoreFrame(Variable saga, IServiceContainer container)
     {
-        return DetermineUpdateFrame(variable, container);
+        return DetermineUpdateFrame(saga, container);
     }
 
     public Frame DetermineDeleteFrame(Variable variable, IServiceContainer container)

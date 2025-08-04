@@ -12,8 +12,20 @@ namespace Wolverine.Runtime.Handlers;
 
 public enum InvokeResult
 {
+    /// <summary>
+    /// The message is successful
+    /// </summary>
     Success,
-    TryAgain
+    
+    /// <summary>
+    /// The message should be retried
+    /// </summary>
+    TryAgain,
+    
+    /// <summary>
+    /// The message should not be retried
+    /// </summary>
+    Stop
 }
 
 public interface IExecutor : IMessageInvoker
@@ -104,7 +116,6 @@ internal class Executor : IExecutor
         {
             activity?.SetStatus(ActivityStatusCode.Error, e.GetType().Name);
             _tracker.ExecutionFinished(envelope, e);
-            _logger.LogError(e, "Inline invocation of {Message} failed", envelope.Message);
             throw;
         }
         finally
@@ -164,6 +175,11 @@ internal class Executor : IExecutor
         try
         {
             await Handler.HandleAsync(context, combined.Token);
+            if (context.Envelope.ReplyRequested.IsNotEmpty())
+            {
+                await context.AssertAnyRequiredResponseWasGenerated();
+            }
+            
             Activity.Current?.SetStatus(ActivityStatusCode.Ok);
 
             _messageSucceeded(_logger, _messageTypeName, envelope.Id,
@@ -202,11 +218,16 @@ internal class Executor : IExecutor
         try
         {
             await Handler.HandleAsync(context, cancellation);
+            if (context.Envelope.ReplyRequested.IsNotEmpty())
+            {
+                await context.AssertAnyRequiredResponseWasGenerated();
+            }
+            
             return InvokeResult.Success;
         }
         catch (Exception e)
         {
-            _logger.LogError(e, "Invocation failed!");
+            _logger.LogError(e, "Invocation of {Message} failed!", context.Envelope.Message);
 
             var retry = _rules.TryFindInlineContinuation(e, context.Envelope);
             if (retry == null)
@@ -214,12 +235,9 @@ internal class Executor : IExecutor
                 throw;
             }
 
-            if (retry.Delay.HasValue)
-            {
-                await Task.Delay(retry.Delay.Value, cancellation).ConfigureAwait(false);
-            }
-
-            return InvokeResult.TryAgain;
+            return await retry
+                .ExecuteInlineAsync(context, context.Runtime, DateTimeOffset.UtcNow, Activity.Current, cancellation)
+                .ConfigureAwait(false);
         }
     }
 

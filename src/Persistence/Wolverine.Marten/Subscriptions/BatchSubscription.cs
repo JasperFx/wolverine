@@ -1,12 +1,11 @@
+using JasperFx.Events.Daemon;
+using JasperFx.Events.Projections;
 using Marten;
-using Marten.Events.Daemon;
-using Marten.Events.Daemon.Internals;
-using Marten.Events.Projections;
 
 namespace Wolverine.Marten.Subscriptions;
 
 /// <summary>
-/// Base class for batched Wolverine subscription
+///     Base class for batched Wolverine subscription
 /// </summary>
 public abstract class BatchSubscription : IWolverineSubscription, IEventFilterable
 {
@@ -16,22 +15,6 @@ public abstract class BatchSubscription : IWolverineSubscription, IEventFilterab
     protected BatchSubscription(string subscriptionName)
     {
         SubscriptionName = subscriptionName;
-    }
-
-    public string SubscriptionName { get; protected set; }
-
-    public uint SubscriptionVersion { get; set; } = 1;
-
-    void IWolverineSubscription.Filter(IEventFilterable filterable)
-    {
-        foreach (var eventType in _eventTypes)
-        {
-            filterable.IncludeType(eventType);
-        }
-
-        if (_streamType != null) filterable.FilterIncomingEventsOnStreamType(_streamType);
-
-        filterable.IncludeArchivedEvents = IncludeArchivedEvents;
     }
 
     public void IncludeType<T>()
@@ -51,13 +34,29 @@ public abstract class BatchSubscription : IWolverineSubscription, IEventFilterab
 
     public bool IncludeArchivedEvents { get; set; }
 
+    public string SubscriptionName { get; protected set; }
+
+    public uint SubscriptionVersion { get; set; } = 1;
+
+    void IWolverineSubscription.Filter(IEventFilterable filterable)
+    {
+        foreach (var eventType in _eventTypes) filterable.IncludeType(eventType);
+
+        if (_streamType != null)
+        {
+            filterable.FilterIncomingEventsOnStreamType(_streamType);
+        }
+
+        filterable.IncludeArchivedEvents = IncludeArchivedEvents;
+    }
+
     /// <summary>
-    /// Fine tune how the subscription will be processed at runtime
+    ///     Fine tune how the subscription will be processed at runtime
     /// </summary>
     public AsyncOptions Options { get; } = new();
 
     /// <summary>
-    /// The actual processing of the events
+    ///     The actual processing of the events
     /// </summary>
     /// <param name="page"></param>
     /// <param name="controller"></param>

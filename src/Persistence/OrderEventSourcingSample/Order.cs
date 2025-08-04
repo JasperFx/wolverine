@@ -1,8 +1,11 @@
+using JasperFx.Events;
 using Marten;
 using Marten.Events;
 using Microsoft.AspNetCore.Mvc;
 using Wolverine;
+using Wolverine.Attributes;
 using Wolverine.Marten;
+using Wolverine.Persistence;
 
 namespace OrderEventSourcingSample;
 
@@ -278,6 +281,42 @@ public static class MarkItemReadyHandler
     #endregion
 }
 
+public static class MarkItemReady2Handler
+{
+    #region sample_MarkItemReadyHandler_with_WriteAggregate
+    
+    public static IEnumerable<object> Handle(
+        // The command
+        MarkItemReady command, 
+        
+        // This time we'll mark the parameter as the "aggregate"
+        [WriteAggregate] Order order)
+    {
+        if (order.Items.TryGetValue(command.ItemName, out var item))
+        {
+            // Not doing this in a purist way here, but just
+            // trying to illustrate the Wolverine mechanics
+            item.Ready = true;
+
+            // Mark that the this item is ready
+            yield return new ItemReady(command.ItemName);
+        }
+        else
+        {
+            // Some crude validation
+            throw new InvalidOperationException($"Item {command.ItemName} does not exist in this order");
+        }
+
+        // If the order is ready to ship, also emit an OrderReady event
+        if (order.IsReadyToShip())
+        {
+            yield return new OrderReady();
+        }
+    }
+
+    #endregion
+}
+
 public record Data;
 
 public interface ISomeService
@@ -329,3 +368,55 @@ public static class MarkItemReadyHandler2
 
     #endregion
 }
+
+#region sample_validation_on_aggregate_being_missing_in_aggregate_handler_workflow
+
+public static class ValidatedMarkItemReadyHandler
+{
+    public static IEnumerable<object> Handle(
+        // The command
+        MarkItemReady command,
+
+        // In HTTP this will return a 404 status code and stop
+        // the request if the Order is not found
+        
+        // In message handlers, this will log that the Order was not found,
+        // then stop processing. The message would be effectively
+        // discarded
+        [WriteAggregate(Required = true)] Order order) => [];
+
+    [WolverineHandler]
+    public static IEnumerable<object> Handle2(
+        // The command
+        MarkItemReady command,
+
+        // In HTTP this will return a 400 status code and 
+        // write out a ProblemDetails response with a default message explaining
+        // the data that could not be found
+        [WriteAggregate(Required = true, OnMissing = OnMissing.ProblemDetailsWith400)] Order order) => [];
+    
+    [WolverineHandler]
+    public static IEnumerable<object> Handle3(
+        // The command
+        MarkItemReady command,
+
+        // In HTTP this will return a 404 status code and 
+        // write out a ProblemDetails response with a default message explaining
+        // the data that could not be found
+        [WriteAggregate(Required = true, OnMissing = OnMissing.ProblemDetailsWith404)] Order order) => [];
+
+    
+    [WolverineHandler]
+    public static IEnumerable<object> Handle4(
+        // The command
+        MarkItemReady command,
+
+        // In HTTP this will return a 400 status code and 
+        // write out a ProblemDetails response with a custom message.
+        // Wolverine will substitute in the order identity into the message for "{0}"
+        // In message handlers, Wolverine will log using your custom message then discard the message
+        [WriteAggregate(Required = true, OnMissing = OnMissing.ProblemDetailsWith404, MissingMessage = "Cannot find Order {0}")] Order order) => [];
+
+}
+
+#endregion

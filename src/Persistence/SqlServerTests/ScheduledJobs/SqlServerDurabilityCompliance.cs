@@ -47,15 +47,15 @@ public class SqlServerDurabilityCompliance : DurabilityComplianceContext<Trigger
         await conn.CloseAsync();
     }
 
-    protected override ItemCreated loadItem(IHost receiver, Guid id)
+    protected override async Task<ItemCreated> loadItemAsync(IHost receiver, Guid id)
     {
-        using var conn = new SqlConnection(Servers.SqlServerConnectionString);
+        await using var conn = new SqlConnection(Servers.SqlServerConnectionString);
         conn.Open();
 
-        var name = (string)CommandExtensions
-            .CreateCommand(conn, "select name from receiver.item_created where id = @id")
+        var name = (string)(await conn
+            .CreateCommand("select name from receiver.item_created where id = @id")
             .With("id", id)
-            .ExecuteScalar();
+            .ExecuteScalarAsync());
 
         if (name.IsEmpty())
         {
@@ -81,7 +81,7 @@ public class SqlServerDurabilityCompliance : DurabilityComplianceContext<Trigger
             var tx = conn.BeginTransaction();
 
             // "context" is an IMessageContext object
-            await context.EnlistInOutboxAsync(new DatabaseEnvelopeTransaction(context, tx));
+            await context.EnlistInOutboxAsync(new DatabaseEnvelopeTransaction((IMessageDatabase)context.Storage, tx));
 
             await action(context);
 

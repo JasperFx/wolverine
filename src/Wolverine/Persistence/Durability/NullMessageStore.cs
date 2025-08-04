@@ -1,4 +1,6 @@
+using JasperFx.Descriptors;
 using Wolverine.Logging;
+using Wolverine.Persistence.Durability.DeadLetterManagement;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.Scheduled;
@@ -12,10 +14,14 @@ public class NullMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IM
 {
     internal IScheduledJobProcessor? ScheduledJobs { get; set; }
 
+    public Uri Uri => new Uri($"{PersistenceConstants.AgentScheme}://null");
+
     public Task MarkIncomingEnvelopeAsHandledAsync(Envelope envelope)
     {
         return Task.CompletedTask;
     }
+
+    public string Name => "Nullo";
 
     public Task MarkIncomingEnvelopeAsHandledAsync(IReadOnlyList<Envelope> envelopes)
     {
@@ -129,6 +135,11 @@ public class NullMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IM
     public void Describe(TextWriter writer)
     {
         writer.WriteLine("No persistent envelope storage");
+    }
+
+    public DatabaseDescriptor Describe()
+    {
+        return new DatabaseDescriptor(this);
     }
 
     public ValueTask DisposeAsync()
@@ -274,19 +285,9 @@ internal class NullNodeAgentPersistence : INodeAgentPersistence
         return Task.CompletedTask;
     }
 
-    public Task<Guid?> MarkNodeAsLeaderAsync(Guid? originalLeader, Guid id)
-    {
-        return Task.FromResult(default(Guid?));
-    }
-
     public Task<WolverineNode?> LoadNodeAsync(Guid nodeId, CancellationToken cancellationToken)
     {
         return Task.FromResult(default(WolverineNode?));
-    }
-
-    public Task MarkHealthCheckAsync(Guid nodeId)
-    {
-        return Task.CompletedTask;
     }
 
     public Task MarkHealthCheckAsync(WolverineNode node, CancellationToken cancellationToken)
@@ -297,11 +298,6 @@ internal class NullNodeAgentPersistence : INodeAgentPersistence
     public Task OverwriteHealthCheckTimeAsync(Guid nodeId, DateTimeOffset lastHeartbeatTime)
     {
         return Task.CompletedTask;
-    }
-
-    public Task<IReadOnlyList<int>> LoadAllNodeAssignedIdsAsync()
-    {
-        return Task.FromResult((IReadOnlyList<int>)Array.Empty<int>());
     }
 
     public Task LogRecordsAsync(params NodeRecord[] records)

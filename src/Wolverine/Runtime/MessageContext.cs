@@ -2,7 +2,8 @@ using System.Diagnostics;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Logging;
-using Oakton;
+using JasperFx;
+using JasperFx.MultiTenancy;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.RemoteInvocation;
@@ -11,7 +12,7 @@ using Wolverine.Util;
 
 namespace Wolverine.Runtime;
 
-public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction, IEnvelopeLifecycle
+public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelopeTransaction, IEnvelopeLifecycle
 {
     private IChannelCallback? _channel;
 
@@ -25,7 +26,7 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
     // Used implicitly in codegen
     public MessageContext(IWolverineRuntime runtime, string tenantId) : base(runtime)
     {
-        TenantId = tenantId;
+        TenantId = runtime.Options.Durability.TenantIdStyle.MaybeCorrectTenantId(tenantId);
     }
 
     internal IList<Envelope> Scheduled { get; } = new List<Envelope>();
@@ -47,11 +48,9 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
             return;
         }
 
-        if (hasRequestedReply() && _channel is not InvocationCallback && isMissingRequestedReply())
-        {
-            await SendFailureAcknowledgementAsync(
-                $"No response was created for expected response '{Envelope.ReplyRequested}'");
-        }
+        if (!Outstanding.Any()) return;
+
+        await AssertAnyRequiredResponseWasGenerated();
 
         if (!Outstanding.Any())
         {
@@ -94,6 +93,15 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
         _outstanding.Clear();
 
         _hasFlushed = true;
+    }
+
+    public async Task AssertAnyRequiredResponseWasGenerated()
+    {
+        if (hasRequestedReply() && _channel is not InvocationCallback && isMissingRequestedReply())
+        {
+            await SendFailureAcknowledgementAsync(
+                $"No response was created for expected response '{Envelope.ReplyRequested}'");
+        }
     }
 
     public ValueTask CompleteAsync()
@@ -206,6 +214,9 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
             // If persistable, persist
             await Storage.Inbox.MoveToDeadLetterStorageAsync(Envelope, exception);
         }
+
+        // If this is Inline
+        await _channel.CompleteAsync(Envelope);
     }
 
     public Task RetryExecutionNowAsync()
@@ -215,7 +226,7 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
             throw new InvalidOperationException("No Envelope is active for this context");
         }
 
-        return Runtime.Pipeline.InvokeAsync(Envelope, _channel!);
+        return (_channel.Pipeline ?? Runtime.Pipeline).InvokeAsync(Envelope, _channel!);
     }
 
     public async ValueTask SendAcknowledgementAsync()
@@ -317,7 +328,7 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
     /// <param name="context"></param>
     /// <exception cref="ArgumentOutOfRangeException"></exception>
     /// <returns></returns>
-    public ValueTask RespondToSenderAsync(object response)
+    public override ValueTask RespondToSenderAsync(object response)
     {
         if (Envelope == null)
         {
@@ -332,8 +343,6 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
 
         return EndpointFor(Envelope.ReplyUri).SendAsync(response);
     }
-
-    public Envelope? Envelope { get; protected set; }
 
     internal async Task CopyToAsync(IEnvelopeTransaction other)
     {
@@ -469,6 +478,9 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
     internal void ReadEnvelope(Envelope? originalEnvelope, IChannelCallback channel)
     {
         Envelope = originalEnvelope ?? throw new ArgumentNullException(nameof(originalEnvelope));
+
+        originalEnvelope.MaybeCorrectReplyUri();
+        
         CorrelationId = originalEnvelope.CorrelationId;
         ConversationId = originalEnvelope.Id;
         _channel = channel;
@@ -516,5 +528,10 @@ public class MessageContext : MessageBus, IMessageContext, IEnvelopeTransaction,
         {
             outbound.ConversationId = Envelope.ConversationId == Guid.Empty ? Envelope.Id : Envelope.ConversationId;
         }
+    }
+
+    public void OverrideStorage(IMessageStore messageStore)
+    {
+        Storage = messageStore;
     }
 }

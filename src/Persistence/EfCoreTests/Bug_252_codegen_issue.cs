@@ -1,10 +1,13 @@
+using EfCoreTests.MultiTenancy;
 using IntegrationTests;
+using JasperFx;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using SharedPersistenceModels.Items;
 using Shouldly;
 using Weasel.Core;
 using Weasel.SqlServer;
@@ -36,6 +39,11 @@ public class Bug_252_codegen_issue
             .UseWolverine(opt =>
             {
                 opt.Services.AddDbContextWithWolverineIntegration<AppDbContext>(o =>
+                {
+                    o.UseSqlServer(Servers.SqlServerConnectionString);
+                });
+                
+                opt.Services.AddDbContextWithWolverineIntegration<ItemsDbContext>(o =>
                 {
                     o.UseSqlServer(Servers.SqlServerConnectionString);
                 });
@@ -73,6 +81,11 @@ public class Bug_252_codegen_issue
             .UseWolverine(opt =>
             {
                 opt.Services.AddDbContextWithWolverineIntegration<AppDbContext>(o =>
+                {
+                    o.UseSqlServer(Servers.SqlServerConnectionString);
+                });
+                
+                opt.Services.AddDbContextWithWolverineIntegration<ItemsDbContext>(o =>
                 {
                     o.UseSqlServer(Servers.SqlServerConnectionString);
                 });

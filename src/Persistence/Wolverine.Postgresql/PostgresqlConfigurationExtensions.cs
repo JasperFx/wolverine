@@ -9,29 +9,49 @@ namespace Wolverine.Postgresql;
 
 public static class PostgresqlConfigurationExtensions
 {
-    /// <summary>
-    ///     Register Postgresql backed message persistence to a known connection string
-    /// </summary>
-    /// <param name="options"></param>
-    /// <param name="connectionString"></param>
-    /// <param name="schemaName">Optional schema name for the Wolverine envelope storage</param>
-    public static void PersistMessagesWithPostgresql(this WolverineOptions options, string connectionString,
-        string? schemaName = null)
+    // TODO -- this should be in Weasel.Postgresql
+    internal static void AssertValidSchemaName(this string schemaName)
     {
+        if (schemaName.IsEmpty())
+            throw new ArgumentNullException(nameof(schemaName), "Schema Name cannot be empty or null");
+        
         if (schemaName.IsNotEmpty() && schemaName != schemaName.ToLowerInvariant())
         {
             throw new ArgumentOutOfRangeException(nameof(schemaName),
                 "The schema name must be in all lower case characters");
         }
 
-        options.Include<PostgresqlBackedPersistence>(o =>
+        if (schemaName.Contains("-"))
         {
-            o.Settings.ConnectionString = connectionString;
-            o.Settings.SchemaName = schemaName ?? "public";
-            o.Settings.DataSource = NpgsqlDataSource.Create(connectionString);
+            throw new ArgumentOutOfRangeException(nameof(schemaName),
+                "PostgreSQL schema names cannot include dashes. Use underscores instead");
+        }
+    }
+    
+    /// <summary>
+    ///     Register Postgresql backed message persistence to a known connection string
+    /// </summary>
+    /// <param name="options"></param>
+    /// <param name="connectionString"></param>
+    /// <param name="schemaName">Optional schema name for the Wolverine envelope storage</param>
+    public static IPostgresqlBackedPersistence PersistMessagesWithPostgresql(this WolverineOptions options, string connectionString,
+        string? schemaName = null)
+    {
+        var persistence = new PostgresqlBackedPersistence(options.Durability, options)
+        {
+            ConnectionString = connectionString,
+            AlreadyIncluded = true
+        };
 
-            o.Settings.ScheduledJobLockId = $"{schemaName ?? "public"}:scheduled-jobs".GetDeterministicHashCode();
-        });
+        if (schemaName.IsNotEmpty())
+        {
+            schemaName.AssertValidSchemaName();
+            persistence.EnvelopeStorageSchemaName = schemaName;
+        }
+
+        options.Include(persistence);
+
+        return persistence;
     }
 
     /// <summary>
@@ -40,22 +60,25 @@ public static class PostgresqlConfigurationExtensions
     /// <param name="options"></param>
     /// <param name="dataSource"></param>
     /// <param name="schemaName">Optional schema name for the Wolverine envelope storage</param>
-    public static void PersistMessagesWithPostgresql(this WolverineOptions options, NpgsqlDataSource dataSource,
+    public static IPostgresqlBackedPersistence PersistMessagesWithPostgresql(this WolverineOptions options, NpgsqlDataSource dataSource,
         string? schemaName = null)
     {
-        if (schemaName.IsNotEmpty() && schemaName != schemaName.ToLowerInvariant())
+        var persistence = new PostgresqlBackedPersistence(options.Durability, options)
         {
-            throw new ArgumentOutOfRangeException(nameof(schemaName),
-                "The schema name must be in all lower case characters");
+            DataSource = dataSource
+        };
+
+        if (schemaName.IsNotEmpty())
+        {
+            schemaName.AssertValidSchemaName();
+            persistence.EnvelopeStorageSchemaName = schemaName;
         }
 
-        options.Include<PostgresqlBackedPersistence>(o =>
-        {
-            o.Settings.SchemaName = schemaName ?? "public";
-            o.Settings.DataSource = dataSource;
+        options.Include(persistence);
 
-            o.Settings.ScheduledJobLockId = $"{schemaName ?? "public"}:scheduled-jobs".GetDeterministicHashCode();
-        });
+        persistence.AlreadyIncluded = true;
+
+        return persistence;
     }
 
     /// <summary>
@@ -65,51 +88,22 @@ public static class PostgresqlConfigurationExtensions
     /// <param name="connectionString"></param>
     /// <param name="schema"></param>
     /// <returns></returns>
+    [Obsolete("Prefer PersistMessagesWithPostgresql().EnableMessageTransport()")]
     public static PostgresqlPersistenceExpression UsePostgresqlPersistenceAndTransport(this WolverineOptions options,
         string connectionString,
         string? schema = null,
         string? transportSchema = "wolverine_queues")
     {
-        var extension = new PostgresqlBackedPersistence
-        {
-            Settings =
-            {
-                ConnectionString = connectionString
-            }
-        };
+        options.PersistMessagesWithPostgresql(connectionString, schema);
 
-        if (schema.IsNotEmpty())
+        if (transportSchema != null)
         {
-            extension.Settings.SchemaName = schema;
+            transportSchema.AssertValidSchemaName();
         }
-        else
-        {
-            schema = "public";
-        }
-
-        extension.Settings.ScheduledJobLockId = $"{schema}:scheduled-jobs".GetDeterministicHashCode();
-        options.Include(extension);
-
-        options.Include<PostgresqlBackedPersistence>(x =>
-        {
-            x.Settings.ConnectionString = connectionString;
-
-            if (schema.IsNotEmpty())
-            {
-                x.Settings.SchemaName = schema;
-            }
-            else
-            {
-                schema = "public";
-
-            }
-
-            x.Settings.ScheduledJobLockId = $"{schema}:scheduled-jobs".GetDeterministicHashCode();
-        });
-
+        
         var transport = options.Transports.GetOrCreate<PostgresqlTransport>();
         transport.MessageStorageSchemaName = schema ?? "public";
-        
+
         if (transportSchema.IsNotEmpty())
         {
             transport.TransportSchemaName = transportSchema;

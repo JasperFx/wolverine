@@ -1,10 +1,12 @@
 ﻿using System.Reflection;
+using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
 using Marten;
 using Marten.Events;
 using Marten.Metadata;
+using Marten.Storage.Metadata;
 using Wolverine.Configuration;
 using Wolverine.Marten.Codegen;
 using Wolverine.Persistence;
@@ -24,7 +26,9 @@ internal class MartenPersistenceFrameProvider : IPersistenceFrameProvider
     public Type DetermineSagaIdType(Type sagaType, IServiceContainer container)
     {
         var store = container.GetInstance<IDocumentStore>();
-        return store.Options.FindOrResolveDocumentType(sagaType).IdType;
+        var documentType = store.Options.FindOrResolveDocumentType(sagaType);
+
+        return documentType.IdType;
     }
 
     public void ApplyTransactionSupport(IChain chain, IServiceContainer container)
@@ -63,8 +67,8 @@ internal class MartenPersistenceFrameProvider : IPersistenceFrameProvider
         if (chain.ReturnVariablesOfType<IMartenOp>().Any()) return true;
 
         var serviceDependencies = chain
-            .ServiceDependencies(container, new []{typeof(IDocumentSession), typeof(IQuerySession)}).ToArray();
-        return serviceDependencies.Any(x => x == typeof(IDocumentSession) || x.Closes(typeof(IEventStream<>)));
+            .ServiceDependencies(container, new []{typeof(IDocumentSession), typeof(IQuerySession), typeof(IDocumentOperations)}).ToArray();
+        return serviceDependencies.Any(x => x == typeof(IDocumentSession) || x == typeof(IDocumentOperations) || x.Closes(typeof(IEventStream<>)));
     }
 
     public Frame DetermineLoadFrame(IServiceContainer container, Type sagaType, Variable sagaId)
@@ -97,9 +101,9 @@ internal class MartenPersistenceFrameProvider : IPersistenceFrameProvider
         return new DocumentSessionOperationFrame(saga, nameof(IDocumentSession.Delete));
     }
 
-    public Frame DetermineStoreFrame(Variable variable, IServiceContainer container)
+    public Frame DetermineStoreFrame(Variable saga, IServiceContainer container)
     {
-        return new DocumentSessionOperationFrame(variable, nameof(IDocumentSession.Store));
+        return new DocumentSessionOperationFrame(saga, nameof(IDocumentSession.Store));
     }
 
     public Frame DetermineDeleteFrame(Variable variable, IServiceContainer container)
@@ -118,6 +122,46 @@ internal class MartenPersistenceFrameProvider : IPersistenceFrameProvider
         return call;
     }
 
+    public Frame[] DetermineFrameToNullOutMaybeSoftDeleted(Variable entity)
+    {
+        return [new SetVariableToNullIfSoftDeletedFrame(entity)];
+    }
+}
+
+internal class SetVariableToNullIfSoftDeletedFrame : AsyncFrame
+{
+    private Variable _entity;
+    private Variable _documentSession;
+    private Variable _entityMetadata;
+
+    public SetVariableToNullIfSoftDeletedFrame(Variable entity)
+    {
+        _entity = entity;
+    }
+
+    public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        writer.WriteComment("If the document is soft deleted, set the variable to null");
+
+        writer.Write($"var {_entityMetadata.Usage} = {_entity.Usage} != null");
+        writer.Write($"    ? await {_documentSession.Usage}.{nameof(IDocumentSession.MetadataForAsync)}({_entity.Usage}).ConfigureAwait(false)");
+        writer.Write($"    : null;");
+            
+        writer.Write($"BLOCK:if ({_entityMetadata.Usage}?.{nameof(DocumentMetadata.Deleted)} == true)");
+        writer.Write($"{_entity.Usage} = null;");
+        writer.FinishBlock();
+            
+        Next?.GenerateCode(method, writer);
+    }
+
+    public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
+    {
+        _documentSession = chain.FindVariable(typeof(IDocumentSession));
+        yield return _documentSession;
+
+        _entityMetadata = new Variable(typeof(DocumentMetadata), _entity.Usage + "Metadata", this);
+        yield return _entityMetadata;
+    }
 }
 
 public static class MartenStorageActionApplier

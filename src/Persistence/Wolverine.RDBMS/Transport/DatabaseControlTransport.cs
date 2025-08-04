@@ -1,6 +1,6 @@
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
-using Oakton.Resources;
+using JasperFx.Resources;
 using Weasel.Core;
 using Wolverine.Configuration;
 using Wolverine.Runtime;

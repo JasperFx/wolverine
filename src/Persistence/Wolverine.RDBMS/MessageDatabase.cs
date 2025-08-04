@@ -1,10 +1,15 @@
 using System.Data;
 using System.Data.Common;
+using JasperFx.Core;
+using JasperFx.Descriptors;
 using Microsoft.Extensions.Logging;
 using Weasel.Core;
 using Weasel.Core.Migrations;
+using Wolverine.Persistence;
 using Wolverine.Persistence.Durability;
+using Wolverine.Persistence.Sagas;
 using Wolverine.RDBMS.Polling;
+using Wolverine.RDBMS.Sagas;
 using Wolverine.RDBMS.Transport;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
@@ -15,7 +20,7 @@ using DbCommandBuilder = Weasel.Core.DbCommandBuilder;
 namespace Wolverine.RDBMS;
 
 public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
-    IMessageDatabase, IMessageInbox, IMessageOutbox, IMessageStoreAdmin, IDeadLetters where T : DbConnection, new()
+    IMessageDatabase, IMessageInbox, IMessageOutbox, IMessageStoreAdmin, IDeadLetters, ISagaSupport where T : DbConnection, new()
 {
     // ReSharper disable once InconsistentNaming
     protected readonly CancellationToken _cancellation;
@@ -26,14 +31,15 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
     private string _schemaName;
 
     protected MessageDatabase(DatabaseSettings databaseSettings, DbDataSource dataSource, DurabilitySettings settings,
-        ILogger logger, Migrator migrator, string defaultSchema) : base(new MigrationLogger(logger),
+        ILogger logger, Migrator migrator, IDatabaseProvider provider) : base(new MigrationLogger(logger),
         databaseSettings.AutoCreate, migrator,
         "WolverineEnvelopeStorage", () => (T)dataSource.CreateConnection())
     {
+        Provider = provider;
         _settings = databaseSettings;
         _dataSource = dataSource ?? throw new ArgumentNullException(nameof(dataSource));
         Logger = logger;
-        _schemaName = databaseSettings.SchemaName ?? defaultSchema;
+        _schemaName = databaseSettings.SchemaName ?? settings.MessageStorageSchemaName ?? provider.DefaultDatabaseSchemaName;
 
         IncomingFullName = $"{SchemaName}.{DatabaseConstants.IncomingTable}";
         OutgoingFullName = $"{SchemaName}.{DatabaseConstants.OutgoingTable}";
@@ -53,8 +59,37 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
         Nodes = buildNodeStorage(databaseSettings, dataSource)!;
 
         DataSource = dataSource;
+
+        var descriptor = Describe();
+        
+        var parts = new List<string>
+        {
+            descriptor.Engine.ToLowerInvariant(),
+            descriptor.ServerName,
+            descriptor.DatabaseName,
+            _schemaName
+        };
+
+        if (databaseSettings.IsMain)
+        {
+            SubjectUri = new Uri("wolverine://messages/main");
+        }
+
+        Uri = new Uri($"{PersistenceConstants.AgentScheme}://{parts.Where(x => x.IsNotEmpty()).Join("/")}");
     }
 
+    public override string ToString()
+    {
+        return $"{Uri} ({Name})";
+    }
+
+    public IAgent BuildAgent(IWolverineRuntime runtime)
+    {
+        return new DurabilityAgent(Name, runtime, this);
+    }
+
+    public Uri Uri { get; protected set; } = new Uri("null://null");
+    
     public IAdvisoryLock AdvisoryLock { get; protected set; }
 
     public ILogger Logger { get; }
@@ -69,7 +104,7 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
 
     public DurabilitySettings Durability { get; }
 
-    public bool IsMaster => Settings.IsMaster;
+    public bool IsMain => Settings.IsMain;
 
     public string Name { get; set; } = TransportConstants.Default;
 
@@ -124,7 +159,7 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
 
         _batcher = new DatabaseBatcher(this, runtime, runtime.Options.Durability.Cancellation);
 
-        if (Settings.IsMaster && runtime.Options.Transports.NodeControlEndpoint == null && runtime.Options.Durability.Mode == DurabilityMode.Balanced)
+        if (Settings.IsMain && runtime.Options.Transports.NodeControlEndpoint == null && runtime.Options.Durability.Mode == DurabilityMode.Balanced)
         {
             var transport = new DatabaseControlTransport(this, runtime.Options);
             runtime.Options.Transports.Add(transport);
@@ -132,6 +167,8 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
             runtime.Options.Transports.NodeControlEndpoint = transport.ControlEndpoint;
         }
     }
+
+    public Uri SubjectUri { get; set; } = new Uri("wolverine://messages");
 
     public IMessageStoreAdmin Admin => this;
 
@@ -237,4 +274,27 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
     {
         return new DurabilityAgentFamily(runtime);
     }
+
+    public async ValueTask<ISagaStorage<TId, TSaga>> EnrollAndFetchSagaStorage<TId, TSaga>(MessageContext context) where TSaga : Saga
+    {
+        var conn = CreateConnection();
+        await conn.OpenAsync(_cancellation);
+        try
+        {
+            var tx = await conn.BeginTransactionAsync(_cancellation);
+        
+            var schema = SagaSchemaFor<TSaga, TId>();
+
+            var transaction = new DatabaseEnvelopeTransaction(this, tx);
+            await context.EnlistInOutboxAsync(transaction);
+            return new DatabaseSagaStorage<TId, TSaga>(conn, tx, schema);
+        }
+        catch (Exception)
+        {
+            await conn.CloseAsync();
+            throw;
+        }
+    }
+
+    public abstract IDatabaseSagaSchema<TId, TSaga> SagaSchemaFor<TSaga, TId>() where TSaga : Saga;
 }

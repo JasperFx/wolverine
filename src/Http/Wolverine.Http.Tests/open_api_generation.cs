@@ -59,7 +59,7 @@ public class try_build_chain
     public void create_chain()
     {
         var chain = HttpChain.ChainFor<OpenApiEndpoints>(x => x.GetJson());
-        var endpoint = chain.BuildEndpoint();
+        var endpoint = chain.BuildEndpoint(RouteWarmup.Lazy);
 
         Debug.WriteLine(endpoint);
 

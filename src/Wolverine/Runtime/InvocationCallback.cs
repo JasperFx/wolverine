@@ -10,6 +10,8 @@ internal class InvocationCallback : IChannelCallback, ISupportNativeScheduling, 
     {
     }
 
+    public IHandlerPipeline? Pipeline => null;
+
     public ValueTask CompleteAsync(Envelope envelope)
     {
         return ValueTask.CompletedTask;

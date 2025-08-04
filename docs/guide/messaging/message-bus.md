@@ -57,6 +57,23 @@ The only practical difference between `SendAsync()` and `PublishAsync()` is that
 one subscriber for the message and throw an exception if there is not.
 :::
 
+## Accessing IMessageBus from IoC
+
+::: tip
+This applies to `IHostedService` registrations that use Wolverine. 
+:::
+
+`IMessageBus` is registered as `Scoped` in your IoC container. In most common application scenarios you can just let your IoC container inject
+an instance into your services, but if you ever need to use `IMessageBus` outside of a scoped container (AspNetCore requests or Wolverine message
+handlers), you might run into trouble with the built in `ServiceProvider` not letting you resolve a `Scoped` service from
+the root container or injected into a `Singleton` scoped service.
+
+Not to worry! You have a couple options:
+
+1. Switch to using [Lamar](https://jasperfx.github.io/lamar) as your IoC container that doesn't have the fussy, whiney limitations about scoping that `ServiceProvider` does and generally works a little better with Wolverine anyway
+2. Follow the admittedly annoying steps in [this article about using `Scoped` services from `Singleton` services](https://learn.microsoft.com/en-us/dotnet/core/extensions/scoped-service)
+3. Inject `IWolverineRuntime`, and build `new MessageBus(runtime)` instances at will.
+
 ## Invoking Message Execution
 
 To execute the message processing immediately and wait until it's finished, use this syntax:
@@ -162,7 +179,7 @@ public class CreateItemCommandHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/Bugs/Bug_305_invoke_async_with_return_not_publishing_with_tuple_return_value.cs#L39-L60' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_alwayspublishresponse' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/Bugs/Bug_305_invoke_async_with_return_not_publishing_with_tuple_return_value.cs#L65-L86' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_alwayspublishresponse' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Disabling Remote Request/Reply
@@ -185,7 +202,7 @@ using var host = Host.CreateDefaultBuilder()
         opts.EnableRemoteInvocation = false;
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/BootstrappingSamples.cs#L24-L35' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disabling_remote_invocation' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/BootstrappingSamples.cs#L25-L36' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disabling_remote_invocation' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Sending or Publishing Messages

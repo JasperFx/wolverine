@@ -1,8 +1,8 @@
-using JasperFx.Core;
+using ImTools;
 using JasperFx.Core.Reflection;
+using JasperFx.Events.Daemon;
+using JasperFx.Events.Projections;
 using Marten;
-using Marten.Events.Daemon;
-using Marten.Events.Daemon.Internals;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Runtime.Routing;
@@ -51,7 +51,10 @@ internal class InlineInvoker : BatchSubscription
 
     private IMessageInvoker invokerForEventType(Type wrappedType)
     {
-        if (_invokers.TryFind(wrappedType, out var invoker)) return invoker;
+        if (_invokers.TryFind(wrappedType, out var invoker))
+        {
+            return invoker;
+        }
 
         invoker = _runtime.FindInvoker(wrappedType);
         if (invoker is not NoHandlerExecutor)

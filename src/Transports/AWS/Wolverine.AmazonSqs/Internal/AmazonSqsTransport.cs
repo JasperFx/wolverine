@@ -15,11 +15,18 @@ public class AmazonSqsTransport : BrokerTransport<AmazonSqsQueue>
 
     public const char Separator = '-';
 
-    public AmazonSqsTransport() : base("sqs", "Amazon SQS")
+    public AmazonSqsTransport(string protocol) : base(protocol, "Amazon SQS")
     {
         Queues = new LightweightCache<string, AmazonSqsQueue>(name => new AmazonSqsQueue(name, this));
         IdentifierDelimiter = "-";
     }
+
+    public AmazonSqsTransport() : this("sqs")
+    {
+
+    }
+
+    public override Uri ResourceUri => new Uri(Config.ServiceURL);
 
     internal AmazonSqsTransport(IAmazonSQS client) : this()
     {

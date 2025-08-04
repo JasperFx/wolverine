@@ -3,6 +3,7 @@ using JasperFx.Core.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using Weasel.Core.Migrations;
 using Wolverine.Configuration;
+using Wolverine.RDBMS;
 using Wolverine.SqlServer.Transport;
 
 namespace Wolverine.SqlServer;
@@ -14,45 +15,27 @@ public static class SqlServerConfigurationExtensions
     /// </summary>
     /// <param name="settings"></param>
     /// <param name="connectionString"></param>
-    /// <param name="schema"></param>
-    public static void PersistMessagesWithSqlServer(this WolverineOptions options, string connectionString,
+    /// <param name="schema">Potentially override the schema name for Wolverine envelope storage. Default is to use WolverineOptions.Durability.MessageStorageSchemaName ?? "dbo"</param>
+    public static ISqlServerBackedPersistence PersistMessagesWithSqlServer(this WolverineOptions options, string connectionString,
         string? schema = null)
     {
         var extension = new SqlServerBackedPersistence
         {
-            Settings =
-            {
-                ConnectionString = connectionString
-            }
+            ConnectionString = connectionString
         };
 
         if (schema.IsNotEmpty())
         {
-            extension.Settings.SchemaName = schema;
+            extension.EnvelopeStorageSchemaName = schema;
         }
         else
         {
-            extension.Settings.SchemaName = "dbo";
+            extension.EnvelopeStorageSchemaName = options.Durability.MessageStorageSchemaName ?? "dbo";
         }
-
-        extension.Settings.ScheduledJobLockId = $"{schema}:scheduled-jobs".GetDeterministicHashCode();
+        
         options.Include(extension);
 
-        options.Include<SqlServerBackedPersistence>(x =>
-        {
-            x.Settings.ConnectionString = connectionString;
-
-            if (schema.IsNotEmpty())
-            {
-                x.Settings.SchemaName = schema;
-            }
-            else
-            {
-                x.Settings.SchemaName = "dbo";
-            }
-
-            x.Settings.ScheduledJobLockId = $"{schema}:scheduled-jobs".GetDeterministicHashCode();
-        });
+        return extension;
     }
 
     /// <summary>
@@ -62,47 +45,21 @@ public static class SqlServerConfigurationExtensions
     /// <param name="connectionString"></param>
     /// <param name="schema"></param>
     /// <returns></returns>
+    [Obsolete("Prefer PersistMessagesWithSqlServer().EnableMessageTransport()")]
     public static SqlServerPersistenceExpression UseSqlServerPersistenceAndTransport(this WolverineOptions options,
         string connectionString,
         string? schema = null,
         string? transportSchema = null)
     {
-        var extension = new SqlServerBackedPersistence();
-        extension.Settings.ConnectionString = connectionString;
-
-        if (schema.IsNotEmpty())
-        {
-            extension.Settings.SchemaName = schema;
-        }
-        else
-        {
-            schema = "dbo";
-
-        }
+        options.PersistMessagesWithSqlServer(connectionString, schema);
 
         options.Services.AddTransient<IDatabase, SqlServerTransportDatabase>();
 
-        extension.Settings.ScheduledJobLockId = $"{schema}:scheduled-jobs".GetDeterministicHashCode();
-        options.Include(extension);
-
-        options.Include<SqlServerBackedPersistence>(x =>
+        var transport = new SqlServerTransport(new DatabaseSettings
         {
-            x.Settings.ConnectionString = connectionString;
-
-            if (schema.IsNotEmpty())
-            {
-                x.Settings.SchemaName = schema;
-            }
-            else
-            {
-                schema = "dbo";
-
-            }
-
-            x.Settings.ScheduledJobLockId = $"{schema}:scheduled-jobs".GetDeterministicHashCode();
-        });
-
-        var transport = new SqlServerTransport(extension.Settings, transportSchema);
+            ConnectionString = connectionString,
+            SchemaName = schema ?? "dbo"
+        }, transportSchema);
         
         options.Transports.Add(transport);
 

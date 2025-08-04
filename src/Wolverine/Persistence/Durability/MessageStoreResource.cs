@@ -1,4 +1,4 @@
-using Oakton.Resources;
+using JasperFx.Resources;
 using Spectre.Console;
 using Spectre.Console.Rendering;
 
@@ -8,10 +8,15 @@ internal class MessageStoreResource : IStatefulResource
 {
     private readonly IMessageStore _persistence;
 
-    public MessageStoreResource(IMessageStore persistence)
+    public MessageStoreResource(WolverineOptions options, IMessageStore persistence)
     {
         _persistence = persistence;
+        SubjectUri = new Uri(options.SubjectUri, "messagestore");
+        ResourceUri = persistence.Uri;
     }
+
+    public Uri SubjectUri { get; }
+    public Uri ResourceUri { get; }
 
     public Task Check(CancellationToken token)
     {

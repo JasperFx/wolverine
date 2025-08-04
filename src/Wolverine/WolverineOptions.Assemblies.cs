@@ -27,13 +27,11 @@ public sealed partial class WolverineOptions
         get => _applicationAssembly;
         set
         {
-            deriveServiceName();
-
             _applicationAssembly = value;
 
             if (value != null)
             {
-                HandlerGraph.Discovery.Assemblies.Add(value);
+                HandlerGraph.Discovery.Assemblies.Fill(value);
 
                 // ReSharper disable once ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract
                 if (CodeGeneration != null)
@@ -59,7 +57,8 @@ public sealed partial class WolverineOptions
         var wolverineFrame = frames.LastOrDefault(x =>
             x.HasMethod() && x.GetMethod()?.DeclaringType?.Assembly.GetName().Name == "Wolverine");
 
-        var index = frames.IndexOf(wolverineFrame);
+        var index = Array.IndexOf(frames, wolverineFrame);
+
         for (var i = index; i < frames.Length; i++)
         {
             var candidate = frames[i];

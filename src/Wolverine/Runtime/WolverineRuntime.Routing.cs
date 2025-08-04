@@ -1,3 +1,4 @@
+using ImTools;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Wolverine.Runtime.Agents;
@@ -121,6 +122,8 @@ public partial class WolverineRuntime
         var router = routes.Count != 0
             ? typeof(MessageRouter<>).CloseAndBuildAs<IMessageRouter>(this, routes, messageType)
             : typeof(EmptyMessageRouter<>).CloseAndBuildAs<IMessageRouter>(this, messageType);
+
+        Observer.MessageRouted(messageType, router);
 
         _messageTypeRouting = _messageTypeRouting.AddOrUpdate(messageType, router);
 

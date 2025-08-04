@@ -23,6 +23,7 @@ internal abstract class RabbitMqChannelAgent : IAsyncDisposable
     public ILogger Logger { get; }
 
     internal AgentState State { get; private set; } = AgentState.Disconnected;
+    internal bool IsConnected => State == AgentState.Connected;
 
     internal IChannel? Channel { get; set; }
 
@@ -32,16 +33,16 @@ internal abstract class RabbitMqChannelAgent : IAsyncDisposable
         await teardownChannel();
     }
 
-    internal async Task EnsureConnected()
+    internal async Task EnsureInitiated()
     {
-        if (State == AgentState.Connected)
+        if (Channel is not null)
         {
             return;
         }
 
         await Locker.WaitAsync();
         
-        if (State == AgentState.Connected)
+        if (Channel is not null)
         {
             return;
         }
@@ -78,6 +79,8 @@ internal abstract class RabbitMqChannelAgent : IAsyncDisposable
 
     private Task ChannelOnModelShutdown(object? sender, ShutdownEventArgs e)
     {
+        State = AgentState.Disconnected;
+
         if (e.Initiator == ShutdownInitiator.Application) return Task.CompletedTask;
 
         if (e.Exception != null)
@@ -86,8 +89,12 @@ internal abstract class RabbitMqChannelAgent : IAsyncDisposable
                 "Unexpected channel shutdown for Rabbit MQ. Wolverine will attempt to restart...");
         }
 
-        _ = EnsureConnected();
-        
+        return Task.CompletedTask;
+    }
+
+    internal virtual Task ReconnectedAsync()
+    {
+        State = AgentState.Connected;
         return Task.CompletedTask;
     }
 

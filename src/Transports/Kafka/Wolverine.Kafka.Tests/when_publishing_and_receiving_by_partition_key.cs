@@ -1,7 +1,7 @@
 ﻿using Microsoft.Extensions.Hosting;
 using NSubstitute;
 using NSubstitute.ReceivedExtensions;
-using Oakton.Resources;
+using JasperFx.Resources;
 using Shouldly;
 using Wolverine.ComplianceTests.Compliance;
 using Wolverine.Tracking;
@@ -26,7 +26,7 @@ public class when_publishing_and_receiving_by_partition_key : IAsyncLifetime
         _sender = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.UseKafka("localhost:19092").AutoProvision();
+                opts.UseKafka("localhost:9092").AutoProvision();
                 opts.Policies.DisableConventionalLocalRouting();
 
                 opts.Services.AddResourceSetupOnStartup();
@@ -40,7 +40,7 @@ public class when_publishing_and_receiving_by_partition_key : IAsyncLifetime
         _receiver = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.UseKafka("localhost:19092").AutoProvision();
+                opts.UseKafka("localhost:9092").AutoProvision();
                 opts.ListenToKafkaTopic("colorswithkey")
                 .ProcessInline();
 
@@ -61,8 +61,9 @@ public class when_publishing_and_receiving_by_partition_key : IAsyncLifetime
         session.Received.SingleMessage<ColorMessage>()
             .Color.ShouldBe("tortoise");
     }
+    
     [Fact]
-    public async Task received_message_with_key()
+    public async Task received_message_with_key_and_offset()
     {
         var session = await _sender.TrackActivity()
             .AlsoTrack(_receiver)
@@ -71,7 +72,15 @@ public class when_publishing_and_receiving_by_partition_key : IAsyncLifetime
             {
                 PartitionKey = "key1"
             });
-        session.Received.SingleEnvelope<ColorMessage>().PartitionKey.ShouldBe("key1");
+        var singleEnvelope = session.Received.SingleEnvelope<ColorMessage>();
+        singleEnvelope.PartitionKey.ShouldBe("key1");
+        singleEnvelope.Offset.ShouldBeGreaterThan(0);
+    }
+
+    [Fact]
+    public async Task receive_message_with_group_id()
+    {
+
     }
 
     public async Task DisposeAsync()

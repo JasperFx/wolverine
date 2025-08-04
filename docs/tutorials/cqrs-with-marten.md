@@ -17,7 +17,7 @@ Let's get the entire "Critter Stack" (Wolverine + [Marten](https://martendb.io))
 
 We'll be using the [IncidentService](https://github.com/jasperfx/wolverine/tree/main/src/Samples/IncidentService) example service to show an example of using Wolverine with Marten in a headless
 web service with its accompanying test harness. The problem domain is pretty familiar to all of us developers because our
-lives are somewhat managed by issue tracking systems of some soft. Starting with some [Event Storming](https://jeremydmiller.com/2023/11/28/building-a-critter-stack-application-event-storming/), the first couple
+lives are somewhat managed by issue tracking systems of some sort. Starting with some [Event Storming](https://jeremydmiller.com/2023/11/28/building-a-critter-stack-application-event-storming/), the first couple
 events and triggering commands might be something like this:
 
 ![Event Storming](/event-storming.png)
@@ -84,7 +84,7 @@ return await app.RunOaktonCommands(args);
 ::: tip
 In Marten parlance, a "Projection" is the mechanism of taking raw Marten events and "projecting" them
 into some kind of view, which could be a .NET object that may or may not be persisted to the database as
-JSON (PostgreSQL JSONB to be precise) or [flat table projections](/events/projections/flat) that write to old fashioned relational database
+JSON (PostgreSQL JSONB to be precise) or [flat table projections](https://martendb.io/events/projections/flat.html) that write to old fashioned relational database
 tables.
 
 The phrase "aggregate" is hopelessly overloaded in Event Sourcing and DDD communities. In Marten world we mostly
@@ -116,6 +116,7 @@ public class Incident
     {
     }
 
+    public void Apply(IncidentLogged _) { }
     public void Apply(AgentRespondedToIncident _) => HasOutstandingResponseToCustomer = false;
 
     public void Apply(CustomerRespondedToIncident _) => HasOutstandingResponseToCustomer = true;
@@ -129,7 +130,7 @@ public class Incident
     public bool ShouldDelete(Archived @event) => true;
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/IncidentService/IncidentService/Incident.cs#L74-L107' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_incident_aggregate' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/IncidentService/IncidentService/Incident.cs#L75-L109' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_incident_aggregate' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: info
@@ -168,7 +169,7 @@ public record IncidentClosed(
     Guid ClosedBy
 );
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/IncidentService/IncidentService/Incident.cs#L5-L31' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_incident_events' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/IncidentService/IncidentService/Incident.cs#L6-L32' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_incident_events' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Many people -- myself included -- prefer to use `record` types for the event types. I would deviate from that though
@@ -344,7 +345,7 @@ As a little tip, I've added this bit of marker code to the very bottom of our `P
 // application in a test harness project. Only a convenience
 public partial class Program{}
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/IncidentService/IncidentService/Program.cs#L68-L74' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_program_marker' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/IncidentService/IncidentService/Program.cs#L76-L82' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_program_marker' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Having that above, I'll switch to the test harness project and create a shared fixture to bootstrap
@@ -359,7 +360,7 @@ public class AppFixture : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-        OaktonEnvironment.AutoStartHost = true;
+        JasperFxEnvironment.AutoStartHost = true;
 
         // This is bootstrapping the actual application using
         // its implied Program.Main() set up
@@ -384,7 +385,7 @@ public class AppFixture : IAsyncLifetime
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/IncidentService/IncidentService.Tests/IntegrationContext.cs#L13-L46' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_appfixture_in_incident_service_testing' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/IncidentService/IncidentService.Tests/IntegrationContext.cs#L14-L47' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_appfixture_in_incident_service_testing' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And I like to add a base class for integration tests with some convenience methods that have
@@ -454,7 +455,7 @@ public abstract class IntegrationContext : IAsyncLifetime
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/IncidentService/IncidentService.Tests/IntegrationContext.cs#L48-L112' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_integrationcontext_for_integration_service' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/IncidentService/IncidentService.Tests/IntegrationContext.cs#L49-L113' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_integrationcontext_for_integration_service' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 With all of that in place (and if you're using Docker for your infrastructure, a quick `docker compose up -d` command),

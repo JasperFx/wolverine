@@ -1,6 +1,7 @@
 using Marten;
-using Oakton;
-using Oakton.Resources;
+using JasperFx;
+using JasperFx.Resources;
+using MultiTenantedTodoWebService;
 using Wolverine;
 using Wolverine.Http;
 using Wolverine.Marten;
@@ -14,6 +15,10 @@ var connectionString = "Host=localhost;Port=5433;Database=postgres;Username=post
 // Adding Marten for persistence
 builder.Services.AddMarten(m =>
     {
+        // Not necessary to do this for the runtime, but does help the codegen
+        // and diagnostics
+        m.Schema.For<Todo>();
+        
         // With multi-tenancy through a database per tenant
         m.MultiTenantedDatabases(tenancy =>
         {
@@ -56,6 +61,8 @@ builder.Host.UseWolverine(opts =>
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+builder.Services.AddWolverineHttp();
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -64,8 +71,6 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
-
-builder.Services.AddWolverineHttp();
 
 #region sample_configuring_tenant_id_detection_for_todo_service
 
@@ -79,8 +84,10 @@ app.MapWolverineEndpoints(opts =>
     // or pull the rip cord on the request and return a
     // 400 w/ ProblemDetails
     opts.TenantId.AssertExists();
+
+    opts.WarmUpRoutes = RouteWarmup.Eager;
 });
 
 #endregion
 
-return await app.RunOaktonCommands(args);
+return await app.RunJasperFxCommands(args);

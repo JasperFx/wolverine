@@ -1,4 +1,6 @@
 ﻿using System.Diagnostics;
+using JasperFx.CodeGeneration;
+using JasperFx.CodeGeneration.Frames;
 using Microsoft.AspNetCore.Mvc;
 using Wolverine.Http;
 
@@ -51,4 +53,42 @@ public class HeaderUsingEndpoint
     }
 
     #endregion
+}
+
+
+public class HeaderMiddlewareAttribute : ModifyHttpChainAttribute
+{
+    public override void Modify(HttpChain chain, GenerationRules rules)
+    {
+        chain.Middleware.Add(MethodCall.For<HeaderMiddleware>(x => x.Before(default)));
+    }
+}
+
+public class HeaderMiddleware
+{
+    public record MiddlewareResult(string Value);
+
+    public MiddlewareResult Before([FromHeader(Name = "x-middleware")] string valueMiddleware)
+    {
+        return new MiddlewareResult(valueMiddleware);
+    }
+}
+
+public class MiddlewareEndpoint
+{
+    public record BeforeResult(string Value);
+
+    public record Result(string Handler, string Before, string Middleware);
+
+    public BeforeResult Before([FromHeader(Name = "x-before")] string valueBefore)
+    {
+        return new BeforeResult(valueBefore);
+    }
+
+    [WolverineGet("/middleware/header")]
+    [HeaderMiddleware]
+    public Result HandleGet([FromHeader(Name = "x-handler")] string valueEndpoint, BeforeResult before, HeaderMiddleware.MiddlewareResult middleware)
+    {
+        return new(valueEndpoint, before.Value, middleware.Value);
+    }
 }

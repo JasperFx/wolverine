@@ -100,9 +100,9 @@ types that will be published by the application by either implementing one of th
 ```cs
 public record CreateIssue(string Name) : IMessage;
 
-public record DeleteIssue(Guid Id) : ICommand;
+public record DeleteIssue(Guid Id) : IMessage;
 
-public record IssueCreated(Guid Id, string Name) : IEvent;
+public record IssueCreated(Guid Id, string Name) : IMessage;
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MessageDiscovery.cs#L6-L14' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_message_type_discovery' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
@@ -156,7 +156,7 @@ public class PersonBornV2
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MessageVersioning.cs#L78-L88' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_personborn_v2' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-The `[Version("V2")]` attribute usage tells Wolverine that this class is "V2" for the `message-type` = "person-born."
+The `[MessageIdentity("person-born", Version = 2)]` attribute usage tells Wolverine that this class is "Version 2" for the `message-type` = "person-born."
 
 Wolverine will now accept or publish this message using the built in Json serialization with the content type of `application/vnd.person-born.v2+json`.
 Any custom serializers should follow some kind of naming convention for content types that identify versioned representations.

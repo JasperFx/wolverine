@@ -1,4 +1,3 @@
-using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
@@ -26,6 +25,8 @@ internal class RabbitMqInteropFriendlyCallback : IChannelCallback, ISupportDeadL
             new RetryBlock<Envelope>((e, _) => sender.SendAsync(e).AsTask(), runtime.Logger, runtime.Cancellation);
     }
 
+    public IHandlerPipeline? Pipeline => _inner.Pipeline;
+
     public ValueTask CompleteAsync(Envelope envelope)
     {
         return _inner.CompleteAsync(envelope);
@@ -44,7 +45,7 @@ internal class RabbitMqInteropFriendlyCallback : IChannelCallback, ISupportDeadL
     public bool NativeDeadLetterQueueEnabled => true;
 }
 
-internal class RabbitMqListener : RabbitMqChannelAgent, IListener, ISupportDeadLetterQueue
+internal class RabbitMqListener : RabbitMqChannelAgent, IListener, ISupportDeadLetterQueue, ISupportMultipleConsumers
 {
     private readonly IChannelCallback _callback;
     private readonly CancellationToken _cancellation = CancellationToken.None;
@@ -54,6 +55,7 @@ internal class RabbitMqListener : RabbitMqChannelAgent, IListener, ISupportDeadL
     private readonly RabbitMqTransport _transport;
     private readonly IReceiver _receiver;
     private readonly Lazy<ISender> _sender;
+    private string? _consumerId;
 
     public RabbitMqListener(IWolverineRuntime runtime,
         RabbitMqQueue queue, RabbitMqTransport transport, IReceiver receiver) : base(transport.UseSenderConnectionOnly ? transport.SendingConnection : transport.ListeningConnection,
@@ -61,6 +63,7 @@ internal class RabbitMqListener : RabbitMqChannelAgent, IListener, ISupportDeadL
     {
         Queue = queue;
         Address = queue.Uri;
+        ConsumerAddress = Address;
 
         _sender = new Lazy<ISender>(() => Queue.ResolveSender(runtime));
         _cancellation.Register(() =>
@@ -86,7 +89,7 @@ internal class RabbitMqListener : RabbitMqChannelAgent, IListener, ISupportDeadL
 
     public async Task CreateAsync()
     {
-        await EnsureConnected();
+        await EnsureInitiated();
         
         if (Queue.AutoDelete || _transport.AutoProvision)
         {
@@ -113,9 +116,8 @@ internal class RabbitMqListener : RabbitMqChannelAgent, IListener, ISupportDeadL
         }
 
         var mapper = Queue.BuildMapper(_runtime);
-
-        _consumer = new WorkerQueueMessageConsumer(Channel!, _receiver, Logger, this, mapper, Address,
-            _cancellation);
+        
+        _consumer = new WorkerQueueMessageConsumer(Channel!, _receiver, Logger, this, mapper, Address, _cancellation);
 
         await Channel!.BasicQosAsync(0, Queue.PreFetchCount, false, _cancellation);
         await Channel.BasicConsumeAsync(Queue.QueueName, false, _transport.ConnectionFactory?.ClientProvidedName ?? _runtime.Options.ServiceName, _consumer, _runtime.Cancellation);
@@ -128,6 +130,15 @@ internal class RabbitMqListener : RabbitMqChannelAgent, IListener, ISupportDeadL
         }
     }
 
+    internal override async Task ReconnectedAsync()
+    {
+        await StopAsync();
+        await teardownChannel();
+        await CreateAsync();
+
+        await base.ReconnectedAsync();
+    }
+
     public RabbitMqQueue Queue { get; }
 
     public async ValueTask StopAsync()
@@ -138,6 +149,9 @@ internal class RabbitMqListener : RabbitMqChannelAgent, IListener, ISupportDeadL
         }
 
         foreach (var consumerTag in _consumer.ConsumerTags) await Channel!.BasicCancelAsync(consumerTag, noWait: true, cancellationToken: default);
+        
+        _consumer.Dispose();
+        _consumer = null;
     }
 
     public override async ValueTask DisposeAsync()
@@ -168,6 +182,8 @@ internal class RabbitMqListener : RabbitMqChannelAgent, IListener, ISupportDeadL
     }
 
     public Uri Address { get; }
+
+    public IHandlerPipeline? Pipeline => _receiver.Pipeline;
 
     public ValueTask CompleteAsync(Envelope envelope)
     {
@@ -200,4 +216,25 @@ internal class RabbitMqListener : RabbitMqChannelAgent, IListener, ISupportDeadL
     {
         await Channel!.BasicAckAsync(deliveryTag, true, _cancellation);
     }
+
+    public string? ConsumerId
+    {
+        get => _consumerId;
+        set
+        {
+            _consumerId = value;
+
+            if (value == null)
+            {
+                ConsumerAddress = Address;
+            }
+            else
+            {
+                ConsumerAddress = new Uri($"{Address}?consumer={_consumerId}");
+            }
+        }
+    }
+
+    public Uri BaseAddress => Queue.Uri;
+    public Uri ConsumerAddress { get; private set; }
 }

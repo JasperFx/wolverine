@@ -2,6 +2,7 @@
 using Shouldly;
 using Wolverine;
 using Wolverine.ComplianceTests;
+using Wolverine.Runtime;
 using Wolverine.Runtime.Scheduled;
 using Wolverine.Runtime.WorkerQueues;
 using Wolverine.Transports;
@@ -52,6 +53,8 @@ public class in_memory_scheduled_messages : ILocalQueue
     {
         return ValueTask.CompletedTask;
     }
+
+    public IHandlerPipeline Pipeline => null;
 
     public int QueueCount => 0;
 

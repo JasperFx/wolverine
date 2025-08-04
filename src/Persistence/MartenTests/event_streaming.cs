@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using IntegrationTests;
+using JasperFx.Events;
 using Marten;
 using Marten.Events;
 using Marten.Services;
@@ -7,7 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Npgsql;
-using Oakton.Resources;
+using JasperFx.Resources;
 using Shouldly;
 using Wolverine.ComplianceTests;
 using Wolverine;

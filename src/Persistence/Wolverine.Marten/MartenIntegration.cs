@@ -1,4 +1,6 @@
+using JasperFx;
 using JasperFx.Core.Reflection;
+using JasperFx.Events;
 using Marten;
 using Marten.Events;
 using Marten.Internal;
@@ -30,9 +32,9 @@ public class MartenIntegration : IWolverineExtension, IEventForwarding
     public bool UseFastEventForwarding { get; set; }
     
     /// <summary>
-    /// Use Wolverine to evenly distribute event projection and subscription work of Marten
-    /// asynchronous projections. This should be used exclusively with Marten's AddAsyncDaemon() option
-    /// and takes the place of Marten's built in, naive load distribution
+    /// Use this when using Wolverine to evenly distribute event projection and subscription 
+    /// work of Marten asynchronous projections. This replaces Marten's <c>AddAsyncMarten(HotCold)</c> 
+    /// option and should not be used in combination with Marten's own load distribution.
     /// </summary>
     public bool UseWolverineManagedEventSubscriptionDistribution { get; set; }
 
@@ -41,8 +43,8 @@ public class MartenIntegration : IWolverineExtension, IEventForwarding
         options.CodeGeneration.Sources.Add(new MartenBackedPersistenceMarker());
 
         options.CodeGeneration.InsertFirstPersistenceStrategy<MartenPersistenceFrameProvider>();
-
         options.CodeGeneration.Sources.Add(new SessionVariableSource());
+        options.CodeGeneration.Sources.Add(new DocumentOperationsSource());
 
         options.Policies.Add<MartenAggregateHandlerStrategy>();
 

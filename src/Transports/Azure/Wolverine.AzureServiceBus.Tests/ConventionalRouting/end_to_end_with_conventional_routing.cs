@@ -1,6 +1,6 @@
 using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
-using Oakton.Resources;
+using JasperFx.Resources;
 using Shouldly;
 using Wolverine.ComplianceTests;
 using Wolverine.Tracking;

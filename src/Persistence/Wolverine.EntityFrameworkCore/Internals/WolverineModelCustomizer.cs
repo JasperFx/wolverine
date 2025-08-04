@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Wolverine.RDBMS;
 
 namespace Wolverine.EntityFrameworkCore.Internals;
 
@@ -13,15 +14,9 @@ public class WolverineModelCustomizer : RelationalModelCustomizer
     {
         base.Customize(modelBuilder, context);
 
-        var customizationOptions = context.Database.GetService<WolverineDbContextCustomizationOptions>();
+        var settings = context.Database.GetService<DatabaseSettings>();
 
-        modelBuilder.MapWolverineEnvelopeStorage(customizationOptions.DatabaseSchema);
+        modelBuilder.MapWolverineEnvelopeStorage(settings.SchemaName);
     }
 }
 
-public class WolverineDbContextCustomizationOptions
-{
-    public string? DatabaseSchema { get; init; }
-
-    public static WolverineDbContextCustomizationOptions Default => new WolverineDbContextCustomizationOptions { DatabaseSchema = null };
-}

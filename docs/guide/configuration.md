@@ -20,11 +20,6 @@ and as such it can be used to configure directives about:
 
 ![Wolverine Configuration Model](/configuration-model.png)
 
-::: info
-At this point, Wolverine only supports [IHostBuilder](https://learn.microsoft.com/en-us/dotnet/api/microsoft.extensions.hosting.ihostbuilder?view=dotnet-plat-ext-7.0) for bootstrapping, but may also support the newer [HostApplicationBuilder](https://learn.microsoft.com/en-us/dotnet/api/microsoft.extensions.hosting.hostapplicationbuilder?view=dotnet-plat-ext-7.0)
-model in the future.
-:::
-
 ## With ASP.NET Core
 
 ::: info
@@ -37,7 +32,7 @@ Below is a sample of adding Wolverine to an ASP.NET Core application that is boo
 <!-- snippet: sample_Quickstart_Program -->
 <a id='snippet-sample_quickstart_program'></a>
 ```cs
-using Oakton;
+using JasperFx;
 using Quickstart;
 using Wolverine;
 
@@ -72,10 +67,10 @@ app.UseSwaggerUI();
 
 app.MapGet("/", () => Results.Redirect("/swagger"));
 
-// Opt into using Oakton for command line parsing
+// Opt into using JasperFx for command line parsing
 // to unlock built in diagnostics and utility tools within
 // your Wolverine application
-return await app.RunOaktonCommands(args);
+return await app.RunJasperFxCommands(args);
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Quickstart/Program.cs#L1-L43' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_quickstart_program' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
@@ -145,8 +140,6 @@ builder.UseWolverine(opts =>
         x.UseSqlServer(connectionString);
     });
 
-    opts.UseEntityFrameworkCoreTransactions();
-
     // Add the auto transaction middleware attachment policy
     opts.Policies.AutoApplyTransactions();
 });
@@ -154,7 +147,7 @@ builder.UseWolverine(opts =>
 using var host = builder.Build();
 await host.StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests/SampleUsageWithAutoApplyTransactions.cs#L13-L34' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_with_auto_apply_transactions_for_sql_server' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests/SampleUsageWithAutoApplyTransactions.cs#L16-L35' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_with_auto_apply_transactions_for_sql_server' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And lastly, you can just use `IServiceCollection.AddWolverine()` by itself.

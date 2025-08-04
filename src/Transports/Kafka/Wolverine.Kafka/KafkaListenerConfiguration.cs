@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Confluent.Kafka;
 using Wolverine.Configuration;
 
 namespace Wolverine.Kafka;
@@ -54,6 +55,25 @@ public class KafkaListenerConfiguration : ListenerConfiguration<KafkaListenerCon
             e.MessageType = messageType;
         });
 
+        return this;
+    }
+    
+    /// <summary>
+    /// Configure the consumer config for only this topic. This overrides the default
+    /// settings at the transport level. This is not combinatorial with the parent configuration
+    /// and overwrites all ConsumerConfig from the parent
+    /// </summary>
+    /// <param name="configuration"></param>
+    /// <returns></returns>
+    public KafkaListenerConfiguration ConfigureConsumer(Action<ConsumerConfig> configuration)
+    {
+        add(topic =>
+        {
+            var config = new ConsumerConfig();
+            configuration(config);
+
+            topic.ConsumerConfig = config;
+        });
         return this;
     }
 }

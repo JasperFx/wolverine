@@ -1,7 +1,7 @@
 using JasperFx.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Oakton.Resources;
+using JasperFx.Resources;
 using Shouldly;
 using Wolverine.RabbitMQ.Internal;
 using Wolverine.Runtime;
@@ -15,24 +15,21 @@ public class native_dead_letter_queue_mechanics : IDisposable
     private readonly string QueueName = Guid.NewGuid().ToString();
     private IHost _host;
     private RabbitMqTransport theTransport;
-    private WolverineOptions theOptions = new WolverineOptions();
-
-    public native_dead_letter_queue_mechanics()
-    {
-        theOptions.UseRabbitMq().AutoProvision().AutoPurgeOnStartup();
-
-        theOptions.PublishAllMessages()
-            .ToRabbitQueue(QueueName);
-
-        theOptions.ListenToRabbitQueue(QueueName);
-
-        theOptions.LocalRoutingConventionDisabled = true;
-    }
 
     public async Task afterBootstrapping()
     {
         _host = await Host.CreateDefaultBuilder()
-            .UseWolverine(theOptions).StartAsync();
+            .UseWolverine(opts =>
+            {
+                opts.UseRabbitMq().AutoProvision().AutoPurgeOnStartup();
+
+                opts.PublishAllMessages()
+                    .ToRabbitQueue(QueueName);
+
+                opts.ListenToRabbitQueue(QueueName);
+
+                opts.LocalRoutingConventionDisabled = true;
+            }).StartAsync();
 
         theTransport = _host
             .Services
@@ -97,9 +94,25 @@ public class native_dead_letter_queue_mechanics : IDisposable
     [Fact]
     public async Task customize_dead_letter_queueing()
     {
-        theOptions.UseRabbitMq().CustomizeDeadLetterQueueing(new DeadLetterQueue("dlq"){ExchangeName = "dlq"});
+        _host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.UseRabbitMq().AutoProvision().AutoPurgeOnStartup().CustomizeDeadLetterQueueing(new DeadLetterQueue("dlq"){ExchangeName = "dlq"});;
 
-        await afterBootstrapping();
+                opts.PublishAllMessages()
+                    .ToRabbitQueue(QueueName);
+
+                opts.ListenToRabbitQueue(QueueName);
+
+                opts.LocalRoutingConventionDisabled = true;
+            }).StartAsync();
+
+        theTransport = _host
+            .Services
+            .GetRequiredService<IWolverineRuntime>()
+            .Options
+            .Transports
+            .GetOrCreate<RabbitMqTransport>();
 
         theTransport.Exchanges.Contains(RabbitMqTransport.DeadLetterQueueName).ShouldBeFalse();
         theTransport.Queues.Contains(RabbitMqTransport.DeadLetterQueueName).ShouldBeFalse();
@@ -137,13 +150,30 @@ public class native_dead_letter_queue_mechanics : IDisposable
     public async Task overriding_dead_letter_queue_for_specific_queue()
     {
         var deadLetterQueueName = QueueName + "_dlq";
-        theOptions.ListenToRabbitQueue(QueueName).DeadLetterQueueing(new DeadLetterQueue(deadLetterQueueName));
 
-        await afterBootstrapping();
+        _host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.UseRabbitMq().AutoProvision().AutoPurgeOnStartup();
+
+                opts.PublishAllMessages()
+                    .ToRabbitQueue(QueueName + "Different");
+
+                opts.LocalRoutingConventionDisabled = true;
+
+                opts.ListenToRabbitQueue(QueueName + "Different").DeadLetterQueueing(new DeadLetterQueue(deadLetterQueueName));
+            }).StartAsync();
+
+        theTransport = _host
+            .Services
+            .GetRequiredService<IWolverineRuntime>()
+            .Options
+            .Transports
+            .GetOrCreate<RabbitMqTransport>();
 
         await _host.TrackActivity().DoNotAssertOnExceptionsDetected().PublishMessageAndWaitAsync(new AlwaysErrors());
 
-        var initialQueue = theTransport.Queues[QueueName];
+        var initialQueue = theTransport.Queues[QueueName + "Different"];
         var deadLetterQueue = theTransport.Queues[deadLetterQueueName];
 
         (await initialQueue.QueuedCountAsync()).ShouldBe(0);

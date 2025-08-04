@@ -14,12 +14,6 @@ internal class MappedEnvelopeTransaction : IEnvelopeTransaction
 {
     public MappedEnvelopeTransaction(DbContext dbContext, MessageContext messaging)
     {
-        if (messaging.Storage is not IMessageDatabase)
-        {
-            throw new InvalidOperationException(
-                "This Wolverine application is not using Database backed message persistence. Please configure the message configuration");
-        }
-
         DbContext = dbContext;
     }
 

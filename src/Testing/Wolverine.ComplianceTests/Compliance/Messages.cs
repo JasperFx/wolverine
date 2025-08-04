@@ -121,7 +121,11 @@ public class ColorHandler
     {
         history.Name = message.Name;
         history.Envelope = envelope;
+
+        Received++;
     }
+    
+    public static int Received { get; set; }
 }
 
 public class ColorHistory

@@ -2,7 +2,8 @@ using Alba;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Microsoft.Extensions.DependencyInjection;
-using Oakton;
+using JasperFx;
+using JasperFx.CommandLine;
 using Shouldly;
 using Wolverine.Tracking;
 
@@ -15,7 +16,7 @@ public class AlbaTestHarness
     [Fact]
     public async Task run_end_to_end_with_stub_services()
     {
-        OaktonEnvironment.AutoStartHost = true;
+        JasperFxEnvironment.AutoStartHost = true;
         using var host = await AlbaHost.For<Program>(builder =>
         {
             builder.ConfigureServices(services => services.AddSingleton<IAccountService, StubAccountService>());

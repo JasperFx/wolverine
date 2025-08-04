@@ -1,4 +1,6 @@
-﻿namespace Wolverine.Transports.Stub;
+﻿using Wolverine.Runtime;
+
+namespace Wolverine.Transports.Stub;
 
 internal class StubChannelCallback : IChannelCallback
 {
@@ -11,6 +13,8 @@ internal class StubChannelCallback : IChannelCallback
         _endpoint = endpoint;
         _envelope = envelope;
     }
+
+    public IHandlerPipeline? Pipeline => null;
 
     // ReSharper disable once UnusedAutoPropertyAccessor.Global
     public bool Completed { get; set; }

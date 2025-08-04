@@ -1,6 +1,7 @@
 using Confluent.Kafka;
 using Confluent.Kafka.Admin;
 using Microsoft.Extensions.Logging;
+using System.Text;
 using Wolverine.Configuration;
 using Wolverine.Kafka.Internals;
 using Wolverine.Runtime;
@@ -33,6 +34,16 @@ public class KafkaTopic : Endpoint, IBrokerEndpoint
     public string TopicName { get; }
 
     public IKafkaEnvelopeMapper Mapper { get; set; }
+    
+    /// <summary>
+    /// Override for this specific Kafka Topic
+    /// </summary>
+    public ConsumerConfig? ConsumerConfig { get; internal set; }
+
+    /// <summary>
+    /// Override for this specific Kafka Topic
+    /// </summary>
+    public ProducerConfig? ProducerConfig { get; internal set; }
 
     public static string TopicNameForUri(Uri uri)
     {
@@ -41,7 +52,9 @@ public class KafkaTopic : Endpoint, IBrokerEndpoint
 
     public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
     {
-        var listener = new KafkaListener(this, Parent.ConsumerConfig, receiver, runtime.LoggerFactory.CreateLogger<KafkaListener>());
+        var config = ConsumerConfig ?? Parent.ConsumerConfig;
+        var listener = new KafkaListener(this, config,
+            Parent.CreateConsumer(ConsumerConfig), receiver, runtime.LoggerFactory.CreateLogger<KafkaListener>());
         return ValueTask.FromResult((IListener)listener);
     }
 
@@ -58,11 +71,11 @@ public class KafkaTopic : Endpoint, IBrokerEndpoint
         if (TopicName == WolverineTopicsName) return true; // don't care, this is just a marker
         try
         {
-            using var client = new ProducerBuilder<string, string>(Parent.ProducerConfig).Build();
-            await client.ProduceAsync(TopicName, new Message<string, string>
+            using var client = Parent.CreateProducer(ProducerConfig);
+            await client.ProduceAsync(TopicName, new Message<string, byte[]>
             {
                 Key = "ping",
-                Value = "ping"
+                Value = Encoding.Default.GetBytes("ping")
             });
 
 
@@ -77,25 +90,25 @@ public class KafkaTopic : Endpoint, IBrokerEndpoint
     public async ValueTask TeardownAsync(ILogger logger)
     {
         if (TopicName == WolverineTopicsName) return; // don't care, this is just a marker
-        using var client = new AdminClientBuilder(Parent.AdminClientConfig).Build();
-        await client.DeleteTopicsAsync(new string[] { TopicName });
+        using var adminClient = Parent.CreateAdminClient();
+        await adminClient.DeleteTopicsAsync([TopicName]);
     }
 
     public async ValueTask SetupAsync(ILogger logger)
     {
         if (TopicName == WolverineTopicsName) return; // don't care, this is just a marker
 
-        using var client = new AdminClientBuilder(Parent.AdminClientConfig).Build();
+        using var adminClient = Parent.CreateAdminClient();
 
         try
         {
-            await client.CreateTopicsAsync(new[]
-            {
+            await adminClient.CreateTopicsAsync(
+            [
                 new TopicSpecification
                 {
                     Name = TopicName
                 }
-            });
+            ]);
 
             logger.LogInformation("Created Kafka topic {Topic}", TopicName);
         }

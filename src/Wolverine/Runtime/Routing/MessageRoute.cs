@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using ImTools;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Wolverine.Attributes;
@@ -26,13 +27,24 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
         IsLocal = endpoint is LocalQueue;
         _replyTracker = replies;
 
-        Sender = endpoint.Agent ?? throw new ArgumentOutOfRangeException(nameof(endpoint), $"Endpoint {endpoint.Uri} does not have an active sending agent. Message type: {messageType.FullNameInCode()}");
+        if (WolverineSystemPart.WithinDescription)
+        {
+            Sender = endpoint.Agent;
+        }
+        else
+        {
+            Sender = endpoint.Agent ?? throw new ArgumentOutOfRangeException(nameof(endpoint), $"Endpoint {endpoint.Uri} does not have an active sending agent. Message type: {messageType.FullNameInCode()}");
+        }
 
         IsLocal = endpoint is LocalQueue;
 
         if (messageType.CanBeCastTo(typeof(ISerializable)))
         {
             Serializer = typeof(IntrinsicSerializer<>).CloseAndBuildAs<IMessageSerializer>(messageType);
+        }
+        else if (WolverineSystemPart.WithinDescription)
+        {
+            Serializer = endpoint.DefaultSerializer;
         }
         else
         {
@@ -46,6 +58,8 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
 
         _endpoint = endpoint;
     }
+
+    public Uri Uri => _endpoint.Uri;
 
     public Type MessageType { get; }
 
@@ -114,9 +128,24 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
         return envelope;
     }
 
-    public async Task<T> InvokeAsync<T>(object message, MessageBus bus,
+    public MessageSubscriptionDescriptor Describe()
+    {
+        return new MessageSubscriptionDescriptor
+        {
+            ContentType = Serializer.ContentType,
+            Endpoint = _endpoint.Uri
+        };
+    }
+        
+    public Task<T> InvokeAsync<T>(object message, MessageBus bus,
         CancellationToken cancellation = default,
         TimeSpan? timeout = null, string? tenantId = null)
+    {
+        return RemoteInvokeAsync<T>(message, bus, cancellation, timeout, tenantId);
+    }
+
+    internal async Task<T> RemoteInvokeAsync<T>(object message, MessageBus bus, CancellationToken cancellation,
+        TimeSpan? timeout, string? tenantId, string? topicName = null)
     {
         if (message == null)
         {
@@ -135,7 +164,8 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
         
         var envelope = new Envelope(message, Sender)
         {
-            TenantId = tenantId ?? bus.TenantId
+            TenantId = tenantId ?? bus.TenantId,
+            TopicName = topicName
         };
 
         foreach (var rule in Rules) rule.Modify(envelope);
@@ -151,7 +181,7 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
         envelope.DeliverWithin = timeout.Value;
         envelope.Sender = Sender;
 
-        bus.TrackEnvelopeCorrelation(envelope, Activity.Current);
+        @bus.TrackEnvelopeCorrelation(envelope, Activity.Current);
         
         // The request/reply envelope *must* use the envelope id for the conversation id
         // for proper tracking. See https://github.com/JasperFx/wolverine/issues/1176

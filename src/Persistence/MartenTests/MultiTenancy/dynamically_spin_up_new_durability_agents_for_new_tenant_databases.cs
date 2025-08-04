@@ -10,6 +10,7 @@ using Weasel.Postgresql;
 using Weasel.Postgresql.Migrations;
 using Wolverine;
 using Wolverine.Marten;
+using Wolverine.Persistence;
 using Wolverine.RDBMS;
 using Wolverine.Tracking;
 
@@ -103,13 +104,12 @@ public class dynamically_spin_up_new_durability_agents_for_new_tenant_databases 
     {
         await _host.WaitUntilAssignmentsChangeTo(w =>
         {
-            w.AgentScheme = DurabilityAgent.AgentScheme;
+            w.AgentScheme = PersistenceConstants.AgentScheme;
 
             // 1 for the master
             w.ExpectRunningAgents(_host, 1);
         }, 10.Seconds());
-
-
+        
         var tenancy = (MasterTableTenancy)theStore.Options.Tenancy;
         await tenancy.AddDatabaseRecordAsync("tenant1", tenant1ConnectionString);
         await tenancy.AddDatabaseRecordAsync("tenant2", tenant2ConnectionString);
@@ -117,7 +117,7 @@ public class dynamically_spin_up_new_durability_agents_for_new_tenant_databases 
 
         await _host.WaitUntilAssignmentsChangeTo(w =>
         {
-            w.AgentScheme = DurabilityAgent.AgentScheme;
+            w.AgentScheme = PersistenceConstants.AgentScheme;
 
             // 1 for the master, 3 for the tenant databases
             w.ExpectRunningAgents(_host, 4);

@@ -1,8 +1,10 @@
 using Alba;
+using Alba.Security;
 using Marten;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
-using Oakton;
+using JasperFx;
+using JasperFx.CommandLine;
 using Shouldly;
 using Weasel.Postgresql;
 using Weasel.Postgresql.Migrations;
@@ -35,9 +37,12 @@ public class end_to_end : IAsyncLifetime
 
         // Sorry folks, this is a hidden trap
         // I blame the AspNetCore team...
-        OaktonEnvironment.AutoStartHost = true;
+        JasperFxEnvironment.AutoStartHost = true;
 
-        _host = await AlbaHost.For<Program>();
+        var securityStub = new JwtSecurityStub()
+            .With("claim", "value");
+        
+        _host = await AlbaHost.For<Program>(securityStub);
 
         // Wiping out any leftover data in the database
         var store = _host.Services.GetRequiredService<IDocumentStore>();

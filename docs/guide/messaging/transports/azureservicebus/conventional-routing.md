@@ -76,12 +76,17 @@ opts.UseAzureServiceBusTesting()
         // its applicability to types
         // as well as overriding any listener, sender, topic, or subscription
         // options
+
+        // Can't use the full name because of limitations on name length
+        convention.SubscriptionNameForListener(t => t.Name.ToLowerInvariant());
+        convention.TopicNameForListener(t => t.Name.ToLowerInvariant());
+        convention.TopicNameForSender(t => t.Name.ToLowerInvariant());
     })
 
     .AutoProvision()
     .AutoPurgeOnStartup();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/ConventionalRouting/Broadcasting/end_to_end_with_conventional_routing.cs#L26-L40' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_topic_and_subscription_conventional_routing_with_azure_service_bus' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/ConventionalRouting/Broadcasting/end_to_end_with_conventional_routing.cs#L32-L51' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_topic_and_subscription_conventional_routing_with_azure_service_bus' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 

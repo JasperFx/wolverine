@@ -37,6 +37,8 @@ internal class StubEndpoint : Endpoint, ISendingAgent, ISender, IListener
         return ValueTask.CompletedTask;
     }
 
+    public IHandlerPipeline? Pipeline => _pipeline;
+
     ValueTask IChannelCallback.CompleteAsync(Envelope envelope)
     {
         return ValueTask.CompletedTask;

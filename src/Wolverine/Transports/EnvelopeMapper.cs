@@ -431,7 +431,7 @@ public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIn
     {
         if (tryReadIncomingHeader(incoming, key, out var raw))
         {
-            if (DateTimeOffset.TryParse(raw, out var flag))
+            if (DateTimeOffset.TryParseExact(raw, DateTimeOffsetFormat, null, DateTimeStyles.AssumeUniversal,  out var flag))
             {
                 return flag;
             }
