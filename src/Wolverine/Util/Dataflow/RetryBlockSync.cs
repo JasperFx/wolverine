@@ -1,143 +1,53 @@
-using JasperFx.Blocks;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
-using System.Threading.Tasks.Dataflow;
 
 namespace Wolverine.Util.Dataflow;
 
-public class RetryBlockSync<T> : IRetryBlock<T>
+/// <summary>
+/// Synchrous version of RetryBlock - this version is retrying on the same thread context so execution os sending message is waiting for information that message was sent to the broker or there was a problem
+/// </summary>
+/// <typeparam name="T"></typeparam>
+public class RetryBlockSync<T>(Func<T, CancellationToken, Task> handler, ILogger logger, CancellationToken cancellationToken) : IRetryBlock<T>
 {
-    private readonly ActionBlock<Item> _block;
-    private readonly CancellationToken _cancellationToken;
-    private readonly IItemHandler<T> _handler;
-    private readonly ILogger _logger;
+    private readonly CancellationToken _cancellationToken = cancellationToken;
+    private readonly Func<T, CancellationToken, Task> _handler = handler;
+    private readonly ILogger _logger = logger;
+    public TimeSpan[] Pauses { get; set; } = [0.Milliseconds(), 50.Milliseconds(), 100.Milliseconds(), 250.Milliseconds()];
 
-    public RetryBlockSync(Func<T, CancellationToken, Task> handler, ILogger logger, CancellationToken cancellationToken,
-        Action<ExecutionDataflowBlockOptions>? configure = null)
-        : this(new LambdaItemHandler<T>(handler), logger, cancellationToken, configure)
-    {
-    }
-
-    public RetryBlockSync(Func<T, CancellationToken, Task> handler, ILogger logger, CancellationToken cancellationToken,
-        ExecutionDataflowBlockOptions options)
-    {
-        _handler = new LambdaItemHandler<T>(handler);
-        _logger = logger;
-
-        options.CancellationToken = cancellationToken;
-        options.SingleProducerConstrained = true;
-
-        _cancellationToken = cancellationToken;
-
-        _block = new ActionBlock<Item>(executeAsync, options);
-    }
-
-    public RetryBlockSync(IItemHandler<T> handler, ILogger logger, CancellationToken cancellationToken,
-        Action<ExecutionDataflowBlockOptions>? configure = null)
-    {
-        _handler = handler;
-        _logger = logger;
-        var options = new ExecutionDataflowBlockOptions
-        {
-            CancellationToken = cancellationToken,
-            SingleProducerConstrained = true
-        };
-
-        configure?.Invoke(options);
-
-        _cancellationToken = cancellationToken;
-
-        _block = new ActionBlock<Item>(executeAsync, options);
-    }
-
-    public int MaximumAttempts { get; set; } = 4;
-    public TimeSpan[] Pauses { get; set; } = [50.Milliseconds(), 100.Milliseconds(), 250.Milliseconds()];
-
-    public void Dispose()
-    {
-        _block.Complete();
-    }
-
-    public void Post(T message)
+    public async Task PostAsync(T message)
     {
         if (_cancellationToken.IsCancellationRequested) return;
 
-        var item = new Item(message);
-        _block.Post(item);
-    }
-
-    public Task PostAsync(T message)
-    {
-        if (_cancellationToken.IsCancellationRequested) return Task.CompletedTask;
-
-        Post(message);
-        
-        return _block.Completion;
-    }
-
-    public TimeSpan DeterminePauseTime(int attempt)
-    {
-        if (attempt >= Pauses.Length)
+        for (var attempt = 1; attempt <= Pauses.Length; attempt++)
         {
-            return Pauses.LastOrDefault();
-        }
-
-        return Pauses[attempt - 1];
-    }
-
-    private async Task executeAsync(Item item)
-    {
-        if (_cancellationToken.IsCancellationRequested) return;
-
-        try
-        {
-            item.Attempts++;
-
-            if (item.Attempts > 1)
+            var delay = Pauses[attempt-1];
+            try
             {
-                var pause = DeterminePauseTime(item.Attempts);
-                await Task.Delay(pause, _cancellationToken);
+                if (attempt > 1 && delay.TotalMilliseconds > 0)
+                {
+                    await Task.Delay(delay,  _cancellationToken).ConfigureAwait(false);
+                }
+
+                await _handler(message, _cancellationToken).ConfigureAwait(false);
+                _logger.LogDebug("Completed {Item}", message);
             }
-            await _handler.ExecuteAsync(item.Message, _cancellationToken);
-            _logger.LogDebug("Completed {Item}", item.Message);
-
-            _block.Complete();
-        }
-        catch (Exception e)
-        {
-            _logger.LogError(e, "Error while trying to retry {Item}", item.Message);
-
-            if (_cancellationToken.IsCancellationRequested) return;
-
-            if (item.Attempts < MaximumAttempts)
+            catch (OperationCanceledException)
             {
-                _block.Post(item);
-            }
-            else
-            {
-                _logger.LogInformation("Discarding message {Message} after {Attempts} attempts", item.Message,
-                    item.Attempts);
-
+                _logger.LogWarning("Operation canceled for message {Message} on attempt {Attempts}", message, attempt);
                 throw;
             }
+            catch (Exception e)
+            {
+                if (attempt < Pauses.Length)
+                {
+                    _logger.LogInformation(e, "Retrying message {Message} after {Attempts} attempts", message, attempt);
+                }
+                else
+                {
+                    _logger.LogError(e, "Error proccessing message {Message} on attempt {Attempts}", message, attempt);
+                    throw;
+                }
+            }
         }
-    }
-
-    public Task DrainAsync()
-    {
-        _block.Complete();
-        return _block.Completion;
-    }
-
-    public class Item
-    {
-        public Item(T item)
-        {
-            Message = item;
-            Attempts = 0;
-        }
-
-        public int Attempts { get; set; }
-        public T Message { get; }
     }
 }

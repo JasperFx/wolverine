@@ -39,6 +39,7 @@ public class InlineSendingAgent : ISendingAgent, IDisposable
         using var activity = WolverineTracing.StartSending(e);
         try
         {
+            //TODO: What about cancellationToken??
             await Sender.SendAsync(e);
             _messageLogger.Sent(e);
         }
@@ -60,7 +61,7 @@ public class InlineSendingAgent : ISendingAgent, IDisposable
 
     public void Dispose()
     {
-        _sending.Dispose();
+        (_sending as IDisposable)?.Dispose();
     }
 
     public Uri Destination => Sender.Destination;
