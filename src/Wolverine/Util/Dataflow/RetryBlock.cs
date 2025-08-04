@@ -25,7 +25,7 @@ public class LambdaItemHandler<T> : IItemHandler<T>
     }
 }
 
-public class RetryBlock<T> : IRetryBlock<T>
+public class RetryBlock<T> : IRetryBlock<T>, IDisposable
 {
     private readonly ActionBlock<Item> _block;
     private readonly CancellationToken _cancellationToken;

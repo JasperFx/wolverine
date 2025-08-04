@@ -4,7 +4,7 @@ namespace Wolverine.Util.Dataflow;
 /// Abstract a way we can retry on <typeparamref name="T"/> message
 /// </summary>
 /// <typeparam name="T"></typeparam>
-internal interface IRetryBlock<T> : IDisposable
+internal interface IRetryBlock<T>
 {
     /// <summary>
     /// Send <typeparamref name="T"/> message in async manner
