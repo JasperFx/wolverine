@@ -183,11 +183,6 @@ internal record AggregateHandling(IDataRequirement Requirement)
     internal Variable RelayAggregateToHandlerMethod(Variable eventStream, IChain chain, MethodCall firstCall,
         Type aggregateType)
     {
-        if (aggregateType.Name == "LetterAggregate")
-        {
-            Debug.WriteLine("Here");
-        }
-        
         Variable aggregateVariable = new MemberAccessVariable(eventStream,
             typeof(IEventStream<>).MakeGenericType(aggregateType).GetProperty(nameof(IEventStream<string>.Aggregate)));
 
@@ -209,6 +204,11 @@ internal record AggregateHandling(IDataRequirement Requirement)
         else
         {
             firstCall.TrySetArgument(aggregateVariable);
+        }
+
+        foreach (var methodCall in chain.Middleware.OfType<MethodCall>())
+        {
+            methodCall.TrySetArgument(aggregateVariable);
         }
 
         return aggregateVariable;

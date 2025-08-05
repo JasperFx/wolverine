@@ -123,7 +123,7 @@ public class reacting_to_read_aggregate : IAsyncLifetime
 
 public static class LetterAggregateEndpointWithValidation
 {
-    public static ProblemDetails Validate([WriteAggregate(Required = true, OnMissing = OnMissing.ProblemDetailsWith404)] LetterAggregate letters)
+    public static ProblemDetails Validate(LetterAggregate letters)
     {
         if (letters.ACount is 0)
         {
@@ -134,9 +134,10 @@ public static class LetterAggregateEndpointWithValidation
     }
 
     [WolverinePost("/letters-validation/{id}")]
-    public static LetterAggregate PostLetter(LetterAggregate letters)
+    public static LetterAggregate PostLetter([WriteAggregate(Required = true, OnMissing = OnMissing.ProblemDetailsWith404)] LetterAggregate letters)
         => letters;
 }
+
 
 public static class LetterAggregateEndpoint
 {
