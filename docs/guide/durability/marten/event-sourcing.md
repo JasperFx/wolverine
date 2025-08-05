@@ -228,7 +228,12 @@ public class MarkItemReadyHandler1442193977 : MessageHandler
 As you probably guessed, there are some naming conventions or other questions you need to be aware of
 before you use this middleware strategy.
 
-Alternatively, there is also the newer `[WriteAttribute]` usage, with this example being a functional alternative
+::: info
+The `[Aggregate]` and `[WriteAggregate]` attributes are _required by default_, meaning that the handler or HTTP
+endpoint will be stopped if the data is not found. You can explicitly mark individual attributes as `Required=false`.
+:::
+
+Alternatively, there is also the newer `[WriteAggregate]` usage, with this example being a functional alternative
 mark up:
 
 <!-- snippet: sample_MarkItemReadyHandler_with_WriteAggregate -->

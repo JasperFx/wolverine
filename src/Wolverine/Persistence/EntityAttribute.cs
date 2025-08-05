@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Reflection;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
@@ -41,6 +42,10 @@ public class LoadEntityFrameBlock : Frame
             }
             
             _guardFrames[0].GenerateCode(method, writer);
+        }
+        else if (_creator.Next != null)
+        {
+            Debug.WriteLine("What the heck?");
         }
         else
         {
@@ -87,8 +92,6 @@ public class EntityAttribute : WolverineParameterAttribute, IDataRequirement
     {
         ValueSource = ValueSource.Anything;
     }
-    
-    
 
     /// <summary>
     /// Is the existence of this entity required for the rest of the handler action or HTTP endpoint

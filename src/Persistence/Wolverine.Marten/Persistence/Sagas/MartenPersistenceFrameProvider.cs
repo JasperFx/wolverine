@@ -137,6 +137,7 @@ internal class SetVariableToNullIfSoftDeletedFrame : AsyncFrame
     public SetVariableToNullIfSoftDeletedFrame(Variable entity)
     {
         _entity = entity;
+        uses.Add(entity);
     }
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
