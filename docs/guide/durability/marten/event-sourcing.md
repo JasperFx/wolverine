@@ -228,9 +228,14 @@ public class MarkItemReadyHandler1442193977 : MessageHandler
 As you probably guessed, there are some naming conventions or other questions you need to be aware of
 before you use this middleware strategy.
 
+::: warning
+There are some open, let's call them _imperfections_ with Wolverine's code generation against the `[WriteAggregate]` and `[ReadAggregate]`
+usage. For best results, only use these attributes on a parameter within the main HTTP endpoint method and not in `Validate/Before/Load` methods.
+:::
+
 ::: info
-The `[Aggregate]` and `[WriteAggregate]` attributes are _required by default_, meaning that the handler or HTTP
-endpoint will be stopped if the data is not found. You can explicitly mark individual attributes as `Required=false`.
+The `[Aggregate]` and `[WriteAggregate]` attributes _require the requested stream and aggregate to be found by default_, meaning that the handler or HTTP
+endpoint will be stopped if the requested data is not found. You can explicitly mark individual attributes as `Required=false`.
 :::
 
 Alternatively, there is also the newer `[WriteAggregate]` usage, with this example being a functional alternative
