@@ -53,7 +53,7 @@ public partial class HttpChain : IEndpointConventionBuilder
         if (Endpoint != null) return Endpoint;
         
         RequestDelegate? requestDelegate = null;
-        if (_parent.Rules.TypeLoadMode == TypeLoadMode.Static)
+        if (_parent.Rules.TypeLoadMode == TypeLoadMode.Static && !DynamicCodeBuilder.WithinCodegenCommand)
         {
             this.InitializeSynchronously(_parent.Rules, _parent, _parent.Container.Services);
             var handler = (HttpHandler)_parent.Container.QuickBuild(_handlerType);
