@@ -3,6 +3,7 @@ using IntegrationTests;
 using Marten;
 using Marten.Events.Projections;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Mvc;
 using Shouldly;
 using Wolverine.Marten;
 using Wolverine.Persistence;
@@ -109,6 +110,32 @@ public class reacting_to_read_aggregate : IAsyncLifetime
         });
     }
     
+    [Fact]
+    public async Task missing_with_problem_details_on_validation_on_write()
+    {
+        await theHost.Scenario(x =>
+        {
+            x.Post.Url("/letters-validation/" + Guid.NewGuid());
+            x.StatusCodeShouldBe(404);
+        });
+    }
+}
+
+public static class LetterAggregateEndpointWithValidation
+{
+    public static ProblemDetails Validate([WriteAggregate(Required = true, OnMissing = OnMissing.ProblemDetailsWith404)] LetterAggregate letters)
+    {
+        if (letters.ACount is 0)
+        {
+            return new ProblemDetails();
+        }
+
+        return WolverineContinue.NoProblems;
+    }
+
+    [WolverinePost("/letters-validation/{id}")]
+    public static LetterAggregate PostLetter(LetterAggregate letters)
+        => letters;
 }
 
 public static class LetterAggregateEndpoint
