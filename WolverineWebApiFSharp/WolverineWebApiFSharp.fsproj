@@ -14,4 +14,8 @@
       <ProjectReference Include="..\src\Http\Wolverine.Http\Wolverine.Http.csproj" />
     </ItemGroup>
 
+    <ItemGroup>
+      <PackageReference Update="FSharp.Core" Version="9.0.303" />
+    </ItemGroup>
+
 </Project>
