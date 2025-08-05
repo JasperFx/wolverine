@@ -29,7 +29,7 @@ public class WriteAggregateAttribute : WolverineParameterAttribute, IDataRequire
 
     public string? RouteOrParameterName { get; }
 
-    public bool Required { get; set; }
+    public bool Required { get; set; } = true;
     public string MissingMessage { get; set; }
     public OnMissing OnMissing { get; set; }
 
