@@ -198,11 +198,11 @@ public class MyMessageHandler
         _factory = factory;
     }
 
-    public async Task HandleAsync(CreateItem command, string tenantId, CancellationToken cancellationToken)
+    public async Task HandleAsync(CreateItem command, TenantId tenantId, CancellationToken cancellationToken)
     {
         // Get an EF Core DbContext wrapped in a Wolverine IDbContextOutbox<ItemsDbContext>
         // for message sending wrapped in a transaction spanning the DbContext and Wolverine
-        var outbox = await _factory.CreateForTenantAsync<ItemsDbContext>(tenantId, cancellationToken);
+        var outbox = await _factory.CreateForTenantAsync<ItemsDbContext>(tenantId.Value, cancellationToken);
         var item = new Item { Name = command.Name, Id = CombGuidIdGeneration.NewGuid() };
 
         outbox.DbContext.Items.Add(item);

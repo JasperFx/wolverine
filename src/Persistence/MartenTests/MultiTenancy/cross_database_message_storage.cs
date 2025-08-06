@@ -2,6 +2,7 @@ using JasperFx.Core;
 using Shouldly;
 using Wolverine.ComplianceTests;
 using Wolverine;
+using Wolverine.Runtime.Agents;
 using Wolverine.Transports;
 
 namespace MartenTests.MultiTenancy;
@@ -33,6 +34,15 @@ public class cross_database_message_storage : MultiTenancyContext, IAsyncLifetim
     {
         var envelope = ObjectMother.Envelope();
         envelope.TenantId = tenantId;
+
+        return envelope;
+    }
+    
+    public Envelope envelopeFor(string tenantId, int ownerId)
+    {
+        var envelope = ObjectMother.Envelope();
+        envelope.TenantId = tenantId;
+        envelope.OwnerId = ownerId;
 
         return envelope;
     }
@@ -392,6 +402,60 @@ public class cross_database_message_storage : MultiTenancyContext, IAsyncLifetim
 
         counts.Incoming.ShouldBe(envelopes.Count);
         counts.Outgoing.ShouldBe(19);
+    }
+    
+    [Fact]
+    public async Task delete_node_really_does_release_ownership_across_tenants()
+    {
+        await Stores.Outbox.StoreOutgoingAsync(envelopeFor(null), 3);
+        await Stores.Outbox.StoreOutgoingAsync(envelopeFor(null), 3);
+        await Stores.Outbox.StoreOutgoingAsync(envelopeFor("tenant1"), 3);
+        await Stores.Outbox.StoreOutgoingAsync(envelopeFor("tenant1"), 3);
+        await Stores.Outbox.StoreOutgoingAsync(envelopeFor("tenant1"), 3);
+        await Stores.Outbox.StoreOutgoingAsync(envelopeFor("tenant2"), 3);
+        await Stores.Outbox.StoreOutgoingAsync(envelopeFor("tenant2"), 3);
+        await Stores.Outbox.StoreOutgoingAsync(envelopeFor("tenant2"), 3);
+        await Stores.Outbox.StoreOutgoingAsync(envelopeFor("tenant2"), 3);
+        await Stores.Outbox.StoreOutgoingAsync(envelopeFor("tenant2"), 3);
+        await Stores.Outbox.StoreOutgoingAsync(envelopeFor("tenant3"), 3);
+        await Stores.Outbox.StoreOutgoingAsync(envelopeFor("tenant3"), 3);
+        await Stores.Outbox.StoreOutgoingAsync(envelopeFor("tenant3"), 3);
+        await Stores.Outbox.StoreOutgoingAsync(envelopeFor("tenant3"), 3);
+        await Stores.Outbox.StoreOutgoingAsync(envelopeFor("tenant3"), 3);
+        await Stores.Outbox.StoreOutgoingAsync(envelopeFor("tenant3"), 3);
+        await Stores.Outbox.StoreOutgoingAsync(envelopeFor("tenant3"), 3);
+        await Stores.Outbox.StoreOutgoingAsync(envelopeFor("tenant3"), 3);
+        await Stores.Outbox.StoreOutgoingAsync(envelopeFor("tenant3"), 3);
+        
+        await Stores.Inbox.StoreIncomingAsync(envelopeFor("tenant1", 3));
+        await Stores.Inbox.StoreIncomingAsync(envelopeFor("tenant1", 3));
+        await Stores.Inbox.StoreIncomingAsync(envelopeFor("tenant1", 3));
+        await Stores.Inbox.StoreIncomingAsync(envelopeFor("tenant1", 3));
+        await Stores.Inbox.StoreIncomingAsync(envelopeFor("tenant1", 3));
+        await Stores.Inbox.StoreIncomingAsync(envelopeFor("tenant2", 3));
+        await Stores.Inbox.StoreIncomingAsync(envelopeFor("tenant2", 3));
+        await Stores.Inbox.StoreIncomingAsync(envelopeFor("tenant2", 3));
+        await Stores.Inbox.StoreIncomingAsync(envelopeFor("tenant2", 3));
+        await Stores.Inbox.StoreIncomingAsync(envelopeFor("tenant2", 3));
+        await Stores.Inbox.StoreIncomingAsync(envelopeFor("tenant2", 3));
+        await Stores.Inbox.StoreIncomingAsync(envelopeFor("tenant3", 3));
+        await Stores.Inbox.StoreIncomingAsync(envelopeFor("tenant3", 3));
+        await Stores.Inbox.StoreIncomingAsync(envelopeFor("tenant3", 3));
+        await Stores.Inbox.StoreIncomingAsync(envelopeFor("tenant3", 3));
+        await Stores.Inbox.StoreIncomingAsync(envelopeFor("tenant3", 3));
+        await Stores.Inbox.StoreIncomingAsync(envelopeFor("tenant3", 3));
+
+
+        var wolverineNode = new WolverineNode { NodeId = Guid.NewGuid(), AssignedNodeNumber = 3 };
+        await Stores.Nodes.PersistAsync(wolverineNode,
+            CancellationToken.None);
+
+        (await Stores.Nodes.LoadNodeAsync(wolverineNode.NodeId, CancellationToken.None)).ShouldNotBeNull();
+
+        await Stores.Nodes.DeleteAsync(wolverineNode.NodeId, 3);
+        
+        (await Stores.Admin.AllIncomingAsync()).Any(x => x.OwnerId == 3).ShouldBeFalse();
+        (await Stores.Admin.AllOutgoingAsync()).Any(x => x.OwnerId == 3).ShouldBeFalse();
     }
 
     [Fact]

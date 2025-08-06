@@ -23,7 +23,7 @@ public class MultiTenantedMessageStore<T> : MultiTenantedMessageStore, IAncillar
     public Type MarkerType => typeof(T);
 }
 
-public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IMessageStoreAdmin, IDeadLetters, ISagaSupport
+public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IMessageStoreAdmin, IDeadLetters, ISagaSupport, INodeAgentPersistence
 {
     private readonly ILogger _logger;
     private readonly RetryBlock<IEnvelopeCommand> _retryBlock;
@@ -320,7 +320,7 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
     public IMessageInbox Inbox => this;
     public IMessageOutbox Outbox => this;
     public IDeadLetters DeadLetters => this;
-    public INodeAgentPersistence Nodes => Main.Nodes;
+    public INodeAgentPersistence Nodes => this;
     public IMessageStoreAdmin Admin => this;
 
     public void Describe(TextWriter writer)
@@ -667,5 +667,84 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
 
         throw new InvalidOperationException(
             "The tenant stores do not implement ISagaSupport and cannot be used for saga persistence");
+    }
+
+    Task INodeAgentPersistence.ClearAllAsync(CancellationToken cancellationToken)
+    {
+        return Main.Nodes.ClearAllAsync(cancellationToken);
+    }
+
+    Task<int> INodeAgentPersistence.PersistAsync(WolverineNode node, CancellationToken cancellationToken)
+    {
+        return Main.Nodes.PersistAsync(node, cancellationToken);
+    }
+
+    async Task INodeAgentPersistence.DeleteAsync(Guid nodeId, int assignedNodeNumber)
+    {
+        await Main.Nodes.DeleteAsync(nodeId, assignedNodeNumber);
+        await executeOnAllAsync(async store =>
+        {
+            await store.Admin.ReleaseAllOwnershipAsync(assignedNodeNumber);
+        });
+    }
+
+    Task<IReadOnlyList<WolverineNode>> INodeAgentPersistence.LoadAllNodesAsync(CancellationToken cancellationToken)
+    {
+        return Main.Nodes.LoadAllNodesAsync(cancellationToken);
+    }
+
+    Task INodeAgentPersistence.AssignAgentsAsync(Guid nodeId, IReadOnlyList<Uri> agents, CancellationToken cancellationToken)
+    {
+        return Main.Nodes.AssignAgentsAsync(nodeId, agents, cancellationToken);
+    }
+
+    Task INodeAgentPersistence.RemoveAssignmentAsync(Guid nodeId, Uri agentUri, CancellationToken cancellationToken)
+    {
+        return Main.Nodes.RemoveAssignmentAsync(nodeId, agentUri, cancellationToken);
+    }
+
+    Task INodeAgentPersistence.AddAssignmentAsync(Guid nodeId, Uri agentUri, CancellationToken cancellationToken)
+    {
+        return Main.Nodes.AddAssignmentAsync(nodeId, agentUri, cancellationToken);
+    }
+
+    Task<WolverineNode?> INodeAgentPersistence.LoadNodeAsync(Guid nodeId, CancellationToken cancellationToken)
+    {
+        return Main.Nodes.LoadNodeAsync(nodeId, cancellationToken);
+    }
+
+    Task INodeAgentPersistence.MarkHealthCheckAsync(WolverineNode node, CancellationToken cancellationToken)
+    {
+        return Main.Nodes.MarkHealthCheckAsync(node, cancellationToken);
+    }
+
+    Task INodeAgentPersistence.OverwriteHealthCheckTimeAsync(Guid nodeId, DateTimeOffset lastHeartbeatTime)
+    {
+        return Main.Nodes.OverwriteHealthCheckTimeAsync(nodeId, lastHeartbeatTime);
+    }
+
+    Task INodeAgentPersistence.LogRecordsAsync(params NodeRecord[] records)
+    {
+        return Main.Nodes.LogRecordsAsync(records);
+    }
+
+    Task<IReadOnlyList<NodeRecord>> INodeAgentPersistence.FetchRecentRecordsAsync(int count)
+    {
+        return Main.Nodes.FetchRecentRecordsAsync(count);
+    }
+
+    bool INodeAgentPersistence.HasLeadershipLock()
+    {
+        return Main.Nodes.HasLeadershipLock();
+    }
+
+    Task<bool> INodeAgentPersistence.TryAttainLeadershipLockAsync(CancellationToken token)
+    {
+        return Main.Nodes.TryAttainLeadershipLockAsync(token);
+    }
+
+    Task INodeAgentPersistence.ReleaseLeadershipLockAsync()
+    {
+        return Main.Nodes.ReleaseLeadershipLockAsync();
     }
 }
