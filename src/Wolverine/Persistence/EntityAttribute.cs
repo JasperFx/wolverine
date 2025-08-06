@@ -43,10 +43,6 @@ public class LoadEntityFrameBlock : Frame
             
             _guardFrames[0].GenerateCode(method, writer);
         }
-        else if (_creator.Next != null)
-        {
-            Debug.WriteLine("What the heck?");
-        }
         else
         {
             var previous = _creator;

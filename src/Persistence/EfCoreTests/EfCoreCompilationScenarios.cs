@@ -1,9 +1,11 @@
 using EfCoreTests.MultiTenancy;
 using JasperFx.CodeGeneration;
 using Microsoft.Extensions.DependencyInjection;
+using NSubstitute;
 using SharedPersistenceModels.Items;
 using Wolverine.ComplianceTests;
 using Wolverine;
+using Wolverine.EntityFrameworkCore;
 
 namespace EfCoreTests;
 
@@ -15,10 +17,12 @@ public class EfCoreCompilationScenarios
     {
         using var host = WolverineHost.For(opts =>
         {
-            opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
-            
+            opts.Discovery.DisableConventionalDiscovery().IncludeType(typeof(CreateItemHandler));
+
             // Default of both is scoped
             opts.Services.AddDbContext<SampleDbContext>();
+            
+            opts.UseEntityFrameworkCoreTransactions();
         });
 
         await host.MessageBus().InvokeAsync(new CreateItem { Name = "foo" });
@@ -29,8 +33,11 @@ public class EfCoreCompilationScenarios
     {
         var host = await WolverineHost.ForAsync(opts =>
         {
+            opts.Discovery.DisableConventionalDiscovery().IncludeType(typeof(CreateItemHandler));
             // Default of both is scoped
             opts.Services.AddDbContext<SampleDbContext>(optionsLifetime: ServiceLifetime.Singleton);
+            
+            opts.UseEntityFrameworkCoreTransactions();
         });
 
         await host.MessageBus().InvokeAsync(new CreateItem { Name = "foo" });
@@ -43,8 +50,12 @@ public class EfCoreCompilationScenarios
     {
         using var host = WolverineHost.For(opts =>
         {
+            opts.Discovery.DisableConventionalDiscovery().IncludeType(typeof(CreateItemHandler));
+            
             // Default of both is scoped
             opts.Services.AddDbContext<SampleDbContext>(ServiceLifetime.Singleton, ServiceLifetime.Singleton);
+            
+            opts.UseEntityFrameworkCoreTransactions();
         });
 
         await host.MessageBus().InvokeAsync(new CreateItem { Name = "foo" });
