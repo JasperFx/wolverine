@@ -1,6 +1,7 @@
-using System.Threading.Tasks.Dataflow;
+using JasperFx.Blocks;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
+using System.Threading.Tasks.Dataflow;
 
 namespace Wolverine.Util.Dataflow;
 
@@ -24,7 +25,7 @@ public class LambdaItemHandler<T> : IItemHandler<T>
     }
 }
 
-public class RetryBlock<T> : IDisposable
+public class RetryBlock<T> : IRetryBlock<T>, IDisposable
 {
     private readonly ActionBlock<Item> _block;
     private readonly CancellationToken _cancellationToken;

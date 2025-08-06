@@ -3,7 +3,7 @@
         <TargetFrameworks>net9.0</TargetFrameworks>
     </PropertyGroup>
     <ItemGroup>
-        <PackageReference Include="FSharp.Core" Version="9.0.300" />
+        <PackageReference Include="FSharp.Core" Version="9.0.303" />
         <PackageReference Include="FSharp.Core" Version="9.0.202" />
         <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="7.0.2" />
         <PackageReference Include="Microsoft.AspNetCore.SignalR" Version="1.1.0" />

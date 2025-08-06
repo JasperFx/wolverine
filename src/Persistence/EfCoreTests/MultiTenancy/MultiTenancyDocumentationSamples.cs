@@ -179,8 +179,8 @@ public class OurFancyPostgreSQLMultiTenancy : IWolverineExtension
             .RegisterStaticTenantsByDataSource(tenants =>
             {
                 tenants.Register("tenant1", _provider.GetRequiredKeyedService<NpgsqlDataSource>("tenant1"));
-                tenants.Register("tenant1", _provider.GetRequiredKeyedService<NpgsqlDataSource>("tenant2"));
-                tenants.Register("tenant1", _provider.GetRequiredKeyedService<NpgsqlDataSource>("tenant3"));
+                tenants.Register("tenant2", _provider.GetRequiredKeyedService<NpgsqlDataSource>("tenant2"));
+                tenants.Register("tenant3", _provider.GetRequiredKeyedService<NpgsqlDataSource>("tenant3"));
             });
     }
 }
@@ -198,11 +198,11 @@ public class MyMessageHandler
         _factory = factory;
     }
 
-    public async Task HandleAsync(CreateItem command, string tenantId, CancellationToken cancellationToken)
+    public async Task HandleAsync(CreateItem command, TenantId tenantId, CancellationToken cancellationToken)
     {
         // Get an EF Core DbContext wrapped in a Wolverine IDbContextOutbox<ItemsDbContext>
         // for message sending wrapped in a transaction spanning the DbContext and Wolverine
-        var outbox = await _factory.CreateForTenantAsync<ItemsDbContext>(tenantId, cancellationToken);
+        var outbox = await _factory.CreateForTenantAsync<ItemsDbContext>(tenantId.Value, cancellationToken);
         var item = new Item { Name = command.Name, Id = CombGuidIdGeneration.NewGuid() };
 
         outbox.DbContext.Items.Add(item);

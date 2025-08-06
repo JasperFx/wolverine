@@ -9,7 +9,7 @@ namespace Wolverine.Transports.Sending;
 public class InlineSendingAgent : ISendingAgent, IDisposable
 {
     private readonly IMessageTracker _messageLogger;
-    private readonly RetryBlock<Envelope> _sending;
+    private readonly IRetryBlock<Envelope> _sending;
     private readonly DurabilitySettings _settings;
 
     public InlineSendingAgent(ILogger logger, ISender sender, Endpoint endpoint, IMessageTracker messageLogger,
@@ -20,15 +20,17 @@ public class InlineSendingAgent : ISendingAgent, IDisposable
         _settings = settings;
         Endpoint = endpoint;
 
-        if (endpoint.TelemetryEnabled)
+        if (settings.UseSyncRetryBlock)
         {
-            _sending = new RetryBlock<Envelope>(sendWithTracing, logger, _settings.Cancellation);
+            _sending = new RetryBlockSync<Envelope>(RetryHandlerResolver(endpoint), logger, _settings.Cancellation);
         }
         else
         {
-            _sending = new RetryBlock<Envelope>(sendWithOutTracing, logger, _settings.Cancellation);
+            _sending = new RetryBlock<Envelope>(RetryHandlerResolver(endpoint), logger, _settings.Cancellation);
         }
     }
+
+    private Func<Envelope, CancellationToken, Task> RetryHandlerResolver(Endpoint endpoint) => endpoint.TelemetryEnabled ? sendWithTracing : sendWithOutTracing;
 
     public ISender Sender { get; }
 
@@ -37,6 +39,7 @@ public class InlineSendingAgent : ISendingAgent, IDisposable
         using var activity = WolverineTracing.StartSending(e);
         try
         {
+            //TODO: What about cancellationToken??
             await Sender.SendAsync(e);
             _messageLogger.Sent(e);
         }
@@ -58,7 +61,7 @@ public class InlineSendingAgent : ISendingAgent, IDisposable
 
     public void Dispose()
     {
-        _sending.Dispose();
+        (_sending as IDisposable)?.Dispose();
     }
 
     public Uri Destination => Sender.Destination;

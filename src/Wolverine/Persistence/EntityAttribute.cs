@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Reflection;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
@@ -87,8 +88,6 @@ public class EntityAttribute : WolverineParameterAttribute, IDataRequirement
     {
         ValueSource = ValueSource.Anything;
     }
-    
-    
 
     /// <summary>
     /// Is the existence of this entity required for the rest of the handler action or HTTP endpoint

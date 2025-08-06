@@ -124,7 +124,7 @@ public sealed partial class HandlerDiscovery
         writer.WriteLine("To fix this, add the assembly to your application by either:");
         writer.WriteLine("1. Either add the [assembly: WolverineModule] attribute to this assembly");
         writer.WriteLine(
-            $"2. Or add WolverineOptions.Discovery.IncludeAssembly({candidateType.FullNameInCode()}.Assembly); within your UseWolverine() setup");
+            $"2. Or add `WolverineOptions.Discovery.IncludeAssembly(typeof({candidateType.FullNameInCode()}).Assembly);` within your UseWolverine() setup");
         writer.WriteLine();
 
         if (options.ApplicationAssembly != null)

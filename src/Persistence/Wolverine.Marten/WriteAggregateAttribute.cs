@@ -29,7 +29,7 @@ public class WriteAggregateAttribute : WolverineParameterAttribute, IDataRequire
 
     public string? RouteOrParameterName { get; }
 
-    public bool Required { get; set; }
+    public bool Required { get; set; } = true;
     public string MissingMessage { get; set; }
     public OnMissing OnMissing { get; set; }
 
@@ -45,7 +45,7 @@ public class WriteAggregateAttribute : WolverineParameterAttribute, IDataRequire
         if (chain.HandlerCalls().First().Method.GetParameters().Count(x => x.HasAttribute<WriteAggregateAttribute>()) > 1)
         {
             throw new InvalidOperationException(
-                "It is only possible (today) to use a single [Aggregate] attribute on an HTTP handler method. Maybe use [ReadAggregate] if all you need is the projected data");
+                "It is only possible (today) to use a single [Aggregate] or [WriteAggregate] attribute on an HTTP handler method. Maybe use [ReadAggregate] if all you need is the projected data");
         }
 
         var aggregateType = parameter.ParameterType;

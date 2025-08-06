@@ -18,6 +18,7 @@ internal class LoadDocumentFrame : AsyncFrame
     public LoadDocumentFrame(Type sagaType, Variable sagaId)
     {
         _sagaId = sagaId;
+        uses.Add(sagaId);
 
         Saga = new Variable(sagaType, this);
     }
