@@ -57,4 +57,6 @@ public class FakeEvent<T> : IEvent<T>
     public Dictionary<string, object> Headers { get; set; }
     public bool IsArchived { get; set; }
     public string AggregateTypeName { get; set; }
+    public string? UserName { get; set; }
+    public bool IsSkipped { get; set; }
 }

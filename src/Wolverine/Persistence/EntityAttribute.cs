@@ -34,7 +34,7 @@ public class LoadEntityFrameBlock : Frame
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
         // The [WriteAggregate] somehow causes this
-        if (_creator.Next == this)
+        if (_creator.Next == this || _creator.Next != null)
         {
             for (int i = 1; i < _guardFrames.Length; i++)
             {
