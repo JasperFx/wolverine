@@ -25,6 +25,7 @@ using Wolverine.Http.Tests.DifferentAssembly.Validation;
 using Wolverine.Http.Transport;
 using Wolverine.Marten;
 using WolverineWebApi;
+using WolverineWebApi.Bugs;
 using WolverineWebApi.Marten;
 using WolverineWebApi.Samples;
 using WolverineWebApi.Things;
@@ -264,6 +265,7 @@ app.MapWolverineEndpoints(opts =>
 
     opts.AddPolicy<StreamCollisionExceptionPolicy>();
 
+    opts.AddPolicy<FrameRearrangeMiddleware.HttpPolicy>();
 
     #region sample_adding_custom_parameter_handling
 
