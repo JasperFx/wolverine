@@ -30,6 +30,7 @@ public class RetryBlockSync<T>(Func<T, CancellationToken, Task> handler, ILogger
 
                 await _handler(message, _cancellationToken).ConfigureAwait(false);
                 _logger.LogDebug("Completed {Item}", message);
+                return;
             }
             catch (OperationCanceledException)
             {
