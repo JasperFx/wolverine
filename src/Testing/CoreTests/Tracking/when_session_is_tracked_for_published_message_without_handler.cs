@@ -36,6 +36,8 @@ public class when_session_is_tracked_for_published_message_without_handler : IAs
     private readonly ITestOutputHelper _testOutputHelper;
     private IHost _host;
 
+    private IHost _secondHost;
+
     public when_session_is_tracked_for_published_message_without_handler(
         ITestOutputHelper testOutputHelper
     ) => _testOutputHelper = testOutputHelper;
@@ -58,6 +60,37 @@ public class when_session_is_tracked_for_published_message_without_handler : IAs
 
         var session = await _host
             .TrackActivity()
+            .Timeout(2.Seconds())
+            .ExecuteAndWaitAsync(
+                (Func<IMessageContext, Task>)(
+                    async (
+                        _
+                    ) => await randomEventEmitter.SimulateRandomFileChange()
+                )
+            );
+
+
+        session.NoRoutes.AllMessages()
+            .Count()
+            .ShouldBe(1);
+
+        session.NoRoutes.AllMessages()
+            .First()
+            .ShouldBeOfType<FileAdded>();
+    }
+
+    [Fact]
+    public async Task should_apply_equally_when_tracked_across_multiple_hosts()
+    {
+        using var secondHost = await Host.CreateDefaultBuilder()
+            .UseWolverine().StartAsync();
+        
+        var randomEventEmitter = _host.Services.GetRequiredService<RandomFileChangeForPublish>();
+
+        var session = await _host
+            .TrackActivity()
+            .IncludeExternalTransports()
+            .AlsoTrack(secondHost)
             .Timeout(2.Seconds())
             .ExecuteAndWaitAsync(
                 (Func<IMessageContext, Task>)(

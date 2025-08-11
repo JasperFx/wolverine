@@ -165,3 +165,4 @@ public class when_determining_if_the_session_is_done : IDisposable
         session.Status.ShouldBe(TrackingStatus.Completed);
     }
 }
+
