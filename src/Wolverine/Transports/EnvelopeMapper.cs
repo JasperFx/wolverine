@@ -17,12 +17,32 @@ public interface IOutgoingMapper<TOutgoing>
 public interface IIncomingMapper<TIncoming>
 {
     void MapIncomingToEnvelope(Envelope envelope, TIncoming incoming);
-    IEnumerable<string> AllHeaders();
+    public IEnumerable<string> AllHeaders();
 }
 
 public interface IEnvelopeMapper<TIncoming, TOutgoing> : IOutgoingMapper<TOutgoing>, IIncomingMapper<TIncoming>;
 
-public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIncoming, TOutgoing>
+public interface IEnvelopeMapper
+{
+    IEnumerable<string> AllHeaders();
+
+    /// <summary>
+    ///     This endpoint will assume that any unidentified incoming message types
+    ///     are the supplied message type. This is meant primarily for interaction
+    ///     with incoming messages from MassTransit
+    /// </summary>
+    /// <param name="messageType"></param>
+    void ReceivesMessage(Type messageType);
+
+    /// <summary>
+    /// Declaratively map a header value to 
+    /// </summary>
+    /// <param name="property"></param>
+    /// <param name="headerKey"></param>
+    void MapPropertyToHeader(Expression<Func<Envelope, object>> property, string headerKey);
+}
+
+public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIncoming, TOutgoing>, IEnvelopeMapper
 {
     private const string DateTimeOffsetFormat = "yyyy-MM-dd HH:mm:ss:ffffff Z";
     private readonly Endpoint _endpoint;
