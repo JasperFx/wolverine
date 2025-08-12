@@ -61,6 +61,7 @@ public class configure_consumers_and_publishers : IAsyncLifetime
                         // This will also set the Envelope.GroupId for any
                         // received messages at this topic
                         config.GroupId = "foo";
+                        config.BootstrapServers = "localhost:9092";
                         
                         // Other configuration
                     }).Named("red");
