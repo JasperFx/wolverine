@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Reflection;
+using ImTools;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
@@ -29,6 +30,7 @@ internal record AggregateHandling(IDataRequirement Requirement)
 
     public ConcurrencyStyle LoadStyle { get; init; }
     public Variable? Version { get; init; }
+    public ParameterInfo? Parameter { get; set; }
 
     public Variable Apply(IChain chain, IServiceContainer container)
     {
@@ -40,6 +42,10 @@ internal record AggregateHandling(IDataRequirement Requirement)
         var firstCall = chain.HandlerCalls().First();
 
         var eventStream = loader.ReturnVariable!;
+        if (Parameter != null)
+        {
+            eventStream.OverrideName("stream_" + Parameter.Name);
+        }
         
         if (AggregateType == firstCall.HandlerType)
         {
@@ -52,6 +58,11 @@ internal record AggregateHandling(IDataRequirement Requirement)
         ValidateMethodSignatureForEmittedEvents(chain, firstCall, chain);
         var aggregate = RelayAggregateToHandlerMethod(eventStream, chain, firstCall, AggregateType);
 
+        if (Parameter != null && Parameter.ParameterType.Closes(typeof(IEventStream<>)))
+        {
+            return eventStream;
+        }
+        
         return aggregate;
     }
 
@@ -203,7 +214,14 @@ internal record AggregateHandling(IDataRequirement Requirement)
         }
         else
         {
-            firstCall.TrySetArgument(aggregateVariable);
+            if (!firstCall.TrySetArgument(aggregateVariable))
+            {
+                if (Parameter != null && Parameter.ParameterType.Closes(typeof(IEventStream<>)))
+                {
+                    var index = firstCall.Method.GetParameters().IndexOf(x => x.Name == Parameter.Name);
+                    firstCall.Arguments[index] = eventStream;
+                }
+            };
         }
 
         foreach (var methodCall in chain.Middleware.OfType<MethodCall>())
