@@ -5,6 +5,7 @@ using FastExpressionCompiler;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Wolverine.Configuration;
+using Wolverine.Runtime.Interop.MassTransit;
 using Wolverine.Util;
 
 namespace Wolverine.Transports;
@@ -118,6 +119,31 @@ public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIn
     {
         _incomingToEnvelope[ReflectionHelper.GetProperty<Envelope>(x => x.MessageType!)] =
             (e, _) => e.MessageType = messageType.ToMessageTypeName();
+    }
+
+    public void InteropWithMassTransit(Action<IMassTransitInterop>? configure = null)
+    {
+        if (_endpoint is IMassTransitInteropEndpoint e)
+        {
+            var serializer = new MassTransitJsonSerializer(e);
+            configure?.Invoke(serializer);
+            
+            MapPropertyToHeader(x => x.MessageType, MassTransitHeaders.MessageType);
+        
+            _endpoint.DefaultSerializer = serializer;
+            
+            var replyUri = new Lazy<string>(() => e.MassTransitReplyUri()?.ToString() ?? string.Empty);
+            
+            MapOutgoingProperty(x => x.ReplyUri!, (envelope, outgoing) =>
+            {
+                writeOutgoingHeader(outgoing, MassTransitHeaders.ResponseAddress, replyUri.Value);
+            });
+        }
+        else
+        {
+            throw new NotSupportedException("Endpoint of type {0} does not (yet) support interoperability with ")
+        }
+
     }
 
     public void MapProperty(Expression<Func<Envelope, object>> property, Action<Envelope, TIncoming> readFromIncoming,
