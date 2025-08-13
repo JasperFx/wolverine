@@ -416,6 +416,10 @@ public static class ShipOrderHandler
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CompoundHandlerSamples.cs#L28-L58' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_shiporderhandler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+::: tip
+Please note that only one message type must be handle by the class. Otherwise code-generation will fail.
+:::
+
 The naming conventions for what Wolverine will consider to be either a "before" or "after" method is shown below:
 
 Here's the conventions:
