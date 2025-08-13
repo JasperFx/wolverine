@@ -10,9 +10,7 @@
     </PropertyGroup>
     <ItemGroup>
         <ProjectReference Include="..\Wolverine.Postgresql\Wolverine.Postgresql.csproj" />
-    </ItemGroup>
-    <ItemGroup>
-      <PackageReference Include="Marten" Version="8.6.0" />
+        <ProjectReference Include="..\..\..\..\marten\src\Marten\Marten.csproj" />
     </ItemGroup>
     <Import Project="../../../Analysis.Build.props" />
 </Project>
