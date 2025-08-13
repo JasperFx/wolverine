@@ -11,10 +11,7 @@
 
     <ItemGroup>
         <ProjectReference Include="..\..\Wolverine\Wolverine.csproj" />
-    </ItemGroup>
-
-    <ItemGroup>
-      <PackageReference Include="Weasel.Core" Version="8.1.1" />
+        <ProjectReference Include="..\..\..\..\weasel\src\Weasel.Core\Weasel.Core.csproj" />
     </ItemGroup>
 
     <Import Project="../../../Analysis.Build.props" />
