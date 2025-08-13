@@ -26,7 +26,11 @@ public class broadcast_to_topic_rules : IAsyncLifetime
             .UseWolverine(opts =>
             {
                 opts.UseKafka("localhost:9092").AutoProvision();
-                opts.ListenToKafkaTopic("red").ConfigureConsumer(c => c.GroupId = "crimson");
+                opts.ListenToKafkaTopic("red").ConfigureConsumer(c =>
+                {
+                    c.GroupId = "crimson";
+                    c.BootstrapServers = "localhost:9092";
+                });
                 opts.ListenToKafkaTopic("green");
                 opts.ListenToKafkaTopic("blue");
                 opts.ListenToKafkaTopic("purple");

@@ -27,7 +27,11 @@ public class configuration_precedence
                 opts.ListenToKafkaTopic("General").Named("General");
                 
                 opts.ListenToKafkaTopic("ResponseMessages")
-                    .ConfigureConsumer(x => x.GroupId = "Specific").Named("Specific"); // Not working as expected
+                    .ConfigureConsumer(x =>
+                    {
+                        x.GroupId = "Specific";
+                        x.BootstrapServers = "localhost:9092";
+                    }).Named("Specific"); // Not working as expected
 
                 opts.Services.AddResourceSetupOnStartup();
             }).StartAsync();
