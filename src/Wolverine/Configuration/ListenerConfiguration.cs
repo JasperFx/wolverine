@@ -65,6 +65,99 @@ public class ListenerConfiguration<TSelf, TEndpoint> : DelayedEndpointConfigurat
         return this.As<TSelf>();
     }
 
+    /// <summary>
+    /// Configure this listener to run exclusively on a single node in the cluster,
+    /// but allow parallel message processing within that node. This is useful for
+    /// scenarios where you need single-node consistency but want to maintain throughput.
+    /// </summary>
+    /// <param name="maxParallelism">Maximum number of messages to process in parallel on the exclusive node. Default is 10.</param>
+    /// <param name="endpointName">Optional endpoint name for identification</param>
+    /// <returns>The configuration for method chaining</returns>
+    public TSelf ExclusiveNodeWithParallelism(int maxParallelism = 10, string? endpointName = null)
+    {
+        if (maxParallelism < 1)
+        {
+            throw new ArgumentException("Maximum parallelism must be at least 1", nameof(maxParallelism));
+        }
+
+        if (maxParallelism > 100)
+        {
+            // Warning for very high parallelism values that might indicate misunderstanding
+            // This is logged but doesn't prevent configuration
+            System.Diagnostics.Debug.WriteLine(
+                $"WARNING: Setting maxParallelism to {maxParallelism} is very high. " +
+                "This will consume significant memory and thread pool resources. " +
+                "Consider if this high level of parallelism is necessary for your use case.");
+        }
+
+        if (_endpoint is LocalQueue)
+            throw new NotSupportedException(
+                $"Wolverine cannot use the {nameof(ExclusiveNodeWithParallelism)} option for local queues. Use an external message queue for exclusive node processing across a clustered application.");
+
+        add(e =>
+        {
+            e.IsListener = true;
+            e.ListenerScope = ListenerScope.Exclusive;
+            e.ExecutionOptions.MaxDegreeOfParallelism = maxParallelism;
+            e.ExecutionOptions.EnsureOrdered = false; // Allow parallel processing
+            e.ExecutionOptions.SingleProducerConstrained = false; // Allow multiple producers within the node
+            e.ListenerCount = 1; // Single listener instance for exclusive node
+
+            if (endpointName.IsNotEmpty())
+            {
+                e.EndpointName = endpointName;
+            }
+        });
+
+        return this.As<TSelf>();
+    }
+
+    /// <summary>
+    /// Configure this listener to run exclusively on a single node with parallel processing,
+    /// but maintain ordering within specific groups (sessions). This is particularly useful
+    /// for Azure Service Bus with sessions or similar scenarios.
+    /// </summary>
+    /// <param name="maxParallelSessions">Maximum number of sessions/groups to process in parallel. Default is 10.</param>
+    /// <param name="endpointName">Optional endpoint name for identification</param>
+    /// <returns>The configuration for method chaining</returns>
+    public TSelf ExclusiveNodeWithSessionOrdering(int maxParallelSessions = 10, string? endpointName = null)
+    {
+        if (maxParallelSessions < 1)
+        {
+            throw new ArgumentException("Maximum parallel sessions must be at least 1", nameof(maxParallelSessions));
+        }
+
+        if (maxParallelSessions > 100)
+        {
+            // Warning for very high session count that might indicate misunderstanding
+            // This is logged but doesn't prevent configuration
+            System.Diagnostics.Debug.WriteLine(
+                $"WARNING: Setting maxParallelSessions to {maxParallelSessions} is very high. " +
+                "This will consume significant memory and thread pool resources. " +
+                "Consider if this many concurrent sessions is necessary for your use case.");
+        }
+
+        if (_endpoint is LocalQueue)
+            throw new NotSupportedException(
+                $"Wolverine cannot use the {nameof(ExclusiveNodeWithSessionOrdering)} option for local queues. Use an external message queue for exclusive node processing across a clustered application.");
+
+        add(e =>
+        {
+            e.IsListener = true;
+            e.ListenerScope = ListenerScope.Exclusive;
+            e.ExecutionOptions.MaxDegreeOfParallelism = maxParallelSessions;
+            e.ExecutionOptions.EnsureOrdered = true; // Maintain ordering within sessions
+            e.ListenerCount = maxParallelSessions; // Multiple listeners for different sessions
+
+            if (endpointName.IsNotEmpty())
+            {
+                e.EndpointName = endpointName;
+            }
+        });
+
+        return this.As<TSelf>();
+    }
+
     public TSelf TelemetryEnabled(bool isEnabled)
     {
         add(e => e.TelemetryEnabled = isEnabled);
