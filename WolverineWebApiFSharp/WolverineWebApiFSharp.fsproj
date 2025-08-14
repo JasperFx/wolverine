@@ -10,6 +10,7 @@
     <ItemGroup>
         <Compile Include="Library.fs"/>
         <Compile Include="TupleSupport.fs" />
+        <Compile Include="UnitSupport.fs" />
         <Compile Include="SideEffects.fs" />
         <Compile Include="Program.fs" />
     </ItemGroup>
