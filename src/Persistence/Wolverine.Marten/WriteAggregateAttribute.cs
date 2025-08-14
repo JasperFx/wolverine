@@ -4,6 +4,7 @@ using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Marten;
+using Marten.Events;
 using Wolverine.Attributes;
 using Wolverine.Configuration;
 using Wolverine.Persistence;
@@ -41,17 +42,15 @@ public class WriteAggregateAttribute : WolverineParameterAttribute, IDataRequire
 
     public override Variable Modify(IChain chain, ParameterInfo parameter, IServiceContainer container, GenerationRules rules)
     {
-        // TODO -- this goes away soon-ish
-        if (chain.HandlerCalls().First().Method.GetParameters().Count(x => x.HasAttribute<WriteAggregateAttribute>()) > 1)
-        {
-            throw new InvalidOperationException(
-                "It is only possible (today) to use a single [Aggregate] or [WriteAggregate] attribute on an HTTP handler method. Maybe use [ReadAggregate] if all you need is the projected data");
-        }
-
         var aggregateType = parameter.ParameterType;
         if (aggregateType.IsNullable())
         {
             aggregateType = aggregateType.GetInnerTypeFromNullable();
+        }
+
+        if (aggregateType.Closes(typeof(IEventStream<>)))
+        {
+            aggregateType = aggregateType.GetGenericArguments()[0];
         }
 
         var store = container.GetInstance<IDocumentStore>();
@@ -75,7 +74,8 @@ public class WriteAggregateAttribute : WolverineParameterAttribute, IDataRequire
             AggregateType = aggregateType,
             AggregateId = identity,
             LoadStyle = LoadStyle,
-            Version = version
+            Version = version,
+            Parameter = parameter
         };
 
         return handling.Apply(chain, container);

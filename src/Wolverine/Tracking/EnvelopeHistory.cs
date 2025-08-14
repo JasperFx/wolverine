@@ -154,8 +154,10 @@ internal class EnvelopeHistory
 
             case MessageEventType.NoHandlers:
             case MessageEventType.NoRoutes:
+                record.IsComplete = true;
+                break;
+            
             case MessageEventType.Requeued:
-
                 break;
 
             default:
