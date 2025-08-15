@@ -44,11 +44,6 @@ public class DatabaseBatcher : IAsyncDisposable
         return _batchingBlock.PostAsync(operation).AsTask();
     }
 
-    public void Enqueue(IDatabaseOperation operation)
-    {
-        _batchingBlock.Post(operation);
-    }
-
     private async Task processOperationsAsync(IDatabaseOperation[] operations, CancellationToken _)
     {
         if (_internalCancellation.Token.IsCancellationRequested) return;
