@@ -1,6 +1,7 @@
 using Google.Cloud.PubSub.V1;
 using Google.Protobuf.Collections;
 using Grpc.Core;
+using JasperFx.Blocks;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Wolverine.Runtime;

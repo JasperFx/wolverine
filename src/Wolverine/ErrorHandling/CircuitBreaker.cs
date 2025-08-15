@@ -1,4 +1,5 @@
 using System.Threading.Tasks.Dataflow;
+using JasperFx.Blocks;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
@@ -6,7 +7,6 @@ using Wolverine.ErrorHandling.Matches;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Transports;
-using Wolverine.Util.Dataflow;
 
 namespace Wolverine.ErrorHandling;
 
@@ -86,14 +86,14 @@ internal interface IMessageSuccessTracker
     Task TagFailureAsync(Exception ex);
 }
 
-internal class CircuitBreaker : IDisposable, IMessageSuccessTracker
+internal class CircuitBreaker : IAsyncDisposable, IMessageSuccessTracker
 {
-    private readonly BatchingBlock<object> _batching;
+    private readonly BatchingChannel<object> _batching;
     private readonly CancellationTokenSource _cancellation = new();
     private readonly IListenerCircuit _circuit;
     private readonly List<Generation> _generations = new();
     private readonly IExceptionMatch _match;
-    private readonly ActionBlock<object[]> _processingBlock;
+    private readonly Block<object[]> _processingBlock;
     private readonly double _ratio;
 
     public CircuitBreaker(CircuitBreakerOptions options, IListenerCircuit circuit)
@@ -102,8 +102,8 @@ internal class CircuitBreaker : IDisposable, IMessageSuccessTracker
         _match = options.ToExceptionMatch();
         _circuit = circuit;
 
-        _processingBlock = new ActionBlock<object[]>(processExceptionsAsync);
-        _batching = new BatchingBlock<object>(options.SamplingPeriod, _processingBlock);
+        _processingBlock = new Block<object[]>(processExceptionsAsync);
+        _batching = new BatchingChannel<object>(options.SamplingPeriod, _processingBlock);
 
         GenerationPeriod = ((int)Math.Floor(Options.TrackingPeriod.TotalSeconds / 4)).Seconds();
 
@@ -116,21 +116,20 @@ internal class CircuitBreaker : IDisposable, IMessageSuccessTracker
 
     public IReadOnlyList<Generation> CurrentGenerations => _generations;
 
-    public void Dispose()
+    public async ValueTask DisposeAsync()
     {
-        _cancellation.Cancel();
+        await _cancellation.CancelAsync();
         _processingBlock.Complete();
-        _batching.Dispose();
     }
 
     public Task TagSuccessAsync()
     {
-        return _batching.SendAsync(this);
+        return _batching.PostAsync(this).AsTask();
     }
 
     public Task TagFailureAsync(Exception ex)
     {
-        return _batching.SendAsync(ex);
+        return _batching.PostAsync(ex).AsTask();
     }
 
     public bool ShouldStopProcessing()
@@ -146,7 +145,7 @@ internal class CircuitBreaker : IDisposable, IMessageSuccessTracker
         return failures / (double)totals >= _ratio;
     }
 
-    private Task processExceptionsAsync(object[] tokens)
+    private Task processExceptionsAsync(object[] tokens, CancellationToken _)
     {
         return ProcessExceptionsAsync(DateTimeOffset.UtcNow, tokens).AsTask();
     }

@@ -1,3 +1,4 @@
+using JasperFx.Blocks;
 using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;

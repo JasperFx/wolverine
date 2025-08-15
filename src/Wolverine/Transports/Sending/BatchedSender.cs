@@ -1,22 +1,19 @@
 using System.Threading.Tasks.Dataflow;
+using JasperFx.Blocks;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
 using Wolverine.Logging;
-using Wolverine.Util.Dataflow;
 
 namespace Wolverine.Transports.Sending;
 
 public class BatchedSender : ISender, ISenderRequiresCallback
 {
-    private readonly BatchingBlock<Envelope> _batching;
-    private readonly TransformBlock<Envelope[], OutgoingMessageBatch> _batchWriting;
     private readonly CancellationToken _cancellation;
     private readonly ILogger _logger;
 
     private readonly ISenderProtocol _protocol;
-    private readonly ActionBlock<OutgoingMessageBatch> _sender;
-    private readonly ActionBlock<Envelope> _serializing;
+    private readonly IBlock<Envelope> _serializing;
     private ISenderCallback? _callback;
     private int _queued;
 
@@ -27,55 +24,34 @@ public class BatchedSender : ISender, ISenderRequiresCallback
         _cancellation = cancellation;
         _logger = logger;
 
-        _sender = new ActionBlock<OutgoingMessageBatch>(SendBatchAsync, new ExecutionDataflowBlockOptions
+        var sender = new Block<OutgoingMessageBatch>(destination.MessageBatchMaxDegreeOfParallelism, SendBatchAsync);
+        var transforming = sender.PushUpstream<Envelope[]>(envelopes => new OutgoingMessageBatch(Destination, envelopes));
+
+        var batching = transforming.BatchUpstream(250.Milliseconds());
+        _serializing = batching.PushUpstream<Envelope>(Environment.ProcessorCount, e =>
         {
-            MaxDegreeOfParallelism = destination.MessageBatchMaxDegreeOfParallelism,
-            CancellationToken = _cancellation,
-            BoundedCapacity = DataflowBlockOptions.Unbounded
+            try
+            {
+                if (e.Data == null && e.Serializer != null)
+                {
+                    e.Data = e.Serializer.Write(e);
+                }
+
+                return e;
+            }
+            catch (Exception? ex)
+            {
+                _logger.LogError(ex, "Error while trying to serialize envelope {Envelope}", e);
+            }
+
+            return e;
+
         });
-
-        _serializing = new ActionBlock<Envelope>(async e =>
-            {
-                try
-                {
-                    if (e.Data == null && e.Serializer != null)
-                    {
-                        e.Data = e.Serializer.Write(e);
-                    }
-
-                    await _batching!.SendAsync(e);
-                }
-                catch (Exception? ex)
-                {
-                    _logger.LogError(ex, "Error while trying to serialize envelope {Envelope}", e);
-                }
-            },
-            new ExecutionDataflowBlockOptions
-            {
-                CancellationToken = _cancellation,
-                BoundedCapacity = DataflowBlockOptions.Unbounded
-            });
-
-        _batchWriting = new TransformBlock<Envelope[], OutgoingMessageBatch>(
-            envelopes =>
-            {
-                var batch = new OutgoingMessageBatch(Destination, envelopes);
-                _queued += batch.Messages.Count;
-                return batch;
-            },
-            new ExecutionDataflowBlockOptions
-            {
-                BoundedCapacity = DataflowBlockOptions.Unbounded, MaxDegreeOfParallelism = 10,
-                CancellationToken = _cancellation
-            });
-
-        _batchWriting.LinkTo(_sender);
-        _batching = new BatchingBlock<Envelope>(200.Milliseconds(), _batchWriting, destination.MessageBatchSize, _cancellation);
 
         SupportsNativeScheduledSend = _protocol is ISenderProtocolWithNativeScheduling;
     }
 
-    public int QueuedCount => _queued + _batching.ItemCount + _serializing.InputCount;
+    public int QueuedCount => (int)_queued;
 
     public bool Latched { get; private set; }
 
@@ -98,14 +74,12 @@ public class BatchedSender : ISender, ISenderRequiresCallback
 
     public ValueTask SendAsync(Envelope message)
     {
-        if (_batching == null)
+        if (_serializing == null)
         {
             throw new InvalidOperationException("This agent has not been started");
         }
 
-        _serializing.Post(message);
-
-        return ValueTask.CompletedTask;
+        return _serializing.PostAsync(message);
     }
 
     public void Dispose()
@@ -116,8 +90,7 @@ public class BatchedSender : ISender, ISenderRequiresCallback
         }
         
         _serializing.Complete();
-        _sender.Complete();
-        _batching.Dispose();
+        _serializing.SafeDisposeSynchronously();
     }
 
     public void RegisterCallback(ISenderCallback senderCallback)
@@ -125,21 +98,16 @@ public class BatchedSender : ISender, ISenderRequiresCallback
         _callback = senderCallback;
     }
 
-    public Task LatchAndDrainAsync()
+    public async Task LatchAndDrainAsync()
     {
         Latched = true;
 
-        _sender.Complete();
-        _serializing.Complete();
-        _batchWriting.Complete();
-        _batching.Complete();
+        await _serializing.WaitForCompletionAsync();
 
         _logger.CircuitBroken(Destination);
-
-        return Task.CompletedTask;
     }
 
-    public async Task SendBatchAsync(OutgoingMessageBatch batch)
+    public async Task SendBatchAsync(OutgoingMessageBatch batch, CancellationToken _)
     {
         if (_cancellation.IsCancellationRequested)
         {
@@ -171,7 +139,7 @@ public class BatchedSender : ISender, ISenderRequiresCallback
 
         finally
         {
-            _queued -= batch.Messages.Count;
+            Interlocked.Add(ref _queued, -batch.Messages.Count);
         }
     }
 

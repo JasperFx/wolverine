@@ -1,4 +1,5 @@
 using System.Threading.Tasks.Dataflow;
+using JasperFx.Blocks;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
@@ -22,7 +23,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
     protected readonly ILogger _logger;
     private readonly RetryBlock<Envelope> _markAsHandled;
     private readonly RetryBlock<Envelope> _moveToErrors;
-    private readonly ActionBlock<Envelope> _receiver;
+    private readonly Block<Envelope> _receiver;
     private readonly RetryBlock<Envelope> _receivingOne;
     private readonly RetryBlock<Envelope> _scheduleExecution;
     private readonly DurabilitySettings _settings;
@@ -47,7 +48,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
 
         Pipeline = pipeline;
 
-        _receiver = new ActionBlock<Envelope>(async envelope =>
+        _receiver = new Block<Envelope>(endpoint.ExecutionOptions.MaxDegreeOfParallelism, async (envelope, _) =>
         {
             if (_latched)
             {
@@ -67,7 +68,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
                 // This *should* never happen, but of course it will
                 _logger.LogError(e, "Unexpected pipeline invocation error");
             }
-        }, endpoint.ExecutionOptions);
+        });
 
         _deferBlock = new RetryBlock<Envelope>((env, _) => env.Listener!.DeferAsync(env).AsTask(), runtime.Logger,
             runtime.Cancellation);
@@ -133,8 +134,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
 
     public async ValueTask DisposeAsync()
     {
-        _receiver.Complete();
-        await _receiver.Completion;
+        await _receiver.WaitForCompletionAsync();
 
         _incrementAttempts.Dispose();
         _scheduleExecution.Dispose();
@@ -194,7 +194,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
         Enqueue(envelope);
     }
 
-    public int QueueCount => _receiver.InputCount;
+    public int QueueCount => (int)_receiver.Count;
 
     public void Enqueue(Envelope envelope)
     {

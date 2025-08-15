@@ -1,4 +1,5 @@
 using Amazon.SQS.Model;
+using JasperFx.Blocks;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Wolverine.Runtime;

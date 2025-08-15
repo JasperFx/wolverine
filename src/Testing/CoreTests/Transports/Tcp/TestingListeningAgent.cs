@@ -1,6 +1,7 @@
 ﻿using System.Net;
 using System.Net.Sockets;
 using System.Threading.Tasks.Dataflow;
+using JasperFx.Blocks;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging.Abstractions;
 using Wolverine.Runtime;
@@ -17,7 +18,7 @@ public class TestingListeningAgent : IDisposable, IListener
     private readonly IReceiver _callback;
     private readonly CancellationToken _cancellationToken;
     private readonly TcpListener _listener;
-    private readonly ActionBlock<Socket> _socketHandling;
+    private readonly IBlock<Socket> _socketHandling;
     private readonly Uri _uri;
     private Task _receivingLoop;
 
@@ -31,11 +32,11 @@ public class TestingListeningAgent : IDisposable, IListener
         _listener = new TcpListener(new IPEndPoint(ipaddr, port));
         _listener.Server.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
 
-        _socketHandling = new ActionBlock<Socket>(async s =>
+        _socketHandling = new Block<Socket>(async (s, _) =>
         {
             await using var stream = new NetworkStream(s, true);
             await WireProtocol.ReceiveAsync(this, NullLogger.Instance, stream, _callback);
-        }, new ExecutionDataflowBlockOptions { CancellationToken = _cancellationToken });
+        });
 
         _uri = $"{protocol}://{ipaddr}:{port}/".ToUri();
     }
@@ -82,7 +83,7 @@ public class TestingListeningAgent : IDisposable, IListener
             while (!_cancellationToken.IsCancellationRequested)
             {
                 var socket = await _listener.AcceptSocketAsync(_cancellationToken).ConfigureAwait(false);
-                await _socketHandling.SendAsync(socket, _cancellationToken).ConfigureAwait(false);
+                await _socketHandling.PostAsync(socket).ConfigureAwait(false);
             }
         }, _cancellationToken);
     }

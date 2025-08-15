@@ -1,13 +1,14 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks.Dataflow;
+using Humanizer;
+using JasperFx.Blocks;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using Microsoft.AspNetCore.SignalR;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
-using Wolverine.Util.Dataflow;
 
 namespace WolverineWebApi.WebSockets;
 
@@ -31,40 +32,26 @@ public class BroadcastHub : Hub
     }
 }
 
-public class Broadcaster : IDisposable
+public class Broadcaster : IAsyncDisposable
 {
-    private readonly ActionBlock<IClientMessage[]> _publishing;
-    private readonly BatchingBlock<IClientMessage> _batching;
+    private readonly IBlock<IClientMessage> _batching;
 
     public Broadcaster()
     {
-        _publishing = new ActionBlock<IClientMessage[]>(async messages =>
-            {
-                using var hub = new BroadcastHub();
-                await hub.SendBatchAsync(messages);
-            },
-            new ExecutionDataflowBlockOptions
-            {
-                EnsureOrdered = true,
-                MaxDegreeOfParallelism = 1
-            });
-
-        // BatchingBlock is a Wolverine internal building block that's
-        // purposely public for this kind of usage.
-        // This will do the "debounce" for us
-        _batching = new BatchingBlock<IClientMessage>(250, _publishing);
+        var publishing = new Block<IClientMessage[]>(async (messages, _) =>
+        {
+            using var hub = new BroadcastHub();
+            await hub.SendBatchAsync(messages);
+        });
+        
+        _batching = publishing.BatchUpstream(250.Milliseconds());
     }
 
-    public void Dispose()
-    {
-        _batching.Dispose();
-    }
-
-    public Task Post(IClientMessage? message)
+    public ValueTask Post(IClientMessage? message)
     {
         return message is null or NoClientMessage
-            ? Task.CompletedTask
-            : _batching.SendAsync(message);
+            ? new ValueTask()
+            : _batching.PostAsync(message);
     }
 
     public async Task PostMany(IEnumerable<IClientMessage> messages)
@@ -73,8 +60,13 @@ public class Broadcaster : IDisposable
         {
             if (message is NoClientMessage) continue;
 
-            await _batching.SendAsync(message);
+            await _batching.PostAsync(message);
         }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await _batching.DisposeAsync();
     }
 }
 
