@@ -1,6 +1,5 @@
 ﻿using System.Net;
 using System.Net.Sockets;
-using System.Threading.Tasks.Dataflow;
 using JasperFx.Blocks;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging.Abstractions;

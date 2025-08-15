@@ -4,7 +4,6 @@ using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Wolverine.Runtime;
 using Wolverine.Transports;
-using Wolverine.Util.Dataflow;
 
 namespace Wolverine.AmazonSqs.Internal;
 
@@ -14,10 +13,10 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue
     private readonly RetryBlock<Envelope>? _deadLetterBlock;
     private readonly AmazonSqsQueue? _deadLetterQueue;
     private readonly AmazonSqsQueue _queue;
+    private readonly IReceiver _receiver;
     private readonly RetryBlock<AmazonSqsEnvelope> _requeueBlock;
     private readonly Task _task;
     private readonly AmazonSqsTransport _transport;
-    private readonly IReceiver _receiver;
 
     public SqsListener(IWolverineRuntime runtime, AmazonSqsQueue queue, AmazonSqsTransport transport,
         IReceiver receiver)
@@ -87,14 +86,18 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue
                                 {
                                     try
                                     {
-                                        await _transport.Client.SendMessageAsync(new SendMessageRequest(_deadLetterQueue.QueueUrl,
+                                        await _transport.Client.SendMessageAsync(new SendMessageRequest(
+                                            _deadLetterQueue.QueueUrl,
                                             message.Body));
                                     }
                                     catch (Exception exception)
                                     {
-                                        logger.LogError(exception, "Error while trying to directly send a dead letter message {Id} from {Uri}", message.MessageId, _queue.Uri);
+                                        logger.LogError(exception,
+                                            "Error while trying to directly send a dead letter message {Id} from {Uri}",
+                                            message.MessageId, _queue.Uri);
                                     }
                                 }
+
                                 logger.LogError(e, "Error while reading message {Id} from {Uri}", message.MessageId,
                                     _queue.Uri);
                             }

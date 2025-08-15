@@ -1,4 +1,3 @@
-using System.Threading.Tasks.Dataflow;
 using JasperFx.Blocks;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
@@ -13,9 +12,9 @@ public class DatabaseBatcher : IAsyncDisposable
     private readonly IBlock<IDatabaseOperation> _batchingBlock;
     private readonly IMessageDatabase _database;
     private readonly Lazy<IExecutor> _executor;
+    private readonly CancellationTokenSource _internalCancellation;
     private readonly ILogger<DatabaseBatcher> _logger;
     private readonly IWolverineRuntime _runtime;
-    private readonly CancellationTokenSource _internalCancellation;
 
     public DatabaseBatcher(IMessageDatabase database, IWolverineRuntime runtime,
         CancellationToken cancellationToken)
@@ -26,7 +25,7 @@ public class DatabaseBatcher : IAsyncDisposable
         _internalCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
         var executingBlock = new Block<IDatabaseOperation[]>(processOperationsAsync);
-        _batchingBlock = executingBlock.BatchUpstream(250.Milliseconds(), 100);
+        _batchingBlock = executingBlock.BatchUpstream(250.Milliseconds());
 
         _logger = _runtime.LoggerFactory.CreateLogger<DatabaseBatcher>();
 
@@ -36,7 +35,6 @@ public class DatabaseBatcher : IAsyncDisposable
     public ValueTask DisposeAsync()
     {
         return _batchingBlock.DisposeAsync();
-
     }
 
     public Task EnqueueAsync(IDatabaseOperation operation)
@@ -46,7 +44,10 @@ public class DatabaseBatcher : IAsyncDisposable
 
     private async Task processOperationsAsync(IDatabaseOperation[] operations, CancellationToken _)
     {
-        if (_internalCancellation.Token.IsCancellationRequested) return;
+        if (_internalCancellation.Token.IsCancellationRequested)
+        {
+            return;
+        }
 
         try
         {
@@ -55,7 +56,10 @@ public class DatabaseBatcher : IAsyncDisposable
         }
         catch (Exception e)
         {
-            if (_internalCancellation.Token.IsCancellationRequested) return;
+            if (_internalCancellation.Token.IsCancellationRequested)
+            {
+                return;
+            }
 
             _logger.LogError(e, "Error running database operations {Operations} against message database {Database}",
                 operations.Select(x => x.Description).Join(", "), _database);

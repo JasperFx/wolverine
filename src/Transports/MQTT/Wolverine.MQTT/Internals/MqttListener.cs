@@ -5,19 +5,18 @@ using Microsoft.Extensions.Logging;
 using MQTTnet.Client;
 using Wolverine.Runtime;
 using Wolverine.Transports;
-using Wolverine.Util.Dataflow;
 
 namespace Wolverine.MQTT.Internals;
 
 internal class MqttListener : IListener
 {
     private readonly MqttTransport _broker;
-    private readonly ILogger _logger;
-    private readonly MqttTopic _topic;
-    private readonly IReceiver _receiver;
     private readonly CancellationTokenSource _cancellation = new();
     private readonly RetryBlock<MqttEnvelope> _complete;
     private readonly RetryBlock<MqttEnvelope> _defer;
+    private readonly ILogger _logger;
+    private readonly IReceiver _receiver;
+    private readonly MqttTopic _topic;
 
 
     public MqttListener(MqttTransport broker, ILogger logger, MqttTopic topic, IReceiver receiver)
@@ -30,10 +29,8 @@ internal class MqttListener : IListener
 
         TopicName = topic.TopicName;
 
-        _complete = new RetryBlock<MqttEnvelope>(async (e, _) =>
-        {
-            await e.Args.AcknowledgeAsync(_cancellation.Token);
-        }, _logger, _cancellation.Token);
+        _complete = new RetryBlock<MqttEnvelope>(
+            async (e, _) => { await e.Args.AcknowledgeAsync(_cancellation.Token); }, _logger, _cancellation.Token);
 
         _defer = new RetryBlock<MqttEnvelope>(async (envelope, _) =>
         {
@@ -51,6 +48,7 @@ internal class MqttListener : IListener
     public string TopicName { get; }
 
     public Uri Address { get; }
+
     public ValueTask StopAsync()
     {
         return ValueTask.CompletedTask;
@@ -100,7 +98,8 @@ internal class MqttListener : IListener
         }
         catch (Exception e)
         {
-            _logger.LogError(e, "Error trying to map an incoming MQTT message {MessageId} to an Envelope", Encoding.Default.GetString(args.ApplicationMessage.CorrelationData));
+            _logger.LogError(e, "Error trying to map an incoming MQTT message {MessageId} to an Envelope",
+                Encoding.Default.GetString(args.ApplicationMessage.CorrelationData));
             await _complete.PostAsync(envelope);
 
             return;
@@ -118,7 +117,8 @@ internal class MqttListener : IListener
         }
         catch (Exception e)
         {
-            _logger.LogError(e, "Failure to receive an incoming message with {Id}, trying to 'Nack' the message", envelope.Id);
+            _logger.LogError(e, "Failure to receive an incoming message with {Id}, trying to 'Nack' the message",
+                envelope.Id);
             try
             {
                 await _defer.PostAsync(envelope);
