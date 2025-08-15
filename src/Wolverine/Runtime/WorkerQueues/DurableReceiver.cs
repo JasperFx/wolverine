@@ -63,8 +63,11 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
             }
             catch (Exception? e)
             {
-                _receiver?.Post(envelope);
-
+                if (_receiver != null)
+                {
+                    await _receiver.PostAsync(envelope);
+                }
+                
                 // This *should* never happen, but of course it will
                 _logger.LogError(e, "Unexpected pipeline invocation error");
             }
