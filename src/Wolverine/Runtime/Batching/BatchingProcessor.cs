@@ -36,18 +36,16 @@ public class BatchingProcessor<T> : MessageHandler, IAsyncDisposable
         return _batchingBlock.PostAsync(context.Envelope).AsTask();
     }
     
-    private Task processEnvelopes(Envelope[] envelopes, CancellationToken _)
+    private async Task processEnvelopes(Envelope[] envelopes, CancellationToken _)
     {
         foreach (var grouped in Batcher.Group(envelopes).ToArray())
         {
             grouped.Destination = Queue.Uri;
             grouped.MessageType = Chain!.TypeName;
             grouped.SentAt = DateTimeOffset.UtcNow;
-            
-            Queue.Enqueue(grouped);
-        }
 
-        return Task.CompletedTask;
+            await Queue.EnqueueAsync(grouped);
+        }
     }
 
     public async ValueTask DisposeAsync()

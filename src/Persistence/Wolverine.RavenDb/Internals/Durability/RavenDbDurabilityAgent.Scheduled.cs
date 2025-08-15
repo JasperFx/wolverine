@@ -71,7 +71,7 @@ public partial class RavenDbDurabilityAgent
         {
             _logger.LogInformation("Locally enqueuing scheduled message {Id} of type {MessageType}", envelope.Id,
                 envelope.MessageType);
-            _localQueue.Enqueue(envelope);
+            await _localQueue.EnqueueAsync(envelope);
         }
     }
 }

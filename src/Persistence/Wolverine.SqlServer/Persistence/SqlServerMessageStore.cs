@@ -349,7 +349,7 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
                 {
                     logger.LogInformation("Locally enqueuing scheduled message {Id} of type {MessageType}", envelope.Id,
                         envelope.MessageType);
-                    localQueue.Enqueue(envelope);
+                    await localQueue.EnqueueAsync(envelope);
                 }
             }
         }
