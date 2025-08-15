@@ -89,7 +89,7 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
     {
         if (envelope.Listener == null)
         {
-            Enqueue(envelope);
+            await EnqueueAsync(envelope);
             return;
         }
 
@@ -98,13 +98,13 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
             var nativelyRequeued = await envelope.Listener.TryRequeueAsync(envelope);
             if (!nativelyRequeued)
             {
-                Enqueue(envelope);
+                await EnqueueAsync(envelope);
             }
         }
         catch (Exception e)
         {
             _logger.LogError(e, "Error trying to use native dead letter queue for {Uri}", Uri);
-            Enqueue(envelope);
+            await EnqueueAsync(envelope);
         }
     }
 
@@ -138,6 +138,18 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
         _receivingBlock.Post(envelope);
         activity?.Stop();
     }
+    
+    public async ValueTask EnqueueAsync(Envelope envelope)
+    {
+        if (envelope.IsPing())
+        {
+            return;
+        }
+
+        var activity = _endpoint.TelemetryEnabled ? WolverineTracing.StartReceiving(envelope) : null;
+        await _receivingBlock.PostAsync(envelope);
+        activity?.Stop();
+    }
 
     async ValueTask IReceiver.ReceivedAsync(IListener listener, Envelope[] messages)
     {
@@ -153,7 +165,7 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
             envelope.MarkReceived(listener, now, _settings);
             if (!envelope.IsExpired())
             {
-                Enqueue(envelope);
+                await EnqueueAsync(envelope);
             }
             
             await _completeBlock.PostAsync(envelope);
@@ -179,7 +191,7 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
         }
         else
         {
-            Enqueue(envelope);
+            await EnqueueAsync(envelope);
         }
 
         await _completeBlock.PostAsync(envelope);
