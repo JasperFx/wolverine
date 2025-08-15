@@ -7,7 +7,6 @@ using Microsoft.Extensions.Logging;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Serialization;
 using Wolverine.Transports;
-using Wolverine.Util.Dataflow;
 
 namespace Wolverine.Pubsub.Internal;
 

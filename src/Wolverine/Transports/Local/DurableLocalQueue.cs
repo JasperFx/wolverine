@@ -9,7 +9,6 @@ using Wolverine.Runtime;
 using Wolverine.Runtime.Serialization;
 using Wolverine.Runtime.WorkerQueues;
 using Wolverine.Transports.Sending;
-using Wolverine.Util.Dataflow;
 
 namespace Wolverine.Transports.Local;
 
@@ -46,7 +45,8 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
         if (endpoint.CircuitBreakerOptions != null)
         {
             CircuitBreaker = new CircuitBreaker(endpoint.CircuitBreakerOptions, this);
-            Pipeline = new HandlerPipeline(runtime, new CircuitBreakerTrackedExecutorFactory(CircuitBreaker, runtime), endpoint)
+            Pipeline = new HandlerPipeline(runtime, new CircuitBreakerTrackedExecutorFactory(CircuitBreaker, runtime),
+                endpoint)
             {
                 TelemetryEnabled = endpoint.TelemetryEnabled
             };
@@ -61,10 +61,6 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
         _storeAndEnqueue = new RetryBlock<Envelope>((e, _) => storeAndEnqueueAsync(e), _logger, _runtime.Cancellation);
     }
 
-    public Uri Uri { get;  }
-
-    public IHandlerPipeline Pipeline { get; }
-
     public CircuitBreaker? CircuitBreaker { get; }
 
     int IListenerCircuit.QueueCount => _receiver?.QueueCount ?? 0;
@@ -76,10 +72,7 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
             return;
         }
 
-        foreach (var envelope in envelopes)
-        {
-            await _receiver.EnqueueAsync(envelope);
-        }
+        foreach (var envelope in envelopes) await _receiver.EnqueueAsync(envelope);
     }
 
     public async ValueTask PauseAsync(TimeSpan pauseTime)
@@ -123,6 +116,10 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
     }
 
     ListeningStatus IListenerCircuit.Status => Latched ? ListeningStatus.TooBusy : ListeningStatus.Accepting;
+
+    public Uri Uri { get; }
+
+    public IHandlerPipeline Pipeline { get; }
 
     public void Dispose()
     {

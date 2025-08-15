@@ -4,7 +4,6 @@ using Microsoft.Extensions.Logging;
 using Weasel.Core;
 using Wolverine.Runtime.Serialization;
 using Wolverine.Transports.Sending;
-using Wolverine.Util.Dataflow;
 
 namespace Wolverine.RDBMS.Transport;
 

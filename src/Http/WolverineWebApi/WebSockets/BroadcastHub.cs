@@ -1,6 +1,5 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Threading.Tasks.Dataflow;
 using Humanizer;
 using JasperFx.Blocks;
 using JasperFx.CodeGeneration;
@@ -16,8 +15,7 @@ namespace WolverineWebApi.WebSockets;
 // state management on the client side
 public interface IClientMessage
 {
-    [JsonPropertyName("type")]
-    public string TypeName => GetType().Name;
+    [JsonPropertyName("type")] public string TypeName => GetType().Name;
 }
 
 // This is just a "nullo" message that might
@@ -43,8 +41,13 @@ public class Broadcaster : IAsyncDisposable
             using var hub = new BroadcastHub();
             await hub.SendBatchAsync(messages);
         });
-        
+
         _batching = publishing.BatchUpstream(250.Milliseconds());
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await _batching.DisposeAsync();
     }
 
     public ValueTask Post(IClientMessage? message)
@@ -58,15 +61,13 @@ public class Broadcaster : IAsyncDisposable
     {
         foreach (var message in messages.Where(x => x != null))
         {
-            if (message is NoClientMessage) continue;
+            if (message is NoClientMessage)
+            {
+                continue;
+            }
 
             await _batching.PostAsync(message);
         }
-    }
-
-    public async ValueTask DisposeAsync()
-    {
-        await _batching.DisposeAsync();
     }
 }
 
@@ -110,7 +111,7 @@ public record IncrementCount;
 
 public static class SomeUpdateHandler
 {
-    public static int Count = 0;
+    public static int Count;
 
     // We're trying to teach Wolverine to send CountUpdated
     // return values via WebSockets instead of async

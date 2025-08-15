@@ -1,4 +1,3 @@
-using System.Threading.Tasks.Dataflow;
 using JasperFx.Blocks;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
@@ -25,7 +24,8 @@ public class BatchedSender : ISender, ISenderRequiresCallback
         _logger = logger;
 
         var sender = new Block<OutgoingMessageBatch>(destination.MessageBatchMaxDegreeOfParallelism, SendBatchAsync);
-        var transforming = sender.PushUpstream<Envelope[]>(envelopes => new OutgoingMessageBatch(Destination, envelopes));
+        var transforming =
+            sender.PushUpstream<Envelope[]>(envelopes => new OutgoingMessageBatch(Destination, envelopes));
 
         var batching = transforming.BatchUpstream(250.Milliseconds());
         _serializing = batching.PushUpstream<Envelope>(Environment.ProcessorCount, e =>
@@ -45,13 +45,12 @@ public class BatchedSender : ISender, ISenderRequiresCallback
             }
 
             return e;
-
         });
 
         SupportsNativeScheduledSend = _protocol is ISenderProtocolWithNativeScheduling;
     }
 
-    public int QueuedCount => (int)_queued;
+    public int QueuedCount => _queued;
 
     public bool Latched { get; private set; }
 
@@ -70,7 +69,7 @@ public class BatchedSender : ISender, ISenderRequiresCallback
         return true;
     }
 
-    public bool SupportsNativeScheduledSend { get; set; } = false;
+    public bool SupportsNativeScheduledSend { get; set; }
 
     public ValueTask SendAsync(Envelope message)
     {
@@ -88,7 +87,7 @@ public class BatchedSender : ISender, ISenderRequiresCallback
         {
             d.SafeDispose();
         }
-        
+
         _serializing.Complete();
         _serializing.SafeDisposeSynchronously();
     }

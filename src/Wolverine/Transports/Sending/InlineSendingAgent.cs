@@ -3,7 +3,6 @@ using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
 using Wolverine.Logging;
 using Wolverine.Runtime;
-using Wolverine.Util.Dataflow;
 
 namespace Wolverine.Transports.Sending;
 
@@ -31,34 +30,7 @@ public class InlineSendingAgent : ISendingAgent, IDisposable
         }
     }
 
-    private Func<Envelope, CancellationToken, Task> RetryHandlerResolver(Endpoint endpoint) => endpoint.TelemetryEnabled ? sendWithTracing : sendWithOutTracing;
-
     public ISender Sender { get; }
-
-    private async Task sendWithTracing(Envelope e, CancellationToken cancellationToken)
-    {
-        using var activity = WolverineTracing.StartSending(e);
-        try
-        {
-            //TODO: What about cancellationToken??
-            await Sender.SendAsync(e);
-            _messageLogger.Sent(e);
-        }
-        catch (NotSupportedException)
-        {
-            // ignore it
-        }
-        finally
-        {
-            activity?.Stop();
-        }
-    }
-
-    private async Task sendWithOutTracing(Envelope e, CancellationToken cancellationToken)
-    {
-        await Sender.SendAsync(e);
-        _messageLogger.Sent(e);
-    }
 
     public void Dispose()
     {
@@ -84,6 +56,36 @@ public class InlineSendingAgent : ISendingAgent, IDisposable
     }
 
     public Endpoint Endpoint { get; }
+
+    private Func<Envelope, CancellationToken, Task> RetryHandlerResolver(Endpoint endpoint)
+    {
+        return endpoint.TelemetryEnabled ? sendWithTracing : sendWithOutTracing;
+    }
+
+    private async Task sendWithTracing(Envelope e, CancellationToken cancellationToken)
+    {
+        using var activity = WolverineTracing.StartSending(e);
+        try
+        {
+            //TODO: What about cancellationToken??
+            await Sender.SendAsync(e);
+            _messageLogger.Sent(e);
+        }
+        catch (NotSupportedException)
+        {
+            // ignore it
+        }
+        finally
+        {
+            activity?.Stop();
+        }
+    }
+
+    private async Task sendWithOutTracing(Envelope e, CancellationToken cancellationToken)
+    {
+        await Sender.SendAsync(e);
+        _messageLogger.Sent(e);
+    }
 
     private void setDefaults(Envelope envelope)
     {
