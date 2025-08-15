@@ -1,3 +1,4 @@
+using JasperFx.Blocks;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
@@ -125,7 +126,7 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
     public void Dispose()
     {
         _receiver?.SafeDispose();
-        CircuitBreaker?.SafeDispose();
+        CircuitBreaker?.SafeDisposeSynchronously();
         _receiver?.SafeDispose();
         _storeAndEnqueue.SafeDispose();
     }
