@@ -6,22 +6,21 @@ using Microsoft.Extensions.Logging;
 using Wolverine.Runtime;
 using Wolverine.Transports;
 using Wolverine.Transports.Sending;
-using Wolverine.Util.Dataflow;
 
 namespace Wolverine.AzureServiceBus.Internal;
 
 public class InlineAzureServiceBusListener : IListener, ISupportDeadLetterQueue, ISupportNativeScheduling
 {
-    private readonly AzureServiceBusEndpoint _endpoint;
-    private readonly ILogger _logger;
-    private readonly ServiceBusProcessor _processor;
-    private readonly IReceiver _receiver;
-    private readonly IIncomingMapper<ServiceBusReceivedMessage> _mapper;
-    private readonly ISender _requeue;
     private readonly CancellationTokenSource _cancellation = new();
     private readonly RetryBlock<AzureServiceBusEnvelope> _complete;
-    private readonly RetryBlock<AzureServiceBusEnvelope> _defer;
     private readonly RetryBlock<AzureServiceBusEnvelope> _deadLetter;
+    private readonly RetryBlock<AzureServiceBusEnvelope> _defer;
+    private readonly AzureServiceBusEndpoint _endpoint;
+    private readonly ILogger _logger;
+    private readonly IIncomingMapper<ServiceBusReceivedMessage> _mapper;
+    private readonly ServiceBusProcessor _processor;
+    private readonly IReceiver _receiver;
+    private readonly ISender _requeue;
 
     public InlineAzureServiceBusListener(AzureServiceBusEndpoint endpoint,
         ILogger logger,
@@ -36,10 +35,8 @@ public class InlineAzureServiceBusListener : IListener, ISupportDeadLetterQueue,
         _mapper = mapper;
         _requeue = requeue;
 
-        _complete = new RetryBlock<AzureServiceBusEnvelope>((e, _) =>
-        {
-            return e.CompleteAsync(_cancellation.Token);
-        }, _logger, _cancellation.Token);
+        _complete = new RetryBlock<AzureServiceBusEnvelope>((e, _) => { return e.CompleteAsync(_cancellation.Token); },
+            _logger, _cancellation.Token);
 
         _defer = new RetryBlock<AzureServiceBusEnvelope>(async (envelope, _) =>
         {
@@ -53,62 +50,13 @@ public class InlineAzureServiceBusListener : IListener, ISupportDeadLetterQueue,
         }, logger, _cancellation.Token);
 
         _deadLetter =
-            new RetryBlock<AzureServiceBusEnvelope>((e, c) => e.DeadLetterAsync(_cancellation.Token, deadLetterReason:e.Exception?.GetType().NameInCode(), deadLetterErrorDescription:e.Exception?.Message), logger,
+            new RetryBlock<AzureServiceBusEnvelope>(
+                (e, c) => e.DeadLetterAsync(_cancellation.Token, e.Exception?.GetType().NameInCode(),
+                    e.Exception?.Message), logger,
                 _cancellation.Token);
 
         _processor.ProcessMessageAsync += processMessageAsync;
         _processor.ProcessErrorAsync += processErrorAsync;
-    }
-
-    public Task StartAsync()
-    {
-        return _processor.StartProcessingAsync();
-    }
-
-    private Task processErrorAsync(ProcessErrorEventArgs arg)
-    {
-        _logger.LogError(arg.Exception, "Error trying to receive Azure Service Bus message at {Uri}", _endpoint.Uri);
-        return Task.CompletedTask;
-    }
-
-    private async Task processMessageAsync(ProcessMessageEventArgs arg)
-    {
-        try
-        {
-            var envelope = new AzureServiceBusEnvelope(arg);
-            _mapper.MapIncomingToEnvelope(envelope, arg.Message);
-
-            // If a ping, you're done, ack it and get out of there
-            if (envelope.IsPing())
-            {
-                await CompleteAsync(envelope);
-                return;
-            }
-
-            try
-            {
-                await _receiver.ReceivedAsync(this, envelope);
-            }
-            catch (Exception e)
-            {
-                _logger.LogError(e, "Failure to receive an incoming message with {Id}, trying to 'Defer' the message", envelope.Id);
-
-                try
-                {
-                    await DeferAsync(envelope);
-                }
-                catch (Exception exception)
-                {
-                    _logger.LogError(exception, "Failure trying to Nack a previously failed message {Id}", envelope.Id);
-                }
-            }
-        }
-        catch (Exception e)
-        {
-            await _deadLetter.PostAsync(new AzureServiceBusEnvelope(arg) { Exception = e });
-            _logger.LogError(e, "Error while reading message {Id} from {Uri}", arg.Message.MessageId,
-                _endpoint.Uri);
-        }
     }
 
     public IHandlerPipeline? Pipeline => _receiver.Pipeline;
@@ -177,5 +125,57 @@ public class InlineAzureServiceBusListener : IListener, ISupportDeadLetterQueue,
     {
         envelope.ScheduledTime = time;
         await _requeue.SendAsync(envelope);
+    }
+
+    public Task StartAsync()
+    {
+        return _processor.StartProcessingAsync();
+    }
+
+    private Task processErrorAsync(ProcessErrorEventArgs arg)
+    {
+        _logger.LogError(arg.Exception, "Error trying to receive Azure Service Bus message at {Uri}", _endpoint.Uri);
+        return Task.CompletedTask;
+    }
+
+    private async Task processMessageAsync(ProcessMessageEventArgs arg)
+    {
+        try
+        {
+            var envelope = new AzureServiceBusEnvelope(arg);
+            _mapper.MapIncomingToEnvelope(envelope, arg.Message);
+
+            // If a ping, you're done, ack it and get out of there
+            if (envelope.IsPing())
+            {
+                await CompleteAsync(envelope);
+                return;
+            }
+
+            try
+            {
+                await _receiver.ReceivedAsync(this, envelope);
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, "Failure to receive an incoming message with {Id}, trying to 'Defer' the message",
+                    envelope.Id);
+
+                try
+                {
+                    await DeferAsync(envelope);
+                }
+                catch (Exception exception)
+                {
+                    _logger.LogError(exception, "Failure trying to Nack a previously failed message {Id}", envelope.Id);
+                }
+            }
+        }
+        catch (Exception e)
+        {
+            await _deadLetter.PostAsync(new AzureServiceBusEnvelope(arg) { Exception = e });
+            _logger.LogError(e, "Error while reading message {Id} from {Uri}", arg.Message.MessageId,
+                _endpoint.Uri);
+        }
     }
 }

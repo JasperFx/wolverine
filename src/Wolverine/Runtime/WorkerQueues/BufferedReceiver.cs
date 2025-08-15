@@ -1,4 +1,3 @@
-using System.Threading.Tasks.Dataflow;
 using JasperFx.Blocks;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
@@ -7,17 +6,16 @@ using Wolverine.Logging;
 using Wolverine.Runtime.Scheduled;
 using Wolverine.Transports;
 using Wolverine.Transports.Sending;
-using Wolverine.Util.Dataflow;
 
 namespace Wolverine.Runtime.WorkerQueues;
 
 internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeScheduling, ISupportDeadLetterQueue
 {
-    private readonly Endpoint _endpoint;
     private readonly RetryBlock<Envelope> _completeBlock;
 
     private readonly ISender? _deadLetterSender;
     private readonly RetryBlock<Envelope> _deferBlock;
+    private readonly Endpoint _endpoint;
     private readonly ILogger _logger;
     private readonly RetryBlock<Envelope>? _moveToErrors;
     private readonly Block<Envelope> _receivingBlock;
@@ -32,7 +30,7 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
         _logger = runtime.LoggerFactory.CreateLogger<BufferedReceiver>();
         _settings = runtime.DurabilitySettings;
         Pipeline = pipeline;
-        
+
         _scheduler = new InMemoryScheduledJobProcessor(this);
 
         endpoint.ExecutionOptions.CancellationToken = _settings.Cancellation;
@@ -76,10 +74,6 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
         }
     }
 
-    public IHandlerPipeline? Pipeline { get; }
-
-    public Uri Uri { get; }
-
     ValueTask IChannelCallback.CompleteAsync(Envelope envelope)
     {
         return ValueTask.CompletedTask;
@@ -107,6 +101,10 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
             await EnqueueAsync(envelope);
         }
     }
+
+    public IHandlerPipeline? Pipeline { get; }
+
+    public Uri Uri { get; }
 
     public int QueueCount => (int)_receivingBlock.Count;
 
@@ -138,7 +136,7 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
         _receivingBlock.Post(envelope);
         activity?.Stop();
     }
-    
+
     public async ValueTask EnqueueAsync(Envelope envelope)
     {
         if (envelope.IsPing())
@@ -167,7 +165,7 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
             {
                 await EnqueueAsync(envelope);
             }
-            
+
             await _completeBlock.PostAsync(envelope);
         }
 

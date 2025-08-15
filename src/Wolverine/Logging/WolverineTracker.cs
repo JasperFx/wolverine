@@ -1,10 +1,7 @@
-﻿using System.Collections.Concurrent;
-using JasperFx.Blocks;
+﻿using JasperFx.Blocks;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
-using Wolverine.Runtime.Agents;
 using Wolverine.Transports;
-using Wolverine.Util.Dataflow;
 
 namespace Wolverine.Logging;
 
@@ -92,7 +89,6 @@ public class WolverineTracker : WatchedObservable<IWolverineEvent>, IObserver<IW
 
         return waiter.Completion;
     }
-
 }
 
 public record ListenerState(Uri Uri, string EndpointName, ListeningStatus Status) : IWolverineEvent

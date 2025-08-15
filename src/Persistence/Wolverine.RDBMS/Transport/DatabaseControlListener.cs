@@ -5,17 +5,16 @@ using Weasel.Core;
 using Wolverine.RDBMS.Polling;
 using Wolverine.Runtime;
 using Wolverine.Transports;
-using Wolverine.Util.Dataflow;
 
 namespace Wolverine.RDBMS.Transport;
 
 internal class DatabaseControlListener : IListener
 {
+    private readonly CancellationTokenSource _cancellation;
     private readonly IReceiver _receiver;
+    private readonly Task _receivingLoop;
     private readonly RetryBlock<Envelope> _retryBlock;
     private readonly DatabaseControlTransport _transport;
-    private readonly Task _receivingLoop;
-    private readonly CancellationTokenSource _cancellation;
 
     public DatabaseControlListener(DatabaseControlTransport transport, DatabaseControlEndpoint endpoint,
         IReceiver receiver, ILogger<DatabaseControlListener> logger, CancellationToken cancellationToken)
@@ -36,7 +35,7 @@ internal class DatabaseControlListener : IListener
                     var batch = new DatabaseOperationBatch(_transport.Database,
                     [
                         new DeleteExpiredMessages(_transport, DateTimeOffset.UtcNow),
-                            new PollDatabaseControlQueue(_transport, _receiver, this)
+                        new PollDatabaseControlQueue(_transport, _receiver, this)
                     ]);
                     await receiver.ReceivedAsync(this, new Envelope(batch));
                 }
@@ -87,7 +86,7 @@ internal class DatabaseControlListener : IListener
         await _cancellation.CancelAsync();
 
 
-        #else
+#else
         _cancellation.Cancel();
 #endif
         if (_receivingLoop != null)
@@ -99,7 +98,10 @@ internal class DatabaseControlListener : IListener
 
     private Task deleteEnvelopeAsync(Envelope envelope, CancellationToken cancellationToken)
     {
-        if (_transport.Database.HasDisposed) return Task.CompletedTask;
+        if (_transport.Database.HasDisposed)
+        {
+            return Task.CompletedTask;
+        }
 
         return _transport.Database.DataSource.CreateCommand($"delete from {_transport.TableName} where id = @id")
             .With("id", envelope.Id)

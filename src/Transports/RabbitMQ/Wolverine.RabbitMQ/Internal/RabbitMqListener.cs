@@ -6,7 +6,6 @@ using Wolverine.Configuration;
 using Wolverine.Runtime;
 using Wolverine.Transports;
 using Wolverine.Transports.Sending;
-using Wolverine.Util.Dataflow;
 
 namespace Wolverine.RabbitMQ.Internal;
 
@@ -50,16 +49,17 @@ internal class RabbitMqListener : RabbitMqChannelAgent, IListener, ISupportDeadL
 {
     private readonly IChannelCallback _callback;
     private readonly CancellationToken _cancellation = CancellationToken.None;
-    private WorkerQueueMessageConsumer? _consumer;
     private readonly ISupportDeadLetterQueue _deadLetterQueueCallback;
-    private readonly IWolverineRuntime _runtime;
-    private readonly RabbitMqTransport _transport;
     private readonly IReceiver _receiver;
+    private readonly IWolverineRuntime _runtime;
     private readonly Lazy<ISender> _sender;
+    private readonly RabbitMqTransport _transport;
+    private WorkerQueueMessageConsumer? _consumer;
     private string? _consumerId;
 
     public RabbitMqListener(IWolverineRuntime runtime,
-        RabbitMqQueue queue, RabbitMqTransport transport, IReceiver receiver) : base(transport.UseSenderConnectionOnly ? transport.SendingConnection : transport.ListeningConnection,
+        RabbitMqQueue queue, RabbitMqTransport transport, IReceiver receiver) : base(
+        transport.UseSenderConnectionOnly ? transport.SendingConnection : transport.ListeningConnection,
         runtime.LoggerFactory.CreateLogger<RabbitMqListener>())
     {
         Queue = queue;
@@ -67,10 +67,7 @@ internal class RabbitMqListener : RabbitMqChannelAgent, IListener, ISupportDeadL
         ConsumerAddress = Address;
 
         _sender = new Lazy<ISender>(() => Queue.ResolveSender(runtime));
-        _cancellation.Register(() =>
-        {
-            _ = teardownChannel();
-        });
+        _cancellation.Register(() => { _ = teardownChannel(); });
 
         _runtime = runtime;
         _transport = transport;
@@ -88,58 +85,6 @@ internal class RabbitMqListener : RabbitMqChannelAgent, IListener, ISupportDeadL
                                        queue.DeadLetterQueue.Mode != DeadLetterQueueMode.WolverineStorage;
     }
 
-    public async Task CreateAsync()
-    {
-        await EnsureInitiated();
-        
-        if (Queue.AutoDelete || _transport.AutoProvision)
-        {
-            await Queue.DeclareAsync(Channel!, Logger);
-
-            if (Queue.DeadLetterQueue != null && Queue.DeadLetterQueue.Mode != DeadLetterQueueMode.WolverineStorage)
-            {
-                var dlq = _transport.Queues[Queue.DeadLetterQueue.QueueName];
-                await dlq.DeclareAsync(Channel!, Logger);
-            }
-        }
-
-        try
-        {
-            var result = await Channel!.QueueDeclarePassiveAsync(Queue.QueueName, _cancellation);
-            if (Queue.Role == EndpointRole.Application)
-            {
-                Logger.LogInformation("{Count} messages in queue {QueueName} at listening start up time", result.MessageCount, Queue.QueueName);
-            }
-        }
-        catch (Exception e)
-        {
-            Logger.LogError(e, "Unable to check the queued count for {QueueName}", Queue.QueueName);
-        }
-
-        var mapper = Queue.BuildMapper(_runtime);
-        
-        _consumer = new WorkerQueueMessageConsumer(Channel!, _receiver, Logger, this, mapper, Address, _cancellation);
-
-        await Channel!.BasicQosAsync(0, Queue.PreFetchCount, false, _cancellation);
-        await Channel.BasicConsumeAsync(Queue.QueueName, false, _transport.ConnectionFactory?.ClientProvidedName ?? _runtime.Options.ServiceName, _consumer, _runtime.Cancellation);
-        
-        if (_transport.AutoPingListeners)
-        {
-            // This is trying to be a forcing function to make the channel really connect
-            var ping = Envelope.ForPing(Address);
-            await _sender.Value.SendAsync(ping);
-        }
-    }
-
-    internal override async Task ReconnectedAsync()
-    {
-        await StopAsync();
-        await teardownChannel();
-        await CreateAsync();
-
-        await base.ReconnectedAsync();
-    }
-
     public RabbitMqQueue Queue { get; }
 
     public async ValueTask StopAsync()
@@ -149,8 +94,8 @@ internal class RabbitMqListener : RabbitMqChannelAgent, IListener, ISupportDeadL
             return;
         }
 
-        foreach (var consumerTag in _consumer.ConsumerTags) await Channel!.BasicCancelAsync(consumerTag, noWait: true, cancellationToken: default);
-        
+        foreach (var consumerTag in _consumer.ConsumerTags) await Channel!.BasicCancelAsync(consumerTag, true, default);
+
         _consumer.Dispose();
         _consumer = null;
     }
@@ -177,11 +122,6 @@ internal class RabbitMqListener : RabbitMqChannelAgent, IListener, ISupportDeadL
         return true;
     }
 
-    public override string ToString()
-    {
-        return $"RabbitMqListener: {Address}";
-    }
-
     public Uri Address { get; }
 
     public IHandlerPipeline? Pipeline => _receiver.Pipeline;
@@ -203,21 +143,6 @@ internal class RabbitMqListener : RabbitMqChannelAgent, IListener, ISupportDeadL
 
     public bool NativeDeadLetterQueueEnabled { get; }
 
-    public async ValueTask RequeueAsync(RabbitMqEnvelope envelope)
-    {
-        if (!envelope.Acknowledged)
-        {
-            await Channel.BasicNackAsync(envelope.DeliveryTag, false, false, _cancellation);
-        }
-
-        await _sender.Value.SendAsync(envelope);
-    }
-
-    public async Task CompleteAsync(ulong deliveryTag)
-    {
-        await Channel!.BasicAckAsync(deliveryTag, true, _cancellation);
-    }
-
     public string? ConsumerId
     {
         get => _consumerId;
@@ -238,4 +163,79 @@ internal class RabbitMqListener : RabbitMqChannelAgent, IListener, ISupportDeadL
 
     public Uri BaseAddress => Queue.Uri;
     public Uri ConsumerAddress { get; private set; }
+
+    public async Task CreateAsync()
+    {
+        await EnsureInitiated();
+
+        if (Queue.AutoDelete || _transport.AutoProvision)
+        {
+            await Queue.DeclareAsync(Channel!, Logger);
+
+            if (Queue.DeadLetterQueue != null && Queue.DeadLetterQueue.Mode != DeadLetterQueueMode.WolverineStorage)
+            {
+                var dlq = _transport.Queues[Queue.DeadLetterQueue.QueueName];
+                await dlq.DeclareAsync(Channel!, Logger);
+            }
+        }
+
+        try
+        {
+            var result = await Channel!.QueueDeclarePassiveAsync(Queue.QueueName, _cancellation);
+            if (Queue.Role == EndpointRole.Application)
+            {
+                Logger.LogInformation("{Count} messages in queue {QueueName} at listening start up time",
+                    result.MessageCount, Queue.QueueName);
+            }
+        }
+        catch (Exception e)
+        {
+            Logger.LogError(e, "Unable to check the queued count for {QueueName}", Queue.QueueName);
+        }
+
+        var mapper = Queue.BuildMapper(_runtime);
+
+        _consumer = new WorkerQueueMessageConsumer(Channel!, _receiver, Logger, this, mapper, Address, _cancellation);
+
+        await Channel!.BasicQosAsync(0, Queue.PreFetchCount, false, _cancellation);
+        await Channel.BasicConsumeAsync(Queue.QueueName, false,
+            _transport.ConnectionFactory?.ClientProvidedName ?? _runtime.Options.ServiceName, _consumer,
+            _runtime.Cancellation);
+
+        if (_transport.AutoPingListeners)
+        {
+            // This is trying to be a forcing function to make the channel really connect
+            var ping = Envelope.ForPing(Address);
+            await _sender.Value.SendAsync(ping);
+        }
+    }
+
+    internal override async Task ReconnectedAsync()
+    {
+        await StopAsync();
+        await teardownChannel();
+        await CreateAsync();
+
+        await base.ReconnectedAsync();
+    }
+
+    public override string ToString()
+    {
+        return $"RabbitMqListener: {Address}";
+    }
+
+    public async ValueTask RequeueAsync(RabbitMqEnvelope envelope)
+    {
+        if (!envelope.Acknowledged)
+        {
+            await Channel.BasicNackAsync(envelope.DeliveryTag, false, false, _cancellation);
+        }
+
+        await _sender.Value.SendAsync(envelope);
+    }
+
+    public async Task CompleteAsync(ulong deliveryTag)
+    {
+        await Channel!.BasicAckAsync(deliveryTag, true, _cancellation);
+    }
 }

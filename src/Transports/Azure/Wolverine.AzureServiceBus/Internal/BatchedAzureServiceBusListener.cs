@@ -7,7 +7,6 @@ using Wolverine.Configuration;
 using Wolverine.Runtime;
 using Wolverine.Transports;
 using Wolverine.Transports.Sending;
-using Wolverine.Util.Dataflow;
 
 namespace Wolverine.AzureServiceBus.Internal;
 
@@ -15,18 +14,19 @@ public class BatchedAzureServiceBusListener : IListener, ISupportDeadLetterQueue
 {
     private readonly CancellationTokenSource _cancellation = new();
     private readonly RetryBlock<AzureServiceBusEnvelope> _complete;
+    private readonly RetryBlock<AzureServiceBusEnvelope> _deadLetter;
     private readonly RetryBlock<Envelope> _defer;
     private readonly AzureServiceBusEndpoint _endpoint;
     private readonly ILogger _logger;
     private readonly IIncomingMapper<ServiceBusReceivedMessage> _mapper;
-    private readonly ISender _requeue;
     private readonly ServiceBusReceiver _receiver;
+    private readonly ISender _requeue;
     private readonly Task _task;
     private readonly IReceiver _wolverineReceiver;
-    private readonly RetryBlock<AzureServiceBusEnvelope> _deadLetter;
 
     public BatchedAzureServiceBusListener(AzureServiceBusEndpoint endpoint, ILogger logger,
-        IReceiver wolverineReceiver, ServiceBusReceiver receiver, IIncomingMapper<ServiceBusReceivedMessage> mapper, ISender requeue)
+        IReceiver wolverineReceiver, ServiceBusReceiver receiver, IIncomingMapper<ServiceBusReceivedMessage> mapper,
+        ISender requeue)
     {
         _endpoint = endpoint;
         _logger = logger;
@@ -37,18 +37,16 @@ public class BatchedAzureServiceBusListener : IListener, ISupportDeadLetterQueue
 
         _task = Task.Run(listenForMessages, _cancellation.Token);
 
-        _complete = new RetryBlock<AzureServiceBusEnvelope>((e, _) =>
-        {
-            return e.CompleteAsync(_cancellation.Token);
-        }, _logger, _cancellation.Token);
+        _complete = new RetryBlock<AzureServiceBusEnvelope>((e, _) => { return e.CompleteAsync(_cancellation.Token); },
+            _logger, _cancellation.Token);
 
-        _defer = new RetryBlock<Envelope>(async (envelope, _) =>
-        {
-            await _requeue.SendAsync(envelope);
-        }, logger, _cancellation.Token);
+        _defer = new RetryBlock<Envelope>(async (envelope, _) => { await _requeue.SendAsync(envelope); }, logger,
+            _cancellation.Token);
 
         _deadLetter =
-            new RetryBlock<AzureServiceBusEnvelope>((e, c) => e.DeadLetterAsync(_cancellation.Token, deadLetterReason:e.Exception?.GetType().NameInCode(), deadLetterErrorDescription:e.Exception?.Message), logger,
+            new RetryBlock<AzureServiceBusEnvelope>(
+                (e, c) => e.DeadLetterAsync(_cancellation.Token, e.Exception?.GetType().NameInCode(),
+                    e.Exception?.Message), logger,
                 _cancellation.Token);
     }
 
@@ -99,6 +97,17 @@ public class BatchedAzureServiceBusListener : IListener, ISupportDeadLetterQueue
         return new ValueTask(_receiver.CloseAsync());
     }
 
+    public async Task MoveToErrorsAsync(Envelope envelope, Exception exception)
+    {
+        if (envelope is AzureServiceBusEnvelope e)
+        {
+            e.Exception = exception;
+            await _deadLetter.PostAsync(e);
+        }
+    }
+
+    public bool NativeDeadLetterQueueEnabled => true;
+
     private async Task listenForMessages()
     {
         var failedCount = 0;
@@ -124,7 +133,7 @@ public class BatchedAzureServiceBusListener : IListener, ISupportDeadLetterQueue
                             _mapper.MapIncomingToEnvelope(envelope, message);
 
                             envelopes.Add(envelope);
-                        } 
+                        }
                         catch (Exception e)
                         {
                             await tryMoveToDeadLetterQueue(message);
@@ -161,7 +170,8 @@ public class BatchedAzureServiceBusListener : IListener, ISupportDeadLetterQueue
                 }
                 else
                 {
-                    _logger.LogError(e, "Error while trying to retrieve messages from Azure Service Bus {Uri}. Check if system queues should be enabled for this application because this could be from the application being unable to create the system queues for Azure Service Bus",
+                    _logger.LogError(e,
+                        "Error while trying to retrieve messages from Azure Service Bus {Uri}. Check if system queues should be enabled for this application because this could be from the application being unable to create the system queues for Azure Service Bus",
                         _endpoint.Uri);
                 }
 
@@ -182,15 +192,4 @@ public class BatchedAzureServiceBusListener : IListener, ISupportDeadLetterQueue
                 message.MessageId);
         }
     }
-
-    public async Task MoveToErrorsAsync(Envelope envelope, Exception exception)
-    {
-        if (envelope is AzureServiceBusEnvelope e)
-        {
-            e.Exception = exception;
-            await _deadLetter.PostAsync(e);
-        }
-    }
-
-    public bool NativeDeadLetterQueueEnabled => true;
 }

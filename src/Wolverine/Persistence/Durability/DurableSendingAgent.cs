@@ -5,7 +5,6 @@ using Wolverine.Logging;
 using Wolverine.Runtime;
 using Wolverine.Transports;
 using Wolverine.Transports.Sending;
-using Wolverine.Util.Dataflow;
 
 namespace Wolverine.Persistence.Durability;
 
@@ -16,10 +15,10 @@ internal class DurableSendingAgent : SendingAgent
     private readonly RetryBlock<OutgoingMessageBatch> _enqueueForRetry;
     private readonly ILogger _logger;
     private readonly IMessageOutbox _outbox;
+    private readonly SemaphoreSlim _queueLock = new(1, 1);
     private readonly RetryBlock<Envelope> _storeAndForward;
 
     private IList<Envelope> _queued = new List<Envelope>();
-    private readonly SemaphoreSlim _queueLock = new SemaphoreSlim(1, 1);
 
     public DurableSendingAgent(ISender sender, DurabilitySettings settings, ILogger logger,
         IMessageTracker messageLogger,
