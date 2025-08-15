@@ -115,7 +115,7 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
             foreach (var envelope in envelopes)
             {
                 envelope.OwnerId = uniqueNodeId;
-                queue.Enqueue(envelope);
+                await queue.EnqueueAsync(envelope);
             }
         }
         else if (_receiver is InlineReceiver inline)

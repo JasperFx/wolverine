@@ -72,6 +72,17 @@ internal class ReceiverWithRules : IReceiver, ILocalQueue
                                                 envelope.Destination);
         }
     }
+    
+    public ValueTask EnqueueAsync(Envelope envelope)
+    {
+        if (Inner is ILocalQueue queue)
+        {
+            return queue.EnqueueAsync(envelope);
+        }
+
+        throw new InvalidOperationException("There is no active, local queue for this listening endpoint at " +
+                                            envelope.Destination);
+    }
 
     public int QueueCount => Inner is ILocalQueue q ? q.QueueCount : 0;
     public Uri Uri => Inner is ILocalQueue q ? q.Uri : new Uri("none://none");
