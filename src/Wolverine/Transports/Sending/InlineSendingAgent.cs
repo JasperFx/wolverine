@@ -1,3 +1,4 @@
+using JasperFx.Blocks;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
 using Wolverine.Logging;

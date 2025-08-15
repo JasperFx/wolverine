@@ -1,4 +1,5 @@
 using System.Threading.Tasks.Dataflow;
+using JasperFx.Blocks;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Logging;
@@ -17,7 +18,7 @@ internal class DurabilityAgent : IAgent
 {
     private readonly IMessageDatabase _database;
     private readonly ILocalQueue _localQueue;
-    private readonly ActionBlock<IAgentCommand> _runningBlock;
+    private readonly Block<IAgentCommand> _runningBlock;
 
     private readonly IWolverineRuntime _runtime;
     private readonly DurabilitySettings _settings;
@@ -41,7 +42,7 @@ internal class DurabilityAgent : IAgent
 
         _logger = runtime.LoggerFactory.CreateLogger<DurabilityAgent>();
 
-        _runningBlock = new ActionBlock<IAgentCommand>(async batch =>
+        _runningBlock = new Block<IAgentCommand>(async batch =>
         {
             if (runtime.Cancellation.IsCancellationRequested)
             {
@@ -56,11 +57,6 @@ internal class DurabilityAgent : IAgent
             {
                 _logger.LogError(e, "Error trying to run durability agent commands");
             }
-        }, new ExecutionDataflowBlockOptions
-        {
-            EnsureOrdered = true,
-            MaxDegreeOfParallelism = 1,
-            CancellationToken = runtime.Cancellation
         });
     }
 

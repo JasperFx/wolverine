@@ -1,4 +1,5 @@
 using System.Text;
+using JasperFx.Blocks;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using MQTTnet.Client;

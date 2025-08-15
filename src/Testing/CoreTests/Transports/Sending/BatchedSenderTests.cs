@@ -40,7 +40,7 @@ public class BatchedSenderTests
     [Fact]
     public async Task call_send_batch_if_not_latched_and_not_cancelled()
     {
-        await theSender.SendBatchAsync(theBatch);
+        await theSender.SendBatchAsync(theBatch, CancellationToken.None);
 
 #pragma warning disable 4014
         theProtocol.Received().SendBatchAsync(theSenderCallback, theBatch);
@@ -51,10 +51,10 @@ public class BatchedSenderTests
     public async Task do_not_actually_send_outgoing_batched_when_the_system_is_trying_to_shut_down()
     {
         // This is a cancellation token for the subsystem being tested
-        theCancellation.Cancel();
+        await theCancellation.CancelAsync();
 
         // This is the "action"
-        await theSender.SendBatchAsync(theBatch);
+        await theSender.SendBatchAsync(theBatch, CancellationToken.None);
 
         // Do not send on the batch of messages if the
         // underlying cancellation token has been marked
@@ -68,7 +68,7 @@ public class BatchedSenderTests
     {
         await theSender.LatchAndDrainAsync();
 
-        await theSender.SendBatchAsync(theBatch);
+        await theSender.SendBatchAsync(theBatch, CancellationToken.None);
 
 #pragma warning disable 4014
         theProtocol.DidNotReceive().SendBatchAsync(theSenderCallback, theBatch);

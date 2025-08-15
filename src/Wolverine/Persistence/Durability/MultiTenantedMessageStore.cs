@@ -1,5 +1,6 @@
 using ImTools;
 using JasperFx;
+using JasperFx.Blocks;
 using JasperFx.Core;
 using JasperFx.Descriptors;
 using JasperFx.MultiTenancy;

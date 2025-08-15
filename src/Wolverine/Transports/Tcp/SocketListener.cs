@@ -1,6 +1,7 @@
 ﻿using System.Net;
 using System.Net.Sockets;
 using System.Threading.Tasks.Dataflow;
+using JasperFx.Blocks;
 using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Logging;
 using Wolverine.Runtime;
@@ -18,7 +19,7 @@ public class SocketListener : IListener, IDisposable
     private TcpListener? _listener;
     private CancellationTokenSource? _listenerCancellation;
     private Task? _receivingLoop;
-    private ActionBlock<Socket>? _socketHandling;
+    private Block<Socket>? _socketHandling;
 
     public SocketListener(TcpEndpoint endpoint, IReceiver receiver, ILogger logger, IPAddress ipaddr, int port,
         CancellationToken cancellationToken)
@@ -97,11 +98,11 @@ public class SocketListener : IListener, IDisposable
         _listener = new TcpListener(new IPEndPoint(_ipaddr, _port));
         _listener.Server.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
 
-        _socketHandling = new ActionBlock<Socket>(async s =>
+        _socketHandling = new Block<Socket>(async (s, _) =>
         {
             await using var stream = new NetworkStream(s, true);
             await HandleStreamAsync(callback, stream);
-        }, new ExecutionDataflowBlockOptions { CancellationToken = _cancellationToken });
+        });
 
         _receivingLoop = Task.Run(async () =>
         {
@@ -112,7 +113,7 @@ public class SocketListener : IListener, IDisposable
                 try
                 {
                     var socket = await _listener.AcceptSocketAsync(_cancellationToken);
-                    await _socketHandling.SendAsync(socket, _cancellationToken);
+                    await _socketHandling.PostAsync(socket);
                 }
                 catch (OperationCanceledException)
                 {

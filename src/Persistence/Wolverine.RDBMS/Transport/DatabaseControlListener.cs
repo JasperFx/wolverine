@@ -1,3 +1,4 @@
+using JasperFx.Blocks;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Weasel.Core;

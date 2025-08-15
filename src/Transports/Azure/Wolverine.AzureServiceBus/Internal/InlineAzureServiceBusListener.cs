@@ -1,4 +1,5 @@
 using Azure.Messaging.ServiceBus;
+using JasperFx.Blocks;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Logging;

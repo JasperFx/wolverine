@@ -1,17 +1,17 @@
 using System.Diagnostics;
 using System.Threading.Tasks.Dataflow;
+using JasperFx.Blocks;
 using Wolverine.Configuration;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Runtime.WorkerQueues;
-using Wolverine.Util.Dataflow;
 
 namespace Wolverine.Runtime.Batching;
 
 public class BatchingProcessor<T> : MessageHandler, IAsyncDisposable
 {
     private readonly BatchingOptions _options;
-    private readonly ActionBlock<Envelope[]> _processingBlock;
-    private readonly BatchingBlock<Envelope> _batchingBlock;
+    private readonly Block<Envelope[]> _processingBlock;
+    private readonly BatchingChannel<Envelope> _batchingBlock;
 
     public BatchingProcessor(HandlerChain chain, IMessageBatcher batcher, BatchingOptions options, ILocalQueue queue,
         DurabilitySettings settings)
@@ -22,8 +22,8 @@ public class BatchingProcessor<T> : MessageHandler, IAsyncDisposable
         Batcher = batcher ?? throw new ArgumentNullException(nameof(batcher));
         Queue = queue;
 
-        _processingBlock = new ActionBlock<Envelope[]>(processEnvelopes);
-        _batchingBlock = new BatchingBlock<Envelope>(_options.TriggerTime, _processingBlock, _options.BatchSize, settings.Cancellation);
+        _processingBlock = new Block<Envelope[]>(processEnvelopes);
+        _batchingBlock = new BatchingChannel<Envelope>(_options.TriggerTime, _processingBlock, _options.BatchSize);
     }
 
 
@@ -33,10 +33,10 @@ public class BatchingProcessor<T> : MessageHandler, IAsyncDisposable
     public override Task HandleAsync(MessageContext context, CancellationToken cancellation)
     {
         context.Envelope!.InBatch = true;
-        return _batchingBlock.SendAsync(context.Envelope);
+        return _batchingBlock.PostAsync(context.Envelope).AsTask();
     }
     
-    private Task processEnvelopes(Envelope[] envelopes)
+    private Task processEnvelopes(Envelope[] envelopes, CancellationToken _)
     {
         foreach (var grouped in Batcher.Group(envelopes).ToArray())
         {
@@ -50,11 +50,9 @@ public class BatchingProcessor<T> : MessageHandler, IAsyncDisposable
         return Task.CompletedTask;
     }
 
-    public ValueTask DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         _batchingBlock.Complete();
-        _batchingBlock.Dispose();
-
-        return new ValueTask();
+        await _batchingBlock.DisposeAsync();
     }
 }
