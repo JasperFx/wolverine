@@ -39,6 +39,17 @@ public class in_memory_scheduled_messages : ILocalQueue
         }
     }
 
+    public ValueTask EnqueueAsync(Envelope envelope)
+    {
+        sent.Add(envelope);
+        if (_callbacks.ContainsKey(envelope.Id))
+        {
+            _callbacks[envelope.Id].SetResult(envelope);
+        }
+
+        return new ValueTask();
+    }
+
     public ValueTask ReceivedAsync(IListener listener, Envelope[] messages)
     {
         return ValueTask.CompletedTask;

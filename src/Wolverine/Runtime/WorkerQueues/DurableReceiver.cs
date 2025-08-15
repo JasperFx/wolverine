@@ -194,7 +194,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
             return;
         }
 
-        Enqueue(envelope);
+        await EnqueueAsync(envelope);
     }
 
     public int QueueCount => (int)_receiver.Count;
@@ -203,6 +203,12 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
     {
         envelope.ReplyUri = envelope.ReplyUri ?? Uri;
         _receiver.Post(envelope);
+    }
+    
+    public ValueTask EnqueueAsync(Envelope envelope)
+    {
+        envelope.ReplyUri = envelope.ReplyUri ?? Uri;
+        return _receiver.PostAsync(envelope);
     }
 
     public ValueTask ReceivedAsync(IListener listener, Envelope[] messages)
@@ -366,7 +372,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
 
         if (envelope.Status == EnvelopeStatus.Incoming)
         {
-            Enqueue(envelope);
+            await EnqueueAsync(envelope);
         }
 
         _logger.IncomingReceived(envelope, Uri);
@@ -435,7 +441,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
         {
             foreach (var message in envelopes)
             {
-                Enqueue(message);
+                await EnqueueAsync(message);
                 await _completeBlock.PostAsync(message);
             }
         }

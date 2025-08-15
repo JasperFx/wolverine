@@ -69,16 +69,17 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
 
     int IListenerCircuit.QueueCount => _receiver?.QueueCount ?? 0;
 
-    Task IListenerCircuit.EnqueueDirectlyAsync(IEnumerable<Envelope> envelopes)
+    async Task IListenerCircuit.EnqueueDirectlyAsync(IEnumerable<Envelope> envelopes)
     {
         if (_receiver == null)
         {
-            return Task.CompletedTask;
+            return;
         }
 
-        foreach (var envelope in envelopes) _receiver.Enqueue(envelope);
-
-        return Task.CompletedTask;
+        foreach (var envelope in envelopes)
+        {
+            await _receiver.EnqueueAsync(envelope);
+        }
     }
 
     public async ValueTask PauseAsync(TimeSpan pauseTime)
@@ -153,6 +154,11 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
         _receiver?.Enqueue(envelope);
     }
 
+    ValueTask ILocalReceiver.EnqueueAsync(Envelope envelope)
+    {
+        return _receiver!.EnqueueAsync(envelope);
+    }
+
     int ILocalQueue.QueueCount => _receiver?.QueueCount ?? 0;
 
     public Uri Destination { get; }
@@ -165,19 +171,17 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
 
     public bool IsDurable => true;
 
-    public ValueTask EnqueueOutgoingAsync(Envelope envelope)
+    public async ValueTask EnqueueOutgoingAsync(Envelope envelope)
     {
         // The envelope would be persisted regardless
         if (Latched)
         {
-            return ValueTask.CompletedTask;
+            return;
         }
 
         _messageLogger.Sent(envelope);
 
-        _receiver!.Enqueue(envelope);
-
-        return ValueTask.CompletedTask;
+        await _receiver!.EnqueueAsync(envelope);
     }
 
     public ValueTask StoreAndForwardAsync(Envelope envelope)
@@ -218,7 +222,7 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
 
         if (envelope.Status == EnvelopeStatus.Incoming)
         {
-            _receiver!.Enqueue(envelope);
+            await _receiver!.EnqueueAsync(envelope);
         }
     }
 
