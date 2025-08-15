@@ -1,18 +1,17 @@
 using System.Threading.Tasks.Dataflow;
+using JasperFx.Blocks;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Logging;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
-using Wolverine.Util.Dataflow;
 
 namespace Wolverine.RDBMS.Polling;
 
 public class DatabaseBatcher : IAsyncDisposable
 {
-    private readonly BatchingBlock<IDatabaseOperation> _batchingBlock;
+    private readonly IBlock<IDatabaseOperation> _batchingBlock;
     private readonly IMessageDatabase _database;
-    private readonly ActionBlock<IDatabaseOperation[]> _executingBlock;
     private readonly Lazy<IExecutor> _executor;
     private readonly ILogger<DatabaseBatcher> _logger;
     private readonly IWolverineRuntime _runtime;
@@ -26,15 +25,8 @@ public class DatabaseBatcher : IAsyncDisposable
 
         _internalCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
-        _executingBlock = new ActionBlock<IDatabaseOperation[]>(processOperationsAsync,
-            new ExecutionDataflowBlockOptions
-            {
-                EnsureOrdered = true,
-                MaxDegreeOfParallelism = 1,
-                CancellationToken = _internalCancellation.Token
-            });
-
-        _batchingBlock = new BatchingBlock<IDatabaseOperation>(250, _executingBlock, _internalCancellation.Token);
+        var executingBlock = new Block<IDatabaseOperation[]>(processOperationsAsync);
+        _batchingBlock = executingBlock.BatchUpstream(250.Milliseconds(), 100);
 
         _logger = _runtime.LoggerFactory.CreateLogger<DatabaseBatcher>();
 
@@ -43,22 +35,21 @@ public class DatabaseBatcher : IAsyncDisposable
 
     public ValueTask DisposeAsync()
     {
-        _batchingBlock.Dispose();
+        return _batchingBlock.DisposeAsync();
 
-        return ValueTask.CompletedTask;
     }
 
     public Task EnqueueAsync(IDatabaseOperation operation)
     {
-        return _batchingBlock.SendAsync(operation);
+        return _batchingBlock.PostAsync(operation).AsTask();
     }
 
     public void Enqueue(IDatabaseOperation operation)
     {
-        _batchingBlock.Send(operation);
+        _batchingBlock.Post(operation);
     }
 
-    private async Task processOperationsAsync(IDatabaseOperation[] operations)
+    private async Task processOperationsAsync(IDatabaseOperation[] operations, CancellationToken _)
     {
         if (_internalCancellation.Token.IsCancellationRequested) return;
 
@@ -82,11 +73,7 @@ public class DatabaseBatcher : IAsyncDisposable
         {
             await _internalCancellation.CancelAsync();
 
-            _batchingBlock.Complete();
-            await _batchingBlock.Completion;
-
-            _executingBlock.Complete();
-            await _executingBlock.Completion;
+            await _batchingBlock.WaitForCompletionAsync();
         }
         catch (TaskCanceledException)
         {

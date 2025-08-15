@@ -1,4 +1,5 @@
 using System.Threading.Tasks.Dataflow;
+using JasperFx.Blocks;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
@@ -19,7 +20,7 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
     private readonly RetryBlock<Envelope> _deferBlock;
     private readonly ILogger _logger;
     private readonly RetryBlock<Envelope>? _moveToErrors;
-    private readonly ActionBlock<Envelope> _receivingBlock;
+    private readonly Block<Envelope> _receivingBlock;
     private readonly InMemoryScheduledJobProcessor _scheduler;
     private readonly DurabilitySettings _settings;
     private bool _latched;
@@ -41,7 +42,7 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
         _completeBlock = new RetryBlock<Envelope>((env, _) => env.Listener!.CompleteAsync(env).AsTask(), runtime.Logger,
             runtime.Cancellation);
 
-        _receivingBlock = new ActionBlock<Envelope>(async envelope =>
+        _receivingBlock = new Block<Envelope>(endpoint.ExecutionOptions.MaxDegreeOfParallelism, async (envelope, _) =>
         {
             if (_latched && envelope.Listener != null)
             {
@@ -63,7 +64,7 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
                 // This *should* never happen, but of course it will
                 _logger.LogError(e, "Unexpected error in Pipeline invocation");
             }
-        }, endpoint.ExecutionOptions);
+        });
 
         if (endpoint.TryBuildDeadLetterSender(runtime, out var dlq))
         {
@@ -107,7 +108,7 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
         }
     }
 
-    public int QueueCount => _receivingBlock.InputCount;
+    public int QueueCount => (int)_receivingBlock.Count;
 
     public async ValueTask DrainAsync()
     {
