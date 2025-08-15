@@ -76,8 +76,6 @@ public interface IMessageDatabase : IMessageStoreWithAgentSupport, ITenantDataba
         DurabilitySettings durabilitySettings,
         CancellationToken cancellationToken);
 
-    void Enqueue(IDatabaseOperation operation);
-    
     IAdvisoryLock AdvisoryLock { get; }
 
     Task PollForMessagesFromExternalTablesAsync(IListener listener,

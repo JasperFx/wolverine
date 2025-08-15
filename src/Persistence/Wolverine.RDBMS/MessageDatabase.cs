@@ -139,16 +139,6 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
         return _batcher.EnqueueAsync(operation);
     }
 
-    public void Enqueue(IDatabaseOperation operation)
-    {
-        if (_batcher == null)
-        {
-            throw new InvalidOperationException($"Message database '{Identifier}' has not yet been initialized");
-        }
-
-        _batcher.Enqueue(operation);
-    }
-
     public abstract Task PollForScheduledMessagesAsync(ILocalReceiver localQueue, ILogger runtimeLogger,
         DurabilitySettings durabilitySettings,
         CancellationToken cancellationToken);
