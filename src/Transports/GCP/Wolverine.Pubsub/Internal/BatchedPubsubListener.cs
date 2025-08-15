@@ -4,7 +4,6 @@ using JasperFx.Blocks;
 using Microsoft.Extensions.Logging;
 using Wolverine.Runtime;
 using Wolverine.Transports;
-using Wolverine.Util.Dataflow;
 
 namespace Wolverine.Pubsub.Internal;
 

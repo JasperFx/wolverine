@@ -1,12 +1,11 @@
 using JasperFx.Blocks;
 using JasperFx.Core;
-using Microsoft.Extensions.Logging;
 using JasperFx.Resources;
+using Microsoft.Extensions.Logging;
 using Weasel.Core;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
 using Wolverine.Transports;
-using Wolverine.Util.Dataflow;
 
 namespace Wolverine.RDBMS.Transport;
 
@@ -57,9 +56,8 @@ internal class DatabaseControlTransport : ITransport, IAsyncDisposable
             }
             catch (TaskCanceledException)
             {
-                
             }
-            
+
             _deleteBlock.SafeDispose();
         }
     }
@@ -91,10 +89,7 @@ internal class DatabaseControlTransport : ITransport, IAsyncDisposable
 
     public ValueTask InitializeAsync(IWolverineRuntime runtime)
     {
-        foreach (var endpoint in Endpoints())
-        {
-            endpoint.Compile(runtime);
-        }
+        foreach (var endpoint in Endpoints()) endpoint.Compile(runtime);
 
         _deleteBlock = new RetryBlock<List<Envelope>>(deleteEnvelopesAsync,
             runtime.LoggerFactory.CreateLogger<DatabaseControlTransport>(), runtime.Options.Durability.Cancellation);
@@ -119,7 +114,10 @@ internal class DatabaseControlTransport : ITransport, IAsyncDisposable
 
     private async Task deleteEnvelopesAsync(List<Envelope> envelopes, CancellationToken cancellationToken)
     {
-        if (cancellationToken.IsCancellationRequested || Database.HasDisposed) return;
+        if (cancellationToken.IsCancellationRequested || Database.HasDisposed)
+        {
+            return;
+        }
 
         await using var conn = await Database.DataSource.OpenConnectionAsync(cancellationToken);
 

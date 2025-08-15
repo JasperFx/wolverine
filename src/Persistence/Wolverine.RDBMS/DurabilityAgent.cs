@@ -1,4 +1,3 @@
-using System.Threading.Tasks.Dataflow;
 using JasperFx.Blocks;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
@@ -18,16 +17,18 @@ internal class DurabilityAgent : IAgent
 {
     private readonly IMessageDatabase _database;
     private readonly ILocalQueue _localQueue;
+    private readonly ILogger<DurabilityAgent> _logger;
     private readonly Block<IAgentCommand> _runningBlock;
 
     private readonly IWolverineRuntime _runtime;
     private readonly DurabilitySettings _settings;
-    private readonly ILogger<DurabilityAgent> _logger;
-    private Timer? _scheduledJobTimer;
-    private Timer? _recoveryTimer;
     private Timer? _expirationTimer;
-    private PersistenceMetrics _metrics;
     private DateTimeOffset? _lastDeadLetterQueueCheck;
+
+    private DateTimeOffset? _lastNodeRecordPruneTime;
+    private PersistenceMetrics _metrics;
+    private Timer? _recoveryTimer;
+    private Timer? _scheduledJobTimer;
 
     public DurabilityAgent(string databaseName, IWolverineRuntime runtime, IMessageDatabase database)
     {
@@ -60,29 +61,19 @@ internal class DurabilityAgent : IAgent
         });
     }
 
-    public AgentStatus Status { get; set; } = AgentStatus.Started;
-
-    public static Uri SimplifyUri(Uri uri)
-    {
-        return new Uri($"{PersistenceConstants.AgentScheme}://{uri.Host}");
-    }
-
-    public static Uri AddMarkerType(Uri uri, Type markerType)
-    {
-        return new Uri($"{uri}{markerType.Name}");
-    }
-
     public bool AutoStartScheduledJobPolling { get; set; } = false;
+
+    public AgentStatus Status { get; set; } = AgentStatus.Started;
 
     public Task StartAsync(CancellationToken cancellationToken)
     {
         _metrics = new PersistenceMetrics(_runtime.Meter, _settings, _database.Name);
-        
+
         if (_settings.DurabilityMetricsEnabled)
         {
             _metrics.StartPolling(_runtime.LoggerFactory.CreateLogger<PersistenceMetrics>(), _database);
         }
-        
+
         var recoveryStart = _settings.ScheduledJobFirstExecution.Add(new Random().Next(0, 1000).Milliseconds());
 
         _recoveryTimer = new Timer(_ =>
@@ -106,7 +97,7 @@ internal class DurabilityAgent : IAgent
                 _runningBlock.Post(batch);
             }, _settings, 1.Minutes(), 1.Hours());
         }
-        
+
         if (AutoStartScheduledJobPolling)
         {
             StartScheduledJobPolling();
@@ -115,13 +106,52 @@ internal class DurabilityAgent : IAgent
         return Task.CompletedTask;
     }
 
-    private DateTimeOffset? _lastNodeRecordPruneTime;
+    public async Task StopAsync(CancellationToken cancellationToken)
+    {
+        _runningBlock.Complete();
+        _metrics.SafeDispose();
+
+        if (_scheduledJobTimer != null)
+        {
+            await _scheduledJobTimer.DisposeAsync();
+        }
+
+        if (_recoveryTimer != null)
+        {
+            await _recoveryTimer.DisposeAsync();
+        }
+
+        if (_expirationTimer != null)
+        {
+            await _expirationTimer.DisposeAsync();
+        }
+
+        Status = AgentStatus.Stopped;
+    }
+
+    public Uri Uri { get; internal set; }
+
+    public static Uri SimplifyUri(Uri uri)
+    {
+        return new Uri($"{PersistenceConstants.AgentScheme}://{uri.Host}");
+    }
+
+    public static Uri AddMarkerType(Uri uri, Type markerType)
+    {
+        return new Uri($"{uri}{markerType.Name}");
+    }
 
     private bool isTimeToPruneNodeEventRecords()
     {
-        if (_lastNodeRecordPruneTime == null) return true;
+        if (_lastNodeRecordPruneTime == null)
+        {
+            return true;
+        }
 
-        if (DateTimeOffset.UtcNow.Subtract(_lastNodeRecordPruneTime.Value) > 1.Hours()) return true;
+        if (DateTimeOffset.UtcNow.Subtract(_lastNodeRecordPruneTime.Value) > 1.Hours())
+        {
+            return true;
+        }
 
         return false;
     }
@@ -140,7 +170,7 @@ internal class DurabilityAgent : IAgent
                 new DeleteOldNodeEventRecords(_database, _settings)
             ];
         }
-        
+
         return
         [
             new CheckRecoverableIncomingMessagesOperation(_database, _runtime.Endpoints, _settings, _logger),
@@ -154,32 +184,8 @@ internal class DurabilityAgent : IAgent
     public void StartScheduledJobPolling()
     {
         _scheduledJobTimer =
-            new Timer(_ => { _runningBlock.Post(new RunScheduledMessagesOperation(_database, _settings, _localQueue)); },
+            new Timer(
+                _ => { _runningBlock.Post(new RunScheduledMessagesOperation(_database, _settings, _localQueue)); },
                 _settings, _settings.ScheduledJobFirstExecution, _settings.ScheduledJobPollingTime);
     }
-
-    public async Task StopAsync(CancellationToken cancellationToken)
-    {
-        _runningBlock.Complete();
-        _metrics.SafeDispose();
-
-        if (_scheduledJobTimer != null)
-        {
-            await _scheduledJobTimer.DisposeAsync();
-        }
-
-        if (_recoveryTimer != null)
-        {
-            await _recoveryTimer.DisposeAsync();
-        }
-        
-        if (_expirationTimer != null)
-        {
-            await _expirationTimer.DisposeAsync();
-        }
-
-        Status = AgentStatus.Stopped;
-    }
-
-    public Uri Uri { get; internal set; }
 }
