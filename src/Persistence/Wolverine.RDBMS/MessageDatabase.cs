@@ -131,6 +131,10 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
 
     public Task EnqueueAsync(IDatabaseOperation operation)
     {
+        // Really probably only an issue w/ testing, but this lets us ignore 
+        // log record saving
+        if (!Durability.DurabilityAgentEnabled) return Task.CompletedTask;
+        
         if (_batcher == null)
         {
             throw new InvalidOperationException($"Message database '{Identifier}' has not yet been initialized for node {Durability.AssignedNodeNumber}");
