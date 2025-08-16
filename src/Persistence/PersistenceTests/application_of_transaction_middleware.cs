@@ -29,6 +29,7 @@ public class application_of_transaction_middleware : IAsyncLifetime
     {
         _host = await Host.CreateDefaultBuilder().UseWolverine(opts =>
         {
+            opts.Durability.Mode = DurabilityMode.Solo;
             opts.Durability.DurabilityAgentEnabled = false;
 
             opts.Services.AddMarten(Servers.PostgresConnectionString);
