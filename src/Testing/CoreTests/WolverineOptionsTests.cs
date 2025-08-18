@@ -1,4 +1,5 @@
 ﻿using JasperFx;
+using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -24,6 +25,12 @@ public class WolverineOptionsTests
     public void publish_agent_events_should_be_false_by_default()
     {
         new WolverineOptions().Policies.PublishAgentEvents.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void default_service_location_policy_should_be_allowed_by_warn()
+    {
+        new WolverineOptions().ServiceLocationPolicy.ShouldBe(ServiceLocationPolicy.AllowedButWarn);
     }
     
     [Fact]
