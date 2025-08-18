@@ -4,10 +4,6 @@ using JasperFx.Events;
 using JasperFx.Events.Daemon;
 using JasperFx.Events.Projections;
 using Marten;
-using Marten.Events;
-using Marten.Events.Daemon;
-using Marten.Events.Daemon.Internals;
-using MartenTests.AggregateHandlerWorkflow;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Npgsql;
@@ -17,10 +13,11 @@ using Wolverine;
 using Wolverine.Marten;
 using Wolverine.Marten.Subscriptions;
 using Wolverine.Tracking;
+using Xunit;
 
-namespace MartenTests.Subscriptions;
+namespace MartenSubscriptionTests;
 
-public class subscriptions_end_to_end : PostgresqlContext
+public class subscriptions_end_to_end
 {
     private async Task dropSchema()
     {
@@ -559,6 +556,8 @@ public class subscriptions_end_to_end : PostgresqlContext
     }
 }
 
+public record Event1(Guid Id);
+
 public class TestBatchSubscription : BatchSubscription
 {
     public TestBatchSubscription() : base("BatchTest")
@@ -690,3 +689,11 @@ public class TaggingService
 
     public int Instance { get; set; }
 }
+
+public record AEvent;
+
+public record BEvent;
+
+public record CEvent;
+
+public record DEvent;

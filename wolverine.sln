@@ -309,6 +309,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Lamar.Microsoft.DependencyI
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Marten", "..\marten\src\Marten\Marten.csproj", "{F6612DA6-EC8C-4AE7-9397-E6672413DB39}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MartenSubscriptionTests", "src\Persistence\MartenSubscriptionTests\MartenSubscriptionTests.csproj", "{D61E79E6-169B-41DA-AAEC-93328F378331}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -1759,6 +1761,18 @@ Global
 		{F6612DA6-EC8C-4AE7-9397-E6672413DB39}.Release|x64.Build.0 = Release|Any CPU
 		{F6612DA6-EC8C-4AE7-9397-E6672413DB39}.Release|x86.ActiveCfg = Release|Any CPU
 		{F6612DA6-EC8C-4AE7-9397-E6672413DB39}.Release|x86.Build.0 = Release|Any CPU
+		{D61E79E6-169B-41DA-AAEC-93328F378331}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D61E79E6-169B-41DA-AAEC-93328F378331}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D61E79E6-169B-41DA-AAEC-93328F378331}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{D61E79E6-169B-41DA-AAEC-93328F378331}.Debug|x64.Build.0 = Debug|Any CPU
+		{D61E79E6-169B-41DA-AAEC-93328F378331}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{D61E79E6-169B-41DA-AAEC-93328F378331}.Debug|x86.Build.0 = Debug|Any CPU
+		{D61E79E6-169B-41DA-AAEC-93328F378331}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D61E79E6-169B-41DA-AAEC-93328F378331}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D61E79E6-169B-41DA-AAEC-93328F378331}.Release|x64.ActiveCfg = Release|Any CPU
+		{D61E79E6-169B-41DA-AAEC-93328F378331}.Release|x64.Build.0 = Release|Any CPU
+		{D61E79E6-169B-41DA-AAEC-93328F378331}.Release|x86.ActiveCfg = Release|Any CPU
+		{D61E79E6-169B-41DA-AAEC-93328F378331}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -1901,5 +1915,6 @@ Global
 		{5B86284F-62D0-4D8E-AFE1-2D07E0F17686} = {3B05C001-84E3-1311-E8D3-16CD1127E3D5}
 		{C51569A0-10C6-436C-B98C-3E15754081D6} = {3B05C001-84E3-1311-E8D3-16CD1127E3D5}
 		{F6612DA6-EC8C-4AE7-9397-E6672413DB39} = {3B05C001-84E3-1311-E8D3-16CD1127E3D5}
+		{D61E79E6-169B-41DA-AAEC-93328F378331} = {7A9E0EAE-9ABF-40F6-9DB9-8FB1243F4210}
 	EndGlobalSection
 EndGlobal
