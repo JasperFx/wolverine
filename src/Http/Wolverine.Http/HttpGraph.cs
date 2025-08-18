@@ -99,7 +99,7 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollectionWithServ
                 "Found no Wolverine HTTP endpoints. If this is not expected, check the assemblies being scanned. See https://wolverine.netlify.app/guide/http/integration.html#discovery for more information");
         }
 
-        _chains.AddRange(calls.Select(x => new HttpChain(x, this)));
+        _chains.AddRange(calls.Select(x => new HttpChain(x, this){ServiceProviderSource = wolverineHttpOptions.ServiceProviderSource}));
 
         wolverineHttpOptions.Middleware.Apply(_chains, Rules, Container);
         _optionsWriterPolicies.AddRange(wolverineHttpOptions.ResourceWriterPolicies);
