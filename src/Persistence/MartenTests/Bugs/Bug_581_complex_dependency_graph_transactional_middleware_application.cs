@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using IntegrationTests;
+using JasperFx;
 using JasperFx.Core.Reflection;
 using Marten;
 using Microsoft.Extensions.DependencyInjection;

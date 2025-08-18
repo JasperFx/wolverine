@@ -1,3 +1,4 @@
+using JasperFx;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Expressions;
 using JasperFx.CodeGeneration.Frames;

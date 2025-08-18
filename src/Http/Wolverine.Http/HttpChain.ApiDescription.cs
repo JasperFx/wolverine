@@ -16,7 +16,6 @@ using Microsoft.AspNetCore.Mvc.ModelBinding.Metadata;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.Routing.Patterns;
 using Wolverine.Attributes;
-using Wolverine.Codegen;
 
 namespace Wolverine.Http;
 

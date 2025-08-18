@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Humanizer;
+using JasperFx;
 using JasperFx.Blocks;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;

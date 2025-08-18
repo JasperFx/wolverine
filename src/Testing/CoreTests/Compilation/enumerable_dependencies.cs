@@ -6,7 +6,7 @@ using Microsoft.Extensions.Hosting;
 using Wolverine.Tracking;
 using Xunit;
 
-namespace CoreTests.Codegen;
+namespace CoreTests.Compilation;
 
 public class enumerable_dependencies
 {
@@ -60,4 +60,34 @@ public class WidgetUsingMessage2Handler
         _widgets.Any().ShouldBeTrue();
         Debug.WriteLine("Got here");
     }
+}
+
+public interface IWidget
+{
+}
+
+public interface IColor;
+public class AWidget : IWidget{}
+public class BWidget : IWidget{}
+
+public class ServiceUsingWidget : IWidget
+{
+    public ServiceUsingWidget(IColor color)
+    {
+        Color = color;
+    }
+
+    public IColor Color { get; set; }
+}
+
+public class Blue
+{
+}
+
+public class Green
+{
+}
+
+public class Red : IColor
+{
 }
