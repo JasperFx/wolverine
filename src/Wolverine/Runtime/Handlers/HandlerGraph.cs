@@ -10,6 +10,9 @@ using JasperFx.RuntimeCompiler;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging.Console;
+using Microsoft.Extensions.Logging.Debug;
+using Microsoft.Extensions.Options;
 using Wolverine.Attributes;
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
@@ -231,7 +234,11 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
         {
             lock (_compilingLock)
             {
-                Debug.WriteLine("Starting to compile chain " + chain.MessageType.NameInCode());
+                // TODO -- put this logic in JasperFx
+                var logger = Container?.Services.GetService<ILoggerFactory>()?.CreateLogger<HandlerGraph>() ?? new Logger<HandlerGraph>(new LoggerFactory([new DebugLoggerProvider()]));
+                
+                logger.LogDebug("Starting to compile chain {MessageType}", chain.MessageType.NameInCode());
+
                 if (chain.Handler == null)
                 {
                     chain.InitializeSynchronously(Rules, this, Container.Services);
@@ -242,7 +249,7 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
                     handler = chain.Handler;
                 }
 
-                Debug.WriteLine("Finished building the chain " + chain.MessageType.NameInCode());
+                logger.LogDebug("Finished building the chain {MessageType}", chain.MessageType.NameInCode());
             }
         }
 
