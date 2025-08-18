@@ -33,7 +33,7 @@ public class service_location_assertions
         return services.BuildServiceProvider();
     }
 
-    private async Task<IAlbaHost> buildHost(Action<WolverineOptions> configure)
+    private async Task<IAlbaHost> buildHost(ServiceProviderSource providerSource, Action<WolverineOptions> configure)
     {
         var builder = WebApplication.CreateBuilder([]);
         builder.Host.UseWolverine(opts =>
@@ -48,6 +48,7 @@ public class service_location_assertions
             // Establish the connection string to your Marten database
             opts.Connection(Servers.PostgresConnectionString);
             opts.DatabaseSchemaName = "myapp";
+            opts.DisableNpgsqlLogging = true;
         }).IntegrateWithWolverine().UseLightweightSessions();
 
         builder.Services.AddWolverineHttp();
@@ -56,7 +57,7 @@ public class service_location_assertions
         {
             app.MapWolverineEndpoints(opts =>
             {
-
+                opts.ServiceProviderSource = providerSource;
             });
         });
     }
@@ -126,11 +127,13 @@ public class service_location_assertions
     }
 
     [Theory]
-    [InlineData(ServiceLocationPolicy.AllowedButWarn)]
-    [InlineData(ServiceLocationPolicy.AlwaysAllowed)]
-    public async Task can_use_service_locations_with_http(ServiceLocationPolicy policy)
+    [InlineData(ServiceLocationPolicy.AllowedButWarn, ServiceProviderSource.IsolatedAndScoped)]
+    [InlineData(ServiceLocationPolicy.AlwaysAllowed, ServiceProviderSource.IsolatedAndScoped)]
+    [InlineData(ServiceLocationPolicy.AllowedButWarn, ServiceProviderSource.FromHttpContextRequestServices)]
+    [InlineData(ServiceLocationPolicy.AlwaysAllowed, ServiceProviderSource.FromHttpContextRequestServices)]
+    public async Task can_use_service_locations_with_http(ServiceLocationPolicy policy, ServiceProviderSource source)
     {
-        await using var host = await buildHost(x =>
+        await using var host = await buildHost(source, x =>
         {
             x.ServiceLocationPolicy = policy;
             x.Services.AddScoped<IWidget>(_ => new AWidget());
@@ -145,7 +148,7 @@ public class service_location_assertions
     [Fact]
     public async Task blow_up_and_deny_on_HTTP_when_not_allowing_service_location()
     {
-        await using var host = await buildHost(x =>
+        await using var host = await buildHost(ServiceProviderSource.IsolatedAndScoped,x =>
         {
             x.ServiceLocationPolicy = ServiceLocationPolicy.NotAllowed;
             x.Services.AddScoped<IWidget>(_ => new AWidget());
@@ -161,7 +164,7 @@ public class service_location_assertions
     [Fact]
     public async Task block_and_deny_on_message_handlers_when_not_allowing_service_location()
     {
-        await using var host = await buildHost(x =>
+        await using var host = await buildHost(ServiceProviderSource.IsolatedAndScoped,x =>
         {
             x.ServiceLocationPolicy = ServiceLocationPolicy.NotAllowed;
             x.Services.AddScoped<IWidget>(_ => new AWidget());
@@ -178,7 +181,7 @@ public class service_location_assertions
     [InlineData(ServiceLocationPolicy.AlwaysAllowed)]
     public async Task can_use_service_locations_with_handler(ServiceLocationPolicy policy)
     {
-        await using var host = await buildHost(x =>
+        await using var host = await buildHost(ServiceProviderSource.IsolatedAndScoped,x =>
         {
             x.ServiceLocationPolicy = policy;
             x.Services.AddScoped<IWidget>(_ => new AWidget());
