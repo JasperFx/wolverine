@@ -182,6 +182,18 @@ public class WolverineHttpOptions
     /// Configure built in tenant id detection strategies
     /// </summary>
     public ITenantDetectionPolicies TenantId => TenantIdDetection;
+    
+    /// <summary>
+    /// Tell Wolverine that services of type T should always be sourced from the HttpContext.RequestServices.
+    /// This enables your system to use shared services with AspNetCore middleware while still allowing Wolverine
+    /// to generate inlined constructor invocation code otherwise
+    /// </summary>
+    /// <typeparam name="T"></typeparam>
+    public void SourceServiceFromHttpContext<T>()
+    {
+        var source = new RequestServicesVariableSource(typeof(T));
+        Endpoints!.Rules.Sources.Add(source);
+    }
 
     /// <summary>
     /// Opt into using Newtonsoft.Json for all JSON serialization in the Wolverine
