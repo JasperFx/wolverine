@@ -2,9 +2,11 @@ using System.Diagnostics.CodeAnalysis;
 using System.Linq.Expressions;
 using System.Reflection;
 using System.Text.Json;
+using JasperFx;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
+using JasperFx.CodeGeneration.Services;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using JasperFx.Descriptors;
@@ -16,14 +18,13 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.Routing.Patterns;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.FSharp.Core;
-using Wolverine.Codegen;
 using Wolverine.Configuration;
 using Wolverine.Http.CodeGen;
 using Wolverine.Http.Metadata;
 using Wolverine.Http.Policies;
 using Wolverine.Persistence;
 using Wolverine.Runtime;
-using ServiceContainer = Wolverine.Runtime.ServiceContainer;
+using ServiceContainer = JasperFx.ServiceContainer;
 
 namespace Wolverine.Http;
 

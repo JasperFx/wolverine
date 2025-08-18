@@ -1,4 +1,5 @@
-﻿using JasperFx.CodeGeneration;
+﻿using JasperFx;
+using JasperFx.CodeGeneration;
 using Microsoft.AspNetCore.Mvc;
 using Wolverine.Http;
 using Wolverine.Http.Marten;

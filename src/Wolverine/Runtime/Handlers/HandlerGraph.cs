@@ -2,6 +2,7 @@
 using System.Diagnostics;
 using System.Reflection;
 using ImTools;
+using JasperFx;
 using JasperFx.CodeGeneration;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;

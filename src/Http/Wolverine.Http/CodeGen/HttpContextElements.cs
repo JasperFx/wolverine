@@ -1,5 +1,6 @@
 using System.Linq.Expressions;
 using System.Reflection;
+using JasperFx;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;

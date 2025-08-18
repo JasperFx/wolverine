@@ -1,4 +1,5 @@
 using System.Reflection;
+using JasperFx;
 using JasperFx.CodeGeneration.Model;
 using Wolverine.Runtime;
 

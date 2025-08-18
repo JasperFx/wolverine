@@ -1,5 +1,6 @@
 ﻿using System.Reflection;
 using System.Security.Claims;
+using JasperFx;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;

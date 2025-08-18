@@ -1,4 +1,5 @@
 using FluentValidation;
+using JasperFx;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using Microsoft.AspNetCore.Http;

@@ -1,3 +1,4 @@
+using JasperFx;
 using JasperFx.CodeGeneration;
 using JasperFx.Core.Reflection;
 using Wolverine.Configuration;

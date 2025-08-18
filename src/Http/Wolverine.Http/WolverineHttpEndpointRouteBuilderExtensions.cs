@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
+using JasperFx;
 using JasperFx.Core.IoC;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;

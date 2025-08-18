@@ -3,6 +3,7 @@ using JasperFx.CodeGeneration.Frames;
 using Marten;
 using Microsoft.AspNetCore.Mvc;
 using System.ComponentModel.DataAnnotations;
+using JasperFx;
 using Wolverine;
 using Wolverine.Http;
 using Wolverine.Marten;

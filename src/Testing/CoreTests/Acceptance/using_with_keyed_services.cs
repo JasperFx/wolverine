@@ -1,11 +1,9 @@
-using System.ComponentModel.Design;
-using System.Diagnostics;
-using CoreTests.Codegen;
 using Lamar.Microsoft.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Wolverine.Attributes;
 using Xunit;
+using IServiceContainer = JasperFx.IServiceContainer;
 
 namespace CoreTests.Acceptance;
 
@@ -37,10 +35,10 @@ public class using_with_keyed_services : IAsyncLifetime
     [Fact]
     public async Task use_inside_of_deep_dependency_chain()
     {
-        var container = _host.Services.GetRequiredService<Wolverine.Runtime.IServiceContainer>();
+        var container = _host.Services.GetRequiredService<IServiceContainer>();
         var holder = container.QuickBuild<ThingUserHolder>();
         holder.ThingUser.Thing.ShouldBeOfType<RedThing>();
-        
+
         await _host.InvokeAsync(new UseThingHolder());
     }
 
@@ -49,7 +47,7 @@ public class using_with_keyed_services : IAsyncLifetime
     {
         await _host.InvokeAsync(new UseThingDirectly());
     }
-    
+
     [Fact]
     public async Task use_as_singleton_parameter_on_handler()
     {
@@ -92,10 +90,10 @@ public class using_with_keyed_services_and_lamar : IAsyncLifetime
     [Fact]
     public async Task use_inside_of_deep_dependency_chain()
     {
-        var container = _host.Services.GetRequiredService<Wolverine.Runtime.IServiceContainer>();
+        var container = _host.Services.GetRequiredService<IServiceContainer>();
         var holder = container.QuickBuild<ThingUserHolder>();
         holder.ThingUser.Thing.ShouldBeOfType<RedThing>();
-        
+
         await _host.InvokeAsync(new UseThingHolder());
     }
 
@@ -104,7 +102,7 @@ public class using_with_keyed_services_and_lamar : IAsyncLifetime
     {
         await _host.InvokeAsync(new UseThingDirectly());
     }
-    
+
     [Fact]
     public async Task use_as_singleton_parameter_on_handler()
     {
@@ -119,8 +117,11 @@ public class using_with_keyed_services_and_lamar : IAsyncLifetime
 }
 
 public interface IThing;
+
 public class RedThing : IThing;
+
 public class BlueThing : IThing;
+
 public class GreenThing : IThing;
 
 public record ThingUser([FromKeyedServices("Red")] IThing Thing);
@@ -128,6 +129,7 @@ public record ThingUser([FromKeyedServices("Red")] IThing Thing);
 public record ThingUserHolder(ThingUser ThingUser);
 
 public record UseThingDirectly;
+
 public record UseSingletonThingDirectly;
 
 public record UseMultipleThings;
@@ -141,20 +143,20 @@ public class ThingHandler
     {
         holder.ThingUser.Thing.ShouldBeOfType<RedThing>();
     }
-    
+
     public static void Handle(
-        UseThingDirectly command, 
+        UseThingDirectly command,
         [FromKeyedServices("Blue")] IThing thing)
     {
         thing.ShouldBeOfType<BlueThing>();
     }
-    
+
     public static void Handle(UseSingletonThingDirectly command, [FromKeyedServices("Red")] IThing thing)
     {
         thing.ShouldBeOfType<RedThing>();
     }
 
-    public static void Handle(UseMultipleThings command, 
+    public static void Handle(UseMultipleThings command,
         [FromKeyedServices("Green")] IThing green,
         [FromKeyedServices("Red")] IThing red)
     {

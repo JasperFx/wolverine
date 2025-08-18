@@ -1,7 +1,9 @@
 using System.Reflection;
+using JasperFx;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
+using JasperFx.CodeGeneration.Services;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using JasperFx.Events;
@@ -9,7 +11,6 @@ using Marten;
 using Marten.Events;
 using Microsoft.Extensions.DependencyInjection;
 using Wolverine.Attributes;
-using Wolverine.Codegen;
 using Wolverine.Configuration;
 using Wolverine.Marten.Codegen;
 using Wolverine.Marten.Persistence.Sagas;

@@ -1,4 +1,5 @@
 using CoreTests.Configuration;
+using JasperFx;
 using JasperFx.CodeGeneration;
 using JasperFx.Core;
 using Microsoft.Extensions.Hosting;

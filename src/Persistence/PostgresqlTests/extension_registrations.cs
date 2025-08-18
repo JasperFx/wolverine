@@ -1,4 +1,5 @@
 ﻿using IntegrationTests;
+using JasperFx;
 using Shouldly;
 using Wolverine.ComplianceTests;
 using Wolverine;

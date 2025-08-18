@@ -1,3 +1,4 @@
+using JasperFx;
 using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
 using Wolverine.ComplianceTests.Compliance;

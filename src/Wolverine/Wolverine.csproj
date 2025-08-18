@@ -39,5 +39,9 @@
 	  <ProjectReference Include="..\..\..\jasperfx\src\JasperFx.RuntimeCompiler\JasperFx.RuntimeCompiler.csproj" />
 	</ItemGroup>
 
+	<ItemGroup>
+	  <Folder Include="Codegen\" />
+	</ItemGroup>
+
     <Import Project="../../Analysis.Build.props" />
 </Project>

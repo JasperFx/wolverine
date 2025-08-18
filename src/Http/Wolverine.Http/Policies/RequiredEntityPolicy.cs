@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using JasperFx;
 using JasperFx.CodeGeneration;
 using JasperFx.Core.Reflection;
 using Microsoft.AspNetCore.Http;

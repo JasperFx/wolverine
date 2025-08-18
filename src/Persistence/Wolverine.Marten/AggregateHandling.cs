@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Reflection;
 using ImTools;
+using JasperFx;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
