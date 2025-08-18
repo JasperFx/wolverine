@@ -6,6 +6,7 @@ using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using Marten;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
@@ -21,7 +22,7 @@ public class service_location_assertions
 {
     public readonly ServiceDescriptor descriptor1 = new ServiceDescriptor(typeof(IWidget), typeof(AWidget));
     public readonly ServiceDescriptor descripter2 = new ServiceDescriptor(typeof(IWidget), "B", typeof(BWidget));
-    public readonly HttpChain theChain = new HttpChain(MethodCall.For<WidgetEndpoint>(x  => x.Post(null, null)), new HttpGraph(new WolverineOptions(), Substitute.For<IServiceContainer>()));
+    public readonly HttpChain theChain = new HttpChain(MethodCall.For<WidgetEndpoint>(x  => x.Post(null, null, null, null)), new HttpGraph(new WolverineOptions(), Substitute.For<IServiceContainer>()));
     public readonly RecordingLogger theLogger = new();
     
     private IServiceProvider servicesWithPolicy(ServiceLocationPolicy policy)
@@ -39,6 +40,9 @@ public class service_location_assertions
         builder.Host.UseWolverine(opts =>
         {
             opts.Discovery.IncludeAssembly(GetType().Assembly);
+
+            opts.Services.AddScoped<IThing>(s => new BigThing());
+            
             configure(opts);
         });
         
@@ -58,6 +62,7 @@ public class service_location_assertions
             app.MapWolverineEndpoints(opts =>
             {
                 opts.ServiceProviderSource = providerSource;
+                opts.SourceServiceFromHttpContext<IThing>();
             });
         });
     }
@@ -202,11 +207,19 @@ public record WidgetRequest;
 public class WidgetEndpoint
 {
     [WolverinePost("/service/locations")]
-    public string Post(WidgetRequest request, IWidget widget)
+    public string Post(WidgetRequest request, IWidget widget, IThing thing, HttpContext context)
     {
+        thing.ShouldNotBeNull();
+        
+        context.RequestServices.GetRequiredService<IThing>().ShouldBeSameAs(thing);
+        
         return widget.ToString();
     }
 }
+
+public interface IThing;
+
+public class BigThing : IThing;
 
 public record UseWidget;
 
