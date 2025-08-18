@@ -668,6 +668,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
 
     public bool IsFormData { get; internal set; }
     public Type? ComplexQueryStringType { get; set; }
+    public ServiceProviderSource ServiceProviderSource { get; set; } = ServiceProviderSource.IsolatedAndScoped;
 
     internal Variable BuildJsonDeserializationVariable()
     {
@@ -678,4 +679,14 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
     {
         _parent.ApplyParameterMatching(this, call);
     }
+
+    public bool TryReplaceServiceProvider(out Variable serviceProvider)
+    {
+        serviceProvider = default!;
+        if (ServiceProviderSource == ServiceProviderSource.IsolatedAndScoped) return false;
+
+        serviceProvider = new Variable(typeof(IServiceProvider), $"httpContext.{nameof(HttpContext.RequestServices)}");
+        return true;
+    }
 }
+

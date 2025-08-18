@@ -99,6 +99,26 @@ public enum RouteWarmup
     Eager
 }
 
+public enum ServiceProviderSource
+{
+    /// <summary>
+    /// The default Wolverine behavior that uses an isolated and scoped IServiceProvider
+    /// within the generated code whenever it is necessary to use service location
+    /// </summary>
+    IsolatedAndScoped,
+    
+    /// <summary>
+    /// Utilize the IServiceProvider scoped to HttpContext.RequestServices when it is necessary to
+    /// use service location within HTTP endpoints. Use this option to shared scoped services with
+    /// AspNetCore middleware.
+    ///
+    /// Use with caution, as this can make your system harder to reason about -- even though this kind of
+    /// state smuggling through scoped IoC containers between middleware and controllers is unfortunately
+    /// common within AspNetCore
+    /// </summary>
+    FromHttpContextRequestServices
+}
+
 public class WolverineHttpOptions
 {
     public WolverineHttpOptions()
@@ -109,6 +129,14 @@ public class WolverineHttpOptions
 
         Policies.Add(TenantIdDetection);
     }
+
+    /// <summary>
+    /// Use to control how Wolverine.HTTP resolves the scoped IServiceProvider during
+    /// HTTP requests. The default is to use an isolated IServiceProvider within the Wolverine execution, but
+    /// you can opt to instead use HttpContext.RequestServices to share scope with AspNetCore middleware and
+    /// who knows what else
+    /// </summary>
+    public ServiceProviderSource ServiceProviderSource { get; set; } = ServiceProviderSource.IsolatedAndScoped;
     
     public async ValueTask<string?> TryDetectTenantId(HttpContext httpContext)
     {
