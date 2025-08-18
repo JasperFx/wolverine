@@ -2,7 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Xunit;
 
-namespace CoreTests.Codegen;
+namespace CoreTests;
 
 public class disposing_disposable_or_async_disposable 
 {

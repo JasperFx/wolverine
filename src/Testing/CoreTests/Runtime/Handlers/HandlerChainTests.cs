@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using JasperFx;
+using Microsoft.Extensions.Logging;
 using Wolverine.ComplianceTests.Compliance;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;

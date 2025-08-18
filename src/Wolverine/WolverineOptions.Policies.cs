@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Reflection;
+using JasperFx;
 using JasperFx.CodeGeneration;
 using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Logging;

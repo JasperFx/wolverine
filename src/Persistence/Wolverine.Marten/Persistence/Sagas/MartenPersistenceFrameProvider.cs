@@ -1,17 +1,18 @@
 ﻿using System.Reflection;
+using JasperFx;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
 using Marten;
 using Marten.Events;
-using Marten.Metadata;
 using Marten.Storage.Metadata;
 using Wolverine.Configuration;
 using Wolverine.Marten.Codegen;
 using Wolverine.Persistence;
 using Wolverine.Persistence.Sagas;
 using Wolverine.Runtime;
+using IRevisioned = Marten.Metadata.IRevisioned;
 
 namespace Wolverine.Marten.Persistence.Sagas;
 

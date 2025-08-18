@@ -1,5 +1,6 @@
 using System.Reflection;
 using FluentValidation;
+using JasperFx;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.Core.Reflection;
 using Microsoft.Extensions.DependencyInjection;
