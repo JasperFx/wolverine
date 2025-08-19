@@ -85,11 +85,7 @@ builder.Host.UseWolverine(opts =>
     // just to see things work
     opts.PublishAllMessages()
         .ToRabbitExchange("issue_events", exchange => exchange.BindQueue("issue_events"))
-        .UseDurableOutbox()
-        // Even when calling AddResourceSetupOnStartup(), we still
-        // need to AutoProvision to ensure any declared queues, exchanges, or
-        // bindings with the Rabbit MQ broker to be built as part of bootstrapping time
-        .AutoProvision();
+        .UseDurableOutbox();
 
     opts.ListenToRabbitQueue("issue_events").UseDurableInbox();
 
@@ -99,7 +95,12 @@ builder.Host.UseWolverine(opts =>
         // how you *could* customize the connection to Rabbit MQ
         factory.HostName = "localhost";
         factory.Port = 5672;
-    });
+    })        
+        
+    // Even when calling AddResourceSetupOnStartup(), we still
+    // need to AutoProvision to ensure any declared queues, exchanges, or
+    // bindings with the Rabbit MQ broker to be built as part of bootstrapping time
+    .AutoProvision();;
 });
 
 // This is actually important, this directs
@@ -136,7 +137,7 @@ app.MapGet("/", () => "Hello World!");
 // Actually important to return the exit code here!
 return await app.RunJasperFxCommands(args);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/KitchenSink/MartenAndRabbitIssueService/Program.cs#L11-L70' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_kitchen_sink_bootstrapping' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/KitchenSink/MartenAndRabbitIssueService/Program.cs#L11-L75' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_kitchen_sink_bootstrapping' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Note that this stateful resource model is also available at the command line as well for deploy time

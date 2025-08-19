@@ -1,4 +1,5 @@
 using Marten;
+using Marten.Events;
 using Shouldly;
 using WolverineWebApi.Accounts;
 
@@ -84,3 +85,32 @@ public class working_against_multiple_streams : IntegrationContext
         });
     }
 }
+
+#region sample_when_transfering_money
+
+public class when_transfering_money
+{
+    [Fact]
+    public void happy_path_have_enough_funds()
+    {
+        // StubEventStream<T> is a type that was recently added to Marten
+        // specifically to facilitate testing logic like this
+        var fromAccount = new StubEventStream<Account>(new Account { Amount = 1000 })
+        {
+            Id = Guid.NewGuid()
+        };
+        
+        var toAccount = new StubEventStream<Account>(new Account { Amount = 100})
+        {
+            Id = Guid.NewGuid()
+        };
+        
+        TransferMoneyHandler.Handle(new TransferMoney(fromAccount.Id, toAccount.Id, 100), fromAccount, toAccount);
+
+        // Now check the events we expected to be appended
+        fromAccount.Events.Single().ShouldBeOfType<Withdrawn>().Amount.ShouldBe(100);
+        toAccount.Events.Single().ShouldBeOfType<Debited>().Amount.ShouldBe(100);
+    }
+}
+
+#endregion
