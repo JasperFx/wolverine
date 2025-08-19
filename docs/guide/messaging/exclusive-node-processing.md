@@ -37,12 +37,10 @@ This configuration ensures:
 
 If you don't specify the parallelism level, it defaults to 10:
 
-<!-- snippet: ExclusiveNodeDefaultParallelism -->
-```cs
+```csharp
 opts.ListenToRabbitQueue("background-tasks")
     .ExclusiveNodeWithParallelism(); // Defaults to 10 parallel messages
 ```
-<!-- endSnippet -->
 
 ## Session-Based Ordering
 
