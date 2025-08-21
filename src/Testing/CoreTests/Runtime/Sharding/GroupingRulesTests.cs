@@ -42,6 +42,21 @@ public class GroupingRulesTests
         envelope.Message = new Latte(3);
         rules.DetermineGroupId(envelope).ShouldBe("3");
     }
+
+    [Fact]
+    public void does_not_override_the_explicit_group_id()
+    {
+        var rules = new GroupingRules();
+        rules.ByMessage<Coffee1>(x => x.Brand);
+        rules.ByMessage<ICoffee>(x => x.Name);
+        rules.ByMessage<Latte>(x => x.NumberOfShots.ToString());
+
+        var envelope = ObjectMother.Envelope();
+        envelope.GroupId = "Code Red";
+        envelope.Message = new Coffee1("Dark", "Paul Newman's");
+        
+        rules.DetermineGroupId(envelope).ShouldBe("Code Red");
+    }
 }
 
 public interface ICoffee
