@@ -184,10 +184,8 @@ internal class MartenEventRouter : IMessageRouteSource
             var candidates = forEventType.Concat(transformed).Concat(innerRoutes).ToArray();
             return candidates;
         }
-        else
-        {
-            return Array.Empty<IMessageRoute>();
-        }
+
+        return [];
     }
 
     public bool IsAdditive => false;

@@ -33,7 +33,7 @@ public abstract class MessageRouterBase<T> : IMessageRouter
         HandlerRules.AddRange(messageRules);
 
         _topicRoutes = runtime.Options.Transports.AllEndpoints().Where(x => x.RoutingType == RoutingMode.ByTopic)
-            .Select(endpoint => new MessageRoute(typeof(T), endpoint, runtime.Replies)).ToArray();
+            .Select(endpoint => new MessageRoute(typeof(T), endpoint, runtime)).ToArray();
 
         Runtime = runtime;
     }
@@ -89,7 +89,7 @@ public abstract class MessageRouterBase<T> : IMessageRouter
         }
 
         var agent = Runtime.Endpoints.GetOrBuildSendingAgent(destination);
-        route = new MessageRoute(typeof(T), agent.Endpoint, Runtime.Replies);
+        route = new MessageRoute(typeof(T), agent.Endpoint, Runtime);
         _specificRoutes = _specificRoutes.AddOrUpdate(destination, route);
 
         return route;

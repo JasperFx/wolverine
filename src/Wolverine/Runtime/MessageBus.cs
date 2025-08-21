@@ -144,6 +144,11 @@ public class MessageBus : IMessageBus, IMessageContext
     {
         return Runtime.RoutingFor(message.GetType()).RouteForPublish(message, null);
     }
+    
+    public IReadOnlyList<Envelope> PreviewSubscriptions(object message, DeliveryOptions options)
+    {
+        return Runtime.RoutingFor(message.GetType()).RouteForPublish(message, options);
+    }
 
     public ValueTask SendAsync<T>(T message, DeliveryOptions? options = null)
     {
