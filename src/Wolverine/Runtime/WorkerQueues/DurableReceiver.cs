@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
 using Wolverine.Logging;
 using Wolverine.Persistence.Durability;
+using Wolverine.Runtime.Sharding;
 using Wolverine.Transports;
 using Wolverine.Transports.Sending;
 
@@ -24,7 +25,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
     protected readonly ILogger _logger;
     private readonly RetryBlock<Envelope> _markAsHandled;
     private readonly RetryBlock<Envelope> _moveToErrors;
-    private readonly Block<Envelope> _receiver;
+    private readonly IBlock<Envelope> _receiver;
     private readonly RetryBlock<Envelope> _receivingOne;
     private readonly RetryBlock<Envelope> _scheduleExecution;
     private readonly DurabilitySettings _settings;
@@ -47,7 +48,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
 
         Pipeline = pipeline;
 
-        _receiver = new Block<Envelope>(endpoint.ExecutionOptions.MaxDegreeOfParallelism, async (envelope, _) =>
+        Func<Envelope, CancellationToken, Task> execute = async (envelope, _) =>
         {
             if (_latched)
             {
@@ -70,8 +71,11 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
                 // This *should* never happen, but of course it will
                 _logger.LogError(e, "Unexpected pipeline invocation error");
             }
-        });
-
+        };
+        _receiver = endpoint.GroupShardingSlotNumber == null 
+            ? new Block<Envelope>(endpoint.ExecutionOptions.MaxDegreeOfParallelism, execute)
+            : new ShardedExecutionBlock((int)endpoint.GroupShardingSlotNumber, runtime.Options.MessageGrouping, execute);
+        
         _deferBlock = new RetryBlock<Envelope>((env, _) => env.Listener!.DeferAsync(env).AsTask(), runtime.Logger,
             runtime.Cancellation);
         _completeBlock = new RetryBlock<Envelope>((env, _) => env.Listener!.CompleteAsync(env).AsTask(), runtime.Logger,

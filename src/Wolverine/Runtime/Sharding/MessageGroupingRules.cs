@@ -6,6 +6,8 @@ public class MessageGroupingRules
 {
     private readonly List<IGroupingRule> _rules = new();
 
+    public bool HasAnyRules() => _rules.Any();
+    
     /// <summary>
     /// Use any known TenantId as the message GroupId
     /// </summary>

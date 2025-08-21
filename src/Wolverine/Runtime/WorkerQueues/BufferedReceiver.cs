@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
 using Wolverine.Logging;
 using Wolverine.Runtime.Scheduled;
+using Wolverine.Runtime.Sharding;
 using Wolverine.Transports;
 using Wolverine.Transports.Sending;
 
@@ -40,7 +41,7 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
         _completeBlock = new RetryBlock<Envelope>((env, _) => env.Listener!.CompleteAsync(env).AsTask(), runtime.Logger,
             runtime.Cancellation);
 
-        _receivingBlock = new Block<Envelope>(endpoint.ExecutionOptions.MaxDegreeOfParallelism, async (envelope, _) =>
+        Func<Envelope, CancellationToken, Task> execute = async (envelope, _) =>
         {
             if (_latched && envelope.Listener != null)
             {
@@ -62,7 +63,11 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
                 // This *should* never happen, but of course it will
                 _logger.LogError(e, "Unexpected error in Pipeline invocation");
             }
-        });
+        };
+        
+        _receivingBlock = endpoint.GroupShardingSlotNumber == null  
+            ? new Block<Envelope>(endpoint.ExecutionOptions.MaxDegreeOfParallelism, execute)
+            : new ShardedExecutionBlock((int)endpoint.GroupShardingSlotNumber, runtime.Options.MessageGrouping, execute);
 
         if (endpoint.TryBuildDeadLetterSender(runtime, out var dlq))
         {

@@ -30,6 +30,21 @@ public class ListenerConfiguration<TSelf, TEndpoint> : DelayedEndpointConfigurat
     }
 
     /// <summary>
+    /// Creates a policy of sharding the processing of incoming messages by the
+    /// specified number of slots. Use this to group messages to prevent concurrent
+    /// processing of messages with the same GroupId while allowing parallel work across
+    /// GroupIds. The number of "slots" reflects the maximum number of parallel messages
+    /// that can be handled concurrently
+    /// </summary>
+    /// <param name="numberOfSlots"></param>
+    /// <returns></returns>
+    public TSelf ShardListeningByGroupId(ShardSlots numberOfSlots)
+    {
+        add(e => e.GroupShardingSlotNumber = numberOfSlots);
+        return this.As<TSelf>();
+    }
+
+    /// <summary>
     /// In the case of being part of tenancy aware group of message transports, this
     /// setting makes this listening endpoint a "global" endpoint rather than a tenant id
     /// aware endpoint that spans multiple message brokers. 
