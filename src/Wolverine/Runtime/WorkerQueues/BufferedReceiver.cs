@@ -18,7 +18,7 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
     private readonly Endpoint _endpoint;
     private readonly ILogger _logger;
     private readonly RetryBlock<Envelope>? _moveToErrors;
-    private readonly Block<Envelope> _receivingBlock;
+    private readonly IBlock<Envelope> _receivingBlock;
     private readonly InMemoryScheduledJobProcessor _scheduler;
     private readonly DurabilitySettings _settings;
     private bool _latched;
