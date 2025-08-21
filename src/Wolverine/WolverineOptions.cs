@@ -112,7 +112,7 @@ public sealed partial class WolverineOptions
     /// This will be automatically applied to all outgoing messages, but will never override
     /// any explicitly defined Envelope.GroupId
     /// </summary>
-    public GroupingRules MessageGrouping { get; } = new();
+    public MessageGroupingRules MessageGrouping { get; } = new();
 
     [IgnoreDescription]
     public Guid UniqueNodeId { get; } = Guid.NewGuid();
