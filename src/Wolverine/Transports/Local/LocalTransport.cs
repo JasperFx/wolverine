@@ -38,7 +38,7 @@ internal class LocalTransport : TransportBase<LocalQueue>, ILocalMessageRoutingC
         agentQueue.TelemetryEnabled = false;
         agentQueue.Subscriptions.Add(new Subscription
             { Scope = RoutingScope.Implements, BaseType = typeof(IAgentCommand) });
-        agentQueue.ExecutionOptions.MaxDegreeOfParallelism = 20;
+        agentQueue.MaxDegreeOfParallelism = 20;
         agentQueue.Role = EndpointRole.System;
         agentQueue.Mode = EndpointMode.BufferedInMemory;
     }

@@ -34,8 +34,6 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
 
         _scheduler = new InMemoryScheduledJobProcessor(this);
 
-        endpoint.ExecutionOptions.CancellationToken = _settings.Cancellation;
-
         _deferBlock = new RetryBlock<Envelope>((env, _) => env.Listener!.DeferAsync(env).AsTask(), runtime.Logger,
             runtime.Cancellation);
         _completeBlock = new RetryBlock<Envelope>((env, _) => env.Listener!.CompleteAsync(env).AsTask(), runtime.Logger,
@@ -66,7 +64,7 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
         };
         
         _receivingBlock = endpoint.GroupShardingSlotNumber == null  
-            ? new Block<Envelope>(endpoint.ExecutionOptions.MaxDegreeOfParallelism, execute)
+            ? new Block<Envelope>(endpoint.MaxDegreeOfParallelism, execute)
             : new ShardedExecutionBlock((int)endpoint.GroupShardingSlotNumber, runtime.Options.MessageGrouping, execute);
 
         if (endpoint.TryBuildDeadLetterSender(runtime, out var dlq))
