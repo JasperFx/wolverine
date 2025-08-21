@@ -13,6 +13,7 @@ using Wolverine.Persistence.MultiTenancy;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Runtime.Scheduled;
 using Wolverine.Runtime.Serialization;
+using Wolverine.Runtime.Sharding;
 using Wolverine.Transports.Local;
 
 [assembly: InternalsVisibleTo("Wolverine.Testing")]
@@ -92,13 +93,26 @@ public sealed partial class WolverineOptions
 
     /// <summary>
     /// How should Wolverine treat message handlers for the same message type?
-    /// Default is ClassicCombineIntoOneLogicalHandler, but change this if 
+    /// Default is ClassicCombineIntoOneLogicalHandler, but change this if wanting
+    /// to execute different handlers for the same type of message in different endpoints.
+    ///
+    /// This frequently comes into play with "modular monolith" architectures
     /// </summary>
     public MultipleHandlerBehavior MultipleHandlerBehavior
     {
         get => HandlerGraph.MultipleHandlerBehavior;
         set => HandlerGraph.MultipleHandlerBehavior = value;
     }
+
+    /// <summary>
+    /// Use to establish rules about determining the message GroupId metadata that
+    /// is used by Wolverine for message sharding or with message transports like Azure Service Bus,
+    /// AWS SQS, or Kafka that respect some kind of "group id"
+    ///
+    /// This will be automatically applied to all outgoing messages, but will never override
+    /// any explicitly defined Envelope.GroupId
+    /// </summary>
+    public GroupingRules MessageGrouping { get; } = new();
 
     [IgnoreDescription]
     public Guid UniqueNodeId { get; } = Guid.NewGuid();
