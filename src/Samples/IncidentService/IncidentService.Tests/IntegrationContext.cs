@@ -1,4 +1,5 @@
 using Alba;
+using Alba.Security;
 using Marten;
 using Microsoft.Extensions.DependencyInjection;
 using JasperFx;
@@ -25,6 +26,7 @@ public class AppFixture : IAsyncLifetime
         // its implied Program.Main() set up
         Host = await AlbaHost.For<Program>(x =>
         {
+            
             // Just showing that you *can* override service
             // registrations for testing if that's useful
             x.ConfigureServices(services =>
@@ -32,6 +34,10 @@ public class AppFixture : IAsyncLifetime
                 // If wolverine were using Rabbit MQ / SQS / Azure Service Bus,
                 // turn that off for now
                 services.DisableAllExternalWolverineTransports();
+
+                /// THIS IS IMPORTANT!
+                services.MartenDaemonModeIsSolo();
+                services.RunWolverineInSoloMode();
             });
 
         });
@@ -73,6 +79,9 @@ public class AppFixture : IAsyncLifetime
             // Using Marten, wipe out all data and reset the state
             // back to exactly what we described in InitialAccountData
             await Store.Advanced.ResetAllData();
+            
+            // SWitch to this instead please!!!! A super set of the above ^^^
+            await Host.ResetAllMartenDataAsync();
         }
 
         // This is required because of the IAsyncLifetime
