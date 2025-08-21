@@ -13,6 +13,12 @@ namespace CoreTests.Configuration;
 public class EndpointTests
 {
     [Fact]
+    public void sharding_by_group_id_is_not_enabled_by_default()
+    {
+        new TestEndpoint(EndpointRole.Application).GroupShardingSlotNumber.ShouldBeNull();
+    }
+    
+    [Fact]
     public void telemetry_is_enabled_by_default()
     {
         new TestEndpoint(EndpointRole.System).TelemetryEnabled.ShouldBeTrue();

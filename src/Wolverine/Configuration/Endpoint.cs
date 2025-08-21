@@ -17,6 +17,14 @@ using Wolverine.Transports.Sending;
 
 namespace Wolverine.Configuration;
 
+public enum ShardSlots
+{
+    Three = 3,
+    Five = 5,
+    Seven = 7,
+    Nine = 9
+}
+
 /// <summary>
 /// Marker interface that tells Wolverine internals that this endpoint directly
 /// integrates with the active transactional inbox
@@ -117,6 +125,12 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
         ExecutionOptions.MaxDegreeOfParallelism = Environment.ProcessorCount;
         ExecutionOptions.EnsureOrdered = false;
     }
+    
+    /// <summary>
+    /// If specified, directs this endpoint to use by GroupId sharding in processing.
+    /// Only impacts Buffered or Durable endpoints though.
+    /// </summary>
+    public ShardSlots? GroupShardingSlotNumber { get; set; }
 
     /// <summary>
     /// In the case of using "sticky handlers"
@@ -344,6 +358,8 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
 
         return route;
     }
+    
+
 
     internal void RegisterDelayedConfiguration(IDelayedEndpointConfiguration configuration)
     {
