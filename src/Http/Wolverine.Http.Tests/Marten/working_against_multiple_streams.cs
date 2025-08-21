@@ -108,8 +108,8 @@ public class when_transfering_money
         TransferMoneyHandler.Handle(new TransferMoney(fromAccount.Id, toAccount.Id, 100), fromAccount, toAccount);
 
         // Now check the events we expected to be appended
-        fromAccount.Events.Single().ShouldBeOfType<Withdrawn>().Amount.ShouldBe(100);
-        toAccount.Events.Single().ShouldBeOfType<Debited>().Amount.ShouldBe(100);
+        fromAccount.Events.Single().Data.ShouldBeOfType<Withdrawn>().Amount.ShouldBe(100);
+        toAccount.Events.Single().Data.ShouldBeOfType<Debited>().Amount.ShouldBe(100);
     }
 }
 

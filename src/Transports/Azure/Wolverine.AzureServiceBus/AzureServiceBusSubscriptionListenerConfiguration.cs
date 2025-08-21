@@ -11,6 +11,28 @@ public class AzureServiceBusSubscriptionListenerConfiguration : ListenerConfigur
     public AzureServiceBusSubscriptionListenerConfiguration(AzureServiceBusSubscription endpoint) : base(endpoint)
     {
     }
+    
+    /// <summary>
+    /// Configure this Azure Service Bus queue to run exclusively on a single node
+    /// with session-based parallel processing. This ensures only one node processes
+    /// the queue while allowing multiple sessions to be processed in parallel.
+    /// </summary>
+    /// <param name="configuration">The Azure Service Bus listener configuration</param>
+    /// <param name="maxParallelSessions">Maximum number of sessions to process in parallel. Default is 10.</param>
+    /// <param name="endpointName">Optional endpoint name for identification</param>
+    /// <returns>The configuration for method chaining</returns>
+    public AzureServiceBusSubscriptionListenerConfiguration ExclusiveNodeWithSessions(
+        int maxParallelSessions = 10,
+        string? endpointName = null)
+    {
+        // First ensure sessions are required with the specified parallelism
+        RequireSessions(maxParallelSessions);
+        
+        // Then apply exclusive node configuration
+        ExclusiveNodeWithSessionOrdering(maxParallelSessions, endpointName);
+        
+        return this;
+    }
 
     /// <summary>
     ///     Add circuit breaker exception handling to this listener
