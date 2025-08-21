@@ -35,9 +35,7 @@ public class when_configuring_StrongOrderedGuarantees_on_listener_endpoint
     [Fact]
     public void execution_options_should_be_sequential()
     {
-        theEndpoint.ExecutionOptions.SingleProducerConstrained.ShouldBeTrue();
-        theEndpoint.ExecutionOptions.MaxDegreeOfParallelism.ShouldBe(1);
-        theEndpoint.ExecutionOptions.EnsureOrdered.ShouldBeTrue();
+        theEndpoint.MaxDegreeOfParallelism.ShouldBe(1);
     }
 
     [Fact]

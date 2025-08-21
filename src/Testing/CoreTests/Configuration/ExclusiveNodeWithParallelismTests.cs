@@ -20,9 +20,7 @@ public class ExclusiveNodeWithParallelismTests
         ((IDelayedEndpointConfiguration)config).Apply();
         
         endpoint.ListenerScope.ShouldBe(ListenerScope.Exclusive);
-        endpoint.ExecutionOptions.MaxDegreeOfParallelism.ShouldBe(5);
-        endpoint.ExecutionOptions.EnsureOrdered.ShouldBe(false);
-        endpoint.ExecutionOptions.SingleProducerConstrained.ShouldBe(false);
+        endpoint.MaxDegreeOfParallelism.ShouldBe(5);
         endpoint.ListenerCount.ShouldBe(1);
         endpoint.IsListener.ShouldBe(true);
     }
@@ -72,8 +70,7 @@ public class ExclusiveNodeWithParallelismTests
         ((IDelayedEndpointConfiguration)config).Apply();
         
         endpoint.ListenerScope.ShouldBe(ListenerScope.Exclusive);
-        endpoint.ExecutionOptions.MaxDegreeOfParallelism.ShouldBe(3);
-        endpoint.ExecutionOptions.EnsureOrdered.ShouldBe(true);
+        endpoint.MaxDegreeOfParallelism.ShouldBe(3);
         endpoint.ListenerCount.ShouldBe(3);
         endpoint.IsListener.ShouldBe(true);
     }
@@ -126,7 +123,7 @@ public class ExclusiveNodeWithParallelismTests
         ((IDelayedEndpointConfiguration)config).Apply();
         
         endpoint.ListenerScope.ShouldBe(ListenerScope.Exclusive);
-        endpoint.ExecutionOptions.MaxDegreeOfParallelism.ShouldBe(5);
+        endpoint.MaxDegreeOfParallelism.ShouldBe(5);
         endpoint.Mode.ShouldBe(EndpointMode.Durable);
         endpoint.TelemetryEnabled.ShouldBe(false);
     }
@@ -140,7 +137,7 @@ public class ExclusiveNodeWithParallelismTests
         config.ExclusiveNodeWithParallelism();
         ((IDelayedEndpointConfiguration)config).Apply();
         
-        endpoint.ExecutionOptions.MaxDegreeOfParallelism.ShouldBe(10);
+        endpoint.MaxDegreeOfParallelism.ShouldBe(10);
     }
 
     [Fact]
@@ -152,7 +149,7 @@ public class ExclusiveNodeWithParallelismTests
         config.ExclusiveNodeWithSessionOrdering();
         ((IDelayedEndpointConfiguration)config).Apply();
         
-        endpoint.ExecutionOptions.MaxDegreeOfParallelism.ShouldBe(10);
+        endpoint.MaxDegreeOfParallelism.ShouldBe(10);
         endpoint.ListenerCount.ShouldBe(10);
     }
 }

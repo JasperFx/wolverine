@@ -16,8 +16,7 @@ internal class DatabaseControlEndpoint : Endpoint
         NodeId = nodeId;
         _parent = parent;
         Mode = EndpointMode.BufferedInMemory;
-        ExecutionOptions.MaxDegreeOfParallelism = 1;
-        ExecutionOptions.EnsureOrdered = true;
+        MaxDegreeOfParallelism = 1;
 
         // No otel for this one!
         TelemetryEnabled = false;

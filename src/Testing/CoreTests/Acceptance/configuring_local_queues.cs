@@ -28,10 +28,10 @@ public class configuring_local_queues : IntegrationContext
     {
         var runtime = Host.GetRuntime();
         runtime.Endpoints.EndpointByName("blue")
-            .ShouldBeOfType<LocalQueue>().ExecutionOptions.MaxDegreeOfParallelism.ShouldBe(1);
+            .ShouldBeOfType<LocalQueue>().MaxDegreeOfParallelism.ShouldBe(1);
         
         runtime.Endpoints.EndpointByName("green")
-            .ShouldBeOfType<LocalQueue>().ExecutionOptions.MaxDegreeOfParallelism.ShouldBe(1000);
+            .ShouldBeOfType<LocalQueue>().MaxDegreeOfParallelism.ShouldBe(1000);
     }
 
     [Fact]
@@ -44,10 +44,10 @@ public class configuring_local_queues : IntegrationContext
         
         var runtime = host.GetRuntime();
         runtime.Endpoints.EndpointByName(typeof(MultipleMessage1Handler).FullNameInCode().ToLowerInvariant())
-            .ShouldBeOfType<LocalQueue>().ExecutionOptions.MaxDegreeOfParallelism.ShouldBe(1);
+            .ShouldBeOfType<LocalQueue>().MaxDegreeOfParallelism.ShouldBe(1);
         
         runtime.Endpoints.EndpointByName(typeof(MultipleMessage2Handler).FullNameInCode().ToLowerInvariant())
-            .ShouldBeOfType<LocalQueue>().ExecutionOptions.MaxDegreeOfParallelism.ShouldBe(1000);
+            .ShouldBeOfType<LocalQueue>().MaxDegreeOfParallelism.ShouldBe(1000);
     }
 }
 

@@ -26,7 +26,7 @@ public class Bug_1175_schema_name_with_queues
             {
                 opts.ServiceName = "Service";
 
-                opts.ListenToPostgresqlQueue("response").MaximumParallelMessages(14, ProcessingOrder.UnOrdered);
+                opts.ListenToPostgresqlQueue("response").MaximumParallelMessages(14);
                 opts.PublishMessage<ColorRequest>().ToPostgresqlQueue("request");
 
                 opts.Services.AddMarten(opt =>
@@ -50,7 +50,7 @@ public class Bug_1175_schema_name_with_queues
             {
                 opts.ServiceName = "Listener";
 
-                opts.ListenToPostgresqlQueue("request").MaximumParallelMessages(14, ProcessingOrder.UnOrdered);
+                opts.ListenToPostgresqlQueue("request").MaximumParallelMessages(14);
                 opts.PublishMessage<ColorResponse>().ToPostgresqlQueue("response");
 
                 opts.Durability.ScheduledJobPollingTime = 250.Milliseconds();

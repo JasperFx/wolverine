@@ -44,8 +44,6 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
 
         ShouldPersistBeforeProcessing = !(endpoint is IDatabaseBackedEndpoint);
 
-        endpoint.ExecutionOptions.CancellationToken = _settings.Cancellation;
-
         Pipeline = pipeline;
 
         Func<Envelope, CancellationToken, Task> execute = async (envelope, _) =>
@@ -73,7 +71,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
             }
         };
         _receiver = endpoint.GroupShardingSlotNumber == null 
-            ? new Block<Envelope>(endpoint.ExecutionOptions.MaxDegreeOfParallelism, execute)
+            ? new Block<Envelope>(endpoint.MaxDegreeOfParallelism, execute)
             : new ShardedExecutionBlock((int)endpoint.GroupShardingSlotNumber, runtime.Options.MessageGrouping, execute);
         
         _deferBlock = new RetryBlock<Envelope>((env, _) => env.Listener!.DeferAsync(env).AsTask(), runtime.Logger,

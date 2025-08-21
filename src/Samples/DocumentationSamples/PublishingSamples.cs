@@ -33,15 +33,6 @@ public class PublishingSamples
                 opts.LocalQueue("two")
                     .MaximumParallelMessages(5);
 
-
-                // Or just edit the ActionBlock options directly
-                opts.LocalQueue("three")
-                    .ConfigureExecution(options =>
-                    {
-                        options.MaxDegreeOfParallelism = 5;
-                        options.BoundedCapacity = 1000;
-                    });
-
                 // And finally, this enrolls a queue into the persistent inbox
                 // so that messages can happily be retained and processed
                 // after the service is restarted

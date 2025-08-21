@@ -66,7 +66,7 @@ public class batch_processing : IAsyncLifetime
     {
         var runtime = theHost.GetRuntime();
         var localQueue = runtime.Endpoints.EndpointFor(new Uri("local://items"));
-        localQueue.ExecutionOptions.MaxDegreeOfParallelism.ShouldBe(1);
+        localQueue.MaxDegreeOfParallelism.ShouldBe(1);
     }
 
     [Fact]

@@ -31,7 +31,6 @@ public class using_async_extensions
         var queue = runtime.Options.Transports.TryGetEndpoint(new Uri("local://module1-high-priority"));
 
         queue.ShouldNotBeNull();
-        queue.ExecutionOptions.EnsureOrdered.ShouldBeTrue();
     }
 
     [Fact]

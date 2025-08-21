@@ -72,7 +72,7 @@ public partial class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQu
             {
                 case EndpointMode.BufferedInMemory:
                 case EndpointMode.Durable:
-                    return (ushort)(ExecutionOptions.MaxDegreeOfParallelism * 2);
+                    return (ushort)(MaxDegreeOfParallelism * 2);
             }
 
             return 100;

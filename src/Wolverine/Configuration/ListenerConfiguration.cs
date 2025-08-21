@@ -66,9 +66,7 @@ public class ListenerConfiguration<TSelf, TEndpoint> : DelayedEndpointConfigurat
         {
             e.IsListener = true;
             e.ListenerScope = ListenerScope.Exclusive;
-            e.ExecutionOptions.SingleProducerConstrained = true;
-            e.ExecutionOptions.MaxDegreeOfParallelism = 1;
-            e.ExecutionOptions.EnsureOrdered = true;
+            e.MaxDegreeOfParallelism = 1;
             e.ListenerCount = 1;
 
             if (endpointName.IsNotEmpty())
@@ -113,9 +111,7 @@ public class ListenerConfiguration<TSelf, TEndpoint> : DelayedEndpointConfigurat
         {
             e.IsListener = true;
             e.ListenerScope = ListenerScope.Exclusive;
-            e.ExecutionOptions.MaxDegreeOfParallelism = maxParallelism;
-            e.ExecutionOptions.EnsureOrdered = false; // Allow parallel processing
-            e.ExecutionOptions.SingleProducerConstrained = false; // Allow multiple producers within the node
+            e.MaxDegreeOfParallelism = maxParallelism;
             e.ListenerCount = 1; // Single listener instance for exclusive node
 
             if (endpointName.IsNotEmpty())
@@ -160,8 +156,7 @@ public class ListenerConfiguration<TSelf, TEndpoint> : DelayedEndpointConfigurat
         {
             e.IsListener = true;
             e.ListenerScope = ListenerScope.Exclusive;
-            e.ExecutionOptions.MaxDegreeOfParallelism = maxParallelSessions;
-            e.ExecutionOptions.EnsureOrdered = true; // Maintain ordering within sessions
+            e.MaxDegreeOfParallelism = maxParallelSessions;
             e.ListenerCount = maxParallelSessions; // Multiple listeners for different sessions
 
             if (endpointName.IsNotEmpty())
@@ -179,16 +174,13 @@ public class ListenerConfiguration<TSelf, TEndpoint> : DelayedEndpointConfigurat
         return this.As<TSelf>();
     }
 
-    public TSelf MaximumParallelMessages(int maximumParallelHandlers, ProcessingOrder? order = null)
+    public TSelf MaximumParallelMessages(int maximumParallelHandlers)
     {
         add(e =>
         {
-            e.ExecutionOptions.MaxDegreeOfParallelism = maximumParallelHandlers;
-            if (order.HasValue)
-            {
-                e.ExecutionOptions.EnsureOrdered = order.Value == ProcessingOrder.StrictOrdered;
-            }
+            e.MaxDegreeOfParallelism = maximumParallelHandlers;
         });
+        
         return this.As<TSelf>();
     }
 
@@ -208,8 +200,7 @@ public class ListenerConfiguration<TSelf, TEndpoint> : DelayedEndpointConfigurat
     {
         add(e =>
         {
-            e.ExecutionOptions.MaxDegreeOfParallelism = 1;
-            e.ExecutionOptions.EnsureOrdered = true;
+            e.MaxDegreeOfParallelism = 1;
         });
 
         return this.As<TSelf>();
@@ -236,13 +227,11 @@ public class ListenerConfiguration<TSelf, TEndpoint> : DelayedEndpointConfigurat
 
     public TSelf ProcessInline()
     {
-        add(e => e.Mode = EndpointMode.Inline);
-        return this.As<TSelf>();
-    }
-
-    public TSelf ConfigureExecution(Action<ExecutionDataflowBlockOptions> configure)
-    {
-        add(e => configure(e.ExecutionOptions));
+        add(e =>
+        {
+            e.Mode = EndpointMode.Inline;
+            e.MaxDegreeOfParallelism = 1;
+        });
         return this.As<TSelf>();
     }
 

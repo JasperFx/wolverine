@@ -121,10 +121,14 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
         Role = role;
         Uri = uri;
         EndpointName = uri.ToString();
-
-        ExecutionOptions.MaxDegreeOfParallelism = Environment.ProcessorCount;
-        ExecutionOptions.EnsureOrdered = false;
     }
+
+    /// <summary>
+    /// Controls the maximum number of messages that could be processed at one time
+    /// Default is the Environment.ProcessorCount. Setting this to 1 makes this listening endpoint
+    /// be ordered in its processing
+    /// </summary>
+    public int MaxDegreeOfParallelism { get; set; } = Environment.ProcessorCount;
     
     /// <summary>
     /// If specified, directs this endpoint to use by GroupId sharding in processing.
@@ -241,13 +245,6 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
     public Uri Uri { get; }
 
     /// <summary>
-    ///     Configuration for the local TPL Dataflow queue for listening endpoints configured as either
-    ///     BufferedInMemory or Durable
-    /// </summary>
-    [ChildDescription]
-    public ExecutionDataflowBlockOptions ExecutionOptions { get; set; } = new();
-
-    /// <summary>
     ///     Is this endpoint used to listen for incoming messages?
     /// </summary>
     public bool IsListener { get; set; } // TODO -- in 3.0, switch this to using ListeningScope
@@ -332,14 +329,6 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
         if (Mode == EndpointMode.BufferedInMemory)
         {
             dict.Add(nameof(MaximumEnvelopeRetryStorage), MaximumEnvelopeRetryStorage);
-
-            if (IsListener && Mode != EndpointMode.Inline)
-            {
-                dict.Add("ExecutionOptions.MaxDegreeOfParallelism", ExecutionOptions.MaxDegreeOfParallelism);
-                dict.Add("ExecutionOptions.EnsureOrdered", ExecutionOptions.EnsureOrdered);
-                dict.Add("ExecutionOptions.SingleProducerConstrained", ExecutionOptions.SingleProducerConstrained);
-                dict.Add("ExecutionOptions.MaxMessagesPerTask", ExecutionOptions.MaxMessagesPerTask);
-            }
         }
 
         return dict;
@@ -487,17 +476,6 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
         dict.Remove("binary/envelope");
 
         return dict.Select(x => $"{x.Value.GetType().ShortNameInCode()}").Join(", ");
-    }
-
-    internal string ExecutionDescription()
-    {
-        if (Mode == EndpointMode.Inline)
-        {
-            return "";
-        }
-
-        return
-            $"{nameof(ExecutionOptions.MaxDegreeOfParallelism)}: {ExecutionOptions.MaxDegreeOfParallelism}, {nameof(ExecutionOptions.EnsureOrdered)}: {ExecutionOptions.EnsureOrdered}";
     }
 
     public virtual bool TryBuildDeadLetterSender(IWolverineRuntime runtime, out ISender? deadLetterSender)
