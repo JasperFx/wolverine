@@ -108,7 +108,7 @@ internal class WolverineSystemPart : SystemPartBase
         table.AddColumn("Uri");
         table.AddColumn("Name");
         table.AddColumn("Mode");
-        table.AddColumn("Execution");
+        table.AddColumn(nameof(Endpoint.MaxDegreeOfParallelism));
         table.AddColumn("Serializers");
 
         var listeners = _runtime
@@ -124,7 +124,7 @@ internal class WolverineSystemPart : SystemPartBase
                 listener.Uri.ToString(),
                 listener.EndpointName,
                 listener.Mode.ToString(),
-                listener.ExecutionDescription(),
+                listener.MaxDegreeOfParallelism.ToString(),
                 listener.SerializerDescription(_runtime.Options)
             );
         }

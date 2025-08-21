@@ -150,7 +150,7 @@ public class configuring_endpoints : IDisposable
     public void configure_default_queue()
     {
         localQueue(TransportConstants.Default)
-            .ExecutionOptions.MaxDegreeOfParallelism
+            .MaxDegreeOfParallelism
             .ShouldBe(13);
     }
 
@@ -160,7 +160,7 @@ public class configuring_endpoints : IDisposable
 
 
         localQueue(TransportConstants.Durable)
-            .ExecutionOptions.MaxDegreeOfParallelism
+            .MaxDegreeOfParallelism
             .ShouldBe(22);
     }
 
@@ -192,7 +192,6 @@ public class configuring_endpoints : IDisposable
     public void configure_sequential()
     {
         localQueue("one")
-            .ExecutionOptions
             .MaxDegreeOfParallelism
             .ShouldBe(1);
     }
@@ -201,7 +200,6 @@ public class configuring_endpoints : IDisposable
     public void configure_max_parallelization()
     {
         localQueue("two")
-            .ExecutionOptions
             .MaxDegreeOfParallelism
             .ShouldBe(11);
     }
@@ -236,16 +234,6 @@ public class configuring_endpoints : IDisposable
         localQueue("four")
             .Mode
             .ShouldBe(EndpointMode.BufferedInMemory);
-    }
-
-    [Fact]
-    public void configure_execution()
-    {
-        theOptions.LocalQueue("foo")
-            .ConfigureExecution(x => x.BoundedCapacity = 111);
-
-        localQueue("foo")
-            .ExecutionOptions.BoundedCapacity.ShouldBe(111);
     }
 
     [Fact]
