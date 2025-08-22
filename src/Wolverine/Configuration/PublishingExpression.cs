@@ -8,8 +8,8 @@ namespace Wolverine.Configuration;
 
 public class PublishingExpression : IPublishToExpression
 {
-    private readonly IList<Endpoint> _endpoints = new List<Endpoint>();
-    private readonly IList<Subscription> _subscriptions = new List<Subscription>();
+    private readonly List<Endpoint> _endpoints = new();
+    private readonly List<Subscription> _subscriptions = new();
 
     internal PublishingExpression(WolverineOptions parent)
     {

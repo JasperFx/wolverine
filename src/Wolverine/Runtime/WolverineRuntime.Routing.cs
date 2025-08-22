@@ -48,12 +48,25 @@ internal class ExplicitRouting : IMessageRouteSource
 {
     public IEnumerable<IMessageRoute> FindRoutes(Type messageType, IWolverineRuntime runtime)
     {
-        return runtime
+        var explicitRoutes = runtime
             .Options
             .Transports
             .AllEndpoints()
             .Where(x => x.ShouldSendMessage(messageType))
             .Select(x => new MessageRoute(messageType, x, runtime));
+
+        foreach (var explicitRoute in explicitRoutes)
+        {
+            yield return explicitRoute;
+        }
+
+        foreach (var topology in runtime.Options.ShardedMessageTopologies)
+        {
+            if (topology.TryMatch(messageType, runtime, out var route))
+            {
+                yield return route!;
+            }
+        }
     }
 
     public bool IsAdditive => false;
@@ -75,7 +88,7 @@ internal class LocalRouting : IMessageRouteSource
         var batching = options.BatchDefinitions.FirstOrDefault(x => x.ElementType == messageType);
         if (batching == null)
         {
-            return Array.Empty<IMessageRoute>();
+            return [];
         }
 
         var endpoint = options.Transports.GetOrCreate<LocalTransport>()
