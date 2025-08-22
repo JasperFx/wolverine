@@ -4,6 +4,7 @@ using JasperFx.Core;
 using Marten;
 using MartenTests.AggregateHandlerWorkflow;
 using Microsoft.Extensions.Hosting;
+using Shouldly;
 using Wolverine;
 using Wolverine.Configuration;
 using Wolverine.Marten;
@@ -58,22 +59,68 @@ public class concurrency_resilient_sharded_processing
                     m.DisableNpgsqlLogging = true;
                 }).IntegrateWithWolverine();
 
-                opts.Publish(x =>
+                opts.PublishWithShardedLocalMessaging("letters", 4, topology =>
                 {
-                    x.MessagesImplementing<ILetterMessage>();
-                    x.ToLocalQueue("letters")
-                        
-                        // This is the magic sauce that shards the processing
-                        // by GroupId, which would be the StreamId.ToString() in
-                        // most cases in your usage
-                        .ShardListeningByGroupId(ShardSlots.Five)
-                        
-                        .BufferedInMemory()
-                        .MaximumParallelMessages(10);
+                    topology.MessagesImplementing<ILetterMessage>();
+                    topology.MaxDegreeOfParallelism = ShardSlots.Five;
+                    
+                    topology.ConfigureQueues(queue =>
+                    {
+                        queue.BufferedInMemory();
+                    });
                 });
             }).StartAsync();
 
         var tracked = await host.ExecuteAndWaitAsync(pumpOutMessages, 60000);
+        
+        tracked.Executed.Envelopes().Any(x => x.Destination == new Uri("local://letters1")).ShouldBeTrue();
+        tracked.Executed.Envelopes().Any(x => x.Destination == new Uri("local://letters2")).ShouldBeTrue();
+        tracked.Executed.Envelopes().Any(x => x.Destination == new Uri("local://letters3")).ShouldBeTrue();
+        tracked.Executed.Envelopes().Any(x => x.Destination == new Uri("local://letters4")).ShouldBeTrue();
+    }
+    
+    [Fact]
+    public async Task hammer_it_with_lots_of_messages_against_buffered_and_sharded_messaging()
+    {
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.Discovery.DisableConventionalDiscovery().IncludeType(typeof(LetterMessageHandler));
+                
+                // Telling Wolverine how to assign a GroupId to a message, that we'll use
+                // to predictably sort into "slots" in the processing
+                opts.MessageGrouping.ByMessage<ILetterMessage>(x => x.Id.ToString());
+                
+                opts.Services.AddMarten(m =>
+                {
+                    m.Connection(Servers.PostgresConnectionString);
+                    m.DatabaseSchemaName = "letters";
+                    m.DisableNpgsqlLogging = true;
+                }).IntegrateWithWolverine();
+
+                opts.PublishWithShardedLocalMessaging("letters", 4, topology =>
+                {
+                    topology.MessagesImplementing<ILetterMessage>();
+                    topology.MaxDegreeOfParallelism = ShardSlots.Five;
+                    
+                    topology.ConfigureQueues(queue =>
+                    {
+                        queue.UseDurableInbox();
+                    });
+                });
+            }).StartAsync();
+
+        // This is just pumping out a ton of messages of different types of ILetterMessage
+        // that simulate getting a burst of messages that all append events to Marten streams
+        // w/ the same stream id
+        // w/o the "sharded" message routing and execution above, this test falls over fast w/
+        // Marten detecting ConcurrencyExceptions right and left
+        var tracked = await host.ExecuteAndWaitAsync(pumpOutMessages, 60000);
+        
+        tracked.Executed.Envelopes().Any(x => x.Destination == new Uri("local://letters1")).ShouldBeTrue();
+        tracked.Executed.Envelopes().Any(x => x.Destination == new Uri("local://letters2")).ShouldBeTrue();
+        tracked.Executed.Envelopes().Any(x => x.Destination == new Uri("local://letters3")).ShouldBeTrue();
+        tracked.Executed.Envelopes().Any(x => x.Destination == new Uri("local://letters4")).ShouldBeTrue();
     }
     
     [Fact]
