@@ -388,10 +388,14 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
     {
         return true;
     }
+    
+    // Is this endpoint part of a sharded messaging topology?
+    // If so, this should be "auto-started"
+    internal bool UsedInShardedTopology { get; set; }
 
     public virtual bool AutoStartSendingAgent()
     {
-        return Subscriptions.Any();
+        return UsedInShardedTopology || Subscriptions.Any();
     }
 
     internal IMessageSerializer? TryFindSerializer(string? contentType)

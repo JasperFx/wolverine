@@ -4,19 +4,38 @@ using Wolverine.Runtime.Routing;
 
 namespace Wolverine.Runtime.Sharding;
 
-public abstract class ShardedMessageTopology<TListener, TSubscriber, TEndpoint> : ShardedMessageTopology
-    where TEndpoint : Endpoint
-    where TListener : IListenerConfiguration<TEndpoint>
+public abstract class ShardedMessageTopology<TListener, TSubscriber> : ShardedMessageTopology
+    where TListener : IListenerConfiguration<TListener>
     where TSubscriber : ISubscriberConfiguration<TSubscriber>
 {
+    private ShardSlots _listeningSlots;
+    
     public ShardedMessageTopology(WolverineOptions options, ShardSlots? listeningSlots, string baseName, int numberOfEndpoints) : base(options, listeningSlots, baseName, numberOfEndpoints)
     {
+        if (listeningSlots.HasValue)
+        {
+            MaxDegreeOfParallelism = listeningSlots.Value;
+        }
     }
 
     protected abstract TListener buildListener(WolverineOptions options, string name);
 
     protected abstract TSubscriber buildSubscriber(IPublishToExpression expression, string name);
 
+    /// <summary>
+    /// Override the maximum number of parallel messages that can be executed
+    /// at one time in one of the sharded local queues. Default is 5.
+    /// </summary>
+    public ShardSlots MaxDegreeOfParallelism
+    {
+        get => _listeningSlots;
+        set
+        {
+            _listeningSlots = value;
+            ConfigureListening(x => x.ShardListeningByGroupId(value));
+        }
+    }
+    
     public void ConfigureSender(Action<TSubscriber> configure)
     {
         foreach (var name in _names)
@@ -40,7 +59,7 @@ public abstract class ShardedMessageTopology<TListener, TSubscriber, TEndpoint> 
 public abstract class ShardedMessageTopology
 {
     protected readonly WolverineOptions _options;
-
+    
     protected ShardedMessageTopology(WolverineOptions options, ShardSlots? listeningSlots, string baseName, int numberOfEndpoints)
     {
         if (numberOfEndpoints <= 0)
@@ -57,6 +76,7 @@ public abstract class ShardedMessageTopology
             _names[i] = name;
 
             var endpoint = buildEndpoint(options, name);
+            endpoint.UsedInShardedTopology = true;
             endpoint.ListenerScope = ListenerScope.Exclusive;
             endpoint.GroupShardingSlotNumber = listeningSlots;
             
@@ -66,6 +86,7 @@ public abstract class ShardedMessageTopology
         var transportScheme = _slots[0].Uri.Scheme;
         Uri = new Uri($"shard://{transportScheme}/{baseName}");
     }
+    
 
     internal void AssertValidity()
     {

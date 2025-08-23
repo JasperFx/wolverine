@@ -16,6 +16,6 @@ public class UnknownSagaException : Exception
     public UnknownSagaException(Type sagaStateType, object stateId) : base(
         $"Could not find an expected saga document of type {sagaStateType.FullNameInCode()} for id '{stateId}'. Note: new Sagas will not be available in storage until the first message succeeds.")
     {
-        Debug.WriteLine("something");
+
     }
 }

@@ -56,6 +56,17 @@ public interface IListenerConfiguration<T> : IEndpointConfiguration<T>
     T ListenWithStrictOrdering(string? endpointName = null);
 
     /// <summary>
+    /// Creates a policy of sharding the processing of incoming messages by the
+    /// specified number of slots. Use this to group messages to prevent concurrent
+    /// processing of messages with the same GroupId while allowing parallel work across
+    /// GroupIds. The number of "slots" reflects the maximum number of parallel messages
+    /// that can be handled concurrently
+    /// </summary>
+    /// <param name="numberOfSlots"></param>
+    /// <returns></returns>
+    T ShardListeningByGroupId(ShardSlots numberOfSlots);
+
+    /// <summary>
     ///     Specify the maximum number of threads that this worker queue
     ///     can use at one time
     /// </summary>

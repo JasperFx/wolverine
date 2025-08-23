@@ -23,11 +23,6 @@ public class DatabaseBatchCommandException : Exception
             message += $"{++count}. {operation}\n";
         }
 
-        if (command.CommandText.IsEmpty())
-        {
-            Debug.WriteLine("Stop");
-        }
-
         message += command.CommandText;
         foreach (DbParameter parameter in command.Parameters)
             message += $"\n{parameter.ParameterName}: {parameter.Value}";

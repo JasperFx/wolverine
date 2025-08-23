@@ -6,6 +6,7 @@ using RabbitMQ.Client;
 using Wolverine.Configuration;
 using Wolverine.RabbitMQ.Internal;
 using Wolverine.Runtime.Routing;
+using Wolverine.Runtime.Sharding;
 
 namespace Wolverine.RabbitMQ;
 
@@ -464,5 +465,29 @@ public static class RabbitMqTransportExtensions
         var transport = options.RabbitMqTransport();
         var expression = new RabbitMqTransportExpression(transport, options);
         return expression;
+    }
+
+    /// <summary>
+    /// Create a sharded message topology with Rabbit MQ queues named
+    /// baseName1, baseName2, etc.
+    /// </summary>
+    /// <param name="rules"></param>
+    /// <param name="baseName"></param>
+    /// <param name="numberOfEndpoints"></param>
+    /// <param name="configure"></param>
+    /// <returns></returns>
+    public static MessageGroupingRules PublishToShardedRabbitQueues(this MessageGroupingRules rules, string baseName, int numberOfEndpoints, Action<ShardedMessageTopologyWithQueues> configure)
+    {
+        rules.AddPublishingTopology((opts, _) =>
+        {
+            var topology = new ShardedMessageTopologyWithQueues(opts, ShardSlots.Five, baseName, numberOfEndpoints);
+            topology.ConfigureListening(x => {});
+            configure(topology);
+            topology.AssertValidity();
+
+            return topology;
+        });
+
+        return rules;
     }
 }
