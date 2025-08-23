@@ -80,7 +80,7 @@ public class HandlerPipeline : IHandlerPipeline
             try
             {
                 var continuation = await executeAsync(context, envelope, activity);
-                await continuation.ExecuteAsync(context, _runtime, DateTimeOffset.Now, activity);
+                await continuation.ExecuteAsync(context, _runtime, DateTimeOffset.UtcNow, activity);
             }
             catch (ObjectDisposedException)
             {
@@ -170,7 +170,7 @@ public class HandlerPipeline : IHandlerPipeline
         if (envelope.Message == null)
         {
             var deserializationResult = await TryDeserializeEnvelope(envelope);
-            if(deserializationResult != NullContinuation.Instance)
+            if(deserializationResult is not NullContinuation)
             {
                 activity?.SetStatus(ActivityStatusCode.Error, "Serialization Failure");
                 return deserializationResult;

@@ -70,9 +70,10 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
                 _logger.LogError(e, "Unexpected pipeline invocation error");
             }
         };
+        
         _receiver = endpoint.GroupShardingSlotNumber == null 
             ? new Block<Envelope>(endpoint.MaxDegreeOfParallelism, execute)
-            : new ShardedExecutionBlock((int)endpoint.GroupShardingSlotNumber, runtime.Options.MessageGrouping, execute);
+            : new ShardedExecutionBlock((int)endpoint.GroupShardingSlotNumber, runtime.Options.MessageGrouping, execute).DeserializeFirst(pipeline, runtime, this);
         
         _deferBlock = new RetryBlock<Envelope>((env, _) => env.Listener!.DeferAsync(env).AsTask(), runtime.Logger,
             runtime.Cancellation);
