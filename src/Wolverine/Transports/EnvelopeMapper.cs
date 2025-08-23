@@ -141,7 +141,7 @@ public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIn
         }
         else
         {
-            throw new NotSupportedException("Endpoint of type {0} does not (yet) support interoperability with ")
+            throw new NotSupportedException($"Endpoint of {_endpoint} does not (yet) support interoperability with MassTransit");
         }
 
     }
