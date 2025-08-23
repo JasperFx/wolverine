@@ -13,7 +13,7 @@ public class EnvelopeShardingExtensionsTests
     public EnvelopeShardingExtensionsTests(ITestOutputHelper output)
     {
         _output = output;
-        theRules = new MessageGroupingRules();
+        theRules = new MessageGroupingRules(new());
         theRules.ByMessage<ICoffee>(x => x.Name);
     }
 

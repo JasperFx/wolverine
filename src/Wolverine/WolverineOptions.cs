@@ -78,6 +78,8 @@ public sealed partial class WolverineOptions
         Policies.Add<SideEffectPolicy>();
         Policies.Add<ResponsePolicy>();
         Policies.Add<OutgoingMessagesPolicy>();
+
+        MessageGrouping = new MessageGroupingRules(this);
     }
 
     /// <summary>
@@ -112,9 +114,9 @@ public sealed partial class WolverineOptions
     /// This will be automatically applied to all outgoing messages, but will never override
     /// any explicitly defined Envelope.GroupId
     /// </summary>
-    public MessageGroupingRules MessageGrouping { get; } = new();
+    public MessageGroupingRules MessageGrouping { get; } 
 
-    internal List<ShardedMessageTopology> ShardedMessageTopologies { get; } = new();
+    
 
     [IgnoreDescription]
     public Guid UniqueNodeId { get; } = Guid.NewGuid();
@@ -329,23 +331,5 @@ public sealed partial class WolverineOptions
     {
         HandlerGraph.RegisterMessageType(messageType, messageAlias);
     }
-
-    /// <summary>
-    /// Using the global message grouping rules, "shard" message publishing between
-    /// a specified number of local queues names [baseName]1, [baseName]2, etc.
-    /// </summary>
-    /// <param name="baseName">The prefix for all local queues in this sharded topology</param>
-    /// <param name="numberOfQueues">The number of queue "slots" for the workload</param>
-    /// <param name="configure">Optionally configure each local queue's behavior</param>
-    public void PublishWithShardedLocalMessaging(string baseName, int numberOfQueues, Action<LocalShardedMessageTopology> configure)
-    {
-        ArgumentNullException.ThrowIfNull(configure);
-        
-        var topology = new LocalShardedMessageTopology(this, baseName, numberOfQueues);
-        configure(topology);
-        
-        topology.AssertValidity();
-        
-        ShardedMessageTopologies.Add(topology);
-    }
+    
 }

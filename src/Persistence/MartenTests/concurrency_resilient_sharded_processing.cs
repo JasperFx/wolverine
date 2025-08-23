@@ -59,7 +59,7 @@ public class concurrency_resilient_sharded_processing
                     m.DisableNpgsqlLogging = true;
                 }).IntegrateWithWolverine();
 
-                opts.PublishWithShardedLocalMessaging("letters", 4, topology =>
+                opts.MessageGrouping.PublishToShardedLocalMessaging("letters", 4, topology =>
                 {
                     topology.MessagesImplementing<ILetterMessage>();
                     topology.MaxDegreeOfParallelism = ShardSlots.Five;
@@ -98,7 +98,7 @@ public class concurrency_resilient_sharded_processing
                     m.DisableNpgsqlLogging = true;
                 }).IntegrateWithWolverine();
 
-                opts.PublishWithShardedLocalMessaging("letters", 4, topology =>
+                opts.MessageGrouping.PublishToShardedLocalMessaging("letters", 4, topology =>
                 {
                     topology.MessagesImplementing<ILetterMessage>();
                     topology.MaxDegreeOfParallelism = ShardSlots.Five;

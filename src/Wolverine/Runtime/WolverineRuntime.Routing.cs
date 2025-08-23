@@ -60,7 +60,7 @@ internal class ExplicitRouting : IMessageRouteSource
             yield return explicitRoute;
         }
 
-        foreach (var topology in runtime.Options.ShardedMessageTopologies)
+        foreach (var topology in runtime.Options.MessageGrouping.ShardedMessageTopologies)
         {
             if (topology.TryMatch(messageType, runtime, out var route))
             {
