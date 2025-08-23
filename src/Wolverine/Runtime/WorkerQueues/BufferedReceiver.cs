@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using JasperFx.Blocks;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
@@ -17,6 +18,7 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
     private readonly ISender? _deadLetterSender;
     private readonly RetryBlock<Envelope> _deferBlock;
     private readonly Endpoint _endpoint;
+    private readonly IWolverineRuntime _runtime;
     private readonly ILogger _logger;
     private readonly RetryBlock<Envelope>? _moveToErrors;
     private readonly IBlock<Envelope> _receivingBlock;
@@ -27,6 +29,7 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
     public BufferedReceiver(Endpoint endpoint, IWolverineRuntime runtime, IHandlerPipeline pipeline)
     {
         _endpoint = endpoint;
+        _runtime = runtime;
         Uri = endpoint.Uri;
         _logger = runtime.LoggerFactory.CreateLogger<BufferedReceiver>();
         _settings = runtime.DurabilitySettings;
@@ -39,33 +42,9 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
         _completeBlock = new RetryBlock<Envelope>((env, _) => env.Listener!.CompleteAsync(env).AsTask(), runtime.Logger,
             runtime.Cancellation);
 
-        Func<Envelope, CancellationToken, Task> execute = async (envelope, _) =>
-        {
-            if (_latched && envelope.Listener != null)
-            {
-                await _deferBlock.PostAsync(envelope);
-                return;
-            }
-
-            try
-            {
-                if (envelope.ContentType.IsEmpty())
-                {
-                    envelope.ContentType = EnvelopeConstants.JsonContentType;
-                }
-
-                await Pipeline.InvokeAsync(envelope, this);
-            }
-            catch (Exception? e)
-            {
-                // This *should* never happen, but of course it will
-                _logger.LogError(e, "Unexpected error in Pipeline invocation");
-            }
-        };
-        
         _receivingBlock = endpoint.GroupShardingSlotNumber == null  
-            ? new Block<Envelope>(endpoint.MaxDegreeOfParallelism, execute)
-            : new ShardedExecutionBlock((int)endpoint.GroupShardingSlotNumber, runtime.Options.MessageGrouping, execute);
+            ? new Block<Envelope>(endpoint.MaxDegreeOfParallelism, executeAsync)
+            : new ShardedExecutionBlock((int)endpoint.GroupShardingSlotNumber, runtime.Options.MessageGrouping, executeAsync).DeserializeFirst(pipeline, runtime, this);
 
         if (endpoint.TryBuildDeadLetterSender(runtime, out var dlq))
         {
@@ -74,6 +53,30 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
             _moveToErrors = new RetryBlock<Envelope>(
                 async (envelope, _) => { await _deadLetterSender!.SendAsync(envelope); }, _logger,
                 _settings.Cancellation);
+        }
+    }
+
+    internal async Task executeAsync(Envelope envelope, CancellationToken _)
+    {
+        if (_latched && envelope.Listener != null)
+        {
+            await _deferBlock.PostAsync(envelope);
+            return;
+        }
+
+        try
+        {
+            if (envelope.ContentType.IsEmpty())
+            {
+                envelope.ContentType = EnvelopeConstants.JsonContentType;
+            }
+
+            await Pipeline.InvokeAsync(envelope, this);
+        }
+        catch (Exception? e)
+        {
+            // This *should* never happen, but of course it will
+            _logger.LogError(e, "Unexpected error in Pipeline invocation");
         }
     }
 

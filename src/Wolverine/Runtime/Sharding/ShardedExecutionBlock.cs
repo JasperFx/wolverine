@@ -1,4 +1,6 @@
+using System.Diagnostics;
 using JasperFx.Blocks;
+using Wolverine.Transports;
 
 namespace Wolverine.Runtime.Sharding;
 
@@ -18,6 +20,24 @@ internal class ShardedExecutionBlock : BlockBase<Envelope>
         {
             _slots[i] = new Block<Envelope>(processAsync);
         }
+    }
+
+    public IBlock<Envelope> DeserializeFirst(IHandlerPipeline pipeline, IWolverineRuntime runtime, IChannelCallback channel)
+    {
+        return PushUpstream<Envelope>(async (e, _) =>
+        {
+            var continuation = await pipeline.TryDeserializeEnvelope(e);
+            if (continuation is NullContinuation)
+            {
+                return e;
+            }
+
+            var envelopeLifecycle = new MessageContext(runtime);
+            envelopeLifecycle.ReadEnvelope(e, channel);
+            await continuation.ExecuteAsync(envelopeLifecycle, runtime, DateTimeOffset.UtcNow, Activity.Current);
+
+            return default;
+        });
     }
 
     public override async ValueTask DisposeAsync()

@@ -12,11 +12,10 @@ public class LocalShardedMessageTopology : ShardedMessageTopology
     {
         _listeningSlots = ShardSlots.Five;
     }
-
-    // TODO -- move this up!!!
+    
     /// <summary>
     /// Override the maximum number of parallel messages that can be executed
-    /// at one time in one of the sharded local queues
+    /// at one time in one of the sharded local queues. Default is 5.
     /// </summary>
     public ShardSlots MaxDegreeOfParallelism
     {

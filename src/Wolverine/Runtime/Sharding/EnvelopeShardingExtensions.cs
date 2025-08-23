@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using JasperFx.Core;
 
 namespace Wolverine.Runtime.Sharding;
@@ -47,6 +48,8 @@ internal static class EnvelopeShardingExtensions
         // Pick one at random, and has to be zero based
         if (groupId == null) return Random.Shared.Next(1, numberOfSlots) - 1;
 
-        return Math.Abs(groupId.DeterministicJavaCompliantHash() % numberOfSlots);
+        var slot = Math.Abs(groupId.DeterministicJavaCompliantHash() % numberOfSlots);
+
+        return slot;
     }
 }
