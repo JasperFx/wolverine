@@ -4,16 +4,49 @@ namespace Wolverine.Runtime.Sharding;
 
 public class MessageGroupingRules
 {
+    private readonly WolverineOptions _options;
     private readonly List<IGroupingRule> _rules = new();
 
-    public bool HasAnyRules() => _rules.Any();
+    public MessageGroupingRules(WolverineOptions options)
+    {
+        _options = options;
+    }
+
+    internal bool HasAnyRules() => _rules.Any();
+    
+    internal List<ShardedMessageTopology> ShardedMessageTopologies { get; } = new();
+
+    public void AddPublishingTopology(Func<WolverineOptions, MessageGroupingRules, ShardedMessageTopology> factory)
+    {
+        ShardedMessageTopologies.Add(factory(_options, this));
+    }
+    
+    /// <summary>
+    /// Using the global message grouping rules, "shard" message publishing between
+    /// a specified number of local queues names [baseName]1, [baseName]2, etc.
+    /// </summary>
+    /// <param name="baseName">The prefix for all local queues in this sharded topology</param>
+    /// <param name="numberOfQueues">The number of queue "slots" for the workload</param>
+    /// <param name="configure">Optionally configure each local queue's behavior</param>
+    public void PublishToShardedLocalMessaging(string baseName, int numberOfQueues, Action<LocalShardedMessageTopology> configure)
+    {
+        ArgumentNullException.ThrowIfNull(configure);
+        
+        var topology = new LocalShardedMessageTopology(_options, baseName, numberOfQueues);
+        configure(topology);
+        
+        topology.AssertValidity();
+        
+        ShardedMessageTopologies.Add(topology);
+    }
     
     /// <summary>
     /// Use any known TenantId as the message GroupId
     /// </summary>
-    public void ByTenantId()
+    public MessageGroupingRules ByTenantId()
     {
         _rules.Add(new TenantGroupingRule());
+        return this;
     }
 
     /// <summary>
@@ -22,9 +55,10 @@ public class MessageGroupingRules
     /// </summary>
     /// <param name="strategy"></param>
     /// <typeparam name="T"></typeparam>
-    public void ByMessage<T>(Func<T, string> strategy)
+    public MessageGroupingRules ByMessage<T>(Func<T, string> strategy)
     {
         _rules.Add(new MessageGrouping<T>(strategy));
+        return this;
     }
     
     internal string? DetermineGroupId(Envelope envelope)

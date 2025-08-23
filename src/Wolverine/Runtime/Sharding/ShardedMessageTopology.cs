@@ -49,8 +49,6 @@ public abstract class ShardedMessageTopology
         }
         
         _options = options;
-        _options.ShardedMessageTopologies.Add(this);
-        
         _names = new string[numberOfEndpoints];
 
         for (int i = 0; i < numberOfEndpoints; i++)
