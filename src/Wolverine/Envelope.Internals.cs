@@ -343,4 +343,20 @@ public partial class Envelope
             ReplyUri = ReplyUri.MaybeCorrectScheme(Destination.Scheme);
         }
     }
+
+    internal DeliveryOptions ToDeliveryOptions()
+    {
+        return new DeliveryOptions
+        {
+            AckRequested = AckRequested,
+            DeduplicationId = DeduplicationId,
+            DeliverBy = DeliverBy,
+            Headers = Headers,
+            IsResponse = IsResponse,
+            PartitionKey = PartitionKey,
+            TenantId = TenantId,
+            ScheduledTime = ScheduledTime,
+            SagaId = SagaId
+        };
+    }
 }

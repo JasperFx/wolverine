@@ -1,6 +1,7 @@
 using IntegrationTests;
 using JasperFx;
 using JasperFx.Core;
+using JasperFx.Core.Reflection;
 using Marten;
 using MartenTests.AggregateHandlerWorkflow;
 using Microsoft.Extensions.Hosting;
@@ -8,7 +9,11 @@ using Shouldly;
 using Wolverine;
 using Wolverine.Configuration;
 using Wolverine.Marten;
+using Wolverine.Runtime;
+using Wolverine.Runtime.Handlers;
+using Wolverine.Runtime.Sharding;
 using Wolverine.Tracking;
+using Wolverine.Transports.Stub;
 
 namespace MartenTests;
 
@@ -70,6 +75,11 @@ public class concurrency_resilient_sharded_processing
                     });
                 });
             }).StartAsync();
+
+        // Re-purposing the test a bit. Making sure we're constructing forwarding correctly
+        var executor = host.GetRuntime().As<IExecutorFactory>().BuildFor(typeof(LogA), new StubEndpoint("Wrong", new StubTransport()));
+        executor.As<Executor>().Handler.ShouldBeOfType<ShardedMessageReRouterHandler>()
+            .MessageType.ShouldBe(typeof(LogA));
 
         var tracked = await host.ExecuteAndWaitAsync(pumpOutMessages, 60000);
         

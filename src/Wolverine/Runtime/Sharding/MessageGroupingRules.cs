@@ -77,4 +77,10 @@ public class MessageGroupingRules
 
         return null;
     }
+
+    internal bool TryFindTopology(Type messageType, out ShardedMessageTopology? topology)
+    {
+        topology = ShardedMessageTopologies.FirstOrDefault(x => x.Matches(messageType));
+        return topology != null;
+    }
 }

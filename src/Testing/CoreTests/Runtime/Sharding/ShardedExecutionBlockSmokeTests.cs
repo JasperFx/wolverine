@@ -16,7 +16,7 @@ public class ShardedExecutionBlockSmokeTests
         var grouping = new MessageGroupingRules(new());
         grouping.ByMessage<ICoffee>(x => x.Name);
 
-        var block = new ShardedExecutionBlock(Substitute.For<IHandlerPipeline>(),5, grouping, (e, _) =>
+        var block = new ShardedExecutionBlock(5, grouping, (e, _) =>
         {
             Interlocked.Increment(ref count);
             return Task.CompletedTask;
