@@ -73,7 +73,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
         
         _receiver = endpoint.GroupShardingSlotNumber == null 
             ? new Block<Envelope>(endpoint.MaxDegreeOfParallelism, execute)
-            : new ShardedExecutionBlock((int)endpoint.GroupShardingSlotNumber, runtime.Options.MessageGrouping, execute).DeserializeFirst(pipeline, runtime, this);
+            : new ShardedExecutionBlock((int)endpoint.GroupShardingSlotNumber, runtime.Options.MessagePartitioning, execute).DeserializeFirst(pipeline, runtime, this);
         
         _deferBlock = new RetryBlock<Envelope>((env, _) => env.Listener!.DeferAsync(env).AsTask(), runtime.Logger,
             runtime.Cancellation);

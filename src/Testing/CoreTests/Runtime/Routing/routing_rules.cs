@@ -253,7 +253,7 @@ public class routing_rules
             .UseWolverine(opts =>
             {
                 opts.PublishMessage<GroupedMessage>().ToPort(port);
-                opts.MessageGrouping.ByMessage<GroupedMessage>(x => x.GroupId);
+                opts.MessagePartitioning.ByMessage<GroupedMessage>(x => x.GroupId);
             }).StartAsync();
         
                 

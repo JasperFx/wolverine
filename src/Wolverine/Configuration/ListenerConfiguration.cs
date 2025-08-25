@@ -287,7 +287,10 @@ public class ListenerConfiguration<TSelf, TEndpoint> : DelayedEndpointConfigurat
 
     public TSelf MessageBatchSize(int batchSize)
     {
-        add(e => e.MessageBatchSize = batchSize);
+        add(e =>
+        {
+            e.MessageBatchSize = batchSize;
+        });
         return this.As<TSelf>();
     }
 

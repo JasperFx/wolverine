@@ -6,13 +6,13 @@ namespace Wolverine.Runtime.Sharding;
 internal class ShardedMessageRoute : IMessageRoute
 {
     private readonly Uri _uri;
-    private readonly MessageGroupingRules _grouping;
+    private readonly MessagePartitioningRules _partitioning;
     private readonly IMessageRoute[] _slots;
 
-    public ShardedMessageRoute(Uri uri, MessageGroupingRules grouping, IMessageRoute[] slots)
+    public ShardedMessageRoute(Uri uri, MessagePartitioningRules partitioning, IMessageRoute[] slots)
     {
         _uri = uri;
-        _grouping = grouping;
+        _partitioning = partitioning;
         _slots = slots;
     }
 
@@ -21,7 +21,7 @@ internal class ShardedMessageRoute : IMessageRoute
     {
         var envelope = new Envelope(message);
         options?.Override(envelope);
-        var slot = envelope.SlotForSending(_slots.Length, _grouping);
+        var slot = envelope.SlotForSending(_slots.Length, _partitioning);
         return _slots[slot].CreateForSending(message, options, localDurableQueue, runtime, topicName);
     }
 

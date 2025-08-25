@@ -44,7 +44,7 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
 
         _receivingBlock = endpoint.GroupShardingSlotNumber == null  
             ? new Block<Envelope>(endpoint.MaxDegreeOfParallelism, executeAsync)
-            : new ShardedExecutionBlock((int)endpoint.GroupShardingSlotNumber, runtime.Options.MessageGrouping, executeAsync).DeserializeFirst(pipeline, runtime, this);
+            : new ShardedExecutionBlock((int)endpoint.GroupShardingSlotNumber, runtime.Options.MessagePartitioning, executeAsync).DeserializeFirst(pipeline, runtime, this);
 
         if (endpoint.TryBuildDeadLetterSender(runtime, out var dlq))
         {

@@ -8,12 +8,12 @@ namespace CoreTests.Runtime.Sharding;
 public class EnvelopeShardingExtensionsTests
 {
     private readonly ITestOutputHelper _output;
-    private readonly MessageGroupingRules theRules;
+    private readonly MessagePartitioningRules theRules;
 
     public EnvelopeShardingExtensionsTests(ITestOutputHelper output)
     {
         _output = output;
-        theRules = new MessageGroupingRules(new());
+        theRules = new MessagePartitioningRules(new());
         theRules.ByMessage<ICoffee>(x => x.Name);
     }
 

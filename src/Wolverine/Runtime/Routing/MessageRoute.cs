@@ -21,14 +21,14 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
         ImHashMap<Type, IList<IEnvelopeRule>>.Empty;
 
     private readonly IReplyTracker _replyTracker;
-    private readonly MessageGroupingRules _grouping;
+    private readonly MessagePartitioningRules _partitioning;
     private readonly Endpoint _endpoint;
 
     public MessageRoute(Type messageType, Endpoint endpoint, IWolverineRuntime runtime)
     {
         IsLocal = endpoint is LocalQueue;
         _replyTracker = runtime.Replies;
-        _grouping = runtime.Options.MessageGrouping;
+        _partitioning = runtime.Options.MessagePartitioning;
 
         if (WolverineSystemPart.WithinDescription)
         {
@@ -101,7 +101,7 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
         }
 
         // Apply application wide message grouping policies
-        envelope.GroupId = _grouping.DetermineGroupId(envelope);
+        envelope.GroupId = _partitioning.DetermineGroupId(envelope);
 
         foreach (var rule in Rules) rule.Modify(envelope);
 

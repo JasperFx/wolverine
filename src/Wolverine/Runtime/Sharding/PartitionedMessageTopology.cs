@@ -4,13 +4,13 @@ using Wolverine.Runtime.Routing;
 
 namespace Wolverine.Runtime.Sharding;
 
-public abstract class ShardedMessageTopology<TListener, TSubscriber> : ShardedMessageTopology
+public abstract class PartitionedMessageTopology<TListener, TSubscriber> : PartitionedMessageTopology
     where TListener : IListenerConfiguration<TListener>
     where TSubscriber : ISubscriberConfiguration<TSubscriber>
 {
     private ShardSlots _listeningSlots;
     
-    public ShardedMessageTopology(WolverineOptions options, ShardSlots? listeningSlots, string baseName, int numberOfEndpoints) : base(options, listeningSlots, baseName, numberOfEndpoints)
+    public PartitionedMessageTopology(WolverineOptions options, ShardSlots? listeningSlots, string baseName, int numberOfEndpoints) : base(options, listeningSlots, baseName, numberOfEndpoints)
     {
         if (listeningSlots.HasValue)
         {
@@ -56,11 +56,11 @@ public abstract class ShardedMessageTopology<TListener, TSubscriber> : ShardedMe
     }
 } 
 
-public abstract class ShardedMessageTopology
+public abstract class PartitionedMessageTopology
 {
     protected readonly WolverineOptions _options;
     
-    protected ShardedMessageTopology(WolverineOptions options, ShardSlots? listeningSlots, string baseName, int numberOfEndpoints)
+    protected PartitionedMessageTopology(WolverineOptions options, ShardSlots? listeningSlots, string baseName, int numberOfEndpoints)
     {
         if (numberOfEndpoints <= 0)
         {
@@ -87,7 +87,7 @@ public abstract class ShardedMessageTopology
         Uri = new Uri($"shard://{transportScheme}/{baseName}");
     }
 
-    internal void AssertValidity()
+    public void AssertValidity()
     {
         if (!_subscriptions.Any())
         {
@@ -113,7 +113,7 @@ public abstract class ShardedMessageTopology
             var innerRoutes = _slots.Select(x => new MessageRoute(messageType, x, runtime)).ToArray();
             
             // TODO -- do we let you configure grouping here too????
-            route = new ShardedMessageRoute(Uri, runtime.Options.MessageGrouping, innerRoutes);
+            route = new ShardedMessageRoute(Uri, runtime.Options.MessagePartitioning, innerRoutes);
             return true;
         }
 
@@ -214,7 +214,7 @@ public abstract class ShardedMessageTopology
     {
         if (contextEnvelope == null) throw new ArgumentNullException(nameof(contextEnvelope));
         
-        var slot = contextEnvelope.SlotForSending(_slots.Count, _options.MessageGrouping);
+        var slot = contextEnvelope.SlotForSending(_slots.Count, _options.MessagePartitioning);
         return _slots[slot];
     }
 }

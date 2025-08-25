@@ -476,11 +476,11 @@ public static class RabbitMqTransportExtensions
     /// <param name="numberOfEndpoints"></param>
     /// <param name="configure"></param>
     /// <returns></returns>
-    public static MessageGroupingRules PublishToShardedRabbitQueues(this MessageGroupingRules rules, string baseName, int numberOfEndpoints, Action<ShardedMessageTopologyWithQueues> configure)
+    public static MessagePartitioningRules PublishToShardedRabbitQueues(this MessagePartitioningRules rules, string baseName, int numberOfEndpoints, Action<PartitionedMessageTopologyWithQueues> configure)
     {
         rules.AddPublishingTopology((opts, _) =>
         {
-            var topology = new ShardedMessageTopologyWithQueues(opts, ShardSlots.Five, baseName, numberOfEndpoints);
+            var topology = new PartitionedMessageTopologyWithQueues(opts, ShardSlots.Five, baseName, numberOfEndpoints);
             topology.ConfigureListening(x => {});
             configure(topology);
             topology.AssertValidity();

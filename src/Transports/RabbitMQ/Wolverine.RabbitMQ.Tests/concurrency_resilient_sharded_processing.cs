@@ -60,7 +60,7 @@ public class concurrency_resilient_sharded_processing
                 
                 // Telling Wolverine how to assign a GroupId to a message, that we'll use
                 // to predictably sort into "slots" in the processing
-                opts.MessageGrouping.ByMessage<ILetterMessage>(x => x.Id.ToString());
+                opts.MessagePartitioning.ByMessage<ILetterMessage>(x => x.Id.ToString());
                 
                 opts.Services.AddMarten(m =>
                 {
@@ -69,7 +69,7 @@ public class concurrency_resilient_sharded_processing
                     m.DisableNpgsqlLogging = true;
                 }).IntegrateWithWolverine();
 
-                opts.MessageGrouping.PublishToShardedRabbitQueues("letters", 4, topology =>
+                opts.MessagePartitioning.PublishToShardedRabbitQueues("letters", 4, topology =>
                 {
                     topology.MessagesImplementing<ILetterMessage>();
                     topology.MaxDegreeOfParallelism = ShardSlots.Five;
@@ -120,7 +120,7 @@ public class concurrency_resilient_sharded_processing
                 // Telling Wolverine how to assign a GroupId to a message, that we'll use
                 // to predictably sort into "slots" in the processing
                 opts
-                    .MessageGrouping.ByMessage<ILetterMessage>(x => x.Id.ToString())
+                    .MessagePartitioning.ByMessage<ILetterMessage>(x => x.Id.ToString())
                     .PublishToShardedRabbitQueues("letters", 4, topology =>
                 {
                     topology.MessagesImplementing<ILetterMessage>();
@@ -186,7 +186,7 @@ public class concurrency_resilient_sharded_processing
                 
                 // Telling Wolverine how to assign a GroupId to a message, that we'll use
                 // to predictably sort into "slots" in the processing
-                opts.MessageGrouping.ByMessage<ILetterMessage>(x => x.Id.ToString());
+                opts.MessagePartitioning.ByMessage<ILetterMessage>(x => x.Id.ToString());
                 
                 opts.Services.AddMarten(m =>
                 {
@@ -195,7 +195,7 @@ public class concurrency_resilient_sharded_processing
                     m.DisableNpgsqlLogging = true;
                 }).IntegrateWithWolverine();
 
-                opts.MessageGrouping.PublishToShardedRabbitQueues("letters", 4, topology =>
+                opts.MessagePartitioning.PublishToShardedRabbitQueues("letters", 4, topology =>
                 {
                     topology.MessagesImplementing<ILetterMessage>();
                     topology.MaxDegreeOfParallelism = ShardSlots.Five;
