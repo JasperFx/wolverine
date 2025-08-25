@@ -79,10 +79,85 @@ public class concurrency_resilient_sharded_processing
                 });
             }).StartAsync();
 
-        var routes = host.GetRuntime().RoutingFor(typeof(LogA));
-        
+
 
         var tracked = await host.ExecuteAndWaitAsync(pumpOutMessages, 60000);
+
+        var envelopes = tracked.Executed.Envelopes().ToArray();
+
+        var counts = envelopes.GroupBy(x => x.Destination);
+        foreach (var count in counts)
+        {
+            _output.WriteLine(count.Key.ToString() + " had " + count.Count());
+        }
+        
+        envelopes.Any(x => x.Destination == new Uri("rabbitmq://queue/letters1")).ShouldBeTrue();
+        envelopes.Any(x => x.Destination == new Uri("rabbitmq://queue/letters2")).ShouldBeTrue();
+        envelopes.Any(x => x.Destination == new Uri("rabbitmq://queue/letters3")).ShouldBeTrue();
+        envelopes.Any(x => x.Destination == new Uri("rabbitmq://queue/letters4")).ShouldBeTrue();
+    }
+    
+    //[Fact]
+    public async Task hammer_it_with_lots_of_messages_against_buffered_when_resent()
+    {
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.Durability.Mode = DurabilityMode.Solo;
+                opts.UseRabbitMq().AutoProvision().AutoPurgeOnStartup();
+                
+                opts.Discovery.DisableConventionalDiscovery().IncludeType(typeof(LetterMessageHandler));
+
+                opts.ListenToRabbitQueue("external_system").Named("external");
+                
+                opts.Services.AddMarten(m =>
+                {
+                    m.Connection(Servers.PostgresConnectionString);
+                    m.DatabaseSchemaName = "letters";
+                    m.DisableNpgsqlLogging = true;
+                }).IntegrateWithWolverine();
+
+                // Telling Wolverine how to assign a GroupId to a message, that we'll use
+                // to predictably sort into "slots" in the processing
+                opts
+                    .MessageGrouping.ByMessage<ILetterMessage>(x => x.Id.ToString())
+                    .PublishToShardedRabbitQueues("letters", 4, topology =>
+                {
+                    topology.MessagesImplementing<ILetterMessage>();
+                    topology.MaxDegreeOfParallelism = ShardSlots.Five;
+                    
+                    topology.ConfigureListening(x => x.BufferedInMemory());
+
+                });
+            }).StartAsync();
+
+
+        var tracked = await host.ExecuteAndWaitAsync(async bus =>
+        {
+            var endpoint = bus.EndpointFor("external");
+            var tasks = new Task[3];
+            for (int i = 0; i < tasks.Length; i++)
+            {
+                tasks[i] = Task.Run(async () =>
+                {
+                    for (int j = 0; j < 5; j++)
+                    {
+                        var id = Guid.NewGuid();
+
+                        await endpoint.SendAsync(new LogA(id));
+                        await endpoint.SendAsync(new LogB(id));
+                        await endpoint.SendAsync(new LogC(id));
+                        await endpoint.SendAsync(new LogD(id));
+                        await endpoint.SendAsync(new LogD(id));
+                        await endpoint.SendAsync(new LogC(id));
+                        await endpoint.SendAsync(new LogB(id));
+                        await endpoint.SendAsync(new LogA(id));
+                    }
+                });
+            }
+
+            await Task.WhenAll(tasks);
+        }, 300000);
 
         var envelopes = tracked.Executed.Envelopes().ToArray();
 

@@ -86,7 +86,6 @@ public abstract class ShardedMessageTopology
         var transportScheme = _slots[0].Uri.Scheme;
         Uri = new Uri($"shard://{transportScheme}/{baseName}");
     }
-    
 
     internal void AssertValidity()
     {
@@ -109,7 +108,7 @@ public abstract class ShardedMessageTopology
     {
         route = default!;
 
-        if (_subscriptions.Any(x => x.Matches(messageType)))
+        if (Matches(messageType))
         {
             var innerRoutes = _slots.Select(x => new MessageRoute(messageType, x, runtime)).ToArray();
             
@@ -120,7 +119,14 @@ public abstract class ShardedMessageTopology
 
         return false;
     }
-    
+
+    internal bool Matches(Type messageType)
+    {
+        return _subscriptions.Any(x => x.Matches(messageType));
+    }
+
+    public IReadOnlyList<Endpoint> Slots => _slots;
+
     /// <summary>
     ///     Create a publishing rule for a single message type
     /// </summary>
@@ -204,5 +210,11 @@ public abstract class ShardedMessageTopology
         _subscriptions.Add(new Subscription { BaseType = typeof(T), Scope = RoutingScope.Implements });
     }
 
-
+    internal Endpoint SelectSlot(Envelope contextEnvelope)
+    {
+        if (contextEnvelope == null) throw new ArgumentNullException(nameof(contextEnvelope));
+        
+        var slot = contextEnvelope.SlotForSending(_slots.Count, _options.MessageGrouping);
+        return _slots[slot];
+    }
 }

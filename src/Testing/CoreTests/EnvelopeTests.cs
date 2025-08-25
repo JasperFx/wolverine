@@ -448,6 +448,82 @@ public class EnvelopeTests
         send.TenantId.ShouldBe(envelope.TenantId);
     }
 
+    public class when_building_delivery_options_to_mimic_an_envelope
+    {
+        private readonly Envelope theEnvelope;
+        private readonly DeliveryOptions theOptions;
+        
+        public when_building_delivery_options_to_mimic_an_envelope()
+        {
+            theEnvelope = ObjectMother.Envelope();
+            theEnvelope.AckRequested = true;
+            theEnvelope.DeduplicationId = Guid.NewGuid().ToString();
+            theEnvelope.DeliverBy = DateTime.Today;
+            theEnvelope.Headers = new Dictionary<string, string?> { { "color", "green" } };
+            theEnvelope.IsResponse = true;
+            theEnvelope.PartitionKey = Guid.NewGuid().ToString();
+            theEnvelope.TenantId = Guid.NewGuid().ToString();
+            theEnvelope.ScheduledTime = DateTime.Today.AddDays(1);
+            theEnvelope.SagaId = Guid.NewGuid().ToString();
+
+            theOptions = theEnvelope.ToDeliveryOptions();
+        }
+
+        [Fact]
+        public void ack_requested()
+        {
+            theOptions.AckRequested.Value.ShouldBeTrue();
+        }
+
+        [Fact]
+        public void deduplication_id()
+        {
+            theOptions.DeduplicationId.ShouldBe(theEnvelope.DeduplicationId);
+        }
+
+        [Fact]
+        public void deliver_by()
+        {
+            theOptions.DeliverBy.Value.ShouldBe(theEnvelope.DeliverBy.Value);
+        }
+
+        [Fact]
+        public void headers()
+        {
+            theOptions.Headers["color"].ShouldBe("green");
+        }
+
+        [Fact]
+        public void is_response()
+        {
+            theOptions.IsResponse.ShouldBeTrue();
+        }
+
+        [Fact]
+        public void partition_key()
+        {
+            theOptions.PartitionKey.ShouldBe(theEnvelope.PartitionKey);
+        }
+
+        [Fact]
+        public void tenant_id()
+        {
+            theOptions.TenantId.ShouldBe(theEnvelope.TenantId);
+        }
+
+        [Fact]
+        public void scheduled_time()
+        {
+            theOptions.ScheduledTime.Value.ShouldBe(theEnvelope.ScheduledTime.Value);
+        }
+
+        [Fact]
+        public void saga_id()
+        {
+            theOptions.SagaId.ShouldBe(theEnvelope.SagaId);
+        }
+    }
+
     public class when_building_an_envelope_for_scheduled_send
     {
         private readonly ISendingAgent theSubscriber;

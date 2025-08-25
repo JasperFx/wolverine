@@ -1,5 +1,6 @@
 ﻿using Wolverine.Configuration;
 using Wolverine.Runtime.Handlers;
+using Wolverine.Runtime.Sharding;
 
 namespace Wolverine.Runtime;
 
@@ -14,7 +15,16 @@ public partial class WolverineRuntime : IExecutorFactory
 
     IExecutor IExecutorFactory.BuildFor(Type messageType, Endpoint endpoint)
     {
-        var handler = Handlers.HandlerFor(messageType, endpoint);
+        IMessageHandler handler = null;
+        if (Options.MessageGrouping.TryFindTopology(messageType, out var topology))
+        {
+            if (!topology.Slots.Contains(endpoint))
+            {
+                handler = new ShardedMessageReRouterHandler(topology, messageType);
+            }
+        }
+        
+        handler ??= Handlers.HandlerFor(messageType, endpoint);
         if (handler == null )
         {
             var batching = Options.BatchDefinitions.FirstOrDefault(x => x.ElementType == messageType);
