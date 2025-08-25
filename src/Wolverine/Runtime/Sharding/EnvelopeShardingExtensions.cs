@@ -23,7 +23,7 @@ internal static class EnvelopeShardingExtensions
     /// <param name="numberOfSlots"></param>
     /// <param name="rules"></param>
     /// <returns></returns>
-    public static int SlotForSending(this Envelope envelope, int numberOfSlots, MessageGroupingRules rules)
+    public static int SlotForSending(this Envelope envelope, int numberOfSlots, MessagePartitioningRules rules)
     {
         var groupId = rules.DetermineGroupId(envelope);
         
@@ -41,7 +41,7 @@ internal static class EnvelopeShardingExtensions
     /// <param name="numberOfSlots">Number of slots. Valid values are 3, 5, 7, or 9</param>
     /// <param name="rules"></param>
     /// <returns></returns>
-    public static int SlotForProcessing(this Envelope envelope, int numberOfSlots, MessageGroupingRules rules)
+    public static int SlotForProcessing(this Envelope envelope, int numberOfSlots, MessagePartitioningRules rules)
     {
         var groupId = rules.DetermineGroupId(envelope);
         

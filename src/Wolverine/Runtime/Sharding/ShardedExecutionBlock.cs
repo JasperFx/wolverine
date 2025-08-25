@@ -7,10 +7,10 @@ namespace Wolverine.Runtime.Sharding;
 internal class ShardedExecutionBlock : BlockBase<Envelope>
 {
     private readonly int _numberOfSlots;
-    private readonly MessageGroupingRules _rules;
+    private readonly MessagePartitioningRules _rules;
     private readonly Block<Envelope>[] _slots;
 
-    public ShardedExecutionBlock(int numberOfSlots, MessageGroupingRules rules, Func<Envelope, CancellationToken, Task> processAsync)
+    public ShardedExecutionBlock(int numberOfSlots, MessagePartitioningRules rules, Func<Envelope, CancellationToken, Task> processAsync)
     {
         _numberOfSlots = numberOfSlots;
         _rules = rules;

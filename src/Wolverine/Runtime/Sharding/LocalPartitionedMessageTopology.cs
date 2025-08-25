@@ -4,11 +4,11 @@ using Wolverine.Transports.Local;
 
 namespace Wolverine.Runtime.Sharding;
 
-public class LocalShardedMessageTopology : ShardedMessageTopology
+public class LocalPartitionedMessageTopology : PartitionedMessageTopology
 {
     private ShardSlots _listeningSlots;
 
-    public LocalShardedMessageTopology(WolverineOptions options, string baseName, int numberOfEndpoints) : base(options, ShardSlots.Five, baseName, numberOfEndpoints)
+    public LocalPartitionedMessageTopology(WolverineOptions options, string baseName, int numberOfEndpoints) : base(options, ShardSlots.Five, baseName, numberOfEndpoints)
     {
         _listeningSlots = ShardSlots.Five;
     }

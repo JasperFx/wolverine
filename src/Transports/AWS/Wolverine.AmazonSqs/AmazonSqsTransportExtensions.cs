@@ -2,6 +2,7 @@ using Amazon.SQS;
 using JasperFx.Core.Reflection;
 using Wolverine.AmazonSqs.Internal;
 using Wolverine.Configuration;
+using Wolverine.Runtime.Sharding;
 
 namespace Wolverine.AmazonSqs;
 
@@ -192,5 +193,29 @@ public static class AmazonSqsTransportExtensions
         publishing.To(endpoint.Uri);
 
         return new AmazonSqsSubscriberConfiguration(endpoint);
+    }
+    
+    /// <summary>
+    /// Create a sharded message topology with Amazon SQS queues named
+    /// baseName1, baseName2, etc.
+    /// </summary>
+    /// <param name="rules"></param>
+    /// <param name="baseName"></param>
+    /// <param name="numberOfEndpoints"></param>
+    /// <param name="configure"></param>
+    /// <returns></returns>
+    public static MessagePartitioningRules PublishToShardedAmazonSqsQueues(this MessagePartitioningRules rules, string baseName, int numberOfEndpoints, Action<PartitionedMessageTopologyWithQueues> configure)
+    {
+        rules.AddPublishingTopology((opts, _) =>
+        {
+            var topology = new PartitionedMessageTopologyWithQueues(opts, ShardSlots.Five, baseName, numberOfEndpoints);
+            topology.ConfigureListening(x => {});
+            configure(topology);
+            topology.AssertValidity();
+
+            return topology;
+        });
+
+        return rules;
     }
 }

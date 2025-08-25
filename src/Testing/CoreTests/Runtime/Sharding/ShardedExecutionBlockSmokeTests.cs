@@ -13,7 +13,7 @@ public class ShardedExecutionBlockSmokeTests
     {
         var count = 0;
 
-        var grouping = new MessageGroupingRules(new());
+        var grouping = new MessagePartitioningRules(new());
         grouping.ByMessage<ICoffee>(x => x.Name);
 
         var block = new ShardedExecutionBlock(5, grouping, (e, _) =>

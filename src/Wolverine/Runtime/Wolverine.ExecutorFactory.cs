@@ -16,11 +16,11 @@ public partial class WolverineRuntime : IExecutorFactory
     IExecutor IExecutorFactory.BuildFor(Type messageType, Endpoint endpoint)
     {
         IMessageHandler handler = null;
-        if (Options.MessageGrouping.TryFindTopology(messageType, out var topology))
+        if (Options.MessagePartitioning.TryFindTopology(messageType, out var topology))
         {
             if (!topology.Slots.Contains(endpoint))
             {
-                handler = new ShardedMessageReRouterHandler(topology, messageType);
+                handler = new PartitionedMessageReRouter(topology, messageType);
             }
         }
         

@@ -79,7 +79,7 @@ public sealed partial class WolverineOptions
         Policies.Add<ResponsePolicy>();
         Policies.Add<OutgoingMessagesPolicy>();
 
-        MessageGrouping = new MessageGroupingRules(this);
+        MessagePartitioning = new MessagePartitioningRules(this);
     }
 
     /// <summary>
@@ -114,7 +114,7 @@ public sealed partial class WolverineOptions
     /// This will be automatically applied to all outgoing messages, but will never override
     /// any explicitly defined Envelope.GroupId
     /// </summary>
-    public MessageGroupingRules MessageGrouping { get; } 
+    public MessagePartitioningRules MessagePartitioning { get; } 
 
     
     /// For advanced usages, this gives you the ability to register pre-canned message handling

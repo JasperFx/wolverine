@@ -3,9 +3,9 @@ using Wolverine.Runtime.Sharding;
 
 namespace Wolverine.RabbitMQ.Internal;
 
-public class ShardedMessageTopologyWithQueues : ShardedMessageTopology<RabbitMqListenerConfiguration, RabbitMqSubscriberConfiguration>
+public class PartitionedMessageTopologyWithQueues : PartitionedMessageTopology<RabbitMqListenerConfiguration, RabbitMqSubscriberConfiguration>
 {
-    public ShardedMessageTopologyWithQueues(WolverineOptions options, ShardSlots? listeningSlots, string baseName, int numberOfEndpoints) : base(options, listeningSlots, baseName, numberOfEndpoints)
+    public PartitionedMessageTopologyWithQueues(WolverineOptions options, ShardSlots? listeningSlots, string baseName, int numberOfEndpoints) : base(options, listeningSlots, baseName, numberOfEndpoints)
     {
         MaxDegreeOfParallelism = ShardSlots.Five;
     }

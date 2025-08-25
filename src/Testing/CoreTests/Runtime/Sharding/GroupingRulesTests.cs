@@ -9,7 +9,7 @@ public class GroupingRulesTests
     [Fact]
     public void by_tenant_id()
     {
-        var rules = new MessageGroupingRules(new());
+        var rules = new MessagePartitioningRules(new());
         rules.ByTenantId();
         
         var envelope = ObjectMother.Envelope();
@@ -25,7 +25,7 @@ public class GroupingRulesTests
     [Fact]
     public void by_message()
     {
-        var rules = new MessageGroupingRules(new());
+        var rules = new MessagePartitioningRules(new());
         rules.ByMessage<Coffee1>(x => x.Brand);
         rules.ByMessage<ICoffee>(x => x.Name);
         rules.ByMessage<Latte>(x => x.NumberOfShots.ToString());
@@ -46,7 +46,7 @@ public class GroupingRulesTests
     [Fact]
     public void does_not_override_the_explicit_group_id()
     {
-        var rules = new MessageGroupingRules(new());
+        var rules = new MessagePartitioningRules(new());
         rules.ByMessage<Coffee1>(x => x.Brand);
         rules.ByMessage<ICoffee>(x => x.Name);
         rules.ByMessage<Latte>(x => x.NumberOfShots.ToString());

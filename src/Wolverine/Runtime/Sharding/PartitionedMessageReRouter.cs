@@ -3,11 +3,11 @@ using Wolverine.Runtime.Handlers;
 
 namespace Wolverine.Runtime.Sharding;
 
-internal class ShardedMessageReRouterHandler : IMessageHandler
+internal class PartitionedMessageReRouter : IMessageHandler
 {
-    private readonly ShardedMessageTopology _topology;
+    private readonly PartitionedMessageTopology _topology;
 
-    public ShardedMessageReRouterHandler(ShardedMessageTopology topology, Type messageType)
+    public PartitionedMessageReRouter(PartitionedMessageTopology topology, Type messageType)
     {
         _topology = topology;
         MessageType = messageType;

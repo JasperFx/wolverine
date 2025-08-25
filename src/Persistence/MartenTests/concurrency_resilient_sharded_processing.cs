@@ -55,7 +55,7 @@ public class concurrency_resilient_sharded_processing
                 
                 // Telling Wolverine how to assign a GroupId to a message, that we'll use
                 // to predictably sort into "slots" in the processing
-                opts.MessageGrouping.ByMessage<ILetterMessage>(x => x.Id.ToString());
+                opts.MessagePartitioning.ByMessage<ILetterMessage>(x => x.Id.ToString());
                 
                 opts.Services.AddMarten(m =>
                 {
@@ -64,7 +64,7 @@ public class concurrency_resilient_sharded_processing
                     m.DisableNpgsqlLogging = true;
                 }).IntegrateWithWolverine();
 
-                opts.MessageGrouping.PublishToShardedLocalMessaging("letters", 4, topology =>
+                opts.MessagePartitioning.PublishToShardedLocalMessaging("letters", 4, topology =>
                 {
                     topology.MessagesImplementing<ILetterMessage>();
                     topology.MaxDegreeOfParallelism = ShardSlots.Five;
@@ -78,7 +78,7 @@ public class concurrency_resilient_sharded_processing
 
         // Re-purposing the test a bit. Making sure we're constructing forwarding correctly
         var executor = host.GetRuntime().As<IExecutorFactory>().BuildFor(typeof(LogA), new StubEndpoint("Wrong", new StubTransport()));
-        executor.As<Executor>().Handler.ShouldBeOfType<ShardedMessageReRouterHandler>()
+        executor.As<Executor>().Handler.ShouldBeOfType<PartitionedMessageReRouter>()
             .MessageType.ShouldBe(typeof(LogA));
 
         var tracked = await host.ExecuteAndWaitAsync(pumpOutMessages, 60000);
@@ -99,7 +99,7 @@ public class concurrency_resilient_sharded_processing
                 
                 // Telling Wolverine how to assign a GroupId to a message, that we'll use
                 // to predictably sort into "slots" in the processing
-                opts.MessageGrouping.ByMessage<ILetterMessage>(x => x.Id.ToString());
+                opts.MessagePartitioning.ByMessage<ILetterMessage>(x => x.Id.ToString());
                 
                 opts.Services.AddMarten(m =>
                 {
@@ -108,7 +108,7 @@ public class concurrency_resilient_sharded_processing
                     m.DisableNpgsqlLogging = true;
                 }).IntegrateWithWolverine();
 
-                opts.MessageGrouping.PublishToShardedLocalMessaging("letters", 4, topology =>
+                opts.MessagePartitioning.PublishToShardedLocalMessaging("letters", 4, topology =>
                 {
                     topology.MessagesImplementing<ILetterMessage>();
                     topology.MaxDegreeOfParallelism = ShardSlots.Five;
@@ -143,7 +143,7 @@ public class concurrency_resilient_sharded_processing
                 
                 // Telling Wolverine how to assign a GroupId to a message, that we'll use
                 // to predictably sort into "slots" in the processing
-                opts.MessageGrouping.ByMessage<ILetterMessage>(x => x.Id.ToString());
+                opts.MessagePartitioning.ByMessage<ILetterMessage>(x => x.Id.ToString());
                 
                 opts.Services.AddMarten(m =>
                 {
