@@ -164,7 +164,7 @@ messaging, either locally in process or through external message brokers. Asynch
 decoupled, and often leads to much more resilient systems as your modules aren't "temporally" coupled and you utilize
 [retry or other error handling policies](/guide/handlers/error-handling) independently on downstream queues.
 
-You can communicate  do any mix of in process messaging and messaging through external messaging brokers like Rabbit MQ or Azure Service Bus.
+You can communicate with any mix of in process messaging and messaging through external messaging brokers like Rabbit MQ or Azure Service Bus.
 Let's start with just using local, in process queueing with Wolverine between your modules as shown below:
 
 ![Communicating through local queues](/modular-monolith-local-queues.png)
