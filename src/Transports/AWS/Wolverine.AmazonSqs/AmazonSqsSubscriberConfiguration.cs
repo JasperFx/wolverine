@@ -56,4 +56,14 @@ public class
     {
         throw new NotImplementedException();
     }
+
+    /// <summary>
+    /// Use a MassTransit compatible envelope mapper to interact with MassTransit systems on the other end
+    /// </summary>
+    /// <returns></returns>
+    /// <exception cref="NotImplementedException"></exception>
+    public AmazonSqsSubscriberConfiguration UseMassTransitInterop()
+    {
+        throw new NotImplementedException();
+    }
 }

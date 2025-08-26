@@ -3,6 +3,7 @@ using Amazon.SQS.Model;
 using Wolverine.AmazonSqs.Internal;
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
+using Wolverine.Runtime.Interop.MassTransit;
 
 namespace Wolverine.AmazonSqs;
 
@@ -131,6 +132,11 @@ public class AmazonSqsListenerConfiguration : ListenerConfiguration<AmazonSqsLis
     /// </summary>
     /// <returns></returns>
     public AmazonSqsListenerConfiguration UseNServiceBusInterop()
+    {
+        throw new NotImplementedException();
+    }
+
+    public AmazonSqsListenerConfiguration UseMassTransitInterop(Action<IMassTransitInterop>? configure = null)
     {
         throw new NotImplementedException();
     }
