@@ -53,4 +53,22 @@ public class AzureServiceBusQueueSubscriberConfiguration : SubscriberConfigurati
         add(e => e.Mapper = mapper);
         return this;
     }
+
+    /// <summary>
+    /// Use envelope mapping that is interoperable with Mass Transit
+    /// </summary>
+    /// <returns></returns>
+    public AzureServiceBusQueueSubscriberConfiguration UseMassTransitInterop()
+    {
+        throw new NotImplementedException();
+    }
+
+    /// <summary>
+    /// Use envelope mapping that is interoperable with NServiceBus
+    /// </summary>
+    /// <returns></returns>
+    public AzureServiceBusQueueSubscriberConfiguration UseNServiceBusInterop()
+    {
+        throw new NotImplementedException();
+    }
 }

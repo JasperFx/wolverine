@@ -2,6 +2,7 @@ using Azure.Messaging.ServiceBus.Administration;
 using Wolverine.AzureServiceBus.Internal;
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
+using Wolverine.Runtime.Interop.MassTransit;
 
 namespace Wolverine.AzureServiceBus;
 
@@ -150,5 +151,24 @@ public class
     {
         add(e => e.Mapper = mapper);
         return this;
+    }
+
+    /// <summary>
+    /// Utilize an envelope mapper that is interoperable with MassTransit
+    /// </summary>
+    /// <param name="configure"></param>
+    /// <returns></returns>
+    public AzureServiceBusQueueListenerConfiguration UseMassTransitInterop(Action<IMassTransitInterop> configure)   
+    {
+        throw new NotImplementedException();
+    }
+
+    /// <summary>
+    /// Use an envelope mapper that is interoperable with NServiceBus
+    /// </summary>
+    /// <returns></returns>
+    public AzureServiceBusQueueListenerConfiguration UseNServiceBusInterop()
+    {
+        throw new NotImplementedException();
     }
 }
