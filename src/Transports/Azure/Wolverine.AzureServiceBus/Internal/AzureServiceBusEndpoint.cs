@@ -56,11 +56,14 @@ public abstract class AzureServiceBusEndpoint : Endpoint, IBrokerEndpoint, IAzur
         return true;
     }
 
+    internal Action<AzureServiceBusEnvelopeMapper, IWolverineRuntime>? _customizeMapping;
+    
     internal IAzureServiceBusEnvelopeMapper BuildMapper(IWolverineRuntime runtime)
     {
         if (Mapper != null) return Mapper;
 
         var mapper = new AzureServiceBusEnvelopeMapper(this, runtime);
+        _customizeMapping?.Invoke(mapper, runtime);
 
         // Important for interoperability
         if (MessageType != null)

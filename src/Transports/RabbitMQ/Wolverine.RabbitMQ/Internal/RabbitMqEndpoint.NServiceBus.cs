@@ -10,6 +10,7 @@ public abstract partial class RabbitMqEndpoint
     public void UseNServiceBusInterop()
     {
         DefaultSerializer = new NewtonsoftSerializer(new JsonSerializerSettings());
+        
         _customizeMapping = m =>
         {
             m.MapPropertyToHeader(x => x.ConversationId, "NServiceBus.ConversationId");

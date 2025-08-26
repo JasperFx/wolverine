@@ -1,12 +1,16 @@
 using System.Diagnostics;
+using System.Text;
 using Azure.Messaging.ServiceBus;
 using Azure.Messaging.ServiceBus.Administration;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
+using Newtonsoft.Json;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
+using Wolverine.Runtime.Serialization;
 using Wolverine.Transports;
 using Wolverine.Transports.Sending;
+using Wolverine.Util;
 
 namespace Wolverine.AzureServiceBus.Internal;
 
@@ -206,5 +210,60 @@ public class AzureServiceBusQueue : AzureServiceBusEndpoint, IBrokerQueue
 
         deadLetterSender = default;
         return false;
+    }
+    
+    internal void UseNServiceBusInterop()
+    {
+        // NServiceBus.EnclosedMessageTypes
+        DefaultSerializer = new NewtonsoftSerializer(new JsonSerializerSettings());
+        _customizeMapping = (m, runtime) =>
+        {
+            m.MapPropertyToHeader(x => x.ConversationId, "NServiceBus.ConversationId");
+            m.MapPropertyToHeader(x => x.SentAt, "NServiceBus.TimeSent");
+            m.MapPropertyToHeader(x => x.CorrelationId!, "NServiceBus.CorrelationId");
+
+            var replyAddress = new Lazy<string>(() =>
+            {
+                var replyEndpoint = Parent.ReplyEndpoint() as AzureServiceBusQueue;
+
+                return replyEndpoint?.QueueName ?? string.Empty;
+            });
+
+            void WriteReplyToAddress(Envelope e, ServiceBusMessage props)
+            {
+                props.ApplicationProperties["NServiceBus.ReplyToAddress"] = replyAddress.Value;
+            }
+
+            void ReadReplyUri(Envelope e, ServiceBusReceivedMessage serviceBusReceivedMessage)
+            {
+                if (serviceBusReceivedMessage.ApplicationProperties.TryGetValue("NServiceBus.ReplyToAddress",
+                        out var raw))
+                {
+                    var queueName = (raw is byte[] b ? Encoding.Default.GetString(b) : raw.ToString())!;
+                    e.ReplyUri = new Uri($"{Parent.Protocol}://queue/{queueName}");
+                }
+            }
+
+            m.MapProperty(x => x.ReplyUri!, ReadReplyUri, WriteReplyToAddress);
+            
+            m.MapProperty(x => x.MessageType, (e, m) =>
+            {
+                // Incoming  
+                if (m.ApplicationProperties.TryGetValue("NServiceBus.EnclosedMessageTypes", out var raw))
+                {
+                    var typeName = (raw is byte[] b ? Encoding.Default.GetString(b) : raw.ToString())!;
+                    if (typeName.IsNotEmpty())
+                    {
+                        var messageType = Type.GetType(typeName);
+                        e.MessageType = messageType.ToMessageTypeName();
+                    }
+                }
+            }, 
+                (e, m) =>
+            {
+                // Outgoing, use the interop strategy here
+                m.ApplicationProperties["NServiceBus.EnclosedMessageTypes"] = e.Message.GetType().ToMessageTypeName();
+            });
+        };
     }
 }
