@@ -5,7 +5,7 @@ using Newtonsoft.Json.Linq;
 
 namespace Wolverine.Runtime.Serialization;
 
-internal class NewtonsoftSerializer : IMessageSerializer
+public class NewtonsoftSerializer : IMessageSerializer
 {
     private readonly ArrayPool<byte> _bytePool;
     private readonly JsonArrayPool<char> _jsonCharPool;
@@ -73,6 +73,23 @@ internal class NewtonsoftSerializer : IMessageSerializer
         }
 
         return message;
+    }
+    
+    public T ReadFromData<T>(byte[] data)
+    {
+        using var stream = new MemoryStream(data)
+        {
+            Position = 0
+        };
+
+        using var streamReader = new StreamReader(stream, Encoding.UTF8, true, _bufferSize, true);
+        using var jsonReader = new JsonTextReader(streamReader)
+        {
+            ArrayPool = _jsonCharPool,
+            CloseInput = false
+        };
+
+        return _serializer.Deserialize<T>(jsonReader)!;
     }
 
     public byte[] WriteMessage(object message)

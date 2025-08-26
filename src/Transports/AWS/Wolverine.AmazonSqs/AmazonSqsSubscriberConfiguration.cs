@@ -1,7 +1,9 @@
 using System.Text.Json;
 using Amazon.SQS.Model;
+using Newtonsoft.Json;
 using Wolverine.AmazonSqs.Internal;
 using Wolverine.Configuration;
+using Wolverine.Runtime.Serialization;
 
 namespace Wolverine.AmazonSqs;
 
@@ -52,9 +54,16 @@ public class
     /// Use an NServiceBus compatible enveloper mapper to interact with NServiceBus systems on the other end
     /// </summary>
     /// <returns></returns>
-    public AmazonSqsSubscriberConfiguration UseNServiceBusInterop()
+    /// <param name="replyQueueName">Name of an SQS queue where NServiceBus should send resplies back to this application</param>
+    public AmazonSqsSubscriberConfiguration UseNServiceBusInterop(string? replyQueueName)
     {
-        throw new NotImplementedException();
+        add(e =>
+        {
+            e.DefaultSerializer = new NewtonsoftSerializer(new JsonSerializerSettings());
+            e.Mapper = new NServiceBusEnvelopeMapper(replyQueueName, e);
+        });
+        
+        return this;
     }
 
     /// <summary>
