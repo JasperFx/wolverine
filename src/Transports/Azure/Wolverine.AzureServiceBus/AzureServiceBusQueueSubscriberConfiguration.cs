@@ -1,6 +1,9 @@
+using System.Text;
 using Azure.Messaging.ServiceBus.Administration;
+using Newtonsoft.Json;
 using Wolverine.AzureServiceBus.Internal;
 using Wolverine.Configuration;
+using Wolverine.Runtime.Serialization;
 
 namespace Wolverine.AzureServiceBus;
 
@@ -69,6 +72,7 @@ public class AzureServiceBusQueueSubscriberConfiguration : SubscriberConfigurati
     /// <returns></returns>
     public AzureServiceBusQueueSubscriberConfiguration UseNServiceBusInterop()
     {
-        throw new NotImplementedException();
+        add(e => e.UseNServiceBusInterop());
+        return this;
     }
 }

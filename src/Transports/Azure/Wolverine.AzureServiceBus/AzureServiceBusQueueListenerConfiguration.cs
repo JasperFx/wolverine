@@ -169,6 +169,7 @@ public class
     /// <returns></returns>
     public AzureServiceBusQueueListenerConfiguration UseNServiceBusInterop()
     {
-        throw new NotImplementedException();
+        add(e => e.UseNServiceBusInterop());
+        return this;
     }
 }
