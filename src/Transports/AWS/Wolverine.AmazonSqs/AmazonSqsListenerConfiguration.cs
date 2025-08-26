@@ -125,4 +125,13 @@ public class AmazonSqsListenerConfiguration : ListenerConfiguration<AmazonSqsLis
         add(e => e.Mapper = mapper);
         return this;
     }
+
+    /// <summary>
+    /// Use an NServiceBus compatible enveloper mapper to interact with NServiceBus systems on the other end
+    /// </summary>
+    /// <returns></returns>
+    public AmazonSqsListenerConfiguration UseNServiceBusInterop()
+    {
+        throw new NotImplementedException();
+    }
 }
