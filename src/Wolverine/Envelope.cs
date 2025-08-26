@@ -214,7 +214,7 @@ public partial class Envelope : IHasTenantId
     /// </summary>
     public int Attempts { get; set; }
 
-    public DateTimeOffset SentAt { get; internal set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset SentAt { get; set; } = DateTimeOffset.UtcNow;
 
     /// <summary>
     ///     The name of the service that sent this envelope
@@ -229,7 +229,7 @@ public partial class Envelope : IHasTenantId
     /// <summary>
     ///     Location where any replies should be sent
     /// </summary>
-    public Uri? ReplyUri { get; internal set; }
+    public Uri? ReplyUri { get; set; }
 
     /// <summary>
     ///     Mimetype of the serialized data
