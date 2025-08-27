@@ -2,16 +2,19 @@ using System.Text;
 using Amazon.SQS;
 using Amazon.SQS.Model;
 using JasperFx.Core;
+using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
+using Wolverine.Runtime.Interop.MassTransit;
+using Wolverine.Runtime.Serialization;
 using Wolverine.Transports;
 using Wolverine.Transports.Sending;
 
 namespace Wolverine.AmazonSqs.Internal;
 
-public class AmazonSqsQueue : Endpoint, IBrokerQueue
+public class AmazonSqsQueue : Endpoint, IBrokerQueue, IMassTransitInteropEndpoint
 {
     private readonly AmazonSqsTransport _parent;
 
@@ -343,5 +346,23 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue
 
         deadLetterSender = default;
         return false;
+    }
+
+    Uri? IMassTransitInteropEndpoint.MassTransitUri()
+    {
+        // amazonsqs://localhost/wolverine
+        return new Uri($"amazonsqs://{_parent.ServerHost}/{QueueName}");
+    }
+
+    Uri? IMassTransitInteropEndpoint.MassTransitReplyUri()
+    {
+        var reply = _parent.ReplyEndpoint();
+        return reply.As<IMassTransitInteropEndpoint>().MassTransitUri();
+    }
+
+    Uri? IMassTransitInteropEndpoint.TranslateMassTransitToWolverineUri(Uri uri)
+    {
+        var lastSegment = uri.Segments.Last();
+        return _parent.Queues[lastSegment].Uri;
     }
 }
