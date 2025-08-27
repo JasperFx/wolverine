@@ -63,7 +63,9 @@ public class AzureServiceBusQueueSubscriberConfiguration : SubscriberConfigurati
     /// <returns></returns>
     public AzureServiceBusQueueSubscriberConfiguration UseMassTransitInterop()
     {
-        throw new NotImplementedException();
+        add(e => e.UseMassTransitInterop());
+        
+        return this;
     }
 
     /// <summary>

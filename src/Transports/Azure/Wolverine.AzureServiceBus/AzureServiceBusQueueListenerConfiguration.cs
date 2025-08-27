@@ -158,9 +158,10 @@ public class
     /// </summary>
     /// <param name="configure"></param>
     /// <returns></returns>
-    public AzureServiceBusQueueListenerConfiguration UseMassTransitInterop(Action<IMassTransitInterop> configure)   
+    public AzureServiceBusQueueListenerConfiguration UseMassTransitInterop(Action<IMassTransitInterop> configure)
     {
-        throw new NotImplementedException();
+        add(e => e.UseMassTransitInterop(configure));
+        return this;
     }
 
     /// <summary>

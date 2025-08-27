@@ -3,10 +3,12 @@ using System.Text;
 using Azure.Messaging.ServiceBus;
 using Azure.Messaging.ServiceBus.Administration;
 using JasperFx.Core;
+using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
+using Wolverine.Runtime.Interop.MassTransit;
 using Wolverine.Runtime.Serialization;
 using Wolverine.Transports;
 using Wolverine.Transports.Sending;
@@ -14,7 +16,7 @@ using Wolverine.Util;
 
 namespace Wolverine.AzureServiceBus.Internal;
 
-public class AzureServiceBusQueue : AzureServiceBusEndpoint, IBrokerQueue
+public class AzureServiceBusQueue : AzureServiceBusEndpoint, IBrokerQueue, IMassTransitInteropEndpoint
 {
     private bool _hasInitialized;
 
@@ -216,7 +218,7 @@ public class AzureServiceBusQueue : AzureServiceBusEndpoint, IBrokerQueue
     {
         // NServiceBus.EnclosedMessageTypes
         DefaultSerializer = new NewtonsoftSerializer(new JsonSerializerSettings());
-        _customizeMapping = (m, runtime) =>
+        _customizeMapping = (m, r) =>
         {
             m.MapPropertyToHeader(x => x.ConversationId, "NServiceBus.ConversationId");
             m.MapPropertyToHeader(x => x.SentAt, "NServiceBus.TimeSent");
@@ -264,6 +266,30 @@ public class AzureServiceBusQueue : AzureServiceBusEndpoint, IBrokerQueue
                 // Outgoing, use the interop strategy here
                 m.ApplicationProperties["NServiceBus.EnclosedMessageTypes"] = e.Message.GetType().ToMessageTypeName();
             });
+        };
+    }
+
+    Uri? IMassTransitInteropEndpoint.MassTransitUri()
+    {
+        return new Uri($"sb://{Parent.HostName}/{QueueName}");
+    }
+
+    Uri? IMassTransitInteropEndpoint.MassTransitReplyUri()
+    {
+        return Parent.ReplyEndpoint().As<IMassTransitInteropEndpoint>().MassTransitUri();
+    }
+
+    Uri? IMassTransitInteropEndpoint.TranslateMassTransitToWolverineUri(Uri uri)
+    {
+        var lastSegment = uri.Segments.Last();
+        return Parent.Queues[lastSegment].Uri;
+    }
+
+    internal void UseMassTransitInterop(Action<IMassTransitInterop>? configure = null)
+    {
+        _customizeMapping = (m, _) =>
+        {
+            m.InteropWithMassTransit(configure);
         };
     }
 }
