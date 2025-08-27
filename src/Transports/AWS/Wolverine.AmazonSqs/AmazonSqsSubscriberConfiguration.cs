@@ -3,6 +3,7 @@ using Amazon.SQS.Model;
 using Newtonsoft.Json;
 using Wolverine.AmazonSqs.Internal;
 using Wolverine.Configuration;
+using Wolverine.Runtime.Interop.MassTransit;
 using Wolverine.Runtime.Serialization;
 
 namespace Wolverine.AmazonSqs;
@@ -70,9 +71,9 @@ public class
     /// Use a MassTransit compatible envelope mapper to interact with MassTransit systems on the other end
     /// </summary>
     /// <returns></returns>
-    /// <exception cref="NotImplementedException"></exception>
     public AmazonSqsSubscriberConfiguration UseMassTransitInterop()
     {
-        throw new NotImplementedException();
+        add(e => e.Mapper = new MassTransitMapper(Endpoint as IMassTransitInteropEndpoint));
+        return this;
     }
 }
