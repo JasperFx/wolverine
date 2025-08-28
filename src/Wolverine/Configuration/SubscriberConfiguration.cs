@@ -1,8 +1,19 @@
 using JasperFx.Core.Reflection;
 using Newtonsoft.Json;
 using Wolverine.Runtime.Serialization;
+using Wolverine.Transports;
 
 namespace Wolverine.Configuration;
+
+public class InteroperableSubscriberConfiguration<T, TEndpoint, TMapper, TConcreteMapper> : SubscriberConfiguration<T, TEndpoint>
+    where TEndpoint : Endpoint<TMapper, TConcreteMapper>
+    where T : ISubscriberConfiguration<T>
+    where TConcreteMapper : IEnvelopeMapper, TMapper
+{
+    protected InteroperableSubscriberConfiguration(TEndpoint endpoint) : base(endpoint)
+    {
+    }
+}
 
 /// <summary>
 ///     Base class for custom fluent interface expressions for external transport subscriber endpoints

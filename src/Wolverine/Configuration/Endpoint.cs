@@ -106,6 +106,46 @@ public enum ListenerScope
     PinnedToLeader
 }
 
+public abstract class Endpoint<TMapper, TConcreteMapper> : Endpoint
+    where TConcreteMapper : TMapper, IEnvelopeMapper
+{
+    protected Endpoint(Uri uri, EndpointRole role) : base(uri, role)
+    {
+        
+    }
+
+    private Action<TConcreteMapper, IWolverineRuntime>? _customizeMapping;
+
+    protected void customizeMapping(Action<TConcreteMapper, IWolverineRuntime> customization)
+    {
+        _customizeMapping = customization ?? throw new ArgumentNullException(nameof(customization));
+    }
+    
+    protected internal TMapper BuildMapper(IWolverineRuntime runtime)
+    {
+       if (EnvelopeMapper != null) return EnvelopeMapper;
+
+       var mapper = buildMapper(runtime);
+       _customizeMapping?.Invoke(mapper, runtime);
+       
+       if (MessageType != null)
+       {
+           mapper.ReceivesMessage(MessageType);
+       }
+
+       return mapper;
+    }
+
+    protected abstract TConcreteMapper buildMapper(IWolverineRuntime runtime);
+    
+    
+    /// <summary>
+    /// When set, overrides the built in envelope mapping with a custom
+    /// implementation
+    /// </summary>
+    public TMapper? EnvelopeMapper { get; set; }
+}
+
 /// <summary>
 ///     Configuration for a single message listener within a Wolverine application
 /// </summary>

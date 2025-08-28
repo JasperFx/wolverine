@@ -16,7 +16,7 @@ public interface ISqsEnvelopeMapper
     void ReadEnvelopeData(Envelope envelope, string messageBody, IDictionary<string, MessageAttributeValue> attributes);
 }
 
-internal class DefaultSqsEnvelopeMapper : ISqsEnvelopeMapper
+public class DefaultSqsEnvelopeMapper : ISqsEnvelopeMapper
 {
     public string BuildMessageBody(Envelope envelope)
     {
