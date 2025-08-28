@@ -43,7 +43,7 @@ internal class CloudEventsMapper
 
         if (node.TryGetValue<string>("type", out var cloudEventType))
         {
-            if (_handlers.TryFindMessageTypeForCloudEvent(cloudEventType, out var messageType))
+            if (_handlers.TryFindMessageType(cloudEventType, out var messageType))
             {
                 var data = node["data"];
                 if (data != null)

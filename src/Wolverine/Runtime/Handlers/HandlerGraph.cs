@@ -513,26 +513,4 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
         }
     }
 
-    private ImHashMap<string, Type> _cloudEventMessageNames = ImHashMap<string, Type>.Empty;
-    
-    /// <summary>
-    /// Map a cloud event type name to the corresponding message type in the application
-    /// </summary>
-    /// <param name="messageType"></param>
-    /// <param name="cloudEventName"></param>
-    public void RegisterCloudType(Type messageType, string cloudEventName)
-    {
-        _cloudEventMessageNames = _cloudEventMessageNames.AddOrUpdate(cloudEventName, messageType);
-    }
-
-    /// <summary>
-    /// Try to find a message type within this application for the cloud event name
-    /// </summary>
-    /// <param name="cloudEventName"></param>
-    /// <param name="messageType"></param>
-    /// <returns></returns>
-    public bool TryFindMessageTypeForCloudEvent(string cloudEventName, out Type messageType)
-    {
-        return _cloudEventMessageNames.TryFind(cloudEventName, out messageType);
-    }
 }
