@@ -112,3 +112,44 @@ public static class TestPubsubMessageHandler
     {
     }
 }
+
+public class send_and_receive_with_cloudevents : IAsyncLifetime
+{
+    private IHost _host = default!;
+
+    public async Task InitializeAsync()
+    {
+        _host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts
+                    .UsePubsubTesting()
+                    .AutoProvision()
+                    .AutoPurgeOnStartup();
+
+                opts
+                    .PublishMessage<TestPubsubMessage>()
+                    .ToPubsubTopic("cloudevents");
+
+                opts.ListenToPubsubTopic("cloudevents");
+            }).StartAsync();
+    }
+
+    public async Task DisposeAsync()
+    {
+        await _host.StopAsync();
+    }
+    
+    [Fact]
+    public async Task send_and_receive_a_single_message()
+    {
+        var message = new TestPubsubMessage("Josh Allen");
+        var session = await _host.TrackActivity()
+            .IncludeExternalTransports()
+            .Timeout(1.Minutes())
+            .SendMessageAndWaitAsync(message);
+
+        session.Received.SingleMessage<TestPubsubMessage>().Name.ShouldBe(message.Name);
+    }
+
+}
