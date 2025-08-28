@@ -128,7 +128,7 @@ public abstract class Endpoint<TMapper, TConcreteMapper> : Endpoint
 
     private Func<IWolverineRuntime, TMapper>? _mapperFactory;
     
-    protected internal TMapper BuildMapper(IWolverineRuntime runtime)
+    public TMapper BuildMapper(IWolverineRuntime runtime)
     {
        if (EnvelopeMapper != null) return EnvelopeMapper;
 

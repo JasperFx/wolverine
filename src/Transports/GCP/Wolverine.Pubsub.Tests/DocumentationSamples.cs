@@ -228,8 +228,8 @@ public class DocumentationSamples
             {
                 opts.UsePubsub("your-project-id")
                     .UseConventionalRouting()
-                    .ConfigureListeners(l => l.InteropWith(e => new CustomPubsubMapper(e)))
-                    .ConfigureSenders(s => s.InteropWith(e => new CustomPubsubMapper(e)));
+                    .ConfigureListeners(l => l.UseInterop((e, _) => new CustomPubsubMapper(e)))
+                    .ConfigureSenders(s => s.UseInterop((e, _) => new CustomPubsubMapper(e)));
             }).StartAsync();
 
         #endregion

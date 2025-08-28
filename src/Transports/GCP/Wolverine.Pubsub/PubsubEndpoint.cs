@@ -12,13 +12,17 @@ using Wolverine.Transports.Sending;
 
 namespace Wolverine.Pubsub;
 
-public class PubsubEndpoint : Endpoint, IBrokerQueue
+public class PubsubEndpoint : Endpoint<IPubsubEnvelopeMapper, PubsubEnvelopeMapper>, IBrokerQueue
 {
     private readonly PubsubTransport _transport;
 
     private bool _hasInitialized;
-    private IPubsubEnvelopeMapper? _mapper;
     public PubsubClientOptions Client = new();
+
+    protected override PubsubEnvelopeMapper buildMapper(IWolverineRuntime runtime)
+    {
+        return new PubsubEnvelopeMapper(this);
+    }
 
     /// <summary>
     ///     Name of the dead letter for this Google Cloud Platform Pub/Sub subcription where failed messages will be moved
@@ -56,35 +60,6 @@ public class PubsubEndpoint : Endpoint, IBrokerQueue
         {
             DeadLetterName = PubsubTransport.DeadLetterName;
         }
-    }
-
-    /// <summary>
-    ///     Pluggable strategy for interoperability with non-Wolverine systems. Customizes how the incoming Google Cloud
-    ///     Platform Pub/Sub messages
-    ///     are read and how outgoing messages are written to Google Cloud Platform Pub/Sub.
-    /// </summary>
-    public IPubsubEnvelopeMapper Mapper
-    {
-        get
-        {
-            if (_mapper is not null)
-            {
-                return _mapper;
-            }
-
-            var mapper = new PubsubEnvelopeMapper(this);
-
-            // Important for interoperability
-            if (MessageType != null)
-            {
-                mapper.ReceivesMessage(MessageType);
-            }
-
-            _mapper = mapper;
-
-            return _mapper;
-        }
-        set => _mapper = value;
     }
 
     public async ValueTask SetupAsync(ILogger logger)
@@ -305,6 +280,8 @@ public class PubsubEndpoint : Endpoint, IBrokerQueue
 
     public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
     {
+        EnvelopeMapper ??= BuildMapper(runtime);
+        
         if (Mode == EndpointMode.Inline)
         {
             return ValueTask.FromResult<IListener>(new InlinePubsubListener(
@@ -325,6 +302,8 @@ public class PubsubEndpoint : Endpoint, IBrokerQueue
 
     public override bool TryBuildDeadLetterSender(IWolverineRuntime runtime, out ISender? deadLetterSender)
     {
+        EnvelopeMapper ??= BuildMapper(runtime);
+        
         if (DeadLetterName.IsNotEmpty())
         {
             var initialized = _transport.Topics.Contains(DeadLetterName);
@@ -365,7 +344,7 @@ public class PubsubEndpoint : Endpoint, IBrokerQueue
         var message = new PubsubMessage();
         var orderBy = Server.Topic.OrderBy(envelope);
 
-        Mapper.MapEnvelopeToOutgoing(envelope, message);
+        EnvelopeMapper.MapEnvelopeToOutgoing(envelope, message);
 
         message.OrderingKey = envelope.GroupId ?? orderBy ?? message.OrderingKey;
 
@@ -401,6 +380,8 @@ public class PubsubEndpoint : Endpoint, IBrokerQueue
 
     protected override ISender CreateSender(IWolverineRuntime runtime)
     {
+        EnvelopeMapper ??= BuildMapper(runtime);
+        
         if (_transport.PublisherApiClient is null)
         {
             throw new WolverinePubsubTransportNotConnectedException();
