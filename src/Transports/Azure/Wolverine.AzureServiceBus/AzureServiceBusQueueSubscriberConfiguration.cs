@@ -53,7 +53,7 @@ public class AzureServiceBusQueueSubscriberConfiguration : SubscriberConfigurati
     /// <returns></returns>
     public AzureServiceBusQueueSubscriberConfiguration InteropWith(IAzureServiceBusEnvelopeMapper mapper)
     {
-        add(e => e.Mapper = mapper);
+        add(e => e.EnvelopeMapper = mapper);
         return this;
     }
 

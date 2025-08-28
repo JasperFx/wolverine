@@ -134,7 +134,7 @@ public class AzureServiceBusSubscriptionListenerConfiguration : ListenerConfigur
     /// <returns></returns>
     public AzureServiceBusSubscriptionListenerConfiguration InteropWith(IAzureServiceBusEnvelopeMapper mapper)
     {
-        add(e => e.Mapper = mapper);
+        add(e => e.EnvelopeMapper = mapper);
         return this;
     }
 }
