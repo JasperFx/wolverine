@@ -21,7 +21,7 @@ public class KafkaSenderProtocol : ISenderProtocol, IDisposable
         {
             // TODO -- separate try/catch here!
 
-            var message = await _topic.Mapper.CreateMessage(envelope);
+            var message = await _topic.EnvelopeMapper!.CreateMessage(envelope);
             await _producer.ProduceAsync(envelope.TopicName ?? _topic.TopicName, message);
         }
 

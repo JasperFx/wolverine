@@ -1,10 +1,11 @@
 using System.Text.Json;
 using Confluent.Kafka;
 using Wolverine.Configuration;
+using Wolverine.Kafka.Internals;
 
 namespace Wolverine.Kafka;
 
-public class KafkaListenerConfiguration : ListenerConfiguration<KafkaListenerConfiguration, KafkaTopic>
+public class KafkaListenerConfiguration : InteroperableListenerConfiguration<KafkaListenerConfiguration, KafkaTopic, IKafkaEnvelopeMapper, KafkaEnvelopeMapper>
 {
     public KafkaListenerConfiguration(KafkaTopic endpoint) : base(endpoint)
     {
@@ -13,19 +14,7 @@ public class KafkaListenerConfiguration : ListenerConfiguration<KafkaListenerCon
     public KafkaListenerConfiguration(Func<KafkaTopic> source) : base(source)
     {
     }
-
-    /// <summary>
-    /// Use a custom interoperability strategy to map Wolverine messages to an upstream
-    /// system's protocol
-    /// </summary>
-    /// <param name="mapper"></param>
-    /// <returns></returns>
-    public KafkaListenerConfiguration UseInterop(IKafkaEnvelopeMapper mapper)
-    {
-        add(e => e.Mapper = mapper);
-        return this;
-    }
-
+    
     /// <summary>
     /// Configure this endpoint to receive messages of type T from
     /// JSON message bodies. This option maybe be necessary to receive
@@ -49,13 +38,8 @@ public class KafkaListenerConfiguration : ListenerConfiguration<KafkaListenerCon
     /// <returns></returns>
     public KafkaListenerConfiguration ReceiveRawJson(Type messageType, JsonSerializerOptions? options = null)
     {
-        add(e =>
-        {
-            e.Mapper = new JsonOnlyMapper(e, options);
-            e.MessageType = messageType;
-        });
-
-        return this;
+        DefaultIncomingMessage(messageType);
+        return UseInterop((e, _) => new JsonOnlyMapper(e, options ?? new()));
     }
     
     /// <summary>
