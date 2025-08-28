@@ -1,8 +1,10 @@
+using System.Text.Json;
 using System.Threading.Tasks.Dataflow;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Newtonsoft.Json;
 using Wolverine.Runtime;
+using Wolverine.Runtime.Interop;
 using Wolverine.Runtime.Serialization;
 using Wolverine.Transports;
 using Wolverine.Transports.Local;
@@ -63,6 +65,22 @@ public class InteroperableListenerConfiguration<TSelf, TEndpoint, TMapper, TConc
     public TSelf UseInterop(Func<IWolverineRuntime, TEndpoint, TMapper> factory)
     {
         add(e => e.registerMapperFactory(r => factory(r, e)));
+        return this.As<TSelf>();
+    }
+    
+    /// <summary>
+    /// Interop with upstream systems by reading messages with the CloudEvents specification
+    /// </summary>
+    /// <param name="jsonSerializerOptions"></param>
+    /// <returns></returns>
+    public TSelf InteropWithCloudEvents(JsonSerializerOptions? jsonSerializerOptions = null)
+    {
+        jsonSerializerOptions ??= new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+        add(e => e.customizeMapping((m, r) =>
+        {
+            e.DefaultSerializer = new CloudEventsMapper(r.Options.HandlerGraph, jsonSerializerOptions);
+        }));
+
         return this.As<TSelf>();
     }
 }
