@@ -5,7 +5,7 @@ using Xunit;
 
 namespace CoreTests.Runtime.Interop;
 
-public class CloudEventMatterTests
+public class CloudEventMapperTests
 {
     private readonly HandlerGraph theHandlers;
     private readonly Envelope theEnvelope;
@@ -29,10 +29,10 @@ public class CloudEventMatterTests
 }
 ";
 
-    public CloudEventMatterTests()
+    public CloudEventMapperTests()
     {
         theHandlers = new HandlerGraph();
-        theHandlers.RegisterCloudType(typeof(ApproveOrder), "com.dapr.event.sent");
+        theHandlers.RegisterMessageType(typeof(ApproveOrder), "com.dapr.event.sent");
 
         var options = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
         
