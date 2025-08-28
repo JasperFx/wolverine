@@ -3,6 +3,7 @@ using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using JasperFx.Core.Reflection;
 using Wolverine.Runtime.Handlers;
+using Wolverine.Runtime.Serialization;
 using Wolverine.Util;
 
 namespace Wolverine.Runtime.Interop;
@@ -68,7 +69,7 @@ internal class CloudEventsEnvelope
     public string TraceParent { get; set; }
 }
 
-internal class CloudEventsMapper
+internal class CloudEventsMapper : IMessageSerializer
 {
     private readonly HandlerGraph _handlers;
     private readonly JsonSerializerOptions _options;
@@ -79,9 +80,24 @@ internal class CloudEventsMapper
         _options = options;
     }
 
+    public string WriteToString(Envelope envelope)
+    {
+        return JsonSerializer.Serialize(new CloudEventsEnvelope(envelope));
+    }
+
+    public byte[] WriteToBytes(Envelope envelope)
+    {
+        return JsonSerializer.SerializeToUtf8Bytes(new CloudEventsEnvelope(envelope));
+    }
+
     public void MapIncoming(Envelope envelope, string json)
     {
         var node = JsonNode.Parse(json);
+        MapIncoming(envelope, node);
+    }
+
+    public void MapIncoming(Envelope envelope, JsonNode? node)
+    {
         if (node == null) return;
 
         if (node.TryGetValue<string>("traceid", out var traceId))
@@ -129,6 +145,31 @@ internal class CloudEventsMapper
                 envelope.ContentType = contentType;
             }
         }
+    }
+
+    public string ContentType { get; } = "application/json";
+    
+    public byte[] Write(Envelope envelope)
+    {
+        return JsonSerializer.SerializeToUtf8Bytes(new CloudEventsEnvelope(envelope), _options);
+    }
+
+    public object ReadFromData(Type messageType, Envelope envelope)
+    {
+        var node = JsonNode.Parse(envelope.Data);
+        MapIncoming(envelope, node);
+
+        return envelope.Message;
+    }
+
+    public object ReadFromData(byte[] data)
+    {
+        throw new NotSupportedException();
+    }
+
+    public byte[] WriteMessage(object message)
+    {
+        throw new NotSupportedException();
     }
 }
 
