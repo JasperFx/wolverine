@@ -12,12 +12,12 @@ namespace Wolverine.Transports;
 
 public interface IOutgoingMapper<TOutgoing>
 {
-    void MapEnvelopeToOutgoing(Envelope envelope, TOutgoing outgoing);
+    public void MapEnvelopeToOutgoing(Envelope envelope, TOutgoing outgoing);
 }
 
 public interface IIncomingMapper<TIncoming>
 {
-    void MapIncomingToEnvelope(Envelope envelope, TIncoming incoming);
+    public void MapIncomingToEnvelope(Envelope envelope, TIncoming incoming);
     public IEnumerable<string> AllHeaders();
 }
 
@@ -25,7 +25,7 @@ public interface IEnvelopeMapper<TIncoming, TOutgoing> : IOutgoingMapper<TOutgoi
 
 public interface IEnvelopeMapper
 {
-    IEnumerable<string> AllHeaders();
+    public IEnumerable<string> AllHeaders();
 
     /// <summary>
     ///     This endpoint will assume that any unidentified incoming message types
