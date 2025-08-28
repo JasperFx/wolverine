@@ -4,9 +4,9 @@ using Wolverine.Configuration;
 
 namespace Wolverine.AzureServiceBus;
 
-public class AzureServiceBusTopicSubscriberConfiguration : SubscriberConfiguration<
+public class AzureServiceBusTopicSubscriberConfiguration : InteroperableSubscriberConfiguration<
     AzureServiceBusTopicSubscriberConfiguration,
-    AzureServiceBusTopic>
+    AzureServiceBusTopic, IAzureServiceBusEnvelopeMapper, AzureServiceBusEnvelopeMapper>
 {
     public AzureServiceBusTopicSubscriberConfiguration(AzureServiceBusTopic endpoint) : base(endpoint)
     {
