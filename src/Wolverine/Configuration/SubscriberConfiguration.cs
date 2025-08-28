@@ -1,17 +1,55 @@
 using JasperFx.Core.Reflection;
 using Newtonsoft.Json;
+using Wolverine.Runtime;
 using Wolverine.Runtime.Serialization;
 using Wolverine.Transports;
 
 namespace Wolverine.Configuration;
 
-public class InteroperableSubscriberConfiguration<T, TEndpoint, TMapper, TConcreteMapper> : SubscriberConfiguration<T, TEndpoint>
+public class InteroperableSubscriberConfiguration<TSelf, TEndpoint, TMapper, TConcreteMapper> : SubscriberConfiguration<TSelf, TEndpoint>
     where TEndpoint : Endpoint<TMapper, TConcreteMapper>
-    where T : ISubscriberConfiguration<T>
+    where TSelf : ISubscriberConfiguration<TSelf>
     where TConcreteMapper : IEnvelopeMapper, TMapper
 {
     protected InteroperableSubscriberConfiguration(TEndpoint endpoint) : base(endpoint)
     {
+    }
+
+    /// <summary>
+    /// Use a custom interoperability strategy to map Wolverine messages to an upstream
+    /// system's protocol
+    /// </summary>
+    /// <param name="mapper"></param>
+    /// <returns></returns>
+    public TSelf UseInterop(TMapper mapper)
+    {
+        add(e => e.EnvelopeMapper = mapper);
+        return this.As<TSelf>();
+    }
+
+    /// <summary>
+    /// Customize the basic envelope mapping for interoperability. This mechanism
+    /// is suitable if you are mostly needing to modify how headers are communicated
+    /// from and to external systems through the underlying transport
+    /// </summary>
+    /// <param name="configure"></param>
+    /// <returns></returns>
+    public TSelf UseInterop(Action<TEndpoint, TConcreteMapper> configure)
+    {
+        add(e => e.customizeMapping((m, _) => configure(e, m)));
+        return this.As<TSelf>();
+    }
+
+    /// <summary>
+    /// Create a completely customized mapper using the WolverineRuntime and the current
+    /// Endpoint. This is built lazily at system bootstrapping time
+    /// </summary>
+    /// <param name="factory"></param>
+    /// <returns></returns>
+    public TSelf UseInterop(Func<IWolverineRuntime, TEndpoint, TMapper> factory)
+    {
+        add(e => e.registerMapperFactory(r => factory(r, e)));
+        return this.As<TSelf>();
     }
 }
 

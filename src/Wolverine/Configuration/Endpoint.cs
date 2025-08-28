@@ -116,15 +116,27 @@ public abstract class Endpoint<TMapper, TConcreteMapper> : Endpoint
 
     private Action<TConcreteMapper, IWolverineRuntime>? _customizeMapping;
 
-    protected void customizeMapping(Action<TConcreteMapper, IWolverineRuntime> customization)
+    protected internal void customizeMapping(Action<TConcreteMapper, IWolverineRuntime> customization)
     {
         _customizeMapping = customization ?? throw new ArgumentNullException(nameof(customization));
     }
+
+    protected internal void registerMapperFactory(Func<IWolverineRuntime, TMapper> factory)
+    {
+        _mapperFactory = factory ?? throw new ArgumentNullException(nameof(factory));
+    }
+
+    private Func<IWolverineRuntime, TMapper>? _mapperFactory;
     
     protected internal TMapper BuildMapper(IWolverineRuntime runtime)
     {
        if (EnvelopeMapper != null) return EnvelopeMapper;
 
+       if (_mapperFactory != null)
+       {
+           return _mapperFactory(runtime);
+       }
+       
        var mapper = buildMapper(runtime);
        _customizeMapping?.Invoke(mapper, runtime);
        
