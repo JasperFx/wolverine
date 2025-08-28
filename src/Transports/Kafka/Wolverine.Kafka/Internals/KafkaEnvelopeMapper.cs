@@ -28,4 +28,15 @@ internal class KafkaEnvelopeMapper : EnvelopeMapper<Message<string, byte[]>, Mes
         value = default!;
         return false;
     }
+
+    protected override void writeIncomingHeaders(Message<string, byte[]> incoming, Envelope envelope)
+    {
+        if (incoming.Headers == null) return;
+        foreach (var header in incoming.Headers)
+        {
+            var bytes = header.GetValueBytes();
+            envelope.Headers[header.Key] = bytes != null ? Encoding.Default.GetString(bytes) : null;
+        }
+    }
+
 }
