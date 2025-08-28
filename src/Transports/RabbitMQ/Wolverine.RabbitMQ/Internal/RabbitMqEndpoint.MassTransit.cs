@@ -54,9 +54,6 @@ public abstract partial class RabbitMqEndpoint : IMassTransitInteropEndpoint
 
     public void UseMassTransitInterop(Action<IMassTransitInterop>? configure = null)
     {
-        _customizeMapping = m =>
-        {
-            m.InteropWithMassTransit(configure);
-        };
+        customizeMapping((m, _) => m.InteropWithMassTransit());
     }
 }
