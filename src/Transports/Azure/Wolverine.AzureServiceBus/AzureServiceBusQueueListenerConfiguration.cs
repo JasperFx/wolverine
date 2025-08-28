@@ -7,8 +7,8 @@ using Wolverine.Runtime.Interop.MassTransit;
 namespace Wolverine.AzureServiceBus;
 
 public class
-    AzureServiceBusQueueListenerConfiguration : ListenerConfiguration<AzureServiceBusQueueListenerConfiguration,
-        AzureServiceBusQueue>
+    AzureServiceBusQueueListenerConfiguration : InteroperableListenerConfiguration<AzureServiceBusQueueListenerConfiguration,
+        AzureServiceBusQueue, IAzureServiceBusEnvelopeMapper, AzureServiceBusEnvelopeMapper>
 {
     public AzureServiceBusQueueListenerConfiguration(AzureServiceBusQueue endpoint) : base(endpoint)
     {

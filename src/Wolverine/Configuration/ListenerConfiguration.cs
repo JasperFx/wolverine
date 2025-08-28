@@ -2,6 +2,7 @@ using System.Threading.Tasks.Dataflow;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Newtonsoft.Json;
+using Wolverine.Runtime;
 using Wolverine.Runtime.Serialization;
 using Wolverine.Transports;
 using Wolverine.Transports.Local;
@@ -12,6 +13,57 @@ public class ListenerConfiguration : ListenerConfiguration<IListenerConfiguratio
 {
     public ListenerConfiguration(Endpoint endpoint) : base(endpoint)
     {
+    }
+}
+
+public class InteroperableListenerConfiguration<TSelf, TEndpoint, TMapper, TConcreteMapper> : ListenerConfiguration<TSelf, TEndpoint>
+    where TSelf : IListenerConfiguration<TSelf> 
+    where TEndpoint : Endpoint<TMapper, TConcreteMapper>
+    where TConcreteMapper : IEnvelopeMapper, TMapper
+{
+    public InteroperableListenerConfiguration(TEndpoint endpoint) : base(endpoint)
+    {
+    }
+
+    public InteroperableListenerConfiguration(Func<TEndpoint> source) : base(source)
+    {
+    }
+    
+    /// <summary>
+    /// Use a custom interoperability strategy to map Wolverine messages to an upstream
+    /// system's protocol
+    /// </summary>
+    /// <param name="mapper"></param>
+    /// <returns></returns>
+    public TSelf UseInterop(TMapper mapper)
+    {
+        add(e => e.EnvelopeMapper = mapper);
+        return this.As<TSelf>();
+    }
+
+    /// <summary>
+    /// Customize the basic envelope mapping for interoperability. This mechanism
+    /// is suitable if you are mostly needing to modify how headers are communicated
+    /// from and to external systems through the underlying transport
+    /// </summary>
+    /// <param name="configure"></param>
+    /// <returns></returns>
+    public TSelf UseInterop(Action<TEndpoint, TConcreteMapper> configure)
+    {
+        add(e => e.customizeMapping((m, _) => configure(e, m)));
+        return this.As<TSelf>();
+    }
+
+    /// <summary>
+    /// Create a completely customized mapper using the WolverineRuntime and the current
+    /// Endpoint. This is built lazily at system bootstrapping time
+    /// </summary>
+    /// <param name="factory"></param>
+    /// <returns></returns>
+    public TSelf UseInterop(Func<IWolverineRuntime, TEndpoint, TMapper> factory)
+    {
+        add(e => e.registerMapperFactory(r => factory(r, e)));
+        return this.As<TSelf>();
     }
 }
 

@@ -16,7 +16,7 @@ public class InteroperableSubscriberConfiguration<TSelf, TEndpoint, TMapper, TCo
     }
 
     /// <summary>
-    /// Use a custom interoperability strategy to map Wolverine messages to an upstream
+    /// Use a custom interoperability strategy to map Wolverine messages to a downstream
     /// system's protocol
     /// </summary>
     /// <param name="mapper"></param>
