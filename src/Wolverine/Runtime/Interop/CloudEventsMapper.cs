@@ -1,9 +1,72 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.Json.Serialization;
+using JasperFx.Core.Reflection;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Util;
 
 namespace Wolverine.Runtime.Interop;
+
+internal class CloudEventsEnvelope
+{
+    public CloudEventsEnvelope()
+    {
+    }
+
+    public CloudEventsEnvelope(Envelope envelope)
+    {
+        if (envelope.Message is null) throw new ArgumentNullException(nameof(envelope), "Message is null");
+        
+        Data = envelope.Message;
+        
+        // Doesn't always apply in Wolverine, so ¯\_(ツ)_/¯
+        Topic = envelope.TopicName ?? envelope.GroupId;
+
+        Id = envelope.Id;
+        TraceId = envelope.CorrelationId;
+        Source = envelope.Source;
+        
+        // This is the Wolverine string that aliases the message type
+        Type = envelope.MessageType;
+
+        Time = envelope.SentAt.ToString("O");
+
+        TraceParent = envelope.ParentId;
+    }
+    
+    [JsonPropertyName("topic")]
+    public string Topic { get; set; }
+    
+    [JsonPropertyName("traceid")]
+    public string TraceId { get; set; }
+    
+    [JsonPropertyName("tracestate")]
+    public string TraceState { get; set; }
+
+    [JsonPropertyName("data")]
+    public object Data { get; set; }
+    
+    [JsonPropertyName("id")]
+    public Guid Id { get; set; }
+
+    [JsonPropertyName("specversion")]
+    public string SpecVersion { get; set; } = "1.0";
+
+    [JsonPropertyName("datacontenttype")]
+    public string DataContentType { get; set; } = "application/json; charset=utf-8";
+    
+    [JsonPropertyName("source")]
+    public string Source { get; set; }
+    
+    [JsonPropertyName("type")]
+    public string Type { get; set; }
+    
+    [JsonPropertyName("time")]
+    public string Time { get; set; }
+    
+    [JsonPropertyName("traceparent")]
+    public string TraceParent { get; set; }
+}
 
 internal class CloudEventsMapper
 {
