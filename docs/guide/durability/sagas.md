@@ -73,6 +73,8 @@ public class Order : Saga
         MarkCompleted();
     }
 
+    // This method handles a command for a saga that no longer exists. This explicit handling stops 
+    // a not found exception being thrown
     public static void NotFound(CompleteOrder complete, ILogger<Order> logger)
     {
         logger.LogInformation("Tried to complete order {Id}, but it cannot be found", complete.Id);
@@ -404,7 +406,7 @@ methods to try to head off confusion.
 
 ## When Sagas are Not Found
 
-If you receive a command message against a `Saga` that no longer exists, Wolverine will ignore the message unless
+If you receive a command message against a `Saga` that no longer exists, Wolverine will ignore the message and throw an exception unless
 you explicitly handle the "not found" case. To do so for a particular command type -- and note that Wolverine does not
 do any magic handling today based on abstractions -- you can implement a public static method called `NotFound` on your
 `Saga` class for a particular message type that will take action against that incoming message as shown below:
