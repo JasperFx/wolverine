@@ -55,7 +55,7 @@ public sealed class RabbitMqConventionalListenerConfiguration : RabbitMqListener
     }
 }
 
-public class RabbitMqListenerConfiguration : ListenerConfiguration<RabbitMqListenerConfiguration, RabbitMqQueue>
+public class RabbitMqListenerConfiguration : InteroperableListenerConfiguration<RabbitMqListenerConfiguration, RabbitMqQueue, IRabbitMqEnvelopeMapper, RabbitMqEnvelopeMapper>
 {
     protected readonly RabbitMqQueue Queue;
     protected readonly RabbitMqTransport Transport;
