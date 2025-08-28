@@ -33,7 +33,7 @@ public class
     }
 }
 
-public class RabbitMqExchangeConfiguration : SubscriberConfiguration<RabbitMqExchangeConfiguration, RabbitMqExchange>
+public class RabbitMqExchangeConfiguration : InteroperableSubscriberConfiguration<RabbitMqExchangeConfiguration, RabbitMqExchange, IRabbitMqEnvelopeMapper, RabbitMqEnvelopeMapper>
 {
     internal RabbitMqExchangeConfiguration(RabbitMqExchange endpoint) : base(endpoint)
     {

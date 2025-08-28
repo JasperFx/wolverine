@@ -7,9 +7,9 @@ using Wolverine.Runtime.Serialization;
 
 namespace Wolverine.AzureServiceBus;
 
-public class AzureServiceBusQueueSubscriberConfiguration : SubscriberConfiguration<
+public class AzureServiceBusQueueSubscriberConfiguration : InteroperableSubscriberConfiguration<
     AzureServiceBusQueueSubscriberConfiguration,
-    AzureServiceBusQueue>
+    AzureServiceBusQueue, IAzureServiceBusEnvelopeMapper, AzureServiceBusEnvelopeMapper>
 {
     public AzureServiceBusQueueSubscriberConfiguration(AzureServiceBusQueue endpoint) : base(endpoint)
     {
