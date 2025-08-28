@@ -50,6 +50,18 @@ public class
         add(e => e.Mapper = mapper);
         return this;
     }
+    
+    /// <summary>
+    /// Create a completely customized mapper using the WolverineRuntime and the current
+    /// Endpoint. This is built lazily at system bootstrapping time
+    /// </summary>
+    /// <param name="factory"></param>
+    /// <returns></returns>
+    public AmazonSqsSubscriberConfiguration UseInterop(Func<AmazonSqsQueue, ISqsEnvelopeMapper> factory)
+    {
+        add(e => e.Mapper = factory(e));
+        return this;
+    }
 
     /// <summary>
     /// Use an NServiceBus compatible enveloper mapper to interact with NServiceBus systems on the other end
