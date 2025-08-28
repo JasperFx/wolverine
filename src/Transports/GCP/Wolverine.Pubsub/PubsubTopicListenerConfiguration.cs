@@ -1,9 +1,10 @@
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
+using Wolverine.Pubsub.Internal;
 
 namespace Wolverine.Pubsub;
 
-public class PubsubTopicListenerConfiguration : ListenerConfiguration<PubsubTopicListenerConfiguration, PubsubEndpoint>
+public class PubsubTopicListenerConfiguration : InteroperableListenerConfiguration<PubsubTopicListenerConfiguration, PubsubEndpoint, IPubsubEnvelopeMapper, PubsubEnvelopeMapper>
 {
     public PubsubTopicListenerConfiguration(PubsubEndpoint endpoint) : base(endpoint)
     {
@@ -100,32 +101,6 @@ public class PubsubTopicListenerConfiguration : ListenerConfiguration<PubsubTopi
                 e.ConfigureDeadLetter(configure);
             }
         });
-
-        return this;
-    }
-
-    /// <summary>
-    ///     Utilize custom envelope mapping for Google Cloud Platform Pub/Sub interoperability with external non-Wolverine
-    ///     systems
-    /// </summary>
-    /// <param name="mapper"></param>
-    /// <returns></returns>
-    public PubsubTopicListenerConfiguration InteropWith(IPubsubEnvelopeMapper mapper)
-    {
-        add(e => e.Mapper = mapper);
-
-        return this;
-    }
-
-    /// <summary>
-    ///     Utilize custom envelope mapping for Google Cloud Platform Pub/Sub interoperability with external non-Wolverine
-    ///     systems
-    /// </summary>
-    /// <param name="mapper"></param>
-    /// <returns></returns>
-    public PubsubTopicListenerConfiguration InteropWith(Func<PubsubEndpoint, IPubsubEnvelopeMapper> mapper)
-    {
-        add(e => e.Mapper = mapper(e));
 
         return this;
     }

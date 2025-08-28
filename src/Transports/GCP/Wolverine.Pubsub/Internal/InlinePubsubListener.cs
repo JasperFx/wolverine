@@ -12,6 +12,7 @@ public class InlinePubsubListener : PubsubListener
         IWolverineRuntime runtime
     ) : base(endpoint, transport, receiver, runtime)
     {
+        
     }
 
     public override async Task StartAsync()
