@@ -22,7 +22,7 @@ public class KafkaListener : IListener, IDisposable
     {
         Address = topic.Uri;
         _consumer = consumer;
-        var mapper = topic.Mapper;
+        var mapper = topic.EnvelopeMapper;
 
         _messageTypeName = topic.MessageType?.ToMessageTypeName();
 

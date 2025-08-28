@@ -10,7 +10,7 @@ using Wolverine.Transports.Sending;
 
 namespace Wolverine.Kafka;
 
-public class KafkaTopic : Endpoint, IBrokerEndpoint
+public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, IBrokerEndpoint
 {
     // Strictly an identifier for the endpoint
     public const string WolverineTopicsName = "wolverine.topics";
@@ -22,8 +22,11 @@ public class KafkaTopic : Endpoint, IBrokerEndpoint
         Parent = parent;
         EndpointName = topicName;
         TopicName = topicName;
+    }
 
-        Mapper = new KafkaEnvelopeMapper(this);
+    protected override KafkaEnvelopeMapper buildMapper(IWolverineRuntime runtime)
+    {
+        return new KafkaEnvelopeMapper(this);
     }
 
     public override bool AutoStartSendingAgent()
@@ -33,8 +36,6 @@ public class KafkaTopic : Endpoint, IBrokerEndpoint
 
     public string TopicName { get; }
 
-    public IKafkaEnvelopeMapper Mapper { get; set; }
-    
     /// <summary>
     /// Override for this specific Kafka Topic
     /// </summary>
@@ -52,6 +53,8 @@ public class KafkaTopic : Endpoint, IBrokerEndpoint
 
     public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
     {
+        EnvelopeMapper ??= BuildMapper(runtime);
+        
         var config = ConsumerConfig ?? Parent.ConsumerConfig;
         var listener = new KafkaListener(this, config,
             Parent.CreateConsumer(ConsumerConfig), receiver, runtime.LoggerFactory.CreateLogger<KafkaListener>());
@@ -60,6 +63,8 @@ public class KafkaTopic : Endpoint, IBrokerEndpoint
 
     protected override ISender CreateSender(IWolverineRuntime runtime)
     {
+        EnvelopeMapper ??= BuildMapper(runtime);
+        
         return Mode == EndpointMode.Inline
             ? new InlineKafkaSender(this)
             : new BatchedSender(this, new KafkaSenderProtocol(this), runtime.Cancellation,
