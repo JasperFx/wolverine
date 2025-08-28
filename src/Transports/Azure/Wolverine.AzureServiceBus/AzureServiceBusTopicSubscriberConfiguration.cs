@@ -31,7 +31,7 @@ public class AzureServiceBusTopicSubscriberConfiguration : SubscriberConfigurati
     /// <returns></returns>
     public AzureServiceBusTopicSubscriberConfiguration InteropWith(IAzureServiceBusEnvelopeMapper mapper)
     {
-        add(e => e.Mapper = mapper);
+        add(e => e.EnvelopeMapper = mapper);
         return this;
     }
 }

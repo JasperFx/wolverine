@@ -218,7 +218,7 @@ public class AzureServiceBusQueue : AzureServiceBusEndpoint, IBrokerQueue, IMass
     {
         // NServiceBus.EnclosedMessageTypes
         DefaultSerializer = new NewtonsoftSerializer(new JsonSerializerSettings());
-        _customizeMapping = (m, r) =>
+        customizeMapping((m, _) =>
         {
             m.MapPropertyToHeader(x => x.ConversationId, "NServiceBus.ConversationId");
             m.MapPropertyToHeader(x => x.SentAt, "NServiceBus.TimeSent");
@@ -266,7 +266,7 @@ public class AzureServiceBusQueue : AzureServiceBusEndpoint, IBrokerQueue, IMass
                 // Outgoing, use the interop strategy here
                 m.ApplicationProperties["NServiceBus.EnclosedMessageTypes"] = e.Message.GetType().ToMessageTypeName();
             });
-        };
+        });
     }
 
     Uri? IMassTransitInteropEndpoint.MassTransitUri()
@@ -287,9 +287,6 @@ public class AzureServiceBusQueue : AzureServiceBusEndpoint, IBrokerQueue, IMass
 
     internal void UseMassTransitInterop(Action<IMassTransitInterop>? configure = null)
     {
-        _customizeMapping = (m, _) =>
-        {
-            m.InteropWithMassTransit(configure);
-        };
+        customizeMapping((m, _) => m.InteropWithMassTransit(configure));
     }
 }

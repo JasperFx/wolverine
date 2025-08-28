@@ -24,7 +24,7 @@ public interface IAzureServiceBusListeningEndpoint
     public TimeSpan MaximumWaitTime { get; set; }
 }
 
-public abstract class AzureServiceBusEndpoint : Endpoint, IBrokerEndpoint, IAzureServiceBusListeningEndpoint
+public abstract class AzureServiceBusEndpoint : Endpoint<IAzureServiceBusEnvelopeMapper, AzureServiceBusEnvelopeMapper>, IBrokerEndpoint, IAzureServiceBusListeningEndpoint
 {
     public AzureServiceBusEndpoint(AzureServiceBusTransport parent, Uri uri, EndpointRole role) : base(uri, role)
     {
@@ -56,28 +56,10 @@ public abstract class AzureServiceBusEndpoint : Endpoint, IBrokerEndpoint, IAzur
         return true;
     }
 
-    internal Action<AzureServiceBusEnvelopeMapper, IWolverineRuntime>? _customizeMapping;
-    
-    internal IAzureServiceBusEnvelopeMapper BuildMapper(IWolverineRuntime runtime)
+    protected override AzureServiceBusEnvelopeMapper buildMapper(IWolverineRuntime runtime)
     {
-        if (Mapper != null) return Mapper;
-
-        var mapper = new AzureServiceBusEnvelopeMapper(this, runtime);
-        _customizeMapping?.Invoke(mapper, runtime);
-
-        // Important for interoperability
-        if (MessageType != null)
-        {
-            mapper.ReceivesMessage(MessageType);
-        }
-
-        return mapper;
+        return new AzureServiceBusEnvelopeMapper(this, runtime);
     }
-
-    /// <summary>
-    /// If specified, applies a custom envelope mapper to this endp[oint
-    /// </summary>
-    public IAzureServiceBusEnvelopeMapper? Mapper { get; set; }
 
     public override string ToString()
     {
