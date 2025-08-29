@@ -11,7 +11,8 @@ explicit configuration.
 
 The queueing is all based around the [TPL Dataflow library](https://docs.microsoft.com/en-us/dotnet/standard/parallel-programming/how-to-perform-action-when-a-dataflow-block-receives-data) objects from the [TPL Dataflow](https://docs.microsoft.com/en-us/dotnet/standard/parallel-programming/dataflow-task-parallel-library) library.
 As such, you have a fair amount of control over parallelization and even some back pressure. These local queues can be used directly, or as a transport to accept messages sent through
-`IMessageBus.SendAsync()` or `IMessageBus.PublishAsync()`. using the application's [message routing rules](/guide/messaging/#routing-rules).
+`IMessageBus.SendAsync()` or `IMessageBus.PublishAsync()`. using the application's [message routing rules](/guide/messaging/subscriptions.html#routing-rules).
+
 
 This feature is useful for asynchronous processing in web applications or really any kind of application where you need some parallelization or concurrency.
 
@@ -116,7 +117,7 @@ using var host = await Host.CreateDefaultBuilder()
 
 The routing rules and/or `[LocalQueue]` routing is also honored for cascading messages, meaning that any message that is handled inside a Wolverine system could publish cascading messages to the local worker queues.
 
-See [message routing rules](/guide/messaging/#routing-rules) for more information.
+See [message routing rules](/guide/messaging/subscriptions.html#routing-rules) for more information.
 
 ## Conventional Local Messaging
 
