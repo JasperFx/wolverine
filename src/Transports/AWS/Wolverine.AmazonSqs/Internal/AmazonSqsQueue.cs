@@ -89,6 +89,13 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue, IMassTransitInteropEndpoin
     /// </summary>
     public string? DeadLetterQueueName { get; set; } = AmazonSqsTransport.DeadLetterQueueName;
 
+    /// <summary>
+    ///     Optional list of message attribute names to request in ReceiveMessage.
+    ///     Use "All" to retrieve all message attributes. If null or empty, nothing is requested.
+    ///     (Attention: this is different from <see cref="ReceiveMessageRequest.MessageSystemAttributeNames"/>.)
+    /// </summary>
+    public List<string>? MessageAttributeNames { get; set; }
+
     public async ValueTask<bool> CheckAsync()
     {
         var response = await _parent.Client!.GetQueueUrlAsync(QueueName);
@@ -338,6 +345,11 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue, IMassTransitInteropEndpoin
         request.WaitTimeSeconds = WaitTimeSeconds;
         request.MaxNumberOfMessages = MaxNumberOfMessages;
         request.VisibilityTimeout = VisibilityTimeout;
+
+        if (MessageAttributeNames is { Count: > 0 })
+        {
+            request.MessageAttributeNames = MessageAttributeNames;
+        }
     }
 
     public async Task TeardownAsync(IAmazonSQS client, CancellationToken token)
