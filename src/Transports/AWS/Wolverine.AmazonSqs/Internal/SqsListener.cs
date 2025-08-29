@@ -17,6 +17,7 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue
     private readonly RetryBlock<AmazonSqsEnvelope> _requeueBlock;
     private readonly Task _task;
     private readonly AmazonSqsTransport _transport;
+    private readonly ISqsEnvelopeMapper _mapper;
 
     public SqsListener(IWolverineRuntime runtime, AmazonSqsQueue queue, AmazonSqsTransport transport,
         IReceiver receiver)
@@ -25,6 +26,8 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue
         {
             throw new InvalidOperationException("Parent transport has not been initialized");
         }
+
+        _mapper = queue.BuildMapper(runtime);
 
         var logger = runtime.LoggerFactory.CreateLogger<SqsListener>();
         _queue = queue;
@@ -190,7 +193,7 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue
     private AmazonSqsEnvelope buildEnvelope(Message message)
     {
         var envelope = new AmazonSqsEnvelope(message);
-        _queue.Mapper.ReadEnvelopeData(envelope, message.Body, message.MessageAttributes);
+        _mapper.ReadEnvelopeData(envelope, message.Body, message.MessageAttributes);
 
         return envelope;
     }

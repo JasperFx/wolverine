@@ -69,7 +69,7 @@ internal class CloudEventsEnvelope
     public string TraceParent { get; set; }
 }
 
-internal class CloudEventsMapper : IMessageSerializer
+public class CloudEventsMapper : IMessageSerializer
 {
     private readonly HandlerGraph _handlers;
     private readonly JsonSerializerOptions _options;
@@ -82,12 +82,12 @@ internal class CloudEventsMapper : IMessageSerializer
 
     public string WriteToString(Envelope envelope)
     {
-        return JsonSerializer.Serialize(new CloudEventsEnvelope(envelope));
+        return JsonSerializer.Serialize(new CloudEventsEnvelope(envelope), _options);
     }
 
     public byte[] WriteToBytes(Envelope envelope)
     {
-        return JsonSerializer.SerializeToUtf8Bytes(new CloudEventsEnvelope(envelope));
+        return JsonSerializer.SerializeToUtf8Bytes(new CloudEventsEnvelope(envelope), _options);
     }
 
     public void MapIncoming(Envelope envelope, string json)
@@ -99,6 +99,21 @@ internal class CloudEventsMapper : IMessageSerializer
     public void MapIncoming(Envelope envelope, JsonNode? node)
     {
         if (node == null) return;
+
+        // *IF* SNS sent a message to SQS w/ CloudEvents
+        if (node["Message"] != null)
+        {
+            var message = node["Message"];
+            if (message.GetValueKind() == JsonValueKind.String)
+            {
+                node = JsonNode.Parse(message.GetValue<string>());
+            }
+            else if (message.GetValueKind() == JsonValueKind.Object)
+            {
+                MapIncoming(envelope, node["Message"]);
+                return;
+            }
+        }
 
         if (node.TryGetValue<string>("traceid", out var traceId))
         {

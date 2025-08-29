@@ -1,14 +1,11 @@
-using System.Text;
 using Amazon.SQS;
 using Amazon.SQS.Model;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Logging;
-using Newtonsoft.Json;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Interop.MassTransit;
-using Wolverine.Runtime.Serialization;
 using Wolverine.Transports;
 using Wolverine.Transports.Sending;
 
@@ -21,10 +18,12 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue, IMassTransitInteropEndpoin
     private bool _initialized;
 
     // This will vary later
-    private ISqsEnvelopeMapper _mapper = new DefaultSqsEnvelopeMapper();
     private int _visibilityTimeout = 120;
 
-    internal AmazonSqsQueue(string queueName, AmazonSqsTransport parent) : base(new Uri($"{parent.Protocol}://{queueName}"),
+    internal Func<AmazonSqsQueue, IWolverineRuntime, ISqsEnvelopeMapper>? MapperFactory = null;
+
+    internal AmazonSqsQueue(string queueName, AmazonSqsTransport parent) : base(
+        new Uri($"{parent.Protocol}://{queueName}"),
         EndpointRole.Application)
     {
         _parent = parent;
@@ -40,12 +39,7 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue, IMassTransitInteropEndpoin
     ///     Pluggable strategy for interoperability with non-Wolverine systems. Customizes how the incoming SQS requests
     ///     are read and how outgoing messages are written to SQS
     /// </summary>
-    /// <exception cref="ArgumentNullException"></exception>
-    public ISqsEnvelopeMapper Mapper
-    {
-        get => _mapper;
-        set => _mapper = value ?? throw new ArgumentNullException(nameof(value));
-    }
+    public ISqsEnvelopeMapper? Mapper { get; set; }
 
     public string QueueName { get; }
 
@@ -162,6 +156,39 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue, IMassTransitInteropEndpoin
         };
     }
 
+    Uri? IMassTransitInteropEndpoint.MassTransitUri()
+    {
+        // amazonsqs://localhost/wolverine
+        return new Uri($"amazonsqs://{_parent.ServerHost}/{QueueName}");
+    }
+
+    Uri? IMassTransitInteropEndpoint.MassTransitReplyUri()
+    {
+        var reply = _parent.ReplyEndpoint();
+        return reply.As<IMassTransitInteropEndpoint>().MassTransitUri();
+    }
+
+    Uri? IMassTransitInteropEndpoint.TranslateMassTransitToWolverineUri(Uri uri)
+    {
+        var lastSegment = uri.Segments.Last();
+        return _parent.Queues[lastSegment].Uri;
+    }
+
+    internal ISqsEnvelopeMapper BuildMapper(IWolverineRuntime runtime)
+    {
+        if (Mapper != null)
+        {
+            return Mapper;
+        }
+
+        if (MapperFactory != null)
+        {
+            return MapperFactory(this, runtime);
+        }
+
+        return new DefaultSqsEnvelopeMapper();
+    }
+
     internal async Task SendMessageAsync(Envelope envelope, ILogger logger)
     {
         if (!_initialized)
@@ -169,20 +196,23 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue, IMassTransitInteropEndpoin
             await InitializeAsync(logger);
         }
 
-        var body = _mapper.BuildMessageBody(envelope);
+        Mapper ??= new DefaultSqsEnvelopeMapper();
+
+        var body = Mapper!.BuildMessageBody(envelope);
         var request = new SendMessageRequest(QueueUrl, body);
         if (envelope.GroupId.IsNotEmpty())
         {
             request.MessageGroupId = envelope.GroupId;
         }
+
         if (envelope.DeduplicationId.IsNotEmpty())
         {
             request.MessageDeduplicationId = envelope.DeduplicationId;
         }
 
-        foreach (var attribute in _mapper.ToAttributes(envelope))
+        foreach (var attribute in Mapper.ToAttributes(envelope))
         {
-            request.MessageAttributes ??= new();
+            request.MessageAttributes ??= new Dictionary<string, MessageAttributeValue>();
             request.MessageAttributes.Add(attribute.Key, attribute.Value);
         }
 
@@ -272,17 +302,21 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue, IMassTransitInteropEndpoin
         {
             throw new InvalidOperationException("The parent transport has not yet been initialized");
         }
+        
+        Mapper ??= BuildMapper(runtime);
 
         if (QueueUrl.IsEmpty())
         {
             await InitializeAsync(runtime.LoggerFactory.CreateLogger<AmazonSqsQueue>());
         }
-
+        
         return new SqsListener(runtime, this, _parent, receiver);
     }
 
     protected override ISender CreateSender(IWolverineRuntime runtime)
     {
+        Mapper ??= BuildMapper(runtime);
+        
         if (Mode == EndpointMode.Inline)
         {
             return new InlineSqsSender(runtime, this);
@@ -346,23 +380,5 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue, IMassTransitInteropEndpoin
 
         deadLetterSender = default;
         return false;
-    }
-
-    Uri? IMassTransitInteropEndpoint.MassTransitUri()
-    {
-        // amazonsqs://localhost/wolverine
-        return new Uri($"amazonsqs://{_parent.ServerHost}/{QueueName}");
-    }
-
-    Uri? IMassTransitInteropEndpoint.MassTransitReplyUri()
-    {
-        var reply = _parent.ReplyEndpoint();
-        return reply.As<IMassTransitInteropEndpoint>().MassTransitUri();
-    }
-
-    Uri? IMassTransitInteropEndpoint.TranslateMassTransitToWolverineUri(Uri uri)
-    {
-        var lastSegment = uri.Segments.Last();
-        return _parent.Queues[lastSegment].Uri;
     }
 }

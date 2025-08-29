@@ -109,4 +109,27 @@ public class AmazonSnsSubscriberConfiguration : SubscriberConfiguration<AmazonSn
         add(e => e.Mapper = new MassTransitMapper(Endpoint as IMassTransitInteropEndpoint));
         return this;
     }
+    
+        
+    /// <summary>
+    /// Interop with upstream systems by reading messages with the CloudEvents specification
+    /// </summary>
+    /// <param name="jsonSerializerOptions"></param>
+    /// <returns></returns>
+    public AmazonSnsSubscriberConfiguration InteropWithCloudEvents(JsonSerializerOptions? jsonSerializerOptions = null)
+    {
+        jsonSerializerOptions ??= new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+
+        add(e =>
+        {
+            e.MapperFactory = (queue, r) =>
+            {
+                var mapper = e.BuildCloudEventsMapper(r, jsonSerializerOptions);
+                e.DefaultSerializer = mapper;
+                return new CloudEventsSnsMapper(mapper);
+            };
+        });
+
+        return this;
+    }
 }
