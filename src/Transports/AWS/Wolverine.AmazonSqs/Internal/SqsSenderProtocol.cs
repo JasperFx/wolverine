@@ -19,6 +19,8 @@ internal class SqsSenderProtocol :ISenderProtocol
         _queue = queue;
         _sqs = sqs;
         _logger = runtime.LoggerFactory.CreateLogger<SqsSenderProtocol>();
+
+        _queue.Mapper ??= _queue.BuildMapper(runtime);
     }
 
     public async Task SendBatchAsync(ISenderCallback callback, OutgoingMessageBatch batch)

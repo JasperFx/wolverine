@@ -88,4 +88,26 @@ public class
         add(e => e.Mapper = new MassTransitMapper(Endpoint as IMassTransitInteropEndpoint));
         return this;
     }
+    
+    /// <summary>
+    /// Interop with upstream systems by reading messages with the CloudEvents specification
+    /// </summary>
+    /// <param name="jsonSerializerOptions"></param>
+    /// <returns></returns>
+    public AmazonSqsSubscriberConfiguration InteropWithCloudEvents(JsonSerializerOptions? jsonSerializerOptions = null)
+    {
+        jsonSerializerOptions ??= new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+
+        add(e =>
+        {
+            e.MapperFactory = (queue, r) =>
+            {
+                var mapper = e.BuildCloudEventsMapper(r, jsonSerializerOptions);
+                e.DefaultSerializer = mapper;
+                return new CloudEventsSqsMapper(mapper);
+            };
+        });
+
+        return this;
+    }
 }

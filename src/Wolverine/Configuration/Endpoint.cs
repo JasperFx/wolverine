@@ -1,5 +1,6 @@
 #nullable enable
 
+using System.Text.Json;
 using System.Threading.Tasks.Dataflow;
 using ImTools;
 using JasperFx.CommandLine.Descriptions;
@@ -9,6 +10,7 @@ using JasperFx.Descriptors;
 using Microsoft.Extensions.Logging;
 using Wolverine.ErrorHandling;
 using Wolverine.Runtime;
+using Wolverine.Runtime.Interop;
 using Wolverine.Runtime.Routing;
 using Wolverine.Runtime.Scheduled;
 using Wolverine.Runtime.Serialization;
@@ -563,5 +565,10 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
         }
 
         return true;
+    }
+
+    public CloudEventsMapper BuildCloudEventsMapper(IWolverineRuntime runtime, JsonSerializerOptions options)
+    {
+        return new CloudEventsMapper(runtime.Options.HandlerGraph, options);
     }
 }

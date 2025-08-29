@@ -4,10 +4,12 @@ using System.Text;
 using System.Text.Json;
 using Amazon.SQS.Model;
 using JasperFx.Core;
+using JasperFx.Core.Reflection;
 using Newtonsoft.Json;
 using Wolverine.AmazonSqs.Internal;
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
+using Wolverine.Runtime.Interop;
 using Wolverine.Runtime.Interop.MassTransit;
 using Wolverine.Runtime.Serialization;
 using Wolverine.Util;
@@ -156,6 +158,28 @@ public class AmazonSqsListenerConfiguration : ListenerConfiguration<AmazonSqsLis
         add(e => e.Mapper = new MassTransitMapper(Endpoint as IMassTransitInteropEndpoint));
         return this;
     }
+    
+    /// <summary>
+    /// Interop with upstream systems by reading messages with the CloudEvents specification
+    /// </summary>
+    /// <param name="jsonSerializerOptions"></param>
+    /// <returns></returns>
+    public AmazonSqsListenerConfiguration InteropWithCloudEvents(JsonSerializerOptions? jsonSerializerOptions = null)
+    {
+        jsonSerializerOptions ??= new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+
+        add(e =>
+        {
+            e.MapperFactory = (queue, r) =>
+            {
+                var mapper = e.BuildCloudEventsMapper(r, jsonSerializerOptions);
+                e.DefaultSerializer = mapper;
+                return new CloudEventsSqsMapper(mapper);
+            };
+        });
+
+        return this;
+    }
 }
 
 internal class NServiceBusEnvelopeMapper : ISqsEnvelopeMapper
@@ -272,6 +296,7 @@ internal class NServiceBusEnvelopeMapper : ISqsEnvelopeMapper
 
 internal record SqsEnvelope(string Body, Dictionary<string, string> Headers);
 
+// This was admittedly ripped off from NSB
 public static class DateTimeOffsetHelper
 {
     /// <summary>

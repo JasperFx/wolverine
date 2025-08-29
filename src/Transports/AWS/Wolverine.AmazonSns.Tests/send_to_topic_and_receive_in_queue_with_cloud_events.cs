@@ -8,7 +8,7 @@ using Wolverine.Tracking;
 
 namespace Wolverine.AmazonSns.Tests;
 
-public class send_to_topic_and_receive_in_queue : IAsyncLifetime
+public class send_to_topic_and_receive_in_queue_with_cloud_events : IAsyncLifetime
 {
     private IHost _host;
 
@@ -20,14 +20,14 @@ public class send_to_topic_and_receive_in_queue : IAsyncLifetime
                 opts.UseAmazonSqsTransportLocally()
                     .AutoProvision().AutoPurgeOnStartup();
                 
-                opts.ListenToSqsQueue("send_to_topic_and_receive_in_queue").ReceiveSnsTopicMessage();
+                opts.ListenToSqsQueue("ce").InteropWithCloudEvents();
                 
                 opts.UseAmazonSnsTransportLocally()
                     .AutoProvision();
 
                 opts.PublishMessage<SnsMessage>()
-                    .ToSnsTopic("send_to_topic_and_receive_in_queue")
-                    .SubscribeSqsQueue("send_to_topic_and_receive_in_queue");
+                    .ToSnsTopic("ce1").InteropWithCloudEvents()
+                    .SubscribeSqsQueue("ce");
             }).StartAsync();
     }
 
@@ -63,33 +63,5 @@ public class send_to_topic_and_receive_in_queue : IAsyncLifetime
         session.Received.SingleMessage<SnsMessage>()
             .Name.ShouldBe(message.Name);
     }
-    
-    [Fact]
-    public async Task send_to_topic_and_receive_in_queue_many_messages()
-    {
-        Func<IMessageBus, Task> sending = async bus =>
-        {
-            for (var i = 0; i < 100; i++)
-            {
-                await bus.PublishAsync(new SnsMessage(Guid.NewGuid().ToString()));
-            }
-        };
 
-        await _host.TrackActivity()
-            .IncludeExternalTransports()
-            .Timeout(5.Minutes())
-            .ExecuteAndWaitAsync(sending);
-
-    }
-}
-
-public record SnsMessage(string Name);
-
-public static class SqsMessageHandler
-{
-    public static void Handle(SnsMessage message)
-    {
-        // nothing
-        var x = 2;
-    }
 }

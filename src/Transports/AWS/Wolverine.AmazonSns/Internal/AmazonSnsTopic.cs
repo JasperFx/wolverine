@@ -15,9 +15,7 @@ namespace Wolverine.AmazonSns.Internal;
 public class AmazonSnsTopic : Endpoint, IBrokerQueue
 {
     private bool _initialized;
-    
-    private ISnsEnvelopeMapper _mapper = new DefaultSnsEnvelopeMapper();
-    
+
     internal AmazonSnsTopic(string topicName, AmazonSnsTransport parent) 
         : base(new Uri($"{AmazonSnsTransport.SnsProtocol}://{topicName}"), EndpointRole.Application)
     {
@@ -38,11 +36,24 @@ public class AmazonSnsTopic : Endpoint, IBrokerQueue
     ///     Pluggable strategy for interoperability with non-Wolverine systems. Customizes how the incoming SNS requests
     ///     are read and how outgoing messages are written to SNS
     /// </summary>
-    /// <exception cref="ArgumentNullException"></exception>
-    public ISnsEnvelopeMapper Mapper
+    public ISnsEnvelopeMapper? Mapper { get; set; }
+    
+    
+    internal Func<AmazonSnsTopic, IWolverineRuntime, ISnsEnvelopeMapper>? MapperFactory = null;
+    
+    internal ISnsEnvelopeMapper BuildMapper(IWolverineRuntime runtime)
     {
-        get => _mapper;
-        set => _mapper = value ?? throw new ArgumentNullException(nameof(value));
+        if (Mapper != null)
+        {
+            return Mapper;
+        }
+
+        if (MapperFactory != null)
+        {
+            return MapperFactory(this, runtime);
+        }
+
+        return new DefaultSnsEnvelopeMapper();
     }
     
     public string TopicName { get; }
@@ -107,7 +118,7 @@ public class AmazonSnsTopic : Endpoint, IBrokerQueue
             await InitializeAsync(logger);
         }
         
-        var body = _mapper.BuildMessageBody(envelope);
+        var body = Mapper!.BuildMessageBody(envelope);
         var request = new PublishRequest(TopicArn, body);
         if (envelope.GroupId.IsNotEmpty())
         {
@@ -119,7 +130,7 @@ public class AmazonSnsTopic : Endpoint, IBrokerQueue
             request.MessageDeduplicationId = envelope.DeduplicationId;
         }
 
-        foreach (var attribute in _mapper.ToAttributes(envelope))
+        foreach (var attribute in Mapper!.ToAttributes(envelope))
         {
             request.MessageAttributes ??= new();
             request.MessageAttributes.Add(attribute.Key, attribute.Value);
@@ -131,11 +142,13 @@ public class AmazonSnsTopic : Endpoint, IBrokerQueue
     public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
     {
         // TODO there is no "listening" to SNS topics, so not sure what to do this this one. Maybe Endpoint is the wrong class to use here?
-        throw new NotImplementedException();
+        throw new NotSupportedException();
     }
 
     protected override ISender CreateSender(IWolverineRuntime runtime)
     {
+        Mapper ??= BuildMapper(runtime);
+        
         if (Mode == EndpointMode.Inline)
         {
             return new InlineSnsSender(runtime, this);
