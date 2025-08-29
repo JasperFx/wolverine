@@ -8,7 +8,7 @@ using Wolverine.Transports;
 
 namespace Wolverine.RavenDb.Internals;
 
-public partial class RavenDbMessageStore : IMessageStore
+public partial class RavenDbMessageStore : IMessageStoreWithAgentSupport
 {
     private readonly IDocumentStore _store;
     private readonly WolverineOptions _options;
@@ -19,7 +19,7 @@ public partial class RavenDbMessageStore : IMessageStore
         _identity = options.Durability.MessageIdentity == MessageIdentity.IdOnly
             ? e => e.Id.ToString()
             : e => $"{e.Id}/{e.Destination.ToString().Replace(":/", "").TrimEnd('/')}";
-        
+
         _store = store;
         _options = options;
 
@@ -75,9 +75,14 @@ public partial class RavenDbMessageStore : IMessageStore
         _leaderLockId = "wolverine/leader/" + runtime.Options.ServiceName.ToLowerInvariant();
         _scheduledLockId = _scheduledLockId + "/" + runtime.Options.ServiceName.ToLowerInvariant();
         _runtime = runtime;
-        var agent =  new RavenDbDurabilityAgent(_store, runtime, this);
+        var agent = BuildAgent(runtime);
         agent.StartTimers();
         return agent;
+    }
+
+    public IAgent BuildAgent(IWolverineRuntime runtime)
+    {
+        return new RavenDbDurabilityAgent(_store, runtime, this);
     }
 
     public IAgentFamily? BuildAgentFamily(IWolverineRuntime runtime)
@@ -95,7 +100,7 @@ public partial class RavenDbMessageStore : IMessageStore
             .OrderBy(x => x.EnvelopeId)
             .Take(limit)
             .ToListAsync();
-        
+
         return incoming.Select(x => x.Read()).ToList();
     }
 
