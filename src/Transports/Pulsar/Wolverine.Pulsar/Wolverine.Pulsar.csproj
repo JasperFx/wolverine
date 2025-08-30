@@ -9,7 +9,7 @@
         <GenerateAssemblyInformationalVersionAttribute>false</GenerateAssemblyInformationalVersionAttribute>
     </PropertyGroup>
     <ItemGroup>
-        <ProjectReference Include="..\..\..\Wolverine\Wolverine.csproj"/>
+        <ProjectReference Include="..\..\..\Wolverine\Wolverine.csproj" />
     </ItemGroup>
 
     <ItemGroup>
@@ -17,5 +17,5 @@
         <PackageReference Include="Microsoft.Extensions.ObjectPool" Version="9.0.5" />
     </ItemGroup>
 
-    <Import Project="../../../../Analysis.Build.props"/>
+    <Import Project="../../../../Analysis.Build.props" />
 </Project>
