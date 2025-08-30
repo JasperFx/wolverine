@@ -1,3 +1,4 @@
+using JasperFx.Core.Reflection;
 using JasperFx.Descriptors;
 using Raven.Client.Documents;
 using Wolverine.Persistence.Durability;
@@ -76,7 +77,7 @@ public partial class RavenDbMessageStore : IMessageStoreWithAgentSupport
         _scheduledLockId = _scheduledLockId + "/" + runtime.Options.ServiceName.ToLowerInvariant();
         _runtime = runtime;
         var agent = BuildAgent(runtime);
-        agent.StartTimers();
+        agent.As<RavenDbDurabilityAgent>().StartTimers();
         return agent;
     }
 
