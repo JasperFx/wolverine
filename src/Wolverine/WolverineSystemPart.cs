@@ -3,6 +3,7 @@ using JasperFx.Core.Reflection;
 using JasperFx.Resources;
 using Microsoft.Extensions.DependencyInjection;
 using Spectre.Console;
+using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
 using Wolverine.ErrorHandling.Matches;
 using Wolverine.Persistence.Durability;
