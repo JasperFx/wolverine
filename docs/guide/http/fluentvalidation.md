@@ -46,3 +46,39 @@ app.MapWolverineEndpoints(opts =>
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L216-L237' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_configure_endpoints' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+
+## AsParameters Binding
+
+The Fluent Validation middleware can also be used against the `[AsParameters]` input 
+of an HTTP endpoint:
+
+<!-- snippet: sample_using_fluent_validation_with_AsParameters -->
+<a id='snippet-sample_using_fluent_validation_with_asparameters'></a>
+```cs
+public static class ValidatedAsParametersEndpoint
+{
+    [WolverineGet("/asparameters/validated")]
+    public static string Get([AsParameters] ValidatedQuery query)
+    {
+        return $"{query.Name} is {query.Age}";
+    }
+}
+
+public class ValidatedQuery
+{
+    [FromQuery]
+    public string? Name { get; set; }
+    
+    public int Age { get; set; }
+
+    public class ValidatedQueryValidator : AbstractValidator<ValidatedQuery>
+    {
+        public ValidatedQueryValidator()
+        {
+            RuleFor(x => x.Name).NotNull();
+        }
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/FormEndpoints.cs#L201-L228' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_fluent_validation_with_asparameters' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->

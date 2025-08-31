@@ -876,16 +876,23 @@ public class when_transfering_money
     {
         // StubEventStream<T> is a type that was recently added to Marten
         // specifically to facilitate testing logic like this
-        var fromAccount = new StubEventStream<Account>(new Account { Amount = 1000 }){Id = Guid.NewGuid()};
-        var toAccount = new StubEventStream<Account>(new Account { Amount = 100}){Id = Guid.NewGuid()});
+        var fromAccount = new StubEventStream<Account>(new Account { Amount = 1000 })
+        {
+            Id = Guid.NewGuid()
+        };
+        
+        var toAccount = new StubEventStream<Account>(new Account { Amount = 100})
+        {
+            Id = Guid.NewGuid()
+        };
         
         TransferMoneyHandler.Handle(new TransferMoney(fromAccount.Id, toAccount.Id, 100), fromAccount, toAccount);
 
         // Now check the events we expected to be appended
-        fromAccount.Events.Single().ShouldBeOfType<Withdrawn>().Amount.ShouldBe(100);
-        toAccount.Events.Single().ShouldBeOfType<Debited>().Amount.ShouldBe(100);
+        fromAccount.Events.Single().Data.ShouldBeOfType<Withdrawn>().Amount.ShouldBe(100);
+        toAccount.Events.Single().Data.ShouldBeOfType<Debited>().Amount.ShouldBe(100);
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/Marten/working_against_multiple_streams.cs#L89-L109' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_when_transfering_money' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/Marten/working_against_multiple_streams.cs#L89-L116' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_when_transfering_money' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->

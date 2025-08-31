@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using FluentValidation;
 using JasperFx.Core;
 using Marten;
 using Microsoft.AspNetCore.Mvc;
@@ -192,6 +193,36 @@ public static class AsParameterRecordEndpoint
 {
     [WolverinePost("/asparameterrecord/{Id}")]
     public static AsParameterRecord Post([AsParameters] AsParameterRecord input) => input;
+}
+
+#endregion
+
+
+#region sample_using_fluent_validation_with_AsParameters
+
+public static class ValidatedAsParametersEndpoint
+{
+    [WolverineGet("/asparameters/validated")]
+    public static string Get([AsParameters] ValidatedQuery query)
+    {
+        return $"{query.Name} is {query.Age}";
+    }
+}
+
+public class ValidatedQuery
+{
+    [FromQuery]
+    public string? Name { get; set; }
+    
+    public int Age { get; set; }
+
+    public class ValidatedQueryValidator : AbstractValidator<ValidatedQuery>
+    {
+        public ValidatedQueryValidator()
+        {
+            RuleFor(x => x.Name).NotNull();
+        }
+    }
 }
 
 #endregion
