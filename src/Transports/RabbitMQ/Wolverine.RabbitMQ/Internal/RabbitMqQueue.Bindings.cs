@@ -15,6 +15,10 @@ public partial class RabbitMqQueue
 
         var existing = _bindings.FirstOrDefault(x => x.ExchangeName == exchangeName && x.BindingKey == bindingKey);
         if (existing != null) return existing;
+
+        // Just to make sure that the exchange exists so resource setup
+        // works correctly
+        _parent.Exchanges.FillDefault(exchangeName);
         
         var binding = new RabbitMqBinding(exchangeName, this, bindingKey);
         if (arguments is not null)

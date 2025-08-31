@@ -49,6 +49,13 @@ public class MultiTenantedRabbitFixture : IAsyncLifetime
                     .AddTenant("one", "vh1")
                     .AddTenant("two", "vh2")
                     .AddTenant("three", "vh3");
+                
+                // Really just to manually test https://github.com/JasperFx/wolverine/issues/1658
+                opts.ListenToRabbitQueue("Queue1", conf =>
+                {
+                    conf.BindExchange("Exchange1");
+                    conf.BindExchange("Exchange2");
+                });
 
                 // Listen for multiples
                 opts.ListenToRabbitQueue("multi_response");

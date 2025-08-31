@@ -204,6 +204,8 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IAsy
         }
 
         foreach (var queue in Queues) yield return queue;
+        
+        
     }
 
     protected override RabbitMqEndpoint findEndpointByUri(Uri uri)
