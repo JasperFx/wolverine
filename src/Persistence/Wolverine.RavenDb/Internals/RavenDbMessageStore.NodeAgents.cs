@@ -127,7 +127,6 @@ public partial class RavenDbMessageStore : INodeAgentPersistence
 
     public async Task<NodeAgentState> LoadNodeAgentStateAsync(CancellationToken cancellationToken)
     {
-
         using var session = _store.OpenAsyncSession();
         var nodes = await session
             .Query<WolverineNode>()
