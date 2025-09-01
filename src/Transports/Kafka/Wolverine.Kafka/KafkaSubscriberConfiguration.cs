@@ -1,25 +1,14 @@
 using System.Text.Json;
 using Confluent.Kafka;
 using Wolverine.Configuration;
+using Wolverine.Kafka.Internals;
 
 namespace Wolverine.Kafka;
 
-public class KafkaSubscriberConfiguration : SubscriberConfiguration<KafkaSubscriberConfiguration, KafkaTopic>
+public class KafkaSubscriberConfiguration : InteroperableSubscriberConfiguration<KafkaSubscriberConfiguration, KafkaTopic, IKafkaEnvelopeMapper, KafkaEnvelopeMapper>
 {
     internal KafkaSubscriberConfiguration(KafkaTopic endpoint) : base(endpoint)
     {
-    }
-
-    /// <summary>
-    /// Use a custom interoperability strategy to map Wolverine messages to an upstream
-    /// system's protocol
-    /// </summary>
-    /// <param name="mapper"></param>
-    /// <returns></returns>
-    public KafkaSubscriberConfiguration UseInterop(IKafkaEnvelopeMapper mapper)
-    {
-        add(e => e.Mapper = mapper);
-        return this;
     }
 
     /// <summary>
@@ -30,8 +19,7 @@ public class KafkaSubscriberConfiguration : SubscriberConfiguration<KafkaSubscri
     /// <returns></returns>
     public KafkaSubscriberConfiguration PublishRawJson(JsonSerializerOptions? options = null)
     {
-        add(e => e.Mapper = new JsonOnlyMapper(e, options ?? new JsonSerializerOptions()));
-        return this;
+        return UseInterop((e, _) => new JsonOnlyMapper(e, options ?? new JsonSerializerOptions()));
     }
 
     /// <summary>

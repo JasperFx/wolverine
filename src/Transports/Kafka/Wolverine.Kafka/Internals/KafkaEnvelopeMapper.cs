@@ -5,7 +5,7 @@ using Wolverine.Transports;
 
 namespace Wolverine.Kafka.Internals;
 
-internal class KafkaEnvelopeMapper : EnvelopeMapper<Message<string, byte[]>, Message<string, byte[]>>, IKafkaEnvelopeMapper
+public class KafkaEnvelopeMapper : EnvelopeMapper<Message<string, byte[]>, Message<string, byte[]>>, IKafkaEnvelopeMapper
 {
     public KafkaEnvelopeMapper(Endpoint endpoint) : base(endpoint)
     {
@@ -28,4 +28,15 @@ internal class KafkaEnvelopeMapper : EnvelopeMapper<Message<string, byte[]>, Mes
         value = default!;
         return false;
     }
+
+    protected override void writeIncomingHeaders(Message<string, byte[]> incoming, Envelope envelope)
+    {
+        if (incoming.Headers == null) return;
+        foreach (var header in incoming.Headers)
+        {
+            var bytes = header.GetValueBytes();
+            envelope.Headers[header.Key] = bytes != null ? Encoding.Default.GetString(bytes) : null;
+        }
+    }
+
 }

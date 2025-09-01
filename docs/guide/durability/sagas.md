@@ -404,7 +404,14 @@ methods to try to head off confusion.
 
 ## When Sagas are Not Found
 
-If you receive a command message against a `Saga` that no longer exists, Wolverine will ignore the message unless
+::: warning
+You need to explicitly use the `NotFound()` convention for Wolverine to quietly ignore messages related to a `Saga`
+that cannot be found. As an example, if you receive a "timeout" message for an active `Saga` that has been completed and
+deleted, you will need to implement `NotFound(message)` **even if it is an empty, do nothing method** just so Wolverine
+will not blow up with an exception (not) helpfully telling you the requested `Saga` cannot be found.
+:::
+
+If you receive a command message against a `Saga` that no longer exists, Wolverine will throw an `Exception` unless
 you explicitly handle the "not found" case. To do so for a particular command type -- and note that Wolverine does not
 do any magic handling today based on abstractions -- you can implement a public static method called `NotFound` on your
 `Saga` class for a particular message type that will take action against that incoming message as shown below:

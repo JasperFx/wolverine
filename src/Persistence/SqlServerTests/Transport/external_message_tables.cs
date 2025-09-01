@@ -119,7 +119,11 @@ public class external_message_tables : IAsyncLifetime
 
             }).StartAsync();
 
-        var tracked = await host.TrackActivity().Timeout(1.Minutes()).WaitForMessageToBeReceivedAt<Message1>(host).ExecuteAndWaitAsync(
+        var tracked = await host
+            .TrackActivity()
+            .Timeout(1.Minutes())
+            .WaitForMessageToBeReceivedAt<Message1>(host)
+            .ExecuteAndWaitAsync(
             _ => host.SendMessageThroughExternalTable("outside.incoming1", new Message1()));
 
         var envelope = tracked.Received.SingleEnvelope<Message1>();

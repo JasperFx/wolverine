@@ -74,6 +74,7 @@ internal class ExclusiveListenerFamily : IStaticAgentFamily
     public ValueTask EvaluateAssignmentsAsync(AssignmentGrid assignments)
     {
         assignments.DistributeEvenly(SchemeName);
+
         return new ValueTask();
     }
 }

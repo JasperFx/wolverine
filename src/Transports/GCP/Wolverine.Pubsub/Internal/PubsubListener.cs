@@ -1,12 +1,12 @@
 using Google.Cloud.PubSub.V1;
 using Google.Protobuf.Collections;
 using Grpc.Core;
+using JasperFx.Blocks;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Serialization;
 using Wolverine.Transports;
-using Wolverine.Util.Dataflow;
 
 namespace Wolverine.Pubsub.Internal;
 
@@ -25,6 +25,7 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue
 
     protected RetryBlock<string[]> _acknowledge;
     protected Task _task;
+    private readonly IPubsubEnvelopeMapper _mapper;
 
     public PubsubListener(
         PubsubEndpoint endpoint,
@@ -37,6 +38,8 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue
         {
             throw new WolverinePubsubTransportNotConnectedException();
         }
+
+        _mapper = endpoint.BuildMapper(runtime);
 
         _endpoint = endpoint;
         _transport = transport;
@@ -253,7 +256,7 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue
             {
                 var envelope = new PubsubEnvelope();
 
-                _endpoint.Mapper.MapIncomingToEnvelope(envelope, message);
+                _mapper.MapIncomingToEnvelope(envelope, message);
 
                 if (envelope.IsPing())
                 {

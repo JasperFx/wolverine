@@ -5,24 +5,45 @@ using FastExpressionCompiler;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Wolverine.Configuration;
+using Wolverine.Runtime.Interop.MassTransit;
 using Wolverine.Util;
 
 namespace Wolverine.Transports;
 
 public interface IOutgoingMapper<TOutgoing>
 {
-    void MapEnvelopeToOutgoing(Envelope envelope, TOutgoing outgoing);
+    public void MapEnvelopeToOutgoing(Envelope envelope, TOutgoing outgoing);
 }
 
 public interface IIncomingMapper<TIncoming>
 {
-    void MapIncomingToEnvelope(Envelope envelope, TIncoming incoming);
-    IEnumerable<string> AllHeaders();
+    public void MapIncomingToEnvelope(Envelope envelope, TIncoming incoming);
+    public IEnumerable<string> AllHeaders();
 }
 
 public interface IEnvelopeMapper<TIncoming, TOutgoing> : IOutgoingMapper<TOutgoing>, IIncomingMapper<TIncoming>;
 
-public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIncoming, TOutgoing>
+public interface IEnvelopeMapper
+{
+    public IEnumerable<string> AllHeaders();
+
+    /// <summary>
+    ///     This endpoint will assume that any unidentified incoming message types
+    ///     are the supplied message type. This is meant primarily for interaction
+    ///     with incoming messages from MassTransit
+    /// </summary>
+    /// <param name="messageType"></param>
+    void ReceivesMessage(Type messageType);
+
+    /// <summary>
+    /// Declaratively map a header value to 
+    /// </summary>
+    /// <param name="property"></param>
+    /// <param name="headerKey"></param>
+    void MapPropertyToHeader(Expression<Func<Envelope, object>> property, string headerKey);
+}
+
+public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIncoming, TOutgoing>, IEnvelopeMapper
 {
     private const string DateTimeOffsetFormat = "yyyy-MM-dd HH:mm:ss:ffffff Z";
     private readonly Endpoint _endpoint;
@@ -98,6 +119,31 @@ public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIn
     {
         _incomingToEnvelope[ReflectionHelper.GetProperty<Envelope>(x => x.MessageType!)] =
             (e, _) => e.MessageType = messageType.ToMessageTypeName();
+    }
+
+    public void InteropWithMassTransit(Action<IMassTransitInterop>? configure = null)
+    {
+        if (_endpoint is IMassTransitInteropEndpoint e)
+        {
+            var serializer = new MassTransitJsonSerializer(e);
+            configure?.Invoke(serializer);
+            
+            MapPropertyToHeader(x => x.MessageType, MassTransitHeaders.MessageType);
+        
+            _endpoint.DefaultSerializer = serializer;
+            
+            var replyUri = new Lazy<string>(() => e.MassTransitReplyUri()?.ToString() ?? string.Empty);
+            
+            MapOutgoingProperty(x => x.ReplyUri!, (envelope, outgoing) =>
+            {
+                writeOutgoingHeader(outgoing, MassTransitHeaders.ResponseAddress, replyUri.Value);
+            });
+        }
+        else
+        {
+            throw new NotSupportedException($"Endpoint of {_endpoint} does not (yet) support interoperability with MassTransit");
+        }
+
     }
 
     public void MapProperty(Expression<Func<Envelope, object>> property, Action<Envelope, TIncoming> readFromIncoming,

@@ -244,6 +244,27 @@ public class routing_rules
         
         envelopes.Single().Destination.ShouldBe(new Uri("tcp://localhost:" + port));
     }
+
+    [Fact]
+    public async Task group_id_application()
+    {
+        var port = PortFinder.GetAvailablePort();
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.PublishMessage<GroupedMessage>().ToPort(port);
+                opts.MessagePartitioning.ByMessage<GroupedMessage>(x => x.GroupId);
+            }).StartAsync();
+        
+                
+        var bus = host.MessageBus();
+        var envelopes = bus.PreviewSubscriptions(new GroupedMessage("Red"));
+        envelopes.Single().GroupId.ShouldBe("Red");
+
+        var overrides = bus.PreviewSubscriptions(new GroupedMessage("Red"), new DeliveryOptions { GroupId = "Blue" });
+        overrides.Single().GroupId.ShouldBe("Blue");
+
+    }
 }
 
 public class ColorsMessageHandler
@@ -252,6 +273,8 @@ public class ColorsMessageHandler
     public void Handle(GreenMessage message){}
     public void Handle(DarkGreenMessage message){}
 }
+
+public record GroupedMessage(string GroupId);
 
 [MessageIdentity("blue")]
 public record BlueMessage;

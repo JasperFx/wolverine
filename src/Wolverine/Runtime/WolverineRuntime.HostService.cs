@@ -313,6 +313,12 @@ public partial class WolverineRuntime
         Options.Durability.Mode = DurabilityMode.MediatorOnly;
         Options.LightweightMode = true;
 
+        // So that you get valid information in the describe command and other diagnostics
+        foreach (var endpoint in Options.Transports.AllEndpoints())
+        {
+            endpoint.Compile(this);
+        }
+
         return StartAsync(CancellationToken.None);
     }
 }

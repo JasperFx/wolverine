@@ -133,4 +133,6 @@ public class AmazonSqsTransport : BrokerTransport<AmazonSqsQueue>
         CredentialSource = _ => new BasicAWSCredentials("ignore", "ignore");
         Config.ServiceURL = $"http://localhost:{port}";
     }
+
+    public string ServerHost => Config.ServiceURL?.ToUri().Host;
 }

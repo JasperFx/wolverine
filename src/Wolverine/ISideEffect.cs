@@ -1,4 +1,5 @@
 ﻿using System.Reflection;
+using JasperFx;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
@@ -17,7 +18,7 @@ namespace Wolverine;
 ///     handler action. Any *public* Execute() or ExecuteAsync() method will be
 ///     called on this object
 /// </summary>
-public interface ISideEffect : IWolverineReturnType;
+public interface ISideEffect : IWolverineReturnType, INotToBeRouted;
 
 
 /// <summary>

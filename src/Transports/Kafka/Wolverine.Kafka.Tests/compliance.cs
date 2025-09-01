@@ -1,3 +1,4 @@
+using Confluent.Kafka;
 using JasperFx.Resources;
 using Wolverine.ComplianceTests.Compliance;
 
@@ -65,7 +66,11 @@ public class InlineComplianceFixture : TransportComplianceFixture, IAsyncLifetim
         {
             opts.UseKafka("localhost:9092").AutoProvision();
 
-            opts.ListenToKafkaTopic(senderTopic).UseForReplies();
+            opts.ListenToKafkaTopic(senderTopic).UseForReplies().ConfigureConsumer(consumer =>
+            {
+                consumer.GroupId = "test";
+                consumer.AutoOffsetReset = AutoOffsetReset.Earliest;
+            });
 
             opts.PublishAllMessages().ToKafkaTopic(receiverTopic).SendInline();
 

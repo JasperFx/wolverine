@@ -1,4 +1,5 @@
 using InMemoryMediator;
+using JasperFx;
 using Microsoft.EntityFrameworkCore;
 using Wolverine;
 using Wolverine.EntityFrameworkCore;
@@ -19,6 +20,10 @@ builder.Host.UseWolverine(opts =>
 
     // If you're also using EF Core, you may want this as well
     opts.UseEntityFrameworkCoreTransactions();
+    
+    opts.Policies.UseDurableLocalQueues();
+    opts.Durability.KeepAfterMessageHandling = TimeSpan.FromHours(1);
+    opts.LocalQueue("q1").UseDurableInbox();
 });
 
 // Register the EF Core DbContext
@@ -61,4 +66,4 @@ app.MapPost("/items/create2", (CreateItemCommand cmd, IMessageBus bus) => bus.In
 
 app.MapControllers();
 
-app.Run();
+return await app.RunJasperFxCommands(args);

@@ -92,6 +92,17 @@ public partial class RavenDbMessageStore : INodeAgentPersistence
         return answer;
     }
 
+    public Task PersistAgentRestrictionsAsync(IReadOnlyList<AgentRestriction> restrictions,
+        CancellationToken cancellationToken)
+    {
+        throw new NotImplementedException();
+    }
+
+    public Task<NodeAgentState> LoadNodeAgentStateAsync(CancellationToken cancellationToken)
+    {
+        throw new NotImplementedException();
+    }
+
     public async Task AssignAgentsAsync(Guid nodeId, IReadOnlyList<Uri> agents, CancellationToken cancellationToken)
     {
         using var session = _store.OpenAsyncSession();

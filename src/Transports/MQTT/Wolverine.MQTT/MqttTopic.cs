@@ -11,7 +11,7 @@ using Wolverine.Util;
 
 namespace Wolverine.MQTT;
 
-public class MqttTopic : Endpoint, ISender
+public class MqttTopic : Endpoint, ISender, ITopicEndpoint
 {
     public const string WolverineTopicsName = "wolverine/topics";
 
@@ -44,6 +44,8 @@ public class MqttTopic : Endpoint, ISender
 
     public override async ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
     {
+        Compile(runtime);
+        
         _cancellation = runtime.Cancellation;
 
         MessageTypeName = MessageType?.ToMessageTypeName();
@@ -60,6 +62,7 @@ public class MqttTopic : Endpoint, ISender
 
     protected override ISender CreateSender(IWolverineRuntime runtime)
     {
+        Compile(runtime);
         return this;
     }
 

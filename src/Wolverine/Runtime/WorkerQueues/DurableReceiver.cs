@@ -1,33 +1,34 @@
-using System.Threading.Tasks.Dataflow;
+using JasperFx.Blocks;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
 using Wolverine.Logging;
 using Wolverine.Persistence.Durability;
+using Wolverine.Runtime.Sharding;
 using Wolverine.Transports;
 using Wolverine.Transports.Sending;
-using Wolverine.Util.Dataflow;
 
 namespace Wolverine.Runtime.WorkerQueues;
 
 public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeScheduling, ISupportDeadLetterQueue,
     IAsyncDisposable
 {
-    private readonly Endpoint _endpoint;
     private readonly RetryBlock<Envelope> _completeBlock;
+
+    private readonly ISender? _deadLetterSender;
     private readonly RetryBlock<Envelope> _deferBlock;
+    private readonly Endpoint _endpoint;
     private readonly IMessageInbox _inbox;
     private readonly RetryBlock<Envelope> _incrementAttempts;
+
     // ReSharper disable once InconsistentNaming
     protected readonly ILogger _logger;
     private readonly RetryBlock<Envelope> _markAsHandled;
     private readonly RetryBlock<Envelope> _moveToErrors;
-    private readonly ActionBlock<Envelope> _receiver;
+    private readonly IBlock<Envelope> _receiver;
     private readonly RetryBlock<Envelope> _receivingOne;
     private readonly RetryBlock<Envelope> _scheduleExecution;
     private readonly DurabilitySettings _settings;
-
-    private readonly ISender? _deadLetterSender;
 
     // These members are for draining
     private bool _latched;
@@ -43,11 +44,9 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
 
         ShouldPersistBeforeProcessing = !(endpoint is IDatabaseBackedEndpoint);
 
-        endpoint.ExecutionOptions.CancellationToken = _settings.Cancellation;
-
         Pipeline = pipeline;
 
-        _receiver = new ActionBlock<Envelope>(async envelope =>
+        Func<Envelope, CancellationToken, Task> execute = async (envelope, _) =>
         {
             if (_latched)
             {
@@ -62,13 +61,20 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
             }
             catch (Exception? e)
             {
-                _receiver?.Post(envelope);
+                if (_receiver != null)
+                {
+                    await _receiver.PostAsync(envelope);
+                }
 
                 // This *should* never happen, but of course it will
                 _logger.LogError(e, "Unexpected pipeline invocation error");
             }
-        }, endpoint.ExecutionOptions);
-
+        };
+        
+        _receiver = endpoint.GroupShardingSlotNumber == null 
+            ? new Block<Envelope>(endpoint.MaxDegreeOfParallelism, execute)
+            : new ShardedExecutionBlock((int)endpoint.GroupShardingSlotNumber, runtime.Options.MessagePartitioning, execute).DeserializeFirst(pipeline, runtime, this);
+        
         _deferBlock = new RetryBlock<Envelope>((env, _) => env.Listener!.DeferAsync(env).AsTask(), runtime.Logger,
             runtime.Cancellation);
         _completeBlock = new RetryBlock<Envelope>((env, _) => env.Listener!.CompleteAsync(env).AsTask(), runtime.Logger,
@@ -88,7 +94,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
                 }
             }, _logger,
             _settings.Cancellation);
-        
+
         _incrementAttempts = new RetryBlock<Envelope>((e, _) => _inbox.IncrementIncomingEnvelopeAttemptsAsync(e),
             _logger, _settings.Cancellation);
 
@@ -125,16 +131,11 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
         }
     }
 
-    public IHandlerPipeline? Pipeline { get; }
-
     public bool ShouldPersistBeforeProcessing { get; set; }
-
-    public Uri Uri { get; set; }
 
     public async ValueTask DisposeAsync()
     {
-        _receiver.Complete();
-        await _receiver.Completion;
+        await _receiver.WaitForCompletionAsync();
 
         _incrementAttempts.Dispose();
         _scheduleExecution.Dispose();
@@ -155,7 +156,10 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
 
     public async ValueTask CompleteAsync(Envelope envelope)
     {
-        if (envelope.InBatch) return;
+        if (envelope.InBatch)
+        {
+            return;
+        }
 
         if (envelope.Batch != null)
         {
@@ -180,26 +184,36 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
         }
 
         await _incrementAttempts.PostAsync(envelope);
-        
+
         if (_latched)
         {
             if (envelope.Listener != null)
             {
                 await _deferBlock.PostAsync(envelope);
             }
-            
+
             return;
         }
 
-        Enqueue(envelope);
+        await EnqueueAsync(envelope);
     }
 
-    public int QueueCount => _receiver.InputCount;
+    public IHandlerPipeline? Pipeline { get; }
+
+    public Uri Uri { get; set; }
+
+    public int QueueCount => (int)_receiver.Count;
 
     public void Enqueue(Envelope envelope)
     {
         envelope.ReplyUri = envelope.ReplyUri ?? Uri;
         _receiver.Post(envelope);
+    }
+
+    public ValueTask EnqueueAsync(Envelope envelope)
+    {
+        envelope.ReplyUri = envelope.ReplyUri ?? Uri;
+        return _receiver.PostAsync(envelope);
     }
 
     public ValueTask ReceivedAsync(IListener listener, Envelope[] messages)
@@ -233,7 +247,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
             {
                 await _completeBlock.PostAsync(envelope);
             }
-            
+
             return;
         }
 
@@ -297,7 +311,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
 
         return _scheduleExecution.PostAsync(envelope);
     }
-    
+
     private async Task receiveOneAsync(Envelope envelope)
     {
         if (_latched)
@@ -353,7 +367,8 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
                     }
                     catch (Exception exception)
                     {
-                        _logger.LogError(exception, "Error trying to complete duplicated message {Id} from {Uri}", envelope.Id, Uri);
+                        _logger.LogError(exception, "Error trying to complete duplicated message {Id} from {Uri}",
+                            envelope.Id, Uri);
                     }
                 }
 
@@ -363,7 +378,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
 
         if (envelope.Status == EnvelopeStatus.Incoming)
         {
-            Enqueue(envelope);
+            await EnqueueAsync(envelope);
         }
 
         _logger.IncomingReceived(envelope, Uri);
@@ -401,10 +416,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
             throw new OperationCanceledException();
         }
 
-        foreach (var envelope in envelopes)
-        {
-            envelope.MarkReceived(listener, now, _settings);
-        }
+        foreach (var envelope in envelopes) envelope.MarkReceived(listener, now, _settings);
 
         var batchSucceeded = false;
         if (ShouldPersistBeforeProcessing)
@@ -432,7 +444,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
         {
             foreach (var message in envelopes)
             {
-                Enqueue(message);
+                await EnqueueAsync(message);
                 await _completeBlock.PostAsync(message);
             }
         }

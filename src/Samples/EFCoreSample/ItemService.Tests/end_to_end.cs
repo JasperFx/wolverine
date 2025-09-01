@@ -22,6 +22,8 @@ public class end_to_end
 
         var name = Guid.NewGuid().ToString();
         var tracked = await host.InvokeMessageAndWaitAsync(new CreateItemCommand { Name = name });
+
+        
         tracked.FindSingleTrackedMessageOfType<ItemCreated>()
             .ShouldNotBeNull();
 

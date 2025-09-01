@@ -1,7 +1,10 @@
+using System.Text.Json;
 using System.Threading.Tasks.Dataflow;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Newtonsoft.Json;
+using Wolverine.Runtime;
+using Wolverine.Runtime.Interop;
 using Wolverine.Runtime.Serialization;
 using Wolverine.Transports;
 using Wolverine.Transports.Local;
@@ -12,6 +15,73 @@ public class ListenerConfiguration : ListenerConfiguration<IListenerConfiguratio
 {
     public ListenerConfiguration(Endpoint endpoint) : base(endpoint)
     {
+    }
+}
+
+public class InteroperableListenerConfiguration<TSelf, TEndpoint, TMapper, TConcreteMapper> : ListenerConfiguration<TSelf, TEndpoint>
+    where TSelf : IListenerConfiguration<TSelf> 
+    where TEndpoint : Endpoint<TMapper, TConcreteMapper>
+    where TConcreteMapper : IEnvelopeMapper, TMapper
+{
+    public InteroperableListenerConfiguration(TEndpoint endpoint) : base(endpoint)
+    {
+    }
+
+    public InteroperableListenerConfiguration(Func<TEndpoint> source) : base(source)
+    {
+    }
+    
+    /// <summary>
+    /// Use a custom interoperability strategy to map Wolverine messages to an upstream
+    /// system's protocol
+    /// </summary>
+    /// <param name="mapper"></param>
+    /// <returns></returns>
+    public TSelf UseInterop(TMapper mapper)
+    {
+        add(e => e.EnvelopeMapper = mapper);
+        return this.As<TSelf>();
+    }
+
+    /// <summary>
+    /// Customize the basic envelope mapping for interoperability. This mechanism
+    /// is suitable if you are mostly needing to modify how headers are communicated
+    /// from and to external systems through the underlying transport
+    /// </summary>
+    /// <param name="configure"></param>
+    /// <returns></returns>
+    public TSelf UseInterop(Action<TEndpoint, TConcreteMapper> configure)
+    {
+        add(e => e.customizeMapping((m, _) => configure(e, m)));
+        return this.As<TSelf>();
+    }
+
+    /// <summary>
+    /// Create a completely customized mapper using the WolverineRuntime and the current
+    /// Endpoint. This is built lazily at system bootstrapping time
+    /// </summary>
+    /// <param name="factory"></param>
+    /// <returns></returns>
+    public TSelf UseInterop(Func<IWolverineRuntime, TEndpoint, TMapper> factory)
+    {
+        add(e => e.registerMapperFactory(r => factory(r, e)));
+        return this.As<TSelf>();
+    }
+    
+    /// <summary>
+    /// Interop with upstream systems by reading messages with the CloudEvents specification
+    /// </summary>
+    /// <param name="jsonSerializerOptions"></param>
+    /// <returns></returns>
+    public TSelf InteropWithCloudEvents(JsonSerializerOptions? jsonSerializerOptions = null)
+    {
+        jsonSerializerOptions ??= new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+        add(e => e.customizeMapping((m, r) =>
+        {
+            e.DefaultSerializer = new CloudEventsMapper(r.Options.HandlerGraph, jsonSerializerOptions);
+        }));
+
+        return this.As<TSelf>();
     }
 }
 
@@ -30,6 +100,21 @@ public class ListenerConfiguration<TSelf, TEndpoint> : DelayedEndpointConfigurat
     }
 
     /// <summary>
+    /// Creates a policy of sharding the processing of incoming messages by the
+    /// specified number of slots. Use this to group messages to prevent concurrent
+    /// processing of messages with the same GroupId while allowing parallel work across
+    /// GroupIds. The number of "slots" reflects the maximum number of parallel messages
+    /// that can be handled concurrently
+    /// </summary>
+    /// <param name="numberOfSlots"></param>
+    /// <returns></returns>
+    public TSelf ShardListeningByGroupId(ShardSlots numberOfSlots)
+    {
+        add(e => e.GroupShardingSlotNumber = numberOfSlots);
+        return this.As<TSelf>();
+    }
+
+    /// <summary>
     /// In the case of being part of tenancy aware group of message transports, this
     /// setting makes this listening endpoint a "global" endpoint rather than a tenant id
     /// aware endpoint that spans multiple message brokers. 
@@ -38,6 +123,21 @@ public class ListenerConfiguration<TSelf, TEndpoint> : DelayedEndpointConfigurat
     public TSelf GlobalListener()
     {
         add(e => e.TenancyBehavior = TenancyBehavior.Global);
+        return this.As<TSelf>();
+    }
+
+    /// <summary>
+    /// "Pin" this endpoint so that it is only active on the leader node
+    /// </summary>
+    /// <returns></returns>
+    public TSelf ListenOnlyAtLeader()
+    {
+        add(e =>
+        {
+            e.ListenerScope = ListenerScope.PinnedToLeader;
+            e.IsListener = true;
+        });
+
         return this.As<TSelf>();
     }
 
@@ -51,9 +151,7 @@ public class ListenerConfiguration<TSelf, TEndpoint> : DelayedEndpointConfigurat
         {
             e.IsListener = true;
             e.ListenerScope = ListenerScope.Exclusive;
-            e.ExecutionOptions.SingleProducerConstrained = true;
-            e.ExecutionOptions.MaxDegreeOfParallelism = 1;
-            e.ExecutionOptions.EnsureOrdered = true;
+            e.MaxDegreeOfParallelism = 1;
             e.ListenerCount = 1;
 
             if (endpointName.IsNotEmpty())
@@ -98,9 +196,7 @@ public class ListenerConfiguration<TSelf, TEndpoint> : DelayedEndpointConfigurat
         {
             e.IsListener = true;
             e.ListenerScope = ListenerScope.Exclusive;
-            e.ExecutionOptions.MaxDegreeOfParallelism = maxParallelism;
-            e.ExecutionOptions.EnsureOrdered = false; // Allow parallel processing
-            e.ExecutionOptions.SingleProducerConstrained = false; // Allow multiple producers within the node
+            e.MaxDegreeOfParallelism = maxParallelism;
             e.ListenerCount = 1; // Single listener instance for exclusive node
 
             if (endpointName.IsNotEmpty())
@@ -145,8 +241,7 @@ public class ListenerConfiguration<TSelf, TEndpoint> : DelayedEndpointConfigurat
         {
             e.IsListener = true;
             e.ListenerScope = ListenerScope.Exclusive;
-            e.ExecutionOptions.MaxDegreeOfParallelism = maxParallelSessions;
-            e.ExecutionOptions.EnsureOrdered = true; // Maintain ordering within sessions
+            e.MaxDegreeOfParallelism = maxParallelSessions;
             e.ListenerCount = maxParallelSessions; // Multiple listeners for different sessions
 
             if (endpointName.IsNotEmpty())
@@ -164,16 +259,13 @@ public class ListenerConfiguration<TSelf, TEndpoint> : DelayedEndpointConfigurat
         return this.As<TSelf>();
     }
 
-    public TSelf MaximumParallelMessages(int maximumParallelHandlers, ProcessingOrder? order = null)
+    public TSelf MaximumParallelMessages(int maximumParallelHandlers)
     {
         add(e =>
         {
-            e.ExecutionOptions.MaxDegreeOfParallelism = maximumParallelHandlers;
-            if (order.HasValue)
-            {
-                e.ExecutionOptions.EnsureOrdered = order.Value == ProcessingOrder.StrictOrdered;
-            }
+            e.MaxDegreeOfParallelism = maximumParallelHandlers;
         });
+        
         return this.As<TSelf>();
     }
 
@@ -193,8 +285,7 @@ public class ListenerConfiguration<TSelf, TEndpoint> : DelayedEndpointConfigurat
     {
         add(e =>
         {
-            e.ExecutionOptions.MaxDegreeOfParallelism = 1;
-            e.ExecutionOptions.EnsureOrdered = true;
+            e.MaxDegreeOfParallelism = 1;
         });
 
         return this.As<TSelf>();
@@ -221,13 +312,11 @@ public class ListenerConfiguration<TSelf, TEndpoint> : DelayedEndpointConfigurat
 
     public TSelf ProcessInline()
     {
-        add(e => e.Mode = EndpointMode.Inline);
-        return this.As<TSelf>();
-    }
-
-    public TSelf ConfigureExecution(Action<ExecutionDataflowBlockOptions> configure)
-    {
-        add(e => configure(e.ExecutionOptions));
+        add(e =>
+        {
+            e.Mode = EndpointMode.Inline;
+            e.MaxDegreeOfParallelism = 1;
+        });
         return this.As<TSelf>();
     }
 
@@ -268,7 +357,10 @@ public class ListenerConfiguration<TSelf, TEndpoint> : DelayedEndpointConfigurat
 
     public TSelf MessageBatchSize(int batchSize)
     {
-        add(e => e.MessageBatchSize = batchSize);
+        add(e =>
+        {
+            e.MessageBatchSize = batchSize;
+        });
         return this.As<TSelf>();
     }
 

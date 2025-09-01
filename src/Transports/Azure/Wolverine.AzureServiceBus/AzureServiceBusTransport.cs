@@ -21,6 +21,7 @@ public partial class AzureServiceBusTransport : BrokerTransport<AzureServiceBusE
     private readonly Lazy<ServiceBusAdministrationClient> _managementClient;
 
     public readonly List<AzureServiceBusSubscription> Subscriptions = new();
+    private string _hostName;
     public const string DeadLetterQueueName = "wolverine-dead-letter-queue";
 
     public AzureServiceBusTransport() : this(ProtocolName)
@@ -156,6 +157,27 @@ public partial class AzureServiceBusTransport : BrokerTransport<AzureServiceBusE
     }
 
     internal AzureServiceBusQueue? RetryQueue { get; set; }
+
+    public string HostName
+    {
+        get
+        {
+            if (_hostName == null)
+            {
+                var parts = ConnectionString.Split(';');
+                foreach (var part in parts)
+                {
+                    var split = part.Split('=');
+                    if (split[0].EqualsIgnoreCase("Endpoint"))
+                    {
+                        _hostName = new Uri(split[1]).Host;
+                    }
+                }
+            }
+
+            return _hostName;
+        }
+    }
 
     protected override IEnumerable<Endpoint> explicitEndpoints()
     {

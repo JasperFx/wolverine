@@ -1,14 +1,16 @@
+using System.Threading.Tasks.Dataflow;
+using JasperFx.Blocks;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
 using Wolverine.Logging;
 using Wolverine.Runtime;
-using Wolverine.Util.Dataflow;
 
 namespace Wolverine.Transports.Sending;
 
 public abstract class SendingAgent : ISendingAgent, ISenderCallback, ISenderCircuit, IAsyncDisposable
 {
+    private readonly SemaphoreSlim _failureCountLock = new(1, 1);
     private readonly ILogger _logger;
     private readonly IMessageTracker _messageLogger;
     protected readonly ISender _sender;
@@ -17,7 +19,6 @@ public abstract class SendingAgent : ISendingAgent, ISenderCallback, ISenderCirc
     protected readonly DurabilitySettings _settings;
     private CircuitWatcher? _circuitWatcher;
     private int _failureCount;
-    private readonly SemaphoreSlim _failureCountLock = new SemaphoreSlim(1, 1);
 
 
     public SendingAgent(ILogger logger, IMessageTracker messageLogger, ISender sender, DurabilitySettings settings,
@@ -33,7 +34,7 @@ public abstract class SendingAgent : ISendingAgent, ISenderCallback, ISenderCirc
             ? sendWithCallbackHandlingAsync
             : sendWithExplicitHandlingAsync;
 
-        _sending = new RetryBlock<Envelope>(senderDelegate, logger, _settings.Cancellation, Endpoint.ExecutionOptions);
+        _sending = new RetryBlock<Envelope>(senderDelegate, logger, _settings.Cancellation, new ExecutionDataflowBlockOptions());
     }
 
     public ISender Sender => _sender;

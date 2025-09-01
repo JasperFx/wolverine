@@ -84,8 +84,11 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
 
         _receiver?.Dispose();
 
-        _circuitBreaker?.SafeDispose();
-
+        if (_circuitBreaker != null)
+        {
+            await _circuitBreaker.DisposeAsync();
+        }
+        
         Listener = null;
         _receiver = null;
     }
@@ -93,7 +96,7 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
     public void Dispose()
     {
         _receiver?.Dispose();
-        _circuitBreaker?.SafeDispose();
+        _circuitBreaker?.SafeDisposeSynchronously();
         _backPressureAgent?.SafeDispose();
     }
 
@@ -112,7 +115,7 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
             foreach (var envelope in envelopes)
             {
                 envelope.OwnerId = uniqueNodeId;
-                queue.Enqueue(envelope);
+                await queue.EnqueueAsync(envelope);
             }
         }
         else if (_receiver is InlineReceiver inline)

@@ -7,14 +7,12 @@ using Wolverine.Transports.Sending;
 
 namespace Wolverine.RabbitMQ.Internal;
 
-public abstract partial class RabbitMqEndpoint : Endpoint, IBrokerEndpoint, IAsyncDisposable
+public abstract partial class RabbitMqEndpoint : Endpoint<IRabbitMqEnvelopeMapper, RabbitMqEnvelopeMapper>, IBrokerEndpoint, IAsyncDisposable
 {
     public const string QueueSegment = "queue";
     public const string ExchangeSegment = "exchange";
     public const string TopicSegment = "topic";
     private readonly RabbitMqTransport _parent;
-
-    private Action<RabbitMqEnvelopeMapper> _customizeMapping = m => { };
 
     internal RabbitMqEndpoint(Uri uri, EndpointRole role, RabbitMqTransport parent) : base(uri, role)
     {
@@ -30,12 +28,6 @@ public abstract partial class RabbitMqEndpoint : Endpoint, IBrokerEndpoint, IAsy
     public abstract ValueTask SetupAsync(ILogger logger);
 
     internal abstract string RoutingKey();
-
-    /// <summary>
-    /// When set, overrides the built in envelope mapping with a custom
-    /// implementation
-    /// </summary>
-    public IRabbitMqEnvelopeMapper? EnvelopeMapper { get; set; }
 
     public override IDictionary<string, object> DescribeProperties()
     {
@@ -70,17 +62,8 @@ public abstract partial class RabbitMqEndpoint : Endpoint, IBrokerEndpoint, IAsy
         }
     }
 
-    internal IRabbitMqEnvelopeMapper BuildMapper(IWolverineRuntime runtime)
+    protected override RabbitMqEnvelopeMapper buildMapper(IWolverineRuntime runtime)
     {
-        if (EnvelopeMapper != null) return EnvelopeMapper;
-
-        var mapper = new RabbitMqEnvelopeMapper(this, runtime);
-        _customizeMapping?.Invoke(mapper);
-        if (MessageType != null)
-        {
-            mapper.ReceivesMessage(MessageType);
-        }
-
-        return mapper;
+        return new RabbitMqEnvelopeMapper(this, runtime);
     }
 }

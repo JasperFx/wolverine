@@ -17,7 +17,6 @@ Use exclusive node processing when you need:
 
 Configure a listener to run exclusively on one node while processing multiple messages in parallel:
 
-<!-- snippet: ExclusiveNodeWithParallelism -->
 ```cs
 var builder = Host.CreateDefaultBuilder();
 builder.UseWolverine(opts =>
@@ -26,7 +25,6 @@ builder.UseWolverine(opts =>
         .ExclusiveNodeWithParallelism(maxParallelism: 5);
 });
 ```
-<!-- endSnippet -->
 
 This configuration ensures:
 - Only one node in the cluster will process this queue
@@ -46,12 +44,10 @@ opts.ListenToRabbitQueue("background-tasks")
 
 For scenarios where you need to maintain ordering within specific groups (like Azure Service Bus sessions), use exclusive node with session ordering:
 
-<!-- snippet: ExclusiveNodeWithSessionOrdering -->
 ```cs
 opts.ListenToAzureServiceBusQueue("ordered-events")
     .ExclusiveNodeWithSessionOrdering(maxParallelSessions: 5);
 ```
-<!-- endSnippet -->
 
 This ensures:
 - Only one node processes the queue
@@ -63,12 +59,10 @@ This ensures:
 
 Azure Service Bus has special support for exclusive node processing with sessions:
 
-<!-- snippet: AzureServiceBusExclusiveNode -->
 ```cs
 opts.ListenToAzureServiceBusQueue("user-events")
     .ExclusiveNodeWithSessions(maxParallelSessions: 8);
 ```
-<!-- endSnippet -->
 
 This is a convenience method that:
 1. Enables session support with the specified parallelism
@@ -77,18 +71,15 @@ This is a convenience method that:
 
 For topic subscriptions without sessions:
 
-<!-- snippet: AzureServiceBusSubscriptionExclusive -->
 ```cs
 opts.ListenToAzureServiceBusSubscription("notifications", "email-sender")
     .ExclusiveNodeWithParallelism(maxParallelism: 3);
 ```
-<!-- endSnippet -->
 
 ## Combining with Other Options
 
 Exclusive node processing can be combined with other listener configurations:
 
-<!-- snippet: ExclusiveNodeCombined -->
 ```cs
 opts.ListenToRabbitQueue("critical-tasks")
     .ExclusiveNodeWithParallelism(maxParallelism: 5)
@@ -96,7 +87,6 @@ opts.ListenToRabbitQueue("critical-tasks")
     .TelemetryEnabled(true)         // Enable telemetry
     .Named("CriticalTaskProcessor"); // Give it a friendly name
 ```
-<!-- endSnippet -->
 
 ## Comparison with Other Modes
 
@@ -117,7 +107,6 @@ When using exclusive node processing, Wolverine uses its leader election mechani
 1. A persistence layer (SQL Server, PostgreSQL, or RavenDB)
 2. Node agent support enabled
 
-<!-- snippet: ExclusiveNodeWithPersistence -->
 ```cs
 opts.PersistMessagesWithSqlServer(connectionString)
     .EnableNodeAgentSupport(); // Required for leader election
@@ -125,7 +114,6 @@ opts.PersistMessagesWithSqlServer(connectionString)
 opts.ListenToRabbitQueue("singleton-queue")
     .ExclusiveNodeWithParallelism(5);
 ```
-<!-- endSnippet -->
 
 ### Failover Behavior
 
@@ -154,7 +142,6 @@ When testing exclusive node processing:
 2. **Integration Tests**: Use `DurabilityMode.Solo` to simplify testing
 3. **Load Tests**: Verify that parallelism improves throughput as expected
 
-<!-- snippet: TestingExclusiveNode -->
 ```cs
 // In tests, use Solo mode to avoid leader election complexity
 opts.Durability.Mode = DurabilityMode.Solo;
@@ -162,7 +149,6 @@ opts.Durability.Mode = DurabilityMode.Solo;
 opts.ListenToRabbitQueue("test-queue")
     .ExclusiveNodeWithParallelism(5);
 ```
-<!-- endSnippet -->
 
 ## Performance Considerations
 

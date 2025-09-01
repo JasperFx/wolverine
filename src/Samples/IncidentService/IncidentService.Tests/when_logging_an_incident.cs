@@ -1,6 +1,8 @@
 using Alba;
 using Helpdesk.Api.Incidents;
+using JasperFx.Core;
 using Marten;
+using Marten.Events;
 using Shouldly;
 using Wolverine.Http;
 using Xunit;
@@ -53,7 +55,11 @@ public class when_logging_an_incident : IntegrationContext
         // Reaching into Marten to build the current state of the new Incident
         // just to check the expected outcome
         using var session = Host.DocumentStore().LightweightSession();
-        var incident = await session.Events.AggregateStreamAsync<Incident>(response.Value);
+        
+        
+        
+        // This wallpapers over the exact projection lifecycle....
+        var incident = await session.Events.FetchLatest<Incident>(response.Value);
         
         incident.Status.ShouldBe(IncidentStatus.Pending);
     }

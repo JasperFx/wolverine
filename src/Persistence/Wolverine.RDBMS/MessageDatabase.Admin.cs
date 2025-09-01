@@ -134,6 +134,15 @@ public abstract partial class MessageDatabase<T>
             await tx.CreateCommand($"delete from {SchemaName}.{DatabaseConstants.DeadLetterTable}")
                 .ExecuteNonQueryAsync(_cancellation);
 
+            if (_settings.IsMain)
+            {
+                await tx.CreateCommand($"delete from {SchemaName}.{DatabaseConstants.AgentRestrictionsTableName}")
+                    .ExecuteNonQueryAsync(_cancellation);
+                
+                await tx.CreateCommand($"delete from {SchemaName}.{DatabaseConstants.NodeRecordTableName}")
+                    .ExecuteNonQueryAsync(_cancellation);
+            }
+
             await tx.CommitAsync(_cancellation);
         }
         catch (Exception e)

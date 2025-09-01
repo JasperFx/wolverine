@@ -65,7 +65,7 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
         var parts = new List<string>
         {
             descriptor.Engine.ToLowerInvariant(),
-            descriptor.ServerName,
+            descriptor.ServerName.Split(',')[0],
             descriptor.DatabaseName,
             _schemaName
         };
@@ -131,22 +131,16 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
 
     public Task EnqueueAsync(IDatabaseOperation operation)
     {
+        // Really probably only an issue w/ testing, but this lets us ignore 
+        // log record saving
+        if (!Durability.DurabilityAgentEnabled) return Task.CompletedTask;
+        
         if (_batcher == null)
         {
             throw new InvalidOperationException($"Message database '{Identifier}' has not yet been initialized for node {Durability.AssignedNodeNumber}");
         }
 
         return _batcher.EnqueueAsync(operation);
-    }
-
-    public void Enqueue(IDatabaseOperation operation)
-    {
-        if (_batcher == null)
-        {
-            throw new InvalidOperationException($"Message database '{Identifier}' has not yet been initialized");
-        }
-
-        _batcher.Enqueue(operation);
     }
 
     public abstract Task PollForScheduledMessagesAsync(ILocalReceiver localQueue, ILogger runtimeLogger,

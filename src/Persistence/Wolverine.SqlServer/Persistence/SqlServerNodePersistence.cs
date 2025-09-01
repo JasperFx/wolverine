@@ -21,6 +21,7 @@ internal class SqlServerNodePersistence : DatabaseConstants, INodeAgentPersisten
     private readonly DbObjectName _nodeTable;
     private readonly DbObjectName _assignmentTable;
     private readonly int _lockId;
+    private readonly DbObjectName _restrictionTable;
 
     public SqlServerNodePersistence(DatabaseSettings settings, IMessageDatabase database)
     {
@@ -30,6 +31,7 @@ internal class SqlServerNodePersistence : DatabaseConstants, INodeAgentPersisten
         _nodeTable = new DbObjectName(schemaName, DatabaseConstants.NodeTableName);
         _assignmentTable = new DbObjectName(schemaName, DatabaseConstants.NodeAssignmentsTableName);
         _lockId = schemaName.GetDeterministicHashCode();
+        _restrictionTable = new DbObjectName(schemaName, DatabaseConstants.AgentRestrictionsTableName);
     }
 
     public async Task ClearAllAsync(CancellationToken cancellationToken)
@@ -112,6 +114,92 @@ internal class SqlServerNodePersistence : DatabaseConstants, INodeAgentPersisten
         await conn.CloseAsync();
 
         return nodes;
+    }
+
+    public async Task PersistAgentRestrictionsAsync(IReadOnlyList<AgentRestriction> restrictions,
+        CancellationToken cancellationToken)
+    {
+        var builder = new CommandBuilder();
+        foreach (var restriction in restrictions)
+        {
+            builder.Append($"delete from {_restrictionTable} where id = ");
+            builder.AppendParameter(restriction.Id);
+            builder.Append(";");
+            if (restriction.Type != AgentRestrictionType.None)
+            {
+                builder.Append(
+                    $"insert into {_restrictionTable} (id, uri, type, node) values (");
+                var parameters = builder.AppendWithParameters("?, ?, ?, ?");
+                parameters[0].Value = restriction.Id;
+                parameters[0].SqlDbType = SqlDbType.UniqueIdentifier;
+                parameters[1].Value = restriction.AgentUri.ToString();
+                parameters[1].SqlDbType = SqlDbType.VarChar;
+                parameters[2].Value = restriction.Type.ToString();
+                parameters[2].SqlDbType = SqlDbType.VarChar;
+                parameters[3].Value = restriction.NodeNumber;
+                parameters[3].SqlDbType = SqlDbType.Int;
+            
+                builder.Append(");");
+            }
+
+        }
+
+        var cmd = builder.Compile();
+        await using var conn = new SqlConnection(_settings.ConnectionString);
+        await conn.OpenAsync(cancellationToken);
+        cmd.Connection = conn;
+        await cmd.ExecuteNonQueryAsync(cancellationToken);
+        await conn.CloseAsync();
+    }
+
+    public async Task<NodeAgentState> LoadNodeAgentStateAsync(CancellationToken cancellationToken)
+    {
+        var nodes = new List<WolverineNode>();
+        var restrictions = new List<AgentRestriction>();
+        
+        await using var conn = new SqlConnection(_settings.ConnectionString);
+        await conn.OpenAsync(cancellationToken);
+        
+        await using var cmd = conn.CreateCommand(
+            $"select {NodeColumns} from {_nodeTable};select {Id}, {NodeId}, {Started} from {_assignmentTable};select id, uri, type, node from {_restrictionTable}");
+        
+        await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            var node = await readNodeAsync(reader);
+            nodes.Add(node);
+        }
+        
+        var dict = nodes.ToDictionary(x => x.NodeId);
+        
+        await reader.NextResultAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            var agentId = new Uri(await reader.GetFieldValueAsync<string>(0, cancellationToken));
+            var nodeId = await reader.GetFieldValueAsync<Guid>(1, cancellationToken);
+        
+            dict[nodeId].ActiveAgents.Add(agentId);
+        }
+
+        await reader.NextResultAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            var id = await reader.GetFieldValueAsync<Guid>(0, cancellationToken);
+            var uriString = await reader.GetFieldValueAsync<string>(1, cancellationToken);
+            var typeString = await reader.GetFieldValueAsync<string>(2, cancellationToken);
+            var nodeNumber = await reader.GetFieldValueAsync<int>(3, cancellationToken);
+
+            // TODO -- harden this against garbage data
+            var restriction = new AgentRestriction(id, new Uri(uriString),
+                Enum.Parse<AgentRestrictionType>(typeString), nodeNumber);
+                
+            restrictions.Add(restriction);
+        }
+        
+        await reader.CloseAsync();
+        await conn.CloseAsync();
+
+        return new(nodes, new AgentRestrictions(restrictions.ToArray()));
     }
 
     public async Task OverwriteHealthCheckTimeAsync(Guid nodeId, DateTimeOffset lastHeartbeatTime)

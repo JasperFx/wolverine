@@ -7,11 +7,13 @@ public class LocalQueueConfiguration : ListenerConfiguration<LocalQueueConfigura
 {
     public LocalQueueConfiguration(LocalQueue endpoint) : base(endpoint)
     {
+        
     }
 
     internal LocalQueueConfiguration(Func<LocalQueue> source) : base(source)
     {
     }
+    
 
     /// <summary>
     ///     Limit all outgoing messages to a certain "deliver within" time span after which the messages

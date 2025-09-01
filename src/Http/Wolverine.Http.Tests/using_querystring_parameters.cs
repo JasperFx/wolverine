@@ -1,3 +1,4 @@
+using JasperFx;
 using JasperFx.CodeGeneration.Frames;
 using Shouldly;
 using Wolverine.Http.CodeGen;

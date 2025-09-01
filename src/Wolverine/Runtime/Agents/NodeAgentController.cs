@@ -20,8 +20,6 @@ public partial class NodeAgentController
 
     private readonly IWolverineRuntime _runtime;
 
-    private readonly ConcurrentDictionary<Uri, IAgent> _agents = new();
-
     // May be valuable later
     private DateTimeOffset? _lastAssignmentCheck;
     private readonly IWolverineObserver _observer;
@@ -43,6 +41,7 @@ public partial class NodeAgentController
         if (runtime.Options.Durability.Mode == DurabilityMode.Balanced)
         {
             _agentFamilies[ExclusiveListenerFamily.SchemeName] = new ExclusiveListenerFamily(runtime);
+            _agentFamilies[LeaderPinnedListenerFamily.SchemeName] = new LeaderPinnedListenerFamily(runtime);
         }
 
         if (runtime.Options.Durability.DurabilityAgentEnabled)
@@ -59,6 +58,8 @@ public partial class NodeAgentController
         _cancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
         _logger = logger;
     }
+
+    public ConcurrentDictionary<Uri, IAgent> Agents { get; } = new();
 
     public bool HasStartedInSoloMode { get; private set; }
 
@@ -104,12 +105,12 @@ public partial class NodeAgentController
 
     private async Task stopAllAgentsAsync()
     {
-        foreach (var entry in _agents)
+        foreach (var entry in Agents)
         {
             try
             {
                 await entry.Value.StopAsync(CancellationToken.None);
-                _agents.Remove(entry.Key, out var _);
+                Agents.Remove(entry.Key, out var _);
             }
             catch (Exception e)
             {
@@ -130,7 +131,7 @@ public partial class NodeAgentController
 
     public async Task StartAgentAsync(Uri agentUri)
     {
-        if (_agents.ContainsKey(agentUri))
+        if (Agents.ContainsKey(agentUri))
         {
             return;
         }
@@ -149,7 +150,7 @@ public partial class NodeAgentController
             throw new AgentStartingException(agentUri, _runtime.Options.UniqueNodeId, e);
         }
 
-        _agents[agentUri] = agent;
+        Agents[agentUri] = agent;
 
         try
         {
@@ -166,12 +167,12 @@ public partial class NodeAgentController
 
     public async Task StopAgentAsync(Uri agentUri)
     {
-        if (_agents.TryGetValue(agentUri, out var agent))
+        if (Agents.TryGetValue(agentUri, out var agent))
         {
             try
             {
                 await agent.StopAsync(_cancellation.Token);
-                _agents.TryRemove(agentUri, out _);
+                Agents.TryRemove(agentUri, out _);
                 _logger.LogInformation("Successfully stopped agent {AgentUri} on node {NodeNumber}", agentUri,
                     _runtime.Options.Durability.AssignedNodeNumber);
 
@@ -197,7 +198,7 @@ public partial class NodeAgentController
 
     public Uri[] AllRunningAgentUris()
     {
-        return _agents.Where(x => x.Value.Status == AgentStatus.Started).Select(x => x.Key).ToArray();
+        return Agents.Where(x => x.Value.Status == AgentStatus.Started).Select(x => x.Key).ToArray();
     }
 
     /// <summary>
@@ -205,7 +206,7 @@ public partial class NodeAgentController
     /// </summary>
     internal async Task DisableAgentsAsync()
     {
-        var agents = _agents.Select(x => x.Value).ToArray();
+        var agents = Agents.Select(x => x.Value).ToArray();
         foreach (var agent in agents)
         {
             await agent.StopAsync(CancellationToken.None);

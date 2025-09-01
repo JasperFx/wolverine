@@ -56,13 +56,23 @@ public interface IListenerConfiguration<T> : IEndpointConfiguration<T>
     T ListenWithStrictOrdering(string? endpointName = null);
 
     /// <summary>
+    /// Creates a policy of sharding the processing of incoming messages by the
+    /// specified number of slots. Use this to group messages to prevent concurrent
+    /// processing of messages with the same GroupId while allowing parallel work across
+    /// GroupIds. The number of "slots" reflects the maximum number of parallel messages
+    /// that can be handled concurrently
+    /// </summary>
+    /// <param name="numberOfSlots"></param>
+    /// <returns></returns>
+    T ShardListeningByGroupId(ShardSlots numberOfSlots);
+
+    /// <summary>
     ///     Specify the maximum number of threads that this worker queue
     ///     can use at one time
     /// </summary>
     /// <param name="maximumParallelHandlers"></param>
-    /// <param name="order">Optionally specify whether the messages must be processed in strict order of being received</param>
     /// <returns></returns>
-    T MaximumParallelMessages(int maximumParallelHandlers, ProcessingOrder? order = null);
+    T MaximumParallelMessages(int maximumParallelHandlers);
 
     /// <summary>
     ///     Forces this worker queue to use no more than one thread
@@ -103,16 +113,6 @@ public interface IListenerConfiguration<T> : IEndpointConfiguration<T>
     /// <returns></returns>
     T ProcessInline();
 
-
-    /// <summary>
-    ///     Fine tune the internal message handling queue for this listener. This only applies
-    ///     to buffered or durable listeners.
-    /// </summary>
-    /// <param name="configure"></param>
-    /// <returns></returns>
-    T ConfigureExecution(Action<ExecutionDataflowBlockOptions> configure);
-
-
     /// <summary>
     ///     Mark this listener as the preferred endpoint for replies from other systems
     /// </summary>
@@ -127,6 +127,12 @@ public interface IListenerConfiguration<T> : IEndpointConfiguration<T>
     /// <param name="handlerType"></param>
     /// <returns></returns>
     T AddStickyHandler(Type handlerType);
+
+    /// <summary>
+    /// "Pin" this endpoint so that it is only active on the leader node
+    /// </summary>
+    /// <returns></returns>
+    public T ListenOnlyAtLeader();
 }
 
 public interface IListenerConfiguration : IListenerConfiguration<IListenerConfiguration>;

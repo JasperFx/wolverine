@@ -4,7 +4,7 @@
         <PackageId>WolverineFx</PackageId>
     </PropertyGroup>
     <ItemGroup>
-        <PackageReference Include="JasperFx" Version="1.5.0" />
+        <PackageReference Include="JasperFx" Version="1.6.0-alpha-4" />
         <PackageReference Include="JasperFx.RuntimeCompiler" Version="4.0.0" />
         <PackageReference Include="NewId" Version="4.0.1" />
         <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
@@ -34,6 +34,10 @@
 		<PackageReference Include="Microsoft.Extensions.Hosting" Version="[8.0.1,10.0.0)" />
 		<PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="[8.0.1,10.0.0)" />
 		<PackageReference Include="Microsoft.Extensions.ObjectPool" Version="[8.0.0,10.0.0)" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <Folder Include="Codegen\" />
 	</ItemGroup>
 
     <Import Project="../../Analysis.Build.props" />

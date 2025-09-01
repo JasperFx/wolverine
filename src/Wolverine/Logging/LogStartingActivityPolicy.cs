@@ -1,3 +1,4 @@
+using JasperFx;
 using JasperFx.CodeGeneration;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;

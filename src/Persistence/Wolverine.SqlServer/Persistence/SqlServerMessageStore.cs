@@ -349,7 +349,7 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
                 {
                     logger.LogInformation("Locally enqueuing scheduled message {Id} of type {MessageType}", envelope.Id,
                         envelope.MessageType);
-                    localQueue.Enqueue(envelope);
+                    await localQueue.EnqueueAsync(envelope);
                 }
             }
         }
@@ -445,6 +445,14 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
                 tenantTable.AddColumn(StorageConstants.ConnectionStringColumn, "varchar(500)").NotNull();
                 yield return tenantTable;
             }
+            
+            var restrictionTable =
+                new Table(new DbObjectName(SchemaName, DatabaseConstants.AgentRestrictionsTableName));
+            restrictionTable.AddColumn<Guid>("id").AsPrimaryKey();
+            restrictionTable.AddColumn<string>("uri").NotNull();
+            restrictionTable.AddColumn<string>("type").NotNull();
+            restrictionTable.AddColumn<int>("node").NotNull().DefaultValue(0);
+            yield return restrictionTable;
 
             var eventTable = new Table(new DbObjectName(SchemaName, DatabaseConstants.NodeRecordTableName));
             eventTable.AddColumn<int>("id").AutoNumber().AsPrimaryKey();
@@ -454,10 +462,11 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
             eventTable.AddColumn("description", "varchar(500)").AllowNulls();
             yield return eventTable;
 
-            foreach (var entry in _sagaStorage.Enumerate())
-            {
-                yield return entry.Value.Table;
-            }
+        }
+        
+        foreach (var entry in _sagaStorage.Enumerate())
+        {
+            yield return entry.Value.Table;
         }
     }
 

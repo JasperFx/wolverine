@@ -1,9 +1,9 @@
 using Google.Api.Gax.Grpc;
 using Google.Cloud.PubSub.V1;
+using JasperFx.Blocks;
 using Microsoft.Extensions.Logging;
 using Wolverine.Runtime;
 using Wolverine.Transports;
-using Wolverine.Util.Dataflow;
 
 namespace Wolverine.Pubsub.Internal;
 

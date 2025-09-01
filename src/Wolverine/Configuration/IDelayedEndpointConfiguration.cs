@@ -7,7 +7,13 @@ public interface IDelayedEndpointConfiguration
     void Apply();
 }
 
-public abstract class DelayedEndpointConfiguration<TEndpoint> : IDelayedEndpointConfiguration where TEndpoint : Endpoint
+// Used internally
+public interface IEndpointExpression
+{
+    Endpoint Endpoint { get; }
+}
+
+public abstract class DelayedEndpointConfiguration<TEndpoint> : IDelayedEndpointConfiguration, IEndpointExpression where TEndpoint : Endpoint
 {
     private readonly List<Action<TEndpoint>> _configurations = new();
     protected readonly TEndpoint? _endpoint;
@@ -25,6 +31,8 @@ public abstract class DelayedEndpointConfiguration<TEndpoint> : IDelayedEndpoint
     {
         _source = source;
     }
+
+    public Endpoint Endpoint => _endpoint;
 
     void IDelayedEndpointConfiguration.Apply()
     {

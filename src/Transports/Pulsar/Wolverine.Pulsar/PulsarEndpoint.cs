@@ -7,7 +7,7 @@ using Wolverine.Transports.Sending;
 
 namespace Wolverine.Pulsar;
 
-public class PulsarEndpoint : Endpoint
+public class PulsarEndpoint : Endpoint<IPulsarEnvelopeMapper, PulsarEnvelopeMapper>
 {
     public const string Persistent = "persistent";
     public const string NonPersistent = "non-persistent";
@@ -19,6 +19,11 @@ public class PulsarEndpoint : Endpoint
     {
         _parent = parent;
         Parse(uri);
+    }
+
+    protected override PulsarEnvelopeMapper buildMapper(IWolverineRuntime runtime)
+    {
+        return new PulsarEnvelopeMapper(this, runtime);
     }
 
     public string Persistence { get; private set; } = Persistent;
@@ -56,11 +61,6 @@ public class PulsarEndpoint : Endpoint
         }
 
         return dict;
-    }
-
-    internal PulsarEnvelopeMapper BuildMapper(IWolverineRuntime runtime)
-    {
-        return new PulsarEnvelopeMapper(this, runtime);
     }
 
     internal void Parse(Uri uri)

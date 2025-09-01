@@ -2,12 +2,13 @@ using Azure.Messaging.ServiceBus.Administration;
 using Wolverine.AzureServiceBus.Internal;
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
+using Wolverine.Runtime.Interop.MassTransit;
 
 namespace Wolverine.AzureServiceBus;
 
 public class
-    AzureServiceBusQueueListenerConfiguration : ListenerConfiguration<AzureServiceBusQueueListenerConfiguration,
-        AzureServiceBusQueue>
+    AzureServiceBusQueueListenerConfiguration : InteroperableListenerConfiguration<AzureServiceBusQueueListenerConfiguration,
+        AzureServiceBusQueue, IAzureServiceBusEnvelopeMapper, AzureServiceBusEnvelopeMapper>
 {
     public AzureServiceBusQueueListenerConfiguration(AzureServiceBusQueue endpoint) : base(endpoint)
     {
@@ -148,7 +149,28 @@ public class
     /// <returns></returns>
     public AzureServiceBusQueueListenerConfiguration InteropWith(IAzureServiceBusEnvelopeMapper mapper)
     {
-        add(e => e.Mapper = mapper);
+        add(e => e.EnvelopeMapper = mapper);
+        return this;
+    }
+
+    /// <summary>
+    /// Utilize an envelope mapper that is interoperable with MassTransit
+    /// </summary>
+    /// <param name="configure"></param>
+    /// <returns></returns>
+    public AzureServiceBusQueueListenerConfiguration UseMassTransitInterop(Action<IMassTransitInterop> configure)
+    {
+        add(e => e.UseMassTransitInterop(configure));
+        return this;
+    }
+
+    /// <summary>
+    /// Use an envelope mapper that is interoperable with NServiceBus
+    /// </summary>
+    /// <returns></returns>
+    public AzureServiceBusQueueListenerConfiguration UseNServiceBusInterop()
+    {
+        add(e => e.UseNServiceBusInterop());
         return this;
     }
 }

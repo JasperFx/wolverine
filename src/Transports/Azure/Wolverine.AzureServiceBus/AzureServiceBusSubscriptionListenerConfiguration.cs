@@ -5,8 +5,8 @@ using Wolverine.ErrorHandling;
 
 namespace Wolverine.AzureServiceBus;
 
-public class AzureServiceBusSubscriptionListenerConfiguration : ListenerConfiguration<AzureServiceBusSubscriptionListenerConfiguration,
-    AzureServiceBusSubscription>
+public class AzureServiceBusSubscriptionListenerConfiguration : InteroperableListenerConfiguration<AzureServiceBusSubscriptionListenerConfiguration,
+    AzureServiceBusSubscription, IAzureServiceBusEnvelopeMapper, AzureServiceBusEnvelopeMapper>
 {
     public AzureServiceBusSubscriptionListenerConfiguration(AzureServiceBusSubscription endpoint) : base(endpoint)
     {
@@ -134,7 +134,7 @@ public class AzureServiceBusSubscriptionListenerConfiguration : ListenerConfigur
     /// <returns></returns>
     public AzureServiceBusSubscriptionListenerConfiguration InteropWith(IAzureServiceBusEnvelopeMapper mapper)
     {
-        add(e => e.Mapper = mapper);
+        add(e => e.EnvelopeMapper = mapper);
         return this;
     }
 }
