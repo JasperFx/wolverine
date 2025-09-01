@@ -118,7 +118,7 @@ public partial class RavenDbMessageStore : INodeAgentPersistence
                     AgentUri: restriction.AgentUri,
                     Type: restriction.Type,
                     NodeNumber: restriction.NodeNumber);
-                await session.StoreAsync(persistedRestriction, cancellationToken);
+                await session.StoreAsync(persistedRestriction, changeVector: null, id: persistedRestriction.Id, cancellationToken);
             }
         }
 
