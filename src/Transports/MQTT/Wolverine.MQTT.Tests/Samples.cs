@@ -135,7 +135,7 @@ public class Samples
             opts.UseMqtt(mqtt =>
             {
                 var mqttServer = builder.Configuration["mqtt_server"];
-
+                
                 mqtt
                     .WithMaxPendingMessages(3)
                     .WithClientOptions(client => { client.WithTcpServer(mqttServer); });
@@ -150,6 +150,7 @@ public class Samples
                 // with our custom strategy
                 .UseInterop(new MyMqttEnvelopeMapper())
                 .QualityOfService(MqttQualityOfServiceLevel.AtMostOnce);
+
         });
 
         using var host = builder.Build();

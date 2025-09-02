@@ -121,4 +121,8 @@ builder.UseWolverine(opts =>
 
 ## Interoperability
 
-MORE HERE!
+::: tip
+Also see the more generic [Wolverine Guide on Interoperability](/tutorials/interop)
+:::
+
+Pulsar interoperability is done through the `IPulsarEnvelopeMapper` interface.

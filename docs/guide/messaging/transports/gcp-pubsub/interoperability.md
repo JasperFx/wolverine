@@ -1,5 +1,9 @@
 # Interoperability
 
+::: tip
+Also see the more generic [Wolverine Guide on Interoperability](/tutorials/interop)
+:::
+
 Hey, it's a complicated world and Wolverine is a relative newcomer, so it's somewhat likely you'll find yourself needing to make a Wolverine application talk via GCP Pub/Sub to
 a non-Wolverine application. Not to worry (too much), Wolverine has you covered with the ability to customize Wolverine to GCP Pub/Sub mapping.
 
