@@ -1,7 +1,7 @@
 # Using Amazon SNS
 
 ::: warning
-At this moment, Wolverine cannot support request/reply mechanics (`IMessageBus.InvokeAsync<T>()`).
+At this moment, Wolverine cannot support request/reply mechanics (`IMessageBus.InvokeAsync<T>()`) with SNS~~~~.
 :::
 
 :::tip
@@ -193,4 +193,9 @@ var host = await Host.CreateDefaultBuilder()
 
 ## Interoperability
 
-MORE
+::: tip
+Also see the more generic [Wolverine Guide on Interoperability](/tutorials/interop)
+:::
+
+SNS interoperability is done through the `ISnsEnvelopeMapper`. At this point, SNS supports interoperability through
+MassTransit, NServiceBus, CloudEvents, or user defined mapping strategies.

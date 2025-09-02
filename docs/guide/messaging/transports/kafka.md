@@ -129,6 +129,10 @@ public static ValueTask publish_by_partition_key(IMessageBus bus)
 
 ## Interoperability
 
+::: tip
+Also see the more generic [Wolverine Guide on Interoperability](/tutorials/interop)
+:::
+
 It's a complex world out there, and it's more than likely you'll need your Wolverine application to interact with system
 that aren't also Wolverine applications. At this time, it's possible to send or receive raw JSON through Kafka and Wolverine
 by using the options shown below in test harness code:
