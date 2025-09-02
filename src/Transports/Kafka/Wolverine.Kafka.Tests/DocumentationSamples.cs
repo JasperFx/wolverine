@@ -1,6 +1,10 @@
+using System.Text.Json;
+using Confluent.Kafka;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using JasperFx.Resources;
+using Wolverine.Util;
+
 namespace Wolverine.Kafka.Tests;
 
 public class DocumentationSamples
@@ -139,4 +143,49 @@ public static class KafkaInstrumentation
 }
 
 #endregion
+
+#region sample_OurKafkaJsonMapper
+
+// Simplistic envelope mapper that expects every message to be of
+// type "T" and serialized as JSON that works perfectly well w/ our
+// application's default JSON serialization
+public class OurKafkaJsonMapper<TMessage> : IKafkaEnvelopeMapper
+{
+    // Wolverine needs to know the 
+    private readonly string _messageTypeName = typeof(TMessage).ToMessageTypeName();
+
+    // Map the Wolverine Envelope structure to the outgoing Kafka structure
+    public void MapEnvelopeToOutgoing(Envelope envelope, Message<string, byte[]> outgoing)
+    {
+        // We'll come back to this later...
+        throw new NotSupportedException();
+    }
+
+    // Map the incoming message from Kafka to the incoming Wolverine envelope
+    public void MapIncomingToEnvelope(Envelope envelope, Message<string, byte[]> incoming)
+    {
+        // We're making an assumption here that only one type of message
+        // is coming in on this particular Kafka topic, so we're telling
+        // Wolverine what the message type is according to Wolverine's own
+        // message naming scheme
+        envelope.MessageType = _messageTypeName;
+
+        // Tell Wolverine to use JSON serialization for the message 
+        // data
+        envelope.ContentType = "application/json";
+
+        // Put the raw binary data right on the Envelope where
+        // Wolverine "knows" how to get at it later
+        envelope.Data = incoming.Value;
+    }
+}
+
+#endregion
+
+/*
+// Who knows, maybe the upstream app uses a different JSON naming
+// scheme than our .NET message types, so let's have the ability
+// to specify JSON serialization policies just in case
+_options = options;
+*/
 

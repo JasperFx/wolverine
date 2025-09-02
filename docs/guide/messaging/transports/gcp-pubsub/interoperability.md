@@ -74,8 +74,8 @@ using var host = await Host.CreateDefaultBuilder()
     {
         opts.UsePubsub("your-project-id")
             .UseConventionalRouting()
-            .ConfigureListeners(l => l.InteropWith(e => new CustomPubsubMapper(e)))
-            .ConfigureSenders(s => s.InteropWith(e => new CustomPubsubMapper(e)));
+            .ConfigureListeners(l => l.UseInterop((e, _) => new CustomPubsubMapper(e)))
+            .ConfigureSenders(s => s.UseInterop((e, _) => new CustomPubsubMapper(e)));
     }).StartAsync();
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/DocumentationSamples.cs#L224-L235' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_custom_envelope_mapper_for_pubsub' title='Start of snippet'>anchor</a></sup>

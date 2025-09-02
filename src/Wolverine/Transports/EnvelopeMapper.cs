@@ -18,15 +18,12 @@ public interface IOutgoingMapper<TOutgoing>
 public interface IIncomingMapper<TIncoming>
 {
     public void MapIncomingToEnvelope(Envelope envelope, TIncoming incoming);
-    public IEnumerable<string> AllHeaders();
 }
 
 public interface IEnvelopeMapper<TIncoming, TOutgoing> : IOutgoingMapper<TOutgoing>, IIncomingMapper<TIncoming>;
 
 public interface IEnvelopeMapper
 {
-    public IEnumerable<string> AllHeaders();
-
     /// <summary>
     ///     This endpoint will assume that any unidentified incoming message types
     ///     are the supplied message type. This is meant primarily for interaction
@@ -86,11 +83,6 @@ public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIn
         MapPropertyToHeader(x => x.DeliverBy!, EnvelopeConstants.DeliverByKey);
 
         MapPropertyToHeader(x => x.Attempts, EnvelopeConstants.AttemptsKey);
-    }
-
-    public IEnumerable<string> AllHeaders()
-    {
-        return _envelopeToHeader.Values;
     }
 
     public void MapIncomingToEnvelope(Envelope envelope, TIncoming incoming)

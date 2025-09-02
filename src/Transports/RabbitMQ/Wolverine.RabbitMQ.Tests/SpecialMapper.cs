@@ -4,6 +4,7 @@ using Wolverine.RabbitMQ.Internal;
 
 namespace Wolverine.RabbitMQ.Tests;
 
+
 #region sample_rabbit_special_mapper
 
 public class SpecialMapper : IRabbitMqEnvelopeMapper
@@ -48,11 +49,6 @@ public class SpecialMapper : IRabbitMqEnvelopeMapper
             // byte arrays
             envelope.TenantId = (string)tenantId;
         }
-    }
-
-    public IEnumerable<string> AllHeaders()
-    {
-        yield break;
     }
 }
 

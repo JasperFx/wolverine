@@ -1,3 +1,4 @@
+using System.Text.Json;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Configuration;
@@ -182,6 +183,67 @@ public class Samples
                     q.PurgeOnStartup = true;
                     q.TimeToLive(5.Minutes());
                 });
+            }).StartAsync();
+
+        #endregion
+    }
+
+    public static async Task interop_with_masstransit()
+    {
+        #region sample_rabbitmq_interop_with_masstransit
+
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                // *A* way to configure Rabbit MQ using their Uri schema
+                // documented here: https://www.rabbitmq.com/uri-spec.html
+                opts.UseRabbitMq(new Uri("amqp://localhost"));
+
+                // Set up a listener for a queue
+                opts.ListenToRabbitQueue("incoming1")
+                    
+                    // There is a limitation here in that you will also
+                    // have to tell Wolverine what the message type is
+                    // because it cannot today figure out what the Wolverine
+                    // message type in the current application is from 
+                    // MassTransit's metadata
+                    .DefaultIncomingMessage<Message1>()
+                    .UseMassTransitInterop(
+                        
+                        // This is optional, but just letting you know it's there
+                        interop =>
+                        {
+                            interop.UseSystemTextJsonForSerialization(stj =>
+                            {
+                                // Don't worry all of this is optional, but
+                                // just making sure you know that you can configure
+                                // JSON serialization to work seamlessly with whatever
+                                // the application on the other end is doing
+                            });
+                        });
+            }).StartAsync();
+
+        #endregion
+    }
+    
+    public static async Task interop_with_cloudevents()
+    {
+        #region sample_rabbitmq_interop_with_cloudevents
+
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                // *A* way to configure Rabbit MQ using their Uri schema
+                // documented here: https://www.rabbitmq.com/uri-spec.html
+                opts.UseRabbitMq(new Uri("amqp://localhost"));
+
+                // Set up a listener for a queue
+                opts.ListenToRabbitQueue("incoming1")
+
+                    // Just note that you *can* override the STJ serialization
+                    // settings for messages coming in with the CloudEvents
+                    // wrapper
+                    .InteropWithCloudEvents(new JsonSerializerOptions());
             }).StartAsync();
 
         #endregion

@@ -70,7 +70,7 @@ public async Task use_decimal_form_hit()
     body.ReadAsText().ShouldBe("Amount is 42.1");
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/using_form_parameters.cs#L476-L525' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_form_value_usage' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/using_form_parameters.cs#L477-L526' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_form_value_usage' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 

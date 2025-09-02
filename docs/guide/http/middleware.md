@@ -177,7 +177,7 @@ public static class RequestIdMiddleware
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http/Runtime/RequestIdMiddleware.cs#L10-L26' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_requestidmiddleware' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http/Runtime/RequestIdMiddleware.cs#L11-L27' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_requestidmiddleware' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And a matching `IHttpPolicy` to apply that middleware to any HTTP endpoint where there is a dependency on Wolverine's `IMessageContext` or `IMessageBus`:
@@ -201,7 +201,7 @@ internal class RequestIdPolicy : IHttpPolicy
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http/Runtime/RequestIdMiddleware.cs#L28-L46' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_requestidpolicy' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http/Runtime/RequestIdMiddleware.cs#L29-L47' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_requestidpolicy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Lastly, this particular policy is included by default, but if it wasn't, this is the code to apply it explicitly:
@@ -216,7 +216,7 @@ app.MapWolverineEndpoints(opts =>
     opts.AddPolicy<RequestIdPolicy>();
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http/Runtime/RequestIdMiddleware.cs#L55-L64' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_adding_http_policy' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http/Runtime/RequestIdMiddleware.cs#L56-L65' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_adding_http_policy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 For simpler middleware application, you could also use this feature:
@@ -232,7 +232,7 @@ app.MapWolverineEndpoints(opts =>
         c => c.HandlerCalls().Any(x => x.HandlerType.IsInNamespace("MyApp.Authenticated")));
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http/Runtime/RequestIdMiddleware.cs#L66-L76' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_simple_middleware_policy_for_http' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http/Runtime/RequestIdMiddleware.cs#L67-L77' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_simple_middleware_policy_for_http' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Required Inputs
@@ -273,7 +273,7 @@ public static class UpdateEndpoint
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Samples/TodoController.cs#L124-L153' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_update_with_required_entity' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Samples/TodoController.cs#L125-L154' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_update_with_required_entity' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 You'll notice that the `LoadAsync()` method is looking up the `Todo` entity for the route parameter, where Wolverine would

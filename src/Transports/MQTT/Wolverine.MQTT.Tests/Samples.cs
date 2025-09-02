@@ -228,11 +228,6 @@ public class MyMqttEnvelopeMapper : IMqttEnvelopeMapper
         // is not successfully processed
         // within 5 seconds
     }
-
-    public IEnumerable<string> AllHeaders()
-    {
-        yield break;
-    }
 }
 
 #endregion

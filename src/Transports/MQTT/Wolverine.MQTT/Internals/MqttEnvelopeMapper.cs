@@ -112,9 +112,4 @@ public class MqttEnvelopeMapper : IMqttEnvelopeMapper
             EnvelopeSerializer.ReadDataElement(envelope, property.Name, property.Value);
         }
     }
-
-    public IEnumerable<string> AllHeaders()
-    {
-        yield break;
-    }
 }
