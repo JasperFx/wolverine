@@ -20,7 +20,7 @@ public interface IHttpPolicy
     void Apply(IReadOnlyList<HttpChain> chains, GenerationRules rules, IServiceContainer container);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http/IHttpPolicy.cs#L6-L22' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_ihttppolicy' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http/IHttpPolicy.cs#L7-L23' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_ihttppolicy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And then adding a policy to the `WolverineHttpOptions` like this code from the Fluent Validation extension for HTTP:

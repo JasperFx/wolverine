@@ -35,7 +35,7 @@ finally
     logger.LogInformation("Ran something in " + stopwatch.ElapsedMilliseconds);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/Middleware.cs#L20-L35' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_stopwatch_concept' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/Middleware.cs#L21-L36' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_stopwatch_concept' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 You've got a couple different options, but the easiest by far is to use Wolverine's conventional middleware approach.
@@ -69,7 +69,7 @@ public class StopwatchMiddleware
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/Middleware.cs#L72-L91' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_stopwatchmiddleware_1' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/Middleware.cs#L73-L92' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_stopwatchmiddleware_1' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 and that can be added to our application at bootstrapping time like this:
@@ -87,7 +87,7 @@ using var host = await Host.CreateDefaultBuilder()
                 chain.MessageType.IsInNamespace("MyApp.Messages.Important"));
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/Middleware.cs#L138-L150' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_applying_middleware_by_policy' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/Middleware.cs#L139-L151' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_applying_middleware_by_policy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And just for the sake of completeness, here's another version of the same functionality, but 
@@ -118,7 +118,7 @@ public static class StopwatchMiddleware2
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/Middleware.cs#L108-L132' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_silly_micro_optimized_stopwatch_middleware' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/Middleware.cs#L109-L133' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_silly_micro_optimized_stopwatch_middleware' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Alright, let's talk about what's happening in the code samples above:
@@ -155,7 +155,7 @@ finally
     middleware.Finally();
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/Middleware.cs#L40-L53' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_demonstrating_middleware_application' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/Middleware.cs#L41-L54' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_demonstrating_middleware_application' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Here's the rules for these conventional middleware classes:
@@ -350,7 +350,7 @@ public static class SomeHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/Middleware.cs#L95-L106' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_apply_middleware_by_attribute' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/Middleware.cs#L96-L107' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_apply_middleware_by_attribute' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Note that this attribute will accept multiple middleware types. Also note that the `[Middleware]` attribute can be placed either
@@ -410,7 +410,7 @@ public class StopwatchFrame : SyncFrame
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/Middleware.cs#L154-L200' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_stopwatchframe' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/Middleware.cs#L155-L201' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_stopwatchframe' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -430,7 +430,7 @@ public class StopwatchAttribute : ModifyChainAttribute
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/Middleware.cs#L202-L212' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_stopwatchattribute' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/Middleware.cs#L203-L213' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_stopwatchattribute' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 This attribute can now be placed either on a specific HTTP route endpoint method or message handler method to **only** apply to
@@ -450,7 +450,7 @@ public class ClockedEndpoint
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/Middleware.cs#L214-L225' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_clockedendpoint' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/Middleware.cs#L215-L226' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_clockedendpoint' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Now, when the application is bootstrapped, this is the code that would be generated to handle the "GET /clocked" route:
@@ -515,7 +515,7 @@ public interface IHandlerPolicy : IWolverinePolicy
     void Apply(IReadOnlyList<HandlerChain> chains, GenerationRules rules, IServiceContainer container);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Configuration/IHandlerPolicy.cs#L36-L52' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_ihandlerpolicy' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Configuration/IHandlerPolicy.cs#L37-L53' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_ihandlerpolicy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Here's a simple sample that registers middleware on each handler chain:
@@ -531,7 +531,7 @@ public class WrapWithSimple : IHandlerPolicy
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/BootstrappingSamples.cs#L59-L69' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wrapwithsimple' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/BootstrappingSamples.cs#L60-L70' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wrapwithsimple' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Then register your custom `IHandlerPolicy` with a Wolverine application like this:
@@ -542,7 +542,7 @@ Then register your custom `IHandlerPolicy` with a Wolverine application like thi
 using var host = await Host.CreateDefaultBuilder()
     .UseWolverine(opts => { opts.Policies.Add<WrapWithSimple>(); }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/BootstrappingSamples.cs#L15-L20' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_appwithhandlerpolicy' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/BootstrappingSamples.cs#L16-L21' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_appwithhandlerpolicy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Using Configure(chain) Methods

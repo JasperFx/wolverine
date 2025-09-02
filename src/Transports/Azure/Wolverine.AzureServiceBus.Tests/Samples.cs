@@ -211,11 +211,6 @@ public class CustomAzureServiceBusMapper : IAzureServiceBusEnvelopeMapper
         // is for a listening endpoint
         envelope.MessageType = typeof(Message1).ToMessageTypeName();
     }
-
-    public IEnumerable<string> AllHeaders()
-    {
-        yield break;
-    }
 }
 
 #endregion

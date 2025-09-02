@@ -65,7 +65,7 @@ public record WriteFile(string Path, string Contents)
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CustomReturnType.cs#L12-L23' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_writefile' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CustomReturnType.cs#L13-L24' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_writefile' title='Start of snippet'>anchor</a></sup>
 <a id='snippet-sample_writefile-1'></a>
 ```cs
 // ISideEffect is a Wolverine marker interface
@@ -133,7 +133,7 @@ internal class WriteFilePolicy : IChainPolicy
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CustomReturnType.cs#L25-L58' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_writefilepolicy' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CustomReturnType.cs#L26-L59' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_writefilepolicy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 and lastly, I'll register that policy in my Wolverine application at configuration time:
@@ -144,6 +144,6 @@ and lastly, I'll register that policy in my Wolverine application at configurati
 using var host = await Host.CreateDefaultBuilder()
     .UseWolverine(opts => { opts.Policies.Add<WriteFilePolicy>(); }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CustomReturnType.cs#L64-L69' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_register_writefilepolicy' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CustomReturnType.cs#L65-L70' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_register_writefilepolicy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 

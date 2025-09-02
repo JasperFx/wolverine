@@ -27,7 +27,7 @@ public async Task SendScheduledMessage(IMessageContext bus, Guid invoiceId)
     await bus.ScheduleAsync(message, DateTimeOffset.Now.AddDays(30));
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PublishingSamples.cs#L167-L184' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_send_delayed_message' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PublishingSamples.cs#L158-L175' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_send_delayed_message' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And also use Azure Service Bus scheduled delivery for scheduled retries (assuming that the listening endpoint was an **inline** Azure Service Bus listener):

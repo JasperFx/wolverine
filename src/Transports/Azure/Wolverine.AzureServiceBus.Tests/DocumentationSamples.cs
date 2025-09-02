@@ -459,4 +459,82 @@ opts.ListenToAzureServiceBusQueue("incoming")
     #endregion
 
     public record StatusUpdate(string Status);
+
+
+    public static async Task custom_mapping()
+    {
+        #region sample_customized_envelope_mapping
+
+        var builder = Host.CreateApplicationBuilder();
+        builder.UseWolverine(opts =>
+        {
+            // One way or another, you're probably pulling the Azure Service Bus
+            // connection string out of configuration
+            var azureServiceBusConnectionString = builder
+                .Configuration
+                .GetConnectionString("azure-service-bus");
+
+            // Connect to the broker in the simplest possible way
+            opts.UseAzureServiceBus(azureServiceBusConnectionString).AutoProvision();
+
+            // I overrode the buffering limits just to show
+            // that they exist for "back pressure"
+            opts.ListenToAzureServiceBusQueue("incoming")
+                .UseInterop((queue, mapper) =>
+                {
+                    // Not sure how useful this would be, but we can start from
+                    // the baseline Wolverine mapping and just override a few mappings
+                    mapper.MapPropertyToHeader(x => x.ContentType, "OtherTool.ContentType");
+                    mapper.MapPropertyToHeader(x => x.CorrelationId, "OtherTool.CorrelationId");
+                    // and more
+                    
+                    // or a little uglier where you might be mapping and transforming data between
+                    // the transport's model and the Wolverine Envelope
+                    mapper.MapProperty(x => x.ReplyUri, 
+                        (e, msg) => e.ReplyUri = new Uri($"asb://queue/{msg.ReplyTo}"),
+                        (e, msg) => msg.ReplyTo = "response");
+                    
+                });
+
+        });
+
+        #endregion
+
+        using var host = builder.Build();
+        await host.StartAsync();
+    }
+    
+    public static async Task nservicebus()
+    {
+        #region sample_opting_into_nservicebus
+
+        var builder = Host.CreateApplicationBuilder();
+        builder.UseWolverine(opts =>
+        {
+            // One way or another, you're probably pulling the Azure Service Bus
+            // connection string out of configuration
+            var azureServiceBusConnectionString = builder
+                .Configuration
+                .GetConnectionString("azure-service-bus");
+
+            // Connect to the broker in the simplest possible way
+            opts.UseAzureServiceBus(azureServiceBusConnectionString).AutoProvision();
+
+            // I overrode the buffering limits just to show
+            // that they exist for "back pressure"
+            opts.ListenToAzureServiceBusQueue("incoming")
+                .UseNServiceBusInterop();
+            
+            // This facilitates messaging from NServiceBus (or MassTransit) sending as interface
+            // types, whereas Wolverine only wants to deal with concrete types
+            opts.Policies.RegisterInteropMessageAssembly(typeof(IInterfaceMessage).Assembly);
+        });
+
+        #endregion
+
+        using var host = builder.Build();
+        await host.StartAsync();
+    }
 }
+
+public interface IInterfaceMessage;

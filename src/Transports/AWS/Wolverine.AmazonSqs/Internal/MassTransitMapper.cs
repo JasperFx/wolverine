@@ -4,6 +4,10 @@ using Wolverine.Runtime.Interop.MassTransit;
 
 namespace Wolverine.AmazonSqs.Internal;
 
+#region sample_MassTransitMapper_for_SQS
+
+// This guy is the envelope mapper for interoperating
+// with MassTransit 
 internal class MassTransitMapper : ISqsEnvelopeMapper
 {
     private readonly IMassTransitInteropEndpoint _endpoint;
@@ -31,7 +35,11 @@ internal class MassTransitMapper : ISqsEnvelopeMapper
     {
         // TODO -- this could be more efficient of course
         envelope.Data = Encoding.UTF8.GetBytes(messageBody);
+        
+        // This is the really important part
+        // of the mapping
         envelope.Serializer = _serializer;
     }
-
 }
+
+#endregion

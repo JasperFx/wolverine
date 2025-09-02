@@ -14,7 +14,6 @@ namespace Wolverine.Pulsar;
 /// </summary>
 public interface IPulsarEnvelopeMapper
 {
-    IEnumerable<string> AllHeaders();
     void MapIncomingToEnvelope(Envelope envelope, IMessage<ReadOnlySequence<byte>> incoming);
     void MapEnvelopeToOutgoing(Envelope envelope, MessageMetadata outgoing);
 }

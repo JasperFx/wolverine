@@ -66,7 +66,7 @@ public static readonly Dictionary<Type, string> TypeOutputs = new()
     { typeof(DateOnly), typeof(DateOnly).FullName! }
 };
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http/CodeGen/RouteHandling.cs#L13-L36' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_supported_route_parameter_types' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http/CodeGen/RouteHandling.cs#L14-L37' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_supported_route_parameter_types' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: warning

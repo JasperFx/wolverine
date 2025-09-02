@@ -118,3 +118,7 @@ builder.UseWolverine(opts =>
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Pulsar/Wolverine.Pulsar.Tests/DocumentationSamples.cs#L78-L93' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pulsar_unsubscribe_on_close' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+
+## Interoperability
+
+MORE HERE!
