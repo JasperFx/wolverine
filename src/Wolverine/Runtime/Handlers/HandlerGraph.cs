@@ -46,6 +46,8 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
 
     private bool _hasGrouped;
 
+    private object _messageTypesLock = new();
+
     private ImHashMap<string, Type> _messageTypes = ImHashMap<string, Type>.Empty;
 
     private ImmutableList<Type> _replyTypes = ImmutableList<Type>.Empty;
@@ -336,24 +338,28 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
 
     private void registerMessageTypes()
     {
-        _messageTypes =
-            _messageTypes.AddOrUpdate(typeof(Acknowledgement).ToMessageTypeName(), typeof(Acknowledgement));
-
-        foreach (var chain in Chains)
+        lock (_messageTypesLock)
         {
-            _messageTypes = _messageTypes.AddOrUpdate(chain.MessageType.ToMessageTypeName(), chain.MessageType);
+            _messageTypes =
+                _messageTypes.AddOrUpdate(typeof(Acknowledgement).ToMessageTypeName(), typeof(Acknowledgement));
 
-            if (chain.MessageType.TryGetAttribute<InteropMessageAttribute>(out var att))
+            foreach (var chain in Chains)
             {
-                _messageTypes = _messageTypes.AddOrUpdate(att.InteropType.ToMessageTypeName(), chain.MessageType);
-            }
-            else
-            {
-                foreach (var @interface in chain.MessageType.GetInterfaces())
+                _messageTypes = _messageTypes.AddOrUpdate(chain.MessageType.ToMessageTypeName(), chain.MessageType);
+
+                if (chain.MessageType.TryGetAttribute<InteropMessageAttribute>(out var att))
                 {
-                    if (InteropAssemblies.Contains(@interface.Assembly))
+                    _messageTypes = _messageTypes.AddOrUpdate(att.InteropType.ToMessageTypeName(), chain.MessageType);
+                }
+                else
+                {
+                    foreach (var @interface in chain.MessageType.GetInterfaces())
                     {
-                        _messageTypes = _messageTypes.AddOrUpdate(@interface.ToMessageTypeName(), chain.MessageType);
+                        if (InteropAssemblies.Contains(@interface.Assembly))
+                        {
+                            _messageTypes =
+                                _messageTypes.AddOrUpdate(@interface.ToMessageTypeName(), chain.MessageType);
+                        }
                     }
                 }
             }
@@ -467,8 +473,11 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
             return;
         }
 
-        _messageTypes = _messageTypes.AddOrUpdate(messageType.ToMessageTypeName(), messageType);
-        _replyTypes = _replyTypes.Add(messageType);
+        lock (_messageTypesLock)
+        {
+            _messageTypes = _messageTypes.AddOrUpdate(messageType.ToMessageTypeName(), messageType);
+            _replyTypes = _replyTypes.Add(messageType);
+        }
     }
     
     public void RegisterMessageType(Type messageType, string messageAlias)
@@ -483,8 +492,11 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
             return;
         }
 
-        _messageTypes = _messageTypes.AddOrUpdate(messageAlias, messageType);
-        _replyTypes = _replyTypes.Add(messageType);
+        lock (_messageTypesLock)
+        {
+            _messageTypes = _messageTypes.AddOrUpdate(messageAlias, messageType);
+            _replyTypes = _replyTypes.Add(messageType);
+        }
     }
 
     public IEnumerable<HandlerChain> AllChains()
