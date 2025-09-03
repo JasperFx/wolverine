@@ -38,3 +38,4 @@ internal class SignalRSender<T> : ISender where T : WolverineHub
         throw new NotImplementedException();
     }
 }
+
