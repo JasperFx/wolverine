@@ -2,9 +2,8 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.DependencyInjection;
 using Wolverine.Runtime;
-using Wolverine.SignalR.Internals;
 
-namespace IntegrationTests;
+namespace Wolverine.SignalR.Tests;
 
 public class Playing
 {
