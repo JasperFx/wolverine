@@ -18,6 +18,7 @@ using Wolverine.Logging;
 using Wolverine.Middleware;
 using Wolverine.Persistence;
 using Wolverine.Persistence.Sagas;
+using Wolverine.Runtime.Partitioning;
 using Wolverine.Runtime.Routing;
 using Wolverine.Transports.Local;
 using Wolverine.Transports.Stub;
@@ -243,6 +244,20 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
 
 
         handleMethod.DerivedVariables.Add(envelopeVariable);
+    }
+
+    internal virtual bool TryInferMessageIdentity(out PropertyInfo? property)
+    {
+        var atts = Handlers.SelectMany(x => x.HandlerType.GetCustomAttributes().Concat(x.Method.GetCustomAttributes()))
+            .OfType<IMayInferMessageIdentity>().ToArray();
+
+        foreach (var att in atts)
+        {
+            if (att.TryInferMessageIdentity(this, out property)) return true;
+        }
+        
+        property = default;
+        return false;
     }
 
     Task<bool> ICodeFile.AttachTypes(GenerationRules rules, Assembly assembly, IServiceProvider? services,

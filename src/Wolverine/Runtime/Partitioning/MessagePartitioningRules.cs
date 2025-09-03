@@ -2,6 +2,7 @@ using System.Reflection;
 using ImTools;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
+using Wolverine.Runtime.Handlers;
 
 namespace Wolverine.Runtime.Partitioning;
 
@@ -9,6 +10,7 @@ public class MessagePartitioningRules
 {
     private readonly WolverineOptions _options;
     private readonly List<IGroupingRule> _rules = new();
+    private bool _useInferredGrouping;
 
     public MessagePartitioningRules(WolverineOptions options)
     {
@@ -107,6 +109,32 @@ public class MessagePartitioningRules
     {
         topology = ShardedMessageTopologies.FirstOrDefault(x => x.Matches(messageType));
         return topology != null;
+    }
+
+    /// <summary>
+    /// As possible, let Wolverine infer the message grouping based on the message usage.
+    /// For example, messsages related to a Saga will use any saga id property in the command type. In
+    /// the Marten aggregate handler workflow, Wolverine will use a property on the command type that
+    /// identifies the event stream *if only one event stream is impacted*
+    /// </summary>
+    /// <returns></returns>
+    public MessagePartitioningRules UseInferredMessageGrouping()
+    {
+        _useInferredGrouping = true;
+        return this;
+    }
+
+    internal void MaybeInferGrouping(HandlerGraph handlerGraph)
+    {
+        if (!_useInferredGrouping) return;
+
+        foreach (var chain in handlerGraph.Chains)
+        {
+            if (chain.TryInferMessageIdentity(out var property))
+            {
+                ByMessage(chain.MessageType, property);
+            }
+        }
     }
 }
 

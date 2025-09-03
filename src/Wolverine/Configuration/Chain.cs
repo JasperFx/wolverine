@@ -35,15 +35,6 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
 
     public List<Frame> Postprocessors { get; } = [];
 
-    /// <summary>
-    /// This list on a HandlerChain reflects the properties of the input type
-    /// that Wolverine determines relates to the identity of an entity within
-    /// the system. Wolverine uses this to help sort out messages in the partitioned
-    /// sequential messaging. Event stream id, saga id, or entity id properties are
-    /// the most common usage for this
-    /// </summary>
-    public List<PropertyInfo> IdentityProperties { get; } = [];
-
     [IgnoreDescription]
     public Dictionary<string, object> Tags { get; } = new();
 
