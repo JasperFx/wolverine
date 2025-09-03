@@ -321,6 +321,8 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
         registerMessageTypes();
 
         tryApplyLocalQueueConfiguration(options);
+
+        options.MessagePartitioning.MaybeInferGrouping(this);
     }
 
     private void tryApplyLocalQueueConfiguration(WolverineOptions options)

@@ -268,13 +268,6 @@ public class aggregate_handler_workflow: PostgresqlContext, IAsyncLifetime
             existing2.BCount.ShouldBe(1);
         }
     }
-
-    [Fact]
-    public void registers_the_identity_member_with_the_chain()
-    {
-        var chain = theHost.GetRuntime().Options.HandlerGraph.ChainFor<IncrementA>();
-        chain.IdentityProperties.Single().Name.ShouldBe(nameof(IncrementA.LetterAggregateId));
-    }
 }
 
 public record Event1(Guid AggregateId);

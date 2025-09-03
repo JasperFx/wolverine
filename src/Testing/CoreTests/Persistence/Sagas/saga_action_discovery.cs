@@ -43,7 +43,10 @@ public class saga_action_discovery : IntegrationContext
     public void applies_the_saga_id_member_as_an_identity_member()
     {
         var handlerChain = chainFor<SagaMessage1>();
-        handlerChain.IdentityProperties.Single()
+        
+        handlerChain.TryInferMessageIdentity(out var property).ShouldBeTrue();
+        
+        property
             .Name.ShouldBe(nameof(SagaMessage1.Id));
         
         handlerChain.InputType().ShouldBe(typeof(SagaMessage1));

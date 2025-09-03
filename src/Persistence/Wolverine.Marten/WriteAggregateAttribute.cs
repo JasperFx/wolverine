@@ -11,6 +11,8 @@ using Wolverine.Attributes;
 using Wolverine.Configuration;
 using Wolverine.Persistence;
 using Wolverine.Runtime;
+using Wolverine.Runtime.Handlers;
+using Wolverine.Runtime.Partitioning;
 
 namespace Wolverine.Marten;
 
@@ -19,7 +21,7 @@ namespace Wolverine.Marten;
 ///     "aggregate handler" workflow
 /// </summary>
 [AttributeUsage(AttributeTargets.Parameter)]
-public class WriteAggregateAttribute : WolverineParameterAttribute, IDataRequirement
+public class WriteAggregateAttribute : WolverineParameterAttribute, IDataRequirement, IMayInferMessageIdentity
 {
     public WriteAggregateAttribute()
     {
@@ -65,12 +67,6 @@ public class WriteAggregateAttribute : WolverineParameterAttribute, IDataRequire
         {
             throw new InvalidOperationException(
                 "Cannot determine an identity variable for this aggregate from the route arguments");
-        }
-
-        // Don't like this code, but it's for https://github.com/JasperFx/wolverine/issues/1642
-        if (identity is MessageMemberVariable variable && variable.Member is PropertyInfo property)
-        {
-            chain.IdentityProperties.Add(property);
         }
 
         var version = findVersionVariable(chain);
@@ -135,5 +131,13 @@ public class WriteAggregateAttribute : WolverineParameterAttribute, IDataRequire
         }
 
         return null;
+    }
+
+    public bool TryInferMessageIdentity(HandlerChain chain, out PropertyInfo property)
+    {
+        var aggregateType = AggregateHandling.DetermineAggregateType(chain);
+        var idMember = AggregateHandling.DetermineAggregateIdMember(aggregateType, chain.MessageType);
+        property = idMember as PropertyInfo;
+        return property != null;
     }
 }
