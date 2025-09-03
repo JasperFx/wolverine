@@ -42,6 +42,13 @@ public class SagaChain : HandlerChain
         }
 
         SagaIdMember = DetermineSagaIdMember(MessageType, SagaType);
+
+        // This is for automatic message partitioning
+        if (SagaIdMember is PropertyInfo property)
+        {
+            IdentityProperties.Add(property);
+        }
+        
     }
 
     protected override void validateAgainstInvalidSagaMethods(IGrouping<Type, HandlerCall> grouping)
