@@ -2,7 +2,7 @@ using Amazon.SQS;
 using JasperFx.Core.Reflection;
 using Wolverine.AmazonSqs.Internal;
 using Wolverine.Configuration;
-using Wolverine.Runtime.Sharding;
+using Wolverine.Runtime.Partitioning;
 
 namespace Wolverine.AmazonSqs;
 

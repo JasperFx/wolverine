@@ -1,10 +1,8 @@
-using NSubstitute;
 using Wolverine.ComplianceTests;
-using Wolverine.Runtime;
-using Wolverine.Runtime.Sharding;
+using Wolverine.Runtime.Partitioning;
 using Xunit;
 
-namespace CoreTests.Runtime.Sharding;
+namespace CoreTests.Runtime.Partitioning;
 
 public class ShardedExecutionBlockSmokeTests
 {

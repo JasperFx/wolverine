@@ -1,6 +1,6 @@
 using JasperFx.Core;
 
-namespace Wolverine.Runtime.Sharding;
+namespace Wolverine.Runtime.Partitioning;
 
 public class MessagePartitioningRules
 {

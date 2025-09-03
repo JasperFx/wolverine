@@ -1,5 +1,5 @@
 using Wolverine.Configuration;
-using Wolverine.Runtime.Sharding;
+using Wolverine.Runtime.Partitioning;
 
 namespace Wolverine.AmazonSqs.Internal;
 

@@ -11,7 +11,7 @@ using Wolverine.Configuration;
 using Wolverine.Marten;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
-using Wolverine.Runtime.Sharding;
+using Wolverine.Runtime.Partitioning;
 using Wolverine.Tracking;
 using Wolverine.Transports.Stub;
 

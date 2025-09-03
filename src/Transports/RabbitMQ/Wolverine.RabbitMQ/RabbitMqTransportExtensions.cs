@@ -5,8 +5,8 @@ using Microsoft.Extensions.DependencyInjection;
 using RabbitMQ.Client;
 using Wolverine.Configuration;
 using Wolverine.RabbitMQ.Internal;
+using Wolverine.Runtime.Partitioning;
 using Wolverine.Runtime.Routing;
-using Wolverine.Runtime.Sharding;
 
 namespace Wolverine.RabbitMQ;
 

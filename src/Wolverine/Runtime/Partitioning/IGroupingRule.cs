@@ -1,4 +1,4 @@
-namespace Wolverine.Runtime.Sharding;
+namespace Wolverine.Runtime.Partitioning;
 
 /// <summary>
 /// Strategy for determining the GroupId of a message

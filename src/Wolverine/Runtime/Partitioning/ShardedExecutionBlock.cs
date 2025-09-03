@@ -2,7 +2,7 @@ using System.Diagnostics;
 using JasperFx.Blocks;
 using Wolverine.Transports;
 
-namespace Wolverine.Runtime.Sharding;
+namespace Wolverine.Runtime.Partitioning;
 
 internal class ShardedExecutionBlock : BlockBase<Envelope>
 {

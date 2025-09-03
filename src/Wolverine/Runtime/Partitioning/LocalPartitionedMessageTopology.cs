@@ -2,7 +2,7 @@ using JasperFx.Core.Reflection;
 using Wolverine.Configuration;
 using Wolverine.Transports.Local;
 
-namespace Wolverine.Runtime.Sharding;
+namespace Wolverine.Runtime.Partitioning;
 
 public class LocalPartitionedMessageTopology : PartitionedMessageTopology
 {
