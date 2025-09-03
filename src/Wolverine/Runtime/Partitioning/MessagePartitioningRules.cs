@@ -1,4 +1,7 @@
+using System.Reflection;
+using ImTools;
 using JasperFx.Core;
+using JasperFx.Core.Reflection;
 
 namespace Wolverine.Runtime.Partitioning;
 
@@ -60,6 +63,28 @@ public class MessagePartitioningRules
         _rules.Add(new MessageGrouping<T>(strategy));
         return this;
     }
+
+    /// <summary>
+    /// Add a grouping rule based on a concrete message type and the property
+    /// of the message type that exposes the group id information
+    /// Used extensively internally
+    /// </summary>
+    /// <param name="messageType"></param>
+    /// <param name="messageProperty"></param>
+    /// <returns></returns>
+    public MessagePartitioningRules ByMessage(Type messageType, PropertyInfo messageProperty)
+    {
+        var grouping = _rules.OfType<ExplicitGrouping>().FirstOrDefault();
+        if (grouping == null)
+        {
+            grouping = new ExplicitGrouping();
+            _rules.Insert(0, grouping);
+        }
+        
+        grouping.AddMessageType(messageType, messageProperty);
+
+        return this;
+    }
     
     internal string? DetermineGroupId(Envelope envelope)
     {
@@ -82,5 +107,54 @@ public class MessagePartitioningRules
     {
         topology = ShardedMessageTopologies.FirstOrDefault(x => x.Matches(messageType));
         return topology != null;
+    }
+}
+
+internal interface IGrouper
+{
+    Type MessageType { get; }
+    string ToGroupId(object message);
+}
+
+internal class ExplicitGrouping : IGroupingRule
+{
+    private ImHashMap<Type, IGrouper> _groupers = ImHashMap<Type, IGrouper>.Empty;
+
+    public bool TryFindIdentity(Envelope envelope, out string groupId)
+    {
+        if (_groupers.TryFind(envelope.Message.GetType(), out var grouper))
+        {
+            groupId = grouper.ToGroupId(envelope.Message);
+            return true;
+        }
+        
+        groupId = default;
+        return false;
+    }
+
+    public void AddMessageType(Type messageType, PropertyInfo property)
+    {
+        _groupers = _groupers.AddOrUpdate(messageType,
+            typeof(Grouper<,>).CloseAndBuildAs<IGrouper>(property, messageType, property.PropertyType));
+    }
+}
+
+internal class Grouper<TConcrete, TProperty> : IGrouper
+{
+    private readonly Func<TConcrete, TProperty> _source;
+
+    public Grouper(PropertyInfo groupMember)
+    {
+        _source = LambdaBuilder.GetProperty<TConcrete, TProperty>(groupMember);
+    }
+
+    public Type MessageType => typeof(TConcrete);
+    public string ToGroupId(object message)
+    {
+        var raw = _source((TConcrete)message);
+        
+        // If it's empty, it will get randomly sorted 
+        // into the partitioned slots
+        return raw?.ToString() ?? string.Empty;
     }
 }
