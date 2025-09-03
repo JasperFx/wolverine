@@ -1,7 +1,7 @@
 using Wolverine.Runtime.Routing;
 using Wolverine.Transports.Sending;
 
-namespace Wolverine.Runtime.Sharding;
+namespace Wolverine.Runtime.Partitioning;
 
 internal class ShardedMessageRoute : IMessageRoute
 {

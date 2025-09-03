@@ -4,8 +4,8 @@ using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
 using Wolverine.Logging;
+using Wolverine.Runtime.Partitioning;
 using Wolverine.Runtime.Scheduled;
-using Wolverine.Runtime.Sharding;
 using Wolverine.Transports;
 using Wolverine.Transports.Sending;
 

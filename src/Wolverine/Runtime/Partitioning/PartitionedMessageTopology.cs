@@ -2,7 +2,7 @@ using System.Reflection;
 using Wolverine.Configuration;
 using Wolverine.Runtime.Routing;
 
-namespace Wolverine.Runtime.Sharding;
+namespace Wolverine.Runtime.Partitioning;
 
 public abstract class PartitionedMessageTopology<TListener, TSubscriber> : PartitionedMessageTopology
     where TListener : IListenerConfiguration<TListener>

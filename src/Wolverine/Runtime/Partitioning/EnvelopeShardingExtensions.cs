@@ -1,7 +1,6 @@
-using System.Diagnostics;
 using JasperFx.Core;
 
-namespace Wolverine.Runtime.Sharding;
+namespace Wolverine.Runtime.Partitioning;
 
 internal static class EnvelopeShardingExtensions
 {

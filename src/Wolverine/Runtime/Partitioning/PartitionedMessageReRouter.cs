@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Wolverine.Runtime.Handlers;
 
-namespace Wolverine.Runtime.Sharding;
+namespace Wolverine.Runtime.Partitioning;
 
 internal class PartitionedMessageReRouter : IMessageHandler
 {

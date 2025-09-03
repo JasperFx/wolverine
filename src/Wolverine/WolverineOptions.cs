@@ -11,9 +11,9 @@ using Wolverine.Configuration;
 using Wolverine.Persistence;
 using Wolverine.Persistence.MultiTenancy;
 using Wolverine.Runtime.Handlers;
+using Wolverine.Runtime.Partitioning;
 using Wolverine.Runtime.Scheduled;
 using Wolverine.Runtime.Serialization;
-using Wolverine.Runtime.Sharding;
 using Wolverine.Transports.Local;
 
 [assembly: InternalsVisibleTo("Wolverine.Testing")]

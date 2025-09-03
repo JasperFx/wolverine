@@ -4,7 +4,7 @@ using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
 using Wolverine.Logging;
 using Wolverine.Persistence.Durability;
-using Wolverine.Runtime.Sharding;
+using Wolverine.Runtime.Partitioning;
 using Wolverine.Transports;
 using Wolverine.Transports.Sending;
 

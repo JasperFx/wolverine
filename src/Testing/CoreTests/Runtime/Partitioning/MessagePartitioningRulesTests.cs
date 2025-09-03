@@ -1,10 +1,10 @@
 using Wolverine.ComplianceTests;
-using Wolverine.Runtime.Sharding;
+using Wolverine.Runtime.Partitioning;
 using Xunit;
 
-namespace CoreTests.Runtime.Sharding;
+namespace CoreTests.Runtime.Partitioning;
 
-public class GroupingRulesTests
+public class MessagePartitioningRulesTests
 {
     [Fact]
     public void by_tenant_id()
