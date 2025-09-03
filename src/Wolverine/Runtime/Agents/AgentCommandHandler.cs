@@ -18,7 +18,10 @@ internal class AgentCommandHandler : MessageHandler
             .RetryWithCooldown(50.Milliseconds(), 100.Milliseconds(), 250.Milliseconds())
             .Then.Discard();
 
-        Chain.ExecutionLogLevel = LogLevel.Debug;
+        // Reducing log noise
+        Chain.ExecutionLogLevel = LogLevel.None;
+        Chain.ProcessingLogLevel = LogLevel.None;
+        Chain.SuccessLogLevel = LogLevel.None;
         Chain.TelemetryEnabled = false;
     }
 
