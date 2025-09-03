@@ -29,8 +29,8 @@ public abstract class WolverineHub : Hub, IListener
     public async Task Receive(string json)
     {
         if (Receiver == null) return;
-        
-        var envelope = new Envelope();
+
+        var envelope = new SignalREnvelope(Context, this);
         _mapper.MapIncoming(envelope, json);
         await Receiver.ReceivedAsync(this, envelope);
     }

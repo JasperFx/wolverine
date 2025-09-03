@@ -8,6 +8,7 @@ namespace Wolverine.SignalR.Internals;
 public class SignalRTransport : TransportBase<SignalREndpoint>
 {
     public static readonly string ProtocolName = "signalr";
+    public static readonly string DefaultOperation = "ReceiveMessage";
     public Cache<Type, SignalREndpoint> HubEndpoints { get; }
     
     public SignalRTransport() : base(ProtocolName, "SignalR Messaging Integration")

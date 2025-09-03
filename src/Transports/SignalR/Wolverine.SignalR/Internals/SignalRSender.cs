@@ -34,8 +34,18 @@ internal class SignalRSender<T> : ISender where T : WolverineHub
 
     public ValueTask SendAsync(Envelope envelope)
     {
-        // TODO -- look at the envelope and decide how to send things out
-        throw new NotImplementedException();
+        // This is controlling which subset of active connections
+        // should get the message
+        var locator = WebSocketRouting.DetermineLocator(envelope);
+        
+        // DefaultOperation = "ReceiveMessage" in this case
+        // Wolverine users will be able to opt into sending messages to different SignalR
+        // operations on the client
+        var operation = envelope.TopicName ?? SignalRTransport.DefaultOperation;
+
+        var json = _mapper.WriteToString(envelope);
+
+        return new ValueTask(locator.Find(_context).SendAsync(operation, json));
     }
 }
 
