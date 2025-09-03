@@ -245,7 +245,7 @@ public partial class Envelope : IHasTenantId
     ///     If this message is part of a stateful saga, this property identifies
     ///     the underlying saga state object
     /// </summary>
-    public string? SagaId { get; internal set; }
+    public string? SagaId { get; set; }
 
     /// <summary>
     ///     Id of the immediate message or workflow that caused this envelope to be sent
@@ -328,6 +328,12 @@ public partial class Envelope : IHasTenantId
         ScheduledTime = DateTimeOffset.Now.Add(delay);
         return this;
     }
+    
+    /// <summary>
+    /// Used to "smuggle" contextual information to some
+    /// messaging transports
+    /// </summary>
+    public object? RoutingInformation { get; set; }
 
     /// <summary>
     ///     Schedule this envelope to be sent or executed

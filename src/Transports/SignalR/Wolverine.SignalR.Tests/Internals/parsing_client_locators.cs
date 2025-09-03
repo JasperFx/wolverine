@@ -5,7 +5,7 @@ namespace Wolverine.SignalR.Tests.Internals;
 
 public class parsing_client_locators
 {
-    private void AssertRoundTripParsing(WebSocketRouting.IClientProxyLocator locator)
+    private void AssertRoundTripParsing(WebSocketRouting.ILocator locator)
     {
         var locator2 = WebSocketRouting.ParseLocator(locator.ToString());
         locator2.ShouldBe(locator);

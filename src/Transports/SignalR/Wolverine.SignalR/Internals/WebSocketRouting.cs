@@ -3,9 +3,9 @@ using Microsoft.AspNetCore.SignalR;
 
 namespace Wolverine.SignalR.Internals;
 
-internal class WebSocketRouting
+public class WebSocketRouting
 {
-    public static IClientProxyLocator? ParseLocator(string expression)
+    public static ILocator ParseLocator(string? expression)
     {
         if (expression.IsEmpty()) return new All();
         if (expression.EqualsIgnoreCase("all")) return new All();
@@ -25,12 +25,19 @@ internal class WebSocketRouting
         return new All();
     }
     
-    internal interface IClientProxyLocator
+    public static ILocator DetermineLocator(Envelope envelope)
+    {
+        if (envelope.RoutingInformation is ILocator locator) return locator;
+
+        return ParseLocator(envelope.SagaId);
+    }
+    
+    public interface ILocator
     {
         IClientProxy Find<T>(IHubContext<T> context) where T : WolverineHub;
     }
 
-    internal record Connection(string ConnectionId) : IClientProxyLocator
+    public record Connection(string ConnectionId) : ILocator
     {
         public IClientProxy Find<T>(IHubContext<T> context) where T : WolverineHub
         {
@@ -43,7 +50,7 @@ internal class WebSocketRouting
         }
     }
 
-    internal record All : IClientProxyLocator
+    public record All : ILocator
     {
         public IClientProxy Find<T>(IHubContext<T> context) where T : WolverineHub
         {
@@ -51,7 +58,7 @@ internal class WebSocketRouting
         }
     }
 
-    internal record Group(string GroupName) : IClientProxyLocator
+    public record Group(string GroupName) : ILocator
     {
         public IClientProxy Find<T>(IHubContext<T> context) where T : WolverineHub
         {
@@ -63,7 +70,8 @@ internal class WebSocketRouting
             return $"Group={GroupName}";
         }
     }
-    
+
     // TODO -- flesh out with this: https://learn.microsoft.com/en-us/aspnet/core/signalr/hubs?view=aspnetcore-9.0#the-clients-object
+    
 }
 
