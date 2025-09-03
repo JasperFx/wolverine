@@ -2,6 +2,7 @@ using System.Reflection;
 using JasperFx;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Model;
+using JasperFx.CodeGeneration.Services;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Marten;
@@ -64,6 +65,12 @@ public class WriteAggregateAttribute : WolverineParameterAttribute, IDataRequire
         {
             throw new InvalidOperationException(
                 "Cannot determine an identity variable for this aggregate from the route arguments");
+        }
+
+        // Don't like this code, but it's for https://github.com/JasperFx/wolverine/issues/1642
+        if (identity is MessageMemberVariable variable && variable.Member is PropertyInfo property)
+        {
+            chain.IdentityProperties.Add(property);
         }
 
         var version = findVersionVariable(chain);

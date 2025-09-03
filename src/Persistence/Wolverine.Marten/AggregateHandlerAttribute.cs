@@ -9,6 +9,7 @@ using JasperFx.Core.Reflection;
 using JasperFx.Events;
 using Marten;
 using Marten.Events;
+using Microsoft.CodeAnalysis.VisualBasic;
 using Microsoft.Extensions.DependencyInjection;
 using Wolverine.Attributes;
 using Wolverine.Configuration;
@@ -70,9 +71,12 @@ public class AggregateHandlerAttribute : ModifyChainAttribute, IDataRequirement
 
         (AggregateIdMember, VersionMember) =
             AggregateHandling.DetermineAggregateIdAndVersion(AggregateType, CommandType, container);
-        
-        
 
+        if (AggregateIdMember is PropertyInfo property)
+        {
+            chain.IdentityProperties.Add(property);
+        }
+        
         var aggregateFrame = new MemberAccessFrame(CommandType, AggregateIdMember,
             $"{Variable.DefaultArgName(AggregateType)}_Id");
         
