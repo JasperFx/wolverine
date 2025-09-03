@@ -36,7 +36,7 @@ internal record AggregateHandling(IDataRequirement Requirement)
     public Variable Apply(IChain chain, IServiceContainer container)
     {
         Store(chain);
-
+        
         new MartenPersistenceFrameProvider().ApplyTransactionSupport(chain, container);
 
         var loader = GenerateLoadAggregateCode(chain);

@@ -67,6 +67,15 @@ public interface IChain
     IReturnVariableActionSource ReturnVariableActionSource { get; set; }
 
     /// <summary>
+    /// This list on a HandlerChain reflects the properties of the input type
+    /// that Wolverine determines relates to the identity of an entity within
+    /// the system. Wolverine uses this to help sort out messages in the partitioned
+    /// sequential messaging. Event stream id, saga id, or entity id properties are
+    /// the most common usage for this
+    /// </summary>
+    List<PropertyInfo> IdentityProperties { get; }
+
+    /// <summary>
     ///     Used internally by Wolverine for "outbox" mechanics
     /// </summary>
     /// <returns></returns>
