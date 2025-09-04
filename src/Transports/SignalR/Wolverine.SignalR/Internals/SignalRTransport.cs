@@ -13,7 +13,7 @@ public class SignalRTransport : TransportBase<SignalREndpoint>
     
     public SignalRTransport() : base(ProtocolName, "SignalR Messaging Integration")
     {
-        HubEndpoints = new(hubType => typeof(SignalREndpoint<>).CloseAndBuildAs<SignalREndpoint>(hubType));
+        HubEndpoints = new(hubType => typeof(SignalREndpoint<>).CloseAndBuildAs<SignalREndpoint>(this, hubType));
     }
 
     protected override IEnumerable<SignalREndpoint> endpoints()
