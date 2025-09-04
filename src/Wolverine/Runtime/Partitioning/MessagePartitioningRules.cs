@@ -33,7 +33,7 @@ public class MessagePartitioningRules
     /// <param name="baseName">The prefix for all local queues in this sharded topology</param>
     /// <param name="numberOfQueues">The number of queue "slots" for the workload</param>
     /// <param name="configure">Optionally configure each local queue's behavior</param>
-    public void PublishToShardedLocalMessaging(string baseName, int numberOfQueues, Action<LocalPartitionedMessageTopology> configure)
+    public void PublishToPartitionedLocalMessaging(string baseName, int numberOfQueues, Action<LocalPartitionedMessageTopology> configure)
     {
         ArgumentNullException.ThrowIfNull(configure);
         

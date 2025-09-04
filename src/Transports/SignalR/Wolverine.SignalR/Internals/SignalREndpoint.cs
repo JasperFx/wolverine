@@ -4,15 +4,18 @@ using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.DependencyInjection;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
+using Wolverine.Runtime.Interop;
 using Wolverine.Transports;
 using Wolverine.Transports.Sending;
 
 namespace Wolverine.SignalR.Internals;
 
-public abstract class SignalREndpoint : Endpoint
+public abstract class SignalREndpoint : Endpoint, IListener
 {
     private readonly Type _hubType;
     private readonly SignalRTransport _parent;
+    protected CloudEventsMapper? _mapper;
+    
     public Type HubType => _hubType;
     
     public SignalREndpoint(Type hubType, SignalRTransport parent) : base(GetUriFromHubType(hubType), EndpointRole.Application)
@@ -36,8 +39,53 @@ public abstract class SignalREndpoint : Endpoint
     {
         return new Uri($"{SignalRTransport.ProtocolName}://{hubType.NameInCode()}");
     }
+
+    public IReceiver? Receiver { get; private set; }
     
-    internal WolverineHub? Hub { get; set; }
+    internal async Task ReceiveAsync(HubCallerContext context, WolverineHub wolverineHub, string json)
+    {
+        if (Receiver == null || _mapper == null) return;
+
+        // TODO -- MUCH MORE ERROR HANDLING!!!!
+        var envelope = new SignalREnvelope(context, wolverineHub);
+        _mapper!.MapIncoming(envelope, json);
+        await Receiver.ReceivedAsync(this, envelope);
+    }
+
+    public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
+    {
+        Compile(runtime);
+        
+        _mapper = BuildCloudEventsMapper(runtime, JsonOptions);
+
+        Receiver = receiver;
+        
+        return new ValueTask<IListener>(this);
+    }
+
+    public IHandlerPipeline? Pipeline => Receiver?.Pipeline;
+
+    ValueTask IChannelCallback.CompleteAsync(Envelope envelope)
+    {
+        return new ValueTask();
+    }
+
+    ValueTask IChannelCallback.DeferAsync(Envelope envelope)
+    {
+        return new ValueTask();
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        return new ValueTask();
+    }
+
+    public Uri Address => Uri;
+
+    ValueTask IListener.StopAsync()
+    {
+        return new ValueTask();
+    }
 }
 
 public class SignalREndpoint<T> : SignalREndpoint where T : WolverineHub
@@ -45,33 +93,15 @@ public class SignalREndpoint<T> : SignalREndpoint where T : WolverineHub
     public SignalREndpoint(SignalRTransport parent) : base(typeof(T), parent)
     {
     }
-
-
-    public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
-    {
-        // Just make sure this exists
-        var context = runtime.Services.GetRequiredService<IHubContext<T>>();
-
-        if (Hub == null)
-        {
-            throw new InvalidOperationException(
-                $"WolverineHub {typeof(T).FullNameInCode()} has not been initialized before being accessed");
-        }
-        
-        Hub.Receiver = receiver;
-        return new ValueTask<IListener>(Hub);
-    }
-
+    
     protected override ISender CreateSender(IWolverineRuntime runtime)
     {
+        Compile(runtime);
+
+        _mapper ??= BuildCloudEventsMapper(runtime, JsonOptions);
+        
         // Just make sure this exists
         var context = runtime.Services.GetRequiredService<IHubContext<T>>();
-
-        if (Hub == null)
-        {
-            throw new InvalidOperationException(
-                $"WolverineHub {typeof(T).FullNameInCode()} has not been initialized before being accessed");
-        }
 
         return new SignalRSender<T>(this, context, BuildCloudEventsMapper(runtime, JsonOptions));
     }
