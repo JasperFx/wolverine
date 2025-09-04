@@ -62,6 +62,15 @@ public class WolverineMessageNamingTests
         typeof(InteropAttributedMessage).ToMessageTypeName()
             .ShouldBe(typeof(IMessageInterface).ToMessageTypeName());
     }
+
+    [Fact]
+    public void web_socket_messages_are_kebab_cased()
+    {
+        typeof(MyWebSocketMessage).ToMessageTypeName()
+            .ShouldBe("my_web_socket_message");
+    }
+    
+    
 }
 
 public class ConcreteMessage : IInterfaceMessage
@@ -85,3 +94,8 @@ public interface IMessageInterface;
 
 [InteropMessage(typeof(IMessageInterface))]
 public class InteropAttributedMessage : IMessageInterface;
+
+public class MyWebSocketMessage : WebSocketMessage;
+
+[MessageIdentity("overridden")]
+public class OverriddenSocketMessage : WebSocketMessage;
