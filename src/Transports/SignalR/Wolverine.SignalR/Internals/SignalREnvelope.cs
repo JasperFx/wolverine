@@ -6,10 +6,6 @@ public class SignalREnvelope : Envelope
 {
     public Hub Hub { get; }
 
-    public SignalREnvelope()
-    {
-    }
-
     public SignalREnvelope(HubCallerContext context, Hub hub)
     {
         Hub = hub;
