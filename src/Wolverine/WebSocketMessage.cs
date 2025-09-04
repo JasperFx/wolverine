@@ -1,4 +1,4 @@
-namespace Wolverine.SignalR;
+namespace Wolverine;
 
 /// <summary>
 /// Marker interface for types that are predominantly
