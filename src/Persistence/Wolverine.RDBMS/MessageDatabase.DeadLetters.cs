@@ -40,6 +40,11 @@ public abstract partial class MessageDatabase<T>
             query += $" and {DatabaseConstants.Id} >= @startId";
         }
 
+        if (queryParameters.Limit > 0)
+        {
+            query += " limit @limit";
+        }
+
         var command = CreateCommand(query);
 
         if (!string.IsNullOrEmpty(queryParameters.ExceptionType))
@@ -72,15 +77,18 @@ public abstract partial class MessageDatabase<T>
             command = command.With("startId", queryParameters.StartId.Value);
         }
 
-        command.With("limit", queryParameters.Limit);
+        if (queryParameters.Limit > 0)
+        {
+            command = command.With("limit", queryParameters.Limit + 1);
+        }
 
         var deadLetterEnvelopes = (List<DeadLetterEnvelope>)await command.FetchListAsync(reader =>
             DatabasePersistence.ReadDeadLetterAsync(reader, _cancellation), cancellation: _cancellation);
 
-        if (deadLetterEnvelopes.Count > queryParameters.Limit)
+        if (queryParameters.Limit > 0 && deadLetterEnvelopes.Count > queryParameters.Limit)
         {
-            deadLetterEnvelopes.RemoveAt(deadLetterEnvelopes.Count - 1);
             var nextId = deadLetterEnvelopes.LastOrDefault()?.Envelope.Id;
+            deadLetterEnvelopes.RemoveAt(deadLetterEnvelopes.Count - 1);
             return new(deadLetterEnvelopes, nextId, tenantId);
         }
 
