@@ -223,6 +223,17 @@ internal class FailureActions : IAdditionalActions, IFailureActions
         return this;
     }
 
+    public IAdditionalActions CustomActionIndefinitely(Func<IWolverineRuntime, IEnvelopeLifecycle, Exception, ValueTask> action, string description, InvokeResult? invokeUsage = null)
+    {
+        var source = new UserDefinedContinuationSource(action, description)
+        {
+            InvokeUsage = invokeUsage
+        };
+
+        _rule.InfiniteSource = source;
+        return this;
+    }
+
     public IAdditionalActions Discard()
     {
         var slot = _rule.AddSlot(DiscardEnvelope.Instance);
@@ -452,6 +463,17 @@ public interface IFailureActions
     /// <returns></returns>
     IAdditionalActions CustomAction(Func<IWolverineRuntime, IEnvelopeLifecycle, Exception, ValueTask> action,
         string description, InvokeResult? invokeUsage = null);
+
+    /// <summary>
+    ///     Execute a user-defined action for every attempt until the custom action decides to stop.
+    ///     This allows the custom action to handle its own retry logic and termination conditions.
+    /// </summary>
+    /// <param name="source"></param>
+    /// <param name="description">Diagnostic description of the failure action</param>
+    /// <param name="invokeUsage">If specified, this error action will be executed for inline message execution through IMessageBus.InvokeAsync()</param>
+    /// <returns></returns>
+    IAdditionalActions CustomActionIndefinitely(Func<IWolverineRuntime, IEnvelopeLifecycle, Exception, ValueTask> action,
+        string description, InvokeResult? invokeUsage = null);
 }
 
 public class PolicyExpression : IFailureActions
@@ -469,6 +491,11 @@ public class PolicyExpression : IFailureActions
     public IAdditionalActions CustomAction(Func<IWolverineRuntime, IEnvelopeLifecycle, Exception, ValueTask> action, string description, InvokeResult? invokeUsage = null)
     {
         return new FailureActions(_match, _parent).CustomAction(action, description, invokeUsage);
+    }
+
+    public IAdditionalActions CustomActionIndefinitely(Func<IWolverineRuntime, IEnvelopeLifecycle, Exception, ValueTask> action, string description, InvokeResult? invokeUsage = null)
+    {
+        return new FailureActions(_match, _parent).CustomActionIndefinitely(action, description, invokeUsage);
     }
 
     /// <summary>
