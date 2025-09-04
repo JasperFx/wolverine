@@ -2,6 +2,7 @@ using System.Text.Json;
 using JasperFx.Core.Reflection;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Interop;
@@ -30,8 +31,9 @@ public abstract class SignalREndpoint : Endpoint, IListener
         _parent = parent;
 
         JsonOptions = parent.JsonOptions;
-
     }
+    
+    internal ILogger<SignalREndpoint>? Logger { get; set; }
     
     public JsonSerializerOptions JsonOptions { get; set; }
 
@@ -45,18 +47,25 @@ public abstract class SignalREndpoint : Endpoint, IListener
     internal async Task ReceiveAsync(HubCallerContext context, WolverineHub wolverineHub, string json)
     {
         if (Receiver == null || _mapper == null) return;
-
-        // TODO -- MUCH MORE ERROR HANDLING!!!!
-        var envelope = new SignalREnvelope(context, wolverineHub);
-        _mapper!.MapIncoming(envelope, json);
-        await Receiver.ReceivedAsync(this, envelope);
+        
+        try
+        {
+            var envelope = new SignalREnvelope(context, wolverineHub);
+            _mapper!.MapIncoming(envelope, json);
+            await Receiver.ReceivedAsync(this, envelope);
+        }
+        catch (Exception e)
+        {
+            Logger?.LogError(e, "Error while receiving CloudEvents message from SignalR");
+        }
     }
 
     public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
     {
         Compile(runtime);
         
-        _mapper = BuildCloudEventsMapper(runtime, JsonOptions);
+        _mapper ??= BuildCloudEventsMapper(runtime, JsonOptions);
+        Logger ??= runtime.LoggerFactory.CreateLogger<SignalREndpoint>();
 
         Receiver = receiver;
         
@@ -99,6 +108,7 @@ public class SignalREndpoint<T> : SignalREndpoint where T : WolverineHub
         Compile(runtime);
 
         _mapper ??= BuildCloudEventsMapper(runtime, JsonOptions);
+        Logger ??= runtime.LoggerFactory.CreateLogger<SignalREndpoint>();
         
         // Just make sure this exists
         var context = runtime.Services.GetRequiredService<IHubContext<T>>();

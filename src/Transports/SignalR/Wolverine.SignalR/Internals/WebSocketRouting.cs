@@ -5,7 +5,7 @@ namespace Wolverine.SignalR.Internals;
 
 public class WebSocketRouting
 {
-    public static ILocator ParseLocator(string? expression)
+    internal static ILocator ParseLocator(string? expression)
     {
         if (expression.IsEmpty()) return new All();
         if (expression.EqualsIgnoreCase("all")) return new All();
@@ -25,7 +25,7 @@ public class WebSocketRouting
         return new All();
     }
     
-    public static ILocator DetermineLocator(Envelope envelope)
+    internal static ILocator DetermineLocator(Envelope envelope)
     {
         if (envelope.RoutingInformation is ILocator locator) return locator;
 

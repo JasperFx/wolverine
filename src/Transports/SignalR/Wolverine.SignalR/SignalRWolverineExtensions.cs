@@ -46,6 +46,12 @@ public static class SignalRWolverineExtensions
         return new SignalRListenerConfiguration(endpoint);
     }
 
+    /// <summary>
+    /// Create a subscription rule that publishes matching messages to the SignalR Hub of type "T"
+    /// </summary>
+    /// <param name="publishing"></param>
+    /// <typeparam name="T"></typeparam>
+    /// <returns></returns>
     public static SignalRSubscriberConfiguration ToSignalR<T>(this IPublishToExpression publishing) where T : WolverineHub
     {
         var transports = publishing.As<PublishingExpression>().Parent.Transports;
