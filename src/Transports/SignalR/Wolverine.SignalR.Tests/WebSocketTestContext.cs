@@ -68,6 +68,12 @@ public abstract class WebSocketTestContext : IAsyncLifetime
                 opts.PublishMessage<ToSecond>().ToSignalRWithClient(Port, "/second");
                 
                 opts.PublishMessage<RequiresResponse>().ToSignalRWithClient(Port, "/first");
+                
+                opts.Publish(x =>
+                {
+                    x.MessagesImplementing<WebSocketMessage>();
+                    x.ToSignalRWithClient(Port, "/second");
+                });
             }).StartAsync();
         
         _clientHosts.Add(host);
