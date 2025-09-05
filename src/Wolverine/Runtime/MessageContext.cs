@@ -312,6 +312,16 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         return EndpointFor(Envelope.ReplyUri).SendAsync(response);
     }
 
+    /// <summary>
+    /// Marks the existing envelope for rescheduling
+    /// </summary>
+    /// <param name="rescheduledAt"></param>
+    /// <returns></returns>
+    public override async Task ReScheduleCurrentAsync(DateTimeOffset rescheduledAt)
+    {
+        await ReScheduleAsync(rescheduledAt);
+    }
+
     internal async Task CopyToAsync(IEnvelopeTransaction other)
     {
         await other.PersistOutgoingAsync(_outstanding.ToArray());
