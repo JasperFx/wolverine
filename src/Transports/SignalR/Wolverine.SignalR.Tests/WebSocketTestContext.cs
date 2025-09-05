@@ -54,18 +54,20 @@ public abstract class WebSocketTestContext : IAsyncLifetime
         theWebApp = app;
     }
 
-    public async Task<IHost> StartClientHost()
+    public async Task<IHost> StartClientHost(string serviceName = "Client")
     {
         var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.ServiceName = "Client";
+                opts.ServiceName = serviceName;
                 
                 opts.UseSignalRClient($"http://localhost:{Port}/first");
                 opts.UseSignalRClient($"http://localhost:{Port}/second");
                 
                 opts.PublishMessage<ToFirst>().ToSignalRWithClient(Port, "/first");
                 opts.PublishMessage<ToSecond>().ToSignalRWithClient(Port, "/second");
+                
+                opts.PublishMessage<RequiresResponse>().ToSignalRWithClient(Port, "/first");
             }).StartAsync();
         
         _clientHosts.Add(host);
