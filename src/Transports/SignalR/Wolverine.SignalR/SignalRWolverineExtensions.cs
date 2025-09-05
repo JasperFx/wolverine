@@ -1,5 +1,9 @@
 using JasperFx.Core.Reflection;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.DependencyInjection;
 using Wolverine.Configuration;
+using Wolverine.Runtime;
 using Wolverine.SignalR.Internals;
 
 namespace Wolverine.SignalR;
@@ -38,12 +42,25 @@ public static class SignalRWolverineExtensions
     public static SignalRMessage<T> ToWebSocketGroup<T>(this T Message, string GroupName) =>
         new(Message, new WebSocketRouting.Group(GroupName));
 
-    public static SignalRListenerConfiguration UseSignalR<T>(this WolverineOptions options) where T : WolverineHub
+    public static SignalRListenerConfiguration UseSignalR(this WolverineOptions options)
     {
         var transport = options.SignalRTransport();
-        var endpoint = transport.HubEndpoints[typeof(T)];
 
-        return new SignalRListenerConfiguration(endpoint);
+        options.Services.AddSingleton<SignalRTransport>(s =>
+            s.GetRequiredService<IWolverineRuntime>().Options.Transports.GetOrCreate<SignalRTransport>());
+
+        return new SignalRListenerConfiguration(transport);
+    }
+
+    /// <summary>
+    /// Syntactical shortcut to register the WolverineHub SignalR Hub for sending
+    /// messages to this server. Equivalent to MapHub<WolverineHub>(route).
+    /// </summary>
+    /// <param name="endpoints"></param>
+    /// <param name="route"></param>
+    public static void MapWolverineSignalRHub(this IEndpointRouteBuilder endpoints, string route = "messages")
+    {
+        endpoints.MapHub<WolverineHub>(route);
     }
 
     /// <summary>
@@ -52,16 +69,14 @@ public static class SignalRWolverineExtensions
     /// <param name="publishing"></param>
     /// <typeparam name="T"></typeparam>
     /// <returns></returns>
-    public static SignalRSubscriberConfiguration ToSignalR<T>(this IPublishToExpression publishing) where T : WolverineHub
+    public static SignalRSubscriberConfiguration ToSignalR(this IPublishToExpression publishing) 
     {
         var transports = publishing.As<PublishingExpression>().Parent.Transports;
         var transport = transports.GetOrCreate<SignalRTransport>();
 
-        var endpoint = transport.HubEndpoints[typeof(T)];
-        
         // This is necessary unfortunately to hook up the subscription rules
-        publishing.To(endpoint.Uri);
+        publishing.To(transport.Uri);
 
-        return new SignalRSubscriberConfiguration(endpoint);
+        return new SignalRSubscriberConfiguration(transport);
     }
 }

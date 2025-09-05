@@ -13,15 +13,13 @@ public abstract class WebSocketTestContext : IAsyncLifetime
 {
     protected WebApplication theWebApp;
     private readonly int Port = PortFinder.GetAvailablePort();
-    protected readonly Uri firstUri;
-    protected readonly Uri secondUri;
+    protected readonly Uri clientUri;
 
     private readonly List<IHost> _clientHosts = new();
 
     public WebSocketTestContext()
     {
-        firstUri = new Uri($"http://localhost:{Port}/first");
-        secondUri = new Uri($"http://localhost:{Port}/second");
+        clientUri = new Uri($"http://localhost:{Port}/messages");
     }
 
     public async Task InitializeAsync()
@@ -38,16 +36,16 @@ public abstract class WebSocketTestContext : IAsyncLifetime
         {
             opts.ServiceName = "Server";
             
-            opts.UseSignalR<FirstHub>();
-            opts.UseSignalR<SecondHub>();
+            opts.UseSignalR();
 
-            opts.PublishMessage<FromFirst>().ToSignalR<FirstHub>();
-            opts.PublishMessage<FromSecond>().ToSignalR<SecondHub>();
+            opts.PublishMessage<FromFirst>().ToSignalR();
+            opts.PublishMessage<FromSecond>().ToSignalR();
+            opts.PublishMessage<Information>().ToSignalR();
         });
 
         var app = builder.Build();
-        app.MapHub<FirstHub>("/first");
-        app.MapHub<SecondHub>("/second");
+        
+        app.MapWolverineSignalRHub();
         
         await app.StartAsync();
 
@@ -61,18 +59,16 @@ public abstract class WebSocketTestContext : IAsyncLifetime
             {
                 opts.ServiceName = serviceName;
                 
-                opts.UseSignalRClient($"http://localhost:{Port}/first");
-                opts.UseSignalRClient($"http://localhost:{Port}/second");
+                opts.UseSignalRClient($"http://localhost:{Port}/messages");
                 
-                opts.PublishMessage<ToFirst>().ToSignalRWithClient(Port, "/first");
-                opts.PublishMessage<ToSecond>().ToSignalRWithClient(Port, "/second");
+                opts.PublishMessage<ToFirst>().ToSignalRWithClient(Port, "/messages");
                 
-                opts.PublishMessage<RequiresResponse>().ToSignalRWithClient(Port, "/first");
+                opts.PublishMessage<RequiresResponse>().ToSignalRWithClient(Port, "/messages");
                 
                 opts.Publish(x =>
                 {
                     x.MessagesImplementing<WebSocketMessage>();
-                    x.ToSignalRWithClient(Port, "/second");
+                    x.ToSignalRWithClient(Port, "/messages");
                 });
             }).StartAsync();
         
@@ -91,21 +87,6 @@ public abstract class WebSocketTestContext : IAsyncLifetime
         }
     }
     
-}
-
-
-public class FirstHub : WolverineHub
-{
-    public FirstHub(IWolverineRuntime runtime) : base(runtime)
-    {
-    }
-}
-
-public class SecondHub : WolverineHub
-{
-    public SecondHub(IWolverineRuntime runtime) : base(runtime)
-    {
-    }
 }
 
 public record ToFirst(string Name) : WebSocketMessage;

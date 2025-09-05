@@ -13,7 +13,8 @@ public record AddConnectionToGroup(string GroupName) : ISignalRAction
     {
         if (context.Envelope is SignalREnvelope se)
         {
-            await se.Hub.Groups.AddToGroupAsync(se.ConnectionId, GroupName, cancellation);
+            await se.HubContext.Groups.AddToGroupAsync(se.ConnectionId, GroupName, cancellation);
+            return;
         }
 
         throw new InvalidWolverineSignalROperationException("The current message was not received from SignalR");

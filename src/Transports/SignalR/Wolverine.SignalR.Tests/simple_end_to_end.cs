@@ -34,11 +34,11 @@ public class simple_end_to_end : WebSocketTestContext
             .IncludeExternalTransports()
             .AlsoTrack(theWebApp)
             .Timeout(10.Seconds())
-            .ExecuteAndWaitAsync(c => c.SendViaSignalRClient(secondUri, new ToSecond("Hollywood Brown")));
+            .ExecuteAndWaitAsync(c => c.SendViaSignalRClient(clientUri, new ToSecond("Hollywood Brown")));
 
         var record = tracked.Received.SingleRecord<ToSecond>();
         record.ServiceName.ShouldBe("Server");
-        record.Envelope.Destination.ShouldBe(new Uri("signalr://SecondHub"));
+        record.Envelope.Destination.ShouldBe(new Uri("signalr://wolverine"));
         record.Message.ShouldBeOfType<ToSecond>()
             .Name.ShouldBe("Hollywood Brown");
 
