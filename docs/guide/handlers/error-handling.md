@@ -365,7 +365,6 @@ theReceiver = await Host.CreateDefaultBuilder()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/ErrorHandling/custom_error_action_raises_new_message.cs#L115-L127' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_registering_custom_user_continuation_policy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-
 ## Circuit Breaker
 
 ::: tip
@@ -488,4 +487,41 @@ public static class InvoiceHandler
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/ErrorHandling/custom_action_for_inline_messages.cs#L48-L92' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_custom_actions_for_inline_processing' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+### Running custom actions indefinitely
+
+In some scenarios you want your custom action to control the retry lifecycle across multiple attempts (e.g., reschedule with a delay until some external condition is met), instead of Wolverine moving the message to the error queue after the first attempt. For that, use `CustomActionIndefinitely(...)`.
+
+`CustomActionIndefinitely` keeps invoking your custom action on subsequent attempts until your code explicitly stops the process. Inside the delegate you can for example:
+- Reschedule the message (e.g., with backoff, or by some dynamic values based on exception's payload....) via `lifecycle.ReScheduleAsync(...)`
+- Requeue if appropriate
+- Or stop further processing by calling `lifecycle.CompleteAsync()` (optionally after logging or publishing a compensating message)
+
+Example:
+
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.Policies
+            .OnException<SpecialException>()
+            .CustomActionIndefinitely(async (runtime, lifecycle, ex) =>
+            {
+                // Stop after 10 attempts
+                if (lifecycle.Envelope.Attempts >= 10)
+                {
+                    // Decide to stop trying; you could also move to an error queue
+                    await lifecycle.CompleteAsync();
+                    return;
+                }
+
+                // Keep trying later with a delay
+                await lifecycle.ReScheduleAsync(DateTimeOffset.UtcNow.AddSeconds(15));
+            }, "Handle SpecialException with conditional reschedule/stop");
+    }).StartAsync();
+```
+
+
+
 Note that custom actions would *always* be applied to exceptions thrown in asynchronous message handling. 
+
+
