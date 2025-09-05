@@ -15,7 +15,7 @@ public static class SignalRClientExtensions
     /// <param name="url"></param>
     /// <param name="jsonOptions"></param>
     /// <returns></returns>
-    public static Uri UseSignalRClient(this WolverineOptions options, string url,
+    public static Uri UseClientToSignalR(this WolverineOptions options, string url,
         JsonSerializerOptions? jsonOptions = null)
     {
         var transport = options.Transports.GetOrCreate<SignalRClientTransport>();
@@ -27,6 +27,19 @@ public static class SignalRClientExtensions
         }
 
         return endpoint.Uri;
+    }
+
+    /// <summary>
+    /// Add a SignalR Client based transport to a Wolverine system running on the localhost. This override
+    /// is meant for testing and development work
+    /// </summary>
+    /// <param name="options"></param>
+    /// <param name="port"></param>
+    /// <param name="route">Default is messages. Route pattern where you have mapped the WolverineHub</param>
+    /// <returns></returns>
+    public static Uri UseClientToSignalR(this WolverineOptions options, int port, string route = "messages")
+    {
+        return options.UseClientToSignalR($"http://localhost:{port}/{route}");
     }
 
     /// <summary>
@@ -61,7 +74,7 @@ public static class SignalRClientExtensions
     /// <param name="publishing"></param>
     /// <param name="port"></param>
     /// <param name="relativeUrl"></param>
-    public static void ToSignalRWithClient(this IPublishToExpression publishing, int port, string relativeUrl)
+    public static void ToSignalRWithClient(this IPublishToExpression publishing, int port, string relativeUrl = "messages")
     {
         var url = $"http://localhost:{port}/{relativeUrl}";
         publishing.ToSignalRWithClient(url);

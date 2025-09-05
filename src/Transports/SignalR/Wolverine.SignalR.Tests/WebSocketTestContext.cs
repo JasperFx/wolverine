@@ -59,16 +59,16 @@ public abstract class WebSocketTestContext : IAsyncLifetime
             {
                 opts.ServiceName = serviceName;
                 
-                opts.UseSignalRClient($"http://localhost:{Port}/messages");
+                opts.UseClientToSignalR(Port);
                 
-                opts.PublishMessage<ToFirst>().ToSignalRWithClient(Port, "/messages");
+                opts.PublishMessage<ToFirst>().ToSignalRWithClient(Port);
                 
-                opts.PublishMessage<RequiresResponse>().ToSignalRWithClient(Port, "/messages");
+                opts.PublishMessage<RequiresResponse>().ToSignalRWithClient(Port);
                 
                 opts.Publish(x =>
                 {
                     x.MessagesImplementing<WebSocketMessage>();
-                    x.ToSignalRWithClient(Port, "/messages");
+                    x.ToSignalRWithClient(Port);
                 });
             }).StartAsync();
         
