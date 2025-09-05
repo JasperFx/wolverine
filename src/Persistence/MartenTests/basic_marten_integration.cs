@@ -15,6 +15,7 @@ using Wolverine.Marten.Publishing;
 using Wolverine.Persistence.Durability;
 using Wolverine.Postgresql;
 using Wolverine.Runtime;
+using IServiceContainer = Wolverine.Runtime.IServiceContainer;
 
 namespace MartenTests;
 

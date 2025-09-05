@@ -20,6 +20,8 @@ using Wolverine.Persistence.Durability;
 using Wolverine.Persistence.Sagas;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
+using IServiceContainer = Wolverine.Runtime.IServiceContainer;
+using ServiceContainer = Wolverine.Runtime.ServiceContainer;
 
 namespace Wolverine;
 
