@@ -141,4 +141,7 @@ public static class TodoHandler
 
 Wolverine also supports the usage of the `[Entity]` attribute to load entity data by its identity with EF Core. As you'd 
 expect, Wolverine can "find" the right EF Core `DbContext` type for the entity type through IoC service registrations. 
+The loaded EF core entity does not included related entities. 
 
+For more information on the usage of this attribute see 
+[Automatically loading entities to method parameters](/guide/handlers/persistence#automatically-loading-entities-to-method-parameters).
