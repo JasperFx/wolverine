@@ -48,6 +48,11 @@ public class MessageBus : IMessageBus, IMessageContext
         throw new NotSupportedException("Not supported from MessageBus, only within message handlers executing against MessageContext");
     }
 
+    public virtual Task ReScheduleCurrentAsync(DateTimeOffset rescheduledAt)
+    {
+        throw new NotSupportedException("Not supported from MessageBus, only within message handlers executing against MessageContext");
+    }
+
     public IWolverineRuntime Runtime { get; }
     public IMessageStore Storage { get; protected set; }
 

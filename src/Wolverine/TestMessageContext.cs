@@ -258,6 +258,11 @@ public class TestMessageContext : IMessageContext
         return ValueTask.CompletedTask;
     }
 
+    public Task ReScheduleCurrentAsync(DateTimeOffset rescheduledAt)
+    {
+        throw new NotImplementedException();
+    }
+
     /// <summary>
     ///     All scheduled outgoing (to external message transports) messages
     /// </summary>
