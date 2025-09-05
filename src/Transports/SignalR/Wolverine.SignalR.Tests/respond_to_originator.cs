@@ -27,9 +27,12 @@ public class respond_to_originator : WebSocketTestContext
 public record RequiresResponse(string Name) : WebSocketMessage;
 public record WebSocketResponse(string Name) : WebSocketMessage;
 
+
+
 public static class ResponseHandler
 {
-    public static object Handle(RequiresResponse msg) => new WebSocketResponse(msg.Name).RespondToCaller();
+    public static object Handle(RequiresResponse msg) 
+        => new WebSocketResponse(msg.Name).RespondToCallingWebSocket();
 
     public static void Handle(WebSocketResponse msg) => Debug.WriteLine(msg);
 }

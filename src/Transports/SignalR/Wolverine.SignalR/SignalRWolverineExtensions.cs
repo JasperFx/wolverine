@@ -25,7 +25,7 @@ public static class SignalRWolverineExtensions
     /// <param name="Message"></param>
     /// <typeparam name="T"></typeparam>
     /// <returns></returns>
-    public static ResponseToCaller<T> RespondToCaller<T>(this T Message) => new(Message);
+    public static ResponseToCallingWebSocket<T> RespondToCallingWebSocket<T>(this T Message) => new(Message);
 
     /// <summary>
     /// Send this message to the specified group of connections on the SignalR hub
@@ -35,7 +35,7 @@ public static class SignalRWolverineExtensions
     /// <param name="GroupName"></param>
     /// <typeparam name="T"></typeparam>
     /// <returns></returns>
-    public static SignalRMessage<T> SendToGroup<T>(this T Message, string GroupName) =>
+    public static SignalRMessage<T> ToWebSocketGroup<T>(this T Message, string GroupName) =>
         new(Message, new WebSocketRouting.Group(GroupName));
 
     public static SignalRListenerConfiguration UseSignalR<T>(this WolverineOptions options) where T : WolverineHub

@@ -8,7 +8,7 @@ namespace Wolverine.SignalR;
 /// </summary>
 /// <param name="Message"></param>
 /// <typeparam name="T"></typeparam>
-public record ResponseToCaller<T>(T Message) : ISendMyself
+public record ResponseToCallingWebSocket<T>(T Message) : ISendMyself
 {
     ValueTask ISendMyself.ApplyAsync(IMessageContext context)
     {
