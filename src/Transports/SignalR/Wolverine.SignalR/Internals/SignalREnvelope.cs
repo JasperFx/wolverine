@@ -4,11 +4,11 @@ namespace Wolverine.SignalR.Internals;
 
 public class SignalREnvelope : Envelope
 {
-    public Hub Hub { get; }
+    public IHubContext<WolverineHub> HubContext { get; }
 
-    public SignalREnvelope(HubCallerContext context, Hub hub)
+    public SignalREnvelope(HubCallerContext context, IHubContext<WolverineHub> hubContext)
     {
-        Hub = hub;
+        HubContext = hubContext;
         ConnectionId = context.ConnectionId;
         UserName = context.UserIdentifier;
     }

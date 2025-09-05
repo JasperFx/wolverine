@@ -3,9 +3,9 @@ using Wolverine.Configuration;
 
 namespace Wolverine.SignalR.Internals;
 
-public class SignalRSubscriberConfiguration : SubscriberConfiguration<SignalRSubscriberConfiguration, SignalREndpoint>
+public class SignalRSubscriberConfiguration : SubscriberConfiguration<SignalRSubscriberConfiguration, SignalRTransport>
 {
-    internal SignalRSubscriberConfiguration(SignalREndpoint endpoint) : base(endpoint)
+    internal SignalRSubscriberConfiguration(SignalRTransport endpoint) : base(endpoint)
     {
     }
     

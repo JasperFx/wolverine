@@ -11,13 +11,13 @@ namespace Wolverine.SignalR;
 /// <summary>
 /// Base class for Wolverine enabled SignalR Hubs
 /// </summary>
-public abstract class WolverineHub : Hub
+public class WolverineHub : Hub
 {
-    private readonly SignalREndpoint _endpoint;
+    private readonly SignalRTransport _endpoint;
 
-    protected WolverineHub(IWolverineRuntime runtime)
+    public WolverineHub(SignalRTransport endpoint)
     {
-        _endpoint = runtime.Options.SignalRTransport().HubEndpoints[GetType()];
+        _endpoint = endpoint;
     }
 
     public Task Receive(string json)
