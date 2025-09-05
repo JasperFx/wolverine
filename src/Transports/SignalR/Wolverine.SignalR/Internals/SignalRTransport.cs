@@ -68,7 +68,7 @@ public class SignalRTransport : Endpoint, ITransport, IListener, ISender
 
     public IReceiver? Receiver { get; private set; }
     
-    internal async Task ReceiveAsync(HubCallerContext context, WolverineHub wolverineHub, string json)
+    internal async Task ReceiveAsync(HubCallerContext context, string json)
     {
         try
         {

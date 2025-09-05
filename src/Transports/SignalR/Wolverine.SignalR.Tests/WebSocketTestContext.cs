@@ -36,8 +36,12 @@ public abstract class WebSocketTestContext : IAsyncLifetime
         {
             opts.ServiceName = "Server";
             
+            // Hooking up the SignalR messaging transport
+            // in Wolverine
             opts.UseSignalR();
 
+            // These are just some messages I was using
+            // to do end to end testing
             opts.PublishMessage<FromFirst>().ToSignalR();
             opts.PublishMessage<FromSecond>().ToSignalR();
             opts.PublishMessage<Information>().ToSignalR();
@@ -45,13 +49,19 @@ public abstract class WebSocketTestContext : IAsyncLifetime
 
         var app = builder.Build();
         
+        // Syntactic sure, really just doing:
+        // app.MapHub<WolverineHub>("/messages");
         app.MapWolverineSignalRHub();
         
         await app.StartAsync();
 
+        // Remember this, because I'm going to use it in test code
+        // later
         theWebApp = app;
     }
 
+    // This starts up a new host to act as a client to the SignalR
+    // server for testing
     public async Task<IHost> StartClientHost(string serviceName = "Client")
     {
         var host = await Host.CreateDefaultBuilder()

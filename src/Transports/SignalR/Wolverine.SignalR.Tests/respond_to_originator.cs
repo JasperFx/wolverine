@@ -19,6 +19,8 @@ public class respond_to_originator : WebSocketTestContext
             .SendMessageAndWaitAsync(new RequiresResponse("Leo Chenal"));
 
         var record = tracked.Executed.SingleRecord<WebSocketResponse>();
+        
+        // Verify that the response went to the original calling client
         record.ServiceName.ShouldBe("red");
         record.Message.ShouldBeOfType<WebSocketResponse>().Name.ShouldBe("Leo Chenal");
     }
@@ -31,7 +33,7 @@ public record WebSocketResponse(string Name) : WebSocketMessage;
 
 public static class ResponseHandler
 {
-    public static object Handle(RequiresResponse msg) 
+    public static ResponseToCallingWebSocket<WebSocketResponse> Handle(RequiresResponse msg) 
         => new WebSocketResponse(msg.Name).RespondToCallingWebSocket();
 
     public static void Handle(WebSocketResponse msg) => Debug.WriteLine(msg);

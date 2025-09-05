@@ -46,12 +46,18 @@ public record Information(string Message) : WebSocketMessage;
 
 public static class GroupsHandler
 {
+    // Declaring that you need the connection that originated
+    // this message to be added to the named SignalR client group
     public static AddConnectionToGroup Handle(EnrollMe msg) 
         => new(msg.GroupName);
 
+    // Declaring that you need the connection that originated this
+    // message to be removed from the named SignalR client group
     public static RemoveConnectionToGroup Handle(KickMeOut msg) 
         => new(msg.GroupName);
 
+    // The message wrapper here sends the raw message to
+    // the named SignalR client group
     public static object Handle(BroadCastToGroup msg) 
         => new Information(msg.Message)
             .ToWebSocketGroup(msg.GroupName);
