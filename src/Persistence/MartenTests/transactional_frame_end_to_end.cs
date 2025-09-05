@@ -15,6 +15,7 @@ using Wolverine.Marten;
 using Wolverine.Marten.Codegen;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
+using IServiceContainer = Wolverine.Runtime.IServiceContainer;
 
 namespace MartenTests;
 

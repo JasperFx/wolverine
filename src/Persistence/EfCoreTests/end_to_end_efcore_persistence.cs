@@ -22,6 +22,7 @@ using Wolverine.Runtime;
 using Wolverine.SqlServer;
 using Wolverine.Tracking;
 using Wolverine.Transports;
+using IServiceContainer = Wolverine.Runtime.IServiceContainer;
 
 namespace EfCoreTests;
 
