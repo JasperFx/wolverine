@@ -6,6 +6,17 @@ namespace Wolverine.Transports.SharedMemory;
 public static class SharedMemoryTransportExtensions
 {
     /// <summary>
+    /// Uses the shared memory queueing for the control endpoint of this
+    /// IHost. Well suited for integrated test automation across IHost instances
+    /// </summary>
+    /// <param name="options"></param>
+    public static void UseSharedMemoryQueueing(this WolverineOptions options)
+    {
+        var transport = options.Transports.GetOrCreate<SharedMemoryTransport>();
+        options.Transports.NodeControlEndpoint = transport.ControlEndpoint;
+    }
+    
+    /// <summary>
     /// Create a subscription rule that publishes matching messages to the SignalR Hub of type "T"
     /// </summary>
     /// <param name="publishing"></param>

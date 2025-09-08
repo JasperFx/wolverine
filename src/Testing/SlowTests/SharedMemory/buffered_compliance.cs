@@ -2,7 +2,7 @@ using Wolverine.ComplianceTests.Compliance;
 using Wolverine.Transports.SharedMemory;
 using Xunit;
 
-namespace CoreTests.Transports.SharedMemory;
+namespace SlowTests.SharedMemory;
 
 public class BufferedSharedMemoryInlineFixture : TransportComplianceFixture, IAsyncLifetime
 {

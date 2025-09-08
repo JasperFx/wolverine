@@ -13,15 +13,18 @@ public interface IReplyTracker : IDisposable
         ;
 
     void Complete(Envelope response);
+    int AssignedNodeNumber { get; set; }
 }
 
 internal class ReplyTracker : IReplyTracker
 {
+    public int AssignedNodeNumber { get; set; }
     private readonly ConcurrentDictionary<Guid, IReplyListener> _listeners = new();
     private readonly ILogger<ReplyTracker> _logger;
 
-    public ReplyTracker(ILogger<ReplyTracker> logger)
+    public ReplyTracker(ILogger<ReplyTracker> logger, int assignedNodeNumber)
     {
+        AssignedNodeNumber = assignedNodeNumber;
         _logger = logger;
     }
 
@@ -33,7 +36,7 @@ internal class ReplyTracker : IReplyTracker
         var listener = new ReplyListener<T>(envelope, this, timeout, cancellationToken);
         _listeners.AddOrUpdate(envelope.Id, listener, (_, _) => listener);
         
-        _logger.LogDebug("Registering a reply listener for message type {MessageType} and conversation id {ConversationId}", typeof(T).ToMessageTypeName(), envelope.ConversationId);
+        _logger.LogDebug("Registering a reply listener for message type {MessageType} and conversation id {ConversationId} on Node {NodeNumber}", typeof(T).ToMessageTypeName(), envelope.ConversationId, AssignedNodeNumber);
 
         return listener.Task;
     }
@@ -52,11 +55,11 @@ internal class ReplyTracker : IReplyTracker
             if (_listeners.TryGetValue(response.ConversationId, out var listener))
             {
                 listener.Complete(response);
-                _logger.LogDebug("Successfully completed a reply listener for conversation id {ReplyId} with message type {MessageTypeName}", response.ConversationId, response.MessageType);
+                _logger.LogDebug("Successfully completed a reply listener for conversation id {ReplyId} with message type {MessageTypeName} on Node {NodeNumber}", response.ConversationId, response.MessageType, AssignedNodeNumber);
             }
             else
             {
-                _logger.LogError("Unable to find a registered reply listener for conversation id {ReplyId} with message type {MessageType}. The listener may have previously timed out", response.ConversationId, response.MessageType);
+                _logger.LogError("Unable to find a registered reply listener for conversation id {ReplyId} with message type {MessageType} on Node {NodeNumber}. The listener may have previously timed out", response.ConversationId, response.MessageType, AssignedNodeNumber);
             }
         }
         catch (Exception e)

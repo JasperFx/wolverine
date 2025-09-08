@@ -190,6 +190,8 @@ public partial class WolverineRuntime : IAgentRuntime
         if (NodeController != null)
         {
             var commands = await NodeController.StartLocalAgentProcessingAsync(Options);
+            Replies.AssignedNodeNumber = Options.Durability.AssignedNodeNumber;
+            
             foreach (var command in commands)
             {
                 await new MessageBus(this).PublishAsync(command);

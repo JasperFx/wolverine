@@ -7,4 +7,6 @@ public abstract class SharedMemoryEndpoint : Endpoint
     protected SharedMemoryEndpoint(Uri uri, EndpointRole role) : base(uri, role)
     {
     }
+    
+    public Uri ReplyUri { get; set; }
 }

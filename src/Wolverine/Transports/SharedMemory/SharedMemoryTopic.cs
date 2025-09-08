@@ -32,6 +32,11 @@ public class SharedMemoryTopic : SharedMemoryEndpoint, ISender
 
     public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
     {
+        if (TopicSubscriptions.Count == 1)
+        {
+            return TopicSubscriptions.First().BuildListenerAsync(runtime, receiver);
+        }
+        
         throw new NotSupportedException();
     }
 
@@ -49,11 +54,9 @@ public class SharedMemoryTopic : SharedMemoryEndpoint, ISender
         return Task.FromResult(true);
     }
 
-    public Uri ReplyUri { get; set; }
-
     public ValueTask SendAsync(Envelope envelope)
     {
-        envelope.ReplyUri = ReplyUri;
+        envelope.ReplyUri ??= ReplyUri;
         return _topic.PostAsync(envelope);
     }
 }
