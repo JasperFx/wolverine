@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Diagnostics;
 using JasperFx.Blocks;
 
 namespace Wolverine.Transports.SharedMemory;
@@ -13,12 +14,12 @@ public class Subscription : BlockBase<Envelope>
     public Subscription(string name)
     {
         Name = name;
-        Sender = new Block<Envelope>(forwardAsync);
+        Forwarder = new Block<Envelope>(forwardAsync);
     }
 
     public override async ValueTask DisposeAsync()
     {
-        await Sender.DisposeAsync();
+        await Forwarder.DisposeAsync();
         foreach (var receiver in _receivers)
         {
             await receiver.DisposeAsync();
@@ -27,7 +28,7 @@ public class Subscription : BlockBase<Envelope>
 
     public override async Task WaitForCompletionAsync()
     {
-        await Sender.WaitForCompletionAsync();
+        await Forwarder.WaitForCompletionAsync();
         foreach (var receiver in _receivers)
         {
             await receiver.WaitForCompletionAsync();
@@ -36,26 +37,32 @@ public class Subscription : BlockBase<Envelope>
 
     public override void Complete()
     {
-        Sender.Complete();
+        Forwarder.Complete();
     }
 
     public override ValueTask PostAsync(Envelope item)
     {
-        return Sender.PostAsync(item);
+        return Forwarder.PostAsync(item);
     }
 
     public override void Post(Envelope item)
     {
-        Sender.Post(item);
+        Forwarder.Post(item);
     }
 
-    public override uint Count => Sender.Count + (uint)_receivers.Sum(x => x.Count);
+    public override uint Count => Forwarder.Count + (uint)_receivers.Sum(x => x.Count);
 
-    public Block<Envelope> Sender { get; }
+    public Block<Envelope> Forwarder { get; }
 
     private async Task forwardAsync(Envelope env, CancellationToken token)
     {
         if (_receivers.IsEmpty) return;
+
+        if (_receivers.Length == 1)
+        {
+            await _receivers[0].PostAsync(env);
+            return;
+        }
         
         await _semaphore.WaitAsync(token);
         try

@@ -69,7 +69,7 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
 
         _endpoints = new EndpointCollection(this);
 
-        Replies = new ReplyTracker(loggers.CreateLogger<ReplyTracker>());
+        Replies = new ReplyTracker(loggers.CreateLogger<ReplyTracker>(), DurabilitySettings.AssignedNodeNumber);
         Handlers.AddMessageHandler(typeof(Acknowledgement), new AcknowledgementHandler(Replies));
         Handlers.AddMessageHandler(typeof(FailureAcknowledgement), new FailureAcknowledgementHandler(Replies, LoggerFactory.CreateLogger<FailureAcknowledgementHandler>()));
 

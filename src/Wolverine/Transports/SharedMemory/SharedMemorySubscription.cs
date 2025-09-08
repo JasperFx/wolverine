@@ -5,7 +5,7 @@ using Wolverine.Transports.Sending;
 
 namespace Wolverine.Transports.SharedMemory;
 
-public class SharedMemorySubscription : SharedMemoryEndpoint, IListener
+public class SharedMemorySubscription : SharedMemoryEndpoint, IListener, ISender
 {
     private Subscription _subscription;
     private Block<Envelope> _receiver;
@@ -21,6 +21,9 @@ public class SharedMemorySubscription : SharedMemoryEndpoint, IListener
 
     public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
     {
+        // Gotta be idempotent here!
+        if (_receiver != null) return new ValueTask<IListener>(this);
+        
         var topic = SharedMemoryQueueManager.Topics[Parent.TopicName];
         _subscription = topic.Subscriptions[Name];
         _receiver = new Block<Envelope>((e, _) =>
@@ -43,7 +46,7 @@ public class SharedMemorySubscription : SharedMemoryEndpoint, IListener
 
     protected override ISender CreateSender(IWolverineRuntime runtime)
     {
-        throw new NotSupportedException();
+        return this;
     }
 
     IHandlerPipeline? IChannelCallback.Pipeline => Receiver?.Pipeline;
@@ -69,5 +72,23 @@ public class SharedMemorySubscription : SharedMemoryEndpoint, IListener
         _receiver.Complete();
         await _receiver.DisposeAsync();
         _subscription.RemoveNode(_receiver);
+    }
+
+    public bool SupportsNativeScheduledSend => false;
+    public Uri Destination => Uri;
+    public Task<bool> PingAsync()
+    {
+        return Task.FromResult(true);
+    }
+
+    public ValueTask SendAsync(Envelope envelope)
+    {
+        if (_receiver != null)
+        {
+            envelope.ReplyUri ??= ReplyUri;
+            return _receiver.PostAsync(envelope);
+        }
+
+        return new ValueTask();
     }
 }

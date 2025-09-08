@@ -14,19 +14,20 @@ public class SharedMemoryTransport : TransportBase<SharedMemoryEndpoint>
 
     public SharedMemoryTransport() : base(ProtocolName, "Shared Memory Queues")
     {
-        
-    }
-
-    public override ValueTask InitializeAsync(IWolverineRuntime runtime)
-    {
         _responseTopic = Guid.NewGuid().ToString();
         var topic = Topics[_responseTopic];
         var subscription = new SharedMemorySubscription(topic, _responseTopic, EndpointRole.System);
         topic.TopicSubscriptions[_responseTopic] = subscription;
 
+        ControlEndpoint = topic;
         _replyEndpoint = topic;
+    }
 
-        foreach (var x in Topics)
+    public SharedMemoryEndpoint ControlEndpoint { get; private set; }
+
+    public override ValueTask InitializeAsync(IWolverineRuntime runtime)
+    {
+        foreach (var x in endpoints())
         {
             x.ReplyUri = _replyEndpoint.Uri;
         }
