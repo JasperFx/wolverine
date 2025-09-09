@@ -27,6 +27,42 @@ public class MessageSubscriptionDescriptor
     public string ContentType { get; set; } = "application/json";
     public string Description { get; set; } = string.Empty;
 
+    public override string ToString()
+    {
+        return
+            $"{nameof(Endpoint)}: {Endpoint}, {nameof(ContentType)}: {ContentType}, {nameof(Description)}: {Description}";
+    }
+
+    protected bool Equals(MessageSubscriptionDescriptor other)
+    {
+        return Endpoint.Equals(other.Endpoint) && ContentType == other.ContentType && Description == other.Description;
+    }
+
+    public override bool Equals(object? obj)
+    {
+        if (obj is null)
+        {
+            return false;
+        }
+
+        if (ReferenceEquals(this, obj))
+        {
+            return true;
+        }
+
+        if (obj.GetType() != GetType())
+        {
+            return false;
+        }
+
+        return Equals((MessageSubscriptionDescriptor)obj);
+    }
+
+    public override int GetHashCode()
+    {
+        return HashCode.Combine(Endpoint, ContentType, Description);
+    }
+
     // TODO -- add something about envelope rules?
 }
 
