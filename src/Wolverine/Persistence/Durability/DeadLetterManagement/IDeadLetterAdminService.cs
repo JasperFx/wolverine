@@ -7,9 +7,6 @@ public interface IDeadLetterAdminService
 {
     Task<IReadOnlyList<DeadLetterQueueCount>> SummarizeAllAsync(string serviceName, TimeRange range,
         CancellationToken token);
-    Task<IReadOnlyList<DeadLetterQueueCount>> SummarizeByDatabaseAsync(string serviceName, Uri database,
-        TimeRange range,
-        CancellationToken token);
 
     Task<DeadLetterEnvelopeResults> QueryAsync(DeadLetterEnvelopeQuery query, CancellationToken token);
 
