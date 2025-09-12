@@ -170,6 +170,8 @@ public partial class WolverineRuntime
         }
     }
 
+    public StopMode StopMode { get; set; } = StopMode.Normal;
+    
     public async Task StopAsync(CancellationToken cancellationToken)
     {
         if (_hasStopped)
@@ -184,7 +186,7 @@ public partial class WolverineRuntime
         // Latch health checks ASAP
         DisableHealthChecks();
         
-        if (_persistence.IsValueCreated)
+        if (_persistence.IsValueCreated && StopMode == StopMode.Normal)
         {
             try
             {
@@ -206,10 +208,13 @@ public partial class WolverineRuntime
             }
         }
 
-        // This MUST be called before draining the endpoints
-        await teardownAgentsAsync();
-
-        await _endpoints.DrainAsync();
+        if (StopMode == StopMode.Normal)
+        {
+            // This MUST be called before draining the endpoints
+            await teardownAgentsAsync();
+            
+            await _endpoints.DrainAsync();
+        }
 
         DurabilitySettings.Cancel();
 
@@ -321,4 +326,14 @@ public partial class WolverineRuntime
 
         return StartAsync(CancellationToken.None);
     }
+}
+
+public enum StopMode
+{
+    Normal,
+    
+    /// <summary>
+    /// Honestly, don't use this except in Wolverine testing...
+    /// </summary>
+    Quick
 }
