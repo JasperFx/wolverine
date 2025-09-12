@@ -59,14 +59,6 @@ public abstract partial class MessageDatabase<T> : IDeadLetterAdminService
         return envelopes;
     }
 
-    public Task<IReadOnlyList<DeadLetterQueueCount>> SummarizeByDatabaseAsync(string serviceName,
-        Uri database,
-        TimeRange range,
-        CancellationToken token)
-    {
-        return SummarizeAllAsync(serviceName, range, token);
-    }
-
     protected virtual string toTopClause(DeadLetterEnvelopeQuery query)
     {
         return "";
