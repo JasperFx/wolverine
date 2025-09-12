@@ -29,16 +29,6 @@ public class MultiStoreDeadLetterAdminService : IDeadLetterAdminService
         return list;
     }
 
-    public async Task<IReadOnlyList<DeadLetterQueueCount>> SummarizeByDatabaseAsync(string serviceName, Uri database, TimeRange range, CancellationToken token)
-    {
-        if (_databases.TryFind(database, out var service))
-        {
-            return await service.SummarizeAllAsync(serviceName, range, token);
-        }
-
-        return [];
-    }
-
     public async Task<DeadLetterEnvelopeResults> QueryAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
     {
         if (query.Database != null)
