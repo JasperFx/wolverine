@@ -51,6 +51,29 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
         }
     }
 
+    protected override void writeMessageIdArrayQueryList(DbCommandBuilder builder, Guid[] messageIds)
+    {
+        if (messageIds.Length == 1)
+        {
+            builder.Append($" and {DatabaseConstants.Id} = ");
+            builder.AppendParameter(messageIds.Single());
+        }
+        else
+        {
+            builder.Append(" and (");
+            builder.Append($"{DatabaseConstants.Id} = ");
+            builder.AppendParameter(messageIds[0]);
+
+            for (int i = 1; i < messageIds.Length; i++)
+            {
+                builder.Append($" or {DatabaseConstants.Id} = ");
+                builder.AppendParameter(messageIds[i]);
+            }
+            
+            builder.Append(")");
+        }
+    }
+
     protected override INodeAgentPersistence? buildNodeStorage(DatabaseSettings databaseSettings,
         DbDataSource dataSource)
     {

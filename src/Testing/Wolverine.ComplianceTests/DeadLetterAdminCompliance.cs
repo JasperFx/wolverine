@@ -563,7 +563,7 @@ public abstract class DeadLetterAdminCompliance : IAsyncLifetime
         await loadAllEnvelopes();
 
         var ids = allEnvelopes.Envelopes.Take(10).Select(x => x.Id).ToArray();
-        await theDeadLetters.DiscardAsync(new MessageBatchRequest(ids), CancellationToken.None);
+        await theDeadLetters.DiscardAsync(new DeadLetterEnvelopeQuery{MessageIds = ids}, CancellationToken.None);
 
         // Reload
         await loadAllEnvelopes();
@@ -611,7 +611,7 @@ public abstract class DeadLetterAdminCompliance : IAsyncLifetime
         await loadAllEnvelopes();
 
         var ids = allEnvelopes.Envelopes.Take(10).Select(x => x.Id).ToArray();
-        await theDeadLetters.ReplayAsync(new MessageBatchRequest(ids), CancellationToken.None);
+        await theDeadLetters.ReplayAsync(new DeadLetterEnvelopeQuery(ids), CancellationToken.None);
 
         // Reload
         await loadAllEnvelopes();

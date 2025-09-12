@@ -113,7 +113,7 @@ public abstract partial class MessageDatabase<T> : IDeadLetterAdminService
         return results;
     }
 
-    private static void writeDeadLetterWhereClause(DeadLetterEnvelopeQuery query, DbCommandBuilder builder)
+    private void writeDeadLetterWhereClause(DeadLetterEnvelopeQuery query, DbCommandBuilder builder)
     {
         if (query.Range.From.HasValue)
         {
@@ -144,7 +144,14 @@ public abstract partial class MessageDatabase<T> : IDeadLetterAdminService
             builder.Append($" and {DatabaseConstants.ReceivedAt} = ");
             builder.AppendParameter(query.ReceivedAt);
         }
+
+        if (query.MessageIds != null && query.MessageIds.Any())
+        {
+            writeMessageIdArrayQueryList(builder, query.MessageIds);
+        }
     }
+
+    protected abstract void writeMessageIdArrayQueryList(DbCommandBuilder builder, Guid[] messageIds);
 
     protected abstract void writePagingAfter(DbCommandBuilder builder, int offset, int limit);
 
@@ -177,42 +184,4 @@ public abstract partial class MessageDatabase<T> : IDeadLetterAdminService
         return executeCommandBatch(builder, token);
     }
 
-    public Task DiscardAsync(MessageBatchRequest request, CancellationToken token)
-    {
-        var builder = ToCommandBuilder();
-
-        foreach (var id in request.Ids)
-        {
-            builder.Append($"delete from {SchemaName}.{DatabaseConstants.DeadLetterTable} where {DatabaseConstants.Id} = ");
-            builder.AppendParameter(id);
-            builder.Append(';');
-        }
-        
-        new MoveReplayableErrorMessagesToIncomingOperation(this).ConfigureCommand(builder);
-        
-        return executeCommandBatch(builder, token);
-    }
-
-    public Task ReplayAsync(MessageBatchRequest request, CancellationToken token)
-    {
-        var builder = ToCommandBuilder();
-
-        foreach (var id in request.Ids)
-        {
-            builder.Append(
-                $"update {SchemaName}.{DatabaseConstants.DeadLetterTable} set {DatabaseConstants.Replayable} = ");
-            builder.AppendParameter(true);
-            builder.Append($" where {DatabaseConstants.Id} = ");
-            builder.AppendParameter(id);
-            builder.Append(';');
-            builder.Append(
-                $"delete from {SchemaName}.{DatabaseConstants.DeadLetterTable} where {DatabaseConstants.Replayable} = ");
-            builder.AppendParameter(true);
-            builder.Append(';');
-        }
-        
-        new MoveReplayableErrorMessagesToIncomingOperation(this).ConfigureCommand(builder);
-        
-        return executeCommandBatch(builder, token);
-    }
 }
