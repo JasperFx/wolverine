@@ -576,4 +576,10 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
         return storage;
     }
 
+    protected override void writeMessageIdArrayQueryList(DbCommandBuilder builder, Guid[] messageIds)
+    {
+        builder.Append($" and {DatabaseConstants.Id} = ANY(");
+        builder.AppendParameter(messageIds);
+        builder.Append(')');
+    }
 }
