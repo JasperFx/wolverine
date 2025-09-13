@@ -12,7 +12,9 @@ public class RecordCollection
         _messageEventType = eventType;
         _parent = parent;
     }
-    
+
+    internal TrackedSession Parent => _parent;
+
     public EnvelopeRecord SingleRecord<T>()
     {
         var records = RecordsInOrder().Where(x => x.Message is T).ToArray();
@@ -83,7 +85,7 @@ public class RecordCollection
         return RecordsInOrder().Select(x => x.Message).Where(x => x != null)!;
     }
 
-    public IEnumerable<EnvelopeRecord> RecordsInOrder()
+    public virtual IEnumerable<EnvelopeRecord> RecordsInOrder()
     {
         return _parent.AllRecordsInOrder().Where(x => x.MessageEventType == _messageEventType);
     }
@@ -91,5 +93,17 @@ public class RecordCollection
     public IEnumerable<Envelope> Envelopes()
     {
         return RecordsInOrder().Select(x => x.Envelope);
+    }
+}
+
+public class ScheduledActivityRecordCollection : RecordCollection
+{
+    internal ScheduledActivityRecordCollection(MessageEventType eventType, TrackedSession parent) : base(eventType, parent)
+    {
+    }
+
+    public override IEnumerable<EnvelopeRecord> RecordsInOrder()
+    {
+        return Parent.AllRecordsInOrder().Where(x => x.WasScheduled || x.MessageEventType == MessageEventType.Scheduled);
     }
 }

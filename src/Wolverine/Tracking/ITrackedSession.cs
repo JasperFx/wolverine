@@ -19,6 +19,12 @@ public interface ITrackedSession
     ///     published to local queues
     /// </summary>
     RecordCollection Sent { get; }
+    
+    /// <summary>
+    /// Records of all message activity that were scheduled for later sending or later local execution.
+    /// Note that this collection can span records in the other collections
+    /// </summary>
+    RecordCollection Scheduled { get; }
 
     /// <summary>
     ///     Records of all messages that were executed during the tracked session
@@ -128,6 +134,13 @@ public interface ITrackedSession
     /// <param name="message"></param>
     /// <param name="condition"></param>
     void AssertCondition(string message, Func<bool> condition);
+
+    /// <summary>
+    /// Attempt to "play" any messages that were scheduled by *only* the initial IHost
+    /// </summary>
+    /// <param name="timeout"></param>
+    /// <returns></returns>
+    Task<ITrackedSession> PlayScheduledMessagesAsync(TimeSpan timeout);
 }
 
 #endregion

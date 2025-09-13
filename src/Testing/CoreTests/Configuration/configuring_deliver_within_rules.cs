@@ -25,7 +25,10 @@ public class configuring_deliver_within_rules
 
         var message = new Message1();
 
-        var session = await host.SendMessageAndWaitAsync(message);
+        var session = await host.TrackActivity().SendMessageAndWaitAsync(message);
+
+        var records = session.AllRecordsInOrder().ToArray();
+        
         session.Sent.SingleEnvelope<Message1>()
             .DeliverWithin.ShouldBe(3.Seconds());
     }
