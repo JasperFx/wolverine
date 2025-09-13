@@ -73,11 +73,6 @@ public class remote_invocation : IAsyncLifetime
         await _sender.StopAsync();
     }
 
-    /*
-
-     * Pass CancellationToken through to ReplyListener
-     */
-
     [Fact]
     public async Task request_reply_with_no_reply()
     {

@@ -7,12 +7,12 @@ namespace Wolverine.Tracking;
 
 public class TrackedSessionConfiguration
 {
-    private readonly TrackedSession _session;
-
     internal TrackedSessionConfiguration(TrackedSession session)
     {
-        _session = session;
+        Session = session;
     }
+
+    internal TrackedSession Session { get; }
 
     /// <summary>
     ///     Override the default timeout threshold to wait for all
@@ -22,7 +22,7 @@ public class TrackedSessionConfiguration
     /// <returns></returns>
     public TrackedSessionConfiguration Timeout(TimeSpan timeout)
     {
-        _session.Timeout = timeout;
+        Session.Timeout = timeout;
         return this;
     }
 
@@ -38,7 +38,7 @@ public class TrackedSessionConfiguration
         {
             if (host != null)
             {
-                _session.WatchOther(host);
+                Session.WatchOther(host);
             }
         }
 
@@ -58,7 +58,7 @@ public class TrackedSessionConfiguration
         {
             if (serviceProvider != null)
             {
-                _session.WatchOther(serviceProvider);
+                Session.WatchOther(serviceProvider);
             }
         }
 
@@ -72,7 +72,7 @@ public class TrackedSessionConfiguration
     /// <returns></returns>
     public TrackedSessionConfiguration IncludeExternalTransports()
     {
-        _session.AlwaysTrackExternalTransports = true;
+        Session.AlwaysTrackExternalTransports = true;
         return this;
     }
 
@@ -84,7 +84,20 @@ public class TrackedSessionConfiguration
     /// <returns></returns>
     public TrackedSessionConfiguration DoNotAssertOnExceptionsDetected()
     {
-        _session.AssertNoExceptions = false;
+        Session.AssertNoExceptions = false;
+        return this;
+    }
+
+    /// <summary>
+    /// Do not assert or fail if failure acks were sent during the message activity.
+    /// This might be useful if using request/reply mechanics where you are testing
+    /// cases where you want to see if failure acks are sent. Maybe only useful
+    /// inside of Wolverine's own testing to be honest:-)
+    /// </summary>
+    /// <returns></returns>
+    public TrackedSessionConfiguration IgnoreFailureAcks()
+    {
+        Session.AssertAnyFailureAcknowledgements = false;
         return this;
     }
 
@@ -101,14 +114,14 @@ public class TrackedSessionConfiguration
             UniqueNodeId = host.Services.GetRequiredService<IWolverineRuntime>().Options.UniqueNodeId
         };
 
-        _session.AddCondition(condition);
+        Session.AddCondition(condition);
 
         return this;
     }
 
     public TrackedSessionConfiguration WaitForCondition(ITrackedCondition condition)
     {
-        _session.AddCondition(condition);
+        Session.AddCondition(condition);
         return this;
     }
 
@@ -120,9 +133,9 @@ public class TrackedSessionConfiguration
     /// <returns></returns>
     public async Task<ITrackedSession> ExecuteAndWaitAsync(Func<IMessageContext, Task> action)
     {
-        _session.Execution = action;
-        await _session.ExecuteAndTrackAsync();
-        return _session;
+        Session.Execution = action;
+        await Session.ExecuteAndTrackAsync();
+        return Session;
     }
 
     /// <summary>
@@ -133,9 +146,9 @@ public class TrackedSessionConfiguration
     /// <returns></returns>
     public async Task<ITrackedSession> ExecuteAndWaitAsync(Func<IMessageContext, ValueTask> action)
     {
-        _session.Execution = c => action(c).AsTask();
-        await _session.ExecuteAndTrackAsync();
-        return _session;
+        Session.Execution = c => action(c).AsTask();
+        await Session.ExecuteAndTrackAsync();
+        return Session;
     }
 
     /// <summary>
@@ -226,7 +239,7 @@ public class TrackedSessionConfiguration
 
         Func<IMessageContext, Task> invocation = async c =>
         {
-            response = await c.EndpointFor(address).InvokeAsync<T>(request, timeout: _session.Timeout);
+            response = await c.EndpointFor(address).InvokeAsync<T>(request, timeout: Session.Timeout);
         };
 
         var session = await ExecuteAndWaitAsync(invocation);

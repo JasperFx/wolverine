@@ -5,6 +5,9 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
+using Wolverine.Runtime.RemoteInvocation;
+using Wolverine.Transports;
+using Wolverine.Transports.Local;
 
 namespace Wolverine.Tracking;
 
@@ -43,6 +46,8 @@ internal class TrackedSession : ITrackedSession
     public TimeSpan Timeout { get; set; } = 5.Seconds();
 
     public bool AssertNoExceptions { get; set; } = true;
+
+    public bool AssertAnyFailureAcknowledgements { get; set; } = true;
 
     public Func<IMessageContext, Task> Execution { get; set; } = _ => Task.CompletedTask;
 
@@ -152,6 +157,44 @@ internal class TrackedSession : ITrackedSession
         var description = BuildActivityMessage(message);
         throw new Exception(description);
     }
+
+    public Task<ITrackedSession> PlayScheduledMessagesAsync(TimeSpan timeout)
+    {
+        var serviceName = _primaryHost.GetRuntime().Options.ServiceName;
+        var recordsInOrder = _envelopes.SelectMany(x => x.Records).Where(x => x.MessageEventType == MessageEventType.Scheduled).ToArray();
+        var records = recordsInOrder.Where(x => x.ServiceName == serviceName).ToArray();
+        if (!records.Any())
+        {
+            var message = BuildActivityMessage("No scheduled messages recorded.");
+            throw new Exception(message);
+        }
+
+        var trackedSessionConfiguration = _primaryHost.TrackActivity().Timeout(timeout).As<TrackedSessionConfiguration>();
+        var replayed = trackedSessionConfiguration.Session;
+        replayed.AlwaysTrackExternalTransports = AlwaysTrackExternalTransports;
+        replayed.AssertAnyFailureAcknowledgements = AssertAnyFailureAcknowledgements;
+        replayed.AssertNoExceptions = AssertNoExceptions;
+        replayed._otherHosts.AddRange(_otherHosts);
+        
+        return trackedSessionConfiguration.ExecuteAndWaitAsync(c => ReplayAll(c, records));
+    }
+
+    internal async Task ReplayAll(IMessageContext context, EnvelopeRecord[] records)
+    {
+        foreach (var record in records)
+        {
+            if (record.Envelope.Destination.Scheme == TransportConstants.Local)
+            {
+                await context.InvokeAsync(record.Envelope.Message);
+            }
+            else
+            {
+                await context.EndpointFor(record.Envelope.Destination).SendAsync(record.Envelope.Message);
+            }
+        }
+    }
+
+    public RecordCollection Scheduled => new ScheduledActivityRecordCollection(MessageEventType.Scheduled, this);
 
     public RecordCollection Received => new(MessageEventType.Received, this);
     public RecordCollection Sent => new(MessageEventType.Sent, this);
@@ -318,10 +361,33 @@ internal class TrackedSession : ITrackedSession
             AssertNoExceptionsWereThrown();
         }
 
+        if (AssertAnyFailureAcknowledgements)
+        {
+            AssertNoFailureAcksWereSent();
+        }
+
         if (AssertNoExceptions)
         {
             AssertNotTimedOut();
         }
+    }
+
+    public void AssertNoFailureAcksWereSent()
+    {
+        var records = AllRecordsInOrder().Where(x => x.Message is FailureAcknowledgement).ToArray();
+        if (records.Any())
+        {
+            var writer = new StringWriter();
+            writer.WriteLine($"{nameof(FailureAcknowledgement)} messages were detected. ");
+            writer.WriteLine($"Configure the tracked activity with {nameof(TrackedSessionConfiguration.IgnoreFailureAcks)}() to ignore these failure acks in the test.");
+            foreach (EnvelopeRecord record in records)
+            {
+                writer.WriteLine(record.Message.As<FailureAcknowledgement>().Message);
+            }
+
+            throw new Exception(writer.ToString());
+        }
+        
     }
 
     public Task TrackAsync()
@@ -348,6 +414,30 @@ internal class TrackedSession : ITrackedSession
 
             Status = TrackingStatus.TimedOut;
         }, CancellationToken.None, TaskCreationOptions.RunContinuationsAsynchronously, TaskScheduler.Default);
+    }
+    
+    public void MaybeRecord(MessageEventType messageEventType, Envelope envelope, string serviceName, Guid uniqueNodeId)
+    {
+        if (envelope.Message is ValueTask)
+        {
+            throw new Exception("Whatcha you doing Willis?");
+        }
+
+        // Ignore these
+        if (envelope.Message is IAgentCommand)
+        {
+            return;
+        }
+        
+        // Really just doing this idempotently
+        var history = _envelopes[envelope.Id];
+        if (history.Records.Any(r =>
+                r.MessageEventType == messageEventType && object.ReferenceEquals(r.Envelope, envelope)))
+        {
+            return;
+        }
+        
+        Record(messageEventType, envelope, serviceName, uniqueNodeId);
     }
 
     public void Record(MessageEventType eventType, Envelope envelope, string? serviceName, Guid uniqueNodeId,

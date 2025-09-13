@@ -48,8 +48,6 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
             return;
         }
 
-        if (!Outstanding.Any()) return;
-
         await AssertAnyRequiredResponseWasGenerated();
 
         if (!Outstanding.Any())
@@ -66,6 +64,13 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
                     if (!envelope.Sender!.IsDurable)
                     {
                         Runtime.ScheduleLocalExecutionInMemory(envelope.ScheduledTime!.Value, envelope);
+                    }
+
+                    // If NullMessageStore, then we're calling a different Send method that is marking the message
+                    if (Runtime.Storage is not NullMessageStore)
+                    {
+                        // See https://github.com/JasperFx/wolverine/issues/1697
+                        Runtime.MessageTracking.Sent(envelope);
                     }
                 }
                 else if (ReferenceEquals(this, Transaction))
@@ -99,8 +104,18 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
     {
         if (hasRequestedReply() && _channel is not InvocationCallback && isMissingRequestedReply())
         {
-            await SendFailureAcknowledgementAsync(
-                $"No response was created for expected response '{Envelope.ReplyRequested}'");
+            var failureDescription = $"No response was created for expected response '{Envelope.ReplyRequested}'. ";
+            if (_outstanding.Any())
+            {
+                failureDescription += "Actual cascading messages were " +
+                                      _outstanding.Select(x => x.MessageType).Join(", ");
+            }
+            else
+            {
+                failureDescription += "No cascading messages were created by this handler";
+            }
+            
+            await SendFailureAcknowledgementAsync( failureDescription);
         }
     }
 
