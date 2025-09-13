@@ -32,6 +32,8 @@ public class using_ISendMyself_as_cascading_message : IntegrationContext
         var timeout = session.FindSingleTrackedMessageOfType<DelayedResponse>();
         timeout.Id.ShouldBe(id);
 
+        var records = session.AllRecordsInOrder().ToArray();
+
         var envelope = session.FindEnvelopesWithMessageType<DelayedResponse>()
             .Distinct()
             .Single().Envelope;

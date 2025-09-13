@@ -185,7 +185,7 @@ public abstract class IntegrationContext : IAsyncLifetime, IOpenApiSource
     // for message tracking to both record outgoing messages and to ensure
     // that any cascaded work spawned by the initial command is completed
     // before passing control back to the calling test
-    protected async Task<(ITrackedSession, IScenarioResult)> TrackedHttpCall(Action<Scenario> configuration)
+    protected async Task<(ITrackedSession, IScenarioResult)> TrackedHttpCall(Action<Scenario> configuration, int timeoutInMilliseconds = 5000)
     {
         IScenarioResult result = null!;
 
@@ -196,7 +196,7 @@ public abstract class IntegrationContext : IAsyncLifetime, IOpenApiSource
             // The inner part here is actually making an HTTP request
             // to the system under test with Alba
             result = await Host.Scenario(configuration);
-        });
+        }, timeoutInMilliseconds);
 
         return (tracked, result);
     }

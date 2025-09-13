@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Wolverine.Transports;
 
 namespace Wolverine.Tracking;
@@ -59,10 +60,12 @@ internal class EnvelopeHistory
                     record.Envelope.MessageType == TransportConstants.ScheduledEnvelope)
                 {
                     record.IsComplete = true;
+                    record.WasScheduled = true;
                 }
 
                 if (record.Envelope.Status == EnvelopeStatus.Scheduled)
                 {
+                    record.WasScheduled = true;
                     record.IsComplete = true;
                 }
 
@@ -116,7 +119,10 @@ internal class EnvelopeHistory
             case MessageEventType.Sent:
                 if (record.Envelope.Status == EnvelopeStatus.Scheduled)
                 {
+                    record.WasScheduled = true;
                     record.IsComplete = true;
+                    
+                    record.TryUseInnerFromScheduledEnvelope();
                 }
 
                 // This can be out of order with Rabbit MQ *somehow*, so:

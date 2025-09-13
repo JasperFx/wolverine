@@ -53,7 +53,7 @@ public sealed partial class WolverineRuntime : IMessageTracker
     public void Sent(Envelope envelope)
     {
         _sentCounter.Add(1, envelope.ToMetricsHeaders());
-        ActiveSession?.Record(MessageEventType.Sent, envelope, _serviceName, _uniqueNodeId);
+        ActiveSession?.MaybeRecord(MessageEventType.Sent, envelope, _serviceName, _uniqueNodeId);
         _sent(Logger, envelope.CorrelationId!, envelope.GetMessageTypeName(), envelope.Id,
             envelope.Destination?.ToString() ?? string.Empty,
             null);
