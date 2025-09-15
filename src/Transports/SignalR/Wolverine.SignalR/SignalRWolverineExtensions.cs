@@ -44,6 +44,8 @@ public static class SignalRWolverineExtensions
 
     public static SignalRListenerConfiguration UseSignalR(this WolverineOptions options)
     {
+        options.Services.AddSignalR();
+        
         var transport = options.SignalRTransport();
 
         options.Services.AddSingleton<SignalRTransport>(s =>
