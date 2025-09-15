@@ -1,3 +1,4 @@
+using JasperFx.Core.Reflection;
 using Wolverine.Configuration;
 using Wolverine.RabbitMQ.Internal;
 using Wolverine.Transports;
@@ -49,5 +50,16 @@ public class RabbitMqMessageRoutingConvention : MessageRoutingConvention<RabbitM
     public RabbitMqMessageRoutingConvention ExchangeNameForSending(Func<Type, string?> nameForExchange)
     {
         return IdentifierForSender(nameForExchange);
+    }
+
+    protected override (RabbitMqConventionalListenerConfiguration, Endpoint) FindOrCreateListenerForIdentifierUsingSeparatedHandler(
+        string identifier, RabbitMqTransport transport, Type messageType, Type handlerType)
+    {
+        var exchange = transport.Exchanges[identifier];
+        var queueName = transport.MaybeCorrectName(handlerType.FullNameInCode());
+        var queue = transport.Queues[queueName];
+
+        queue.BindExchange(exchange.Name, $"{exchange.Name}-{queue.QueueName}");
+        return (new RabbitMqConventionalListenerConfiguration(queue, transport, _identifierForSender), queue);
     }
 }
