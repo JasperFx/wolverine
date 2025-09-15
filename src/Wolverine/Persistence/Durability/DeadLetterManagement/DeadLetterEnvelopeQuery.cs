@@ -21,6 +21,8 @@ public class DeadLetterEnvelopeQuery
     public string? MessageType { get; set; }
     public string? ExceptionType { get; set; }
     public string? ReceivedAt { get; set; }
+    
+    [Obsolete("Remove this")]
     public Uri? Database { get; set; }
     
     public TimeRange Range { get; set; } = TimeRange.AllTime();

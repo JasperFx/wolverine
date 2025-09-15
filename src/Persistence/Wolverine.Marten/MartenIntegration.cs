@@ -63,6 +63,19 @@ public class MartenIntegration : IWolverineExtension, IEventForwarding
         
         options.Policies.Add<MartenOpPolicy>();
     }
+
+    /// <summary>
+    ///     In the case of Marten using a database per tenant, you may wish to
+    ///     explicitly determine the master database for Wolverine where Wolverine will store node and envelope information.
+    ///     This does not have to be one of the tenant databases
+    ///     Wolverine will try to use the master database from the Marten configuration when possible
+    /// </summary>
+    [Obsolete("Prefer MainDatabaseConnectionString")]
+    public string? MasterDatabaseConnectionString
+    {
+        get => MainDatabaseConnectionString;
+        set => MainDatabaseConnectionString = value;
+    }
     
     /// <summary>
     ///     In the case of Marten using a database per tenant, you may wish to
@@ -70,7 +83,7 @@ public class MartenIntegration : IWolverineExtension, IEventForwarding
     ///     This does not have to be one of the tenant databases
     ///     Wolverine will try to use the master database from the Marten configuration when possible
     /// </summary>
-    public string? MasterDatabaseConnectionString { get; set; }
+    public string? MainDatabaseConnectionString { get; set; }
     
     /// <summary>
     ///     In the case of Marten using a database per tenant, you may wish to
