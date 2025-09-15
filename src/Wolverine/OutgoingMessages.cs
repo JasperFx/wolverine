@@ -12,6 +12,14 @@ namespace Wolverine;
 /// </summary>
 public class OutgoingMessages : List<object>, IWolverineReturnType, INotToBeRouted
 {
+    public OutgoingMessages()
+    {
+    }
+
+    public OutgoingMessages(IEnumerable<object> collection) : base(collection)
+    {
+    }
+
     /// <summary>
     ///     Send a message back to the original sender
     /// </summary>
