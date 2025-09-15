@@ -31,4 +31,11 @@ public class AzureServiceBusMessageRoutingConvention
     {
         return IdentifierForSender(namingRule);
     }
+
+    protected override (AzureServiceBusQueueListenerConfiguration, Endpoint) FindOrCreateListenerForIdentifierUsingSeparatedHandler(
+        string identifier, AzureServiceBusTransport transport, Type messageType, Type handlerType)
+    {
+        throw new NotSupportedException(
+            "The Azure Service Bus conventional routing by queues can not support conventional routing to multiple handlers in the same application. You will have to resort to explicit routing.");
+    }
 }
