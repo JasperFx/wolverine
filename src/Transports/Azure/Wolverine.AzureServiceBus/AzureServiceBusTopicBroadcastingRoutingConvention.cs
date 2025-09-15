@@ -31,6 +31,26 @@ public class AzureServiceBusTopicBroadcastingRoutingConvention : MessageRoutingC
         return (new AzureServiceBusSubscriptionListenerConfiguration(subscription), subscription);
     }
 
+    protected override (AzureServiceBusSubscriptionListenerConfiguration, Endpoint) FindOrCreateListenerForIdentifierUsingSeparatedHandler(
+        string topicName, AzureServiceBusTransport transport, Type messageType, Type handlerType)
+    {
+        var topic = transport.Topics[topicName];
+        
+        var subscriptionName = _subscriptionNameSource == null ? transport.MaybeCorrectName(handlerType.FullName) : _subscriptionNameSource(handlerType);
+
+        var subscription =
+            transport.Subscriptions.FirstOrDefault(x =>
+                x.Topic.TopicName == topicName && x.SubscriptionName == subscriptionName);
+
+        if (subscription == null)
+        {
+            subscription = new AzureServiceBusSubscription(transport, topic, subscriptionName);
+            transport.Subscriptions.Add(subscription);
+        }
+
+        return (new AzureServiceBusSubscriptionListenerConfiguration(subscription), subscription);
+    }
+
     protected override (AzureServiceBusTopicSubscriberConfiguration, Endpoint) FindOrCreateSubscriber(string identifier,
         AzureServiceBusTransport transport)
     {

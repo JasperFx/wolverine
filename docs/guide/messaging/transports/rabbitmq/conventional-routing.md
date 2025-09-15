@@ -125,6 +125,9 @@ var receiver = WolverineHost.For(opts =>
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L598-L636' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conventional_routing_exchange_conventions' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Separated Handler Behavior <Badge type="tip" text="4.12" />
 
+In the case of using the `MultipleHandlerBehavior.Separated` mode, this convention will create an exchange
+for the message type, then a separate queue for each handler using the handler type to create the name *and* finally
+a binding from that queue to the exchange.
 
-TODO -- add content on filtering message types
