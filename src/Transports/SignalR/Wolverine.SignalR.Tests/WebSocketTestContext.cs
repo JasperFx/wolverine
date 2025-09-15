@@ -45,6 +45,8 @@ public abstract class WebSocketTestContext : IAsyncLifetime
             opts.PublishMessage<FromFirst>().ToSignalR();
             opts.PublishMessage<FromSecond>().ToSignalR();
             opts.PublishMessage<Information>().ToSignalR();
+
+            opts.PublishMessage<MathAnswer>().ToSignalR();
         });
 
         var app = builder.Build();
