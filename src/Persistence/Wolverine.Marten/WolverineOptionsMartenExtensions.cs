@@ -175,6 +175,12 @@ public static class WolverineOptionsMartenExtensions
         IWolverineRuntime runtime,
         IServiceProvider serviceProvider)
     {
+        if (masterDataSource == null && masterDatabaseConnectionString.IsEmpty())
+        {
+            throw new ArgumentOutOfRangeException(nameof(masterDatabaseConnectionString),
+                $"Wolverine requires a main message store database even if the current Marten tenancy model does not. You may need to explicitly configure that in the {nameof(IntegrateWithWolverine)}() configuration.");
+        }
+        
         var masterSettings = new DatabaseSettings
         {
             SchemaName = schemaName,
