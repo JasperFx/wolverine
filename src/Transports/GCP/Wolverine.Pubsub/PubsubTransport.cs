@@ -22,7 +22,14 @@ public class PubsubTransport : BrokerTransport<PubsubEndpoint>, IAsyncDisposable
     public EmulatorDetection EmulatorDetection = EmulatorDetection.None;
 
     public string ProjectId = string.Empty;
+    /// <summary>
+    /// This is the low level RPC client for managing publishing.
+    /// </summary>
     internal PublisherServiceApiClient? PublisherApiClient;
+
+    /// <summary>
+    /// This is the low level RPC client for managing subscriptions
+    /// </summary>
     internal SubscriberServiceApiClient? SubscriberApiClient;
 
     /// <summary>
@@ -67,6 +74,7 @@ public class PubsubTransport : BrokerTransport<PubsubEndpoint>, IAsyncDisposable
         }
 
         AssignedNodeNumber = runtime.DurabilitySettings.AssignedNodeNumber;
+
         PublisherApiClient = await pubBuilder.BuildAsync();
         SubscriberApiClient = await subBuilder.BuildAsync();
     }

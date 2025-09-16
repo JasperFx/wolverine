@@ -1,6 +1,5 @@
-using Google.Api.Gax.Grpc;
+using Google.Api.Gax;
 using Google.Cloud.PubSub.V1;
-using JasperFx.Blocks;
 using Microsoft.Extensions.Logging;
 using Wolverine.Runtime;
 using Wolverine.Transports;
@@ -25,39 +24,47 @@ public class BatchedPubsubListener : PubsubListener
             throw new WolverinePubsubTransportNotConnectedException();
         }
 
-        using var streamingPull =
-            _transport.SubscriberApiClient.StreamingPull(CallSettings.FromCancellationToken(_cancellation.Token));
-
-        await streamingPull.WriteAsync(new StreamingPullRequest
+        // Create a high-level SubscriberClient for receiving messages which may
+        // use multiple underlying streaming pull connections.
+        var subscriberClientBuilder = new SubscriberClientBuilder()
         {
-            SubscriptionAsSubscriptionName = _endpoint.Server.Subscription.Name,
-            StreamAckDeadlineSeconds = 20,
-            MaxOutstandingMessages = _endpoint.Client.MaxOutstandingMessages,
-            MaxOutstandingBytes = _endpoint.Client.MaxOutstandingByteCount
-        });
+            EmulatorDetection = _transport.EmulatorDetection,
+            SubscriptionName = _endpoint.Server.Subscription.Name,
+            Settings = new SubscriberClient.Settings
+            {
+                AckDeadline = TimeSpan.FromSeconds(20),
+                MaxTotalAckExtension = TimeSpan.FromMinutes(10),
+                FlowControlSettings = new FlowControlSettings(
+                    _endpoint.Client.MaxOutstandingMessages,
+                    _endpoint.Client.MaxOutstandingByteCount
+                )
+            }
+        };
 
-        await using var stream = streamingPull.GetResponseStream();
-
-        _acknowledge = new RetryBlock<string[]>((ackIds, _) => streamingPull.WriteAsync(new StreamingPullRequest
-        {
-            AckIds = { ackIds }
-        }), _logger, _runtime.Cancellation);
+        await using var subscriberClient = await subscriberClientBuilder.BuildAsync();
 
         try
         {
-            await listenForMessagesAsync(async () =>
+            // Start the subscriber and capture the lifetime task
+            var subscriberLifetime = subscriberClient.StartAsync(async (msg, ct) =>
             {
-                while (await stream.MoveNextAsync(_cancellation.Token))
-                {
-                    await handleMessagesAsync(stream.Current.ReceivedMessages);
-                }
+                await handleMessagesAsync(msg);
+                return SubscriberClient.Reply.Ack;
             });
+
+            // Wait for whatever condition you have for running (your helper can return the lifetime task)
+            await listenForMessagesAsync(() => subscriberLifetime);
+
+            // When listenForMessagesAsync returns, request a graceful stop
         }
         finally
         {
             try
             {
-                await streamingPull.WriteCompleteAsync();
+                await subscriberClient.StopAsync(TimeSpan.FromSeconds(15));
+                // Ensure the StartAsync task has completed and observe any exceptions
+                // (if subscriberLifetime had an exception it will be rethrown here)
+                // Note: if you need the variable here, capture it in an outer scope.
             }
             catch (Exception ex)
             {

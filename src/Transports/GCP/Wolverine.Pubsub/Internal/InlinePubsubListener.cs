@@ -12,7 +12,7 @@ public class InlinePubsubListener : PubsubListener
         IWolverineRuntime runtime
     ) : base(endpoint, transport, receiver, runtime)
     {
-        
+
     }
 
     public override async Task StartAsync()
@@ -30,7 +30,7 @@ public class InlinePubsubListener : PubsubListener
                 _cancellation.Token
             );
 
-            await handleMessagesAsync(response.ReceivedMessages);
+            await handleMessagesAsync(response.ReceivedMessages[0].Message);
         });
     }
 }
