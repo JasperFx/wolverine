@@ -10,6 +10,7 @@ using Microsoft.Extensions.Logging;
 using Weasel.Core;
 using Weasel.SqlServer;
 using Wolverine.Logging;
+using Wolverine.Persistence.Durability;
 using Wolverine.Persistence.Durability.DeadLetterManagement;
 using Wolverine.RDBMS;
 using Wolverine.RDBMS.Sagas;
@@ -427,7 +428,7 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
             yield return table;
         }
         
-        if (_settings.IsMain)
+        if (_settings.Role == MessageStoreRole.Main)
         {
             var nodeTable = new Table(new DbObjectName(SchemaName, DatabaseConstants.NodeTableName));
             nodeTable.AddColumn<Guid>("id").AsPrimaryKey();

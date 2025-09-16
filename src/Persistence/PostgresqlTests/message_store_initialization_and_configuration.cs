@@ -8,10 +8,12 @@ using JasperFx.Resources;
 using Shouldly;
 using Weasel.Postgresql;
 using Wolverine;
+using Wolverine.Persistence.Durability;
 using Wolverine.Postgresql;
 using Wolverine.RDBMS;
 using Wolverine.RDBMS.Transport;
 using Wolverine.Runtime;
+using Wolverine.Tracking;
 
 namespace PostgresqlTests;
 
@@ -48,6 +50,12 @@ public class message_store_initialization_and_configuration : PostgresqlContext,
             _host.Dispose();
         }
     }
+
+    [Fact]
+    public void main_store_role()
+    {
+        _host.GetRuntime().Storage.Role.ShouldBe(MessageStoreRole.Main);
+    }   
 
     [Fact]
     public async Task builds_the_node_and_control_queue_tables()
@@ -99,7 +107,7 @@ public class message_store_initialization_and_configuration : PostgresqlContext,
         var settings = new DatabaseSettings
         {
             ConnectionString = Servers.PostgresConnectionString,
-            IsMain = false,
+            Role = MessageStoreRole.Tenant,
             SchemaName = "registry"
         };
 

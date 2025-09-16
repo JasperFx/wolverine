@@ -7,7 +7,7 @@ using Wolverine.RDBMS.Durability;
 
 namespace Wolverine.RDBMS;
 
-public abstract partial class MessageDatabase<T> : IDeadLetterAdminService
+public abstract partial class MessageDatabase<T>
 {
     public async Task<IReadOnlyList<DeadLetterQueueCount>> SummarizeAllAsync(string serviceName, TimeRange range,
         CancellationToken token)

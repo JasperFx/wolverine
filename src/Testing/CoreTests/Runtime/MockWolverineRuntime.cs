@@ -7,6 +7,7 @@ using NSubstitute;
 using Wolverine.ComplianceTests;
 using Wolverine.Configuration;
 using Wolverine.Logging;
+using Wolverine.Persistence;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
@@ -97,7 +98,18 @@ public class MockWolverineRuntime : IWolverineRuntime, IObserver<IWolverineEvent
     public IMessageStore Storage { get; } = Substitute.For<IMessageStore>();
     public ILogger Logger { get; } = Substitute.For<ILogger>();
 
-    public IReadOnlyList<IAncillaryMessageStore> AncillaryStores { get;  } = new List<IAncillaryMessageStore>();
+
+    public MessageStoreCollection Stores => throw new NotSupportedException();
+
+    public Task<T?> TryFindMainMessageStore<T>() where T : class
+    {
+        throw new NotImplementedException();
+    }
+
+    public IAncillaryMessageStore FindAncillaryStoreForMarkerType(Type markerType)
+    {
+        throw new NotImplementedException();
+    }
 
     public void ScheduleLocalExecutionInMemory(DateTimeOffset executionTime, Envelope envelope)
     {

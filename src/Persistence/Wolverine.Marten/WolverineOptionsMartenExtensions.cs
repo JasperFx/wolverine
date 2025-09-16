@@ -185,7 +185,7 @@ public static class WolverineOptionsMartenExtensions
         {
             SchemaName = schemaName,
             AutoCreate = autoCreate ?? store.Options.AutoCreateSchemaObjects,
-            IsMain = true,
+            Role = MessageStoreRole.Main,
             CommandQueuesEnabled = true,
             DataSource = masterDataSource ?? NpgsqlDataSource.Create(masterDatabaseConnectionString)
         };
@@ -217,7 +217,7 @@ public static class WolverineOptionsMartenExtensions
         {
             SchemaName = schemaName,
             AutoCreate = autoCreate ?? store.Options.AutoCreateSchemaObjects,
-            IsMain = true,
+            Role = MessageStoreRole.Main,
             ScheduledJobLockId = $"{schemaName ?? "public"}:scheduled-jobs".GetDeterministicHashCode()
         };
 
