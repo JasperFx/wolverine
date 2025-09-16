@@ -29,6 +29,8 @@ public partial class WolverineRuntime
 
             await ApplyAsyncExtensions();
 
+            await _stores.Value.InitializeAsync();
+
             if (!Options.ExternalTransportsAreStubbed)
             {
                 foreach (var configuresRuntime in Options.Transports.OfType<ITransportConfiguresRuntime>().ToArray())
@@ -114,10 +116,7 @@ public partial class WolverineRuntime
 
         if (Options.AutoBuildMessageStorageOnStartup != AutoCreate.None)
         {
-            foreach (var ancillaryStore in AncillaryStores)
-            {
-                await ancillaryStore.Admin.MigrateAsync();
-            }
+            await _stores.Value.MigrateAsync();
         }
 
         _hasMigratedStorage = true;
@@ -186,11 +185,11 @@ public partial class WolverineRuntime
         // Latch health checks ASAP
         DisableHealthChecks();
         
-        if (_persistence.IsValueCreated && StopMode == StopMode.Normal)
+        if (_stores.IsValueCreated && StopMode == StopMode.Normal)
         {
             try
             {
-                await Storage.DrainAsync();
+                await _stores.Value.DrainAsync();
             }
             catch (TaskCanceledException)
             {

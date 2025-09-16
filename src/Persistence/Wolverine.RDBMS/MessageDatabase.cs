@@ -70,13 +70,17 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
             _schemaName
         };
 
-        if (databaseSettings.IsMain)
+        Role = databaseSettings.Role;
+
+        if (databaseSettings.Role == MessageStoreRole.Main)
         {
             SubjectUri = new Uri("wolverine://messages/main");
         }
 
         Uri = new Uri($"{PersistenceConstants.AgentScheme}://{parts.Where(x => x.IsNotEmpty()).Join("/")}");
     }
+
+    public MessageStoreRole Role { get; private set; }
 
     public override string ToString()
     {
@@ -104,9 +108,12 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
 
     public DurabilitySettings Durability { get; }
 
-    public bool IsMain => Settings.IsMain;
-
     public string Name { get; set; } = TransportConstants.Default;
+    public void PromoteToMain(IWolverineRuntime runtime)
+    {
+        Role = MessageStoreRole.Main;
+        Initialize(runtime);
+    }
 
     public DatabaseSettings Settings => _settings;
 
@@ -153,7 +160,7 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
 
         _batcher = new DatabaseBatcher(this, runtime, runtime.Options.Durability.Cancellation);
 
-        if (Settings.IsMain && runtime.Options.Transports.NodeControlEndpoint == null && runtime.Options.Durability.Mode == DurabilityMode.Balanced)
+        if (Role == MessageStoreRole.Main && runtime.Options.Transports.NodeControlEndpoint == null && runtime.Options.Durability.Mode == DurabilityMode.Balanced)
         {
             var transport = new DatabaseControlTransport(this, runtime.Options);
             runtime.Options.Transports.Add(transport);
@@ -262,11 +269,6 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
         agent.StartScheduledJobPolling();
 
         return agent;
-    }
-
-    public IAgentFamily? BuildAgentFamily(IWolverineRuntime runtime)
-    {
-        return new DurabilityAgentFamily(runtime);
     }
 
     public async ValueTask<ISagaStorage<TId, TSaga>> EnrollAndFetchSagaStorage<TId, TSaga>(MessageContext context) where TSaga : Saga

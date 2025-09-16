@@ -13,6 +13,7 @@ using Wolverine.Marten;
 using Wolverine.Marten.Publishing;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
+using Wolverine.Runtime.Agents;
 using Wolverine.Tracking;
 
 namespace MartenTests.AncillaryStores;
@@ -23,7 +24,7 @@ public class ancillary_stores_use_different_databases : IAsyncLifetime
 
     private string playersConnectionString;
     private string thingsConnectionString;
-    private DurabilityAgentFamily theFamily;
+    private IAgentFamily theStores;
     
     public async Task InitializeAsync()
     {
@@ -64,8 +65,8 @@ public class ancillary_stores_use_different_databases : IAsyncLifetime
 
                 opts.Services.AddResourceSetupOnStartup();
             }).StartAsync();
-        
-        theFamily = new DurabilityAgentFamily(theHost.GetRuntime());
+
+        theStores = theHost.GetRuntime().Stores;
     }
 
     public async Task DisposeAsync()
@@ -106,10 +107,10 @@ public class ancillary_stores_use_different_databases : IAsyncLifetime
     [Fact]
     public async Task have_durability_agents_for_other_databases()
     {
-        var uris = await theFamily.AllKnownAgentsAsync();
-        uris.ShouldBe([
-            new Uri("wolverinedb://postgresql/localhost/postgres/wolverine"),
+        var uris = await theStores.AllKnownAgentsAsync();
+        uris.OrderBy(x => x.ToString()).ShouldBe([
             new Uri("wolverinedb://postgresql/localhost/players/wolverine"),
+            new Uri("wolverinedb://postgresql/localhost/postgres/wolverine"),
             new Uri("wolverinedb://postgresql/localhost/things/wolverine"),
         ]);
     }

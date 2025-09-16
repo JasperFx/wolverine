@@ -2,6 +2,7 @@
 using Npgsql;
 using JasperFx.Core.Reflection;
 using Wolverine.Configuration;
+using Wolverine.Persistence.Durability;
 using Wolverine.Postgresql.Transport;
 
 
@@ -34,13 +35,15 @@ public static class PostgresqlConfigurationExtensions
     /// <param name="options"></param>
     /// <param name="connectionString"></param>
     /// <param name="schemaName">Optional schema name for the Wolverine envelope storage</param>
+    /// <param name="role">Default is Main. Use this to mark some stores as Ancillary to disambiguate the main storage for Wolverine</param>
     public static IPostgresqlBackedPersistence PersistMessagesWithPostgresql(this WolverineOptions options, string connectionString,
-        string? schemaName = null)
+        string? schemaName = null, MessageStoreRole role = MessageStoreRole.Main)
     {
         var persistence = new PostgresqlBackedPersistence(options.Durability, options)
         {
             ConnectionString = connectionString,
-            AlreadyIncluded = true
+            AlreadyIncluded = true,
+            Role = role
         };
 
         if (schemaName.IsNotEmpty())
@@ -60,12 +63,14 @@ public static class PostgresqlConfigurationExtensions
     /// <param name="options"></param>
     /// <param name="dataSource"></param>
     /// <param name="schemaName">Optional schema name for the Wolverine envelope storage</param>
+    /// <param name="role">Default is Main. Use this to mark some stores as Ancillary to disambiguate the main storage for Wolverine</param>
     public static IPostgresqlBackedPersistence PersistMessagesWithPostgresql(this WolverineOptions options, NpgsqlDataSource dataSource,
-        string? schemaName = null)
+        string? schemaName = null, MessageStoreRole role = MessageStoreRole.Main)
     {
         var persistence = new PostgresqlBackedPersistence(options.Durability, options)
         {
-            DataSource = dataSource
+            DataSource = dataSource,
+            Role = role
         };
 
         if (schemaName.IsNotEmpty())

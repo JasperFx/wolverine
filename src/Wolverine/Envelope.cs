@@ -219,7 +219,7 @@ public partial class Envelope : IHasTenantId
     /// <summary>
     ///     The name of the service that sent this envelope
     /// </summary>
-    public string? Source { get; internal set; }
+    public string? Source { get; set; }
 
     /// <summary>
     ///     Message type alias for the contents of this Envelope

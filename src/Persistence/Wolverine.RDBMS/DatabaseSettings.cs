@@ -2,6 +2,7 @@ using System.Data.Common;
 using JasperFx;
 using JasperFx.MultiTenancy;
 using Weasel.Core;
+using Wolverine.Persistence.Durability;
 
 namespace Wolverine.RDBMS;
 
@@ -16,7 +17,7 @@ public class DatabaseSettings
     /// <summary>
     ///     Is this database the master database for node storage and any kind of command queueing?
     /// </summary>
-    public bool IsMain { get; set; }
+    public MessageStoreRole Role { get; set; } = MessageStoreRole.Ancillary;
     
     /// <summary>
     /// If the main database, add a tenant lookup table

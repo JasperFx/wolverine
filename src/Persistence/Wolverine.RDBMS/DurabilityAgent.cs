@@ -4,6 +4,7 @@ using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Logging;
 using Weasel.Core;
 using Wolverine.Persistence;
+using Wolverine.Persistence.Durability;
 using Wolverine.RDBMS.Durability;
 using Wolverine.RDBMS.Polling;
 using Wolverine.Runtime;
@@ -158,7 +159,7 @@ internal class DurabilityAgent : IAgent
 
     private IDatabaseOperation[] buildOperationBatch()
     {
-        if (_database.Settings.IsMain && isTimeToPruneNodeEventRecords())
+        if (_database.Settings.Role == MessageStoreRole.Main && isTimeToPruneNodeEventRecords())
         {
             return
             [

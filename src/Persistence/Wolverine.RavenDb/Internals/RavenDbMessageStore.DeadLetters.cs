@@ -136,4 +136,24 @@ update
         
         await session.SaveChangesAsync();
     }
+
+    public Task<IReadOnlyList<DeadLetterQueueCount>> SummarizeAllAsync(string serviceName, TimeRange range, CancellationToken token)
+    {
+        throw new NotImplementedException();
+    }
+
+    public Task<DeadLetterEnvelopeResults> QueryAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
+    {
+        throw new NotImplementedException();
+    }
+
+    public Task DiscardAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
+    {
+        throw new NotImplementedException();
+    }
+
+    public Task ReplayAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
+    {
+        throw new NotImplementedException();
+    }
 }

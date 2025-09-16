@@ -46,8 +46,7 @@ public partial class NodeAgentController
 
         if (runtime.Options.Durability.DurabilityAgentEnabled)
         {
-            var family = new DurabilityAgentFamily(runtime);
-            _agentFamilies[family.Scheme] = family;
+            _agentFamilies[_runtime.Stores.Scheme] = _runtime.Stores;
         }
 
         foreach (var family in runtime.Options.Transports.OfType<IAgentFamilySource>().SelectMany(x => x.BuildAgentFamilySources(runtime)))

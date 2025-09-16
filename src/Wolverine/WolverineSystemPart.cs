@@ -173,34 +173,29 @@ internal class WolverineSystemPart : SystemPartBase
     }
     
 
-    public override ValueTask<IReadOnlyList<IStatefulResource>> FindResources()
+    public override async ValueTask<IReadOnlyList<IStatefulResource>> FindResources()
     {
         var list = new List<IStatefulResource>();
         
         // These have to run first. Right now, the only options are for building multi-tenanted
         // databases with EF Core
         list.AddRange(_runtime.Services.GetServices<IResourceCreator>());
-        
-        if (_runtime.Options.ExternalTransportsAreStubbed) return new ValueTask<IReadOnlyList<IStatefulResource>>(list);
 
-        foreach (var transport in _runtime.Options.Transports)
+        if (!_runtime.Options.ExternalTransportsAreStubbed)
         {
-            if (transport.TryBuildStatefulResource(_runtime, out var resource))
+            foreach (var transport in _runtime.Options.Transports)
             {
-                list.Add(resource!);
+                if (transport.TryBuildStatefulResource(_runtime, out var resource))
+                {
+                    list.Add(resource!);
+                }
             }
         }
 
-        if (_runtime.Storage is not NullMessageStore)
-        {
-            list.Add(new MessageStoreResource(_runtime.Options, _runtime.Storage));
-        }
+        var stores = await _runtime.Stores.FindAllAsync();
+        
+        list.AddRange(stores.Select(store => new MessageStoreResource(_runtime.Options, store)));
 
-        foreach (var store in _runtime.AncillaryStores)
-        {
-            list.Add(new MessageStoreResource(_runtime.Options, store));
-        }
-
-        return new ValueTask<IReadOnlyList<IStatefulResource>>(list);
+        return list;
     }
 }

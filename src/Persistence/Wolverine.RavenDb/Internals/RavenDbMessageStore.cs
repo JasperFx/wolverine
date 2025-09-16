@@ -28,6 +28,13 @@ public partial class RavenDbMessageStore : IMessageStoreWithAgentSupport
         _scheduledLockId = "wolverine/scheduled";
     }
 
+    public MessageStoreRole Role { get; set; } = MessageStoreRole.Main;
+    
+    public void PromoteToMain(IWolverineRuntime runtime)
+    {
+        Role = MessageStoreRole.Main;
+    }
+
     public string Name => _store.Identifier;
 
     public Uri Uri => new("ravendb://durability");

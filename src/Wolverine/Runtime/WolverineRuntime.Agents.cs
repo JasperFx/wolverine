@@ -168,7 +168,7 @@ public partial class WolverineRuntime : IAgentRuntime
 
     private async Task startDurableScheduledJobs()
     {
-        DurableScheduledJobs = await DurabilityAgentFamily.StartScheduledJobProcessing(this);
+        DurableScheduledJobs = await _stores.Value.StartScheduledJobProcessing(this);
     }
 
     internal IAgent? DurableScheduledJobs { get; private set; }
@@ -263,7 +263,7 @@ public partial class WolverineRuntime : IAgentRuntime
         if (NodeController != null)
         {
             await NodeController.DisableAgentsAsync();
-            await _persistence.Value.Nodes.OverwriteHealthCheckTimeAsync(Options.UniqueNodeId, lastHeartbeatTime);
+            await Storage.Nodes.OverwriteHealthCheckTimeAsync(Options.UniqueNodeId, lastHeartbeatTime);
         }
 
         NodeController = null;

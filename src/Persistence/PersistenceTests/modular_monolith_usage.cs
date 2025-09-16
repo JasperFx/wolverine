@@ -40,7 +40,7 @@ public class modular_monolith_usage
             }).StartAsync();
 
         var runtime = host.GetRuntime();
-        var stores = runtime.AncillaryStores.OfType<PostgresqlMessageStore>();
+        var stores = (await runtime.Stores.FindAllAsync()).OfType<PostgresqlMessageStore>().ToArray();
         stores.Any().ShouldBeTrue();
 
         foreach (var store in stores)
@@ -72,7 +72,7 @@ public class modular_monolith_usage
             }).StartAsync();
 
         var runtime = host.GetRuntime();
-        var stores = runtime.AncillaryStores.OfType<PostgresqlMessageStore>();
+        var stores = (await runtime.Stores.FindAllAsync()).OfType<PostgresqlMessageStore>().ToArray();
         stores.Any().ShouldBeTrue();
 
         foreach (var store in stores)
@@ -103,7 +103,7 @@ public class modular_monolith_usage
             }).StartAsync();
 
         var runtime = host.GetRuntime();
-        var stores = runtime.AncillaryStores.OfType<PostgresqlMessageStore>();
+        var stores = (await runtime.Stores.FindAllAsync()).OfType<PostgresqlMessageStore>().ToArray();
         stores.Any().ShouldBeTrue();
 
         foreach (var store in stores)
@@ -120,6 +120,9 @@ public class modular_monolith_usage
             {
                 //opts.Durability.MessageStorageSchemaName = "wolverine";
 
+                // Gotta have this for the nodes
+                opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, "main");
+
                 opts.Services.AddMartenStore<IPlayerStore>(m =>
                 {
                     m.Connection(Servers.PostgresConnectionString);
@@ -134,7 +137,7 @@ public class modular_monolith_usage
             }).StartAsync();
 
         var runtime = host.GetRuntime();
-        var stores = runtime.AncillaryStores.OfType<PostgresqlMessageStore>();
+        var stores = (await runtime.Stores.FindAllAsync()).OfType<PostgresqlMessageStore>().ToArray();
 
         stores.OfType<IAncillaryMessageStore<IPlayerStore>>().Single().As<PostgresqlMessageStore>()
             .Settings.SchemaName.ShouldBe("players");

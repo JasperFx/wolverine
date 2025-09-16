@@ -8,12 +8,14 @@ using JasperFx.Resources;
 using Shouldly;
 using Weasel.SqlServer;
 using Wolverine;
+using Wolverine.Persistence.Durability;
 using Wolverine.RDBMS;
 using Wolverine.RDBMS.Sagas;
 using Wolverine.RDBMS.Transport;
 using Wolverine.Runtime;
 using Wolverine.SqlServer;
 using Wolverine.SqlServer.Persistence;
+using Wolverine.Tracking;
 
 namespace SqlServerTests;
 
@@ -50,6 +52,12 @@ public class message_store_initialization_and_configuration : SqlServerContext, 
             _host.Dispose();
         }
     }
+    
+    [Fact]
+    public void main_store_role()
+    {
+        _host.GetRuntime().Storage.Role.ShouldBe(MessageStoreRole.Main);
+    }   
 
     [Fact]
     public async Task builds_the_node_and_control_queue_tables()
@@ -101,7 +109,7 @@ public class message_store_initialization_and_configuration : SqlServerContext, 
         var settings = new DatabaseSettings
         {
             ConnectionString = Servers.SqlServerConnectionString,
-            IsMain = false,
+            Role = MessageStoreRole.Tenant,
             SchemaName = "registry"
         };
 

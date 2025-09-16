@@ -24,8 +24,7 @@ public class bootstrap_with_no_persistence
         });
 
         #endregion
-
-        host.Services.GetRequiredService<IMessageStore>().ShouldBeOfType<NullMessageStore>();
+        
         host.GetRuntime().Storage.ShouldBeOfType<NullMessageStore>();
     }
 }

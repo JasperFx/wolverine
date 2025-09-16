@@ -110,18 +110,18 @@ public static class AncillaryWolverineOptionsMartenExtensions
         DocumentStore store,
         IWolverineRuntime runtime) where T : IDocumentStore
     {
-        var masterSettings = new DatabaseSettings
+        var mainSettings = new DatabaseSettings
         {
             ConnectionString = masterDatabaseConnectionString,
             SchemaName = schemaName,
             AutoCreate = autoCreate ?? store.Options.AutoCreateSchemaObjects,
-            IsMain = true,
+            Role = MessageStoreRole.Ancillary,
             CommandQueuesEnabled = true,
             DataSource = masterDataSource
         };
 
-        var dataSource = findMasterDataSource(store, masterSettings);
-        var master = new PostgresqlMessageStore<T>(masterSettings, runtime.Options.Durability, dataSource,
+        var dataSource = findMasterDataSource(store, mainSettings);
+        var master = new PostgresqlMessageStore<T>(mainSettings, runtime.Options.Durability, dataSource,
             runtime.LoggerFactory.CreateLogger<PostgresqlMessageStore>())
         {
             Name = "Master",
@@ -145,7 +145,7 @@ public static class AncillaryWolverineOptionsMartenExtensions
         {
             SchemaName = schemaName,
             AutoCreate = autoCreate ?? store.Options.AutoCreateSchemaObjects,
-            IsMain = true,
+            Role = MessageStoreRole.Ancillary,
             ScheduledJobLockId = $"{schemaName ?? "public"}:scheduled-jobs".GetDeterministicHashCode()
         };
 

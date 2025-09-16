@@ -14,6 +14,8 @@ public class NullMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IM
 {
     internal IScheduledJobProcessor? ScheduledJobs { get; set; }
 
+
+    public MessageStoreRole Role => MessageStoreRole.Main;
     public Uri Uri => new Uri($"{PersistenceConstants.AgentScheme}://null");
 
     public Task MarkIncomingEnvelopeAsHandledAsync(Envelope envelope)
@@ -22,6 +24,10 @@ public class NullMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IM
     }
 
     public string Name => "Nullo";
+    public void PromoteToMain(IWolverineRuntime runtime)
+    {
+        
+    }
 
     public Task MarkIncomingEnvelopeAsHandledAsync(IReadOnlyList<Envelope> envelopes)
     {
@@ -206,6 +212,25 @@ public class NullMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IM
 
     public Task MarkDeadLetterEnvelopesAsReplayableAsync(Guid[] ids, string? tenantId = null) => Task.CompletedTask;
     public Task DeleteDeadLetterEnvelopesAsync(Guid[] ids, string? tenantId = null) => Task.CompletedTask;
+    public Task<IReadOnlyList<DeadLetterQueueCount>> SummarizeAllAsync(string serviceName, TimeRange range, CancellationToken token)
+    {
+        return Task.FromResult<IReadOnlyList<DeadLetterQueueCount>>(new List<DeadLetterQueueCount>());
+    }
+
+    public Task<DeadLetterEnvelopeResults> QueryAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
+    {
+        return Task.FromResult(new DeadLetterEnvelopeResults());
+    }
+
+    public Task DiscardAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
+    {
+        return Task.CompletedTask;
+    }
+
+    public Task ReplayAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
+    {
+        return Task.CompletedTask;
+    }
 
     public Task RebuildAsync()
     {

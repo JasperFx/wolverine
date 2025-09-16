@@ -12,7 +12,7 @@ using Wolverine.SqlServer.Persistence;
 
 namespace Wolverine.SqlServer;
 
-internal class SqlServerTenantedMessageStore : ITenantedMessageSource, IMessageDatabaseSource
+internal class SqlServerTenantedMessageStore : ITenantedMessageSource
 {
     private ImHashMap<string, SqlServerMessageStore> _values = ImHashMap<string, SqlServerMessageStore>.Empty;
     private readonly SqlServerBackedPersistence _persistence;
@@ -44,7 +44,7 @@ internal class SqlServerTenantedMessageStore : ITenantedMessageSource, IMessageD
         }
 
         var connectionString = await _persistence.ConnectionStringTenancy!.FindAsync(tenantId);
-        store = buildStoreForConnectionString(connectionString);
+        store = buildTenantStoreForConnectionString(connectionString);
         
         if (_runtime.Options.AutoBuildMessageStorageOnStartup != AutoCreate.None)
         {
@@ -55,7 +55,7 @@ internal class SqlServerTenantedMessageStore : ITenantedMessageSource, IMessageD
         return store;
     }
 
-    private SqlServerMessageStore buildStoreForConnectionString(string connectionString)
+    private SqlServerMessageStore buildTenantStoreForConnectionString(string connectionString)
     {
         SqlServerMessageStore store;
         
@@ -66,7 +66,7 @@ internal class SqlServerTenantedMessageStore : ITenantedMessageSource, IMessageD
             CommandQueuesEnabled = false,
             // TODO -- set the AutoCreate here
             ConnectionString = connectionString,
-            IsMain = false,
+            Role = MessageStoreRole.Tenant,
             ScheduledJobLockId = _persistence.ScheduledJobLockId,
             SchemaName = _persistence.EnvelopeStorageSchemaName
         };
@@ -85,7 +85,7 @@ internal class SqlServerTenantedMessageStore : ITenantedMessageSource, IMessageD
             // TODO -- some idempotency
             if (!_stores.Contains(assignment.TenantId))
             {
-                var store = buildStoreForConnectionString(assignment.Value);
+                var store = buildTenantStoreForConnectionString(assignment.Value);
                 
                 if (_runtime.Options.AutoBuildMessageStorageOnStartup != AutoCreate.None)
                 {

@@ -1,4 +1,5 @@
 using System.Data.Common;
+using Wolverine.Persistence.Durability;
 using Wolverine.RDBMS.Polling;
 using Wolverine.Runtime.Agents;
 using DbCommandBuilder = Weasel.Core.DbCommandBuilder;
@@ -13,7 +14,7 @@ internal class DeleteOldNodeEventRecords : IDatabaseOperation, IDoNotReturnData
     public DeleteOldNodeEventRecords(IMessageDatabase database, DurabilitySettings settings)
     {
         _database = database ?? throw new ArgumentNullException(nameof(database));
-        if (!_database.Settings.IsMain)
+        if (_database.Settings.Role != MessageStoreRole.Main)
         {
             throw new ArgumentOutOfRangeException(nameof(database), "This operation is only valid on 'Main' databases");
         }

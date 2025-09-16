@@ -48,6 +48,8 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
         Main = main;
     }
 
+    public MessageStoreRole Role => MessageStoreRole.Composite;
+
     public ITenantedMessageSource Source { get; }
 
     public Uri Uri => new($"{PersistenceConstants.AgentScheme}://multitenanted");
@@ -96,6 +98,26 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
         }
 
         foreach (var database in databases()) await database.DeadLetters.DeleteDeadLetterEnvelopesAsync(ids);
+    }
+
+    public Task<IReadOnlyList<DeadLetterQueueCount>> SummarizeAllAsync(string serviceName, TimeRange range, CancellationToken token)
+    {
+        throw new NotImplementedException();
+    }
+
+    public Task<DeadLetterEnvelopeResults> QueryAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
+    {
+        throw new NotImplementedException();
+    }
+
+    public Task DiscardAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
+    {
+        throw new NotImplementedException();
+    }
+
+    public Task ReplayAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
+    {
+        throw new NotImplementedException();
     }
 
     public async Task<DeadLetterEnvelopesFound> QueryDeadLetterEnvelopesAsync(
@@ -335,6 +357,10 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
     }
 
     public string Name { get; }
+    public void PromoteToMain(IWolverineRuntime runtime)
+    {
+        // Nothing here. 
+    }
 
     public async Task<IReadOnlyList<Envelope>> LoadPageOfGloballyOwnedIncomingAsync(Uri listenerAddress, int limit)
     {

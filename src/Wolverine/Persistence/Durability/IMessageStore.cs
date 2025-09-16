@@ -5,6 +5,31 @@ using Wolverine.Runtime.Agents;
 
 namespace Wolverine.Persistence.Durability;
 
+public enum MessageStoreRole
+{
+    /// <summary>
+    /// Denotes that this message store is the main message store for the application and where
+    /// node information is stored
+    /// </summary>
+    Main,
+    
+    /// <summary>
+    /// Denotes that this message store is an additional message store for the application, but
+    /// does not store the node information
+    /// </summary>
+    Ancillary,
+    
+    /// <summary>
+    /// This message store is strictly for one or more tenants
+    /// </summary>
+    Tenant,
+    
+    /// <summary>
+    /// This message store is a multi-tenanted composite of other message stores
+    /// </summary>
+    Composite
+}
+
 public interface IMessageInbox
 {
     Task ScheduleExecutionAsync(Envelope envelope);
@@ -57,6 +82,11 @@ public interface IMessageStoreWithAgentSupport : IMessageStore
 public interface IMessageStore : IAsyncDisposable
 {
     /// <summary>
+    /// What is the role of this message store within the application?
+    /// </summary>
+    MessageStoreRole Role { get; }
+    
+    /// <summary>
     /// Unique identifier for a message store in case of systems that use multiple message
     /// store databases. Must use the "messagedb" scheme, and reflect the database connection
     /// </summary>
@@ -102,6 +132,8 @@ public interface IMessageStore : IAsyncDisposable
     /// Descriptive name for cases of multiple message stores
     /// </summary>
     string Name { get; }
+    
+    void PromoteToMain(IWolverineRuntime runtime);
 }
 
 public record IncomingCount(Uri Destination, int Count);

@@ -26,7 +26,7 @@ public class node_persistence : NodePersistenceCompliance
         {
             ConnectionString = Servers.SqlServerConnectionString,
             SchemaName = "nodes",
-            IsMain = true
+            Role = MessageStoreRole.Main
         };
 
         var database = new SqlServerMessageStore(settings, new DurabilitySettings(),
