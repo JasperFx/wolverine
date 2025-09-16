@@ -16,7 +16,7 @@ public class OutboxedSessionFactory<T> : OutboxedSessionFactory, ISessionFactory
         _store = store;
         _factory = this;
 
-        MessageStore = runtime.AncillaryStores.OfType<IAncillaryMessageStore<T>>().Single();
+        MessageStore = runtime.FindAncillaryStoreForMarkerType(typeof(T));
     }
 
     public IQuerySession QuerySession()

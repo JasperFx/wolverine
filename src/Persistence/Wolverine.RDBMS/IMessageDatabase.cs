@@ -51,8 +51,6 @@ public static class MessageDatabaseExtensions
 public interface IMessageDatabase : IMessageStoreWithAgentSupport, ITenantDatabaseRegistry
 {
     public DatabaseSettings Settings {get; }
-    
-    bool IsMain { get; }
 
     string SchemaName { get; set; }
 

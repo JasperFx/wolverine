@@ -480,7 +480,7 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
             yield return table;
         }
 
-        if (_settings.IsMain)
+        if (_settings.Role == MessageStoreRole.Main)
         {
             var nodeTable = new Table(new DbObjectName(SchemaName, DatabaseConstants.NodeTableName));
             nodeTable.AddColumn<Guid>("id").AsPrimaryKey();

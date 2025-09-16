@@ -19,6 +19,7 @@ using Wolverine.Persistence.Durability;
 using Wolverine.Postgresql;
 using Wolverine.RDBMS;
 using Wolverine.RDBMS.MultiTenancy;
+using Wolverine.Runtime.Agents;
 using Wolverine.Tracking;
 using Xunit.Abstractions;
 
@@ -30,7 +31,7 @@ public class bootstrapping_ancillary_marten_stores_with_wolverine : IAsyncLifeti
     private string tenant1ConnectionString;
     private string tenant2ConnectionString;
     private string tenant3ConnectionString;
-    private DurabilityAgentFamily theFamily;
+    private IAgentFamily theFamily;
     private IHost theHost;
 
     public bootstrapping_ancillary_marten_stores_with_wolverine(ITestOutputHelper output)
@@ -101,7 +102,7 @@ public class bootstrapping_ancillary_marten_stores_with_wolverine : IAsyncLifeti
 
         #endregion
 
-        theFamily = new DurabilityAgentFamily(theHost.GetRuntime());
+        theFamily = theHost.GetRuntime().Stores;
     }
 
     public async Task DisposeAsync()

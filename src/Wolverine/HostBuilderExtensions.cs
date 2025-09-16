@@ -16,6 +16,7 @@ using JasperFx.CommandLine.Descriptions;
 using JasperFx.Resources;
 using JasperFx.RuntimeCompiler;
 using Wolverine.Configuration;
+using Wolverine.Persistence;
 using Wolverine.Persistence.Durability;
 using Wolverine.Persistence.Sagas;
 using Wolverine.Runtime;
@@ -95,9 +96,9 @@ public static class HostBuilderExtensions
         }
 
         services.AddJasperFx();
-
+        services.AddSingleton<MessageStoreCollection>();
         services.AddSingleton<IAssemblyGenerator, AssemblyGenerator>();
-
+        
         services.AddSingleton(services);
             
         services.AddSingleton<WolverineSupplementalCodeFiles>();
@@ -152,7 +153,6 @@ public static class HostBuilderExtensions
 
         services.MessagingRootService(x => x.MessageTracking);
 
-        services.TryAddSingleton<IMessageStore, NullMessageStore>();
         services.AddSingleton<InMemorySagaPersistor>();
 
         services.MessagingRootService(x => x.Pipeline);
@@ -426,7 +426,6 @@ public static class HostBuilderExtensions
     /// <returns></returns>
     public static IServiceCollection DisableAllWolverineMessagePersistence(this IServiceCollection services)
     {
-        services.AddSingleton<IMessageStore, NullMessageStore>();
         services.AddSingleton<IWolverineExtension, DisablePersistence>();
         return services;
     }

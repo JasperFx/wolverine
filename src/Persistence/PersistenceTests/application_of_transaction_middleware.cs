@@ -12,6 +12,7 @@ using Wolverine;
 using Wolverine.EntityFrameworkCore;
 using Wolverine.EntityFrameworkCore.Codegen;
 using Wolverine.Marten.Persistence.Sagas;
+using Wolverine.Persistence.Durability;
 using Wolverine.Postgresql;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
@@ -37,7 +38,7 @@ public class application_of_transaction_middleware : IAsyncLifetime
             opts.Services.AddDbContextWithWolverineIntegration<SampleDbContext>(x =>
                 x.UseSqlServer(Servers.SqlServerConnectionString));
 
-            opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString);
+            opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString, role:MessageStoreRole.Ancillary);
             opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString);
 
             opts.Policies.AutoApplyTransactions();

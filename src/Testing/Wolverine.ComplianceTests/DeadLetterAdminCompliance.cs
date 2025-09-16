@@ -29,7 +29,7 @@ public abstract class DeadLetterAdminCompliance : IAsyncLifetime
     private DateTimeOffset FourHoursAgo;
     private DateTimeOffset SevenHoursAgo;
     private DateTimeOffset SixHoursAgo;
-    protected IDeadLetterAdminService theDeadLetters;
+    protected IDeadLetters theDeadLetters;
     protected EnvelopeGenerator theGenerator;
     protected IMessageStore thePersistence;
     private IReadOnlyList<DeadLetterQueueCount> theSummaries;
@@ -48,7 +48,7 @@ public abstract class DeadLetterAdminCompliance : IAsyncLifetime
         await theHost.ResetResourceState();
 
         thePersistence = theHost.Services.GetRequiredService<IMessageStore>();
-        theDeadLetters = (IDeadLetterAdminService)thePersistence.DeadLetters;
+        theDeadLetters = thePersistence.DeadLetters;
 
         theGenerator = new EnvelopeGenerator();
         theGenerator.MessageSource = BuildRandomMessage;
