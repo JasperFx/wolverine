@@ -71,12 +71,13 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         call.CommentText = "Committing any pending entity changes to the database";
         call.ReturnVariable!.OverrideName(call.ReturnVariable.Usage + "1");
 
-        return call;
+        return new WrapSagaConcurrencyException(saga, call);
     }
 
     public Frame DetermineUpdateFrame(Variable saga, IServiceContainer container)
     {
-        return new CommentFrame("No explicit update necessary with EF Core");
+        var dbContextType = DetermineDbContextType(saga.VariableType, container);
+        return new IncrementSagaVersionIfNecessary(dbContextType, saga);
     }
 
     public Frame DetermineDeleteFrame(Variable sagaId, Variable saga, IServiceContainer container)
@@ -348,6 +349,73 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
 
             _dbContext = chain.FindVariable(_dbContextType);
             yield return _dbContext;
+        }
+    }
+
+    public class IncrementSagaVersionIfNecessary : SyncFrame
+    {
+        private readonly Type _dbContextType;
+        private readonly Variable _saga;
+        private Variable? _context;
+
+        public IncrementSagaVersionIfNecessary(Type dbContextType, Variable saga)
+        {
+            _dbContextType = dbContextType;
+            _saga = saga;
+        }
+
+        public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
+        {
+            yield return _saga;
+
+            _context = chain.FindVariable(_dbContextType);
+            yield return _context;
+        }
+
+        public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
+        {
+            writer.WriteLine("");
+            writer.WriteComment("If the saga state changed, then increment it's version to support optimistic concurrency");
+            writer.WriteLine($"if ({_context!.Usage}.Entry({_saga.Usage}.Type == EntityState.Modified) {{ {_saga.Usage}.Version += 1; }}");
+
+            Next?.GenerateCode(method, writer);
+        }
+    }
+
+    public class WrapSagaConcurrencyException : SyncFrame
+    {
+        private readonly Variable _saga;
+        private readonly Frame _frame;
+
+        public WrapSagaConcurrencyException(Variable saga, Frame frame)
+        {
+            _saga = saga;
+            _frame = frame;
+        }
+
+        public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
+        {
+            foreach (var variable in _frame.FindVariables(chain)) yield return variable;
+        }
+
+        public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
+        {
+            writer.WriteLine("BLOCK:try");
+            _frame.GenerateCode(method, writer);
+            writer.FinishBlock();
+
+            writer.WriteLine("BLOCK:catch (DbUpdateConcurrencyException error)");
+            writer.WriteComment("Only intercepts concurrency error on the saga itself");
+
+            writer.WriteLine($"BLOCK:if (error.Entries.Any(e => e.Entity == ${_saga.Usage})");
+            writer.WriteLine($"throw new SagaConcurrencyException($\"Saga of type {_saga.VariableType.FullNameInCode()} and id {{ {SagaChain.SagaIdVariableName} }} cannot be updated because of optimistic concurrency violations\");");
+            writer.FinishBlock();
+
+            writer.WriteComment("Rethrow any other exception");
+            writer.WriteLine("throw;");
+            writer.FinishBlock();
+
+            Next?.GenerateCode(method, writer);
         }
     }
 
