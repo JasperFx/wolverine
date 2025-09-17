@@ -115,6 +115,13 @@ public class OrdersDbContext : DbContext
             map.HasKey(x => x.Id);
             map.Property(x => x.OrderStatus)
                 .HasConversion(v => v.ToString(), v => Enum.Parse<OrderStatus>(v));
+
+            // enable optimistic concurrency
+            map.Property(x => x.Version)
+                .IsConcurrencyToken();
+
+            // Recommended index
+            map.HasIndex(x => new { x.Id, x.Version });
         });
     }
 }
