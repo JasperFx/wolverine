@@ -38,7 +38,7 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
 
     private bool isMissingRequestedReply()
     {
-        return Outstanding.All(x => x.MessageType != Envelope!.ReplyRequested);
+        return Outstanding.Concat(_sent ?? []).All(x => x.MessageType != Envelope!.ReplyRequested);
     }
 
     public async Task FlushOutgoingMessagesAsync()
@@ -95,10 +95,14 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
             await flushScheduledMessagesAsync();
         }
 
+        _sent ??= new();
+        _sent.AddRange(_outstanding);
         _outstanding.Clear();
 
         _hasFlushed = true;
     }
+
+    private List<Envelope>? _sent;
 
     public async Task AssertAnyRequiredResponseWasGenerated()
     {
@@ -108,7 +112,7 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
             if (_outstanding.Any())
             {
                 failureDescription += "Actual cascading messages were " +
-                                      _outstanding.Select(x => x.MessageType).Join(", ");
+                                      _outstanding.Concat(_sent ?? []).Select(x => x.MessageType).Join(", ");
             }
             else
             {
