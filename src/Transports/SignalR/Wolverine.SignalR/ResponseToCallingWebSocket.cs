@@ -20,7 +20,6 @@ public record ResponseToCallingWebSocket<T>(T Message) : ISendMyself
                 .SendAsync(Message, new DeliveryOptions { RoutingInformation = new WebSocketRouting.Connection(se.ConnectionId) });
         }
 
-        // TODO -- this needs to be a more specific exception type
-        throw new InvalidOperationException("The current message was not received from SignalR");
+        throw new InvalidWolverineSignalROperationException("The current message was not received from SignalR");
     }
 }
