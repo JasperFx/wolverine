@@ -39,6 +39,8 @@ public class MessageDatabaseDiscovery : IDatabaseSource
             usage.Cardinality = DatabaseCardinality.None;
         }
 
+        usage.Cardinality = _runtime.Stores.Cardinality();
+
         return usage;
     }
 
@@ -47,18 +49,5 @@ public class MessageDatabaseDiscovery : IDatabaseSource
         return _runtime.Stores.FindAllAsync<IDatabase>();
     }
 
-    public DatabaseCardinality Cardinality
-    {
-        get
-        {
-            if (_runtime.Storage is MultiTenantedMessageStore tenantedMessageStore)
-            {
-                return tenantedMessageStore.Source.Cardinality;
-            }
-            else
-            {
-                return DatabaseCardinality.Single;
-            }
-        }
-    }
+    public DatabaseCardinality Cardinality => _runtime.Stores.Cardinality();
 }
