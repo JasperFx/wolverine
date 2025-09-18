@@ -49,8 +49,10 @@ public partial class WolverineRuntime
             
             if (Options.Durability.DurabilityAgentEnabled)
             {
-                // TODO -- this needs to be async!
-                Storage.Initialize(this);
+                foreach (var store in await _stores.Value.FindAllAsync())
+                {
+                    store.Initialize(this);
+                }
             }
 
             // This MUST be done before the messaging transports are started up
@@ -110,11 +112,6 @@ public partial class WolverineRuntime
         if (!Options.Durability.DurabilityAgentEnabled) return;
         
         if (Options.AutoBuildMessageStorageOnStartup != AutoCreate.None && Storage is not NullMessageStore)
-        {
-            await Storage.Admin.MigrateAsync();
-        }
-
-        if (Options.AutoBuildMessageStorageOnStartup != AutoCreate.None)
         {
             await _stores.Value.MigrateAsync();
         }
@@ -199,7 +196,7 @@ public partial class WolverineRuntime
             try
             {
                 // New to 3.0, try to release any ownership on the way out. Do this *after* the drain
-                await Storage.Admin.ReleaseAllOwnershipAsync(DurabilitySettings.AssignedNodeNumber);
+                await _stores.Value.ReleaseAllOwnershipAsync(DurabilitySettings.AssignedNodeNumber);
             }
             catch (ObjectDisposedException)
             {
@@ -216,15 +213,6 @@ public partial class WolverineRuntime
         }
 
         DurabilitySettings.Cancel();
-
-        try
-        {
-            // Do this to release pooled connections in Npgsql just in case
-            await Storage.DisposeAsync();
-        }
-        catch (Exception)
-        {
-        }
     }
 
     private void startInMemoryScheduledJobs()

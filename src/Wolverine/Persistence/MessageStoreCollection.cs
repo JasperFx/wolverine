@@ -8,7 +8,7 @@ using Wolverine.Runtime.Agents;
 
 namespace Wolverine.Persistence;
 
-public class MessageStoreCollection : IAgentFamily
+public class MessageStoreCollection : IAgentFamily, IAsyncDisposable
 {
     private readonly IWolverineRuntime _runtime;
     private readonly List<MultiTenantedMessageStore> _multiTenanted = new();
@@ -314,6 +314,20 @@ public class MessageStoreCollection : IAgentFamily
     {
         multiTenanted = _multiTenanted.FirstOrDefault(x => x.Main.Uri == store.Uri);
         return multiTenanted != null;
+    }
+
+    public async Task ReleaseAllOwnershipAsync(int nodeNumber)
+    {
+        foreach (var store in  _services.Enumerate().Select(x => x.Value))
+        {
+            await store.Admin.ReleaseAllOwnershipAsync(nodeNumber);
+        }
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        var stores = _services.Enumerate().Select(x => x.Value).ToArray();
+        return stores.MaybeDisposeAllAsync();
     }
 }
 

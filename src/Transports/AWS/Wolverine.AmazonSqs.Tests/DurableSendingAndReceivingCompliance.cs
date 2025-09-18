@@ -63,8 +63,8 @@ public class DurableComplianceFixture : TransportComplianceFixture, IAsyncLifeti
             opts.ListenToSqsQueue("receiver-" + number);
         });
 
-        await Sender.Services.GetRequiredService<IWolverineRuntime>().Storage.Admin.RebuildAsync();
-        await Receiver.Services.GetRequiredService<IWolverineRuntime>().Storage.Admin.RebuildAsync();
+        await Sender.RebuildAllEnvelopeStorageAsync();
+        await Receiver.RebuildAllEnvelopeStorageAsync();
     }
 
     public async Task DisposeAsync()

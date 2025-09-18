@@ -310,18 +310,12 @@ public class EndpointCollection : IEndpointCollection
             return a;
         }
 
-        IMessageStore store = _runtime.Storage;
-        if (_runtime.Stores.TryFindMultiTenantedForMainStore(store, out var tenanted))
-        {
-            store = tenanted;
-        }
-
         switch (endpoint.Mode)
         {
             case EndpointMode.Durable:
                 return new DurableSendingAgent(sender, _options.Durability,
                     _runtime.LoggerFactory.CreateLogger<DurableSendingAgent>(), _runtime.MessageTracking,
-                    store, endpoint);
+                    _runtime.Storage, endpoint);
 
             case EndpointMode.BufferedInMemory:
                 return new BufferedSendingAgent(_runtime.LoggerFactory.CreateLogger<BufferedSendingAgent>(),
