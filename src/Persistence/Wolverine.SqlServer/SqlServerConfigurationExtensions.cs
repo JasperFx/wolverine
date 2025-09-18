@@ -35,7 +35,7 @@ public static class SqlServerConfigurationExtensions
             extension.EnvelopeStorageSchemaName = options.Durability.MessageStorageSchemaName ?? "dbo";
         }
         
-        options.Include(extension);
+        extension.Configure(options);
 
         return extension;
     }
