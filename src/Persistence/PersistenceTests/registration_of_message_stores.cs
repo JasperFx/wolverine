@@ -14,6 +14,7 @@ using Wolverine.Marten;
 using Wolverine.Persistence;
 using Wolverine.Persistence.Durability;
 using Wolverine.Postgresql;
+using Wolverine.SqlServer;
 using Wolverine.Tracking;
 using Xunit;
 using Xunit.Abstractions;
@@ -297,6 +298,57 @@ public class registration_of_message_stores(ITestOutputHelper Output) : IAsyncLi
         (await collection.FindAllAsync()).Any().ShouldBeFalse();
         
         collection.Cardinality().ShouldBe(DatabaseCardinality.None);
+    }
+
+    [Fact]
+    public async Task register_two_postgresql_both_main_throws()
+    {
+        await Should.ThrowAsync<InvalidWolverineStorageConfigurationException>(async () =>
+        {
+            var collection = await startHost(opts =>
+            {
+                opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString);
+                opts.PersistMessagesWithPostgresql(connectionString1);
+            });
+        });
+    }
+    
+    [Fact]
+    public async Task register_two_sql_server_both_main_throws()
+    {
+        await Should.ThrowAsync<InvalidWolverineStorageConfigurationException>(async () =>
+        {
+            var collection = await startHost(opts =>
+            {
+                opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString, "one");
+                opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString, "two");
+                
+            });
+        });
+    }
+
+    [Fact]
+    public async Task register_one_main_and_one_ancillary_postgresql()
+    {
+        var collection = await startHost(opts =>
+        {
+            opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString);
+            opts.PersistMessagesWithPostgresql(connectionString1, role:MessageStoreRole.Ancillary);
+        });
+
+        collection.Main.ShouldBeOfType<PostgresqlMessageStore>();
+        (await collection.FindAllAsync()).Count.ShouldBe(2);
+    }
+
+    [Fact]
+    public async Task register_one_main_and_one_ancillary_sql_server()
+    {
+        var collection = await startHost(opts =>
+        {
+            opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString, "one");
+            opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString, "two", role:MessageStoreRole.Ancillary);
+                
+        });
     }
 }
 

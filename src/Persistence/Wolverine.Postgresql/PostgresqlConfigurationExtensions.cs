@@ -52,7 +52,7 @@ public static class PostgresqlConfigurationExtensions
             persistence.EnvelopeStorageSchemaName = schemaName;
         }
 
-        options.Include(persistence);
+        persistence.Configure(options);
 
         return persistence;
     }
