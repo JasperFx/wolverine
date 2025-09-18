@@ -4,6 +4,7 @@ using JasperFx;
 using JasperFx.CommandLine;
 using Spectre.Console;
 using Wolverine.Persistence.Durability;
+using Wolverine.Runtime;
 
 namespace Wolverine.Persistence;
 
@@ -63,19 +64,18 @@ public class StorageCommand : JasperFxAsyncCommand<StorageInput>
 
             case StorageCommandAction.clear:
                 await persistence.Admin.ClearAllAsync();
-                await persistence.Nodes.ClearAllAsync(CancellationToken.None);
+                await host.ClearAllPersistedWolverineDataAsync();
                 AnsiConsole.Write("[green]Successfully deleted all persisted envelopes and existing node records[/]");
                 break;
 
             case StorageCommandAction.rebuild:
-                await persistence.Admin.RebuildAsync();
+                await host.RebuildAllEnvelopeStorageAsync();
                 AnsiConsole.Write("[green]Successfully rebuilt the envelope storage[/]");
                 break;
 
             case StorageCommandAction.release:
-                await persistence.Admin.RebuildAsync();
                 Console.WriteLine("Releasing all ownership of persisted envelopes");
-                await persistence.Admin.ReleaseAllOwnershipAsync();
+                await host.ReleaseAllOwnershipAsync();
 
                 break;
 
