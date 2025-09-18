@@ -1,12 +1,11 @@
 using Google.Cloud.PubSub.V1;
 using Google.Protobuf;
 using ImTools;
-using JasperFx.Core;
 using Wolverine.Transports;
 
 namespace Wolverine.Pubsub.Internal;
 
-public class PubsubEnvelopeMapper : EnvelopeMapper<ReceivedMessage, PubsubMessage>, IPubsubEnvelopeMapper
+public class PubsubEnvelopeMapper : EnvelopeMapper<PubsubMessage, PubsubMessage>, IPubsubEnvelopeMapper
 {
     public PubsubEnvelopeMapper(PubsubEndpoint endpoint) : base(endpoint)
     {
@@ -14,12 +13,12 @@ public class PubsubEnvelopeMapper : EnvelopeMapper<ReceivedMessage, PubsubMessag
             e => e.Data!,
             (e, m) =>
             {
-                if (m.Message.Data.IsEmpty)
+                if (m.Data.IsEmpty)
                 {
                     return;
                 }
 
-                e.Data = m.Message.Data.ToByteArray();
+                e.Data = m.Data.ToByteArray();
             },
             (e, m) =>
             {
@@ -31,15 +30,15 @@ public class PubsubEnvelopeMapper : EnvelopeMapper<ReceivedMessage, PubsubMessag
                 m.Data = ByteString.CopyFrom(e.Data);
             }
         );
-        
+
         MapPropertyToHeader(x => x.GroupId, "group-id");
         MapPropertyToHeader(x => x.DeduplicationId, "deduplication-id");
         MapPropertyToHeader(x => x.PartitionKey, "partition-key");
     }
 
-    public void MapIncomingToEnvelope(PubsubEnvelope envelope, ReceivedMessage incoming)
+    public void MapIncomingToEnvelope(PubsubEnvelope envelope, PubsubMessage incoming)
     {
-        envelope.AckId = incoming.AckId;
+        envelope.AckId = incoming.MessageId;
 
         base.MapIncomingToEnvelope(envelope, incoming);
     }
@@ -56,19 +55,19 @@ public class PubsubEnvelopeMapper : EnvelopeMapper<ReceivedMessage, PubsubMessag
         outgoing.Attributes[key] = value;
     }
 
-    protected override void writeIncomingHeaders(ReceivedMessage incoming, Envelope envelope)
+    protected override void writeIncomingHeaders(PubsubMessage incoming, Envelope envelope)
     {
-        if (incoming.Message.Attributes is null)
+        if (incoming.Attributes is null)
         {
             return;
         }
 
-        foreach (var pair in incoming.Message.Attributes) envelope.Headers[pair.Key] = pair.Value;
+        foreach (var pair in incoming.Attributes) envelope.Headers[pair.Key] = pair.Value;
     }
 
-    protected override bool tryReadIncomingHeader(ReceivedMessage incoming, string key, out string? value)
+    protected override bool tryReadIncomingHeader(PubsubMessage incoming, string key, out string? value)
     {
-        if (incoming.Message.Attributes.TryGetValue(key, out var header))
+        if (incoming.Attributes.TryGetValue(key, out var header))
         {
             value = header;
 
