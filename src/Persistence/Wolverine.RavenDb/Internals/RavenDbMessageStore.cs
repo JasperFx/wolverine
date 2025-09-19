@@ -59,11 +59,6 @@ public partial class RavenDbMessageStore : IMessageStoreWithAgentSupport
         // NOTHING YET
     }
 
-    public void Describe(TextWriter writer)
-    {
-        writer.WriteLine("RavenDb backed Wolverine envelope storage");
-    }
-
     public DatabaseDescriptor Describe()
     {
         return new DatabaseDescriptor(this)

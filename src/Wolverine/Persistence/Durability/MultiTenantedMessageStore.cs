@@ -401,11 +401,6 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
     public INodeAgentPersistence Nodes => this;
     public IMessageStoreAdmin Admin => this;
 
-    public void Describe(TextWriter writer)
-    {
-        Main.Describe(writer);
-    }
-
     public DatabaseDescriptor Describe()
     {
         return new DatabaseDescriptor(this)

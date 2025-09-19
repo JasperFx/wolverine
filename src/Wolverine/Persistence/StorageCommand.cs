@@ -42,8 +42,6 @@ public class StorageCommand : JasperFxAsyncCommand<StorageInput>
         using var host = input.BuildHost();
         var persistence = host.Services.GetRequiredService<IMessageStore>();
 
-        persistence.Describe(Console.Out);
-
         switch (input.Action)
         {
             case StorageCommandAction.counts:
