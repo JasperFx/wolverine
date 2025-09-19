@@ -96,11 +96,6 @@ public class NullMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IM
         return Task.CompletedTask;
     }
 
-    public Task ReleaseIncomingAsync(int ownerId)
-    {
-        return Task.CompletedTask;
-    }
-
     public Task DeleteOutgoingAsync(Envelope[] envelopes)
     {
         return Task.CompletedTask;

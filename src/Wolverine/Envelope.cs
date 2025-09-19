@@ -4,6 +4,7 @@ using JasperFx.Core.Reflection;
 using JasperFx.MultiTenancy;
 using MassTransit;
 using Wolverine.Attributes;
+using Wolverine.Persistence.Durability;
 using Wolverine.Runtime.Serialization;
 using Wolverine.Util;
 
@@ -443,4 +444,11 @@ public partial class Envelope : IHasTenantId
     /// For stream based transports (Kafka/RedPanda, this will reflect the message offset. This is strictly informational
     /// </summary>
     public long Offset { get; set; }
+    
+    
+    /// <summary>
+    /// For some forms of modular monoliths, Wolverine needs to track what message store
+    /// persisted this envelope for later tracking
+    /// </summary>
+    public IMessageStore? Store { get; private set; }
 }

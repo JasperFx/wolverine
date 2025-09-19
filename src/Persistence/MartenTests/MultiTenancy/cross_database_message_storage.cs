@@ -536,8 +536,6 @@ public class cross_database_message_storage : MultiTenancyContext, IAsyncLifetim
     [Fact]
     public async Task release_ownership_smoke_test()
     {
-        await Stores.Inbox.ReleaseIncomingAsync(3);
-
         await Stores.Inbox.ReleaseIncomingAsync(4, TransportConstants.LocalUri);
     }
 
