@@ -339,21 +339,21 @@ public class Bug_DLQ_NotSavedToDatabase : IDisposable
             _output.WriteLine($"Final counts for {testDescription}: Incoming={finalCounts.Incoming}, Outgoing={finalCounts.Outgoing}, DeadLetter={finalCounts.DeadLetter}");
             
             // Query dead letters using Wolverine's API
-            var deadLetterQuery = new DeadLetterEnvelopeQueryParameters
+            var deadLetterQuery = new DeadLetterEnvelopeQuery
             {
                 Limit = 100
             };
-            var deadLetterResults = await messageStore.DeadLetters.QueryDeadLetterEnvelopesAsync(deadLetterQuery);
+            var deadLetterResults = await messageStore.DeadLetters.QueryAsync(deadLetterQuery, CancellationToken.None);
             
-            _output.WriteLine($"Dead letter results for {testDescription}: {deadLetterResults.DeadLetterEnvelopes.Count} entries");
+            _output.WriteLine($"Dead letter results for {testDescription}: {deadLetterResults.Envelopes.Count} entries");
             
             // Document the current behavior - the DLQ is empty
-            _output.WriteLine($"Current behavior: SQL Server DLQ contains {deadLetterResults.DeadLetterEnvelopes.Count} messages");
+            _output.WriteLine($"Current behavior: SQL Server DLQ contains {deadLetterResults.Envelopes.Count} messages");
             _output.WriteLine("Note: The message appears to have been sent to the RabbitMQ DLQ instead of the SQL Server DLQ");
             
             // Assert that we should have DLQ entries in SQL Server when using WolverineStorage mode
             // This test will fail, demonstrating the current bug
-            deadLetterResults.DeadLetterEnvelopes.ShouldNotBeEmpty($"When using DeadLetterQueueMode.WolverineStorage, failed messages should be saved to the SQL Server DLQ, but found {deadLetterResults.DeadLetterEnvelopes.Count} entries");
+            deadLetterResults.Envelopes.ShouldNotBeEmpty($"When using DeadLetterQueueMode.WolverineStorage, failed messages should be saved to the SQL Server DLQ, but found {deadLetterResults.Envelopes.Count} entries");
         }
     }
 

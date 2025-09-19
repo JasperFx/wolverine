@@ -9,6 +9,7 @@ using Weasel.Core;
 using Wolverine;
 using Wolverine.ComplianceTests;
 using Wolverine.Marten;
+using Wolverine.Persistence.Durability;
 using Wolverine.RDBMS;
 using Wolverine.RDBMS.Durability;
 using Wolverine.RDBMS.Polling;

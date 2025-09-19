@@ -8,6 +8,7 @@ using Weasel.Core;
 using Wolverine;
 using Wolverine.ComplianceTests;
 using Wolverine.Marten;
+using Wolverine.Persistence.Durability;
 using Wolverine.Postgresql.Schema;
 using Wolverine.RDBMS;
 using Wolverine.RDBMS.Durability;

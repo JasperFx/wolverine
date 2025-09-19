@@ -2,6 +2,7 @@ using JasperFx.Core;
 using Shouldly;
 using Wolverine.ComplianceTests;
 using Wolverine;
+using Wolverine.Persistence.Durability;
 using Wolverine.Runtime.Agents;
 using Wolverine.Transports;
 
@@ -809,7 +810,6 @@ public class cross_database_message_storage : MultiTenancyContext, IAsyncLifetim
         await Stores.Inbox.MoveToDeadLetterStorageAsync(envelopes[7], new NotImplementedException());
         await Stores.Inbox.MoveToDeadLetterStorageAsync(envelopes[15], new NotImplementedException());
 
-        await Stores.DeadLetters.MarkDeadLetterEnvelopesAsReplayableAsync(typeof(NotImplementedException).FullName);
     }
 
     [Fact]

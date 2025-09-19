@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Options;
 using Wolverine.Persistence.Durability;
 using Wolverine.Persistence.Durability.DeadLetterManagement;
+using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
 
 namespace Wolverine.Http;
@@ -15,10 +16,9 @@ public class DeadLetterEnvelopeGetRequest
     /// Number of records to return per page.
     /// </summary>
     public uint Limit { get; set; } = 100;
-    /// <summary>
-    /// Fetch records starting after the record with this ID.
-    /// </summary>
-    public Guid? StartId { get; set; }
+
+    public int PageNumber { get; set; }
+    
     public string? MessageType { get; set; }
     public string? ExceptionType { get; set; }
     public string? ExceptionMessage { get; set; }
@@ -63,38 +63,67 @@ public static class DeadLettersEndpointExtensions
         deadlettersGroup.MapPost("/", async (DeadLetterEnvelopeGetRequest request, IMessageStore messageStore, HandlerGraph handlerGraph, IOptions<WolverineOptions> opts) =>
         {
             var deadLetters = messageStore.DeadLetters;
-            var queryParameters = new DeadLetterEnvelopeQueryParameters
+            var queryParameters = new DeadLetterEnvelopeQuery
             {
-                Limit = request.Limit,
-                StartId = request.StartId,
+                PageSize = (int)request.Limit,
+                PageNumber = request.PageNumber,
                 MessageType = request.MessageType,
                 ExceptionType = request.ExceptionType,
                 ExceptionMessage = request.ExceptionMessage,
-                From = request.From,
-                Until = request.Until
+                Range = new TimeRange(request.From, request.Until)
             };
-            var deadLetterEnvelopesFound = await deadLetters.QueryDeadLetterEnvelopesAsync(queryParameters, request.TenantId);
-            return new DeadLetterEnvelopesFoundResponse(
-                [.. deadLetterEnvelopesFound.DeadLetterEnvelopes.Select(x => new DeadLetterEnvelopeResponse(
-                    x.Id,
-                    x.ExecutionTime,
-                    handlerGraph.TryFindMessageType(x.MessageType, out var messageType) ? opts.Value.DetermineSerializer(x.Envelope).ReadFromData(messageType, x.Envelope) : null,
-                    x.MessageType,
-                    x.ReceivedAt,
-                    x.Source,
-                    x.ExceptionType,
-                    x.ExceptionMessage,
-                    x.SentAt,
-                    x.Replayable))
-                ],
-                deadLetterEnvelopesFound.NextId);
+
+            throw new NotImplementedException();
+            // if (request.TenantId.IsNotEmpty())
+            // {
+            //     
+            // }
+            // else
+            // {
+            //     var deadLetterEnvelopesFound = await deadLetters.QueryAsync(queryParameters, CancellationToken.None);
+            // }
+            //
+            // var deadLetterEnvelopesFound = await deadLetters.QueryAsync(queryParameters, request.TenantId);
+            // return new DeadLetterEnvelopesFoundResponse(
+            //     [.. deadLetterEnvelopesFound.Select(x => new DeadLetterEnvelopeResponse(
+            //         x.Id,
+            //         x.ExecutionTime,
+            //         handlerGraph.TryFindMessageType(x.MessageType, out var messageType) ? opts.Value.DetermineSerializer(x.Envelope).ReadFromData(messageType, x.Envelope) : null,
+            //         x.MessageType,
+            //         x.ReceivedAt,
+            //         x.Source,
+            //         x.ExceptionType,
+            //         x.ExceptionMessage,
+            //         x.SentAt,
+            //         x.Replayable))
+            //     ],
+            //     deadLetterEnvelopesFound.PageNumber);
         });
 
-        deadlettersGroup.MapPost("/replay", (DeadLetterEnvelopeIdsRequest request, IMessageStore messageStore) =>
-            messageStore.DeadLetters.MarkDeadLetterEnvelopesAsReplayableAsync(request.Ids, request.TenantId));
+        deadlettersGroup.MapPost("/replay", (DeadLetterEnvelopeIdsRequest request, IWolverineRuntime runtime) =>
+        {
+            if (request.TenantId.IsEmpty())
+            {
+                return runtime.Stores.ReplayDeadLettersAsync(request.Ids);
+            }
+            else
+            {
+                return runtime.Stores.ReplayDeadLettersAsync(request.TenantId, request.Ids);
+            }
+        });
+            
 
-        deadlettersGroup.MapDelete("/", ([FromBody]DeadLetterEnvelopeIdsRequest request, IMessageStore messageStore) =>
-            messageStore.DeadLetters.DeleteDeadLetterEnvelopesAsync(request.Ids, request.TenantId));
+        deadlettersGroup.MapDelete("/", ([FromBody] DeadLetterEnvelopeIdsRequest request, IWolverineRuntime runtime) =>
+        {
+            if (request.TenantId.IsEmpty())
+            {
+                return runtime.Stores.DiscardDeadLettersAsync(request.Ids);
+            }
+            else
+            {
+                return runtime.Stores.DiscardDeadLettersAsync(request.TenantId, request.Ids);
+            }
+        });
 
         return deadlettersGroup;
     }

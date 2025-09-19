@@ -226,47 +226,6 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
 
         return counts;
     }
-    
-    public override async Task MarkDeadLetterEnvelopesAsReplayableAsync(Guid[] ids, string? tenantId = null)
-    {
-        var builder = ToCommandBuilder();
-        builder.Append($"update {SchemaName}.{DatabaseConstants.DeadLetterTable} set {DatabaseConstants.Replayable} = @replay where id = ANY(@ids)");
-
-        var cmd = builder.Compile();
-        cmd.With("replay", true);
-        var param = new NpgsqlParameter("ids", NpgsqlDbType.Array | NpgsqlDbType.Uuid) { Value = ids };
-        cmd.Parameters.Add(param);
-        await using var conn = await NpgsqlDataSource.OpenConnectionAsync(_cancellation);
-        cmd.Connection = conn;
-        try
-        {
-            await cmd.ExecuteNonQueryAsync(_cancellation);
-        }
-        finally
-        {
-            await conn.CloseAsync();
-        }
-    }
-
-    public override async Task DeleteDeadLetterEnvelopesAsync(Guid[] ids, string? tenantId = null)
-    {
-        var builder = ToCommandBuilder();
-        builder.Append($"delete from {SchemaName}.{DatabaseConstants.DeadLetterTable} where id = ANY(@ids)");
-
-        var cmd = builder.Compile();
-        var param = new NpgsqlParameter("ids", NpgsqlDbType.Array | NpgsqlDbType.Uuid) { Value = ids };
-        cmd.Parameters.Add(param);
-        await using var conn = await NpgsqlDataSource.OpenConnectionAsync(_cancellation);
-        cmd.Connection = conn;
-        try
-        {
-            await cmd.ExecuteNonQueryAsync(_cancellation);
-        }
-        finally
-        {
-            await conn.CloseAsync();
-        }
-    }
 
     public override async Task DiscardAndReassignOutgoingAsync(Envelope[] discards, Envelope[] reassigned, int nodeId)
     {
@@ -475,7 +434,7 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
             yield return table;
         }
 
-        if (_settings.Role == MessageStoreRole.Main)
+        if (Role == MessageStoreRole.Main)
         {
             var nodeTable = new Table(new DbObjectName(SchemaName, DatabaseConstants.NodeTableName));
             nodeTable.AddColumn<Guid>("id").AsPrimaryKey();

@@ -10,6 +10,7 @@ using Shouldly;
 using Wolverine;
 using Wolverine.ErrorHandling;
 using Wolverine.Marten;
+using Wolverine.Persistence.Durability;
 using Wolverine.Persistence.Durability.DeadLetterManagement;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Tracking;
@@ -59,20 +60,20 @@ public class Bug_971_replay_dead_letter_queue_of_event_wrapper
             {
                 count++;
                 var messages =
-                    await runtime.Storage.DeadLetters.QueryDeadLetterEnvelopesAsync(
-                        new DeadLetterEnvelopeQueryParameters());
+                    await runtime.Storage.DeadLetters.QueryAsync(
+                        new DeadLetterEnvelopeQuery(), CancellationToken.None);
 
-                if (hasReplayed && !messages.DeadLetterEnvelopes.Any())
+                if (hasReplayed && !messages.Envelopes.Any())
                 {
                     break; // we're done!
                 }
 
-                if (messages.DeadLetterEnvelopes.Any(x => !x.Replayable))
+                if (messages.Envelopes.Any(x => !x.Replayable))
                 {
                     ErrorCausingEventHandler.ShouldThrow = false;
 
                     await runtime.Storage.DeadLetters.MarkDeadLetterEnvelopesAsReplayableAsync(messages
-                        .DeadLetterEnvelopes.Select(x => x.Id).ToArray());
+                        .Envelopes.Select(x => x.Id).ToArray());
 
                     hasReplayed = true;
                 }
