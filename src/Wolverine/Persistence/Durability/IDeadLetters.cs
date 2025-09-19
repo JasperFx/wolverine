@@ -19,7 +19,7 @@ public interface IDeadLetters
     /// <param name="exceptionType">Exception Type that should be marked. Default is any.</param>
     /// <returns>Number of envelopes marked.</returns>
     [Obsolete("Prefer ReplayAsync")]
-    Task<int> MarkDeadLetterEnvelopesAsReplayableAsync(string exceptionType = "");
+    Task MarkDeadLetterEnvelopesAsReplayableAsync(string exceptionType = "");
 
     /// <summary>
     ///     Marks the Envelope in DeadLetterTable

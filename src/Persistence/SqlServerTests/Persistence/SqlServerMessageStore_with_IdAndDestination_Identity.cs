@@ -105,7 +105,7 @@ public class SqlServerMessageStore_with_IdAndDestination_Identity : MessageStore
         await thePersistence.Inbox.MoveToDeadLetterStorageAsync(replayableEnvelope, applicationException);
 
         // make one of the messages(DivideByZeroException) replayable
-        var replayableErrorMessagesCountAfterMakingReplayable = await thePersistence
+        await thePersistence
             .DeadLetters
             .MarkDeadLetterEnvelopesAsReplayableAsync(divideByZeroException.GetType().FullName!);
 
@@ -115,8 +115,7 @@ public class SqlServerMessageStore_with_IdAndDestination_Identity : MessageStore
         await theHost.InvokeAsync(batch);
 
         var counts = await thePersistence.Admin.FetchCountsAsync();
-
-        replayableErrorMessagesCountAfterMakingReplayable.ShouldBe(1);
+        
         counts.DeadLetter.ShouldBe(1);
         counts.Incoming.ShouldBe(1);
         counts.Scheduled.ShouldBe(0);

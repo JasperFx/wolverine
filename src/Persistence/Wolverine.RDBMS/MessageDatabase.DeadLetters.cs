@@ -114,7 +114,7 @@ public abstract partial class MessageDatabase<T>
         return deadLetterEnvelope;
     }
 
-    public async Task<int> MarkDeadLetterEnvelopesAsReplayableAsync(string exceptionType)
+    public Task MarkDeadLetterEnvelopesAsReplayableAsync(string exceptionType)
     {
         var sql =
             $"update {SchemaName}.{DatabaseConstants.DeadLetterTable} set {DatabaseConstants.Replayable} = @replay";
@@ -124,7 +124,7 @@ public abstract partial class MessageDatabase<T>
             sql = $"{sql} where {DatabaseConstants.ExceptionType} = @extype";
         }
 
-        return await CreateCommand(sql).With("replay", true).With("extype", exceptionType)
+        return CreateCommand(sql).With("replay", true).With("extype", exceptionType)
             .ExecuteNonQueryAsync(_cancellation);
     }
 

@@ -56,15 +56,13 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
 
     public IMessageStore Main { get; }
 
-    async Task<int> IDeadLetters.MarkDeadLetterEnvelopesAsReplayableAsync(string exceptionType)
+    async Task IDeadLetters.MarkDeadLetterEnvelopesAsReplayableAsync(string exceptionType)
     {
-        var size = 0;
-
         foreach (var database in databases())
         {
             try
             {
-                size += await database.DeadLetters.MarkDeadLetterEnvelopesAsReplayableAsync(exceptionType);
+                await database.DeadLetters.MarkDeadLetterEnvelopesAsReplayableAsync(exceptionType);
             }
             catch (Exception e)
             {
@@ -72,8 +70,6 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
                     database.Name);
             }
         }
-
-        return size;
     }
 
     public async Task MarkDeadLetterEnvelopesAsReplayableAsync(Guid[] ids, string? tenantId = null)

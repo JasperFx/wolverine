@@ -78,13 +78,12 @@ public class StorageCommand : JasperFxAsyncCommand<StorageInput>
                 break;
 
             case StorageCommandAction.replay:
-                var markedCount =
-                    await persistence.DeadLetters.MarkDeadLetterEnvelopesAsReplayableAsync(input.ExceptionTypeForReplayFlag);
+                await persistence.DeadLetters.MarkDeadLetterEnvelopesAsReplayableAsync(input.ExceptionTypeForReplayFlag);
                 var exceptionType = string.IsNullOrEmpty(input.ExceptionTypeForReplayFlag)
                     ? "any"
                     : input.ExceptionTypeForReplayFlag;
                 AnsiConsole.Write(
-                    $"[green]Successfully replayed {markedCount} envelope(s) in dead letter with exception type '{exceptionType}'");
+                    $"[green]Successfully replayed envelope(s) in dead letter with exception type '{exceptionType}'");
 
                 break;
         }
