@@ -450,5 +450,5 @@ public partial class Envelope : IHasTenantId
     /// For some forms of modular monoliths, Wolverine needs to track what message store
     /// persisted this envelope for later tracking
     /// </summary>
-    public IMessageStore? Store { get; private set; }
+    internal IMessageStore? Store { get; set; }
 }

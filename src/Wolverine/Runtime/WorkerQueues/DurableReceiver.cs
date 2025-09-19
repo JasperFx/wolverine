@@ -37,6 +37,9 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
     {
         _endpoint = endpoint;
         _settings = runtime.DurabilitySettings;
+        
+        // HERE, HERE, HERE 
+        
         _inbox = runtime.Storage.Inbox;
         _logger = runtime.LoggerFactory.CreateLogger<DurableReceiver>();
 

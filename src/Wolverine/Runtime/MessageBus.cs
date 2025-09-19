@@ -273,6 +273,7 @@ public class MessageBus : IMessageBus, IMessageContext
         outbound.ConversationId = outbound.Id; // the message chain originates here
         outbound.TenantId ??= TenantId; // don't override a tenant id that's specifically set on the envelope itself
         outbound.ParentId = activity?.Id;
+        outbound.Store = Storage;
     }
 
     internal async ValueTask PersistOrSendAsync(params Envelope[] outgoing)
