@@ -18,13 +18,20 @@ public class DeadLetterEnvelopeQuery
 
     public int PageNumber { get; set; }
     public int PageSize { get; set; } = 100;
+
+    [Obsolete("Prefer PageSize")]
+    public int Limit
+    {
+        get => PageSize;
+        set => PageSize = value;
+    }
+    
     public string? MessageType { get; set; }
     public string? ExceptionType { get; set; }
     public string? ReceivedAt { get; set; }
     
-    [Obsolete("Remove this")]
-    public Uri? Database { get; set; }
-    
+    public string? ExceptionMessage { get; set; }
+
     public TimeRange Range { get; set; } = TimeRange.AllTime();
 
     /// <summary>

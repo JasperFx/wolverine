@@ -15,56 +15,56 @@ public partial class RavenDbMessageStore : IDeadLetters
         return $"dlq/{id}";
     }
     
-    public async Task<DeadLetterEnvelopesFound> QueryDeadLetterEnvelopesAsync(DeadLetterEnvelopeQueryParameters queryParameters, string? tenantId = null)
-    {
-        using var session = _store.OpenAsyncSession();
-        var queryable = session.Query<DeadLetterMessage>().Customize(x => x.WaitForNonStaleResults());
-        if (queryParameters.StartId.HasValue)
-        {
-            queryable = (IRavenQueryable<DeadLetterMessage>)Queryable.Where(queryable, x => x.EnvelopeId >= queryParameters.StartId.Value);
-        }
-        
-        if (queryParameters.MessageType.IsNotEmpty())
-        {
-            queryable = (IRavenQueryable<DeadLetterMessage>)Queryable.Where(queryable, x => x.MessageType == queryParameters.MessageType);
-        }
-        
-        if (queryParameters.ExceptionType.IsNotEmpty())
-        {
-            queryable = (IRavenQueryable<DeadLetterMessage>)Queryable.Where(queryable, x => x.ExceptionType == queryParameters.ExceptionType);
-        }
-        
-        if (queryParameters.ExceptionMessage.IsNotEmpty())
-        {
-            queryable = (IRavenQueryable<DeadLetterMessage>)Queryable.Where(queryable, x => x.ExceptionMessage == queryParameters.ExceptionMessage);
-        }
-        
-        if (queryParameters.From.HasValue)
-        {
-            queryable = (IRavenQueryable<DeadLetterMessage>)Queryable.Where(queryable, x => x.SentAt >= queryParameters.From.Value);
-        }
-        
-        if (queryParameters.Until.HasValue)
-        {
-            queryable = (IRavenQueryable<DeadLetterMessage>)Queryable.Where(queryable, x => x.SentAt <= queryParameters.Until.Value);
-        }
-        
-        var messages = await queryable
-            .OrderBy(x => x.SentAt)
-            .Take((int)queryParameters.Limit + 1)
-            .ToListAsync();
-
-        var envelopes = messages.Select(x => x.ToEnvelope()).ToList();
-
-        var next = Guid.Empty;
-        if (envelopes.Count > queryParameters.Limit)
-        {
-            next = envelopes.Last().Envelope.Id;
-            envelopes.RemoveAt(envelopes.Count - 1);
-        }
-        
-        return new DeadLetterEnvelopesFound(envelopes, next, tenantId);
-    }
+    // public async Task<DeadLetterEnvelopesFound> QueryDeadLetterEnvelopesAsync(DeadLetterEnvelopeQueryParameters queryParameters, string? tenantId = null)
+    // {
+    //     using var session = _store.OpenAsyncSession();
+    //     var queryable = session.Query<DeadLetterMessage>().Customize(x => x.WaitForNonStaleResults());
+    //     if (queryParameters.StartId.HasValue)
+    //     {
+    //         queryable = (IRavenQueryable<DeadLetterMessage>)Queryable.Where(queryable, x => x.EnvelopeId >= queryParameters.StartId.Value);
+    //     }
+    //     
+    //     if (queryParameters.MessageType.IsNotEmpty())
+    //     {
+    //         queryable = (IRavenQueryable<DeadLetterMessage>)Queryable.Where(queryable, x => x.MessageType == queryParameters.MessageType);
+    //     }
+    //     
+    //     if (queryParameters.ExceptionType.IsNotEmpty())
+    //     {
+    //         queryable = (IRavenQueryable<DeadLetterMessage>)Queryable.Where(queryable, x => x.ExceptionType == queryParameters.ExceptionType);
+    //     }
+    //     
+    //     if (queryParameters.ExceptionMessage.IsNotEmpty())
+    //     {
+    //         queryable = (IRavenQueryable<DeadLetterMessage>)Queryable.Where(queryable, x => x.ExceptionMessage == queryParameters.ExceptionMessage);
+    //     }
+    //     
+    //     if (queryParameters.From.HasValue)
+    //     {
+    //         queryable = (IRavenQueryable<DeadLetterMessage>)Queryable.Where(queryable, x => x.SentAt >= queryParameters.From.Value);
+    //     }
+    //     
+    //     if (queryParameters.Until.HasValue)
+    //     {
+    //         queryable = (IRavenQueryable<DeadLetterMessage>)Queryable.Where(queryable, x => x.SentAt <= queryParameters.Until.Value);
+    //     }
+    //     
+    //     var messages = await queryable
+    //         .OrderBy(x => x.SentAt)
+    //         .Take((int)queryParameters.Limit + 1)
+    //         .ToListAsync();
+    //
+    //     var envelopes = messages.Select(x => x.ToEnvelope()).ToList();
+    //
+    //     var next = Guid.Empty;
+    //     if (envelopes.Count > queryParameters.Limit)
+    //     {
+    //         next = envelopes.Last().Envelope.Id;
+    //         envelopes.RemoveAt(envelopes.Count - 1);
+    //     }
+    //     
+    //     return new DeadLetterEnvelopesFound(envelopes, next, tenantId);
+    // }
 
     public async Task<DeadLetterEnvelope?> DeadLetterEnvelopeByIdAsync(Guid id, string? tenantId = null)
     {
@@ -75,6 +75,7 @@ public partial class RavenDbMessageStore : IDeadLetters
         return message.ToEnvelope();
     }
 
+    // TODO -- use this in the new admin
     public async Task MarkDeadLetterEnvelopesAsReplayableAsync(string exceptionType = "")
     {
         using var session = _store.OpenAsyncSession();
@@ -119,17 +120,6 @@ update
         foreach (var id in ids)
         {
             session.Advanced.Patch<DeadLetterEnvelope, bool>(dlqId(id), x => x.Replayable, true);
-        }
-        
-        await session.SaveChangesAsync();
-    }
-
-    public async Task DeleteDeadLetterEnvelopesAsync(Guid[] ids, string? tenantId = null)
-    {
-        using var session = _store.OpenAsyncSession();
-        foreach (var id in ids)
-        {
-            session.Delete(dlqId(id));
         }
         
         await session.SaveChangesAsync();

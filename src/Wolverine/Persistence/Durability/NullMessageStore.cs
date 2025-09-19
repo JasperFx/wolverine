@@ -195,13 +195,6 @@ public class NullMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IM
         return Task.CompletedTask;
     }
 
-    public Task MarkDeadLetterEnvelopesAsReplayableAsync(string exceptionType)
-    {
-        return Task.FromResult(0);
-    }
-
-    public Task MarkDeadLetterEnvelopesAsReplayableAsync(Guid[] ids, string? tenantId = null) => Task.CompletedTask;
-    public Task DeleteDeadLetterEnvelopesAsync(Guid[] ids, string? tenantId = null) => Task.CompletedTask;
     public Task<IReadOnlyList<DeadLetterQueueCount>> SummarizeAllAsync(string serviceName, TimeRange range, CancellationToken token)
     {
         return Task.FromResult<IReadOnlyList<DeadLetterQueueCount>>(new List<DeadLetterQueueCount>());
@@ -250,11 +243,6 @@ public class NullMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IM
     public Task ReassignIncomingAsync(int ownerId, IReadOnlyList<Envelope> incoming)
     {
         throw new NotSupportedException();
-    }
-
-    public Task<DeadLetterEnvelopesFound> QueryDeadLetterEnvelopesAsync(DeadLetterEnvelopeQueryParameters queryParameters, string? tenantId)
-    {
-        throw new NotImplementedException();
     }
 
     public Task<DeadLetterEnvelope?> DeadLetterEnvelopeByIdAsync(Guid id, string? tenantId = null)

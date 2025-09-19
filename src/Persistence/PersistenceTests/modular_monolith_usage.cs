@@ -1,5 +1,6 @@
 using IntegrationTests;
 using JasperFx.Core.Reflection;
+using JasperFx.Resources;
 using Marten;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
@@ -89,6 +90,9 @@ public class modular_monolith_usage
             {
                 opts.Durability.MessageStorageSchemaName = "wolverine";
 
+                // This declares to Wolverine what the "main" 
+                //opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, "different");
+
                 opts.Services.AddMartenStore<IPlayerStore>(m =>
                 {
                     m.Connection(Servers.PostgresConnectionString);
@@ -100,6 +104,8 @@ public class modular_monolith_usage
                     m.Connection(Servers.PostgresConnectionString);
                     m.DatabaseSchemaName = "things";
                 }).IntegrateWithWolverine(schemaName:"different");
+
+                opts.Services.AddResourceSetupOnStartup();
             }).StartAsync();
 
         var runtime = host.GetRuntime();

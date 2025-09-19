@@ -132,7 +132,13 @@ public abstract partial class MessageDatabase<T>
             builder.Append($" and {DatabaseConstants.ExceptionType} = ");
             builder.AppendParameter(query.ExceptionType);
         }
-        
+
+        if (query.ExceptionMessage.IsNotEmpty())
+        {
+            builder.Append($" and {DatabaseConstants.ExceptionMessage} LIKE ");
+            builder.AppendParameter(query.ExceptionMessage);
+        }
+
         if (query.MessageType.IsNotEmpty())
         {
             builder.Append($" and {DatabaseConstants.MessageType} = ");
@@ -176,11 +182,7 @@ public abstract partial class MessageDatabase<T>
         builder.Append(" where 1 = 1");
         writeDeadLetterWhereClause(query, builder);
         builder.Append(';');
-        builder.Append(
-            $"delete from {SchemaName}.{DatabaseConstants.DeadLetterTable} where {DatabaseConstants.Replayable} = ");
-        builder.AppendParameter(true);
-        builder.Append(';');
-        
+
         return executeCommandBatch(builder, token);
     }
 

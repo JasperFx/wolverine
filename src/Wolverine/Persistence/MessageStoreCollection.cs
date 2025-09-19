@@ -329,6 +329,56 @@ public class MessageStoreCollection : IAgentFamily, IAsyncDisposable
         var stores = _services.Enumerate().Select(x => x.Value).ToArray();
         return stores.MaybeDisposeAllAsync();
     }
+
+    public async Task ReplayDeadLettersAsync(Guid[] ids)
+    {
+        foreach (var database in await FindAllAsync())
+        {
+            await database.DeadLetters.ReplayAsync(new(ids), CancellationToken.None);
+        }
+    }
+
+    public async Task ReplayDeadLettersAsync(string tenantId, Guid[] ids)
+    {
+        foreach (var tenantedMessageStore in _multiTenanted)
+        {
+            if (tenantedMessageStore.Source.Cardinality == DatabaseCardinality.DynamicMultiple)
+            {
+                await tenantedMessageStore.Source.RefreshAsync();
+            }
+            
+            var tenanted = await tenantedMessageStore.Source.FindAsync(tenantId);
+            if (tenanted != null)
+            {
+                await tenanted.DeadLetters.ReplayAsync(new(ids), CancellationToken.None);
+            }
+        }
+    }
+
+    public async Task DiscardDeadLettersAsync(Guid[] ids)
+    {
+        foreach (var database in await FindAllAsync())
+        {
+            await database.DeadLetters.DiscardAsync(new(ids), CancellationToken.None);
+        }
+    }
+
+    public async Task DiscardDeadLettersAsync(string tenantId, Guid[] ids)
+    {
+        foreach (var tenantedMessageStore in _multiTenanted)
+        {
+            if (tenantedMessageStore.Source.Cardinality == DatabaseCardinality.DynamicMultiple)
+            {
+                await tenantedMessageStore.Source.RefreshAsync();
+            }
+            
+            var tenanted = await tenantedMessageStore.Source.FindAsync(tenantId);
+            if (tenanted != null)
+            {
+                await tenanted.DeadLetters.DiscardAsync(new(ids), CancellationToken.None);
+            }
+        }
+    }
 }
 
 public class InvalidWolverineStorageConfigurationException : Exception

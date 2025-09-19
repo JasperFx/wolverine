@@ -56,71 +56,24 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
 
     public IMessageStore Main { get; }
 
-    async Task IDeadLetters.MarkDeadLetterEnvelopesAsReplayableAsync(string exceptionType)
-    {
-        foreach (var database in databases())
-        {
-            try
-            {
-                await database.DeadLetters.MarkDeadLetterEnvelopesAsReplayableAsync(exceptionType);
-            }
-            catch (Exception e)
-            {
-                _logger.LogError(e, "Error trying to mark dead letter envelopes as replayable for database {Name}",
-                    database.Name);
-            }
-        }
-    }
-
-    public async Task MarkDeadLetterEnvelopesAsReplayableAsync(Guid[] ids, string? tenantId = null)
-    {
-        if (tenantId is not null)
-        {
-            var database = await GetDatabaseAsync(tenantId);
-            await database.DeadLetters.MarkDeadLetterEnvelopesAsReplayableAsync(ids);
-            return;
-        }
-
-        foreach (var database in databases()) await database.DeadLetters.MarkDeadLetterEnvelopesAsReplayableAsync(ids);
-    }
-
-    public async Task DeleteDeadLetterEnvelopesAsync(Guid[] ids, string? tenantId = null)
-    {
-        if (tenantId is not null)
-        {
-            var database = await GetDatabaseAsync(tenantId);
-            await database.DeadLetters.DeleteDeadLetterEnvelopesAsync(ids);
-            return;
-        }
-
-        foreach (var database in databases()) await database.DeadLetters.DeleteDeadLetterEnvelopesAsync(ids);
-    }
-
     public Task<IReadOnlyList<DeadLetterQueueCount>> SummarizeAllAsync(string serviceName, TimeRange range, CancellationToken token)
     {
-        throw new NotImplementedException();
+        throw new NotSupportedException();
     }
 
     public Task<DeadLetterEnvelopeResults> QueryAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
     {
-        throw new NotImplementedException();
+        throw new NotSupportedException();
     }
 
     public Task DiscardAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
     {
-        throw new NotImplementedException();
+        throw new NotSupportedException();
     }
 
     public Task ReplayAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
     {
-        throw new NotImplementedException();
-    }
-
-    public async Task<DeadLetterEnvelopesFound> QueryDeadLetterEnvelopesAsync(
-        DeadLetterEnvelopeQueryParameters queryParameters, string? tenantId)
-    {
-        var database = await GetDatabaseAsync(tenantId);
-        return await database.DeadLetters.QueryDeadLetterEnvelopesAsync(queryParameters, tenantId);
+        throw new NotSupportedException();
     }
 
     public async Task<DeadLetterEnvelope?> DeadLetterEnvelopeByIdAsync(Guid id, string? tenantId = null)

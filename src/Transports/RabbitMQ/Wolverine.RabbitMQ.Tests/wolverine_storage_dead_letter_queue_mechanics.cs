@@ -114,17 +114,17 @@ public class wolverine_storage_dead_letter_queue_mechanics : IDisposable
 
         // Check that the message is in the SQL Server DLQ
         var messageStore = _host.Services.GetRequiredService<IMessageStore>();
-        var deadLetterQuery = new DeadLetterEnvelopeQueryParameters
+        var deadLetterQuery = new DeadLetterEnvelopeQuery
         {
-            Limit = 100
+            PageSize = 100
         };
-        var deadLetterResults = await messageStore.DeadLetters.QueryDeadLetterEnvelopesAsync(deadLetterQuery);
+        var deadLetterResults = await messageStore.DeadLetters.QueryAsync(deadLetterQuery, CancellationToken.None);
 
         // Should have at least one dead letter message
-        deadLetterResults.DeadLetterEnvelopes.ShouldNotBeEmpty("Failed messages should be saved to SQL Server DLQ when using WolverineStorage mode");
+        deadLetterResults.Envelopes.ShouldNotBeEmpty("Failed messages should be saved to SQL Server DLQ when using WolverineStorage mode");
 
         // Verify the message details
-        var deadLetter = deadLetterResults.DeadLetterEnvelopes.First();
+        var deadLetter = deadLetterResults.Envelopes.First();
         deadLetter.ExceptionType.ShouldBe(typeof(DivideByZeroException).FullName);
         deadLetter.ExceptionMessage.ShouldBe("Boom.");
     }
@@ -160,14 +160,14 @@ public class wolverine_storage_dead_letter_queue_mechanics : IDisposable
 
         // Check that the message is in the SQL Server DLQ
         var messageStore = _host.Services.GetRequiredService<IMessageStore>();
-        var deadLetterQuery = new DeadLetterEnvelopeQueryParameters
+        var deadLetterQuery = new DeadLetterEnvelopeQuery
         {
-            Limit = 100
+            PageSize = 100
         };
-        var deadLetterResults = await messageStore.DeadLetters.QueryDeadLetterEnvelopesAsync(deadLetterQuery);
+        var deadLetterResults = await messageStore.DeadLetters.QueryAsync(deadLetterQuery, CancellationToken.None);
 
         // Should have at least one dead letter message
-        deadLetterResults.DeadLetterEnvelopes.ShouldNotBeEmpty("Failed messages should be saved to SQL Server DLQ even with durable inbox");
+        deadLetterResults.Envelopes.ShouldNotBeEmpty("Failed messages should be saved to SQL Server DLQ even with durable inbox");
     }
 }
 
