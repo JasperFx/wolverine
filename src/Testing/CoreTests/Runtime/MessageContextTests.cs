@@ -115,7 +115,7 @@ public class MessageContextTests
 
         theEnvelope.ScheduledTime.ShouldBe(scheduledTime);
 
-        await theContext.Storage.Inbox.Received().ScheduleJobAsync(theEnvelope);
+        await theContext.Storage.Inbox.Received().RescheduleExistingEnvelopeForRetryAsync(theEnvelope);
     }
 
     [Fact]
@@ -130,7 +130,7 @@ public class MessageContextTests
 
         theEnvelope.ScheduledTime.ShouldBe(scheduledTime);
 
-        await theContext.Storage.Inbox.DidNotReceive().ScheduleJobAsync(theEnvelope);
+        await theContext.Storage.Inbox.DidNotReceive().RescheduleExistingEnvelopeForRetryAsync(theEnvelope);
         await callback.As<ISupportNativeScheduling>().Received()
             .MoveToScheduledUntilAsync(theEnvelope, scheduledTime);
     }

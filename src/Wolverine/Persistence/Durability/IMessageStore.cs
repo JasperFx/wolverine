@@ -32,9 +32,7 @@ public enum MessageStoreRole
 
 public interface IMessageInbox
 {
-    // This is *moving* an existing, persisted envelope in the inbox to being
-    // scheduled for a retry
-    Task ScheduleJobAsync(Envelope envelope);
+    Task RescheduleExistingEnvelopeForRetryAsync(Envelope envelope);
     Task ScheduleExecutionAsync(Envelope envelope);
     Task MoveToDeadLetterStorageAsync(Envelope envelope, Exception? exception);
     Task IncrementIncomingEnvelopeAttemptsAsync(Envelope envelope);

@@ -18,7 +18,7 @@ public abstract partial class MessageDatabase<T>
             .ExecuteNonQueryAsync(_cancellation);
     }
 
-    public Task ScheduleJobAsync(Envelope envelope)
+    public Task RescheduleExistingEnvelopeForRetryAsync(Envelope envelope)
     {
         envelope.Status = EnvelopeStatus.Scheduled;
         envelope.OwnerId = TransportConstants.AnyNode;
