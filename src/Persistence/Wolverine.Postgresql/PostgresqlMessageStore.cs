@@ -268,11 +268,6 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
         }
     }
 
-    public override void Describe(TextWriter writer)
-    {
-        writer.WriteLine($"Persistent Envelope storage using Postgresql in schema '{SchemaName}'");
-    }
-
     public override async Task DiscardAndReassignOutgoingAsync(Envelope[] discards, Envelope[] reassigned, int nodeId)
     {
         await using var cmd = CreateCommand(_discardAndReassignOutgoingSql)

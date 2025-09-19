@@ -115,9 +115,6 @@ public interface IMessageStore : IAsyncDisposable
     /// <param name="runtime"></param>
     /// <returns></returns>
     void Initialize(IWolverineRuntime runtime);
-    
-    [Obsolete("Eliminate this in 4.0")]
-    void Describe(TextWriter writer);
 
     DatabaseDescriptor Describe();
 

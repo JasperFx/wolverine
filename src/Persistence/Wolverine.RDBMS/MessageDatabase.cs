@@ -173,8 +173,6 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
 
     public IMessageStoreAdmin Admin => this;
 
-    public abstract void Describe(TextWriter writer);
-
     public async Task DrainAsync()
     {
         if (_batcher != null)

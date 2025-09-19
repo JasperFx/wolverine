@@ -195,11 +195,6 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
         return command.ExecuteNonQueryAsync(_cancellation);
     }
 
-    public override void Describe(TextWriter writer)
-    {
-        writer.WriteLine($"Sql Server Envelope Storage in Schema '{SchemaName}'");
-    }
-
     protected override string determineOutgoingEnvelopeSql(DurabilitySettings settings)
     {
         return

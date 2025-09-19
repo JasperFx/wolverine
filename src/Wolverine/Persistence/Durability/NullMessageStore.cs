@@ -133,11 +133,6 @@ public class NullMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IM
 
     public IMessageStoreAdmin Admin => this;
 
-    public void Describe(TextWriter writer)
-    {
-        writer.WriteLine("No persistent envelope storage");
-    }
-
     public DatabaseDescriptor Describe()
     {
         return new DatabaseDescriptor(this);
