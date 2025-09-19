@@ -236,11 +236,6 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
         }
     }
 
-    Task IMessageInbox.ReleaseIncomingAsync(int ownerId)
-    {
-        return executeOnAllAsync(d => d.Inbox.ReleaseIncomingAsync(ownerId));
-    }
-
     Task IMessageInbox.ReleaseIncomingAsync(int ownerId, Uri receivedAt)
     {
         return executeOnAllAsync(d => d.Inbox.ReleaseIncomingAsync(ownerId, receivedAt));
