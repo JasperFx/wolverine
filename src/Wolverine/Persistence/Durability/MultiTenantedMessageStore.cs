@@ -198,10 +198,10 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
         }
     }
 
-    async Task IMessageInbox.ScheduleJobAsync(Envelope envelope)
+    async Task IMessageInbox.RescheduleExistingEnvelopeForRetryAsync(Envelope envelope)
     {
         var database = await GetDatabaseAsync(envelope.TenantId);
-        await database.Inbox.ScheduleJobAsync(envelope);
+        await database.Inbox.RescheduleExistingEnvelopeForRetryAsync(envelope);
     }
 
     async Task IMessageInbox.MarkIncomingEnvelopeAsHandledAsync(Envelope envelope)

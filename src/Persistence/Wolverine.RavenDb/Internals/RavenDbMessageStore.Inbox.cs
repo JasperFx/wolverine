@@ -99,7 +99,7 @@ public partial class RavenDbMessageStore : IMessageInbox
         await session.SaveChangesAsync();
     }
 
-    public Task ScheduleJobAsync(Envelope envelope)
+    public Task RescheduleExistingEnvelopeForRetryAsync(Envelope envelope)
     {
         envelope.Status = EnvelopeStatus.Scheduled;
         envelope.OwnerId = TransportConstants.AnyNode;

@@ -158,7 +158,7 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         }
         else
         {
-            await Storage.Inbox.ScheduleJobAsync(Envelope);
+            await Storage.Inbox.RescheduleExistingEnvelopeForRetryAsync(Envelope);
         }
     }
 
@@ -505,7 +505,7 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         }
         else
         {
-            foreach (var envelope in Scheduled) await Storage.Inbox.ScheduleJobAsync(envelope);
+            foreach (var envelope in Scheduled) await Storage.Inbox.RescheduleExistingEnvelopeForRetryAsync(envelope);
         }
 
         Scheduled.Clear();

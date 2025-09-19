@@ -83,7 +83,7 @@ public class NullMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IM
         return Task.CompletedTask;
     }
 
-    public Task ScheduleJobAsync(Envelope envelope)
+    public Task RescheduleExistingEnvelopeForRetryAsync(Envelope envelope)
     {
         if (!envelope.ScheduledTime.HasValue)
         {
