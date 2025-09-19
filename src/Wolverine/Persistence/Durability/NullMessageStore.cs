@@ -195,7 +195,7 @@ public class NullMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IM
         return Task.CompletedTask;
     }
 
-    public Task<int> MarkDeadLetterEnvelopesAsReplayableAsync(string exceptionType)
+    public Task MarkDeadLetterEnvelopesAsReplayableAsync(string exceptionType)
     {
         return Task.FromResult(0);
     }

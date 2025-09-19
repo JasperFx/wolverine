@@ -75,7 +75,7 @@ public partial class RavenDbMessageStore : IDeadLetters
         return message.ToEnvelope();
     }
 
-    public async Task<int> MarkDeadLetterEnvelopesAsReplayableAsync(string exceptionType = "")
+    public async Task MarkDeadLetterEnvelopesAsReplayableAsync(string exceptionType = "")
     {
         using var session = _store.OpenAsyncSession();
         var count = exceptionType.IsEmpty()
@@ -111,8 +111,6 @@ update
             QueryParameters = new(){{"exceptionType", exceptionType}}
         }));
         await op.WaitForCompletionAsync();
-
-        return count;
     }
 
     public async Task MarkDeadLetterEnvelopesAsReplayableAsync(Guid[] ids, string? tenantId = null)
