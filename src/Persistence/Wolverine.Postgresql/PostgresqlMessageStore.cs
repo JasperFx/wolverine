@@ -25,20 +25,6 @@ using Table = Weasel.Postgresql.Tables.Table;
 
 namespace Wolverine.Postgresql;
 
-/// <summary>
-/// Built to work with separate Marten stores
-/// </summary>
-/// <typeparam name="T"></typeparam>
-internal class PostgresqlMessageStore<T> : PostgresqlMessageStore, IAncillaryMessageStore<T>
-{
-    public PostgresqlMessageStore(DatabaseSettings databaseSettings, DurabilitySettings settings, NpgsqlDataSource dataSource, ILogger<PostgresqlMessageStore> logger) : base(databaseSettings, settings, dataSource, logger)
-    {
-
-    }
-
-    public Type MarkerType => typeof(T);
-}
-
 internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
 {
     private readonly string _deleteOutgoingEnvelopesSql;

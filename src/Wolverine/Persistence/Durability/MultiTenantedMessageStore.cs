@@ -14,16 +14,6 @@ using Wolverine.Transports;
 
 namespace Wolverine.Persistence.Durability;
 
-public class MultiTenantedMessageStore<T> : MultiTenantedMessageStore, IAncillaryMessageStore<T>
-{
-    public MultiTenantedMessageStore(IMessageStore main, IWolverineRuntime runtime, ITenantedMessageSource source) :
-        base(main, runtime, source)
-    {
-    }
-
-    public Type MarkerType => typeof(T);
-}
-
 public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IMessageStoreAdmin,
     IDeadLetters, ISagaSupport, INodeAgentPersistence
 {
@@ -46,6 +36,11 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
             _logger, runtime.Cancellation);
 
         Main = main;
+    }
+
+    public void DemoteToAncillary()
+    {
+        Main.DemoteToAncillary();
     }
 
     public MessageStoreRole Role => MessageStoreRole.Composite;

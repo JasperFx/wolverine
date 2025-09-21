@@ -14,12 +14,13 @@ using Wolverine.Marten;
 using Wolverine.Persistence;
 using Wolverine.Persistence.Durability;
 using Wolverine.Postgresql;
+using Wolverine.Runtime;
 using Wolverine.SqlServer;
 using Wolverine.Tracking;
 using Xunit;
 using Xunit.Abstractions;
 
-namespace PersistenceTests;
+namespace PersistenceTests.ModularMonoliths;
 
 /*
  * TODO -- register multiple postgresql outside of Marten
@@ -83,7 +84,7 @@ public class registration_of_message_stores(ITestOutputHelper Output) : IAsyncLi
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(configure).ConfigureServices(services => services.AddResourceSetupOnStartup()).StartAsync();
 
-        var collection = new MessageStoreCollection(_host.GetRuntime(), _host.Services.GetServices<IMessageStore>(), _host.Services.GetServices<IAncillaryMessageStore>());
+        var collection = new MessageStoreCollection(_host.GetRuntime(), _host.Services.GetServices<IMessageStore>(), _host.Services.GetServices<AncillaryMessageStore>());
 
         await collection.InitializeAsync();
 
@@ -349,6 +350,61 @@ public class registration_of_message_stores(ITestOutputHelper Output) : IAsyncLi
             opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString, "two", role:MessageStoreRole.Ancillary);
                 
         });
+    }
+    
+    [Fact]
+    public async Task basic_ancillary_store_registration_with_postgresql()
+    {
+        var collection = await startHost(opts =>
+        {
+            opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, "main");
+
+            opts.PersistMessagesWithPostgresql(connectionString1, role:MessageStoreRole.Ancillary).Enroll(typeof(SampleDbContext));
+        });
+        
+        collection.HasAnyAncillaryStores().ShouldBeTrue();
+        var databases = await collection.FindAllAsync();
+        databases.Select(x => x.Uri).OrderBy(x => x.ToString()).ShouldBe([new Uri("wolverinedb://postgresql/localhost/database1/wolverine"), new Uri("wolverinedb://postgresql/localhost/postgres/main")]);
+
+        var store = _host.Services.GetRequiredService<AncillaryMessageStore>();
+        store.MarkerType.ShouldBe(typeof(SampleDbContext));
+        store.Inner.Uri.ShouldBe(new Uri("wolverinedb://postgresql/localhost/database1/wolverine"));
+    }
+    
+    [Fact]
+    public async Task basic_ancillary_store_registration_with_sql_server()
+    {
+        var collection = await startHost(opts =>
+        {
+            opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, "main");
+
+            opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString, role:MessageStoreRole.Ancillary).Enroll(typeof(SampleDbContext));
+        });
+        
+        collection.HasAnyAncillaryStores().ShouldBeTrue();
+        var databases = await collection.FindAllAsync();
+        databases.Select(x => x.Uri).OrderBy(x => x.ToString()).ShouldBe([new Uri("wolverinedb://postgresql/localhost/postgres/main"), new Uri("wolverinedb://sqlserver/localhost/master/dbo")]);
+        
+        var store = _host.Services.GetRequiredService<AncillaryMessageStore>();
+        store.MarkerType.ShouldBe(typeof(SampleDbContext));
+        store.Inner.Uri.ShouldBe(new Uri("wolverinedb://sqlserver/localhost/master/dbo"));
+    }
+
+    [Fact]
+    public async Task register_AncillaryMessageStoreApplication()
+    {
+        var collection = await startHost(opts =>
+        {
+            opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, "main");
+
+            opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString, role:MessageStoreRole.Ancillary).Enroll(typeof(SampleDbContext));
+        });
+
+        var application = _host.Services.GetRequiredService<AncillaryMessageStoreApplication<SampleDbContext>>();
+
+        var context = new MessageContext(_host.GetRuntime());
+        application.Apply(context);
+        context.Storage.Uri.ShouldBe(new Uri("wolverinedb://sqlserver/localhost/master/dbo"));
     }
 }
 

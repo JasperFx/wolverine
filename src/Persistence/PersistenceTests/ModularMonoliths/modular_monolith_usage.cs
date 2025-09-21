@@ -1,17 +1,15 @@
 using IntegrationTests;
-using JasperFx.Core.Reflection;
 using JasperFx.Resources;
 using Marten;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
 using Wolverine;
 using Wolverine.Marten;
-using Wolverine.Persistence.Durability;
 using Wolverine.Postgresql;
 using Wolverine.Tracking;
 using Xunit;
 
-namespace PersistenceTests;
+namespace PersistenceTests.ModularMonoliths;
 
 public interface IPlayerStore : IDocumentStore;
 public interface IThingStore : IDocumentStore;
@@ -143,12 +141,11 @@ public class modular_monolith_usage
             }).StartAsync();
 
         var runtime = host.GetRuntime();
-        var stores = (await runtime.Stores.FindAllAsync()).OfType<PostgresqlMessageStore>().ToArray();
 
-        stores.OfType<IAncillaryMessageStore<IPlayerStore>>().Single().As<PostgresqlMessageStore>()
-            .Settings.SchemaName.ShouldBe("players");
+        runtime.Stores.HasAnyAncillaryStores().ShouldBeTrue();
         
-        stores.OfType<IAncillaryMessageStore<IThingStore>>().Single().As<PostgresqlMessageStore>()
-            .Settings.SchemaName.ShouldBe("things");
+        runtime.Stores.FindAncillaryStore(typeof(IPlayerStore)).ShouldBeOfType<PostgresqlMessageStore>() .Settings.SchemaName.ShouldBe("players");
+        runtime.Stores.FindAncillaryStore(typeof(IThingStore)).ShouldBeOfType<PostgresqlMessageStore>() .Settings.SchemaName.ShouldBe("things");
     }
+
 }

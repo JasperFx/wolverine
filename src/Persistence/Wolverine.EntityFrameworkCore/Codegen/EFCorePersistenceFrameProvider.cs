@@ -114,6 +114,13 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         chain.Tags.Add(UsingEfCoreTransaction, true);
 
         var dbContextType = DetermineDbContextType(chain, container);
+        var runtime = container.Services.GetRequiredService<IWolverineRuntime>();
+        if (runtime.Stores.HasAncillaryStoreFor(dbContextType))
+        {
+            var frame = typeof(ApplyAncillaryStoreFrame<>).CloseAndBuildAs<Frame>(dbContextType);
+            chain.Middleware.Insert(0, frame);
+        }
+        
         if (isMultiTenanted(container, dbContextType))
         {
             var createContext = typeof(CreateTenantedDbContext<>).CloseAndBuildAs<Frame>(dbContextType);
@@ -123,6 +130,8 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         {
             chain.Middleware.Insert(0, new EnrollDbContextInTransaction(dbContextType));
         }
+        
+        
 
         var saveChangesAsync =
             dbContextType.GetMethod(nameof(DbContext.SaveChangesAsync), [typeof(CancellationToken)]);

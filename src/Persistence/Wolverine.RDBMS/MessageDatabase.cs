@@ -115,6 +115,11 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
         Initialize(runtime);
     }
 
+    public void DemoteToAncillary()
+    {
+        Role = MessageStoreRole.Ancillary;
+    }
+
     public DatabaseSettings Settings => _settings;
 
     public INodeAgentPersistence Nodes { get; }

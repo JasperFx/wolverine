@@ -41,7 +41,7 @@ public interface IWolverineRuntime
     /// <returns></returns>
     Task<T?> TryFindMainMessageStore<T>() where T : class;
 
-    IAncillaryMessageStore FindAncillaryStoreForMarkerType(Type markerType);
+    IMessageStore FindAncillaryStoreForMarkerType(Type markerType);
 
     /// <summary>
     ///     Schedule an envelope for later execution in memory

@@ -38,9 +38,8 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
         _endpoint = endpoint;
         _settings = runtime.DurabilitySettings;
         
-        // HERE, HERE, HERE 
-        
-        _inbox = runtime.Storage.Inbox;
+        // the check for Stores being null is honestly just because of some tests that use a little too much mocking
+        _inbox = runtime .Stores != null && runtime.Stores.HasAnyAncillaryStores() ? new DelegatingMessageInbox(runtime.Storage.Inbox, runtime.Stores) : runtime.Storage.Inbox;
         _logger = runtime.LoggerFactory.CreateLogger<DurableReceiver>();
 
         Uri = endpoint.Uri;

@@ -54,7 +54,7 @@ public class MessageBus : IMessageBus, IMessageContext
     }
 
     public IWolverineRuntime Runtime { get; }
-    public IMessageStore Storage { get; protected set; }
+    public IMessageStore Storage { get; internal set; }
 
     public IEnumerable<Envelope> Outstanding => _outstanding;
 

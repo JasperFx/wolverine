@@ -138,17 +138,18 @@ public class bootstrapping_ancillary_marten_stores_with_wolverine : IAsyncLifeti
     public void registers_the_single_tenant_ancillary_store()
     {
         theHost.DocumentStore<IPlayerStore>().ShouldNotBeNull();
-        var ancillaries = theHost.Services.GetServices<IAncillaryMessageStore>();
-        ancillaries.OfType<PostgresqlMessageStore<IPlayerStore>>().Any().ShouldBeTrue();
+        var ancillaries = theHost.Services.GetServices<AncillaryMessageStore>();
+        ancillaries.Select(x => x.MarkerType == typeof(IPlayerStore)).Any().ShouldBeTrue();
     }
 
     [Fact]
     public void registers_the_multiple_tenant_ancillary_store()
     {
         theHost.DocumentStore<IThingStore>().ShouldNotBeNull();
-        var ancillaries = theHost.Services.GetServices<IAncillaryMessageStore>();
-        ancillaries.OfType<MultiTenantedMessageStore<IThingStore>>().Any()
-            .ShouldBeTrue();
+        var ancillaries = theHost.Services.GetServices<AncillaryMessageStore>();
+        ancillaries.Single(x => x.MarkerType == typeof(IThingStore))
+            .Inner
+            .ShouldBeOfType<MultiTenantedMessageStore>();
     }
 
     [Fact]

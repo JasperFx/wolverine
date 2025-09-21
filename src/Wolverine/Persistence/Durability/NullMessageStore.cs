@@ -29,6 +29,11 @@ public class NullMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IM
         
     }
 
+    public void DemoteToAncillary()
+    {
+        
+    }
+
     public Task MarkIncomingEnvelopeAsHandledAsync(IReadOnlyList<Envelope> envelopes)
     {
         return Task.CompletedTask;

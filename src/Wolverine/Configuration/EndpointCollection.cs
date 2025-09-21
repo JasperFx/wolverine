@@ -313,9 +313,13 @@ public class EndpointCollection : IEndpointCollection
         switch (endpoint.Mode)
         {
             case EndpointMode.Durable:
+                var outbox = _runtime.Stores.HasAnyAncillaryStores()
+                    ? new DelegatingMessageOutbox(_runtime.Storage.Outbox, _runtime.Stores)
+                    : _runtime.Storage.Outbox;
+                
                 return new DurableSendingAgent(sender, _options.Durability,
                     _runtime.LoggerFactory.CreateLogger<DurableSendingAgent>(), _runtime.MessageTracking,
-                    _runtime.Storage, endpoint);
+                    outbox, endpoint);
 
             case EndpointMode.BufferedInMemory:
                 return new BufferedSendingAgent(_runtime.LoggerFactory.CreateLogger<BufferedSendingAgent>(),

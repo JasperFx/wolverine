@@ -62,7 +62,7 @@ public static class AncillaryWolverineOptionsMartenExtensions
 
         expression.Services.AddSingleton<IConfigureMarten<T>, MartenOverrides<T>>();
 
-        expression.Services.AddSingleton<IAncillaryMessageStore>(s =>
+        expression.Services.AddSingleton<AncillaryMessageStore>(s =>
         {
             var store = s.GetRequiredService<T>().As<DocumentStore>();
 
@@ -103,7 +103,7 @@ public static class AncillaryWolverineOptionsMartenExtensions
                    "There is no configured connectivity for the required master PostgreSQL message database");
     }
 
-    internal static IAncillaryMessageStore<T> BuildMultiTenantedMessageDatabase<T>(string schemaName,
+    internal static AncillaryMessageStore BuildMultiTenantedMessageDatabase<T>(string schemaName,
         AutoCreate? autoCreate,
         string? masterDatabaseConnectionString,
         NpgsqlDataSource? masterDataSource,
@@ -121,7 +121,7 @@ public static class AncillaryWolverineOptionsMartenExtensions
         };
 
         var dataSource = findMasterDataSource(store, mainSettings);
-        var master = new PostgresqlMessageStore<T>(mainSettings, runtime.Options.Durability, dataSource,
+        var master = new PostgresqlMessageStore(mainSettings, runtime.Options.Durability, dataSource,
             runtime.LoggerFactory.CreateLogger<PostgresqlMessageStore>())
         {
             Name = "Master",
@@ -131,10 +131,10 @@ public static class AncillaryWolverineOptionsMartenExtensions
 
         master.Initialize(runtime);
 
-        return new MultiTenantedMessageStore<T>(master, runtime, source);
+        return new(typeof(T), new MultiTenantedMessageStore(master, runtime, source));
     }
 
-    internal static IAncillaryMessageStore<T> BuildSinglePostgresqlMessageStore<T>(
+    internal static AncillaryMessageStore BuildSinglePostgresqlMessageStore<T>(
         string schemaName, 
         AutoCreate? autoCreate,
         DocumentStore store,
@@ -151,7 +151,7 @@ public static class AncillaryWolverineOptionsMartenExtensions
 
         var dataSource = store.Storage.Database.As<PostgresqlDatabase>().DataSource;
 
-        return new PostgresqlMessageStore<T>(settings, runtime.Options.Durability, dataSource, logger);
+        return new(typeof(T), new PostgresqlMessageStore(settings, runtime.Options.Durability, dataSource, logger)) ;
     }
 
     /// <summary>
