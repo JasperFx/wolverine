@@ -1,6 +1,7 @@
 import { withMermaid } from "vitepress-plugin-mermaid"
-import { DefaultTheme, UserConfig } from 'vitepress'
+import { defineConfig, type DefaultTheme, type UserConfig } from 'vitepress'
 import llmstxt from 'vitepress-plugin-llms'
+import blockEmbedPlugin from 'markdown-it-block-embed'
 
 const config: UserConfig<DefaultTheme.Config> = {
     base: '/',
@@ -61,7 +62,7 @@ const config: UserConfig<DefaultTheme.Config> = {
                     text: 'Introduction',
                     collapsed: false,
                     items: [
-                        {text: 'What is Wolverine?', link: '/introduction/whatiswolverine'},
+                        {text: 'What is Wolverine?', link: '/introduction/what-is-wolverine'},
                         {text: 'Getting Started', link: '/introduction/getting-started'},
                         {text: 'Support Policy', link: '/introduction/support-policy'},
                         {text: 'Wolverine for MediatR Users', link: '/introduction/from-mediatr'},
@@ -257,7 +258,10 @@ const config: UserConfig<DefaultTheme.Config> = {
         }
     },
     markdown: {
-        linkify: false
+        linkify: false,
+        config: (md) => {
+            md.use(blockEmbedPlugin)
+        }
     },
     ignoreDeadLinks: true,
     vite: {
@@ -265,4 +269,4 @@ const config: UserConfig<DefaultTheme.Config> = {
     }
 }
 
-export default withMermaid(config);
+export default defineConfig(withMermaid(config));
