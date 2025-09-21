@@ -14,20 +14,6 @@ public class DeadLetterEnvelopeIdsRequest
     public string? TenantId { get; set; }
 }
 
-public record DeadLetterEnvelopesFoundResponse(IReadOnlyList<DeadLetterEnvelopeResponse> Messages, int Total);
-
-public record DeadLetterEnvelopeResponse(
-    Guid Id,
-    DateTimeOffset? ExecutionTime,
-    object? Body,
-    string MessageType,
-    string ReceivedAt,
-    string Source,
-    string ExceptionType,
-    string ExceptionMessage,
-    DateTimeOffset SentAt,
-    bool Replayable);
-
 public static class DeadLettersEndpointExtensions
 {
     /// <summary>

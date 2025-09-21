@@ -1,4 +1,5 @@
-﻿using JasperFx;
+﻿using System.Text.Json.Serialization;
+using JasperFx;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using JasperFx.MultiTenancy;
@@ -90,6 +91,7 @@ public partial class Envelope : IHasTenantId
     ///     is retained for testing purposes
     /// </summary>
     /// <value></value>
+    [JsonIgnore]
     public TimeSpan? DeliverWithin
     {
         set
