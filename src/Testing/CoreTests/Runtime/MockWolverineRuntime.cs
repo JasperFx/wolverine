@@ -106,7 +106,7 @@ public class MockWolverineRuntime : IWolverineRuntime, IObserver<IWolverineEvent
         throw new NotImplementedException();
     }
 
-    public IAncillaryMessageStore FindAncillaryStoreForMarkerType(Type markerType)
+    public IMessageStore FindAncillaryStoreForMarkerType(Type markerType)
     {
         throw new NotImplementedException();
     }

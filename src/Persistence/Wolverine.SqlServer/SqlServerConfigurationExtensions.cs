@@ -20,7 +20,7 @@ public static class SqlServerConfigurationExtensions
     public static ISqlServerBackedPersistence PersistMessagesWithSqlServer(this WolverineOptions options, string connectionString,
         string? schema = null, MessageStoreRole role = MessageStoreRole.Main)
     {
-        var extension = new SqlServerBackedPersistence
+        var extension = new SqlServerBackedPersistence(options)
         {
             ConnectionString = connectionString,
             Role = role

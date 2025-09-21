@@ -14,14 +14,14 @@ public class MessageStoreCollection : IAgentFamily, IAsyncDisposable
     private readonly IWolverineRuntime _runtime;
     private readonly List<MultiTenantedMessageStore> _multiTenanted = new();
     private ImHashMap<Uri, IMessageStore> _services = ImHashMap<Uri, IMessageStore>.Empty;
-    private ImHashMap<Type, IAncillaryMessageStore> _ancillaryStores = ImHashMap<Type, IAncillaryMessageStore>.Empty;
+    private ImHashMap<Type, IMessageStore> _ancillaryStores = ImHashMap<Type, IMessageStore>.Empty;
     private bool _onlyOneDatabase;
     
-    public MessageStoreCollection(IWolverineRuntime runtime, IEnumerable<IMessageStore> stores, IEnumerable<IAncillaryMessageStore> ancillaryMessageStores) 
+    public MessageStoreCollection(IWolverineRuntime runtime, IEnumerable<IMessageStore> stores, IEnumerable<AncillaryMessageStore> ancillaryMessageStores) 
     {
         _runtime = runtime;
 
-        foreach (var store in stores.Concat(ancillaryMessageStores))
+        foreach (var store in stores.Concat(ancillaryMessageStores.Select(x => x.Inner)))
         {
             if (store is MultiTenantedMessageStore multiTenanted)
             {
@@ -36,7 +36,12 @@ public class MessageStoreCollection : IAgentFamily, IAsyncDisposable
 
         foreach (var ancillaryMessageStore in ancillaryMessageStores)
         {
-            _ancillaryStores = _ancillaryStores.AddOrUpdate(ancillaryMessageStore.MarkerType, ancillaryMessageStore);
+            if (!_services.TryFind(ancillaryMessageStore.Inner.Uri, out var store))
+            {
+                store = ancillaryMessageStore.Inner;
+            }
+            
+            _ancillaryStores = _ancillaryStores.AddOrUpdate(ancillaryMessageStore.MarkerType, store);
         }
 
         if (!_runtime.Options.Durability.DurabilityAgentEnabled)
@@ -71,6 +76,11 @@ public class MessageStoreCollection : IAgentFamily, IAsyncDisposable
             }
         }
         
+    }
+
+    public bool HasAnyAncillaryStores()
+    {
+        return !_ancillaryStores.IsEmpty;
     }
 
     public IReadOnlyList<MultiTenantedMessageStore> MultiTenanted => _multiTenanted;
@@ -249,7 +259,7 @@ public class MessageStoreCollection : IAgentFamily, IAsyncDisposable
         return list;
     }
 
-    public IAncillaryMessageStore FindAncillaryStore(Type markerType)
+    public IMessageStore FindAncillaryStore(Type markerType)
     {
         if (_ancillaryStores.TryFind(markerType, out var store)) return store;
 
@@ -452,8 +462,12 @@ public class MessageStoreCollection : IAgentFamily, IAsyncDisposable
 
         return list;
     }
-    
-    
+
+
+    public bool HasAncillaryStoreFor(Type applicationType)
+    {
+        return _ancillaryStores.Contains(applicationType);
+    }
 }
 
 public class InvalidWolverineStorageConfigurationException : Exception

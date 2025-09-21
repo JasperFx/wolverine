@@ -22,11 +22,11 @@ internal class DurableSendingAgent : SendingAgent
 
     public DurableSendingAgent(ISender sender, DurabilitySettings settings, ILogger logger,
         IMessageTracker messageLogger,
-        IMessageStore persistence, Endpoint endpoint) : base(logger, messageLogger, sender, settings, endpoint)
+        IMessageOutbox outbox, Endpoint endpoint) : base(logger, messageLogger, sender, settings, endpoint)
     {
         _logger = logger;
 
-        _outbox = persistence.Outbox;
+        _outbox = outbox;
 
         _deleteOutgoingOne =
             new RetryBlock<Envelope>((e, _) => _outbox.DeleteOutgoingAsync(e), logger, settings.Cancellation);

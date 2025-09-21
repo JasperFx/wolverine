@@ -35,6 +35,11 @@ public partial class RavenDbMessageStore : IMessageStoreWithAgentSupport
         Role = MessageStoreRole.Main;
     }
 
+    public void DemoteToAncillary()
+    {
+        Role = MessageStoreRole.Ancillary;
+    }
+
     public string Name => _store.Identifier;
 
     public Uri Uri => new("ravendb://durability");

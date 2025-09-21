@@ -189,7 +189,7 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
         ScheduledJobs.Enqueue(executionTime, envelope);
     }
 
-    public IAncillaryMessageStore FindAncillaryStoreForMarkerType(Type markerType)
+    public IMessageStore FindAncillaryStoreForMarkerType(Type markerType)
     {
         return _stores.Value.FindAncillaryStore(markerType);
     }

@@ -117,20 +117,38 @@ public interface IMessageStore : IAsyncDisposable
     Task ReassignIncomingAsync(int ownerId, IReadOnlyList<Envelope> incoming);
 
     void PromoteToMain(IWolverineRuntime runtime);
+    void DemoteToAncillary();
 }
 
 public record IncomingCount(Uri Destination, int Count);
 
-/// <summary>
-///     Marks a secondary message store for a Wolverine application
-/// </summary>
-public interface IAncillaryMessageStore : IMessageStore
+public class AncillaryMessageStoreApplication<T> 
 {
-    Type MarkerType { get; }
+    private readonly IMessageStore? _store;
+
+    public AncillaryMessageStoreApplication(IWolverineRuntime runtime)
+    {
+        _store = runtime.Stores.FindAncillaryStore(typeof(T));
+    }
+
+    public void Apply(MessageContext context)
+    {
+        context.Storage = _store;
+    }
 }
 
-public interface IAncillaryMessageStore<T> : IAncillaryMessageStore
+public class AncillaryMessageStore
 {
+    public Type MarkerType { get; }
+    public IMessageStore Inner { get; }
+
+    public AncillaryMessageStore(Type markerType, IMessageStore inner)
+    {
+        MarkerType = markerType;
+        Inner = inner;
+
+        inner.DemoteToAncillary();
+    }
 }
 
 public interface ITenantedMessageSource : ITenantedSource<IMessageStore>

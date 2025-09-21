@@ -27,6 +27,22 @@ public interface IPostgresqlBackedPersistence
     IPostgresqlBackedPersistence EnableMessageTransport(Action<PostgresqlPersistenceExpression>? configure = null);
 
     /// <summary>
+    /// Tell Wolverine that the persistence service (Marten? EF Core DbContext? Something else?) of the given
+    /// type should be enrolled in envelope storage with this PostgreSQL database
+    /// </summary>
+    /// <param name="type"></param>
+    /// <returns></returns>
+    IPostgresqlBackedPersistence Enroll(Type type);
+    
+    /// <summary>
+    /// Tell Wolverine that the persistence service (Marten? EF Core DbContext? Something else?) of the given
+    /// type should be enrolled in envelope storage with this PostgreSQL database
+    /// </summary>
+    /// <param name="type"></param>
+    /// <returns></returns>
+    IPostgresqlBackedPersistence Enroll<T>();
+
+    /// <summary>
     /// By default, Wolverine takes the AutoCreate settings from JasperFxOptions, but
     /// you can override the application default for just the PostgreSQL backed queues
     /// and envelope storage tables
@@ -254,6 +270,18 @@ internal class PostgresqlBackedPersistence : IPostgresqlBackedPersistence, IWolv
             }
         }
         return this;
+    }
+
+    public IPostgresqlBackedPersistence Enroll(Type type)
+    {
+        _options.Services.AddSingleton<AncillaryMessageStore>(s => new (type,BuildMessageStore(s.GetRequiredService<IWolverineRuntime>())));
+
+        return this;
+    }
+
+    public IPostgresqlBackedPersistence Enroll<T>()
+    {
+        return Enroll(typeof(T));
     }
 
     IPostgresqlBackedPersistence IPostgresqlBackedPersistence.OverrideAutoCreateResources(AutoCreate autoCreate)

@@ -98,6 +98,8 @@ public static class HostBuilderExtensions
         services.AddJasperFx();
         services.AddSingleton<MessageStoreCollection>();
         services.AddSingleton<IAssemblyGenerator, AssemblyGenerator>();
+
+        services.AddSingleton(typeof(AncillaryMessageStoreApplication<>));
         
         services.AddSingleton(services);
             
