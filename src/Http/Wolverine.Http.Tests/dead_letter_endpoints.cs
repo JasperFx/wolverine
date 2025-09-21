@@ -1,5 +1,6 @@
 using JasperFx.Core.Reflection;
 using Shouldly;
+using Wolverine.Persistence.Durability.DeadLetterManagement;
 using Wolverine.Tracking;
 using WolverineWebApi;
 

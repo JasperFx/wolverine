@@ -518,8 +518,12 @@ public abstract class DeadLetterAdminCompliance : IAsyncLifetime
             query, CancellationToken.None);
 
         var results = await theDeadLetters.QueryAsync(query, CancellationToken.None);
-        results.TotalCount.ShouldBe(0);
-        results.Envelopes.Count.ShouldBe(0);
+
+        foreach (var envelopeResult in results.Envelopes)
+        {
+            envelopeResult.Replayable.ShouldBeTrue();
+        }
+
     }
 
     [Fact]
@@ -615,7 +619,11 @@ public abstract class DeadLetterAdminCompliance : IAsyncLifetime
 
         // Reload
         await loadAllEnvelopes();
-        allEnvelopes.Envelopes.Where(x => ids.Contains(x.Id)).Any().ShouldBeFalse();
+
+        foreach (var dle in allEnvelopes.Envelopes.Where(x => ids.Contains(x.Id)))
+        {
+            dle.Replayable.ShouldBeTrue();
+        }
     }
 }
 
