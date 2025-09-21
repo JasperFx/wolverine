@@ -8,24 +8,24 @@ namespace Wolverine.Persistence.Durability;
 public enum MessageStoreRole
 {
     /// <summary>
-    /// Denotes that this message store is the main message store for the application and where
-    /// node information is stored
+    ///     Denotes that this message store is the main message store for the application and where
+    ///     node information is stored
     /// </summary>
     Main,
-    
+
     /// <summary>
-    /// Denotes that this message store is an additional message store for the application, but
-    /// does not store the node information
+    ///     Denotes that this message store is an additional message store for the application, but
+    ///     does not store the node information
     /// </summary>
     Ancillary,
-    
+
     /// <summary>
-    /// This message store is strictly for one or more tenants
+    ///     This message store is strictly for one or more tenants
     /// </summary>
     Tenant,
-    
+
     /// <summary>
-    /// This message store is a multi-tenanted composite of other message stores
+    ///     This message store is a multi-tenanted composite of other message stores
     /// </summary>
     Composite
 }
@@ -38,10 +38,10 @@ public interface IMessageInbox
     Task IncrementIncomingEnvelopeAttemptsAsync(Envelope envelope);
     Task StoreIncomingAsync(Envelope envelope);
     Task StoreIncomingAsync(IReadOnlyList<Envelope> envelopes);
-    
+
 
     Task MarkIncomingEnvelopeAsHandledAsync(Envelope envelope);
-    
+
     // Only called by DurableReceiver
     Task MarkIncomingEnvelopeAsHandledAsync(IReadOnlyList<Envelope> envelopes);
 
@@ -60,20 +60,6 @@ public interface IMessageOutbox
     Task DiscardAndReassignOutgoingAsync(Envelope[] discards, Envelope[] reassigned, int nodeId);
 }
 
-public record DeadLetterEnvelopesFound(IReadOnlyList<DeadLetterEnvelope> DeadLetterEnvelopes, Guid? NextId, string? TenantId);
-public record DeadLetterEnvelope(
-    Guid Id,
-    DateTimeOffset? ExecutionTime,
-    Envelope Envelope,
-    string MessageType,
-    string ReceivedAt,
-    string Source,
-    string ExceptionType,
-    string ExceptionMessage,
-    DateTimeOffset SentAt,
-    bool Replayable
-    );
-
 public interface IMessageStoreWithAgentSupport : IMessageStore
 {
     IAgent BuildAgent(IWolverineRuntime runtime);
@@ -82,16 +68,16 @@ public interface IMessageStoreWithAgentSupport : IMessageStore
 public interface IMessageStore : IAsyncDisposable
 {
     /// <summary>
-    /// What is the role of this message store within the application?
+    ///     What is the role of this message store within the application?
     /// </summary>
     MessageStoreRole Role { get; }
-    
+
     /// <summary>
-    /// Unique identifier for a message store in case of systems that use multiple message
-    /// store databases. Must use the "messagedb" scheme, and reflect the database connection
+    ///     Unique identifier for a message store in case of systems that use multiple message
+    ///     store databases. Must use the "messagedb" scheme, and reflect the database connection
     /// </summary>
     Uri Uri { get; }
-    
+
     // /// <summary>
     // /// Let's consuming services in Wolverine know that this message store
     // /// has been disposed and cannot be used in a "DrainAsync". This mostly
@@ -109,6 +95,12 @@ public interface IMessageStore : IAsyncDisposable
 
     IDeadLetters DeadLetters { get; }
 
+
+    /// <summary>
+    ///     Descriptive name for cases of multiple message stores
+    /// </summary>
+    string Name { get; }
+
     /// <summary>
     ///     Called to initialize the Wolverine storage on application bootstrapping
     /// </summary>
@@ -123,20 +115,14 @@ public interface IMessageStore : IAsyncDisposable
 
     Task<IReadOnlyList<Envelope>> LoadPageOfGloballyOwnedIncomingAsync(Uri listenerAddress, int limit);
     Task ReassignIncomingAsync(int ownerId, IReadOnlyList<Envelope> incoming);
-    
-    
-    /// <summary>
-    /// Descriptive name for cases of multiple message stores
-    /// </summary>
-    string Name { get; }
-    
+
     void PromoteToMain(IWolverineRuntime runtime);
 }
 
 public record IncomingCount(Uri Destination, int Count);
 
 /// <summary>
-/// Marks a secondary message store for a Wolverine application
+///     Marks a secondary message store for a Wolverine application
 /// </summary>
 public interface IAncillaryMessageStore : IMessageStore
 {
@@ -149,6 +135,4 @@ public interface IAncillaryMessageStore<T> : IAncillaryMessageStore
 
 public interface ITenantedMessageSource : ITenantedSource<IMessageStore>
 {
-
 }
-

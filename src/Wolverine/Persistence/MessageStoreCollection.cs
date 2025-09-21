@@ -3,6 +3,7 @@ using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using JasperFx.Descriptors;
 using Wolverine.Persistence.Durability;
+using Wolverine.Persistence.Durability.DeadLetterManagement;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
 
@@ -379,6 +380,80 @@ public class MessageStoreCollection : IAgentFamily, IAsyncDisposable
             }
         }
     }
+
+    private async Task<List<IMessageStore>> findStoresAsync(DeadLetterEnvelopeGetRequest request)
+    {
+        var list = new List<IMessageStore>();
+        if (request.DatabaseUri != null)
+        {
+            var store = await FindDatabaseAsync(request.DatabaseUri);
+            if (store != null)
+            {
+                list.Add(store);
+            }
+        }
+        else if (request.TenantId != null)
+        {
+            foreach (var tenantedMessageStore in _multiTenanted)
+            {
+                var store = await tenantedMessageStore.Source.FindAsync(request.TenantId);
+                if (store != null)
+                {
+                    list.Add(store);
+                    continue;
+                }
+                
+                if (tenantedMessageStore.Source.Cardinality == DatabaseCardinality.DynamicMultiple)
+                {
+                    await tenantedMessageStore.Source.RefreshAsync();
+                }
+            
+                store = await tenantedMessageStore.Source.FindAsync(request.TenantId);
+                if (store != null)
+                {
+                    list.Add(store);
+                }
+            }
+        }
+        else
+        {
+            list.AddRange(await FindAllAsync());
+        }
+
+        return list;
+    }
+
+    public async Task<IReadOnlyList<DeadLetterEnvelopeResults>> FetchDeadLetterEnvelopesAsync(
+        DeadLetterEnvelopeGetRequest request, CancellationToken cancellation)
+    {
+        var query = new DeadLetterEnvelopeQuery
+        {
+            PageSize = (int)request.Limit,
+            PageNumber = request.PageNumber,
+            MessageType = request.MessageType,
+            ExceptionType = request.ExceptionType,
+            ExceptionMessage = request.ExceptionMessage,
+            Range = new TimeRange(request.From, request.Until)
+        };
+
+        var stores = await findStoresAsync(request);
+        var list = new List<DeadLetterEnvelopeResults>();
+        foreach (var store in stores)
+        {
+            var result = await store.DeadLetters.QueryAsync(query, cancellation);
+            result.DatabaseUri = store.Uri;
+            foreach (var envelope in result.Envelopes)
+            {
+                envelope.TryReadData(_runtime);
+            }
+            
+            list.Add(result);
+        }
+
+        return list;
+    }
+    
+    
 }
 
 public class InvalidWolverineStorageConfigurationException : Exception
