@@ -44,7 +44,7 @@ public class DeadLetterEnvelope
     /// <summary>
     ///     The actual message body
     /// </summary>
-    public object? Data { get; set; }
+    public object? Message { get; set; }
 
     internal void TryReadData(IWolverineRuntime runtime)
     {
@@ -58,7 +58,7 @@ public class DeadLetterEnvelope
             {
                 try
                 {
-                    Data = serializer.ReadFromData(messageType, Envelope);
+                    Message = serializer.ReadFromData(messageType, Envelope);
                 }
                 catch (Exception e)
                 {

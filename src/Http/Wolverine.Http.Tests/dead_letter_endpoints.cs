@@ -33,18 +33,20 @@ public class dead_letter_endpoints(AppFixture fixture) : IntegrationContext(fixt
         });
 
         // Expect
-        var deadletters = result.ReadAsJson<DeadLetterEnvelopesFoundResponse>();
+        var deadletters = (result.ReadAsJson<IReadOnlyList<DeadLetterEnvelopeResults>>()).Single();
+        
+        
         deadletters
-            .ShouldNotBeNull().Messages.Count.ShouldBe(1);
-        deadletters.Messages[0].ExceptionType.ShouldBe(typeof(AlwaysDeadLetterException).FullNameInCode());
-        deadletters.Messages[0].ExceptionMessage.ShouldBe(exceptionMessage);
-        deadletters.Messages[0].Body.ShouldNotBeNull();
-        deadletters.Messages[0].Id.ShouldNotBe(default);
-        deadletters.Messages[0].MessageType.ShouldNotBeNull();
-        deadletters.Messages[0].ReceivedAt.ShouldNotBeNull();
-        deadletters.Messages[0].Source.ShouldNotBeNull();
-        deadletters.Messages[0].SentAt.ShouldNotBe(default);
-        deadletters.Messages[0].Replayable.ShouldBeFalse();
+            .ShouldNotBeNull().Envelopes.Count.ShouldBe(1);
+        deadletters.Envelopes[0].ExceptionType.ShouldBe(typeof(AlwaysDeadLetterException).FullNameInCode());
+        deadletters.Envelopes[0].ExceptionMessage.ShouldBe(exceptionMessage);
+        deadletters.Envelopes[0].Message.ShouldNotBeNull();
+        deadletters.Envelopes[0].Id.ShouldNotBe(default);
+        deadletters.Envelopes[0].MessageType.ShouldNotBeNull();
+        deadletters.Envelopes[0].ReceivedAt.ShouldNotBeNull();
+        deadletters.Envelopes[0].Source.ShouldNotBeNull();
+        deadletters.Envelopes[0].SentAt.ShouldNotBe(default);
+        deadletters.Envelopes[0].Replayable.ShouldBeFalse();
     }
 
     [Fact]
@@ -71,12 +73,14 @@ public class dead_letter_endpoints(AppFixture fixture) : IntegrationContext(fixt
         });
 
         // When & Expect
-        var deadletters = result.ReadAsJson<DeadLetterEnvelopesFoundResponse>();
+        var all = result.ReadAsJson<IReadOnlyList<DeadLetterEnvelopeResults>>();
+        var id = all[0].Envelopes.Single().Id;
+        
         await Scenario(x =>
         {
             x.Post.Json(new DeadLetterEnvelopeIdsRequest
             {
-                Ids = [deadletters.Messages.Single().Id]
+                Ids = [id]
             }).ToUrl("/dead-letters/replay");
         });
     }
@@ -105,13 +109,14 @@ public class dead_letter_endpoints(AppFixture fixture) : IntegrationContext(fixt
         });
 
         // When & Expect
-        var deadletters = result.ReadAsJson<DeadLetterEnvelopesFoundResponse>();
+        var deadletters = result.ReadAsJson<IReadOnlyList<DeadLetterEnvelopeResults>>();
+        var id = deadletters[0].Envelopes[0].Id;
         
         await Scenario(x =>
         {
             x.Delete.Json(new DeadLetterEnvelopeIdsRequest
             {
-                Ids = [deadletters.Messages.Single().Id]
+                Ids = [id]
             }).ToUrl("/dead-letters");
         });
     }
