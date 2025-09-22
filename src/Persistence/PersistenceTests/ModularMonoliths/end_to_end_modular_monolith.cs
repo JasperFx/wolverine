@@ -21,6 +21,7 @@ using Wolverine.Transports;
 using Xunit;
 using Marten;
 using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.DependencyInjection;
 using Weasel.SqlServer;
 using Wolverine.Marten;
 using Wolverine.Persistence;
@@ -179,6 +180,25 @@ public class end_to_end_modular_monolith : IClassFixture<MonolithFixture>, IAsyn
             
             ]
         );
+    }
+
+    [Fact]
+    public async Task using_db_context_outbox()
+    {
+        Func<IMessageContext, Task> action = async c =>
+        {
+            using var scope = theHost.Services.CreateScope();
+            var outbox = scope.ServiceProvider.GetRequiredService<IDbContextOutbox<ItemsDbContext>>();
+            var entity = new Item { Id = Guid.NewGuid() };
+            outbox.DbContext.Items.Add(entity);
+            await outbox.PublishAsync(new ApproveItem1(entity.Id));
+            await outbox.SaveChangesAndFlushMessagesAsync();
+        };
+        
+        var tracked = await theHost.TrackActivity()
+            .ExecuteAndWaitAsync(action);
+
+        tracked.Sent.SingleEnvelope<ApproveItem1>().ShouldNotBeNull();
     }
 
     [Fact]
