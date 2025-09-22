@@ -161,7 +161,7 @@ internal class TrackedSession : ITrackedSession
     public Task<ITrackedSession> PlayScheduledMessagesAsync(TimeSpan timeout)
     {
         var serviceName = _primaryHost.GetRuntime().Options.ServiceName;
-        var recordsInOrder = _envelopes.SelectMany(x => x.Records).Where(x => x.MessageEventType == MessageEventType.Scheduled).ToArray();
+        var recordsInOrder = _envelopes.SelectMany(x => x.Records).Where(x => x.MessageEventType == MessageEventType.Scheduled || x.Envelope.Status == EnvelopeStatus.Scheduled || x.WasScheduled).ToArray();
         var records = recordsInOrder.Where(x => x.ServiceName == serviceName).ToArray();
         if (!records.Any())
         {
@@ -181,15 +181,17 @@ internal class TrackedSession : ITrackedSession
 
     internal async Task ReplayAll(IMessageContext context, EnvelopeRecord[] records)
     {
-        foreach (var record in records)
+        var envelopes = records.Select(x => x.Envelope).Distinct().ToArray();
+        
+        foreach (var envelope in envelopes)
         {
-            if (record.Envelope.Destination.Scheme == TransportConstants.Local)
+            if (envelope.Destination.Scheme == TransportConstants.Local)
             {
-                await context.InvokeAsync(record.Envelope.Message);
+                await context.InvokeAsync(envelope.Message);
             }
             else
             {
-                await context.EndpointFor(record.Envelope.Destination).SendAsync(record.Envelope.Message);
+                await context.EndpointFor(envelope.Destination).SendAsync(envelope.Message);
             }
         }
     }
