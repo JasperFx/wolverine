@@ -99,7 +99,7 @@ public class MockWolverineRuntime : IWolverineRuntime, IObserver<IWolverineEvent
     public ILogger Logger { get; } = Substitute.For<ILogger>();
 
 
-    public MessageStoreCollection Stores => throw new NotSupportedException();
+    public MessageStoreCollection Stores => new MessageStoreCollection(this, [], []);
 
     public Task<T?> TryFindMainMessageStore<T>() where T : class
     {
@@ -113,7 +113,7 @@ public class MockWolverineRuntime : IWolverineRuntime, IObserver<IWolverineEvent
 
     public void ScheduleLocalExecutionInMemory(DateTimeOffset executionTime, Envelope envelope)
     {
-        throw new NotSupportedException();
+        
     }
 
     public void RegisterMessageType(Type messageType)
