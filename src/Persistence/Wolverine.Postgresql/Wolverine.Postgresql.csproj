@@ -12,10 +12,7 @@
 
     <ItemGroup>
         <ProjectReference Include="..\Wolverine.RDBMS\Wolverine.RDBMS.csproj" />
-    </ItemGroup>
-
-    <ItemGroup>
-      <PackageReference Include="Weasel.Postgresql" Version="8.1.1" />
+        <ProjectReference Include="..\..\..\..\weasel\src\Weasel.Postgresql\Weasel.Postgresql.csproj" />
     </ItemGroup>
 
     <Import Project="../../../Analysis.Build.props" />
