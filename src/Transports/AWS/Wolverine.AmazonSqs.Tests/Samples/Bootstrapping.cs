@@ -339,6 +339,46 @@ public class Bootstrapping
 
         #endregion
     }
+
+    public async Task customize_mappers_with_all_message_attributes()
+    {
+        #region sample_receive_all_message_attributes
+
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.UseAmazonSqsTransport()
+                    .ConfigureSenders(s => s.InteropWith(new CustomSqsMapper()));
+
+                opts.ListenToSqsQueue("incoming", queue =>
+                {
+                    // Ask SQS for all user-defined attributes
+                    queue.MessageAttributeNames = new List<string> { "All" };
+                });
+            }).StartAsync();
+
+        #endregion
+    }
+
+    public async Task customize_mappers_with_specific_message_attributes()
+    {
+        #region sample_receive_specific_message_attributes
+
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.UseAmazonSqsTransport()
+                    .ConfigureSenders(s => s.InteropWith(new CustomSqsMapper()));
+
+                opts.ListenToSqsQueue("incoming", queue =>
+                {
+                    // Ask only for specific attributes
+                    queue.MessageAttributeNames = new List<string> { "wolverineId", "jasperId" };
+                });
+            }).StartAsync();
+
+        #endregion
+    }
 }
 
 #region sample_custom_sqs_mapper

@@ -165,7 +165,8 @@ const config: UserConfig<DefaultTheme.Config> = {
                                         {text: 'Dead Letter Queues', link:'/guide/messaging/transports/sqs/deadletterqueues'},
                                         {text: 'Configuring Queues', link:'/guide/messaging/transports/sqs/queues'},
                                         {text: 'Conventional Routing', link:'/guide/messaging/transports/sqs/conventional-routing'},
-                                        {text: 'Interoperability', link:'/guide/messaging/transports/sqs/interoperability'}
+                                        {text: 'Interoperability', link:'/guide/messaging/transports/sqs/interoperability'},
+                                        {text: 'MessageAttributes', link:'/guide/messaging/transports/sqs/message-attributes'}
                                     ]},
                                 {text: 'Amazon SNS', link: '/guide/messaging/transports/sns'},
                                 {text: 'TCP', link: '/guide/messaging/transports/tcp'},

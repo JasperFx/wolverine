@@ -90,7 +90,7 @@ public class CustomSqsMapper : ISqsEnvelopeMapper
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L344-L376' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_custom_sqs_mapper' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L384-L416' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_custom_sqs_mapper' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And apply this to any or all of your SQS endpoints with the configuration fluent interface as shown in this sample:
