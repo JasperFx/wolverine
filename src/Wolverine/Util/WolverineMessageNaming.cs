@@ -18,12 +18,17 @@ internal class WebSocketMessageNaming : IMessageTypeNaming
     {
         if (messageType.CanBeCastTo<WebSocketMessage>())
         {
-            messageTypeName = messageType.NameInCode().PascalToKebabCase();
+            messageTypeName = PascalToKebabCase(messageType.NameInCode());
             return true;
         }
 
         messageTypeName = default!;
         return false;
+    }
+    
+    public static string PascalToKebabCase(string value)
+    {
+        return value.SplitPascalCase().Replace(' ', '_').ToLowerInvariant();
     }
 }
 
