@@ -19,14 +19,21 @@ namespace Wolverine.Persistence;
 public class LoadEntityFrameBlock : Frame
 {
     private readonly Frame[] _guardFrames;
-    private readonly Frame _creator;
 
     public LoadEntityFrameBlock(Variable entity, params Frame[] guardFrames) : base(entity.Creator.IsAsync || guardFrames.Any(x => x.IsAsync))
     {
         _guardFrames = guardFrames;
         Mirror = new Variable(entity.VariableType, entity.Usage, this);
-        _creator = entity.Creator;
+        Creator = entity.Creator;
     }
+
+    public void AlsoMirrorAsTheCreator(Variable variable)
+    {
+        // Seems goofy, but adds it to the creates
+        new Variable(variable.VariableType, variable.Usage, this);
+    }
+
+    public Frame Creator { get; }
 
     public Variable Mirror { get; }
 
@@ -35,7 +42,7 @@ public class LoadEntityFrameBlock : Frame
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
         // The [WriteAggregate] somehow causes this
-        if (_creator.Next == this || _creator.Next != null)
+        if (Creator.Next == this || Creator.Next != null)
         {
             for (int i = 1; i < _guardFrames.Length; i++)
             {
@@ -46,14 +53,14 @@ public class LoadEntityFrameBlock : Frame
         }
         else
         {
-            var previous = _creator;
+            var previous = Creator;
             foreach (var next in _guardFrames)
             {
                 previous.Next = next;
                 previous = next;
             }
         
-            _creator.GenerateCode(method, writer);
+            Creator.GenerateCode(method, writer);
         }
 
         Next?.GenerateCode(method, writer);
@@ -61,7 +68,7 @@ public class LoadEntityFrameBlock : Frame
     
     public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
     {
-        return _creator
+        return Creator
             .FindVariables(chain)
             .Concat(_guardFrames.SelectMany(x => x.FindVariables(chain))).Distinct();
     }
@@ -70,7 +77,7 @@ public class LoadEntityFrameBlock : Frame
     {
         if (_guardFrames.Any()) return _guardFrames.Last().CanReturnTask();
 
-        return _creator.CanReturnTask();
+        return Creator.CanReturnTask();
     }
 }
 

@@ -45,8 +45,11 @@ public class MartenIntegration : IWolverineExtension, IEventForwarding
         options.CodeGeneration.InsertFirstPersistenceStrategy<MartenPersistenceFrameProvider>();
         options.CodeGeneration.Sources.Add(new SessionVariableSource());
         options.CodeGeneration.Sources.Add(new DocumentOperationsSource());
+        options.CodeGeneration.Sources.Add(new EventStoreOperationsSource());
 
         options.Policies.Add<MartenAggregateHandlerStrategy>();
+        
+        options.CodeGeneration.MethodPreCompilation.Add(new MartenBatchingPolicy());
 
         options.Discovery.CustomizeHandlerDiscovery(x =>
         {

@@ -1,7 +1,9 @@
 ﻿using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
+using JasperFx.Events;
 using Marten;
+using Marten.Events;
 
 namespace Wolverine.Marten.Codegen;
 
@@ -31,6 +33,7 @@ internal class DocumentOperationsSource : IVariableSource
     }
 }
 
+
 internal class DocumentOperationsFrame : SyncFrame
 {
     private Variable _session;
@@ -51,6 +54,44 @@ internal class DocumentOperationsFrame : SyncFrame
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
         writer.Write($"{typeof(IDocumentOperations)} {Variable.Usage} = {_session.Usage};");
+        Next?.GenerateCode(method, writer);
+    }
+}
+
+internal class EventStoreOperationsSource : IVariableSource
+{
+    public bool Matches(Type type)
+    {
+        return type == typeof(IEventStoreOperations);
+    }
+
+    public Variable Create(Type type)
+    {
+        return new EventStoreOperationsFrame().Variable;
+    }
+}
+
+
+internal class EventStoreOperationsFrame : SyncFrame
+{
+    private Variable _session;
+
+    public EventStoreOperationsFrame()
+    {
+        Variable = new Variable(typeof(IEventStoreOperations), this);
+    }
+
+    public Variable Variable { get; }
+
+    public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
+    {
+        _session = chain.FindVariable(typeof(IDocumentSession));
+        yield return _session;
+    }
+
+    public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        writer.Write($"{typeof(IEventStoreOperations)} {Variable.Usage} = {_session.Usage}.{nameof(IDocumentSession.Events)};");
         Next?.GenerateCode(method, writer);
     }
 }
