@@ -112,9 +112,12 @@ public class OrdersDbContext : DbContext
         modelBuilder.Entity<Order>(map =>
         {
             map.ToTable("orders", "sample");
-            map.HasKey(x => x.Id);
             map.Property(x => x.OrderStatus)
                 .HasConversion(v => v.ToString(), v => Enum.Parse<OrderStatus>(v));
+
+            // enable optimistic concurrency
+            map.Property(x => x.Version)
+                .IsConcurrencyToken();
         });
     }
 }
