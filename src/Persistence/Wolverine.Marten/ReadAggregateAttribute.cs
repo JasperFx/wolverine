@@ -6,8 +6,10 @@ using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
 using Marten;
 using Marten.Events;
+using Marten.Services.BatchQuerying;
 using Wolverine.Attributes;
 using Wolverine.Configuration;
+using Wolverine.Marten.Codegen;
 using Wolverine.Marten.Persistence.Sagas;
 using Wolverine.Persistence;
 using Wolverine.Runtime;
@@ -66,11 +68,13 @@ public class ReadAggregateAttribute : WolverineParameterAttribute, IDataRequirem
     }
 }
 
-internal class FetchLatestAggregateFrame : AsyncFrame
+internal class FetchLatestAggregateFrame : AsyncFrame, IBatchableFrame
 {
     private readonly Variable _identity;
     private Variable _session;
     private Variable _token;
+    private Variable _batchQuery;
+    private Variable _batchQueryItem;
 
     public FetchLatestAggregateFrame(Type aggregateType, Variable identity)
     {
@@ -80,6 +84,22 @@ internal class FetchLatestAggregateFrame : AsyncFrame
 
     public Variable Aggregate { get; }
 
+    public void WriteCodeToEnlistInBatchQuery(GeneratedMethod method, ISourceWriter writer)
+    {
+        if (_batchQueryItem == null)
+            throw new InvalidOperationException("This frame has not been enlisted in a MartenBatchFrame");
+        
+        writer.Write(
+            $"var {_batchQueryItem.Usage} = {_batchQuery!.Usage}.Events.{nameof(IBatchEvents.FetchLatest)}<{Aggregate.VariableType.FullNameInCode()}>({_identity.Usage});");
+    }
+
+    public void EnlistInBatchQuery(Variable batchQuery)
+    {
+        _batchQueryItem = new Variable(typeof(Task<>).MakeGenericType(Aggregate.VariableType), Aggregate.Usage + "_BatchItem",
+            this);
+        _batchQuery = batchQuery;
+    }
+
     public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
     {
         _session = chain.FindVariable(typeof(IDocumentSession));
@@ -88,12 +108,26 @@ internal class FetchLatestAggregateFrame : AsyncFrame
         _token = chain.FindVariable(typeof(CancellationToken));
         yield return _token;
 
+        if (_batchQuery != null)
+        {
+            yield return _batchQuery;
+        }
+
         yield return _identity;
     }
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
-        writer.Write($"var {Aggregate.Usage} = await {_session.Usage}.Events.{nameof(IEventStoreOperations.FetchLatest)}<{Aggregate.VariableType.FullNameInCode()}>({_identity.Usage}, {_token.Usage});");
+        if (_batchQueryItem == null)
+        {
+            writer.Write($"var {Aggregate.Usage} = await {_session.Usage}.Events.{nameof(IEventStoreOperations.FetchLatest)}<{Aggregate.VariableType.FullNameInCode()}>({_identity.Usage}, {_token.Usage});");
+        }
+        else
+        {
+            writer.Write(
+                $"var {Aggregate.Usage} = await {_batchQueryItem.Usage}.ConfigureAwait(false);");
+        }
+        
         Next?.GenerateCode(method, writer);
     }
 }

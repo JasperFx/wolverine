@@ -55,3 +55,43 @@ public static class TransferMoneyHandler
 
 #endregion
 
+public static class TransferMoneyHandler2   
+{
+    [WolverinePost("/accounts/transfer2")]
+    public static void Handle(
+        TransferMoney command,
+
+        [WriteAggregate(nameof(TransferMoney.FromId), LoadStyle = ConcurrencyStyle.Exclusive)] IEventStream<Account> fromAccount,
+        
+        [WriteAggregate(nameof(TransferMoney.ToId))] IEventStream<Account> toAccount)
+    {
+        // Would already 404 if either referenced account does not exist
+        if (fromAccount.Aggregate.Amount >= command.Amount)
+        {
+            fromAccount.AppendOne(new Withdrawn(command.Amount));
+            toAccount.AppendOne(new Debited(command.Amount));
+        }
+    }
+}
+
+public record TransferMoney2(Guid FromId, Guid ToId, double Amount, int FromVersion);
+
+public static class TransferMoneyHandler3   
+{
+    [WolverinePost("/accounts/transfer3")]
+    public static void Handle(
+        TransferMoney command,
+
+        [WriteAggregate(nameof(TransferMoney.FromId))] IEventStream<Account> fromAccount,
+        
+        [WriteAggregate(nameof(TransferMoney.ToId))] IEventStream<Account> toAccount)
+    {
+        // Would already 404 if either referenced account does not exist
+        if (fromAccount.Aggregate.Amount >= command.Amount)
+        {
+            fromAccount.AppendOne(new Withdrawn(command.Amount));
+            toAccount.AppendOne(new Debited(command.Amount));
+        }
+    }
+}
+

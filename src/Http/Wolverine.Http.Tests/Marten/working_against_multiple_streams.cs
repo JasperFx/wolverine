@@ -84,6 +84,22 @@ public class working_against_multiple_streams : IntegrationContext
             x.StatusCodeShouldBe(404);
         });
     }
+    
+    [Fact]
+    public async Task happy_path_found_both_accounts_append_to_both_with_exclusive_lock()
+    {
+        var from = await createAccount(1000);
+        var to = await createAccount(100);
+
+        await Scenario(x =>
+        {
+            x.Post.Json(new TransferMoney(from, to, 150)).ToUrl("/accounts/transfer2");
+            x.StatusCodeShouldBe(204);
+        });
+        
+        (await fetchAmount(from)).ShouldBe(850);
+        (await fetchAmount(to)).ShouldBe(250);
+    }
 }
 
 #region sample_when_transfering_money

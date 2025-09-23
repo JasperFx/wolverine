@@ -36,13 +36,15 @@ internal record AggregateHandling(IDataRequirement Requirement)
     public Variable Apply(IChain chain, IServiceContainer container)
     {
         Store(chain);
-        
+
         new MartenPersistenceFrameProvider().ApplyTransactionSupport(chain, container);
 
-        var loader = GenerateLoadAggregateCode(chain);
+        var loader = new LoadAggregateFrame(this);
+        chain.Middleware.Add(loader);
+        
         var firstCall = chain.HandlerCalls().First();
 
-        var eventStream = loader.ReturnVariable!;
+        var eventStream = loader.Stream!;
         if (Parameter != null)
         {
             eventStream.OverrideName("stream_" + Parameter.Name);
@@ -85,19 +87,6 @@ internal record AggregateHandling(IDataRequirement Requirement)
 
         handling = default;
         return false;
-    }
-
-    public MethodCall GenerateLoadAggregateCode(IChain chain)
-    {
-        if (!chain.Middleware.OfType<EventStoreFrame>().Any())
-        {
-            chain.Middleware.Add(new EventStoreFrame());
-        }
-
-        var loader = typeof(LoadAggregateFrame<>).CloseAndBuildAs<MethodCall>(this, AggregateType!);
-
-        chain.Middleware.Add(loader);
-        return loader;
     }
 
     internal static (MemberInfo, MemberInfo?) DetermineAggregateIdAndVersion(Type aggregateType, Type commandType,
@@ -197,12 +186,14 @@ internal record AggregateHandling(IDataRequirement Requirement)
     {
         Variable aggregateVariable = new MemberAccessVariable(eventStream,
             typeof(IEventStream<>).MakeGenericType(aggregateType).GetProperty(nameof(IEventStream<string>.Aggregate)));
+        
 
         if (Requirement.Required)
         {
             var otherFrames = chain.AddStopConditionIfNull(aggregateVariable, AggregateId, Requirement);
             
             var block = new LoadEntityFrameBlock(aggregateVariable, otherFrames);
+            block.AlsoMirrorAsTheCreator(eventStream);
             chain.Middleware.Add(block);
 
             aggregateVariable = block.Mirror;
