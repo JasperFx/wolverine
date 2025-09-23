@@ -300,7 +300,7 @@ system shutdowns.
 
 ::: tip
 Look, MediatR is an almost dominant tool in the .NET ecosystem right now, but it doesn't come with any kind of built
-in transactional inbox/outbox support that you need to make asynchronous message passing be resilient. See [MediatR to Wolverine](/tutorials/from-mediatr)
+in transactional inbox/outbox support that you need to make asynchronous message passing be resilient. See [MediatR to Wolverine](/introduction/from-mediatr)
 for information about switching to Wolverine from MediatR.
 :::
 
