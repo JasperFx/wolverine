@@ -213,6 +213,12 @@ public partial class WolverineRuntime
         }
 
         DurabilitySettings.Cancel();
+
+        // ReSharper disable once SuspiciousTypeConversion.Global
+        if (Observer is IAsyncDisposable d)
+        {
+            await d.DisposeAsync();
+        }
     }
 
     private void startInMemoryScheduledJobs()
