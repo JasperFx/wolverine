@@ -27,6 +27,29 @@ public class TrackedSessionConfiguration
     }
 
     /// <summary>
+    /// Do not track any messages of this type
+    /// Helpful for polling operations that maybe happening during your testing
+    /// </summary>
+    /// <typeparam name="T"></typeparam>
+    /// <returns></returns>
+    public TrackedSessionConfiguration IgnoreMessageType<T>()
+    {
+        return IgnoreMessagesMatchingType(t => t == typeof(T));
+    }
+
+    /// <summary>
+    /// Do not track any messages where the message type matches this filter.
+    /// Helpful for polling operations that maybe happening during your testing
+    /// </summary>
+    /// <param name="filter"></param>
+    /// <returns></returns>
+    public TrackedSessionConfiguration IgnoreMessagesMatchingType(Func<Type, bool> filter)  
+    {
+        Session.IgnoreMessageTypes(filter);
+        return this;
+    }
+
+    /// <summary>
     ///     Track activity across an additional Wolverine application
     /// </summary>
     /// <param name="host"></param>

@@ -35,6 +35,10 @@ public class DeadLetterEnvelope
     public Envelope Envelope { get; }
     public string MessageType { get; }
     public string ReceivedAt { get; }
+    
+    /// <summary>
+    /// Service name of the original sending application
+    /// </summary>
     public string Source { get; }
     public string ExceptionType { get; }
     public string ExceptionMessage { get; }

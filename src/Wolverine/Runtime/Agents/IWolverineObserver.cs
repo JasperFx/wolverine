@@ -87,6 +87,8 @@ internal class PersistenceWolverineObserver : IWolverineObserver
 
     public async Task AssignmentsChanged(AssignmentGrid grid, AgentCommands commands)
     {
+        if (!commands.Any()) return;
+        
         var records = commands.Select(x => new NodeRecord
         {
             NodeNumber = _runtime.Options.Durability.AssignedNodeNumber,
