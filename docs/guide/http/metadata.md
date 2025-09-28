@@ -216,3 +216,32 @@ you get an `ObjectDisposedException` error on compilation against the `IServiceP
 
 For whatever reason, the source generator for OpenAPI tries to start the entire application, including Wolverine's
 `IHostedService`, and the whole thing blows up with that very unhelpful message if anything is wrong with the application.
+
+Chances are good that one of the things preventing a successful startup is that Marten and Wolverine will, by default, begin performing their usual tasks immediately  upon startup. This entails connecting to the database, as well as to any external messaging providers you may be using. Since those connections are probably not going to be possible in your build environment, they will need to be disabled while the OpenApi generation is being done.
+
+Microsoft's recomendation for detecting whether the application is running for the purpose of document generation is to use this code:
+```cs
+var generatingOpenApi = Assembly.GetEntryAssembly()?.GetName().Name != "GetDocument.Insider"
+```
+
+If this mode is detected, all connections can be disabled like so:
+```cs
+builder.Services.DisableAllExternalWolverineTransports();
+builder.Services.DisableAllWolverineMessagePersistence();
+```
+
+Note that a syntactically valid connection string still needs to be provided to Marten, but it does not need to represent a real DB; a minimal placeholder is sufficient.
+Also, if you are using the async daemon, you'll want to use the `DaemonMode.Disabled` mode.
+```cs
+if(generatingOpenApi)
+{
+    builder.Services
+        .AddMarten(ConfigureMarten("Server=.;Database=Foo"))
+        .AddAsyncDaemon(DaemonMode.Disabled)
+        .UseLightweightSessions();
+}
+else
+{
+    // usual Marten config
+}
+```
