@@ -97,6 +97,13 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
 
     internal void AddMessageHandler(Type messageType, IMessageHandler handler)
     {
+        // Makes error handling and other configuration work cleanly
+        if (handler is MessageHandler h)
+        {
+            var chain = new HandlerChain(messageType, this);
+            h.Chain = chain;
+        }
+        
         _handlers = _handlers.AddOrUpdate(messageType, handler);
         RegisterMessageType(messageType);
     }
