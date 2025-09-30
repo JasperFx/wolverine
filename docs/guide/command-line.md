@@ -1,5 +1,7 @@
 # Command Line Integration
 
+@[youtube](3C5bacH0akU)
+
 With help from its [JasperFx](https://github.com/JasperFx) team mate [Oakton](https://jasperfx.github.io/oakton), Wolverine supports quite a few command line diagnostic and resource management
 tools. To get started, apply Oakton as the command line parser in your applications as shown in the last line of code in this
 sample application bootstrapping from Wolverine's [Getting Started](/tutorials/getting-started):

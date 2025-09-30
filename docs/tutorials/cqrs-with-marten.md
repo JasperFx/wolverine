@@ -13,6 +13,8 @@ This guide assumes some familiarity with Event Sourcing nomenclature, but if you
 of development, see [Understanding Event Sourcing with Marten](https://martendb.io/events/learning.html) from the Marten documentation.
 :::
 
+@[youtube](U9zTGdo0Ps8)
+
 Let's get the entire "Critter Stack" (Wolverine + [Marten](https://martendb.io)) assembled and build a system using CQRS with Event Sourcing!
 
 We'll be using the [IncidentService](https://github.com/jasperfx/wolverine/tree/main/src/Samples/IncidentService) example service to show an example of using Wolverine with Marten in a headless

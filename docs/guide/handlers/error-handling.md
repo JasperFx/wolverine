@@ -1,5 +1,7 @@
 # Error Handling
 
+@[youtube](k5WdzL85kGs)
+
 It's an imperfect world and almost inevitable that your Wolverine message handlers will occasionally throw exceptions as message handling fails.
 Maybe because a piece of infrastructure is down, maybe you get transient network issues, or maybe a database is overloaded.
 
