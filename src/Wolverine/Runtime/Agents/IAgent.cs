@@ -5,19 +5,26 @@ namespace Wolverine.Runtime.Agents;
 
 #region sample_IAgent
 
+#region sample_IAgent
+
 /// <summary>
 ///     Models a constantly running background process within a Wolverine
 ///     node cluster
 /// </summary>
-public interface IAgent : IHostedService
+public interface IAgent : IHostedService // Standard .NET interface for background services
 {
     /// <summary>
     ///     Unique identification for this agent within the Wolverine system
     /// </summary>
     Uri Uri { get; }
     
+    // Not really used for anything real *yet*, but 
+    // hopefully becomes something useful for CritterWatch
+    // health monitoring
     AgentStatus Status { get; }
 }
+
+#endregion
 
 public class CompositeAgent : IAgent
 {

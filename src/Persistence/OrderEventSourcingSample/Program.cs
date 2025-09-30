@@ -11,6 +11,8 @@ var builder = WebApplication.CreateBuilder(args);
 // Not 100% necessary, but enables some extra command line diagnostics
 builder.Host.ApplyJasperFxExtensions();
 
+#region sample_using_the_marten_persistence_integration
+
 // Adding Marten
 builder.Services.AddMarten(opts =>
     {
@@ -21,6 +23,8 @@ builder.Services.AddMarten(opts =>
 
     // Adding the Wolverine integration for Marten.
     .IntegrateWithWolverine();
+
+#endregion
 
 #region sample_configure_global_exception_rules
 
