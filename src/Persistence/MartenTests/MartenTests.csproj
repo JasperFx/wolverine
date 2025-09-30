@@ -20,6 +20,7 @@
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
             <PrivateAssets>all</PrivateAssets>
         </PackageReference>
+        <PackageReference Include="StronglyTypedId" Version="1.0.0-beta08" />
     </ItemGroup>
 
     <ItemGroup>
