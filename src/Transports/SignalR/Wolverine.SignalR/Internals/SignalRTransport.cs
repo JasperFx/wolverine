@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using JasperFx.Core;
 using JasperFx.Resources;
 using Microsoft.AspNetCore.SignalR;
@@ -21,6 +22,9 @@ public class SignalRTransport : Endpoint, ITransport, IListener, ISender
     public SignalRTransport() : base($"{ProtocolName}://wolverine".ToUri(), EndpointRole.Application)
     {
         IsListener = true;
+
+        JsonOptions = new(JsonSerializerOptions.Web) { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+        JsonOptions.Converters.Add(new JsonStringEnumConverter());
     }
 
     protected override ISender CreateSender(IWolverineRuntime runtime)
@@ -63,8 +67,7 @@ public class SignalRTransport : Endpoint, ITransport, IListener, ISender
 
     internal ILogger<SignalRTransport>? Logger { get; set; }
 
-    public JsonSerializerOptions JsonOptions { get; set; } = new JsonSerializerOptions
-        { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+    public JsonSerializerOptions JsonOptions { get; set; }
 
     public IReceiver? Receiver { get; private set; }
     

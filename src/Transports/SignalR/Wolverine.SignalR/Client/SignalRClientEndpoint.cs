@@ -30,10 +30,12 @@ public class SignalRClientEndpoint : Endpoint, IListener, ISender
         IsListener = true;
 
         Mode = EndpointMode.Inline;
+
+        // Just to use the same defaults
+        JsonOptions = new SignalRTransport().JsonOptions;
     }
 
-    public JsonSerializerOptions JsonOptions { get; set; } = new JsonSerializerOptions
-        { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+    public JsonSerializerOptions JsonOptions { get; set; }
 
     public Uri SignalRUri { get; }
 
