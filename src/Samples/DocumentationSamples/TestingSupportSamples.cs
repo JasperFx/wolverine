@@ -165,6 +165,10 @@ public class AccountHandlerTests
             // This is actually helpful if you are testing for error handling
             // functionality in your system
             .DoNotAssertOnExceptionsDetected()
+            
+            // Hey, just in case failure acks are getting into your testing session
+            // and you do not care for the tests, tell Wolverine to ignore them
+            .IgnoreFailureAcks()
 
             // Again, this is testing against processes, with another IHost
             .WaitForMessageToBeReceivedAt<LowBalanceDetected>(otherWolverineSystem)
