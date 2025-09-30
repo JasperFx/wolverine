@@ -78,7 +78,16 @@ internal class FetchLatestAggregateFrame : AsyncFrame, IBatchableFrame
 
     public FetchLatestAggregateFrame(Type aggregateType, Variable identity)
     {
-        _identity = identity;
+        if (identity.VariableType == typeof(Guid) || identity.VariableType == typeof(string))
+        {
+            _identity = identity;
+        }
+        else
+        {
+            var valueType = ValueTypeInfo.ForType(identity.VariableType);
+            _identity = new MemberAccessVariable(identity, valueType.ValueProperty);
+        }
+
         Aggregate = new Variable(aggregateType, this);
     }
 
