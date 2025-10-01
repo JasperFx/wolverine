@@ -23,9 +23,10 @@ public interface IMessageRoute
 /// </summary>
 public class MessageSubscriptionDescriptor
 {
-    public Uri Endpoint { get; init; } = new Uri("null://null");
+    public Uri Endpoint { get; init; } = new("null://null");
     public string ContentType { get; set; } = "application/json";
     public string Description { get; set; } = string.Empty;
+    public MessageSubscriptionDescriptor[] Partitions { get; set; } = [];
 
     public override string ToString()
     {
