@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using IntegrationTests;
 using JasperFx;
+using JasperFx.Core;
 using Marten;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
@@ -58,9 +59,7 @@ public class concurrency_resilient_sharded_processing
                 
                 opts.Discovery.DisableConventionalDiscovery().IncludeType(typeof(LetterMessageHandler));
                 
-                // Telling Wolverine how to assign a GroupId to a message, that we'll use
-                // to predictably sort into "slots" in the processing
-                opts.MessagePartitioning.ByMessage<ILetterMessage>(x => x.Id.ToString());
+
                 
                 opts.Services.AddMarten(m =>
                 {
@@ -69,14 +68,29 @@ public class concurrency_resilient_sharded_processing
                     m.DisableNpgsqlLogging = true;
                 }).IntegrateWithWolverine();
 
+                #region sample_defining_partitioned_routing_for_rabbitmq
+
+                // opts is the WolverineOptions from within an Add/UseWolverine() call
+                
+                // Telling Wolverine how to assign a GroupId to a message, that we'll use
+                // to predictably sort into "slots" in the processing
+                opts.MessagePartitioning.ByMessage<ILetterMessage>(x => x.Id.ToString());
+
+                // This is creating Rabbit MQ queues named "letters1" etc. 
                 opts.MessagePartitioning.PublishToShardedRabbitQueues("letters", 4, topology =>
                 {
                     topology.MessagesImplementing<ILetterMessage>();
-                    topology.MaxDegreeOfParallelism = ShardSlots.Five;
+                    topology.MaxDegreeOfParallelism = PartitionSlots.Five;
                     
+                    topology.ConfigureSender(x =>
+                    {
+                        // just to show that you can do this...
+                        x.DeliverWithin(5.Minutes());
+                    });
                     topology.ConfigureListening(x => x.BufferedInMemory());
-
                 });
+
+                #endregion
             }).StartAsync();
 
 
@@ -124,7 +138,7 @@ public class concurrency_resilient_sharded_processing
                     .PublishToShardedRabbitQueues("letters", 4, topology =>
                 {
                     topology.MessagesImplementing<ILetterMessage>();
-                    topology.MaxDegreeOfParallelism = ShardSlots.Five;
+                    topology.MaxDegreeOfParallelism = PartitionSlots.Five;
                     
                     topology.ConfigureListening(x => x.BufferedInMemory());
 
@@ -198,7 +212,7 @@ public class concurrency_resilient_sharded_processing
                 opts.MessagePartitioning.PublishToShardedRabbitQueues("letters", 4, topology =>
                 {
                     topology.MessagesImplementing<ILetterMessage>();
-                    topology.MaxDegreeOfParallelism = ShardSlots.Five;
+                    topology.MaxDegreeOfParallelism = PartitionSlots.Five;
                     
                     topology.ConfigureListening(x => x.UseDurableInbox());
 

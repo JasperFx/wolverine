@@ -6,24 +6,24 @@ namespace Wolverine.Runtime.Partitioning;
 
 public class LocalPartitionedMessageTopology : PartitionedMessageTopology
 {
-    private ShardSlots _listeningSlots;
+    private PartitionSlots _listeningSlots;
 
-    public LocalPartitionedMessageTopology(WolverineOptions options, string baseName, int numberOfEndpoints) : base(options, ShardSlots.Five, baseName, numberOfEndpoints)
+    public LocalPartitionedMessageTopology(WolverineOptions options, string baseName, int numberOfEndpoints) : base(options, PartitionSlots.Five, baseName, numberOfEndpoints)
     {
-        _listeningSlots = ShardSlots.Five;
+        _listeningSlots = PartitionSlots.Five;
     }
     
     /// <summary>
     /// Override the maximum number of parallel messages that can be executed
     /// at one time in one of the sharded local queues. Default is 5.
     /// </summary>
-    public ShardSlots MaxDegreeOfParallelism
+    public PartitionSlots MaxDegreeOfParallelism
     {
         get => _listeningSlots;
         set
         {
             _listeningSlots = value;
-            ConfigureQueues(x => x.ShardListeningByGroupId(value));
+            ConfigureQueues(x => x.PartitionProcessingByGroupId(value));
         }
     }
 

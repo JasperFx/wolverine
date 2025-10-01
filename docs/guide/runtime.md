@@ -245,13 +245,36 @@ interface like so:
 ///     Models a constantly running background process within a Wolverine
 ///     node cluster
 /// </summary>
-public interface IAgent : IHostedService
+public interface IAgent : IHostedService // Standard .NET interface for background services
 {
     /// <summary>
     ///     Unique identification for this agent within the Wolverine system
     /// </summary>
     Uri Uri { get; }
     
+    // Not really used for anything real *yet*, but 
+    // hopefully becomes something useful for CritterWatch
+    // health monitoring
+    AgentStatus Status { get; }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/Agents/IAgent.cs#L8-L27' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_iagent' title='Start of snippet'>anchor</a></sup>
+<a id='snippet-sample_iagent-1'></a>
+```cs
+/// <summary>
+///     Models a constantly running background process within a Wolverine
+///     node cluster
+/// </summary>
+public interface IAgent : IHostedService // Standard .NET interface for background services
+{
+    /// <summary>
+    ///     Unique identification for this agent within the Wolverine system
+    /// </summary>
+    Uri Uri { get; }
+    
+    // Not really used for anything real *yet*, but 
+    // hopefully becomes something useful for CritterWatch
+    // health monitoring
     AgentStatus Status { get; }
 }
 
@@ -296,7 +319,7 @@ public enum AgentStatus
     Paused
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/Agents/IAgent.cs#L6-L63' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_iagent' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/Agents/IAgent.cs#L6-L70' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_iagent-1' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 With related groups of agents built and assigned by IoC-registered implementations of this interface:

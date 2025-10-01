@@ -8,9 +8,9 @@ public abstract class PartitionedMessageTopology<TListener, TSubscriber> : Parti
     where TListener : IListenerConfiguration<TListener>
     where TSubscriber : ISubscriberConfiguration<TSubscriber>
 {
-    private ShardSlots _listeningSlots;
+    private PartitionSlots _listeningSlots;
     
-    public PartitionedMessageTopology(WolverineOptions options, ShardSlots? listeningSlots, string baseName, int numberOfEndpoints) : base(options, listeningSlots, baseName, numberOfEndpoints)
+    public PartitionedMessageTopology(WolverineOptions options, PartitionSlots? listeningSlots, string baseName, int numberOfEndpoints) : base(options, listeningSlots, baseName, numberOfEndpoints)
     {
         if (listeningSlots.HasValue)
         {
@@ -26,13 +26,13 @@ public abstract class PartitionedMessageTopology<TListener, TSubscriber> : Parti
     /// Override the maximum number of parallel messages that can be executed
     /// at one time in one of the sharded local queues. Default is 5.
     /// </summary>
-    public ShardSlots MaxDegreeOfParallelism
+    public PartitionSlots MaxDegreeOfParallelism
     {
         get => _listeningSlots;
         set
         {
             _listeningSlots = value;
-            ConfigureListening(x => x.ShardListeningByGroupId(value));
+            ConfigureListening(x => x.PartitionProcessingByGroupId(value));
         }
     }
     
@@ -60,7 +60,7 @@ public abstract class PartitionedMessageTopology
 {
     protected readonly WolverineOptions _options;
     
-    protected PartitionedMessageTopology(WolverineOptions options, ShardSlots? listeningSlots, string baseName, int numberOfEndpoints)
+    protected PartitionedMessageTopology(WolverineOptions options, PartitionSlots? listeningSlots, string baseName, int numberOfEndpoints)
     {
         if (numberOfEndpoints <= 0)
         {

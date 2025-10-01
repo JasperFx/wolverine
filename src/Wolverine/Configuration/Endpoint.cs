@@ -19,7 +19,7 @@ using Wolverine.Transports.Sending;
 
 namespace Wolverine.Configuration;
 
-public enum ShardSlots
+public enum PartitionSlots
 {
     Three = 3,
     Five = 5,
@@ -194,7 +194,7 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
     /// If specified, directs this endpoint to use by GroupId sharding in processing.
     /// Only impacts Buffered or Durable endpoints though.
     /// </summary>
-    public ShardSlots? GroupShardingSlotNumber { get; set; }
+    public PartitionSlots? GroupShardingSlotNumber { get; set; }
 
     /// <summary>
     /// In the case of using "sticky handlers"

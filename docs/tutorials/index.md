@@ -10,3 +10,4 @@
 | [Railway Programming](./railway-programming)                 | Wolverine builds in some very light weight Railway Programming inspired abilities                          |
 | [Interoperability with Non-Wolverine Systems](./interop)     | Everything you need to know to make Wolverine play nicely and exchange messages with non-Wolverine systems |
 | [Leader Election and Agents](./leader-election) | Learn about Wolverine's internal leader election and how to write your own "sticky" agent family |
+| [Handling Concurrency](./concurrency) | Dealing with concurrency can be hard, but Wolverine has plenty of tools to help you manage it |

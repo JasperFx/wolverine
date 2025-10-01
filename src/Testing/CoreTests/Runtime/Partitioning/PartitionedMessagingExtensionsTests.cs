@@ -5,12 +5,12 @@ using Xunit.Abstractions;
 
 namespace CoreTests.Runtime.Partitioning;
 
-public class EnvelopeShardingExtensionsTests
+public class PartitionedMessagingExtensionsTests
 {
     private readonly ITestOutputHelper _output;
     private readonly MessagePartitioningRules theRules;
 
-    public EnvelopeShardingExtensionsTests(ITestOutputHelper output)
+    public PartitionedMessagingExtensionsTests(ITestOutputHelper output)
     {
         _output = output;
         theRules = new MessagePartitioningRules(new());

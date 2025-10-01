@@ -81,7 +81,8 @@ const config: UserConfig<DefaultTheme.Config> = {
                         {text: 'Event Sourcing and CQRS with Marten', link: '/tutorials/cqrs-with-marten'},
                         {text: 'Railway Programming with Wolverine', link: '/tutorials/railway-programming'},
                         {text: 'Interoperability with Non-Wolverine Systems', link: '/tutorials/interop'},
-                        {text: 'Leader Election and Agents', link: '/tutorials/leader-election'}
+                        {text: 'Leader Election and Agents', link: '/tutorials/leader-election'},
+                        {text: 'Dealing with Concurrency', link:' /tutorials/concurrency'}
                     ]
                 },
                 {
@@ -186,6 +187,7 @@ const config: UserConfig<DefaultTheme.Config> = {
                                 {text: 'External Database Tables', link: '/guide/messaging/transports/external-tables'}
                             ]
                         },
+                        {text: 'Partitioned Sequential Messaging', link: '/guide/messaging/partitioning'},
                         {text: 'Endpoint Specific Operations', link: '/guide/messaging/endpoint-operations'},
                         {text: 'Broadcast to a Specific Topic', link: '/guide/messaging/broadcast-to-topic'},
                         {text: 'Message Expiration', link: '/guide/messaging/expiration'},

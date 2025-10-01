@@ -65,7 +65,7 @@ public class concurrency_resilient_sharded_processing
                     .PublishToPartitionedLocalMessaging("letters", 4, topology =>
                 {
                     topology.MessagesImplementing<ILetterMessage>();
-                    topology.MaxDegreeOfParallelism = ShardSlots.Five;
+                    topology.MaxDegreeOfParallelism = PartitionSlots.Five;
                     
                     topology.ConfigureQueues(queue =>
                     {
@@ -101,22 +101,31 @@ public class concurrency_resilient_sharded_processing
                     m.DatabaseSchemaName = "letters";
                     m.DisableNpgsqlLogging = true;
                 }).IntegrateWithWolverine();
-                
-                                
+
+
+                #region sample_inferred_message_group_id
+
                 // Telling Wolverine how to assign a GroupId to a message, that we'll use
                 // to predictably sort into "slots" in the processing
                 opts.MessagePartitioning
+                        
+                    // This tells Wolverine to use the Saga identity as the group id for any message
+                    // that impacts a Saga or the stream id of any command that is part of the "aggregate handler workflow"
+                    // integration with Marten
                     .UseInferredMessageGrouping()
+                    
                     .PublishToPartitionedLocalMessaging("letters", 4, topology =>
                     {
                         topology.MessagesImplementing<ILetterMessage>();
-                        topology.MaxDegreeOfParallelism = ShardSlots.Five;
+                        topology.MaxDegreeOfParallelism = PartitionSlots.Five;
                         
                         topology.ConfigureQueues(queue =>
                         {
                             queue.BufferedInMemory();
                         });
                     });
+
+                #endregion
                 
             }).StartAsync();
 
@@ -155,7 +164,7 @@ public class concurrency_resilient_sharded_processing
                 opts.MessagePartitioning.PublishToPartitionedLocalMessaging("letters", 4, topology =>
                 {
                     topology.MessagesImplementing<ILetterMessage>();
-                    topology.MaxDegreeOfParallelism = ShardSlots.Five;
+                    topology.MaxDegreeOfParallelism = PartitionSlots.Five;
                     
                     topology.ConfigureQueues(queue =>
                     {
@@ -204,10 +213,9 @@ public class concurrency_resilient_sharded_processing
                         // This is the magic sauce that shards the processing
                         // by GroupId, which would be the StreamId.ToString() in
                         // most cases in your usage
-                        .ShardListeningByGroupId(ShardSlots.Five)
+                        .PartitionProcessingByGroupId(PartitionSlots.Five)
                         
-                        .UseDurableInbox()
-                        .MaximumParallelMessages(10);
+                        .UseDurableInbox();
                 });
             }).StartAsync();
 

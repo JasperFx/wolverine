@@ -59,10 +59,7 @@ public class concurrency_resilient_sharded_processing
                 
                 opts.Discovery.DisableConventionalDiscovery().IncludeType(typeof(LetterMessageHandler));
                 
-                // Telling Wolverine how to assign a GroupId to a message, that we'll use
-                // to predictably sort into "slots" in the processing
-                opts.MessagePartitioning.ByMessage<ILetterMessage>(x => x.Id.ToString());
-                
+
                 opts.Services.AddMarten(m =>
                 {
                     m.Connection(Servers.PostgresConnectionString);
@@ -70,14 +67,24 @@ public class concurrency_resilient_sharded_processing
                     m.DisableNpgsqlLogging = true;
                 }).IntegrateWithWolverine();
 
+                opts.ListenToSqsQueue("from_external");
+
+                #region sample_partitioned_publishing_through_amazon_sqs
+
+                // Telling Wolverine how to assign a GroupId to a message, that we'll use
+                // to predictably sort into "slots" in the processing
+                opts.MessagePartitioning.ByMessage<ILetterMessage>(x => x.Id.ToString());
+                
                 opts.MessagePartitioning.PublishToShardedAmazonSqsQueues("letters", 4, topology =>
                 {
                     topology.MessagesImplementing<ILetterMessage>();
-                    topology.MaxDegreeOfParallelism = ShardSlots.Five;
+                    topology.MaxDegreeOfParallelism = PartitionSlots.Five;
                     
                     topology.ConfigureListening(x => x.BufferedInMemory().MessageBatchSize(10));
 
                 });
+
+                #endregion
             }).StartAsync();
 
         var tracked = await host

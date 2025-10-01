@@ -81,12 +81,9 @@ public static IEnumerable<object> Handle(IncomingMessage message)
     yield return new Message3().ScheduleToGroup("one", 5.Minutes());
 
     // Long hand
-    yield return new Message4().WithDeliveryOptions(new DeliveryOptions
-    {
-        GroupId = "one"
-    });
+    yield return new Message4().WithDeliveryOptions(new() { GroupId = "one" });
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/using_group_ids.cs#L9-L25' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_group_id_and_cascading_messages' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/using_group_ids.cs#L9-L22' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_group_id_and_cascading_messages' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
