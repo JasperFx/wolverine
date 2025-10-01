@@ -112,8 +112,8 @@ public abstract class PartitionedMessageTopology
         {
             var innerRoutes = _slots.Select(x => new MessageRoute(messageType, x, runtime)).ToArray();
             
-            // TODO -- do we let you configure grouping here too????
             route = new ShardedMessageRoute(Uri, runtime.Options.MessagePartitioning, innerRoutes);
+            
             return true;
         }
 

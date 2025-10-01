@@ -27,11 +27,11 @@ internal class ShardedMessageRoute : IMessageRoute
 
     public MessageSubscriptionDescriptor Describe()
     {
-        // TODO -- there's more to do here!
         return new MessageSubscriptionDescriptor
         {
-            Description = "Sharded",
-            Endpoint = _uri
+            Description = "Partitioned",
+            Endpoint = _uri,
+            Partitions = _slots.Select(x => x.Describe()).ToArray()
         };
     }
 }
