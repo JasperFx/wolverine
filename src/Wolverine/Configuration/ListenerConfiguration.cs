@@ -108,7 +108,7 @@ public class ListenerConfiguration<TSelf, TEndpoint> : DelayedEndpointConfigurat
     /// </summary>
     /// <param name="numberOfSlots"></param>
     /// <returns></returns>
-    public TSelf ShardListeningByGroupId(ShardSlots numberOfSlots)
+    public TSelf PartitionProcessingByGroupId(PartitionSlots numberOfSlots)
     {
         add(e => e.GroupShardingSlotNumber = numberOfSlots);
         return this.As<TSelf>();

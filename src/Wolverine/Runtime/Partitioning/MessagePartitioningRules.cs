@@ -67,6 +67,17 @@ public class MessagePartitioningRules
     }
 
     /// <summary>
+    /// Register a custom message grouping rule
+    /// </summary>
+    /// <param name="rule"></param>
+    /// <returns></returns>
+    public MessagePartitioningRules ByRule(IGroupingRule rule)
+    {
+        _rules.Add(rule);
+        return this;
+    }
+
+    /// <summary>
     /// Add a grouping rule based on a concrete message type and the property
     /// of the message type that exposes the group id information
     /// Used extensively internally
@@ -113,7 +124,7 @@ public class MessagePartitioningRules
 
     /// <summary>
     /// As possible, let Wolverine infer the message grouping based on the message usage.
-    /// For example, messsages related to a Saga will use any saga id property in the command type. In
+    /// For example, messages related to a Saga will use any saga id property in the command type. In
     /// the Marten aggregate handler workflow, Wolverine will use a property on the command type that
     /// identifies the event stream *if only one event stream is impacted*
     /// </summary>

@@ -16,10 +16,7 @@ public class using_group_ids
         yield return new Message3().ScheduleToGroup("one", 5.Minutes());
 
         // Long hand
-        yield return new Message4().WithDeliveryOptions(new DeliveryOptions
-        {
-            GroupId = "one"
-        });
+        yield return new Message4().WithDeliveryOptions(new() { GroupId = "one" });
     }
 
     #endregion

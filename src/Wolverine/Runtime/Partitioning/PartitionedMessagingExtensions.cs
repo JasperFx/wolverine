@@ -2,7 +2,7 @@ using JasperFx.Core;
 
 namespace Wolverine.Runtime.Partitioning;
 
-internal static class EnvelopeShardingExtensions
+internal static class PartitionedMessagingExtensions
 {
     internal static void AssertIsValidNumberOfProcessingSlots(this int slots)
     {
@@ -13,7 +13,9 @@ internal static class EnvelopeShardingExtensions
                 $"Invalid number of processing slots. The acceptable values are {validValues.Select(x => x.ToString()).Join(", ")}");
         }
     }
-    
+
+    #region sample_SlotForSending
+
     /// <summary>
     /// Uses a combination of message grouping id rules and a deterministic hash
     /// to predictably assign envelopes to a slot to help "shard" message publishing.
@@ -24,13 +26,20 @@ internal static class EnvelopeShardingExtensions
     /// <returns></returns>
     public static int SlotForSending(this Envelope envelope, int numberOfSlots, MessagePartitioningRules rules)
     {
+        // This is where Wolverine determines the GroupId for the message
+        // Note that you can also explicitly set the GroupId
         var groupId = rules.DetermineGroupId(envelope);
         
-        // Pick one at random, and has to be zero based
+        // Pick one at random if we can't determine a group id, and has to be zero based
         if (groupId == null) return Random.Shared.Next(1, numberOfSlots) - 1;
 
+        // Deterministically choose a slot based on the GroupId, but try
+        // to more or less evenly distribute groups to the different
+        // slots
         return Math.Abs(groupId.GetDeterministicHashCode() % numberOfSlots);
     }
+
+    #endregion
     
     /// <summary>
     /// Uses a combination of message grouping id rules and a deterministic hash

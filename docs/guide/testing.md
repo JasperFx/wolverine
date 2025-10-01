@@ -134,6 +134,10 @@ public async Task using_tracked_sessions_advanced(IHost otherWolverineSystem)
         // This is actually helpful if you are testing for error handling
         // functionality in your system
         .DoNotAssertOnExceptionsDetected()
+        
+        // Hey, just in case failure acks are getting into your testing session
+        // and you do not care for the tests, tell Wolverine to ignore them
+        .IgnoreFailureAcks()
 
         // Again, this is testing against processes, with another IHost
         .WaitForMessageToBeReceivedAt<LowBalanceDetected>(otherWolverineSystem)
@@ -145,7 +149,7 @@ public async Task using_tracked_sessions_advanced(IHost otherWolverineSystem)
     overdrawn.AccountId.ShouldBe(debitAccount.AccountId);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L138-L179' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_advanced_tracked_session_usage' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L138-L183' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_advanced_tracked_session_usage' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The samples shown above inlcude `Sent` message records, but there are more properties available in the `TrackedSession` object.
@@ -285,7 +289,7 @@ public class When_message_is_sent : IAsyncLifetime
     public async Task DisposeAsync() => await _host.StopAsync();
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L203-L311' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_send_message_on_file_change' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L207-L315' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_send_message_on_file_change' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 As you can see, we just have to start our application, attach a tracked session to it, and then wait for the message to be published. This way, we can test the whole process of the application, from the file change to the message publication, in a single test.

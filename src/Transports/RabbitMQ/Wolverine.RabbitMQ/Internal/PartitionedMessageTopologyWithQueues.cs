@@ -5,9 +5,9 @@ namespace Wolverine.RabbitMQ.Internal;
 
 public class PartitionedMessageTopologyWithQueues : PartitionedMessageTopology<RabbitMqListenerConfiguration, RabbitMqSubscriberConfiguration>
 {
-    public PartitionedMessageTopologyWithQueues(WolverineOptions options, ShardSlots? listeningSlots, string baseName, int numberOfEndpoints) : base(options, listeningSlots, baseName, numberOfEndpoints)
+    public PartitionedMessageTopologyWithQueues(WolverineOptions options, PartitionSlots? listeningSlots, string baseName, int numberOfEndpoints) : base(options, listeningSlots, baseName, numberOfEndpoints)
     {
-        MaxDegreeOfParallelism = ShardSlots.Five;
+        MaxDegreeOfParallelism = PartitionSlots.Five;
     }
 
     protected override Endpoint buildEndpoint(WolverineOptions options, string name)

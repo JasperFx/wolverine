@@ -62,7 +62,7 @@ public static IEnumerable<object> Handle(IncomingMessage message)
         TenantId = "one"
     });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/using_group_ids.cs#L32-L51' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_tenant_id_and_cascading_messages' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/using_group_ids.cs#L29-L48' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_tenant_id_and_cascading_messages' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Referencing the TenantId <Badge type="tip" text="3.6" />

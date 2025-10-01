@@ -208,7 +208,7 @@ public static class AmazonSqsTransportExtensions
     {
         rules.AddPublishingTopology((opts, _) =>
         {
-            var topology = new PartitionedMessageTopologyWithQueues(opts, ShardSlots.Five, baseName, numberOfEndpoints);
+            var topology = new PartitionedMessageTopologyWithQueues(opts, PartitionSlots.Five, baseName, numberOfEndpoints);
             topology.ConfigureListening(x => {});
             configure(topology);
             topology.AssertValidity();
