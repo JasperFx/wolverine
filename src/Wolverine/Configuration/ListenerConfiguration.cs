@@ -408,18 +408,3 @@ public class ListenerConfiguration<TSelf, TEndpoint> : DelayedEndpointConfigurat
         return this.As<TSelf>();
     }
 }
-
-public enum ProcessingOrder
-{
-    /// <summary>
-    ///     Should the messages be processed in the strict order in which they
-    ///     were received?
-    /// </summary>
-    StrictOrdered,
-
-    /// <summary>
-    ///     Is it okay to allow the local queue to process messages in any order? This
-    ///     may give better throughput
-    /// </summary>
-    UnOrdered
-}

@@ -135,7 +135,7 @@ public static OrderShipped Ship(ShipOrder2 command, [Aggregate] Order order)
     return new OrderShipped();
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L134-L149' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_aggregate_attribute_1' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L137-L152' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_aggregate_attribute_1' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Using this version of the "aggregate workflow", you no longer have to supply a command in the request body, so you could
@@ -154,7 +154,7 @@ public static OrderShipped Ship3([Aggregate] Order order)
     return new OrderShipped();
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L151-L163' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_aggregate_attribute_2' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L154-L166' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_aggregate_attribute_2' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 A couple other notes: 
@@ -247,7 +247,7 @@ public class Order
     public bool IsShipped() => Shipped.HasValue;
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L14-L86' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_order_aggregate_for_http' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L17-L89' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_order_aggregate_for_http' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 To append a single event to an event stream from an HTTP endpoint, you can use a return value like so:
@@ -266,7 +266,7 @@ public static OrderShipped Ship(ShipOrder command, Order order)
     return new OrderShipped();
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L119-L132' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_emptyresponse' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L122-L135' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_emptyresponse' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Or potentially append multiple events using the `Events` type as a return value like this sample:
@@ -302,7 +302,7 @@ public static (OrderStatus, Events) Post(MarkItemReady command, Order order)
     return (new OrderStatus(order.Id, order.IsReadyToShip()), events);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L227-L257' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_returning_multiple_events_from_http_endpoint' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L230-L260' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_returning_multiple_events_from_http_endpoint' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ### Responding with the Updated Aggregate
@@ -328,7 +328,7 @@ public static (UpdatedAggregate, Events) ConfirmDifferent(ConfirmOrder command, 
     );
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L285-L299' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_returning_updated_aggregate_as_response_from_http_endpoint' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L288-L302' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_returning_updated_aggregate_as_response_from_http_endpoint' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Reading the Latest Version of an Aggregate
@@ -347,7 +347,7 @@ an HTTP endpoint method, use the `[ReadAggregate]` attribute like this:
 [WolverineGet("/orders/latest/{id}")]
 public static Order GetLatest(Guid id, [ReadAggregate] Order order) => order;
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L313-L318' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_readaggregate_in_http' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L316-L321' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_readaggregate_in_http' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 If the aggregate doesn't exist, the HTTP request will stop with a 404 status code. 
