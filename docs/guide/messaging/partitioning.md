@@ -354,11 +354,52 @@ within a cluster is actively listening and processing messages from each partiti
 
 For Rabbit MQ:
 
-snippet: sample_defining_partitioned_routing_for_rabbitmq
+<!-- snippet: sample_defining_partitioned_routing_for_rabbitmq -->
+<a id='snippet-sample_defining_partitioned_routing_for_rabbitmq'></a>
+```cs
+// opts is the WolverineOptions from within an Add/UseWolverine() call
+
+// Telling Wolverine how to assign a GroupId to a message, that we'll use
+// to predictably sort into "slots" in the processing
+opts.MessagePartitioning.ByMessage<ILetterMessage>(x => x.Id.ToString());
+
+// This is creating Rabbit MQ queues named "letters1" etc. 
+opts.MessagePartitioning.PublishToShardedRabbitQueues("letters", 4, topology =>
+{
+    topology.MessagesImplementing<ILetterMessage>();
+    topology.MaxDegreeOfParallelism = PartitionSlots.Five;
+    
+    topology.ConfigureSender(x =>
+    {
+        // just to show that you can do this...
+        x.DeliverWithin(5.Minutes());
+    });
+    topology.ConfigureListening(x => x.BufferedInMemory());
+});
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/concurrency_resilient_sharded_processing.cs#L71-L93' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_defining_partitioned_routing_for_rabbitmq' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 And for Amazon SQS:
 
-snippet: sample_partitioned_publishing_through_amazon_sqs
+<!-- snippet: sample_partitioned_publishing_through_amazon_sqs -->
+<a id='snippet-sample_partitioned_publishing_through_amazon_sqs'></a>
+```cs
+// Telling Wolverine how to assign a GroupId to a message, that we'll use
+// to predictably sort into "slots" in the processing
+opts.MessagePartitioning.ByMessage<ILetterMessage>(x => x.Id.ToString());
+
+opts.MessagePartitioning.PublishToShardedAmazonSqsQueues("letters", 4, topology =>
+{
+    topology.MessagesImplementing<ILetterMessage>();
+    topology.MaxDegreeOfParallelism = PartitionSlots.Five;
+    
+    topology.ConfigureListening(x => x.BufferedInMemory().MessageBatchSize(10));
+
+});
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/concurrency_resilient_sharded_processing.cs#L72-L87' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_partitioned_publishing_through_amazon_sqs' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 ## Partitioning Messages Received from External Systems
 
