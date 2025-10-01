@@ -1,3 +1,4 @@
+using JasperFx;
 using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
 using Wolverine;
@@ -9,6 +10,23 @@ public class ExceptionHandling;
 
 public static class AppWithErrorHandling
 {
+    public static async Task concurrency_retries()
+    {
+        #region sample_simple_retries_on_concurrency_exception
+
+        var builder = Host.CreateApplicationBuilder();
+        builder.UseWolverine(opts =>
+        {
+            opts
+                // On optimistic concurrency failures from Marten
+                .OnException<ConcurrencyException>()
+                .RetryWithCooldown(100.Milliseconds(), 250.Milliseconds(), 500.Milliseconds())
+                .Then.MoveToErrorQueue();
+        });
+
+        #endregion
+    }
+    
     public static async Task sample()
     {
         #region sample_AppWithErrorHandling
