@@ -162,6 +162,11 @@ public class SignalRTransport : Endpoint, ITransport, IListener, ISender
 
         var json = _mapper!.WriteToString(envelope);
 
+        if (Logger != null && Logger.IsEnabled(LogLevel.Debug))
+        {
+            Logger.LogDebug("Sent JSON via SignalR: {Json}", json);
+        }
+
         return new ValueTask(locator.Find(HubContext!).SendAsync(operation, json));
     }
 }
