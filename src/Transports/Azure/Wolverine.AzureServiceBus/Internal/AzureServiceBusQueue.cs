@@ -190,7 +190,7 @@ public class AzureServiceBusQueue : AzureServiceBusEndpoint, IBrokerQueue, IMass
     }
 
     /// <summary>
-    /// Name of the dead letter queue for this SQS queue where failed messages will be moved
+    /// Name of the dead letter queue for this ASB queue where failed messages will be moved
     /// </summary>
     public string? DeadLetterQueueName { get; set; } = AzureServiceBusTransport.DeadLetterQueueName;
 
