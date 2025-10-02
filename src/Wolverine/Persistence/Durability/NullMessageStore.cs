@@ -22,6 +22,8 @@ public class NullMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IM
     {
         return Task.CompletedTask;
     }
+    
+    public List<string> TenantIds { get; } = new();
 
     public string Name => "Nullo";
     public void PromoteToMain(IWolverineRuntime runtime)

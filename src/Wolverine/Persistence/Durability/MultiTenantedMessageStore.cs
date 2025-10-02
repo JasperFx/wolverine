@@ -38,6 +38,8 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
         Main = main;
     }
 
+    public List<string> TenantIds { get; } = new();
+
     public void DemoteToAncillary()
     {
         Main.DemoteToAncillary();

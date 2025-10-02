@@ -30,6 +30,8 @@ public partial class RavenDbMessageStore : IMessageStoreWithAgentSupport
 
     public MessageStoreRole Role { get; set; } = MessageStoreRole.Main;
     
+    public List<string> TenantIds { get; } = new();
+    
     public void PromoteToMain(IWolverineRuntime runtime)
     {
         Role = MessageStoreRole.Main;
