@@ -21,7 +21,7 @@ public class WolverineHub : Hub
     }
 
     [HubMethodName("ReceiveMessage")]
-    public Task Receive(string json)
+    public Task ReceiveMessage(string json)
     {
         return _endpoint.ReceiveAsync(Context, json);
     }

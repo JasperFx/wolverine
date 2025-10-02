@@ -145,6 +145,6 @@ public class SignalRClientEndpoint : Endpoint, IListener, ISender
         
         var json = _mapper.WriteToString(envelope);
 
-        await _connection.InvokeAsync(nameof(WolverineHub.Receive), json);
+        await _connection.InvokeAsync(nameof(WolverineHub.ReceiveMessage), json);
     }
 }
