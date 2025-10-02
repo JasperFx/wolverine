@@ -71,6 +71,11 @@ public interface IMessageStore : IAsyncDisposable
     ///     What is the role of this message store within the application?
     /// </summary>
     MessageStoreRole Role { get; }
+    
+    /// <summary>
+    /// In the case of multi-tenancy, this would hold one or more tenant ids
+    /// </summary>
+    List<string> TenantIds { get; }
 
     /// <summary>
     ///     Unique identifier for a message store in case of systems that use multiple message
