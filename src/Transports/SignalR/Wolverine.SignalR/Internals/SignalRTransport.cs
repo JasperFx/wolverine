@@ -81,6 +81,10 @@ public class SignalRTransport : Endpoint, ITransport, IListener, ISender
                     "The SignalR Transport has not been initialized. Ensure that there is a WolverineOptions.UseSignalR() call in your configuration");
             }
 
+            if (Logger?.IsEnabled(LogLevel.Debug) ?? false)
+            {
+                Logger.LogDebug("Received JSON from SignalR: {Json} ", json);   
+            }
             
             var envelope = new SignalREnvelope(context, HubContext!);
             _mapper!.MapIncoming(envelope, json);
