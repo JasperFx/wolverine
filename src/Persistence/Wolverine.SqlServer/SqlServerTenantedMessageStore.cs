@@ -1,11 +1,11 @@
 using ImTools;
 using JasperFx;
+using JasperFx.Core;
 using JasperFx.Descriptors;
 using JasperFx.MultiTenancy;
 using Microsoft.Extensions.Logging;
 using Wolverine.Persistence.Durability;
 using Wolverine.RDBMS;
-using Wolverine.RDBMS.MultiTenancy;
 using Wolverine.RDBMS.Sagas;
 using Wolverine.Runtime;
 using Wolverine.SqlServer.Persistence;
@@ -45,6 +45,7 @@ internal class SqlServerTenantedMessageStore : ITenantedMessageSource
 
         var connectionString = await _persistence.ConnectionStringTenancy!.FindAsync(tenantId);
         store = buildTenantStoreForConnectionString(connectionString);
+        store.TenantIds.Fill(tenantId);
         
         if (_runtime.Options.AutoBuildMessageStorageOnStartup != AutoCreate.None)
         {
@@ -86,6 +87,7 @@ internal class SqlServerTenantedMessageStore : ITenantedMessageSource
             if (!_stores.Contains(assignment.TenantId))
             {
                 var store = buildTenantStoreForConnectionString(assignment.Value);
+                store.TenantIds.Fill(assignment.TenantId);
                 
                 if (_runtime.Options.AutoBuildMessageStorageOnStartup != AutoCreate.None)
                 {

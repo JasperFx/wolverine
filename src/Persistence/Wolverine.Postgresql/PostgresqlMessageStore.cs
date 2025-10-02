@@ -351,6 +351,8 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
             SubjectUri = SubjectUri,
             Identifier = Identifier
         };
+        
+        descriptor.TenantIds.AddRange(TenantIds);
 
         descriptor.Properties.Add(OptionsValue.Read(builder, x => x.Host));
         descriptor.Properties.Add(OptionsValue.Read(builder, x => x.Port));
