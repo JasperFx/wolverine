@@ -162,6 +162,8 @@ internal class MartenMessageDatabaseSource : ITenantedMessageSource
         {
             Name = database.Identifier ?? new NpgsqlConnectionStringBuilder(settings.ConnectionString).Database
         };
+        
+        store.TenantIds.AddRange(database.TenantIds.Distinct());
 
         return store;
     }
