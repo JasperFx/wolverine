@@ -221,7 +221,7 @@ Chances are good that one of the things preventing a successful startup is that 
 
 Microsoft's recomendation for detecting whether the application is running for the purpose of document generation is to use this code:
 ```cs
-var generatingOpenApi = Assembly.GetEntryAssembly()?.GetName().Name != "GetDocument.Insider"
+var generatingOpenApi = Assembly.GetEntryAssembly()?.GetName().Name == "GetDocument.Insider"
 ```
 
 If this mode is detected, all connections can be disabled like so:
