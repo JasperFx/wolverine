@@ -39,6 +39,8 @@ public class SqlServerTransportDatabase : DatabaseBase<SqlConnection>
             Subject = GetType().FullNameInCode(),
             SchemaOrNamespace = _transport.TransportSchemaName
         };
+        
+        descriptor.TenantIds.AddRange(TenantIds);
 
         descriptor.Properties.Add(OptionsValue.Read(builder, x => x.ApplicationName));
         descriptor.Properties.Add(OptionsValue.Read(builder, x => x.Enlist));

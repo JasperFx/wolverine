@@ -355,6 +355,8 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
             SchemaOrNamespace = _settings.SchemaName,
             SubjectUri = SubjectUri
         };
+        
+        descriptor.TenantIds.AddRange(TenantIds);
 
         descriptor.Properties.Add(OptionsValue.Read(builder, x => x.ApplicationName));
         descriptor.Properties.Add(OptionsValue.Read(builder, x => x.Enlist));
