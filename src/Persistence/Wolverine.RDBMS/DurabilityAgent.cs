@@ -1,3 +1,4 @@
+using JasperFx;
 using JasperFx.Blocks;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
@@ -64,7 +65,7 @@ internal class DurabilityAgent : IAgent
 
     public bool AutoStartScheduledJobPolling { get; set; } = false;
 
-    public AgentStatus Status { get; set; } = AgentStatus.Started;
+    public AgentStatus Status { get; set; } = AgentStatus.Running;
 
     public Task StartAsync(CancellationToken cancellationToken)
     {

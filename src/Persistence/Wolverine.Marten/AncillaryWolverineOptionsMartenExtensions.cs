@@ -4,6 +4,7 @@ using JasperFx.Core.IoC;
 using JasperFx.Core.Reflection;
 using JasperFx.Events.Subscriptions;
 using Marten;
+using Marten.Events.Daemon.Coordination;
 using Marten.Internal;
 using Marten.Storage;
 using Marten.Subscriptions;
@@ -14,6 +15,7 @@ using Npgsql;
 using Weasel.Core;
 using Weasel.Core.Migrations;
 using Weasel.Postgresql;
+using Wolverine.Marten.Distribution;
 using Wolverine.Marten.Publishing;
 using Wolverine.Marten.Subscriptions;
 using Wolverine.Persistence;
@@ -82,6 +84,10 @@ public static class AncillaryWolverineOptionsMartenExtensions
 
         expression.Services.AddType(typeof(IDatabaseSource), typeof(MessageDatabaseDiscovery),
             ServiceLifetime.Singleton);
+
+        // TODO -- watch the service registrations
+        expression.Services.AddSingleton<EventSubscriptionAgentFamily>();
+        expression.Services.AddSingleton<IProjectionCoordinator<T>, WolverineProjectionCoordinator<T>>();
         
         // Limitation is that the wolverine objects go in the same schema
         

@@ -19,7 +19,7 @@ public class basic_agent_mechanics_multiple_tenants : MultiTenantContext
 
         await theOriginalHost.WaitUntilAssignmentsChangeTo(w =>
         {
-            w.AgentScheme = theProjectionAgents.Scheme;
+            w.AgentScheme = theDistributor.Scheme;
 
             // 3 projections x 2 databases = 6 total
             w.ExpectRunningAgents(theOriginalHost, 6);
@@ -31,12 +31,12 @@ public class basic_agent_mechanics_multiple_tenants : MultiTenantContext
     {
         await tenancy.AddDatabaseRecordAsync("tenant1", tenant1ConnectionString);
         await tenancy.AddDatabaseRecordAsync("tenant2", tenant2ConnectionString);
-        await tenancy.AddDatabaseRecordAsync("tenant3", tenant2ConnectionString);
-        await tenancy.AddDatabaseRecordAsync("tenant4", tenant2ConnectionString);
+        await tenancy.AddDatabaseRecordAsync("tenant3", tenant3ConnectionString);
+        await tenancy.AddDatabaseRecordAsync("tenant4", tenant4ConnectionString);
         
         await theOriginalHost.WaitUntilAssignmentsChangeTo(w =>
         {
-            w.AgentScheme = theProjectionAgents.Scheme;
+            w.AgentScheme = theDistributor.Scheme;
         
             // 3 projections x 2 databases = 6 total
             w.ExpectRunningAgents(theOriginalHost, 12);
@@ -59,7 +59,7 @@ public class basic_agent_mechanics_multiple_tenants : MultiTenantContext
         
         await theOriginalHost.WaitUntilAssignmentsChangeTo(w =>
         {
-            w.AgentScheme = theProjectionAgents.Scheme;
+            w.AgentScheme = theDistributor.Scheme;
 
             // 3 projections x 2 databases = 6 total
             w.ExpectRunningAgents(theOriginalHost, 3);

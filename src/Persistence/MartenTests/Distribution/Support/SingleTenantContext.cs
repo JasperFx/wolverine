@@ -27,7 +27,7 @@ public abstract class SingleTenantContext : IAsyncLifetime
     private readonly List<IHost> _hosts = new();
     private readonly ITestOutputHelper _output;
     protected IHost theOriginalHost;
-    internal ProjectionAgents theProjectionAgents;
+    internal EventSubscriptionAgentFamily theProjectionAgents;
 
     public SingleTenantContext(ITestOutputHelper output)
     {
@@ -99,7 +99,7 @@ public abstract class SingleTenantContext : IAsyncLifetime
 
         _hosts.Add(host);
 
-        theProjectionAgents ??= host.Services.GetServices<IAgentFamily>().OfType<ProjectionAgents>().Single();
+        theProjectionAgents ??= host.Services.GetServices<IAgentFamily>().OfType<EventSubscriptionAgentFamily>().Single();
 
         return host;
     }
@@ -134,7 +134,7 @@ public abstract class SingleTenantContext : IAsyncLifetime
 
         _hosts.Add(host);
 
-        theProjectionAgents ??= host.Services.GetServices<IAgentFamily>().OfType<ProjectionAgents>().Single();
+        theProjectionAgents ??= host.Services.GetServices<IAgentFamily>().OfType<EventSubscriptionAgentFamily>().Single();
 
         return host;
     }

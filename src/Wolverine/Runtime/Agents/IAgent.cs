@@ -1,4 +1,5 @@
 using System;
+using JasperFx;
 using Microsoft.Extensions.Hosting;
 
 namespace Wolverine.Runtime.Agents;
@@ -44,7 +45,7 @@ public class CompositeAgent : IAgent
             await agent.StartAsync(cancellationToken);
         }
 
-        Status = AgentStatus.Started;
+        Status = AgentStatus.Running;
     }
 
     public async Task StopAsync(CancellationToken cancellationToken)
@@ -54,17 +55,10 @@ public class CompositeAgent : IAgent
             await agent.StopAsync(cancellationToken);
         }
 
-        Status = AgentStatus.Started;
+        Status = AgentStatus.Running ;
     }
 
     public AgentStatus Status { get; private set; } = AgentStatus.Stopped;
-}
-
-public enum AgentStatus
-{
-    Started,
-    Stopped,
-    Paused
 }
 
 #endregion

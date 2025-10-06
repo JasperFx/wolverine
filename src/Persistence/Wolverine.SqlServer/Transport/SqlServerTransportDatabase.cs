@@ -26,6 +26,10 @@ public class SqlServerTransportDatabase : DatabaseBase<SqlConnection>
     {
         _transport = runtime.Options.SqlServerTransport();
         _runtime = runtime;
+        
+        // ReSharper disable once VirtualMemberCallInConstructor
+        var descriptor = Describe();
+        Id = new DatabaseId(descriptor.ServerName, descriptor.DatabaseName);
     }
     
     public override DatabaseDescriptor Describe()

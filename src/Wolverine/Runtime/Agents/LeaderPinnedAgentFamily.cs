@@ -1,3 +1,4 @@
+using JasperFx;
 using JasperFx.Core;
 using Wolverine.Configuration;
 
@@ -29,7 +30,7 @@ internal class LeaderPinnedListenerAgent : IAgent
 
     public Uri Uri { get; set; }
     
-    public AgentStatus Status { get; set; } = AgentStatus.Started;
+    public AgentStatus Status { get; set; } = AgentStatus.Running;
 }
 
 public class LeaderPinnedListenerFamily : IStaticAgentFamily

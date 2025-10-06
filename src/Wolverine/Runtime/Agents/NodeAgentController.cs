@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using JasperFx;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -197,7 +198,7 @@ public partial class NodeAgentController
 
     public Uri[] AllRunningAgentUris()
     {
-        return Agents.Where(x => x.Value.Status == AgentStatus.Started).Select(x => x.Key).ToArray();
+        return Agents.Where(x => x.Value.Status != AgentStatus.Stopped).Select(x => x.Key).ToArray();
     }
 
     /// <summary>

@@ -1,3 +1,4 @@
+using JasperFx;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
 
@@ -63,7 +64,7 @@ public partial class MultiTenantedMessageStore : IAgentFamily
             return Task.CompletedTask;
         }
         
-        public AgentStatus Status { get; set; } = AgentStatus.Started;
+        public AgentStatus Status { get; set; } = AgentStatus.Running;
 
         public Uri Uri { get; } = new Uri("wolverinedb://");
     }

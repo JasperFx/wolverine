@@ -1,3 +1,4 @@
+using JasperFx;
 using Wolverine.Runtime.Agents;
 
 namespace Wolverine.ComplianceTests;
@@ -14,7 +15,7 @@ public class FakeAgent : IAgent
     public Task StartAsync(CancellationToken cancellationToken)
     {
         IsRunning = true;
-        Status = AgentStatus.Started;
+        Status = AgentStatus.Running;
         return Task.CompletedTask;
     }
 
@@ -25,7 +26,7 @@ public class FakeAgent : IAgent
         return Task.CompletedTask;
     }
     
-    public AgentStatus Status { get; private set; } = AgentStatus.Started;
+    public AgentStatus Status { get; private set; } = AgentStatus.Running;
 
     public Uri Uri { get; }
 }
