@@ -40,6 +40,9 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
     public PostgresqlMessageStore(DatabaseSettings databaseSettings, DurabilitySettings settings, NpgsqlDataSource dataSource,
         ILogger<PostgresqlMessageStore> logger) : this(databaseSettings, settings, GetPrimaryNpgsqlNodeIfPossible(dataSource), logger, Array.Empty<SagaTableDefinition>())
     {
+        // ReSharper disable once VirtualMemberCallInConstructor
+        var descriptor = Describe();
+        Id = new DatabaseId(descriptor.ServerName, descriptor.DatabaseName);
     }
 
     private static NpgsqlDataSource GetPrimaryNpgsqlNodeIfPossible(NpgsqlDataSource dataSource)

@@ -27,9 +27,14 @@ public class basic_agent_mechanics_single_tenant : SingleTenantContext
         var uris = await theProjectionAgents.AllKnownAgentsAsync();
         
         uris.Count.ShouldBe(3);
-        uris.ShouldContain(ProjectionAgents.UriFor("Marten", "Day:All"));
-        uris.ShouldContain(ProjectionAgents.UriFor("Marten", "Trip:All"));
-        uris.ShouldContain(ProjectionAgents.UriFor("Marten", "Distance:All"));
+        
+        uris.OrderBy(x => x.ToString()).ShouldBe([
+            new Uri("event-subscriptions://main:marten@localhost.postgres/day/all"),
+            new Uri("event-subscriptions://main:marten@localhost.postgres/distance/all"),
+            new Uri("event-subscriptions://main:marten@localhost.postgres/trip/all"),
+        
+        ]);
+
     }
 
     [Fact]
@@ -39,7 +44,7 @@ public class basic_agent_mechanics_single_tenant : SingleTenantContext
 
         await theOriginalHost.WaitUntilAssignmentsChangeTo(w =>
         {
-            w.AgentScheme = ProjectionAgents.SchemeName;
+            w.AgentScheme = EventSubscriptionAgentFamily.SchemeName;
             w.ExpectRunningAgents(theOriginalHost, 3);
         }, 30.Seconds());
     }
@@ -55,7 +60,7 @@ public class basic_agent_mechanics_single_tenant : SingleTenantContext
         // Now, let's check that the load is redistributed!
         await theOriginalHost.WaitUntilAssignmentsChangeTo(w =>
         {
-            w.AgentScheme = ProjectionAgents.SchemeName;
+            w.AgentScheme = EventSubscriptionAgentFamily.SchemeName;
             w.ExpectRunningAgents(theOriginalHost, 1);
             w.ExpectRunningAgents(host2, 1);
             w.ExpectRunningAgents(host3, 1);

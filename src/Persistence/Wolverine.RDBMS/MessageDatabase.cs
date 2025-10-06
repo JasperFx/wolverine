@@ -61,6 +61,8 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
         DataSource = dataSource;
 
         var descriptor = Describe();
+
+        Id = new DatabaseId(descriptor.ServerName, descriptor.DatabaseName);
         
         var parts = new List<string>
         {
