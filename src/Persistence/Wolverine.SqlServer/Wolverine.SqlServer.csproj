@@ -13,7 +13,7 @@
         <EmbeddedResource Include="Schema/*.sql" />
     </ItemGroup>
     <ItemGroup>
-      <ProjectReference Include="..\..\..\..\weasel\src\Weasel.SqlServer\Weasel.SqlServer.csproj" />
+      <PackageReference Include="Weasel.SqlServer" Version="8.2.0" />
     </ItemGroup>
 
     <Import Project="../../../Analysis.Build.props" />
