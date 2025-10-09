@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using JasperFx.CommandLine.TextualDisplays;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Microsoft.Extensions.DependencyInjection;
