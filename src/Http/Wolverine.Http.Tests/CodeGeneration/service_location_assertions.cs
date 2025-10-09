@@ -4,6 +4,7 @@ using IntegrationTests;
 using JasperFx;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
+using JasperFx.Core;
 using Marten;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -11,6 +12,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using Shouldly;
+using Wolverine.Attributes;
+using Wolverine.ComplianceTests;
 using Wolverine.Configuration;
 using Wolverine.Marten;
 
@@ -42,6 +45,18 @@ public class service_location_assertions
             opts.Discovery.IncludeAssembly(GetType().Assembly);
 
             opts.Services.AddScoped<IThing>(s => new BigThing());
+            
+            opts.IncludeType(typeof(CSP5User));
+            opts.CodeGeneration.AlwaysUseServiceLocationFor<IFlag>();
+
+            opts.Services.AddScoped<IGateway, Gateway>();
+            opts.Services.AddScoped<IFlag>(x =>
+            {
+                var context = x.GetRequiredService<ColorContext>();
+                return context.Color.EqualsIgnoreCase("red") ? new RedFlag() : new GreenFlag();
+            });
+
+            opts.Services.AddSingleton(new ColorContext("Red"));
             
             configure(opts);
         });
@@ -196,6 +211,47 @@ public class service_location_assertions
 
 
     }
+
+    [Theory]
+    [InlineData(ServiceLocationPolicy.AllowedButWarn, ServiceProviderSource.IsolatedAndScoped)]
+    [InlineData(ServiceLocationPolicy.AlwaysAllowed, ServiceProviderSource.IsolatedAndScoped)]
+    [InlineData(ServiceLocationPolicy.AllowedButWarn, ServiceProviderSource.FromHttpContextRequestServices)]
+    [InlineData(ServiceLocationPolicy.AlwaysAllowed, ServiceProviderSource.FromHttpContextRequestServices)]
+    public async Task always_use_service_location_does_not_count_toward_validation(ServiceLocationPolicy policy, ServiceProviderSource source)
+    {
+        await using var host = await buildHost(source, opts =>
+        {
+            opts.ServiceLocationPolicy = policy;
+        });
+
+        CSP5User.Flag = null;
+        
+        await host.InvokeAsync(new CSP5());
+        CSP5User.Flag.ShouldBeOfType<RedFlag>();
+    }
+    
+    [Theory]
+    [InlineData(ServiceLocationPolicy.AllowedButWarn, ServiceProviderSource.IsolatedAndScoped)]
+    [InlineData(ServiceLocationPolicy.AlwaysAllowed, ServiceProviderSource.IsolatedAndScoped)]
+    [InlineData(ServiceLocationPolicy.AllowedButWarn, ServiceProviderSource.FromHttpContextRequestServices)]
+    [InlineData(ServiceLocationPolicy.AlwaysAllowed, ServiceProviderSource.FromHttpContextRequestServices)]
+    public async Task always_use_service_location_does_not_count_toward_validation_in_http_endpoint(ServiceLocationPolicy policy, ServiceProviderSource source)
+    {
+        await using var host = await buildHost(source, opts =>
+        {
+            opts.ServiceLocationPolicy = policy;
+        });
+
+        CSP5User.Flag = null;
+
+        await host.Scenario(x =>
+        {
+            x.Post.Json(new CSP5()).ToUrl("/csp5");
+            x.StatusCodeShouldBe(204);
+        });
+        
+        CSP5User.Flag.ShouldBeOfType<RedFlag>();
+    }
 }
 
 public interface IWidget;
@@ -262,3 +318,27 @@ public class RecordingLogger : ILoggerFactory, ILogger
         Messages.Add(formatter(state, exception));
     }
 }
+
+public record CSP5;
+
+public static class CSP5User
+{
+    public static IFlag? Flag { get; set; } 
+    
+    [WolverinePost("/csp5")]
+    public static void Handle(CSP5 message, IFlag flag, IGateway gateway)
+    {
+        Flag = flag;
+    }
+}
+
+
+
+public interface IFlag;
+public record ColorContext(string Color);
+
+public record RedFlag : IFlag;
+public record GreenFlag : IFlag;
+
+public interface IGateway;
+public class Gateway : IGateway;
