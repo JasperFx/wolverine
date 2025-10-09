@@ -27,40 +27,60 @@ using Wolverine.Runtime;
 
 namespace Wolverine.Marten;
 
+public class AncillaryMartenIntegration
+{
+    /// <summary>
+    /// Optionally move the Wolverine envelope storage to a separate schema.
+    /// The recommendation would be to either leave this null, or use the same
+    /// schema name as the main Marten store
+    /// </summary>
+    public string? SchemaName { get; set; }
+    
+    /// <summary>
+    ///     In the case of Marten using a database per tenant, you may wish to
+    ///     explicitly determine the master database for Wolverine where Wolverine will store node and envelope information.
+    ///     This does not have to be one of the tenant databases
+    ///     Wolverine will try to use the master database from the Marten configuration when possible
+    /// </summary>
+    public string? MainConnectionString { get; set; }
+    
+    /// <summary>
+    ///     In the case of Marten using a database per tenant, you may wish to
+    ///     explicitly determine the master database for Wolverine where Wolverine will store node and envelope information.
+    ///     This does not have to be one of the tenant databases
+    ///     Wolverine will try to use the master database from the Marten configuration when possible
+    /// </summary>
+    public NpgsqlDataSource? MainDataSource { get; set; }
+    
+    /// <summary>
+    /// Optionally override whether to automatically create message database schema objects. Defaults to <see cref="StoreOptions.AutoCreateSchemaObjects"/>.
+    /// </summary>
+    public AutoCreate? AutoCreate { get; set; }
+
+    internal void AssertValidity()
+    {
+        if (SchemaName.IsNotEmpty() && SchemaName != SchemaName.ToLowerInvariant())
+        {
+            throw new ArgumentOutOfRangeException(nameof(SchemaName),
+                "The schema name must be in all lower case characters");
+        }
+    }
+}
+
 public static class AncillaryWolverineOptionsMartenExtensions
 {
     /// <summary>
     ///     Integrate Marten with Wolverine's persistent outbox and add Marten-specific middleware
     ///     to Wolverine
     /// </summary>
-    /// <param name="expression"></param>
-    /// <param name="schemaName">Optionally move the Wolverine envelope storage to a separate schema</param>
-    /// <param name="masterDataSource">
-    ///     In the case of Marten using a database per tenant, you may wish to
-    ///     explicitly determine the master database for Wolverine where Wolverine will store node and envelope information.
-    ///     This does not have to be one of the tenant databases
-    ///     Wolverine will try to use the master database from the Marten configuration when possible
-    /// </param>
-    /// <param name="masterDatabaseConnectionString">
-    ///     In the case of Marten using a database per tenant, you may wish to
-    ///     explicitly determine the master database for Wolverine where Wolverine will store node and envelope information.
-    ///     This does not have to be one of the tenant databases
-    ///     Wolverine will try to use the master database from the Marten configuration when possible
-    /// </param>
-    /// <param name="autoCreate">Optionally override whether to automatically create message database schema objects. Defaults to <see cref="StoreOptions.AutoCreateSchemaObjects"/>.</param>
-    /// <returns></returns>
+    /// <param name="configure">Optional configuration of ancillary Marten integration</param>
     public static MartenServiceCollectionExtensions.MartenStoreExpression<T> IntegrateWithWolverine<T>(
         this MartenServiceCollectionExtensions.MartenStoreExpression<T> expression, 
-        string? schemaName = null,
-        string? masterDatabaseConnectionString = null, 
-        NpgsqlDataSource? masterDataSource = null, 
-        AutoCreate? autoCreate = null) where T : class, IDocumentStore
+        Action<AncillaryMartenIntegration>? configure = null) where T : class, IDocumentStore
     {
-        if (schemaName.IsNotEmpty() && schemaName != schemaName.ToLowerInvariant())
-        {
-            throw new ArgumentOutOfRangeException(nameof(schemaName),
-                "The schema name must be in all lower case characters");
-        }
+        var integration = new AncillaryMartenIntegration();
+        configure?.Invoke(integration);
+        integration.AssertValidity();
 
         expression.Services.AddSingleton<IConfigureMarten<T>, MartenOverrides<T>>();
 
@@ -71,15 +91,15 @@ public static class AncillaryWolverineOptionsMartenExtensions
             var runtime = s.GetRequiredService<IWolverineRuntime>();
             var logger = s.GetRequiredService<ILogger<PostgresqlMessageStore>>();
 
-            schemaName ??= runtime.Options.Durability.MessageStorageSchemaName ?? store.Options.DatabaseSchemaName;
+            integration.SchemaName ??= runtime.Options.Durability.MessageStorageSchemaName ?? store.Options.DatabaseSchemaName;
 
             // TODO -- hacky. Need a way to expose this in Marten
             if (store.Tenancy.GetType().Name == "DefaultTenancy")
             {
-                return BuildSinglePostgresqlMessageStore<T>(schemaName, autoCreate, store, runtime, logger);
+                return BuildSinglePostgresqlMessageStore<T>(integration.SchemaName, integration.AutoCreate, store, runtime, logger);
             }
 
-            return BuildMultiTenantedMessageDatabase<T>(schemaName, autoCreate, masterDatabaseConnectionString, masterDataSource, store, runtime);
+            return BuildMultiTenantedMessageDatabase<T>(integration.SchemaName, integration.AutoCreate, integration.MainConnectionString, integration.MainDataSource, store, runtime);
         });
 
         expression.Services.AddType(typeof(IDatabaseSource), typeof(MessageDatabaseDiscovery),

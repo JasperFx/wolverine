@@ -95,13 +95,13 @@ public class modular_monolith_usage
                 {
                     m.Connection(Servers.PostgresConnectionString);
                     m.DatabaseSchemaName = "players";
-                }).IntegrateWithWolverine(schemaName:"different");
+                }).IntegrateWithWolverine(x => x.SchemaName = "different");
                 
                 opts.Services.AddMartenStore<IThingStore>(m =>
                 {
                     m.Connection(Servers.PostgresConnectionString);
                     m.DatabaseSchemaName = "things";
-                }).IntegrateWithWolverine(schemaName:"different");
+                }).IntegrateWithWolverine(x => x.SchemaName = "different");
 
                 opts.Services.AddResourceSetupOnStartup();
             }).StartAsync();
