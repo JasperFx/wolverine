@@ -61,7 +61,7 @@ public class ancillary_stores_use_different_databases : IAsyncLifetime
                 opts.Services.AddMartenStore<IThingStore>(m =>
                 {
                     m.Connection(thingsConnectionString);
-                }).IntegrateWithWolverine(masterDatabaseConnectionString: Servers.PostgresConnectionString);
+                }).IntegrateWithWolverine(x => x.MainConnectionString = Servers.PostgresConnectionString);
 
                 opts.Services.AddResourceSetupOnStartup();
             }).StartAsync();

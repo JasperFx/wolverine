@@ -95,7 +95,7 @@ public class bootstrapping_ancillary_marten_stores_with_wolverine : IAsyncLifeti
                         tenancy.AddSingleTenantDatabase(tenant3ConnectionString, "tenant3");
                     });
                     m.DatabaseSchemaName = "things";
-                }).IntegrateWithWolverine(masterDatabaseConnectionString: Servers.PostgresConnectionString);
+                }).IntegrateWithWolverine(x => x.MainConnectionString = Servers.PostgresConnectionString);
 
                 opts.Services.AddResourceSetupOnStartup();
             }).StartAsync();
