@@ -1,5 +1,7 @@
 using JasperFx.CodeGeneration;
+using JasperFx.Core;
 using Microsoft.Extensions.DependencyInjection;
+using Wolverine.Attributes;
 using Wolverine.ComplianceTests;
 using Xunit;
 using Xunit.Abstractions;
@@ -33,6 +35,29 @@ public class using_container_or_service_provider_in_handlers : CompilationContex
     {
         await Execute(new CSP4());
     }
+
+    [Fact]
+    public async Task using_service_location_with_one_service()
+    {
+        IfWolverineIsConfiguredAs(opts =>
+        {
+            opts.IncludeType(typeof(CSP5User));
+            opts.CodeGeneration.AlwaysUseServiceLocationFor<IFlag>();
+
+            opts.Services.AddScoped<IGateway, Gateway>();
+            opts.Services.AddScoped<IFlag>(x =>
+            {
+                var context = x.GetRequiredService<ColorContext>();
+                return context.Color.EqualsIgnoreCase("red") ? new RedFlag() : new GreenFlag();
+            });
+
+            opts.Services.AddSingleton(new ColorContext("Red"));
+        });
+        
+        await Execute(new CSP5());
+
+        CSP5User.Flag.ShouldBeOfType<RedFlag>();
+    }
 }
 
 public class CSP3;
@@ -61,3 +86,26 @@ public class CSP4Handler
         container.ShouldNotBeNull();
     }
 }
+
+public record CSP5;
+
+// Just need this to be explicit
+[WolverineIgnore]
+public static class CSP5User
+{
+    public static IFlag? Flag { get; set; } 
+    
+    public static void Handle(CSP5 message, IFlag flag, IGateway gateway)
+    {
+        Flag = flag;
+    }
+}
+
+public interface IFlag;
+public record ColorContext(string Color);
+
+public record RedFlag : IFlag;
+public record GreenFlag : IFlag;
+
+public interface IGateway;
+public class Gateway : IGateway;
