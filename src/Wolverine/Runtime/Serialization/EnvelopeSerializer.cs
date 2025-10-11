@@ -80,7 +80,20 @@ public static class EnvelopeSerializer
                     break;
 
                 case EnvelopeConstants.ExecutionTimeKey:
-                    env.ScheduledTime = XmlConvert.ToDateTime(value, XmlDateTimeSerializationMode.Utc);
+                    // Don't read it twice
+                    if (env.ScheduledTime.HasValue) return;
+
+                    try
+                    {
+                        env.ScheduledTime = XmlConvert.ToDateTime(value, XmlDateTimeSerializationMode.Utc);
+                    }
+                    catch (Exception )
+                    {
+                        if (DateTimeOffset.TryParse(value, out var dt))
+                        {
+                            env.ScheduledTime = dt;
+                        }
+                    }
                     break;
 
                 case EnvelopeConstants.AttemptsKey:
