@@ -51,7 +51,7 @@ public class BasicPubSubTests
             })
             .StartAsync();
 
-        var bus = host.Services.GetRequiredService<IMessageBus>();
+        var bus = host.MessageBus();
         // Send directly to the Redis stream endpoint to avoid route misconfiguration
         var uri = new Uri($"redis://stream/0/{streamKey}");
         await bus.EndpointFor(uri).SendAsync(new PubMessage("123"));

@@ -54,8 +54,8 @@ public class RedisClaimingTests
             })
             .UseWolverine(opts =>
             {
-                opts.UseRedisTransport("localhost:6379");
-                var endpoint = opts
+                opts.UseRedisTransport("localhost:6379").AutoProvision();
+                 opts
                     .ListenToRedisStream(streamKey, group)
                     .EnableAutoClaim(TimeSpan.FromMilliseconds(100), TimeSpan.FromMilliseconds(1))
                     .BatchSize(10)

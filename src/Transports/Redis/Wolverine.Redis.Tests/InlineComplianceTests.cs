@@ -1,5 +1,6 @@
 using System;
 using System.Threading.Tasks;
+using JasperFx.Core;
 using Wolverine.ComplianceTests.Compliance;
 using Wolverine.Configuration;
 using Wolverine.Redis;
@@ -18,17 +19,19 @@ public class RedisInlineComplianceFixture : TransportComplianceFixture, IAsyncLi
         var receiverStream = $"wolverine-tests-inline-receiver-{Guid.NewGuid():N}";
         OutboundAddress = new Uri($"redis://stream/0/{receiverStream}");
 
+        await ReceiverIs(opts =>
+        {
+            opts.UseRedisTransport("localhost:6379").AutoProvision();
+            opts.ListenToRedisStream(receiverStream, "g1").ProcessInline().StartFromBeginning();
+        });
+
         await SenderIs(opts =>
         {
             opts.UseRedisTransport("localhost:6379").AutoProvision();
             opts.PublishAllMessages().ToRedisStream(receiverStream).SendInline();
         });
 
-        await ReceiverIs(opts =>
-        {
-            opts.UseRedisTransport("localhost:6379").AutoProvision();
-            opts.ListenToRedisStream(receiverStream, "g1").ProcessInline();
-        });
+
     }
 
     public new Task DisposeAsync()
