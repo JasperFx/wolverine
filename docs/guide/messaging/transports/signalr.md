@@ -6,6 +6,10 @@ The SignalR transport has been requested several times, but finally got built sp
 team has heavily dog-fooded this feature.
 :::
 
+::: tip
+Much of the sample code is taken from a runnable sample application in the Wolverine codebase called [WolverineChat](https://github.com/JasperFx/wolverine/tree/main/src/Samples/WolverineChat).
+:::
+
 The [SignalR library](https://dotnet.microsoft.com/en-us/apps/aspnet/signalr) from Microsoft isn't hard to use from Wolverine for simplistic WebSockets
 or Server Side Events usage , but what if you want a server side
 application to exchange any number of different messages between a browser (or other WebSocket client because that's
