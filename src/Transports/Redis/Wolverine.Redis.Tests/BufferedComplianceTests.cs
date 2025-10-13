@@ -21,7 +21,7 @@ public class RedisBufferedComplianceFixture : TransportComplianceFixture, IAsync
         await ReceiverIs(opts =>
         {
             opts.UseRedisTransport("localhost:6379").AutoProvision();
-            opts.ListenToRedisStream(receiverStream, "g1").BufferedInMemory();
+            opts.ListenToRedisStream(receiverStream, "g1").BufferedInMemory().StartFromBeginning();
         });
 
         await SenderIs(opts =>

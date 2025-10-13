@@ -87,3 +87,9 @@ services:
       - "8082:8082"
       - "9092:9092"
       - "9101:9101"
+        
+  redis-server:
+    image: "redis:alpine"
+    command: redis-server
+    ports:
+      - "6379:6379"

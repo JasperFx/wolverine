@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using JasperFx.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -33,9 +34,30 @@ public class StartFromBehaviorTests
 
     public class MessageTracker
     {
+        public Task WaitForNumberOfMessages(int count, int timeoutInMilliseconds)
+        {
+            _completion = new TaskCompletionSource<bool>(false);
+            _expectedCount = count;
+
+            return _completion.Task.TimeoutAfterAsync(timeoutInMilliseconds);
+        }
+        
         private readonly List<string> _receivedMessages = new();
+        private TaskCompletionSource<bool>? _completion;
+        private int _expectedCount;
         public IReadOnlyList<string> ReceivedMessages => _receivedMessages.AsReadOnly();
-        public void AddMessage(string id) => _receivedMessages.Add(id);
+
+        public void AddMessage(string id)
+        {
+            _receivedMessages.Add(id);
+            if (_completion != null)
+            {
+                if (_receivedMessages.Count >= _expectedCount)
+                {
+                    _completion.TrySetResult(true);
+                }
+            }
+        }
     }
 
     [Fact]
@@ -53,7 +75,7 @@ public class StartFromBehaviorTests
             })
             .StartAsync();
 
-        var bus = publisherHost.Services.GetRequiredService<IMessageBus>();
+        var bus = publisherHost.MessageBus();
         
         // Send 3 messages before creating the consumer group
         await bus.EndpointFor(new Uri($"redis://stream/0/{streamKey}")).SendAsync(new TestMessage("before-1"));
@@ -88,7 +110,7 @@ public class StartFromBehaviorTests
         await Task.Delay(200);
 
         // Send a message after the listener is active
-        var listenerBus = listenerHost.Services.GetRequiredService<IMessageBus>();
+        var listenerBus = listenerHost.MessageBus();
         await listenerBus.EndpointFor(new Uri($"redis://stream/0/{streamKey}")).SendAsync(new TestMessage("after-1"));
 
         // Wait for completion or timeout
@@ -123,16 +145,22 @@ public class StartFromBehaviorTests
             .UseWolverine(opts =>
             {
                 opts.UseRedisTransport("localhost:6379").AutoProvision();
+
+                opts.PublishMessage<TestMessage>().To(new Uri($"redis://stream/0/{streamKey}"))
+                    .SendInline();
             })
             .StartAsync();
 
-        var bus = publisherHost.Services.GetRequiredService<IMessageBus>();
+        var bus = publisherHost.MessageBus();
         
         // Send messages before creating the consumer group
-        await bus.EndpointFor(new Uri($"redis://stream/0/{streamKey}")).SendAsync(new TestMessage("existing-1"));
-        await bus.EndpointFor(new Uri($"redis://stream/0/{streamKey}")).SendAsync(new TestMessage("existing-2"));
+
+        await bus.PublishAsync(new TestMessage("existing-1"));
+        await bus.PublishAsync(new TestMessage("existing-2"));
 
         await publisherHost.StopAsync();
+
+        var waiter = tracker.WaitForNumberOfMessages(2, 10000);
 
         // Now create a listener with StartFromBeginning
         using var listenerHost = await Host.CreateDefaultBuilder()
@@ -145,7 +173,7 @@ public class StartFromBehaviorTests
             .UseWolverine(opts =>
             {
                 opts.UseRedisTransport("localhost:6379").AutoProvision();
-                var endpoint = opts.ListenToRedisStream(streamKey, "test-group-beginning")
+                opts.ListenToRedisStream(streamKey, "test-group-beginning")
                     .StartFromBeginning()  // Should process existing messages
                     .BlockTimeout(TimeSpan.FromMilliseconds(100))
                     .DefaultIncomingMessage<TestMessage>();
@@ -154,9 +182,9 @@ public class StartFromBehaviorTests
                 opts.Discovery.IncludeAssembly(typeof(StartFromBehaviorTests).Assembly);
             })
             .StartAsync();
-
+        
         // Give time for message processing
-        await Task.Delay(1000);
+        await waiter;
 
         // Should have received the existing messages
         tracker.ReceivedMessages.Count.ShouldBeGreaterThanOrEqualTo(2);

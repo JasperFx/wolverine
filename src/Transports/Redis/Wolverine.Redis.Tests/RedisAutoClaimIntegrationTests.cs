@@ -59,7 +59,7 @@ public class RedisAutoClaimIntegrationTests
             })
             .UseWolverine(opts =>
             {
-                opts.UseRedisTransport("localhost:6379");
+                opts.UseRedisTransport("localhost:6379").AutoProvision();
                 opts
                     .ListenToRedisStream(streamKey, group)
                     .EnableAutoClaim(500.Milliseconds(), 100.Milliseconds())
@@ -96,7 +96,7 @@ public class RedisAutoClaimIntegrationTests
             })
             .UseWolverine(opts =>
             {
-                opts.UseRedisTransport("localhost:6379");
+                opts.UseRedisTransport("localhost:6379").AutoProvision();
                 var expression = opts.ListenToRedisStream(streamKey, group).DefaultIncomingMessage<AutoClaimTestMessage>();
 
                 var endpoint = expression.Endpoint.As<RedisStreamEndpoint>();
