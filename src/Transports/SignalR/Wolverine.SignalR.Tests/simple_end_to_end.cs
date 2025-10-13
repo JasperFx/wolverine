@@ -24,9 +24,14 @@ public class simple_end_to_end : WebSocketTestContext
             .Name.ShouldBe("Xavier Worthy");
     }
 
+    #region sample_end_to_end_test_with_signalr
+
     [Fact]
     public async Task receive_message_from_a_client()
     {
+        // This is an IHost that has the SignalR Client
+        // transport configured to connect to a SignalR
+        // server in the "theWebApp" IHost
         using var client = await StartClientHost();
 
         var tracked = await client
@@ -43,4 +48,6 @@ public class simple_end_to_end : WebSocketTestContext
             .Name.ShouldBe("Hollywood Brown");
 
     }
+
+    #endregion
 }

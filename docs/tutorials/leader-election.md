@@ -236,7 +236,7 @@ public interface IAgent : IHostedService // Standard .NET interface for backgrou
     AgentStatus Status { get; }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/Agents/IAgent.cs#L8-L27' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_iagent' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/Agents/IAgent.cs#L9-L28' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_iagent' title='Start of snippet'>anchor</a></sup>
 <a id='snippet-sample_iagent-1'></a>
 ```cs
 /// <summary>
@@ -274,7 +274,7 @@ public class CompositeAgent : IAgent
             await agent.StartAsync(cancellationToken);
         }
 
-        Status = AgentStatus.Started;
+        Status = AgentStatus.Running;
     }
 
     public async Task StopAsync(CancellationToken cancellationToken)
@@ -284,20 +284,13 @@ public class CompositeAgent : IAgent
             await agent.StopAsync(cancellationToken);
         }
 
-        Status = AgentStatus.Started;
+        Status = AgentStatus.Running ;
     }
 
     public AgentStatus Status { get; private set; } = AgentStatus.Stopped;
 }
-
-public enum AgentStatus
-{
-    Started,
-    Stopped,
-    Paused
-}
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/Agents/IAgent.cs#L6-L70' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_iagent-1' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/Agents/IAgent.cs#L7-L64' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_iagent-1' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Note that you could use [BackgroundService](https://learn.microsoft.com/en-us/aspnet/core/fundamentals/host/hosted-services?view=aspnetcore-9.0&tabs=visual-studio) as a base class. 

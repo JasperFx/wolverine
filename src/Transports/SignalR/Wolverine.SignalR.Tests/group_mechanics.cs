@@ -53,16 +53,22 @@ public class group_mechanics : WebSocketTestContext
     }
 }
 
+#region sample_messages_related_to_signalr_groups
+
 public record EnrollMe(string GroupName) : WebSocketMessage;
 
 public record KickMeOut(string GroupName) : WebSocketMessage;
 
 public record BroadCastToGroup(string GroupName, string Message) : WebSocketMessage;
 
+#endregion
+
 public record Information(string Message) : WebSocketMessage;
 
 public static class GroupsHandler
 {
+    #region sample_group_mechanics_with_signalr
+
     // Declaring that you need the connection that originated
     // this message to be added to the named SignalR client group
     public static AddConnectionToGroup Handle(EnrollMe msg) 
@@ -75,18 +81,31 @@ public static class GroupsHandler
 
     // The message wrapper here sends the raw message to
     // the named SignalR client group
-    public static object Handle(BroadCastToGroup msg) 
+    public static SignalRMessage<Information> Handle(BroadCastToGroup msg) 
         => new Information(msg.Message)
+            // This extension method wraps the "real" message 
+            // with an envelope that routes this original message
+            // to the named group
             .ToWebSocketGroup(msg.GroupName);
+
+    #endregion
 
     public static void Handle(Information msg) 
         => Debug.WriteLine(msg.Message);
 
+    #region sample_enlist_in_current_connection_saga
+
+    // Directs Wolverine to track the connection id that
+    // originated this incoming message so that any
+    // resulting SignalR messages as a response to this
+    // original message are sent to only the originating connection
     [EnlistInCurrentConnectionSaga]
     public static DoMath Handle(AddNumbers numbers)
     {
         return new DoMath(numbers.X, numbers.Y);
     }
+
+    #endregion
 
     public static MathAnswer Handle(DoMath math) => new MathAnswer(math.X + math.Y);
 
