@@ -79,7 +79,8 @@ common interoperability scenarios:
 | [Amazon SNS](/guide/messaging/transports/sns) | [ISnsEnvelopeMapper](/guide/messaging/transports/sns.html#interoperability)                    | MassTransit, NServiceBus, CloudEvents, Raw Json |
 | [Kafka](/guide/messaging/transports/kafka) | [IKafkaEnvelopeMapper](/guide/messaging/transports/kafka.html#interoperability)                | CloudEvents, Raw Json                           |
 | [Apache Pulsar](/guide/messaging/transports/pulsar) | [IPulsarEnvelopeMapper](/guide/messaging/transports/pulsar.html#interoperability)              | CloudEvents                                     | 
-| [MQTT](/guide/messaging/transports/mqtt) | [IMqttEnvelopeMapper](/guide/messaging/transports/mqtt.html#interoperability)]                 | CloudEvents |
+| [MQTT](/guide/messaging/transports/mqtt) | [IMqttEnvelopeMapper](/guide/messaging/transports/mqtt.html#interoperability)]                 | CloudEvents                                     |
+| [Redis](/guide/messaging/transports/redis) | [IRedisEnvelopeMapper](/guide/messaging/transports/redis.html#interoperability) | CloudEvents                                     |
 
 ## Writing a Custom Envelope Mapper
 
