@@ -8,7 +8,5 @@ namespace Wolverine.Redis;
 /// </summary>
 public interface IRedisEnvelopeMapper : IEnvelopeMapper<StreamEntry, List<NameValueEntry>>
 {
-    //Task<NameValueEntry[]> ToRedisStreamFields(Envelope envelope);
-    //Envelope CreateEnvelope(string streamKey, StreamEntry message);
 
 }

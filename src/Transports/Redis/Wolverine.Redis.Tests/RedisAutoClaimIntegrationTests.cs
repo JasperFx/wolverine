@@ -1,5 +1,7 @@
 using System.Text;
 using System.Threading.Tasks;
+using JasperFx.Core;
+using JasperFx.Core.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -58,11 +60,12 @@ public class RedisAutoClaimIntegrationTests
             .UseWolverine(opts =>
             {
                 opts.UseRedisTransport("localhost:6379");
-                var endpoint = opts.ListenToRedisStream(streamKey, group);
-                endpoint.EnableAutoClaim(TimeSpan.FromMilliseconds(500), TimeSpan.FromMilliseconds(100));
-                endpoint.BlockTimeoutMilliseconds = 100;
-                endpoint.MessageType = typeof(AutoClaimTestMessage);
-
+                opts
+                    .ListenToRedisStream(streamKey, group)
+                    .EnableAutoClaim(500.Milliseconds(), 100.Milliseconds())
+                    .BlockTimeout(100.Milliseconds())
+                    .DefaultIncomingMessage<AutoClaimTestMessage>();
+                
                 opts.Services.AddSingleton(tcs);
             })
             .StartAsync();
@@ -94,8 +97,9 @@ public class RedisAutoClaimIntegrationTests
             .UseWolverine(opts =>
             {
                 opts.UseRedisTransport("localhost:6379");
-                var endpoint = opts.ListenToRedisStream(streamKey, group);
-                endpoint.MessageType = typeof(AutoClaimTestMessage);
+                var expression = opts.ListenToRedisStream(streamKey, group).DefaultIncomingMessage<AutoClaimTestMessage>();
+
+                var endpoint = expression.Endpoint.As<RedisStreamEndpoint>();
                 
                 // AutoClaim should be disabled by default
                 endpoint.AutoClaimEnabled.ShouldBeFalse();
@@ -115,9 +119,9 @@ public class RedisAutoClaimIntegrationTests
         endpoint.AutoClaimEnabled.ShouldBeFalse(); // Default
         endpoint.AutoClaimPeriod.ShouldBe(TimeSpan.FromSeconds(30)); // Default
         endpoint.AutoClaimMinIdle.ShouldBe(TimeSpan.FromMinutes(1)); // Default
-        
-        endpoint.EnableAutoClaim(TimeSpan.FromSeconds(15), TimeSpan.FromMinutes(2));
-        
+
+        new RedisListenerConfiguration(endpoint).EnableAutoClaim(TimeSpan.FromSeconds(15), TimeSpan.FromMinutes(2));
+
         endpoint.AutoClaimEnabled.ShouldBeTrue();
         endpoint.AutoClaimPeriod.ShouldBe(TimeSpan.FromSeconds(15));
         endpoint.AutoClaimMinIdle.ShouldBe(TimeSpan.FromMinutes(2));
@@ -128,9 +132,9 @@ public class RedisAutoClaimIntegrationTests
     {
         var transport = new RedisTransport("localhost:6379");
         var endpoint = transport.StreamEndpoint("test");
-        
-        endpoint.EnableAutoClaim().DisableAutoClaim();
-        
+
+        new RedisListenerConfiguration(endpoint).EnableAutoClaim().DisableAutoClaim();
+
         endpoint.AutoClaimEnabled.ShouldBeFalse();
     }
 }

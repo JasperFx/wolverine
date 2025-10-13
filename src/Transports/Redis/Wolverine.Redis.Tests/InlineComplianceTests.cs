@@ -21,13 +21,13 @@ public class RedisInlineComplianceFixture : TransportComplianceFixture, IAsyncLi
         await SenderIs(opts =>
         {
             opts.UseRedisTransport("localhost:6379").AutoProvision();
-            opts.PublishAllMessages().ToRedisStream(receiverStream).Inline();
+            opts.PublishAllMessages().ToRedisStream(receiverStream).SendInline();
         });
 
         await ReceiverIs(opts =>
         {
             opts.UseRedisTransport("localhost:6379").AutoProvision();
-            opts.ListenToRedisStream(receiverStream, "g1").Inline();
+            opts.ListenToRedisStream(receiverStream, "g1").ProcessInline();
         });
     }
 
