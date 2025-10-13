@@ -172,7 +172,7 @@ builder.UseWolverine(opts =>
     });
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/SignalR/Wolverine.SignalR.Tests/SampleCode.cs#L10-L23' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_overriding_signalr_serialization' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/SignalR/Wolverine.SignalR.Tests/SampleCode.cs#L13-L26' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_overriding_signalr_serialization' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Interacting with the Server from the Browser
@@ -294,7 +294,7 @@ public static class RequestSumHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/SignalR/Wolverine.SignalR.Tests/SampleCode.cs#L27-L44' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sending_response_to_originating_signalr_caller' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/SignalR/Wolverine.SignalR.Tests/SampleCode.cs#L87-L104' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sending_response_to_originating_signalr_caller' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In the next section we'll learn a bit more about working with SignalR groups.
@@ -305,12 +305,45 @@ One of the powerful features of SignalR is being able to work with [groups of co
 The SignalR transport currently has some simple support for managing and publishing to groups. Let's say you have
 these web socket messages in your system:
 
-snippet: sample_messages_related_to_signalr_groups
+<!-- snippet: sample_messages_related_to_signalr_groups -->
+<a id='snippet-sample_messages_related_to_signalr_groups'></a>
+```cs
+public record EnrollMe(string GroupName) : WebSocketMessage;
+
+public record KickMeOut(string GroupName) : WebSocketMessage;
+
+public record BroadCastToGroup(string GroupName, string Message) : WebSocketMessage;
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/SignalR/Wolverine.SignalR.Tests/group_mechanics.cs#L56-L64' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_messages_related_to_signalr_groups' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 The following code is a set of simplistic message handlers that handle these messages with some SignalR connection
 group mechanics:
 
-snippet: sample_group_mechanics_with_signalr
+<!-- snippet: sample_group_mechanics_with_signalr -->
+<a id='snippet-sample_group_mechanics_with_signalr'></a>
+```cs
+// Declaring that you need the connection that originated
+// this message to be added to the named SignalR client group
+public static AddConnectionToGroup Handle(EnrollMe msg) 
+    => new(msg.GroupName);
+
+// Declaring that you need the connection that originated this
+// message to be removed from the named SignalR client group
+public static RemoveConnectionToGroup Handle(KickMeOut msg) 
+    => new(msg.GroupName);
+
+// The message wrapper here sends the raw message to
+// the named SignalR client group
+public static SignalRMessage<Information> Handle(BroadCastToGroup msg) 
+    => new Information(msg.Message)
+        // This extension method wraps the "real" message 
+        // with an envelope that routes this original message
+        // to the named group
+        .ToWebSocketGroup(msg.GroupName);
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/SignalR/Wolverine.SignalR.Tests/group_mechanics.cs#L70-L91' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_group_mechanics_with_signalr' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 In the code above:
 
@@ -334,22 +367,119 @@ send and receive messages from the main Wolverine SignalR transport and is 100% 
 
 If you wanted to use the SignalR client as a "real" messaging transport, you could do that like this sample:
 
-snippet: sample_bootstrap_signalr_client_for_realsies
+<!-- snippet: sample_bootstrap_signalr_client_for_realsies -->
+<a id='snippet-sample_bootstrap_signalr_client_for_realsies'></a>
+```cs
+var builder = Host.CreateApplicationBuilder();
+builder.UseWolverine(opts =>
+{
+    // this would need to be an absolute Url to where SignalR is
+    // hosted on your application and include the exact route where
+    // the WolverineHub is listening
+    var url = builder.Configuration.GetValue<string>("signalr.url");
+    opts.UseClientToSignalR(url);
+
+    // Setting this up to publish any messages implementing
+    // the WebSocketMessage marker interface with the SignalR
+    // client
+    opts.Publish(x =>
+    {
+        x.MessagesImplementing<WebSocketMessage>();
+        x.ToSignalRWithClient(url);
+    });
+});
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/SignalR/Wolverine.SignalR.Tests/SampleCode.cs#L31-L52' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrap_signalr_client_for_realsies' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 Or a little more simply, if you are just using this for test automation, you would need to give it the port number where
 your SignalR hosting service is running on the local computer:
 
-snippet: sample_bootstrap_signalr_client_for_local
+<!-- snippet: sample_bootstrap_signalr_client_for_local -->
+<a id='snippet-sample_bootstrap_signalr_client_for_local'></a>
+```cs
+// Ostensibly, *something* in your test harness would 
+// be telling you the port number of the real application
+int port = 5555;
+
+using var clientHost = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        // Just so you know it's possible, you can override
+        // the relative url of the SignalR WolverineHub route
+        // in the hosting application
+        opts.UseClientToSignalR(port, "/api/messages");
+
+        // Setting this up to publish any messages implementing
+        // the WebSocketMessage marker interface with the SignalR
+        // client
+        opts.Publish(x =>
+        {
+            x.MessagesImplementing<WebSocketMessage>();
+            x.ToSignalRWithClient(port);
+        });
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/SignalR/Wolverine.SignalR.Tests/SampleCode.cs#L58-L82' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrap_signalr_client_for_local' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 To make this a little more concrete, here's a little bit of the test harness setup we used to test the Wolverine.SignalR
 transport:
 
-snippet: sample_signalr_client_test_harness_setup
+<!-- snippet: sample_signalr_client_test_harness_setup -->
+<a id='snippet-sample_signalr_client_test_harness_setup'></a>
+```cs
+public abstract class WebSocketTestContext : IAsyncLifetime
+{
+    protected WebApplication theWebApp;
+    private readonly int Port = PortFinder.GetAvailablePort();
+    protected readonly Uri clientUri;
+
+    private readonly List<IHost> _clientHosts = new();
+
+    public WebSocketTestContext()
+    {
+        clientUri = new Uri($"http://localhost:{Port}/messages");
+    }
+
+    public async Task InitializeAsync()
+    {
+        var builder = WebApplication.CreateBuilder();
+
+        builder.WebHost.ConfigureKestrel(opts =>
+        {
+            opts.ListenLocalhost(Port);
+        });
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/SignalR/Wolverine.SignalR.Tests/WebSocketTestContext.cs#L12-L36' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_signalr_client_test_harness_setup' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 In the same test harness class, we bootstrap new `IHost` instances with the SignalR Client to mimic browser client
 communication like this:
 
-snippet: sample_bootstrapping_signalr_client_in_test
+<!-- snippet: sample_bootstrapping_signalr_client_in_test -->
+<a id='snippet-sample_bootstrapping_signalr_client_in_test'></a>
+```cs
+var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.ServiceName = serviceName;
+        
+        opts.UseClientToSignalR(Port);
+        
+        opts.PublishMessage<ToFirst>().ToSignalRWithClient(Port);
+        
+        opts.PublishMessage<RequiresResponse>().ToSignalRWithClient(Port);
+        
+        opts.Publish(x =>
+        {
+            x.MessagesImplementing<WebSocketMessage>();
+            x.ToSignalRWithClient(Port);
+        });
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/SignalR/Wolverine.SignalR.Tests/WebSocketTestContext.cs#L73-L93' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_signalr_client_in_test' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 The key point here is that we stood up the service using a port number for Kestrel, then stood up `IHost` instances for
 a Wolverine application using the SignalR Client using the same port number for easy connectivity.
@@ -360,7 +490,34 @@ for any messaging. In the sample test below, we're utilizing the [tracked sessio
 message from the `IHost` hosting the SignalR Client transport and expect it to be successfully handled in the `IHost` 
 for our actual SignalR server:
 
-snippet: sample_end_to_end_test_with_signalr
+<!-- snippet: sample_end_to_end_test_with_signalr -->
+<a id='snippet-sample_end_to_end_test_with_signalr'></a>
+```cs
+[Fact]
+public async Task receive_message_from_a_client()
+{
+    // This is an IHost that has the SignalR Client
+    // transport configured to connect to a SignalR
+    // server in the "theWebApp" IHost
+    using var client = await StartClientHost();
+
+    var tracked = await client
+        .TrackActivity()
+        .IncludeExternalTransports()
+        .AlsoTrack(theWebApp)
+        .Timeout(10.Seconds())
+        .ExecuteAndWaitAsync(c => c.SendViaSignalRClient(clientUri, new ToSecond("Hollywood Brown")));
+
+    var record = tracked.Received.SingleRecord<ToSecond>();
+    record.ServiceName.ShouldBe("Server");
+    record.Envelope.Destination.ShouldBe(new Uri("signalr://wolverine"));
+    record.Message.ShouldBeOfType<ToSecond>()
+        .Name.ShouldBe("Hollywood Brown");
+
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/SignalR/Wolverine.SignalR.Tests/simple_end_to_end.cs#L27-L52' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_end_to_end_test_with_signalr' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 *Conveniently enough as I write this documentation today using existing test code, Hollywood Brown had a huge
 game last night. Go Chiefs!*
