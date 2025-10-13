@@ -309,10 +309,13 @@ class Build : NukeBuild
                 Solution.Extensions.Wolverine_FluentValidation,
                 Solution.Extensions.Wolverine_MemoryPack,
                 Solution.Extensions.Wolverine_MessagePack,
+                Solution.Extensions.Wolverine_Protobuf,
                 Solution.Http.Wolverine_Http,
                 Solution.Http.Wolverine_Http_FluentValidation,
                 Solution.Http.Wolverine_Http_Marten,
-                Solution.Testing.Wolverine_ComplianceTests
+                Solution.Testing.Wolverine_ComplianceTests,
+                Solution.Transports.Redis.Wolverine_Redis,
+                Solution.Transports.SignalR.Wolverine_SignalR
             };
 
             foreach (var project in nugetProjects)
