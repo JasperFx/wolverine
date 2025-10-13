@@ -284,4 +284,27 @@ public class RedisTransport : BrokerTransport<RedisStreamEndpoint>, IAsyncDispos
 
         _streams[cacheKey] = replyEndpoint;
     }
+    
+    /// <summary>
+    /// Helper method to create a Redis stream URI with database ID
+    /// </summary>
+    /// <param name="streamKey">Redis stream key name</param>
+    /// <param name="databaseId">Redis database ID</param>
+    /// <returns>Formatted Redis stream URI</returns>
+    public static Uri BuildRedisStreamUri(string streamKey, int databaseId = 0)
+    {
+        return new Uri($"redis://stream/{databaseId}/{streamKey}");
+    }
+
+    /// <summary>
+    /// Helper method to create a Redis stream URI with database ID and consumer group
+    /// </summary>
+    /// <param name="streamKey">Redis stream key name</param>
+    /// <param name="databaseId">Redis database ID</param>
+    /// <param name="consumerGroup">Consumer group name</param>
+    /// <returns>Formatted Redis stream URI</returns>
+    public static Uri BuildRedisStreamUri(string streamKey, int databaseId, string consumerGroup)
+    {
+        return new Uri($"redis://stream/{databaseId}/{streamKey}?consumerGroup={consumerGroup}");
+    }
 }

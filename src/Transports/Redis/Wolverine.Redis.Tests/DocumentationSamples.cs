@@ -1,4 +1,5 @@
 using System.Text.Json;
+using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.DependencyInjection;
@@ -6,6 +7,7 @@ using JasperFx.Resources;
 using Wolverine.Util;
 using StackExchange.Redis;
 using Wolverine.Configuration;
+using Wolverine.Redis.Internal;
 using Wolverine.Transports;
 
 namespace Wolverine.Redis.Tests;
@@ -40,11 +42,11 @@ public class DocumentationSamples
                     
                     // Configure specific settings for this stream
                     .BatchSize(50)
-                    .Inline();
+                    .SendInline();
 
                 // Listen to Redis streams with consumer groups (uses database 0 by default)
                 opts.ListenToRedisStream("red", "color-processors")
-                    .Inline()
+                    .ProcessInline()
                     
                     // Configure consumer settings
                     .ConsumerName("red-consumer-1")
@@ -61,7 +63,7 @@ public class DocumentationSamples
                     .StartFromNewMessages(); // Default: only new messages (like Kafka's AutoOffsetReset.Latest)
 
                 opts.ListenToRedisStream("blue", "color-processors", databaseId: 3)
-                    .Durable()
+                    .UseDurableInbox()
                     .ConsumerName("blue-consumer")
                     .StartFromBeginning(); // Process existing messages too
                     
@@ -99,13 +101,11 @@ public class DocumentationSamples
                 opts.ListenToRedisStream("payments", "payment-processors", databaseId: 2);
                 
                 // Advanced configuration with database ID
-                opts.ListenToRedisStream("notifications", "notification-processors", databaseId: 3, endpoint =>
-                {
-                    endpoint.ConsumerName("notification-consumer-1");
-                    endpoint.BatchSize(100);
-                    endpoint.BlockTimeout(TimeSpan.FromSeconds(10));
-                    endpoint.Durable();
-                });
+                opts.ListenToRedisStream("notifications", "notification-processors", databaseId: 3)
+                    .ConsumerName("notification-consumer-1")
+                    .BatchSize(100)
+                    .BlockTimeout(10.Seconds())
+                    .UseDurableInbox();
             }).StartAsync();
 
         #endregion
@@ -116,8 +116,8 @@ public class DocumentationSamples
         #region sample_redis_uri_helpers
 
         // Using URI builder helpers
-        var ordersUri = RedisStreamEndpointExtensions.BuildRedisStreamUri("orders", databaseId: 1);
-        var paymentsUri = RedisStreamEndpointExtensions.BuildRedisStreamUri("payments", databaseId: 2, "payment-processors");
+        var ordersUri = RedisTransport.BuildRedisStreamUri("orders", databaseId: 1);
+        var paymentsUri = RedisTransport.BuildRedisStreamUri("payments", databaseId: 2, "payment-processors");
 
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>

@@ -1,4 +1,5 @@
 using System.Text;
+using JasperFx.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -54,11 +55,12 @@ public class RedisClaimingTests
             .UseWolverine(opts =>
             {
                 opts.UseRedisTransport("localhost:6379");
-                var endpoint = opts.ListenToRedisStream(streamKey, group);
-                endpoint.EnableAutoClaim(TimeSpan.FromMilliseconds(100), TimeSpan.FromMilliseconds(1));
-                endpoint.BatchSize = 10;
-                endpoint.BlockTimeoutMilliseconds = 100;
-                endpoint.MessageType = typeof(TestMessage);
+                var endpoint = opts
+                    .ListenToRedisStream(streamKey, group)
+                    .EnableAutoClaim(TimeSpan.FromMilliseconds(100), TimeSpan.FromMilliseconds(1))
+                    .BatchSize(10)
+                    .BlockTimeout(100.Milliseconds())
+                    .DefaultIncomingMessage<TestMessage>();
 
                 opts.Services.AddSingleton(tcs);
             })

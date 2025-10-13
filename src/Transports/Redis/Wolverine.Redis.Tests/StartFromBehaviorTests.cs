@@ -73,10 +73,10 @@ public class StartFromBehaviorTests
             .UseWolverine(opts =>
             {
                 opts.UseRedisTransport("localhost:6379").AutoProvision();
-                var endpoint = opts.ListenToRedisStream(streamKey, "test-group")
+                opts.ListenToRedisStream(streamKey, "test-group")
                     .StartFromNewMessages()  // Explicit, but this is the default
-                    .BlockTimeout(TimeSpan.FromMilliseconds(100));
-                endpoint.MessageType = typeof(TestMessage);
+                    .BlockTimeout(TimeSpan.FromMilliseconds(100))
+                    .DefaultIncomingMessage<TestMessage>();
                 
                 opts.Services.AddSingleton(tracker);
                 opts.Services.AddSingleton(tcs);
@@ -147,8 +147,8 @@ public class StartFromBehaviorTests
                 opts.UseRedisTransport("localhost:6379").AutoProvision();
                 var endpoint = opts.ListenToRedisStream(streamKey, "test-group-beginning")
                     .StartFromBeginning()  // Should process existing messages
-                    .BlockTimeout(TimeSpan.FromMilliseconds(100));
-                endpoint.MessageType = typeof(TestMessage);
+                    .BlockTimeout(TimeSpan.FromMilliseconds(100))
+                    .DefaultIncomingMessage<TestMessage>();
                 
                 opts.Services.AddSingleton(tracker);
                 opts.Discovery.IncludeAssembly(typeof(StartFromBehaviorTests).Assembly);

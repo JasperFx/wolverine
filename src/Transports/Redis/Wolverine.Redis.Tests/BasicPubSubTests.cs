@@ -1,5 +1,6 @@
 using System;
 using System.Threading.Tasks;
+using JasperFx.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -36,9 +37,13 @@ public class BasicPubSubTests
             .UseWolverine(opts =>
             {
                 opts.UseRedisTransport("localhost:6379").AutoProvision();
-                var endpoint = opts.ListenToRedisStream(streamKey, "g1");
-                endpoint.MessageType = typeof(PubMessage);
-                endpoint.BlockTimeoutMilliseconds = 100;
+                var endpoint = opts.ListenToRedisStream(streamKey, "g1")
+                    .DefaultIncomingMessage<PubMessage>()
+                    .BlockTimeout(100.Milliseconds())
+                    .EnableAutoClaim()
+                    .DefaultIncomingMessage<PubMessage>()
+                    .BlockTimeout(100.Milliseconds());
+
                 endpoint.EnableAutoClaim(TimeSpan.FromMilliseconds(200), TimeSpan.FromMilliseconds(0));
 
                 opts.PublishAllMessages().ToRedisStream(streamKey);

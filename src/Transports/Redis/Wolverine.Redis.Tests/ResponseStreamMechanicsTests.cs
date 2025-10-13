@@ -87,8 +87,10 @@ public class ResponseStreamDisabling : IAsyncLifetime
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                var t = opts.UseRedisTransport("localhost:6379").AutoProvision();
-                t.SystemQueuesEnabled = false;
+                var t = opts
+                    .UseRedisTransport("localhost:6379")
+                    .AutoProvision()
+                    .SystemQueuesEnabled(false);
             }).StartAsync();
     }
 

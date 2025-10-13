@@ -270,32 +270,7 @@ public class RedisStreamEndpoint : Endpoint<IRedisEnvelopeMapper, RedisEnvelopeM
 
         return dict;
     }
-
-    /// <summary>
-    /// Enable auto-claiming of pending entries within the consumer loop every specified period
-    /// </summary>
-    /// <remarks>This can cause out of order messages.  It is recommended to manually deal with expired claimed message if you are using .Inline() or desire ordered message processing.</remarks>
-    /// <param name="period">Period between auto-claim attempts (default: 30 seconds)</param>
-    /// <param name="minIdle">Minimum idle time before claiming pending messages (if null, uses MinIdleBeforeClaimMilliseconds)</param>
-    /// <returns>This endpoint for method chaining</returns>
-    public RedisStreamEndpoint EnableAutoClaim(TimeSpan? period = null, TimeSpan? minIdle = null)
-    {
-        AutoClaimEnabled = true;
-        if (period.HasValue) AutoClaimPeriod = period.Value;
-        if (minIdle.HasValue) AutoClaimMinIdle = minIdle.Value;
-        return this;
-    }
-
-    /// <summary>
-    /// Disable auto-claiming of pending entries within the consumer loop
-    /// </summary>
-    /// <returns>This endpoint for method chaining</returns>
-    public RedisStreamEndpoint DisableAutoClaim()
-    {
-        AutoClaimEnabled = false;
-        return this;
-    }
-
+    
     public async ValueTask SetupAsync(ILogger logger)
     {
         try
