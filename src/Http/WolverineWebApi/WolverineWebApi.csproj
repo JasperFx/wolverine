@@ -8,7 +8,9 @@
         <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="7.0.2" />
         <PackageReference Include="Microsoft.AspNetCore.SignalR" Version="1.1.0" />
         <PackageReference Include="Shouldly" Version="4.3.0" />
+        <PackageReference Include="StronglyTypedId" Version="1.0.0-beta08" />
         <PackageReference Include="Swashbuckle.AspNetCore" Version="6.5.0" />
+        <PackageReference Include="StronglyTypedId" Version="1.0.0-beta08" />
     </ItemGroup>
 
     <ItemGroup>

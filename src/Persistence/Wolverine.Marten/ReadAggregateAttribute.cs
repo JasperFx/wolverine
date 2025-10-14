@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Reflection;
 using JasperFx;
 using JasperFx.CodeGeneration;
@@ -44,6 +45,11 @@ public class ReadAggregateAttribute : WolverineParameterAttribute, IDataRequirem
     {
         // I know it's goofy that this refers to the saga, but it should work fine here too
         var idType = new MartenPersistenceFrameProvider().DetermineSagaIdType(parameter.ParameterType, container);
+
+        if (chain.ToString() == "GET_sti_aggregate_id")
+        {
+            Debug.WriteLine("Here");
+        }
         
         if (!tryFindIdentityVariable(chain, parameter, idType, out var identity))
         {

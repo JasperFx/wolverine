@@ -187,6 +187,7 @@ public class StrongLetterAggregate
     }
 
     public LetterId Id { get; set; }
+
     public int ACount { get; set; }
     public int BCount { get; set; }
     public int CCount { get; set; }
