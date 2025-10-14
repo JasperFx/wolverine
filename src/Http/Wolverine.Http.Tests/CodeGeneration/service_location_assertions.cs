@@ -9,6 +9,7 @@ using Marten;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using Shouldly;
@@ -35,6 +36,25 @@ public class service_location_assertions
         services.AddSingleton(options);
         services.AddSingleton<ILoggerFactory>(theLogger);
         return services.BuildServiceProvider();
+    }
+
+    public interface IServiceGatewayUsingRefit;
+
+    public static void configure_with_always_use_service_locator()
+    {
+        #region sample_always_use_service_location
+
+        var builder = Host.CreateApplicationBuilder();
+        builder.UseWolverine(opts =>
+        {
+            // other configuration
+
+            // Use a service locator for this service w/o forcing the entire
+            // message handler adapter to use a service locator for everything
+            opts.CodeGeneration.AlwaysUseServiceLocationFor<IServiceGatewayUsingRefit>();
+        });
+
+        #endregion
     }
 
     private async Task<IAlbaHost> buildHost(ServiceProviderSource providerSource, Action<WolverineOptions> configure)
@@ -342,3 +362,73 @@ public record GreenFlag : IFlag;
 
 public interface IGateway;
 public class Gateway : IGateway;
+
+public interface IUserContext
+{
+    public string UserId { get;}
+}
+
+public class UserContext : IUserContext
+{
+    public string UserId { get; set; }
+}
+
+public class UserContextFactory
+{
+    public IUserContext Build(HttpContext context) => new UserContext();
+}
+
+public class MyCustomUserMiddleware(RequestDelegate next)
+{
+    private readonly RequestDelegate _next = next;
+    
+    public async Task InvokeAsync(HttpContext httpContext)
+    {
+        // and whatever else
+        await _next(httpContext);
+    }
+}
+
+public static class SampleServiceLocation
+{
+    public static async Task<int> bootstrap(string[] args)
+    {
+        #region sample_bootstrapping_with_httpcontext_request_services
+
+        var builder = WebApplication.CreateBuilder();
+
+        builder.UseWolverine(opts =>
+        {
+            // more configuration
+        });
+
+        // Just pretend that this IUserContext is being 
+        builder.Services.AddScoped<IUserContext, UserContext>();
+        builder.Services.AddWolverineHttp();
+
+        var app = builder.Build();
+
+        // Custom middleware that is somehow configuring our IUserContext
+        // that might be getting used within 
+        app.UseMiddleware<MyCustomUserMiddleware>();
+        
+        app.MapWolverineEndpoints(opts =>
+        {
+            // Opt into using the shared HttpContext.RequestServices scoped
+            // container any time Wolverine has to use a service locator
+            opts.ServiceProviderSource = ServiceProviderSource.FromHttpContextRequestServices;
+            
+            // OR this is the default behavior to be backwards compatible:
+            opts.ServiceProviderSource = ServiceProviderSource.IsolatedAndScoped;
+            
+            // We're telling Wolverine that the IUserContext should always
+            // be pulled from HttpContext.RequestServices
+            // and this happens regardless of the ServerProviderSource!
+            opts.SourceServiceFromHttpContext<IUserContext>();
+        });
+
+        return await app.RunJasperFxCommands(args);
+
+        #endregion
+    }
+}

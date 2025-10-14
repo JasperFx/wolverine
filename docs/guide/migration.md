@@ -21,6 +21,8 @@ The [Aggregate Handler Workflow](/guide/durability/marten/event-sourcing) featur
 The declarative data access features with Marten (`[Aggregate]`, `[ReadAggregate]`, `[Entity]` or `[Document]`) can utilize
 Marten batch querying for better efficiency when a handler or HTTP endpoint uses more than one declaration for data loading.
 
+Better control over how [Wolverine generates code with respect to IoC container usage](/guide/codegen.html#wolverine-code-generation-and-ioc).
+
 ## Key Changes in 4.0
 
 * Wolverine dropped all support for .NET 6/7

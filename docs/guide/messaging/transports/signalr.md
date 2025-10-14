@@ -40,7 +40,12 @@ builder.UseWolverine(opts =>
     // to wire SignalR services into Wolverine itself
     // This does also call IServiceCollection.AddSignalR()
     // to register DI services for SignalR as well
-    opts.UseSignalR();
+    opts.UseSignalR(o =>
+    {
+        // Optionally configure the SignalR HubOptions
+        // for the WolverineHub
+        o.ClientTimeoutInterval = 10.Seconds();
+    });
     
     // Using explicit routing to send specific
     // messages to SignalR
@@ -54,7 +59,7 @@ builder.UseWolverine(opts =>
     });
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/WolverineChat/Program.cs#L11-L33' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_signalr_on_server_side' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/WolverineChat/Program.cs#L12-L39' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_signalr_on_server_side' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 That handles the Wolverine configuration and the SignalR service registrations, but you will also need to map
@@ -79,7 +84,7 @@ app.MapWolverineSignalRHub("/api/messages");
 
 return await app.RunJasperFxCommands(args);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/WolverineChat/Program.cs#L37-L55' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_map_wolverine_signalrhub' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/WolverineChat/Program.cs#L43-L61' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_map_wolverine_signalrhub' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Messages and Serialization
