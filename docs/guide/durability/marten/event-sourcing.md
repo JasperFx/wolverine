@@ -6,6 +6,14 @@ need in a message handler or HTTP endpoint is a read-only copy of an event strea
 instead that has a little bit lighter weight runtime within Marten.
 :::
 
+::: info
+If your message handler or HTTP endpoint uses more than one declarative attribute for retrieving Marten data,
+Wolverine 5.0+ is able to utilize [Marten's Batch Querying capability](https://martendb.io/documents/querying/batched-queries.html#batched-queries) for more efficient interaction with the database.
+
+This batching behavior is also supported for all the declarative attributes and the "aggregate handler workflow" in general
+described in this page.
+:::
+
 See the [OrderEventSourcingSample project on GitHub](https://github.com/JasperFx/wolverine/tree/main/src/Persistence/OrderEventSourcingSample) for more samples.
 
 That Wolverine + Marten combination is optimized for efficient and productive development using a [CQRS architecture style](https://martinfowler.com/bliki/CQRS.html) with [Marten's event sourcing](https://martendb.io/events/) support.

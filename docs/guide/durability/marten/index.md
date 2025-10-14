@@ -104,6 +104,11 @@ Using the `IntegrateWithWolverine()` extension method behind your call to `AddMa
 
 ## Entity Attribute Loading
 
+::: info
+If your message handler or HTTP endpoint uses more than one declarative attribute for retrieving Marten data,
+Wolverine 5.0+ is able to utilize [Marten's Batch Querying capability](https://martendb.io/documents/querying/batched-queries.html#batched-queries) for more efficient interaction with the database.
+:::
+
 The Marten integration is able to completely support the [Entity attribute usage](/guide/handlers/persistence.html#automatically-loading-entities-to-method-parameters).
 
 ## Marten as Outbox
