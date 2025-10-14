@@ -17,7 +17,7 @@ public class EventSubscriptionAgentFamily : IStaticAgentFamily, IAsyncDisposable
 
     public static Uri UriFor(EventStoreIdentity storeIdentity, DatabaseId databaseId, ShardName name)
     {
-        return new Uri($"{SchemeName}://{storeIdentity}@{databaseId}/{name.RelativeUrl}");
+        return new Uri($"{SchemeName}://{storeIdentity.Type}/{storeIdentity.Name}/{databaseId}/{name.RelativeUrl}");
     }
     
     public EventSubscriptionAgentFamily(IEnumerable<IEventStore> stores, IEnumerable<IObserver<ShardState>> observers)
@@ -40,11 +40,15 @@ public class EventSubscriptionAgentFamily : IStaticAgentFamily, IAsyncDisposable
     {
         // First check that we aren't already running this!
         
-        var storeIdentity = uri.UserInfo;
+        // name:type - segments[1]:Host
+        // segments[2] database id
+        // other segments get you the relative path
+        
+        var storeIdentity = $"{uri.Segments[1].Trim('/')}:{uri.Host}";
         if (_stores.TryFind(storeIdentity, out var store))
         {
-            var databaseId = DatabaseId.Parse(uri.Host);
-            var shardPath = uri.AbsolutePath.Trim('/');
+            var databaseId = DatabaseId.Parse(uri.Segments[2].Trim('/'));
+            var shardPath = uri.Segments.Skip(3).Join("");
 
             return await store.BuildAgentAsync(uri, databaseId, shardPath);
         }
