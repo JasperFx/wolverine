@@ -8,6 +8,13 @@ using Wolverine.Util;
 
 namespace Wolverine.Runtime.Interop;
 
+public class UnknownMessageTypeNameException : Exception
+{
+    public UnknownMessageTypeNameException(string? message) : base(message)
+    {
+    }
+}
+
 internal class CloudEventsEnvelope
 {
     public CloudEventsEnvelope()
@@ -146,6 +153,10 @@ public class CloudEventsMapper : IMessageSerializer
                 }
 
                 envelope.MessageType = messageType.ToMessageTypeName();
+            }
+            else
+            {
+                throw new UnknownMessageTypeNameException($"Unknown message type alias '{cloudEventType}'. See the 'Message Routing' section of the dotnet run describe output to see the available .NET message types and their message type names");
             }
         }
 
