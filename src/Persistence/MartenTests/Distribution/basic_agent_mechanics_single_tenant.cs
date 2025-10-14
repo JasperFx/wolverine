@@ -29,9 +29,9 @@ public class basic_agent_mechanics_single_tenant : SingleTenantContext
         uris.Count.ShouldBe(3);
         
         uris.OrderBy(x => x.ToString()).ShouldBe([
-            new Uri("event-subscriptions://main:marten@localhost.postgres/day/all"),
-            new Uri("event-subscriptions://main:marten@localhost.postgres/distance/all"),
-            new Uri("event-subscriptions://main:marten@localhost.postgres/trip/all"),
+            new Uri("event-subscriptions://marten/main/localhost.postgres/day/all"),
+            new Uri("event-subscriptions://marten/main/localhost.postgres/distance/all"),
+            new Uri("event-subscriptions://marten/main/localhost.postgres/trip/all"),
         
         ]);
 
