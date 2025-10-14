@@ -1,3 +1,4 @@
+using System.Reflection;
 using JasperFx.CommandLine.Descriptions;
 using JasperFx.Core.Reflection;
 using JasperFx.Resources;
@@ -10,6 +11,7 @@ using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Routing;
 using Wolverine.Transports.Local;
+using Wolverine.Util;
 
 namespace Wolverine;
 
@@ -50,19 +52,32 @@ internal class WolverineSystemPart : SystemPartBase
 
         if (!messageTypes.Any())
         {
-            AnsiConsole.Markup("[gray]No message routes[/]");
+            AnsiConsole.Markup("[gray]No message types found");
             return;
         }
 
-        var table = new Table(){Title = new TableTitle("Message Routing"){Style = new Style(decoration:Decoration.Bold)}}.AddColumns("Message Type", "Destination", "Content Type");
-        foreach (var messageType in messageTypes.OrderBy(x => x.FullName))
+        var table = new Table(){Title = new TableTitle("Message Routing")
+        {
+            Style = new Style(decoration:Decoration.Bold)
+        }}.AddColumns(".NET Type", "Message Type Alias", "Destination", "Content Type");
+        foreach (var messageType in messageTypes.Where(x => x.Assembly != Assembly.GetExecutingAssembly()).OrderBy(x => x.FullName))
         {
             var routes = _runtime.RoutingFor(messageType).Routes;
-            foreach (var route in routes.OfType<MessageRoute>())
+            if (routes.Any())
             {
-                table.AddRow(messageType.FullNameInCode(), route.Uri.ToString(),
-                    route.Serializer?.ContentType ?? "application/json");
+                foreach (var route in routes.OfType<MessageRoute>())
+                {
+                    table.AddRow(messageType.FullNameInCode(), messageType.ToMessageTypeName(), route.Uri.ToString(),
+                        route.Serializer?.ContentType ?? "application/json");
+                }
             }
+            else
+            {
+                table.AddRow(messageType.FullNameInCode(), messageType.ToMessageTypeName(), "No Routes",
+                    "n/a");
+            }
+            
+
         }
 
         AnsiConsole.Write(table);
