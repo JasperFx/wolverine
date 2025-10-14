@@ -133,6 +133,7 @@ So what's possible so far?
 * Subscriptions to Marten events
 * Multi-tenancy, both "conjoined" Marten multi-tenancy and multi-tenancy through separate databases
 * [Wolverine managed projection or subscription distribution](/guide/durability/marten/distribution)
+* * The ["Event Forwarding"](/guide/durability/marten/event-forwarding) from Marten to Wolverine, but that is either 100% enabled for all Marten stores through the main Marten store registration or not at all
 
 ::: tip
 In the case of the ancillary Marten stores, the `IDocumentSession` objects are "lightweight" sessions without
@@ -142,7 +143,6 @@ any identity map mechanics for better performance.
 ## What's not (yet) supported
 
 * It is not possible to use more than one ancillary store in the same handler with the middleware
-* The "Event Forwarding" from Marten to Wolverine
 * Fine grained configuration of the `IDocumentSession` objects created for the ancillary stores, so no ability to tag
   custom `IDocumentSessionListener` objects or control the session type. Listeners could be added through Wolverine middlware
   though

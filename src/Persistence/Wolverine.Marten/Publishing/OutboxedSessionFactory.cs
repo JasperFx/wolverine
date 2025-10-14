@@ -51,7 +51,6 @@ public class OutboxedSessionFactory
         _factory = factory;
         _store = store;
         
-        // TODO -- this does not work with ancillary stores
         _shouldPublishEvents = runtime.TryFindExtension<MartenIntegration>()?.UseFastEventForwarding ?? false;
 
         MessageStore = runtime.Storage;
