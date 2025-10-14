@@ -1,6 +1,7 @@
 using JasperFx.Core.Reflection;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.DependencyInjection;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
@@ -42,9 +43,23 @@ public static class SignalRWolverineExtensions
     public static SignalRMessage<T> ToWebSocketGroup<T>(this T Message, string GroupName) =>
         new(Message, new WebSocketRouting.Group(GroupName));
 
-    public static SignalRListenerConfiguration UseSignalR(this WolverineOptions options)
+    /// <summary>
+    /// Adds the WolverineHub to this application for SignalR message processing
+    /// </summary>
+    /// <param name="options"></param>
+    /// <param name="configure">Optionally configure the SignalR HubOptions for Wolverine</param>
+    /// <returns></returns>
+    public static SignalRListenerConfiguration UseSignalR(this WolverineOptions options, Action<HubOptions>? configure = null)
     {
-        options.Services.AddSignalR();
+        if (configure == null)
+        {
+            options.Services.AddSignalR();
+        }
+        else
+        {
+            options.Services.AddSignalR(configure);
+        }
+        
         
         var transport = options.SignalRTransport();
 

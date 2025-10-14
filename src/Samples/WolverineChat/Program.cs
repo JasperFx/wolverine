@@ -1,4 +1,5 @@
 using JasperFx;
+using JasperFx.Core;
 using Wolverine;
 using Wolverine.SignalR;
 using WolverineChat;
@@ -16,7 +17,12 @@ builder.UseWolverine(opts =>
     // to wire SignalR services into Wolverine itself
     // This does also call IServiceCollection.AddSignalR()
     // to register DI services for SignalR as well
-    opts.UseSignalR();
+    opts.UseSignalR(o =>
+    {
+        // Optionally configure the SignalR HubOptions
+        // for the WolverineHub
+        o.ClientTimeoutInterval = 10.Seconds();
+    });
     
     // Using explicit routing to send specific
     // messages to SignalR

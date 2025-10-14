@@ -138,6 +138,20 @@ the raw message being sent to the client and received from the browser. Here's a
 }
 ```
 
+You can always preview the message type name by using the `dotnet run -- describe` command and finding the
+"Message Routing" table in that output, which should look like this from the sample application:
+
+```text
+                                        Message Routing                                         
+┌───────────────────────────────┬────────────────────┬──────────────────────┬──────────────────┐
+│ .NET Type                     │ Message Type Alias │ Destination          │ Content Type     │
+├───────────────────────────────┼────────────────────┼──────────────────────┼──────────────────┤
+│ WolverineChat.ChatMessage     │ chat_message       │ signalr://wolverine/ │ application/json │
+│ WolverineChat.Ping            │ ping               │ signalr://wolverine/ │ application/json │
+│ WolverineChat.ResponseMessage │ response_message   │ signalr://wolverine/ │ application/json │
+└───────────────────────────────┴────────────────────┴──────────────────────┴──────────────────┘
+```
+
 The only elements that are mandatory are the `type` node that should be the Wolverine message type name and `data` that 
 is the actual message serialized by JSON. Wolverine will send the full CloudEvents envelope structure because it's
 reusing the envelope mapping from [our CloudEvents interoperability](/tutorials/interop.html#interop-with-cloudevents), but the browser code **only** needs to send `type`
@@ -541,7 +555,5 @@ Let's say that you have a workflow in your system something like:
 The SignalR transport can leverage some of Wolverine's built in saga tracking to be able to route the eventual Web Socket
 response back to the originating caller even if the work required intermediate steps. The easiest way to enroll in this
 behavior today is the usage of the `[EnlistInCurrentConnectionSaga]` that should be on either 
-
-
 
 
