@@ -137,6 +137,6 @@ in other nodes.
 More likely though, to both protect against concurrent access against resources that are prone to issues with concurrent access
 *and* allow for greater throughput, you may want to reach for either:
 
-* Session Identifier and FIFO queue support for Azure Service Bus
-* Wolverine's [Partitioned Sequential Messaging](https://wolverinefx.net/guide/messaging/transports/azureservicebus/session-identifiers.html) feature introduced in Wolverine 5.0 that was designed specifically to alleviate problems with concurrency within
+* [Session Identifier and FIFO queue support for Azure Service Bus](/guide/messaging/transports/azureservicebus/session-identifiers)
+* Wolverine's [Partitioned Sequential Messaging](/guide/messaging/partitioning) feature introduced in Wolverine 5.0 that was designed specifically to alleviate problems with concurrency within
   Wolverine systems.
