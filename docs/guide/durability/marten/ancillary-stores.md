@@ -132,6 +132,7 @@ So what's possible so far?
 * Marten side effects
 * Subscriptions to Marten events
 * Multi-tenancy, both "conjoined" Marten multi-tenancy and multi-tenancy through separate databases
+* [Wolverine managed projection or subscription distribution](/guide/durability/marten/distribution)
 
 ::: tip
 In the case of the ancillary Marten stores, the `IDocumentSession` objects are "lightweight" sessions without
@@ -140,19 +141,11 @@ any identity map mechanics for better performance.
 
 ## What's not (yet) supported
 
-::: warning
-There is currently a limitation where Wolverine can only use the inbox/outbox storage from the main Marten
-document store even if your handler declares that it is from a separate store. This is perfectly fine if your
-ancillary stores target the same PostgreSQL database. This limitation will be removed in 3.0.
-:::
-
 * It is not possible to use more than one ancillary store in the same handler with the middleware
 * The "Event Forwarding" from Marten to Wolverine
 * Fine grained configuration of the `IDocumentSession` objects created for the ancillary stores, so no ability to tag
   custom `IDocumentSessionListener` objects or control the session type. Listeners could be added through Wolverine middlware
   though
-* Controlling which schema the Wolverine envelope tables are placed in. Today they will be placed in the default schema for
-  the ancillary store
 * The PostgreSQL messaging transport will not span the ancillary databases, but will still work if the ancillary store is targeting
   the same database
 

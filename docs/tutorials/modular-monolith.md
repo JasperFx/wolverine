@@ -425,8 +425,7 @@ through database scripts if you want to move a module into a separate service la
 if you use [Marten's separate document store](https://martendb.io/configuration/hostbuilder.html#working-with-multiple-marten-databases) feature. 
 
 Wolverine has [direct support for Marten's separate or "ancillary" stores](/guide/durability/marten/ancillary-stores) that still enables the usage of all Wolverine + Marten
-integrations. There is currently a limitation that there is only one physical database that shares the Wolverine message storage for
-the transactional inbox/outbox across all modules.
+integrations. 
 
 Also note that the Wolverine + Marten "Critter Stack" combination is a great fit for "Event Driven Architecture" approaches
 where you depend on reliably publishing event messages to interested listeners in your application -- which is essentially 

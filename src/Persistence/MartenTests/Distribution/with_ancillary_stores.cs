@@ -72,6 +72,8 @@ public class with_ancillary_stores : IAsyncLifetime
     
     protected async Task<IHost> startHostAsync()
     {
+        #region sample_using_distributed_projections_with_ancillary_stores
+
         var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -115,6 +117,8 @@ public class with_ancillary_stores : IAsyncLifetime
 
                 opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
             }).StartAsync();
+
+        #endregion
 
         new XUnitEventObserver(host, _output);
 

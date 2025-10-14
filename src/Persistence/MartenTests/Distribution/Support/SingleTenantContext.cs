@@ -103,6 +103,7 @@ public abstract class SingleTenantContext : IAsyncLifetime
 
         return host;
     }
+    
 
     protected async Task<IHost> startGreenHostAsync()
     {
