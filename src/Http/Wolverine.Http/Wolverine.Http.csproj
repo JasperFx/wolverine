@@ -9,9 +9,4 @@
         <FrameworkReference Include="Microsoft.AspNetCore.App"/>
         <ProjectReference Include="..\..\Wolverine\Wolverine.csproj"/>
     </ItemGroup>
-    
-    <ItemGroup>
-        <PackageReference Include="FSharp.Core" Version="9.0.303" />
-    </ItemGroup>
-
 </Project>
