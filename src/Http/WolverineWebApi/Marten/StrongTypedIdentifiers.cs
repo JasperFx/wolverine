@@ -1,3 +1,4 @@
+using Marten;
 using Marten.Events;
 using StronglyTypedIds;
 using Wolverine.Http;
@@ -7,17 +8,26 @@ namespace WolverineWebApi.Marten;
 
 public static class StrongLetterHandler
 {
+    #region sample_using_strong_typed_id_as_route_argument
+
+    [WolverineGet("/sti/aggregate/longhand/{id}")]
+    public static ValueTask<StrongLetterAggregate> Handle2(LetterId id, IDocumentSession session) =>
+        session.Events.FetchLatest<StrongLetterAggregate>(id.Value);
+    
+    // This is an equivalent to the endpoint above 
     [WolverineGet("/sti/aggregate/{id}")]
     public static StrongLetterAggregate Handle(
         [ReadAggregate] StrongLetterAggregate aggregate) => aggregate;
 
-    [WolverinePost("/sti/incrementa")]
+    #endregion
+
+    [WolverinePost("/sti/incrementa"), EmptyResponse]
     public static AEvent Handle(IncrementStrongA command, [WriteAggregate] StrongLetterAggregate aggregate)
     {
         return new();
     }
     
-    [WolverinePost("/sti/incrementa2/{id}")]
+    [WolverinePost("/sti/incrementa2/{id}"), EmptyResponse]
     public static AEvent Handle2([WriteAggregate] StrongLetterAggregate aggregate)
     {
         return new();
@@ -34,7 +44,7 @@ public static class StrongLetterHandler
         stream2.AppendOne(new BEvent());
     }
 
-    [WolverinePost("/sti/writeread")]
+    [WolverinePost("/sti/writeread"), EmptyResponse]
     public static IEnumerable<object> Handle(
         AddFrom command,
         [WriteAggregate(nameof(AddFrom.Id1))] StrongLetterAggregate _,
@@ -72,8 +82,12 @@ public record FetchCounts(LetterId Id);
 
 
 
+#region sample_letter_id
+
 [StronglyTypedId(Template.Guid)]
 public readonly partial struct LetterId;
+
+#endregion
 
 public class StrongLetterAggregate
 {
@@ -116,3 +130,4 @@ public record BEvent;
 public record CEvent;
 
 public record DEvent;
+
