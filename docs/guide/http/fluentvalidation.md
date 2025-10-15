@@ -1,5 +1,11 @@
 # Fluent Validation Middleware for HTTP
 
+::: warning
+If you need to use IoC services in a Fluent Validation `IValidator` that might force Wolverine to use a service locator
+pattern in the generated code (basically from `AddScoped<T>(s => build it at runtime)`), we recommend instead using a 
+more explicit `Validate` or `ValidateAsync()` method directly in your HTTP endpoint class for the data input.
+:::
+
 Wolverine.Http has a separate package called `WolverineFx.Http.FluentValidation` that provides a simple middleware
 for using [Fluent Validation](https://docs.fluentvalidation.net/en/latest/) in your HTTP endpoints.
 
