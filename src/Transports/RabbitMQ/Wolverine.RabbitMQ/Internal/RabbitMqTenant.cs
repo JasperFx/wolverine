@@ -43,6 +43,7 @@ internal class RabbitMqTenant
         }
 
         CloneDeadLetterQueue(parent);
+        CloneChannelOptions(parent);
 
         return Transport!;
     }
@@ -56,6 +57,14 @@ internal class RabbitMqTenant
         Transport.DeadLetterQueue.BindingName = parent.DeadLetterQueue.BindingName;
         Transport.DeadLetterQueue.ConfigureQueue = parent.DeadLetterQueue.ConfigureQueue;
         Transport.DeadLetterQueue.ConfigureExchange = parent.DeadLetterQueue.ConfigureExchange;
+    }
+
+    private void CloneChannelOptions(RabbitMqTransport parent)
+    {
+        if (parent.ChannelOptionsCustomization != null)
+        {
+            Transport.CopyChannelOptionsFrom(parent);
+        }
     }
 
     public Task ConnectAsync(RabbitMqTransport parent, IWolverineRuntime runtime)

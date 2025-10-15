@@ -79,6 +79,8 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IAsy
     internal ConnectionMonitor ListeningConnection => _listenerConnection ?? throw new InvalidOperationException("The listening connection has not been created yet or is disabled!");
     internal ConnectionMonitor SendingConnection => _sendingConnection ?? throw new InvalidOperationException("The sending connection has not been created yet or is disabled!");
 
+    internal Func<CreateChannelOptions, CreateChannelOptions>? ChannelOptionsCustomization { get; private set; }
+
     public ConnectionFactory? ConnectionFactory { get; private set; }
 
     internal void ConfigureFactory(Action<ConnectionFactory> configure)
@@ -93,6 +95,34 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IAsy
         configureDefaults(factory);
 
         ConnectionFactory = factory;
+    }
+
+    internal void ConfigureChannelOptions(Func<CreateChannelOptions, CreateChannelOptions> configure)
+    {
+        if (configure == null)
+        {
+            throw new ArgumentNullException(nameof(configure));
+        }
+
+        if (ChannelOptionsCustomization == null)
+        {
+            ChannelOptionsCustomization = configure;
+        }
+        else
+        {
+            var previous = ChannelOptionsCustomization;
+            ChannelOptionsCustomization = options => configure(previous(options));
+        }
+    }
+
+    internal CreateChannelOptions ApplyChannelOptions(CreateChannelOptions options)
+    {
+        return ChannelOptionsCustomization?.Invoke(options) ?? options;
+    }
+
+    internal void CopyChannelOptionsFrom(RabbitMqTransport parent)
+    {
+        ChannelOptionsCustomization = parent.ChannelOptionsCustomization;
     }
 
     public IList<AmqpTcpEndpoint> AmqpTcpEndpoints { get; } = new List<AmqpTcpEndpoint>();
