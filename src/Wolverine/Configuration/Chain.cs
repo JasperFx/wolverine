@@ -283,25 +283,7 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
             foreach (var before in befores)
             {
                 var frame = new MethodCall(handlerType, before);
-                MiddlewarePolicy.AssertMethodDoesNotHaveDuplicateReturnValues(frame);
-
-                Middleware.Add(frame);
-
-                // TODO -- might generalize this a bit. Have a more generic mode of understanding return values
-                // like the HTTP support has
-                var outgoings = frame.Creates.Where(x => x.VariableType == typeof(OutgoingMessages)).ToArray();
-                int start = 100;
-                foreach (var outgoing in outgoings)
-                {
-                    outgoing.OverrideName(outgoing.Usage + (++start));
-                    Middleware.Add(new CaptureCascadingMessages(outgoing));
-                }
-
-                // Potentially add handling for IResult or HandlerContinuation
-                if (generationRules.TryFindContinuationHandler(this, frame, out var continuation))
-                {
-                    Middleware.Add(continuation!);
-                }
+                AddMiddleware(generationRules, frame);
             }
 
             var afters = MiddlewarePolicy.FilterMethods<WolverineAfterAttribute>(this, handlerType.GetMethods(),
@@ -315,6 +297,29 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
                     Postprocessors.Insert(i, frame);
                 }
             }
+        }
+    }
+
+    public void AddMiddleware(GenerationRules generationRules, MethodCall frame)
+    {
+        MiddlewarePolicy.AssertMethodDoesNotHaveDuplicateReturnValues(frame);
+
+        Middleware.Add(frame);
+
+        // TODO -- might generalize this a bit. Have a more generic mode of understanding return values
+        // like the HTTP support has
+        var outgoings = frame.Creates.Where(x => x.VariableType == typeof(OutgoingMessages)).ToArray();
+        int start = 100;
+        foreach (var outgoing in outgoings)
+        {
+            outgoing.OverrideName(outgoing.Usage + (++start));
+            Middleware.Add(new CaptureCascadingMessages(outgoing));
+        }
+
+        // Potentially add handling for IResult or HandlerContinuation
+        if (generationRules.TryFindContinuationHandler(this, frame, out var continuation))
+        {
+            Middleware.Add(continuation!);
         }
     }
 
