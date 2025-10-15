@@ -44,6 +44,7 @@ public class strong_typed_identifiers : IntegrationContext
         await Scenario(x =>
         {
             x.Post.Json(new IncrementStrongA(new LetterId(streamId))).ToUrl("/sti/incrementa");
+            x.StatusCodeShouldBe(204);
         });
         
         var result = await Scenario(x =>
@@ -73,7 +74,8 @@ public class strong_typed_identifiers : IntegrationContext
 
         await Scenario(x =>
         {
-            x.Post.Json(new IncrementBOnBoth(new LetterId(stream1Id), new LetterId(stream2Id)));
+            x.Post.Json(new IncrementBOnBoth(new LetterId(stream1Id), new LetterId(stream2Id))).ToUrl("/sti/multiples");
+            x.StatusCodeShouldBe(204);
         });
 
         var aggregate1 = await session.Events.FetchLatest<StrongLetterAggregate>(stream1Id);
@@ -99,7 +101,9 @@ public class strong_typed_identifiers : IntegrationContext
 
         await Host.Scenario(x =>
         {
-            x.Post.Json(new AddFrom(new LetterId(stream1Id), new LetterId(stream2Id)));
+            x.Post.Json(new AddFrom(new LetterId(stream1Id), new LetterId(stream2Id)))
+                .ToUrl("/sti/writeread");
+            x.StatusCodeShouldBe(204);
         });
 
         var aggregate1 = await session.Events.FetchLatest<StrongLetterAggregate>(stream1Id);

@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 using Shouldly;
 using Wolverine.Marten;
 using Wolverine.Persistence;
+using WolverineWebApi.Marten;
 
 namespace Wolverine.Http.Tests.Marten;
 
@@ -217,10 +218,3 @@ public class LetterAggregate
     }
 }
 
-public record AEvent;
-
-public record BEvent;
-
-public record CEvent;
-
-public record DEvent;

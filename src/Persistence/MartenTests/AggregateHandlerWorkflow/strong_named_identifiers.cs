@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json.Serialization;
 using IntegrationTests;
 using JasperFx.Events;
