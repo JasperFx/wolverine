@@ -12,6 +12,12 @@ There is also an HTTP specific middleware for WolverineFx.Http that uses the `Pr
 [Fluent Validation Middleware for HTTP](/guide/http/fluentvalidation) for more information.
 :::
 
+::: warning
+If you need to use IoC services in a Fluent Validation `IValidator` that might force Wolverine to use a service locator
+pattern in the generated code (basically from `AddScoped<T>(s => build it at runtime)`), we recommend instead using a
+more explicit `Validate` or `ValidateAsync()` method directly in your message handler~~~~ class for the data input.
+:::
+
 You will frequently want or need to validate the messages coming into your Wolverine system for correctness
 or at least the presence of vital information. To that end, Wolverine has support for integrating the
 popular [Fluent Validation](https://docs.fluentvalidation.net/en/latest/) library via an unobtrusive middleware strategy

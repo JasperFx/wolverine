@@ -14,14 +14,14 @@ namespace Internal.Generated.WolverineHandlers
     public sealed class DELETE_validate_user_compound : Wolverine.Http.HttpHandler
     {
         private readonly Wolverine.Http.WolverineHttpOptions _wolverineHttpOptions;
-        private readonly Wolverine.Http.FluentValidation.IProblemDetailSource<WolverineWebApi.Validation.BlockUser> _problemDetailSource;
         private readonly FluentValidation.IValidator<WolverineWebApi.Validation.BlockUser> _validator;
+        private readonly Wolverine.Http.FluentValidation.IProblemDetailSource<WolverineWebApi.Validation.BlockUser> _problemDetailSource;
 
-        public DELETE_validate_user_compound(Wolverine.Http.WolverineHttpOptions wolverineHttpOptions, Wolverine.Http.FluentValidation.IProblemDetailSource<WolverineWebApi.Validation.BlockUser> problemDetailSource, FluentValidation.IValidator<WolverineWebApi.Validation.BlockUser> validator) : base(wolverineHttpOptions)
+        public DELETE_validate_user_compound(Wolverine.Http.WolverineHttpOptions wolverineHttpOptions, FluentValidation.IValidator<WolverineWebApi.Validation.BlockUser> validator, Wolverine.Http.FluentValidation.IProblemDetailSource<WolverineWebApi.Validation.BlockUser> problemDetailSource) : base(wolverineHttpOptions)
         {
             _wolverineHttpOptions = wolverineHttpOptions;
-            _problemDetailSource = problemDetailSource;
             _validator = validator;
+            _problemDetailSource = problemDetailSource;
         }
 
 

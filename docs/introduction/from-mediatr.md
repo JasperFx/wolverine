@@ -186,9 +186,15 @@ public static class CreateCustomerEndpoint
     {
         return "Got a new customer";
     }
+    
+    [WolverinePost("/validate/customer2")]
+    public static string Post2([FromQuery] CreateCustomer customer)
+    {
+        return "Got a new customer";
+    }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Validation/CreateCustomerEndpoint.cs#L7-L36' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_createcustomer_endpoint_with_validation' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Validation/CreateCustomerEndpoint.cs#L8-L43' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_createcustomer_endpoint_with_validation' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In the application bootstrapping, I've added this option:

@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Wolverine.Attributes;
 using Wolverine.Tracking;
 using Xunit;
 
@@ -34,6 +35,34 @@ public class compound_handlers
 
         // Should fail validation if Number > 20
         var tracked = await host.InvokeMessageAndWaitAsync(new MaybeBadThing(20));
+        
+        tracked.Received.SingleMessage<RejectYourThing>()
+            .Number.ShouldBe(20);
+    }
+    
+    [Fact]
+    public async Task can_send_messages_from_before_methods_that_ultimately_stop_the_processing_through_outgoing_messages_in_middleware_signature()
+    {
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine()
+            .StartAsync();
+
+        // Should fail validation if Number > 20
+        var tracked = await host.InvokeMessageAndWaitAsync(new MaybeBadThing3(20));
+        
+        tracked.Received.SingleMessage<RejectYourThing>()
+            .Number.ShouldBe(20);
+    }
+    
+    [Fact]
+    public async Task can_send_messages_from_before_methods_that_ultimately_stop_the_processing_through_outgoing_messages_in_external_middleware_signature()
+    {
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine()
+            .StartAsync();
+
+        // Should fail validation if Number > 20
+        var tracked = await host.InvokeMessageAndWaitAsync(new MaybeBadThing4(20));
         
         tracked.Received.SingleMessage<RejectYourThing>()
             .Number.ShouldBe(20);
@@ -154,6 +183,26 @@ public static class MaybeBadThingHandler
 
 #endregion
 
+public record MaybeBadThing3(int Number);
+
+public static class MaybeBadThing3Handler
+{
+    public static (OutgoingMessages, HandlerContinuation) Validate(MaybeBadThing3 thing)
+    {
+        if (thing.Number > 10)
+        {
+            return ([new RejectYourThing(thing.Number)], HandlerContinuation.Stop);
+        }
+
+        return ([], HandlerContinuation.Continue);
+    }
+
+    public static void Handle(MaybeBadThing3 message)
+    {
+        Debug.WriteLine("Got " + message);
+    }
+}
+
 #region sample_using_outgoing_messages_from_before_middleware
 
 public static class MaybeBadThing2Handler
@@ -203,3 +252,31 @@ public record AssignTask(string TaskId)
 {
     public bool Handled { get; set; }
 }
+
+#region sample_send_messages_through_outgoing_messages_with_external_middleware
+
+public record MaybeBadThing4(int Number);
+
+public static class MaybeBadThing4Middleware
+{
+    public static (OutgoingMessages, HandlerContinuation) Validate(MaybeBadThing4 thing)
+    {
+        if (thing.Number > 10)
+        {
+            return ([new RejectYourThing(thing.Number)], HandlerContinuation.Stop);
+        }
+
+        return ([], HandlerContinuation.Continue);
+    }
+}
+
+[Middleware(typeof(MaybeBadThing4Middleware))]
+public static class MaybeBadThing4Handler
+{
+    public static void Handle(MaybeBadThing4 message)
+    {
+        Debug.WriteLine("Got " + message);
+    }
+}
+
+#endregion

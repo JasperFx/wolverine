@@ -14,14 +14,14 @@ namespace Internal.Generated.WolverineHandlers
     public sealed class POST_validate_user : Wolverine.Http.HttpHandler
     {
         private readonly Wolverine.Http.WolverineHttpOptions _wolverineHttpOptions;
-        private readonly System.Collections.Generic.IEnumerable<FluentValidation.IValidator<WolverineWebApi.Validation.CreateUser>> _validatorIEnumerable;
         private readonly Wolverine.Http.FluentValidation.IProblemDetailSource<WolverineWebApi.Validation.CreateUser> _problemDetailSource;
+        private readonly System.Collections.Generic.IEnumerable<FluentValidation.IValidator<WolverineWebApi.Validation.CreateUser>> _validatorIEnumerable;
 
-        public POST_validate_user(Wolverine.Http.WolverineHttpOptions wolverineHttpOptions, System.Collections.Generic.IEnumerable<FluentValidation.IValidator<WolverineWebApi.Validation.CreateUser>> validatorIEnumerable, Wolverine.Http.FluentValidation.IProblemDetailSource<WolverineWebApi.Validation.CreateUser> problemDetailSource) : base(wolverineHttpOptions)
+        public POST_validate_user(Wolverine.Http.WolverineHttpOptions wolverineHttpOptions, Wolverine.Http.FluentValidation.IProblemDetailSource<WolverineWebApi.Validation.CreateUser> problemDetailSource, System.Collections.Generic.IEnumerable<FluentValidation.IValidator<WolverineWebApi.Validation.CreateUser>> validatorIEnumerable) : base(wolverineHttpOptions)
         {
             _wolverineHttpOptions = wolverineHttpOptions;
-            _validatorIEnumerable = validatorIEnumerable;
             _problemDetailSource = problemDetailSource;
+            _validatorIEnumerable = validatorIEnumerable;
         }
 
 
