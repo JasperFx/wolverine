@@ -121,6 +121,16 @@ public class strong_named_identifiers : IAsyncLifetime
     
 }
 
+#region sample_using_strong_typed_identifier_with_aggregate_handler_workflow
+
+public record IncrementStrongA(LetterId Id);
+
+public record AddFrom(LetterId Id1, LetterId Id2);
+
+public record IncrementBOnBoth(LetterId Id1, LetterId Id2);
+
+public record FetchCounts(LetterId Id);
+
 public static class StrongLetterHandler
 {
     public static StrongLetterAggregate Handle(FetchCounts counts,
@@ -135,7 +145,7 @@ public static class StrongLetterHandler
         IncrementBOnBoth command,
         [WriteAggregate(nameof(IncrementBOnBoth.Id1))] IEventStream<StrongLetterAggregate> stream1,
         [WriteAggregate(nameof(IncrementBOnBoth.Id2))] IEventStream<StrongLetterAggregate> stream2
-        )
+    )
     {
         stream1.AppendOne(new BEvent());
         stream2.AppendOne(new BEvent());
@@ -168,15 +178,11 @@ public static class StrongLetterHandler
     }
 }
 
-public record IncrementStrongA(LetterId Id);
-
-public record AddFrom(LetterId Id1, LetterId Id2);
-
-public record IncrementBOnBoth(LetterId Id1, LetterId Id2);
-
-public record FetchCounts(LetterId Id);
+    #endregion
 
 
+
+#region sample_strong_typed_identifier_with_aggregate
 
 [StronglyTypedId(Template.Guid)]
 public readonly partial struct LetterId;
@@ -194,23 +200,10 @@ public class StrongLetterAggregate
     public int CCount { get; set; }
     public int DCount { get; set; }
 
-    public void Apply(AEvent e)
-    {
-        ACount++;
-    }
-
-    public void Apply(BEvent e)
-    {
-        BCount++;
-    }
-
-    public void Apply(CEvent e)
-    {
-        CCount++;
-    }
-
-    public void Apply(DEvent e)
-    {
-        DCount++;
-    }
+    public void Apply(AEvent _) => ACount++;
+    public void Apply(BEvent _) => BCount++;
+    public void Apply(CEvent _) => CCount++;
+    public void Apply(DEvent _) => DCount++;
 }
+
+#endregion

@@ -103,6 +103,10 @@ support for Event Sourcing and CQRS](/guide/durability/marten/event-sourcing). O
 by just mimicking the command handler mechanism and having all the inputs come in through the request body (aggregate id, version).
 Wolverine 1.10 added a more HTTP-centric approach using route arguments. 
 
+Because folks always want to insert strong typed identifiers in every possible nook and cranny of their application code,
+Wolverine 5.0 introduced support for using these custom value types as the stream and/or aggregate identity
+in all usages of the aggregate handler workflow with Wolverine.HTTP.
+
 ### Using Route Arguments
 
 ::: tip
