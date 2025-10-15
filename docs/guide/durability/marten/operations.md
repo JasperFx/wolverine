@@ -6,11 +6,6 @@ handlers
 :::
 
 ::: info
-This integration includes full support for the [storage action side effects](/guide/handlers/side-effects.html#storage-side-effects)
-model when using Marten with Wolverine.
-:::
-
-::: tip
 This integration also includes full support for the [storage action side effects](/guide/handlers/side-effects.html#storage-side-effects)
 model when using Marten~~~~ with Wolverine.
 :::

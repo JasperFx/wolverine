@@ -11,6 +11,15 @@ dotnet add package WolverineFx.Http.Marten
 
 ## Passing Marten Documents to Endpoint Parameters
 
+::: tip
+The `[Document]` attribute is still valid, but it's the exact same behavior as the generalized
+`[Entity]` attribute that is supported by message handlers as well.
+:::
+
+::: info
+Strong typed identifiers are supported for this usage as of Wolverine 5.0
+:::
+
 Consider this very common use case, you have an HTTP endpoint that needs to work on a Marten document that will
 be loaded using the value of one of the route arguments as that document's identity. In a long hand way, that could
 look like this:
