@@ -28,8 +28,15 @@ public class RabbitMqExchange : RabbitMqEndpoint, IRabbitMqExchange
         Routings = new LightweightCache<string, RabbitMqRouting>(key => new RabbitMqRouting(this, key, _parent));
     }
 
-    internal LightweightCache<string, RabbitMqTopicEndpoint> Topics { get; }
-    internal LightweightCache<string, RabbitMqRouting> Routings { get; }
+    /// <summary>
+    /// All active topic endpoints by name
+    /// </summary>
+    public LightweightCache<string, RabbitMqTopicEndpoint> Topics { get; }
+    
+    /// <summary>
+    /// All active routing keys
+    /// </summary>
+    public LightweightCache<string, RabbitMqRouting> Routings { get; }
 
     public override bool AutoStartSendingAgent()
     {
