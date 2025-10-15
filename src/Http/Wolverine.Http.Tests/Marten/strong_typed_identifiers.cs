@@ -114,4 +114,18 @@ public class strong_typed_identifiers : IntegrationContext
         var aggregate2 = await session.Events.FetchLatest<StrongLetterAggregate>(stream2Id);
         aggregate2.BCount.ShouldBe(2);
     }
+
+    [Fact]
+    public async Task use_entity_or_document_attribute()
+    {
+        var toy = new Toy { Id = ToyId.New(), Name = "My toy" };
+        using var session = Host.DocumentStore().LightweightSession();
+        session.Store(toy);
+        await session.SaveChangesAsync();
+
+        var result = await Scenario(x => x.Get.Url("/toys/" + toy.Id.Value));
+
+        var thing2 = result.ReadAsJson<Toy>();
+        thing2.Name.ShouldBe(toy.Name);
+    }
 }
