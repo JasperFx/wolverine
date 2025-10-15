@@ -1,4 +1,5 @@
-﻿using JasperFx.Core;
+using System;
+using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using NSubstitute;
 using Wolverine.ComplianceTests.Compliance;
@@ -11,7 +12,7 @@ public class ConfiguredMessageExtensionsTests
     [Fact]
     public void delayed_for()
     {
-        var delay = 5.Minutes();
+        var delay = TimeSpan.FromMinutes(5);
         var inner = new Message1();
         var configured = inner.DelayedFor(delay);
 
@@ -22,11 +23,11 @@ public class ConfiguredMessageExtensionsTests
     [Fact]
     public void chain_delayed_for()
     {
-        var delay = 5.Minutes();
+        var delay = TimeSpan.FromMinutes(5);
         var inner = new Message1();
 
         var configured = inner.WithTenantId("one")
-            .DelayedFor(5.Minutes());
+            .DelayedFor(TimeSpan.FromMinutes(5));
         
         configured.Options.ScheduleDelay.ShouldBe(delay);
         configured.Message.ShouldBe(inner);
@@ -36,7 +37,7 @@ public class ConfiguredMessageExtensionsTests
     [Fact]
     public void chain_with_tenant_id()
     {
-        var delay = 5.Minutes();
+        var delay = TimeSpan.FromMinutes(5);
         var inner = new Message1();
 
         var configured = inner
@@ -86,7 +87,7 @@ public class ConfiguredMessageExtensionsTests
     public void to_endpoint()
     {
         var inner = new Message1();
-        var message = inner.ToEndpoint("foo", new DeliveryOptions{DeliverWithin = 5.Seconds()});
+        var message = inner.ToEndpoint("foo", new DeliveryOptions{DeliverWithin = TimeSpan.FromSeconds(5)});
 
         message.Message.ShouldBe(inner);
         message.EndpointName.ShouldBe("foo");
@@ -98,7 +99,7 @@ public class ConfiguredMessageExtensionsTests
     {
         var inner = new Message1();
         var destination = new Uri("rabbitmq://queue/foo");
-        var message = inner.ToDestination(destination, new DeliveryOptions{DeliverWithin = 5.Seconds()});
+        var message = inner.ToDestination(destination, new DeliveryOptions{DeliverWithin = TimeSpan.FromSeconds(5)});
 
         message.Message.ShouldBe(inner);
         message.Destination.ShouldBe(destination);
