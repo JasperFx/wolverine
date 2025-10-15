@@ -33,6 +33,8 @@ internal class Program
 
                 opts.ListenToRabbitQueue("rabbit1");
                 opts.PublishAllMessages().ToRabbitQueue("rabbit2");
+                
+                
             }).RunJasperFxCommands(args);
     }
 }

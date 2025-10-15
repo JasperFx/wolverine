@@ -340,57 +340,6 @@ public static class HostBuilderExtensions
         return services.AddSingleton<IAsyncWolverineExtension, T>();
     }
 
-    public static void AssertWolverineConfigurationIsValid(this IHost host)
-    {
-        host.AssertAllGeneratedCodeCanCompile();
-    }
-    
-    /// <summary>
-    ///     Validate all of the Wolverine configuration of this Wolverine application.
-    ///     This checks that all of the known generated code elements are valid
-    /// </summary>
-    /// <param name="host"></param>
-    // TODO -- put this back into JasperFx.RuntimeCompiler!
-    public static void AssertAllGeneratedCodeCanCompile(this IHost host)
-    {
-        var exceptions = new List<Exception>();
-        var failures = new List<string>();
-        
-        var collections = host.Services.GetServices<ICodeFileCollection>().ToArray();
-
-        var services = host.Services.GetService<IServiceVariableSource>();
-
-        foreach (var collection in collections)
-        {
-            foreach (var file in collection.BuildFiles())
-            {
-                var fileName = collection.ChildNamespace.Replace(".", "/").AppendPath(file.FileName);
-                
-                try
-                {
-                    var assembly = new GeneratedAssembly(collection.Rules);
-                    file.AssembleTypes(assembly);
-                    new AssemblyGenerator().Compile(assembly, services);
-                    
-                    Debug.WriteLine($"U+2713 {fileName} ");
-                }
-                catch (Exception e)
-                {
-                    Debug.WriteLine($"Failed: {fileName}");
-                    Debug.WriteLine(e);
-                    
-                    failures.Add(fileName);
-                    exceptions.Add(e);
-                }
-            }
-        }
-
-        if (failures.Any())
-        {
-            throw new AggregateException($"Compilation failures for:\n{failures.Join("\n")}", exceptions);
-        }
-    }
-
     /// <summary>
     /// Apply all asynchronous Wolverine configuration extensions to the Wolverine application.
     /// This is necessary if you are using Wolverine.HTTP endpoints
