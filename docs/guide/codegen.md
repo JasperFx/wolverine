@@ -21,7 +21,7 @@ Not to worry though, Wolverine has several facilities to either preview the gene
 really understand how Wolverine is interacting with your code and to optimize the "cold start" by generating the dynamic
 code ahead of time so that it can be embedded directly into your application's main assembly and discovered from there.
 
-By default, Wolverine runs with "dynamic" code generation where a l the necessary generated types are built on demand
+By default, Wolverine runs with "dynamic" code generation where all the necessary generated types are built on demand
 the first time they are needed. This is perfect for a quick start to Wolverine, and might be fine in smaller projects even
 at production time.
 
