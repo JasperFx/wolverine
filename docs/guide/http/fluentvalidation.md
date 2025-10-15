@@ -82,3 +82,46 @@ public class ValidatedQuery
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/FormEndpoints.cs#L201-L228' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_fluent_validation_with_asparameters' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+
+## QueryString Binding <Badge type="tip" text="5.0" />
+
+Wolverine.HTTP can apply the Fluent Validation middleware to complex types that are bound by the `[FromQuery]` behavior:
+
+<!-- snippet: sample_CreateCustomer_endpoint_with_validation -->
+<a id='snippet-sample_createcustomer_endpoint_with_validation'></a>
+```cs
+public record CreateCustomer
+(
+    string FirstName,
+    string LastName,
+    string PostalCode
+)
+{
+    public class CreateCustomerValidator : AbstractValidator<CreateCustomer>
+    {
+        public CreateCustomerValidator()
+        {
+            RuleFor(x => x.FirstName).NotNull();
+            RuleFor(x => x.LastName).NotNull();
+            RuleFor(x => x.PostalCode).NotNull();
+        }
+    }
+}
+
+public static class CreateCustomerEndpoint
+{
+    [WolverinePost("/validate/customer")]
+    public static string Post(CreateCustomer customer)
+    {
+        return "Got a new customer";
+    }
+    
+    [WolverinePost("/validate/customer2")]
+    public static string Post2([FromQuery] CreateCustomer customer)
+    {
+        return "Got a new customer";
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Validation/CreateCustomerEndpoint.cs#L8-L43' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_createcustomer_endpoint_with_validation' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->

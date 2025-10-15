@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using FluentValidation;
+using Microsoft.AspNetCore.Mvc;
 using Wolverine.Http;
 
 namespace WolverineWebApi.Validation;
@@ -28,6 +29,12 @@ public static class CreateCustomerEndpoint
 {
     [WolverinePost("/validate/customer")]
     public static string Post(CreateCustomer customer)
+    {
+        return "Got a new customer";
+    }
+    
+    [WolverinePost("/validate/customer2")]
+    public static string Post2([FromQuery] CreateCustomer customer)
     {
         return "Got a new customer";
     }
