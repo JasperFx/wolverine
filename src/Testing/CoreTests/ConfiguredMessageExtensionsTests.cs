@@ -1,5 +1,4 @@
 using JasperFx.Core;
-using System;
 using NSubstitute;
 using Wolverine.ComplianceTests.Compliance;
 using Xunit;
@@ -26,7 +25,7 @@ public class ConfiguredMessageExtensionsTests
         var inner = new Message1();
 
         var configured = inner.WithTenantId("one")
-            .DelayedFor(TimeSpan.FromMinutes(5));
+            .DelayedFor(5.Minutes());
         
         configured.Options.ScheduleDelay.ShouldBe(delay);
         configured.Message.ShouldBe(inner);
