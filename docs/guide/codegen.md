@@ -122,6 +122,15 @@ using var host = Host.CreateDefaultBuilder()
 If the assembly choice is correct, and the expected code files are really in `Internal/Generated` exactly as you'd expect, make
 sure there's no accidental `<Exclude />` nodes in your project file. *Don't laugh, that's actually happened to Wolverine users*
 
+::: warning
+Actually, while the Wolverine team mostly uses JetBrains Rider that doesn't exhibit this behavior, we found out the hard way interacting with other folks that
+Visual Studio.Net will add the `<Exclude />` into your `csproj` file when you manually delete the generated code files
+sometimes.
+:::
+
+If you see issues with *Marten* document providers, make sure that you have registered that document with Marten itself. At this point,
+Wolverine does not automatically register `Saga` types with Marten. See [Marten's own documentation](https://martendb.io) about document type discovery.
+
 ## Wolverine Code Generation and IoC <Badge type="tip" text="5.0" />
 
 ::: info
@@ -333,5 +342,3 @@ Which will use:
 
 1. `TypeLoadMode.Auto` when the .NET environment is "Development" and try to write new source code to file
 2. `TypeLoadMode.Static` for other .NET environments for optimized cold start times
-
-
