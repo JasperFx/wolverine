@@ -1,6 +1,5 @@
-using System;
 using JasperFx.Core;
-using JasperFx.Core.Reflection;
+using System;
 using NSubstitute;
 using Wolverine.ComplianceTests.Compliance;
 using Xunit;
@@ -12,7 +11,7 @@ public class ConfiguredMessageExtensionsTests
     [Fact]
     public void delayed_for()
     {
-        var delay = TimeSpan.FromMinutes(5);
+        var delay = 5.Minutes();
         var inner = new Message1();
         var configured = inner.DelayedFor(delay);
 
@@ -23,7 +22,7 @@ public class ConfiguredMessageExtensionsTests
     [Fact]
     public void chain_delayed_for()
     {
-        var delay = TimeSpan.FromMinutes(5);
+        var delay = 5.Minutes();
         var inner = new Message1();
 
         var configured = inner.WithTenantId("one")
@@ -37,7 +36,7 @@ public class ConfiguredMessageExtensionsTests
     [Fact]
     public void chain_with_tenant_id()
     {
-        var delay = TimeSpan.FromMinutes(5);
+        var delay = 5.Minutes();
         var inner = new Message1();
 
         var configured = inner
@@ -87,7 +86,7 @@ public class ConfiguredMessageExtensionsTests
     public void to_endpoint()
     {
         var inner = new Message1();
-        var message = inner.ToEndpoint("foo", new DeliveryOptions{DeliverWithin = TimeSpan.FromSeconds(5)});
+        var message = inner.ToEndpoint("foo", new DeliveryOptions{DeliverWithin = 5.Seconds()});
 
         message.Message.ShouldBe(inner);
         message.EndpointName.ShouldBe("foo");
@@ -99,7 +98,7 @@ public class ConfiguredMessageExtensionsTests
     {
         var inner = new Message1();
         var destination = new Uri("rabbitmq://queue/foo");
-        var message = inner.ToDestination(destination, new DeliveryOptions{DeliverWithin = TimeSpan.FromSeconds(5)});
+        var message = inner.ToDestination(destination, new DeliveryOptions{DeliverWithin = 5.Seconds()});
 
         message.Message.ShouldBe(inner);
         message.Destination.ShouldBe(destination);
