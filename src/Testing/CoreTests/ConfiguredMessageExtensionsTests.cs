@@ -1,4 +1,5 @@
 using JasperFx.Core;
+using JasperFx.Core.Reflection;
 using NSubstitute;
 using Wolverine.ComplianceTests.Compliance;
 using Xunit;
