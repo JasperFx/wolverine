@@ -47,7 +47,12 @@ internal class ConnectionMonitor : IAsyncDisposable, IConnectionMonitor
     {
         if (_connection == null) throw new InvalidOperationException("The connection is not initialized");
 
-        return _connection!.CreateChannelAsync();
+        var wolverineOptions = new WolverineRabbitMqChannelOptions();
+        _transport.ChannelCreationOptions?.Invoke(wolverineOptions);
+
+        var options = new CreateChannelOptions(wolverineOptions.PublisherConfirmationsEnabled, wolverineOptions.PublisherConfirmationTrackingEnabled, consumerDispatchConcurrency: wolverineOptions.ConsumerDispatchConcurrency);
+
+        return _connection!.CreateChannelAsync(options);
     }
 
     public ConnectionRole Role { get; }
