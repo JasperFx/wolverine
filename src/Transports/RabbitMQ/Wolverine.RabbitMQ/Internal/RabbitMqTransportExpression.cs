@@ -82,6 +82,24 @@ public class RabbitMqTransportExpression : BrokerExpression<RabbitMqTransport, R
         return this;
     }
 
+    /// <summary>
+    /// Make any necessary customizations to the Rabbit MQ client's CreateChannelOptions
+    /// </summary>
+    /// <param name="configure"></param>
+    /// <returns></returns>
+    /// <exception cref="ArgumentNullException"></exception>
+    public RabbitMqTransportExpression ConfigureChannelCreation(Action<WolverineRabbitMqChannelOptions> configure)
+    {
+        if (configure == null)
+        {
+            throw new ArgumentNullException(nameof(configure));
+        }
+
+        Transport.ChannelCreationOptions += configure;
+
+        return this;
+    }
+
     protected override RabbitMqListenerConfiguration createListenerExpression(RabbitMqQueue listenerEndpoint)
     {
         return new RabbitMqListenerConfiguration(listenerEndpoint, Transport);
