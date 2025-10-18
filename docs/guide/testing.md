@@ -6,7 +6,7 @@ to decouple application code from framework or other infrastructure concerns.
 
 See Jeremy's blog post [How Wolverine allows for easier testing](https://jeremydmiller.com/2022/12/13/how-wolverine-allows-for-easier-testing/) for an introduction to unit testing Wolverine message handlers.
 
-Also see [Wolverine Best Practices](/tutorials/best-practices) for other helpful tips.
+Also see [Wolverine Best Practices](/introduction/best-practices) for other helpful tips.
 
 And this:
 
