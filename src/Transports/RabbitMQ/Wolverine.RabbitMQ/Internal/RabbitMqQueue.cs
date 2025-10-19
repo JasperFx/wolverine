@@ -204,6 +204,11 @@ public partial class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQu
     public IDictionary<string, object> Arguments { get; } = new Dictionary<string, object>();
 
     /// <summary>
+    ///     Arguments for Rabbit MQ channel consume operations
+    /// </summary>
+    public IDictionary<string, object?> ConsumerArguments { get; } = new Dictionary<string, object?>();
+
+    /// <summary>
     ///     Create a "time to live" limit for messages in this queue. Sets the Rabbit MQ x-message-ttl argument on a queue
     /// </summary>
     /// <param name="limit"></param>

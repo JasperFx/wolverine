@@ -199,7 +199,7 @@ internal class RabbitMqListener : RabbitMqChannelAgent, IListener, ISupportDeadL
 
         await Channel!.BasicQosAsync(0, Queue.PreFetchCount, false, _cancellation);
         await Channel.BasicConsumeAsync(Queue.QueueName, false,
-            _transport.ConnectionFactory?.ClientProvidedName ?? _runtime.Options.ServiceName, _consumer,
+            _transport.ConnectionFactory?.ClientProvidedName ?? _runtime.Options.ServiceName, Queue.ConsumerArguments, _consumer,
             _runtime.Cancellation);
 
         if (_transport.AutoPingListeners)
