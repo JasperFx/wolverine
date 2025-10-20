@@ -249,7 +249,7 @@ public static class MaybeBadThingHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/compound_handlers.cs#L134-L155' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sending_messages_in_before_middleware' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/compound_handlers.cs#L163-L184' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sending_messages_in_before_middleware' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Or by returning `OutgoingMessages` from a middleware method as shown below:
@@ -275,7 +275,7 @@ public static class MaybeBadThing2Handler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/compound_handlers.cs#L157-L177' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_outgoing_messages_from_before_middleware' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/compound_handlers.cs#L206-L226' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_outgoing_messages_from_before_middleware' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -608,7 +608,35 @@ HTTP endpoint types to enable you to send messages through the usage of `Outgoin
 
 You can now write middleware method like this:
 
-snippet: sample_send_messages_through_outgoing_messages_with_external_middleware
+<!-- snippet: sample_send_messages_through_outgoing_messages_with_external_middleware -->
+<a id='snippet-sample_send_messages_through_outgoing_messages_with_external_middleware'></a>
+```cs
+public record MaybeBadThing4(int Number);
+
+public static class MaybeBadThing4Middleware
+{
+    public static (OutgoingMessages, HandlerContinuation) Validate(MaybeBadThing4 thing)
+    {
+        if (thing.Number > 10)
+        {
+            return ([new RejectYourThing(thing.Number)], HandlerContinuation.Stop);
+        }
+
+        return ([], HandlerContinuation.Continue);
+    }
+}
+
+[Middleware(typeof(MaybeBadThing4Middleware))]
+public static class MaybeBadThing4Handler
+{
+    public static void Handle(MaybeBadThing4 message)
+    {
+        Debug.WriteLine("Got " + message);
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/compound_handlers.cs#L256-L282' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_send_messages_through_outgoing_messages_with_external_middleware' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 And any objects in the `OutgoingMessages` return value from the middleware method will be sent as cascaded
 messages. Wolverine will also apply a "maybe stop" frame from the `IHandlerContinuation` as well.
