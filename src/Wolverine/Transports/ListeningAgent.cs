@@ -152,6 +152,8 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
         {
             using var activity = WolverineTracing.ActivitySource.StartActivity(WolverineTracing.StoppingListener);
             activity?.SetTag(WolverineTracing.EndpointAddress, Uri);
+
+            if (Listener == null) return;
             
             await Listener.StopAsync();
             await _receiver!.DrainAsync();
@@ -210,7 +212,7 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
         try
         {
             using var activity = WolverineTracing.ActivitySource.StartActivity(WolverineTracing.PausingListener);
-            activity?.SetTag(WolverineTracing.EndpointAddress, Listener.Address);
+            activity?.SetTag(WolverineTracing.EndpointAddress, Uri);
             await StopAndDrainAsync();
         }
         catch (Exception e)
