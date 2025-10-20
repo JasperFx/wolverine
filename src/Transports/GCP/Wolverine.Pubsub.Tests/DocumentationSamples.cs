@@ -238,21 +238,10 @@ public class DocumentationSamples
 
 #region sample_custom_pubsub_mapper
 
-public class CustomPubsubMapper : EnvelopeMapper<ReceivedMessage, PubsubMessage>, IPubsubEnvelopeMapper
+public class CustomPubsubMapper : EnvelopeMapper<PubsubMessage, PubsubMessage>, IPubsubEnvelopeMapper
 {
     public CustomPubsubMapper(PubsubEndpoint endpoint) : base(endpoint)
     {
-    }
-
-    public void MapIncomingToEnvelope(PubsubEnvelope envelope, ReceivedMessage incoming)
-    {
-        envelope.AckId = incoming.AckId;
-
-        // You will have to help Wolverine out by either telling Wolverine
-        // what the message type is, or by reading the actual message object,
-        // or by telling Wolverine separately what the default message type
-        // is for a listening endpoint
-        envelope.MessageType = typeof(Message1).ToMessageTypeName();
     }
 
     public void MapOutgoingToMessage(OutgoingMessageBatch outgoing, PubsubMessage message)
@@ -265,19 +254,19 @@ public class CustomPubsubMapper : EnvelopeMapper<ReceivedMessage, PubsubMessage>
         outgoing.Attributes[key] = value;
     }
 
-    protected override void writeIncomingHeaders(ReceivedMessage incoming, Envelope envelope)
+    protected override void writeIncomingHeaders(PubsubMessage incoming, Envelope envelope)
     {
-        if (incoming.Message.Attributes is null)
+        if (incoming.Attributes is null)
         {
             return;
         }
 
-        foreach (var pair in incoming.Message.Attributes) envelope.Headers[pair.Key] = pair.Value;
+        foreach (var pair in incoming.Attributes) envelope.Headers[pair.Key] = pair.Value;
     }
 
-    protected override bool tryReadIncomingHeader(ReceivedMessage incoming, string key, out string? value)
+    protected override bool tryReadIncomingHeader(PubsubMessage incoming, string key, out string? value)
     {
-        if (incoming.Message.Attributes.TryGetValue(key, out var header))
+        if (incoming.Attributes.TryGetValue(key, out var header))
         {
             value = header;
 
