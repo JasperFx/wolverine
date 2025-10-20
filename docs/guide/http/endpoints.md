@@ -1,5 +1,15 @@
 # HTTP Endpoints
 
+::: warning
+While Wolverine.HTTP has a relaxed view of naming conventions since it depends on the routing attributes for discovery. It
+is very possible to utilize the same method as both an HTTP endpoint and Wolverine message handler if the method both
+follows the correct naming conventions for message handler discovery and is decorated with one of the `[WolverineVerb]` attributes.
+
+This can lead to unexpected code generation errors on the message handler side if the method refers to HTTP route arguments,
+query string values, or other AspNetCore services. Our strong advice is to use the `Endpoint` class name nomenclature for HTTP
+endpoints unless you are explicitly meaning for a method to be both an HTTP endpoint and message handler. 
+:::
+
 First, a little terminology about Wolverine HTTP endpoints. Consider the following endpoint method:
 
 <!-- snippet: sample_simple_wolverine_http_endpoint -->
