@@ -13,9 +13,11 @@ public class PubsubMessageRoutingConvention : MessageRoutingConvention<
     protected override (PubsubTopicListenerConfiguration, Endpoint) FindOrCreateListenerForIdentifier(string identifier,
         PubsubTransport transport, Type messageType)
     {
-        var topic = transport.Topics[identifier];
+        var topicName = _identifierForSender(messageType);
+        var topic = transport.Topics[topicName];
+        var subscription = topic.GcpSubscriptions[identifier];
 
-        return (new PubsubTopicListenerConfiguration(topic), topic);
+        return (new PubsubTopicListenerConfiguration(subscription), subscription);
     }
 
     protected override (PubsubTopicSubscriberConfiguration, Endpoint) FindOrCreateSubscriber(string identifier,

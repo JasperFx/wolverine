@@ -1,12 +1,13 @@
 using Google.Api.Gax;
+using Wolverine.Pubsub.Internal;
 using Wolverine.Transports;
 
 namespace Wolverine.Pubsub;
 
 public class PubsubConfiguration : BrokerExpression<
     PubsubTransport,
-    PubsubEndpoint,
-    PubsubEndpoint,
+    PubsubSubscription,
+    PubsubTopic,
     PubsubTopicListenerConfiguration,
     PubsubTopicSubscriberConfiguration,
     PubsubConfiguration
@@ -52,40 +53,24 @@ public class PubsubConfiguration : BrokerExpression<
         return this;
     }
 
+    protected override PubsubTopicListenerConfiguration createListenerExpression(PubsubSubscription listenerEndpoint)
+    {
+        return new PubsubTopicListenerConfiguration(listenerEndpoint);
+    }
+
+    protected override PubsubTopicSubscriberConfiguration createSubscriberExpression(PubsubTopic subscriberEndpoint)
+    {
+        return new PubsubTopicSubscriberConfiguration(subscriberEndpoint);
+    }
+
     /// <summary>
-    ///     Enable Wolverine to create system endpoints automatically for responses and retries. This
-    ///     should probably be set if the application does have permissions to create topcis and subscriptions
+    /// Enable Wolverine to create a topic & subscription for the node to be used for request/reply mechanics
+    /// and for inter-node communication for leader election and agent assignements
     /// </summary>
     /// <returns></returns>
     public PubsubConfiguration EnableSystemEndpoints()
     {
         Transport.SystemEndpointsEnabled = true;
-
         return this;
-    }
-
-    /// <summary>
-    ///     Enable dead lettering with Google Cloud Platform Pub/Sub within this entire
-    ///     application
-    /// </summary>
-    /// <param name="configure"></param>
-    /// <returns></returns>
-    public PubsubConfiguration EnableDeadLettering(Action<PubsubDeadLetterOptions>? configure = null)
-    {
-        Transport.DeadLetter.Enabled = true;
-
-        configure?.Invoke(Transport.DeadLetter);
-
-        return this;
-    }
-
-    protected override PubsubTopicListenerConfiguration createListenerExpression(PubsubEndpoint listenerEndpoint)
-    {
-        return new PubsubTopicListenerConfiguration(listenerEndpoint);
-    }
-
-    protected override PubsubTopicSubscriberConfiguration createSubscriberExpression(PubsubEndpoint subscriberEndpoint)
-    {
-        return new PubsubTopicSubscriberConfiguration(subscriberEndpoint);
     }
 }

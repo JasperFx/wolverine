@@ -23,8 +23,6 @@ public class end_to_end_with_conventional_routing : IAsyncLifetime
                     .UsePubsubTesting()
                     .AutoProvision()
                     .AutoPurgeOnStartup()
-                    .EnableDeadLettering()
-                    .EnableSystemEndpoints()
                     .UseConventionalRouting();
 
                 opts.DisableConventionalDiscovery();
@@ -42,7 +40,6 @@ public class end_to_end_with_conventional_routing : IAsyncLifetime
                     .UsePubsubTesting()
                     .AutoProvision()
                     .AutoPurgeOnStartup()
-                    .EnableDeadLettering()
                     .EnableSystemEndpoints()
                     .UseConventionalRouting();
 

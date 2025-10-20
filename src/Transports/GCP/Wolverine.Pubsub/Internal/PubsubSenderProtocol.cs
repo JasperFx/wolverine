@@ -8,39 +8,51 @@ namespace Wolverine.Pubsub.Internal;
 
 internal class PubsubSenderProtocol : ISenderProtocol
 {
-    private readonly PublisherServiceApiClient _client;
-    private readonly PubsubEndpoint _endpoint;
+    private PublisherClient? _client;
+    private readonly PubsubTopic _topic;
     private readonly ILogger<PubsubSenderProtocol> _logger;
     private readonly IPubsubEnvelopeMapper _mapper;
 
     public PubsubSenderProtocol(
-        PubsubEndpoint endpoint,
-        PublisherServiceApiClient client,
+        PubsubTopic topic,
         IWolverineRuntime runtime
     )
     {
-        _mapper = endpoint.BuildMapper(runtime);
-        _endpoint = endpoint;
-        _client = client;
+        _mapper = topic.BuildMapper(runtime);
+        _topic = topic;
         _logger = runtime.LoggerFactory.CreateLogger<PubsubSenderProtocol>();
     }
 
     public async Task SendBatchAsync(ISenderCallback callback, OutgoingMessageBatch batch)
     {
-        await _endpoint.InitializeAsync(_logger);
+        await _topic.InitializeAsync(_logger);
 
         try
         {
-            var message = new PubsubMessage();
-
-            _mapper.MapOutgoingToMessage(batch, message);
-
-            await _client.PublishAsync(new PublishRequest
+            var request = new PublishRequest
             {
-                TopicAsTopicName = _endpoint.Server.Topic.Name,
-                Messages = { message }
-            });
+                TopicAsTopicName = _topic.TopicName
+            };
 
+            foreach (var envelope in batch.Messages)
+            {
+                var message = new PubsubMessage();
+                _mapper.MapEnvelopeToOutgoing(envelope, message);
+                request.Messages.Add(message);
+            }
+            
+            if (_client == null)
+            {
+                var builder = new PublisherClientBuilder
+                {
+                    EmulatorDetection = _topic.Parent.EmulatorDetection,
+                    TopicName = _topic.TopicName
+                };
+
+                _client = await builder.BuildAsync();
+            }
+            
+            await _client.PublishAsync(request);
             await callback.MarkSuccessfulAsync(batch);
         }
         catch (Exception ex)

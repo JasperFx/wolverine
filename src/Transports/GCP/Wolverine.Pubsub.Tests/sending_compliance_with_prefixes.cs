@@ -8,7 +8,7 @@ namespace Wolverine.Pubsub.Tests;
 
 public class PrefixedComplianceFixture : TransportComplianceFixture, IAsyncLifetime
 {
-    public PrefixedComplianceFixture() : base(new Uri($"{PubsubTransport.ProtocolName}://wolverine/foo.receiver"), 120)
+    public PrefixedComplianceFixture() : base(new Uri($"{PubsubTransport.ProtocolName}://foo.receiver"), 120)
     {
     }
 
@@ -16,7 +16,7 @@ public class PrefixedComplianceFixture : TransportComplianceFixture, IAsyncLifet
     {
         var id = Guid.NewGuid().ToString();
 
-        OutboundAddress = new Uri($"{PubsubTransport.ProtocolName}://wolverine/foo.receiver.{id}");
+        OutboundAddress = new Uri($"{PubsubTransport.ProtocolName}://foo.receiver.{id}");
 
         await SenderIs(opts =>
         {
@@ -24,7 +24,6 @@ public class PrefixedComplianceFixture : TransportComplianceFixture, IAsyncLifet
                 .AutoProvision()
                 .AutoPurgeOnStartup()
                 .PrefixIdentifiers("foo")
-                .EnableDeadLettering()
                 .EnableSystemEndpoints();
         });
 
@@ -34,11 +33,10 @@ public class PrefixedComplianceFixture : TransportComplianceFixture, IAsyncLifet
                 .AutoProvision()
                 .AutoPurgeOnStartup()
                 .PrefixIdentifiers("foo")
-                .EnableDeadLettering()
                 .EnableSystemEndpoints();
 
             opts
-                .ListenToPubsubTopic($"receiver.{id}")
+                .ListenToPubsubSubscription($"receiver.{id}", $"receiver.{id}")
                 .Named("receiver");
         });
     }
@@ -59,15 +57,8 @@ public class PrefixedSendingAndReceivingCompliance : TransportCompliance<Prefixe
         var endpoint = runtime.Endpoints.EndpointByName("receiver");
 
         endpoint
-            .ShouldBeOfType<PubsubEndpoint>()
-            .Server.Topic.Name.TopicId.ShouldStartWith("foo.");
+            .ShouldBeOfType<PubsubTopic>()
+            .TopicId.ShouldStartWith("foo.");
 
-        endpoint
-            .ShouldBeOfType<PubsubEndpoint>()
-            .Server.Subscription.Name.SubscriptionId.ShouldStartWith("foo.");
-
-        endpoint
-            .ShouldBeOfType<PubsubEndpoint>()
-            .Uri.Segments.Last().ShouldStartWith("foo.");
     }
 }

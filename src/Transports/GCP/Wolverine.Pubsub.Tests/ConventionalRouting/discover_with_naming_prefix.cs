@@ -23,8 +23,6 @@ public class discover_with_naming_prefix : IDisposable
                     .UsePubsubTesting()
                     .AutoProvision()
                     .AutoPurgeOnStartup()
-                    .EnableDeadLettering()
-                    .EnableSystemEndpoints()
                     .PrefixIdentifiers("zztop")
                     .UseConventionalRouting();
             }).Start();

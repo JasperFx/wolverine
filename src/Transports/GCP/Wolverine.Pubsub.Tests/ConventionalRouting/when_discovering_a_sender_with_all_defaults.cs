@@ -24,16 +24,16 @@ public class when_discovering_a_sender_with_all_defaults : ConventionalRoutingCo
     [Fact]
     public void routed_to_pubsub_endpoint()
     {
-        var endpoint = theRoute.Sender.Endpoint.ShouldBeOfType<PubsubEndpoint>();
+        var endpoint = theRoute.Sender.Endpoint.ShouldBeOfType<PubsubTopic>();
 
-        endpoint.Server.Topic.Name.TopicId.ShouldBe("published-message");
+        endpoint.TopicId.ShouldBe("published-message");
     }
 
     [Fact]
-    public void endpoint_mode_is_buffered_by_default()
+    public void endpoint_mode_is_inline_by_default()
     {
-        var endpoint = theRoute.Sender.Endpoint.ShouldBeOfType<PubsubEndpoint>();
+        var endpoint = theRoute.Sender.Endpoint.ShouldBeOfType<PubsubTopic>();
 
-        endpoint.Mode.ShouldBe(EndpointMode.BufferedInMemory);
+        endpoint.Mode.ShouldBe(EndpointMode.Inline);
     }
 }

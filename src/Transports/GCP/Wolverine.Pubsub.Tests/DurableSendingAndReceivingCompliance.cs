@@ -13,7 +13,7 @@ namespace Wolverine.Pubsub.Tests;
 
 public class DurableComplianceFixture : TransportComplianceFixture, IAsyncLifetime
 {
-    public DurableComplianceFixture() : base(new Uri($"{PubsubTransport.ProtocolName}://wolverine/durable-receiver"),
+    public DurableComplianceFixture() : base(new Uri($"{PubsubTransport.ProtocolName}://durable-receiver"),
         120)
     {
     }
@@ -22,7 +22,7 @@ public class DurableComplianceFixture : TransportComplianceFixture, IAsyncLifeti
     {
         var id = Guid.NewGuid().ToString();
 
-        OutboundAddress = new Uri($"{PubsubTransport.ProtocolName}://wolverine/durable-receiver.{id}");
+        OutboundAddress = new Uri($"{PubsubTransport.ProtocolName}://durable-receiver.{id}");
 
         await SenderIs(opts =>
         {
@@ -30,7 +30,6 @@ public class DurableComplianceFixture : TransportComplianceFixture, IAsyncLifeti
                 .UsePubsubTesting()
                 .AutoProvision()
                 .AutoPurgeOnStartup()
-                .EnableDeadLettering()
                 .EnableSystemEndpoints()
                 .ConfigureListeners(x => x.UseDurableInbox())
                 .ConfigureSenders(x => x.UseDurableOutbox());
@@ -52,7 +51,6 @@ public class DurableComplianceFixture : TransportComplianceFixture, IAsyncLifeti
                 .UsePubsubTesting()
                 .AutoProvision()
                 .AutoPurgeOnStartup()
-                .EnableDeadLettering()
                 .EnableSystemEndpoints()
                 .ConfigureListeners(x => x.UseDurableInbox())
                 .ConfigureSenders(x => x.UseDurableOutbox());
@@ -65,7 +63,7 @@ public class DurableComplianceFixture : TransportComplianceFixture, IAsyncLifeti
 
             opts.Services.AddResourceSetupOnStartup();
 
-            opts.ListenToPubsubTopic($"durable-receiver.{id}");
+            opts.ListenToPubsubSubscription($"durable-receiver.{id}", $"durable-receiver.{id}");
         });
     }
 
@@ -78,26 +76,5 @@ public class DurableComplianceFixture : TransportComplianceFixture, IAsyncLifeti
 [Collection("acceptance")]
 public class DurableSendingAndReceivingCompliance : TransportCompliance<DurableComplianceFixture>
 {
-    [Fact]
-    public virtual async Task dl_mechanics()
-    {
-        throwOnAttempt<DivideByZeroException>(1);
-        throwOnAttempt<DivideByZeroException>(2);
-        throwOnAttempt<DivideByZeroException>(3);
 
-        await shouldMoveToErrorQueueOnAttempt(1);
-
-        var runtime = theReceiver.Services.GetRequiredService<IWolverineRuntime>();
-        var transport = runtime.Options.Transports.GetOrCreate<PubsubTransport>();
-        var dl = transport.Topics[PubsubTransport.DeadLetterName];
-
-        await dl.InitializeAsync(NullLogger.Instance);
-
-        var pullResponse = await transport.SubscriberApiClient!.PullAsync(
-            dl.Server.Subscription.Name,
-            1
-        );
-
-        pullResponse.ReceivedMessages.ShouldNotBeEmpty();
-    }
 }

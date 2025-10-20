@@ -69,7 +69,7 @@ public class conventional_listener_discovery : ConventionalRoutingContext
         ConfigureConventions(c => c.ConfigureSending((c, _) => c.AddOutgoingRule(new FakeEnvelopeRule())));
 
         var route = PublishingRoutesFor<PublishedMessage>().Single().As<MessageRoute>().Sender.Endpoint
-            .ShouldBeOfType<PubsubEndpoint>();
+            .ShouldBeOfType<PubsubTopic>();
 
         route.OutgoingRules.Single().ShouldBeOfType<FakeEnvelopeRule>();
     }
@@ -103,7 +103,7 @@ public class conventional_listener_discovery : ConventionalRoutingContext
         ConfigureConventions(c => c.ConfigureListeners((x, _) => { x.UseDurableInbox(); }));
 
         var endpoint = theRuntime.Endpoints.EndpointFor($"{PubsubTransport.ProtocolName}://wolverine/routed".ToUri())
-            .ShouldBeOfType<PubsubEndpoint>();
+            .ShouldBeOfType<PubsubSubscription>();
 
         endpoint.Mode.ShouldBe(EndpointMode.Durable);
     }

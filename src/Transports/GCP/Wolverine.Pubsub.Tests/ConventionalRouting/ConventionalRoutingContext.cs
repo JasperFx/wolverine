@@ -19,8 +19,6 @@ public abstract class ConventionalRoutingContext : IDisposable
                 .UsePubsubTesting()
                 .AutoProvision()
                 .AutoPurgeOnStartup()
-                .EnableDeadLettering()
-                .EnableSystemEndpoints()
                 .UseConventionalRouting()
             );
 
@@ -43,7 +41,6 @@ public abstract class ConventionalRoutingContext : IDisposable
                     .UsePubsubTesting()
                     .AutoProvision()
                     .AutoPurgeOnStartup()
-                    .EnableDeadLettering()
                     .EnableSystemEndpoints()
                     .UseConventionalRouting(configure);
             }).Start();

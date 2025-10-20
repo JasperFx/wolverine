@@ -1,8 +1,10 @@
 using Google.Cloud.PubSub.V1;
 using Google.Protobuf;
 using Google.Protobuf.WellKnownTypes;
+using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
 using Wolverine.ComplianceTests.Compliance;
+using Wolverine.Pubsub.Internal;
 using Wolverine.Transports;
 using Wolverine.Util;
 
@@ -71,9 +73,9 @@ public class DocumentationSamples
             {
                 opts.UsePubsub("your-project-id");
 
-                opts.ListenToPubsubTopic("incoming1");
+                opts.ListenToPubsubSubscription("incoming1", "incoming1");
 
-                opts.ListenToPubsubTopic("incoming2")
+                opts.ListenToPubsubSubscription("incoming2", "incoming2")
 
                     // You can optimize the throughput by running multiple listeners
                     // in parallel
@@ -114,11 +116,7 @@ public class DocumentationSamples
                 opts
                     .PublishMessage<Message2>()
                     .ToPubsubTopic("outbound2")
-                    .ConfigurePubsubTopic(options =>
-                    {
-                        options.MessageRetentionDuration =
-                            Duration.FromTimeSpan(TimeSpan.FromMinutes(10));
-                    });
+                    .MessageRetentionDuration(10.Minutes());
             }).StartAsync();
 
         #endregion
@@ -164,60 +162,60 @@ public class DocumentationSamples
         #endregion
     }
 
-    public async Task enable_dead_lettering()
-    {
-        #region sample_enable_wolverine_dead_lettering_for_pubsub
-
-        var host = await Host.CreateDefaultBuilder()
-            .UseWolverine(opts =>
-            {
-                opts.UsePubsub("your-project-id")
-
-                    // Enable dead lettering for all Wolverine endpoints
-                    .EnableDeadLettering(
-                        // Optionally configure how the GCP Pub/Sub dead letter itself
-                        // is created by Wolverine
-                        options =>
-                        {
-                            options.Topic.MessageRetentionDuration =
-                                Duration.FromTimeSpan(TimeSpan.FromDays(14));
-
-                            options.Subscription.MessageRetentionDuration =
-                                Duration.FromTimeSpan(TimeSpan.FromDays(14));
-                        }
-                    );
-            }).StartAsync();
-
-        #endregion
-    }
-
-    public async Task overriding_wolverine_dead_lettering()
-    {
-        #region sample_configuring_wolverine_dead_lettering_for_pubsub
-
-        var host = await Host.CreateDefaultBuilder()
-            .UseWolverine(opts =>
-            {
-                opts.UsePubsub("your-project-id")
-                    .EnableDeadLettering();
-
-                // No dead letter queueing
-                opts.ListenToPubsubTopic("incoming")
-                    .DisableDeadLettering();
-
-                // Use a different dead letter queue
-                opts.ListenToPubsubTopic("important")
-                    .ConfigureDeadLettering(
-                        "important_errors",
-
-                        // Optionally configure how the dead letter itself
-                        // is built by Wolverine
-                        e => { e.TelemetryEnabled = true; }
-                    );
-            }).StartAsync();
-
-        #endregion
-    }
+    // public async Task enable_dead_lettering()
+    // {
+    //     #region sample_enable_wolverine_dead_lettering_for_pubsub
+    //
+    //     var host = await Host.CreateDefaultBuilder()
+    //         .UseWolverine(opts =>
+    //         {
+    //             opts.UsePubsub("your-project-id")
+    //
+    //                 // Enable dead lettering for all Wolverine endpoints
+    //                 .EnableDeadLettering(
+    //                     // Optionally configure how the GCP Pub/Sub dead letter itself
+    //                     // is created by Wolverine
+    //                     options =>
+    //                     {
+    //                         options.Topic.MessageRetentionDuration =
+    //                             Duration.FromTimeSpan(TimeSpan.FromDays(14));
+    //
+    //                         options.Subscription.MessageRetentionDuration =
+    //                             Duration.FromTimeSpan(TimeSpan.FromDays(14));
+    //                     }
+    //                 );
+    //         }).StartAsync();
+    //
+    //     #endregion
+    // }
+    //
+    // public async Task overriding_wolverine_dead_lettering()
+    // {
+    //     #region sample_configuring_wolverine_dead_lettering_for_pubsub
+    //
+    //     var host = await Host.CreateDefaultBuilder()
+    //         .UseWolverine(opts =>
+    //         {
+    //             opts.UsePubsub("your-project-id")
+    //                 .EnableDeadLettering();
+    //
+    //             // No dead letter queueing
+    //             opts.ListenToPubsubSubscription("incoming")
+    //                 .DisableDeadLettering();
+    //
+    //             // Use a different dead letter queue
+    //             opts.ListenToPubsubSubscription("important")
+    //                 .ConfigureDeadLettering(
+    //                     "important_errors",
+    //
+    //                     // Optionally configure how the dead letter itself
+    //                     // is built by Wolverine
+    //                     e => { e.TelemetryEnabled = true; }
+    //                 );
+    //         }).StartAsync();
+    //
+    //     #endregion
+    // }
 
     public async Task customize_mappers()
     {
@@ -228,8 +226,8 @@ public class DocumentationSamples
             {
                 opts.UsePubsub("your-project-id")
                     .UseConventionalRouting()
-                    .ConfigureListeners(l => l.UseInterop((e, _) => new CustomPubsubMapper(e)))
-                    .ConfigureSenders(s => s.UseInterop((e, _) => new CustomPubsubMapper(e)));
+                    .ConfigureListeners(l => l.UseInterop(new CustomPubsubMapper()))
+                    .ConfigureSenders(s => s.UseInterop(new CustomPubsubMapper()));
             }).StartAsync();
 
         #endregion
@@ -238,55 +236,23 @@ public class DocumentationSamples
 
 #region sample_custom_pubsub_mapper
 
-public class CustomPubsubMapper : EnvelopeMapper<ReceivedMessage, PubsubMessage>, IPubsubEnvelopeMapper
+public class CustomPubsubMapper : IPubsubEnvelopeMapper
 {
-    public CustomPubsubMapper(PubsubEndpoint endpoint) : base(endpoint)
+
+    public void MapEnvelopeToOutgoing(Envelope envelope, PubsubMessage outgoing)
     {
+        outgoing.MessageId = envelope.Id.ToString();
+        // much more here...
     }
 
-    public void MapIncomingToEnvelope(PubsubEnvelope envelope, ReceivedMessage incoming)
+    public void MapIncomingToEnvelope(Envelope envelope, PubsubMessage incoming)
     {
-        envelope.AckId = incoming.AckId;
+        // This is necessary, but you can use the default message type configuration
+        // within Wolverine to deal with it for you
+        envelope.MessageType = "some.type";
 
-        // You will have to help Wolverine out by either telling Wolverine
-        // what the message type is, or by reading the actual message object,
-        // or by telling Wolverine separately what the default message type
-        // is for a listening endpoint
-        envelope.MessageType = typeof(Message1).ToMessageTypeName();
-    }
-
-    public void MapOutgoingToMessage(OutgoingMessageBatch outgoing, PubsubMessage message)
-    {
-        message.Data = ByteString.CopyFrom(outgoing.Data);
-    }
-
-    protected override void writeOutgoingHeader(PubsubMessage outgoing, string key, string value)
-    {
-        outgoing.Attributes[key] = value;
-    }
-
-    protected override void writeIncomingHeaders(ReceivedMessage incoming, Envelope envelope)
-    {
-        if (incoming.Message.Attributes is null)
-        {
-            return;
-        }
-
-        foreach (var pair in incoming.Message.Attributes) envelope.Headers[pair.Key] = pair.Value;
-    }
-
-    protected override bool tryReadIncomingHeader(ReceivedMessage incoming, string key, out string? value)
-    {
-        if (incoming.Message.Attributes.TryGetValue(key, out var header))
-        {
-            value = header;
-
-            return true;
-        }
-
-        value = null;
-
-        return false;
+        // Maybe you're receiving raw JSON or something?
+        envelope.Data = incoming.ToByteArray();
     }
 }
 

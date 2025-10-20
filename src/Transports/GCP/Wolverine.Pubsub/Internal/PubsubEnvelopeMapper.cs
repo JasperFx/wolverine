@@ -1,12 +1,19 @@
 using Google.Cloud.PubSub.V1;
 using Google.Protobuf;
 using ImTools;
-using JasperFx.Core;
 using Wolverine.Transports;
 
 namespace Wolverine.Pubsub.Internal;
 
-public class PubsubEnvelopeMapper : EnvelopeMapper<ReceivedMessage, PubsubMessage>, IPubsubEnvelopeMapper
+/// <summary>
+///     Pluggable strategy for reading and writing data to Google Cloud Platform Pub/Sub
+/// </summary>
+public interface IPubsubEnvelopeMapper : IEnvelopeMapper<PubsubMessage, PubsubMessage>
+{
+
+}
+
+public class PubsubEnvelopeMapper : EnvelopeMapper<PubsubMessage, PubsubMessage>, IPubsubEnvelopeMapper
 {
     public PubsubEnvelopeMapper(PubsubEndpoint endpoint) : base(endpoint)
     {
@@ -14,12 +21,12 @@ public class PubsubEnvelopeMapper : EnvelopeMapper<ReceivedMessage, PubsubMessag
             e => e.Data!,
             (e, m) =>
             {
-                if (m.Message.Data.IsEmpty)
+                if (m.Data.IsEmpty)
                 {
                     return;
                 }
 
-                e.Data = m.Message.Data.ToByteArray();
+                e.Data = m.Data.ToByteArray();
             },
             (e, m) =>
             {
@@ -37,38 +44,20 @@ public class PubsubEnvelopeMapper : EnvelopeMapper<ReceivedMessage, PubsubMessag
         MapPropertyToHeader(x => x.PartitionKey, "partition-key");
     }
 
-    public void MapIncomingToEnvelope(PubsubEnvelope envelope, ReceivedMessage incoming)
-    {
-        envelope.AckId = incoming.AckId;
-
-        base.MapIncomingToEnvelope(envelope, incoming);
-    }
-
-    public void MapOutgoingToMessage(OutgoingMessageBatch outgoing, PubsubMessage message)
-    {
-        message.Data = ByteString.CopyFrom(outgoing.Data);
-        message.Attributes["destination"] = outgoing.Destination.ToString();
-        message.Attributes["batched"] = "1";
-    }
-
     protected override void writeOutgoingHeader(PubsubMessage outgoing, string key, string value)
     {
         outgoing.Attributes[key] = value;
     }
 
-    protected override void writeIncomingHeaders(ReceivedMessage incoming, Envelope envelope)
+    protected override bool tryReadIncomingHeader(PubsubMessage incoming, string key, out string? value)
     {
-        if (incoming.Message.Attributes is null)
+        if (incoming.Attributes == null)
         {
-            return;
+            value = default;
+            return false;
         }
-
-        foreach (var pair in incoming.Message.Attributes) envelope.Headers[pair.Key] = pair.Value;
-    }
-
-    protected override bool tryReadIncomingHeader(ReceivedMessage incoming, string key, out string? value)
-    {
-        if (incoming.Message.Attributes.TryGetValue(key, out var header))
+        
+        if (incoming.Attributes.TryGetValue(key, out var header))
         {
             value = header;
 
@@ -78,5 +67,15 @@ public class PubsubEnvelopeMapper : EnvelopeMapper<ReceivedMessage, PubsubMessag
         value = null;
 
         return false;
+    }
+
+    protected override void writeIncomingHeaders(PubsubMessage incoming, Envelope envelope)
+    {
+        if (incoming.Attributes is null)
+        {
+            return;
+        }
+
+        foreach (var pair in incoming.Attributes) envelope.Headers[pair.Key] = pair.Value;
     }
 }

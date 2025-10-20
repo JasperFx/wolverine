@@ -1,3 +1,4 @@
+using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Wolverine.Configuration;
 
@@ -53,25 +54,34 @@ public static class PubsubTransportExtensions
 	/// </summary>
 	/// <param name="endpoints"></param>
 	/// <param name="topicName">The name of the Google Cloud Platform Pub/Sub topic</param>
-	/// <param name="configure">
-	///     Optional configuration for this Google Cloud Platform Pub/Sub endpoint.
-	/// </param>
+	/// <param name="subscriptionName">The name of the subscription to this topic name. If not specified, Wolverine will use the topic name</param>
+	/// <param name="topicMessageRetention">Optionally override the topic's message retention if Wolverine is declaring the topics and subscriptions</param>
 	/// <returns></returns>
-	public static PubsubTopicListenerConfiguration ListenToPubsubTopic(
+	public static PubsubTopicListenerConfiguration ListenToPubsubSubscription(
         this WolverineOptions endpoints,
         string topicName,
-        Action<PubsubEndpoint>? configure = null
+        string? subscriptionName = null,
+        TimeSpan? topicMessageRetention = null
     )
-    {
+	{
+		if (topicName.IsEmpty()) throw new ArgumentNullException(nameof(topicName));
+
+		subscriptionName ??= topicName;
+		if (subscriptionName.IsEmpty()) throw new ArgumentNullException(nameof(subscriptionName));
+	    
         var transport = endpoints.PubsubTransport();
         var topic = transport.Topics[transport.MaybeCorrectName(topicName)];
 
+        if (topicMessageRetention != null)
+        {
+	        topic.MessageRetentionDuration = topicMessageRetention.Value;
+        }
+
         topic.EndpointName = topicName;
-        topic.IsListener = true;
+        
+        var subscription = topic.GcpSubscriptions[transport.MaybeCorrectName(subscriptionName)];
 
-        configure?.Invoke(topic);
-
-        return new PubsubTopicListenerConfiguration(topic);
+        return new PubsubTopicListenerConfiguration(subscription);
     }
 
 	/// <summary>
@@ -85,8 +95,7 @@ public static class PubsubTransportExtensions
 	/// <returns></returns>
 	public static PubsubTopicSubscriberConfiguration ToPubsubTopic(
         this IPublishToExpression publishing,
-        string topicName,
-        Action<PubsubEndpoint>? configure = null
+        string topicName
     )
     {
         var transports = publishing.As<PublishingExpression>().Parent.Transports;
@@ -94,8 +103,6 @@ public static class PubsubTransportExtensions
         var topic = transport.Topics[transport.MaybeCorrectName(topicName)];
 
         topic.EndpointName = topicName;
-
-        configure?.Invoke(topic);
 
         // This is necessary unfortunately to hook up the subscription rules
         publishing.To(topic.Uri);

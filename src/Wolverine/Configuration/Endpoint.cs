@@ -28,6 +28,12 @@ public enum PartitionSlots
 }
 
 /// <summary>
+/// Marker interface that tells Wolverine that this endpoint can *only* support sending
+/// messages but never listening
+/// </summary>
+public interface ISendOnlyEndpoint;
+
+/// <summary>
 /// Marker interface that tells Wolverine internals that this endpoint directly
 /// integrates with the active transactional inbox
 /// </summary>
@@ -308,7 +314,7 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
     ///     Is this endpoint used to listen for incoming messages?
     /// </summary>
     public bool IsListener { get; set; } // TODO -- in 3.0, switch this to using ListeningScope
-
+    
     /// <summary>
     ///     Is this a preferred endpoint for replies to the system?
     /// </summary>
@@ -570,5 +576,13 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
     public CloudEventsMapper BuildCloudEventsMapper(IWolverineRuntime runtime, JsonSerializerOptions options)
     {
         return new CloudEventsMapper(runtime.Options.HandlerGraph, options);
+    }
+
+    /// <summary>
+    /// Just tells Wolverine that this endpoint has a System role (replies or as a control endpoint)
+    /// </summary>
+    public void MarkRoleAsSystem()
+    {
+        Role = EndpointRole.System;
     }
 }

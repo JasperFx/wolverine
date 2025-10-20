@@ -1,132 +1,74 @@
-using System.Text.RegularExpressions;
 using Google.Api.Gax;
 using Google.Cloud.PubSub.V1;
+using Google.Protobuf.WellKnownTypes;
 using JasperFx.Core;
 using Wolverine.Configuration;
+using Wolverine.Pubsub.Internal;
 using Wolverine.Runtime;
 using Wolverine.Transports;
 
 namespace Wolverine.Pubsub;
 
-public class PubsubTransport : BrokerTransport<PubsubEndpoint>, IAsyncDisposable
+/* Notes
+ 
+Require ProjectId upfront?
+build TopicName and SubscriptionName up front
+Hang the GCP Subscription off of PubsubSubscription.Configuration?
+ 
+ 
+ 
+ */
+
+public class PubsubTransport : BrokerTransport<PubsubEndpoint>
 {
     public const string ProtocolName = "pubsub";
     public const string ResponseName = "wlvrn.responses";
-    public const string DeadLetterName = "wlvrn.dead-letter";
-    internal static Regex NameRegex = new("^(?!goog)[A-Za-z][A-Za-z0-9\\-_.~+%]{2,254}$");
-
-    public readonly LightweightCache<string, PubsubEndpoint> Topics;
-
-    internal int AssignedNodeNumber;
-    public PubsubDeadLetterOptions DeadLetter = new();
-    public EmulatorDetection EmulatorDetection = EmulatorDetection.None;
-
-    public string ProjectId = string.Empty;
-    internal PublisherServiceApiClient? PublisherApiClient;
-    internal SubscriberServiceApiClient? SubscriberApiClient;
-
-    /// <summary>
-    ///     Is this transport connection allowed to build and use response topic and subscription
-    ///     for just this node?
-    /// </summary>
-    public bool SystemEndpointsEnabled = false;
-
+    
+    public LightweightCache<string, PubsubTopic> Topics { get; }
+    
     public PubsubTransport() : base(ProtocolName, "Google Cloud Platform Pub/Sub")
     {
         IdentifierDelimiter = ".";
-        Topics = new LightweightCache<string, PubsubEndpoint>(name => new PubsubEndpoint(name, this));
+        Topics = new LightweightCache<string, PubsubTopic>(id =>
+            new PubsubTopic(this, id, EndpointRole.Application));
     }
-
-    public PubsubTransport(string projectId) : this()
-    {
-        ProjectId = projectId;
-    }
-
-    public override Uri ResourceUri => new Uri("pubsub://" + ProjectId);
-
-    public ValueTask DisposeAsync()
-    {
-        return ValueTask.CompletedTask;
-    }
-
-    public override async ValueTask ConnectAsync(IWolverineRuntime runtime)
-    {
-        var pubBuilder = new PublisherServiceApiClientBuilder
-        {
-            EmulatorDetection = EmulatorDetection
-        };
-        var subBuilder = new SubscriberServiceApiClientBuilder
-        {
-            EmulatorDetection = EmulatorDetection
-        };
-
-        if (string.IsNullOrWhiteSpace(ProjectId))
-        {
-            throw new InvalidOperationException(
-                "Google Cloud Platform Pub/Sub project id must be set before connecting");
-        }
-
-        AssignedNodeNumber = runtime.DurabilitySettings.AssignedNodeNumber;
-        PublisherApiClient = await pubBuilder.BuildAsync();
-        SubscriberApiClient = await subBuilder.BuildAsync();
-    }
-
-    public override Endpoint? ReplyEndpoint()
-    {
-        var endpoint = base.ReplyEndpoint();
-
-        if (endpoint is PubsubEndpoint)
-        {
-            return endpoint;
-        }
-
-        return null;
-    }
-
-    public override IEnumerable<PropertyColumn> DiagnosticColumns()
-    {
-        yield break;
-    }
-
-    protected override IEnumerable<Endpoint> explicitEndpoints()
-    {
-        return Topics;
-    }
+    
+    public string ProjectId { get; set; } = string.Empty;    
+    public EmulatorDetection EmulatorDetection { get; set; }  = EmulatorDetection.None;
 
     protected override IEnumerable<PubsubEndpoint> endpoints()
     {
-        var dlNames = Topics.Select(x => x.DeadLetterName).Where(x => x.IsNotEmpty()).Distinct().ToArray();
-
-        foreach (var dlName in dlNames)
+        foreach (var topic in Topics)
         {
-            if (dlName.IsEmpty())
+            yield return topic;
+
+            foreach (var subscription in topic.GcpSubscriptions)
             {
-                continue;
+                yield return subscription;
             }
-
-            var dl = Topics[dlName];
-
-            dl.DeadLetterName = null;
-            dl.Server.Subscription.Options.DeadLetterPolicy = null;
-            dl.IsDeadLetter = true;
-            dl.Server.Topic.Options = DeadLetter.Topic;
-            dl.Server.Subscription.Options = DeadLetter.Subscription;
         }
-
-        return Topics;
     }
 
     protected override PubsubEndpoint findEndpointByUri(Uri uri)
     {
-        if (uri.Scheme != Protocol)
+        var pubsubTopic = Topics[uri.Host];
+        
+        if (uri.Segments.Length == 2)
         {
-            throw new ArgumentOutOfRangeException(nameof(uri));
+            return pubsubTopic.GcpSubscriptions[uri.Segments.Last().Trim('/')];
         }
 
-        return Topics.FirstOrDefault(x => x.Uri.OriginalString == uri.OriginalString) ??
-               Topics[uri.Segments[1].TrimEnd('/')];
+        return pubsubTopic;
     }
 
+    public override Uri ResourceUri => new Uri("pubsub://" + ProjectId);
+    public bool SystemEndpointsEnabled { get; set; }
+
+    public override ValueTask ConnectAsync(IWolverineRuntime runtime)
+    {
+        return ValueTask.CompletedTask;
+    }
+ 
     protected override void tryBuildSystemEndpoints(IWolverineRuntime runtime)
     {
         if (!SystemEndpointsEnabled)
@@ -135,10 +77,60 @@ public class PubsubTransport : BrokerTransport<PubsubEndpoint>, IAsyncDisposable
         }
 
         var responseName = $"{ResponseName}.{Math.Abs(runtime.DurabilitySettings.AssignedNodeNumber)}";
-        var responseTopic = new PubsubEndpoint(responseName, this, EndpointRole.System);
+        var responseTopic = new PubsubTopic(this, responseName, EndpointRole.System)
+        {
+            MessageRetentionDuration = 1.Hours(),
+            IsUsedForReplies = true,
+            IsListener = false
+        };
 
-        responseTopic.IsListener = responseTopic.IsUsedForReplies = true;
+        // Need this to be able to listen
+        var subscription = responseTopic.GcpSubscriptions["control"];
+        subscription.MarkRoleAsSystem();
+        subscription.Options.MessageRetentionDuration = Duration.FromTimeSpan(10.Minutes());
+        subscription.Options.ExpirationPolicy = new ExpirationPolicy { Ttl = Duration.FromTimeSpan(1.Days()) };
+        
+        // Has to be the response topic because that's all you can send to
+        runtime.Options.Transports.NodeControlEndpoint = responseTopic;
 
         Topics[responseName] = responseTopic;
+    }
+
+    public override IEnumerable<PropertyColumn> DiagnosticColumns()
+    {
+        yield break;
+    }
+    
+    private PublisherServiceApiClient? _publisherApiClient;
+    private SubscriberServiceApiClient? _subscriberApiClient;
+
+    internal async Task<bool> WithPublisherServiceApiClient(Func<PublisherServiceApiClient, Task<bool>> action)
+    {
+        if (_publisherApiClient == null)
+        {
+            var builder = new PublisherServiceApiClientBuilder
+            {
+                EmulatorDetection = EmulatorDetection
+            };
+
+            _publisherApiClient = await builder.BuildAsync();
+        }
+
+        return await action(_publisherApiClient);
+    }
+    
+    internal async Task<bool> WithSubscriberServiceApiClient(Func<SubscriberServiceApiClient, Task<bool>> action)
+    {
+        if (_subscriberApiClient == null)
+        {
+            var builder = new SubscriberServiceApiClientBuilder()
+            {
+                EmulatorDetection = EmulatorDetection
+            };
+
+            _subscriberApiClient = await builder.BuildAsync();
+        }
+
+        return await action(_subscriberApiClient);
     }
 }

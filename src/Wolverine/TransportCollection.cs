@@ -29,7 +29,7 @@ public class TransportCollection : IEnumerable<ITransport>, IAsyncDisposable
         get => _nodeControlEndpoint;
         set
         {
-            if (value != null)
+            if (value != null && value is not ISendOnlyEndpoint)
             {
                 value.IsListener = true;
             }

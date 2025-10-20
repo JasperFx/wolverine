@@ -7,12 +7,12 @@ namespace Wolverine.Pubsub.Tests.ConventionalRouting;
 
 public class when_discovering_a_listening_endpoint_with_all_defaults : ConventionalRoutingContext
 {
-    private readonly PubsubEndpoint theEndpoint;
+    private readonly PubsubSubscription theEndpoint;
     private readonly Uri theExpectedUri = $"{PubsubTransport.ProtocolName}://wolverine/routed".ToUri();
 
     public when_discovering_a_listening_endpoint_with_all_defaults()
     {
-        theEndpoint = theRuntime.Endpoints.EndpointFor(theExpectedUri).ShouldBeOfType<PubsubEndpoint>();
+        theEndpoint = theRuntime.Endpoints.EndpointFor(theExpectedUri).ShouldBeOfType<PubsubSubscription>();
     }
 
     [Fact]

@@ -4,22 +4,20 @@ using Wolverine.Pubsub.Internal;
 namespace Wolverine.Pubsub;
 
 public class
-    PubsubTopicSubscriberConfiguration : InteroperableSubscriberConfiguration<PubsubTopicSubscriberConfiguration, PubsubEndpoint, IPubsubEnvelopeMapper, PubsubEnvelopeMapper>
+    PubsubTopicSubscriberConfiguration : InteroperableSubscriberConfiguration<PubsubTopicSubscriberConfiguration, PubsubTopic, IPubsubEnvelopeMapper, PubsubEnvelopeMapper>
 {
-    public PubsubTopicSubscriberConfiguration(PubsubEndpoint endpoint) : base(endpoint)
+    public PubsubTopicSubscriberConfiguration(PubsubTopic endpoint) : base(endpoint)
     {
     }
 
     /// <summary>
-    ///     Configure the underlying Google Cloud Platform Pub/Sub topic. This is only applicable when
-    ///     Wolverine is creating the topic.
+    /// How long Pubsub keeps messages after publishing. The GCP default is 7 days with a minumum of 10 minutes
     /// </summary>
-    /// <param name="configure"></param>
+    /// <param name="timespan"></param>
     /// <returns></returns>
-    public PubsubTopicSubscriberConfiguration ConfigurePubsubTopic(Action<CreateTopicOptions> configure)
+    public PubsubTopicSubscriberConfiguration MessageRetentionDuration(TimeSpan timespan)
     {
-        add(e => configure(e.Server.Topic.Options));
-
+        add(e => e.MessageRetentionDuration = timespan);
         return this;
     }
 }

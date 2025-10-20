@@ -20,7 +20,6 @@ public class end_to_end_with_conventional_routing_with_prefix : IDisposable
                 .UsePubsubTesting()
                 .AutoProvision()
                 .AutoPurgeOnStartup()
-                .EnableDeadLettering()
                 .EnableSystemEndpoints()
                 .PrefixIdentifiers("shazaam")
                 .UseConventionalRouting();
@@ -36,7 +35,6 @@ public class end_to_end_with_conventional_routing_with_prefix : IDisposable
                 .UsePubsubTesting()
                 .AutoProvision()
                 .AutoPurgeOnStartup()
-                .EnableDeadLettering()
                 .EnableSystemEndpoints()
                 .PrefixIdentifiers("shazaam")
                 .UseConventionalRouting();

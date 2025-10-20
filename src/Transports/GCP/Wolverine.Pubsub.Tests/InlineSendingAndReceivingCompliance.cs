@@ -9,7 +9,7 @@ namespace Wolverine.Pubsub.Tests;
 
 public class InlineComplianceFixture : TransportComplianceFixture, IAsyncLifetime
 {
-    public InlineComplianceFixture() : base(new Uri($"{PubsubTransport.ProtocolName}://wolverine/inline-receiver"), 120)
+    public InlineComplianceFixture() : base(new Uri($"{PubsubTransport.ProtocolName}://inline-receiver"), 120)
     {
     }
 
@@ -17,7 +17,7 @@ public class InlineComplianceFixture : TransportComplianceFixture, IAsyncLifetim
     {
         var id = Guid.NewGuid().ToString();
 
-        OutboundAddress = new Uri($"{PubsubTransport.ProtocolName}://wolverine/inline-receiver.{id}");
+        OutboundAddress = new Uri($"{PubsubTransport.ProtocolName}://inline-receiver.{id}");
 
         await SenderIs(opts =>
         {
@@ -25,7 +25,6 @@ public class InlineComplianceFixture : TransportComplianceFixture, IAsyncLifetim
                 .UsePubsubTesting()
                 .AutoProvision()
                 .AutoPurgeOnStartup()
-                .EnableDeadLettering()
                 .EnableSystemEndpoints();
 
             opts
@@ -40,11 +39,10 @@ public class InlineComplianceFixture : TransportComplianceFixture, IAsyncLifetim
                 .UsePubsubTesting()
                 .AutoProvision()
                 .AutoPurgeOnStartup()
-                .EnableDeadLettering()
                 .EnableSystemEndpoints();
 
             opts
-                .ListenToPubsubTopic($"inline-receiver.{id}")
+                .ListenToPubsubSubscription($"inline-receiver.{id}", $"inline-receiver.{id}")
                 .ProcessInline();
         });
     }
@@ -58,26 +56,5 @@ public class InlineComplianceFixture : TransportComplianceFixture, IAsyncLifetim
 [Collection("acceptance")]
 public class InlineSendingAndReceivingCompliance : TransportCompliance<InlineComplianceFixture>
 {
-    [Fact]
-    public virtual async Task dl_mechanics()
-    {
-        throwOnAttempt<DivideByZeroException>(1);
-        throwOnAttempt<DivideByZeroException>(2);
-        throwOnAttempt<DivideByZeroException>(3);
 
-        await shouldMoveToErrorQueueOnAttempt(1);
-
-        var runtime = theReceiver.Services.GetRequiredService<IWolverineRuntime>();
-        var transport = runtime.Options.Transports.GetOrCreate<PubsubTransport>();
-        var dl = transport.Topics[PubsubTransport.DeadLetterName];
-
-        await dl.InitializeAsync(NullLogger.Instance);
-
-        var pullResponse = await transport.SubscriberApiClient!.PullAsync(
-            dl.Server.Subscription.Name,
-            1
-        );
-
-        pullResponse.ReceivedMessages.ShouldNotBeEmpty();
-    }
 }

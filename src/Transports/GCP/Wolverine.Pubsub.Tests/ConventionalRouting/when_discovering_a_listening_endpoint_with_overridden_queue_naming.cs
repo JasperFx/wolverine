@@ -6,7 +6,7 @@ namespace Wolverine.Pubsub.Tests.ConventionalRouting;
 
 public class when_discovering_a_listening_endpoint_with_overridden_queue_naming : ConventionalRoutingContext
 {
-    private readonly PubsubEndpoint theEndpoint;
+    private readonly PubsubSubscription theEndpoint;
     private readonly Uri theExpectedUri = $"{PubsubTransport.ProtocolName}://wolverine/routedmessage2".ToUri();
 
     public when_discovering_a_listening_endpoint_with_overridden_queue_naming()
@@ -15,7 +15,7 @@ public class when_discovering_a_listening_endpoint_with_overridden_queue_naming 
 
         var theRuntimeEndpoints = theRuntime.Endpoints.ActiveListeners().ToArray();
 
-        theEndpoint = theRuntime.Endpoints.EndpointFor(theExpectedUri).ShouldBeOfType<PubsubEndpoint>();
+        theEndpoint = theRuntime.Endpoints.EndpointFor(theExpectedUri).ShouldBeOfType<PubsubSubscription>();
     }
 
     [Fact]

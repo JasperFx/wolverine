@@ -1,7 +1,9 @@
+using System.Diagnostics;
 using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
 using Wolverine.Configuration;
+using Wolverine.Pubsub.Internal;
 using Wolverine.Tracking;
 using Xunit;
 
@@ -25,7 +27,7 @@ public class send_and_receive : IAsyncLifetime
                     .PublishMessage<TestPubsubMessage>()
                     .ToPubsubTopic("send_and_receive");
 
-                opts.ListenToPubsubTopic("send_and_receive");
+                opts.ListenToPubsubSubscription("send_and_receive", "send_and_receive");
             }).StartAsync();
     }
 
@@ -44,7 +46,7 @@ public class send_and_receive : IAsyncLifetime
 
         endpoints.Any().ShouldBeFalse();
     }
-
+    
     [Fact]
     public async Task builds_system_endpoints()
     {
@@ -56,7 +58,7 @@ public class send_and_receive : IAsyncLifetime
                     .AutoPurgeOnStartup()
                     .EnableSystemEndpoints();
 
-                opts.ListenToPubsubTopic("send_and_receive");
+                opts.ListenToPubsubSubscription("send_and_receive");
 
                 opts
                     .PublishAllMessages()
@@ -68,10 +70,12 @@ public class send_and_receive : IAsyncLifetime
             .Where(x => x.Role == EndpointRole.System)
             .OfType<PubsubEndpoint>().ToArray();
 
-        endpoints.ShouldContain(x =>
-            x.Server.Topic.Name.TopicId.StartsWith(PubsubTransport.ResponseName) &&
-            x.Server.Subscription.Name.SubscriptionId.StartsWith(PubsubTransport.ResponseName)
-        );
+        endpoints.OfType<PubsubTopic>().ShouldContain(x =>
+            x.TopicId.StartsWith(PubsubTransport.ResponseName));
+            
+        endpoints.OfType<PubsubSubscription>().ShouldContain(x =>
+                x.Name == "control");  
+
     }
 
     [Fact]
@@ -131,7 +135,7 @@ public class send_and_receive_with_cloudevents : IAsyncLifetime
                     .PublishMessage<TestPubsubMessage>()
                     .ToPubsubTopic("cloudevents");
 
-                opts.ListenToPubsubTopic("cloudevents");
+                opts.ListenToPubsubSubscription("cloudevents", "cloudevents");
             }).StartAsync();
     }
 
