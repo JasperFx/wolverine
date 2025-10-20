@@ -76,6 +76,12 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
 
     public Frame DetermineUpdateFrame(Variable saga, IServiceContainer container)
     {
+        var version = saga.VariableType.GetProperty("Version");
+        if (version == null || !(version.CanRead && version.CanWrite))
+        {
+            return new CommentFrame("No explicit update necessary with EF Core without a Version property");
+        }
+        
         var dbContextType = DetermineDbContextType(saga.VariableType, container);
         return new IncrementSagaVersionIfNecessary(dbContextType, saga);
     }
@@ -375,8 +381,8 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
         {
             writer.WriteLine("");
-            writer.WriteComment("If the saga state changed, then increment it's version to support optimistic concurrency");
-            writer.WriteLine($"if ({_context!.Usage}.Entry({_saga.Usage}.Type == EntityState.Modified) {{ {_saga.Usage}.Version += 1; }}");
+            writer.WriteComment("If the saga state changed, then increment its version to support optimistic concurrency");
+            writer.WriteLine($"if ({_context!.Usage}.Entry({_saga.Usage}).State == {typeof(EntityState).FullName}.Modified) {{ {_saga.Usage}.Version += 1; }}");
 
             Next?.GenerateCode(method, writer);
         }
@@ -400,15 +406,15 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
 
         public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
         {
-            writer.WriteLine("BLOCK:try");
+            writer.Write("BLOCK:try");
             _frame.GenerateCode(method, writer);
             writer.FinishBlock();
 
-            writer.WriteLine("BLOCK:catch (DbUpdateConcurrencyException error)");
+            writer.Write($"BLOCK:catch ({typeof(DbUpdateConcurrencyException).FullNameInCode()} error)");
             writer.WriteComment("Only intercepts concurrency error on the saga itself");
 
-            writer.WriteLine($"BLOCK:if (error.Entries.Any(e => e.Entity == ${_saga.Usage})");
-            writer.WriteLine($"throw new SagaConcurrencyException($\"Saga of type {_saga.VariableType.FullNameInCode()} and id {{ {SagaChain.SagaIdVariableName} }} cannot be updated because of optimistic concurrency violations\");");
+            writer.Write($"BLOCK:if ({typeof(Enumerable).FullNameInCode()}.Any(error.Entries, e => e.Entity == {_saga.Usage}))");
+            writer.WriteLine($"throw new {typeof(SagaConcurrencyException).FullNameInCode()}($\"Saga of type {_saga.VariableType.FullNameInCode()} and identity {SagaChain.SagaIdVariableName} cannot be updated because of optimistic concurrency violations\");");
             writer.FinishBlock();
 
             writer.WriteComment("Rethrow any other exception");
@@ -417,6 +423,7 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
 
             Next?.GenerateCode(method, writer);
         }
+
     }
 
     public class CommitDbContextTransactionIfNecessary : SyncFrame
