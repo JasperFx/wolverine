@@ -10,7 +10,7 @@ builder.Services.AddSwaggerGen();
 
 builder.Host.UseWolverine(opts =>
 {
-    opts.UseKafka("localhost:9092").AutoProvision();
+    opts.UseKafka("localhost:9092").AutoProvision().AutoPurgeOnStartup();
 
     opts.PublishAllMessages().ToKafkaTopic("topic_0");
 
