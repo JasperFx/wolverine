@@ -2,8 +2,11 @@ using System.Diagnostics;
 using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
 using JasperFx.Resources;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Shouldly;
 using Wolverine.Attributes;
+using Wolverine.ComplianceTests;
 using Wolverine.Tracking;
 using Xunit.Abstractions;
 
@@ -38,6 +41,7 @@ public class broadcast_to_topic_rules : IAsyncLifetime
                 opts.ServiceName = "receiver";
 
                 opts.Services.AddResourceSetupOnStartup();
+                opts.Services.AddSingleton<ILoggerProvider>(new OutputLoggerProvider(_output));
             }).StartAsync();
 
         
@@ -52,6 +56,7 @@ public class broadcast_to_topic_rules : IAsyncLifetime
                 opts.ServiceName = "sender";
 
                 opts.Services.AddResourceSetupOnStartup();
+                opts.Services.AddSingleton<ILoggerProvider>(new OutputLoggerProvider(_output));
             }).StartAsync();
     }
 

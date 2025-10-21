@@ -1,6 +1,11 @@
 using Confluent.Kafka;
 using JasperFx.Resources;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Wolverine.ComplianceTests;
 using Wolverine.ComplianceTests.Compliance;
+using Xunit.Abstractions;
+using Xunit.Sdk;
 
 namespace Wolverine.Kafka.Tests;
 

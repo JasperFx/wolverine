@@ -349,8 +349,9 @@ public abstract class TransportCompliance<T> : IAsyncLifetime where T : Transpor
 
         var (session, response) = await theSender.TrackActivity()
             .AlsoTrack(theReceiver)
+            .IncludeExternalTransports()
             .Timeout(30.Seconds())
-            .InvokeAndWaitAsync<Response>(request);
+            .InvokeAndWaitAsync<Response>(request, 30.Seconds());
 
         response.Name.ShouldBe(request.Name);
     }
