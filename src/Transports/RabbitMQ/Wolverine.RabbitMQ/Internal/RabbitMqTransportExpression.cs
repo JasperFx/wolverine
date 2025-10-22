@@ -83,11 +83,11 @@ public class RabbitMqTransportExpression : BrokerExpression<RabbitMqTransport, R
     }
 
     /// <summary>
-    /// Make any necessary customizations to the Rabbit MQ client's CreateChannelOptions
+    /// Allows customization of the RabbitMQ client's channel creation behavior using the provided configuration options.
     /// </summary>
-    /// <param name="configure"></param>
-    /// <returns></returns>
-    /// <exception cref="ArgumentNullException"></exception>
+    /// <param name="configure">A delegate to configure <see cref="WolverineRabbitMqChannelOptions"/> for channel creation.</param>
+    /// <returns>Returns the current <see cref="RabbitMqTransportExpression"/> instance to allow method chaining.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when the <paramref name="configure"/> parameter is null.</exception>
     public RabbitMqTransportExpression ConfigureChannelCreation(Action<WolverineRabbitMqChannelOptions> configure)
     {
         if (configure == null)
