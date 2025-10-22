@@ -352,7 +352,7 @@ public class EnvelopeTests
             ScheduleDelay = 1.Days()
         };
 
-        envelope.ScheduledTime.Value.Date.ShouldBe(DateTime.Today.AddDays(1));
+        envelope.ScheduledTime.Value.Date.ShouldBe(DateTime.UtcNow.AddDays(1).Date);
         envelope.ScheduleDelay.ShouldBe(1.Days());
     }
 
@@ -364,7 +364,7 @@ public class EnvelopeTests
             DeliverWithin = 1.Days()
         };
 
-        envelope.DeliverBy.Value.Date.ShouldBe(DateTime.Today.AddDays(1));
+        envelope.DeliverBy.Value.Date.ShouldBe(DateTime.UtcNow.AddDays(1).Date);
         envelope.DeliverWithin.ShouldBe(1.Days());
     }
 

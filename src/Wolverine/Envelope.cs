@@ -101,7 +101,7 @@ public partial class Envelope : IHasTenantId
                 throw new ArgumentNullException(nameof(value));
             }
 
-            DeliverBy = DateTimeOffset.Now.Add(value.Value);
+            DeliverBy = DateTimeOffset.UtcNow.Add(value.Value);
             _deliverWithin = value;
         }
         get => _deliverWithin;
@@ -118,7 +118,7 @@ public partial class Envelope : IHasTenantId
             _scheduleDelay = value;
             if (value != null)
             {
-                ScheduledTime = DateTimeOffset.Now.Add(value.Value);
+                ScheduledTime = DateTimeOffset.UtcNow.Add(value.Value);
             }
         }
         get => _scheduleDelay;
