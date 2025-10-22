@@ -106,20 +106,28 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
 
     public async Task AssertAnyRequiredResponseWasGenerated()
     {
-        if (hasRequestedReply() && _channel is not InvocationCallback && isMissingRequestedReply())
+        if (hasRequestedReply() && _channel is not InvocationCallback)
         {
-            var failureDescription = $"No response was created for expected response '{Envelope.ReplyRequested}'. ";
-            if (_outstanding.Any())
+            if (isMissingRequestedReply())
             {
-                failureDescription += "Actual cascading messages were " +
-                                      _outstanding.Concat(_sent ?? []).Select(x => x.MessageType).Join(", ");
+                var failureDescription = $"No response was created for expected response '{Envelope.ReplyRequested}' back to reply-uri {Envelope.ReplyUri}. ";
+                if (_outstanding.Any())
+                {
+                    failureDescription += "Actual cascading messages were " +
+                                          _outstanding.Concat(_sent ?? []).Select(x => x.MessageType).Join(", ");
+                }
+                else
+                {
+                    failureDescription += $"No cascading messages were created by this handler for the expected response type {Envelope.ReplyRequested}";
+                }
+            
+                await SendFailureAcknowledgementAsync( failureDescription);
             }
             else
             {
-                failureDescription += "No cascading messages were created by this handler";
+                Activity.Current?.SetTag("reply-uri", Envelope.ReplyUri.ToString());
+                Runtime.Logger.LogInformation("Sending requested reply of type {MessageType} to reply-uri {ReplyUri}", Envelope.ReplyRequested, Envelope.ReplyUri);
             }
-            
-            await SendFailureAcknowledgementAsync( failureDescription);
         }
     }
 

@@ -1,7 +1,4 @@
-using Google.Api.Gax.Grpc;
 using Google.Cloud.PubSub.V1;
-using JasperFx.Blocks;
-using Microsoft.Extensions.Logging;
 using Wolverine.Runtime;
 using Wolverine.Transports;
 
@@ -20,50 +17,35 @@ public class BatchedPubsubListener : PubsubListener
 
     public override async Task StartAsync()
     {
-        if (_transport.SubscriberApiClient is null)
+        await listenForMessagesAsync(async () =>
         {
-            throw new WolverinePubsubTransportNotConnectedException();
-        }
-
-        using var streamingPull =
-            _transport.SubscriberApiClient.StreamingPull(CallSettings.FromCancellationToken(_cancellation.Token));
-
-        await streamingPull.WriteAsync(new StreamingPullRequest
-        {
-            SubscriptionAsSubscriptionName = _endpoint.Server.Subscription.Name,
-            StreamAckDeadlineSeconds = 20,
-            MaxOutstandingMessages = _endpoint.Client.MaxOutstandingMessages,
-            MaxOutstandingBytes = _endpoint.Client.MaxOutstandingByteCount
-        });
-
-        await using var stream = streamingPull.GetResponseStream();
-
-        _acknowledge = new RetryBlock<string[]>((ackIds, _) => streamingPull.WriteAsync(new StreamingPullRequest
-        {
-            AckIds = { ackIds }
-        }), _logger, _runtime.Cancellation);
-
-        try
-        {
-            await listenForMessagesAsync(async () =>
+            var subscriptionName = _endpoint.Server.Subscription.Name;
+            await using SubscriberClient subscriber = await new SubscriberClientBuilder
             {
-                while (await stream.MoveNextAsync(_cancellation.Token))
+                SubscriptionName = subscriptionName,
+                EmulatorDetection = _transport.EmulatorDetection,
+                Settings = new()
                 {
-                    await handleMessagesAsync(stream.Current.ReceivedMessages);
+                    // https://cloud.google.com/dotnet/docs/reference/Google.Cloud.PubSub.V1/latest/Google.Cloud.PubSub.V1.SubscriberClient.Settings#Google_Cloud_PubSub_V1_SubscriberClient_Settings_FlowControlSettings
+                    // Remarks: Flow control uses these settings for two purposes: fetching messages to process, and processing them.
+                    // In terms of fetching messages, a single SubscriberClient creates multiple instances of SubscriberServiceApiClient, and each will observe the flow control settings independently
+                    FlowControlSettings = new(_endpoint.Client.MaxOutstandingMessages, _endpoint.Client.MaxOutstandingByteCount),
                 }
-            });
-        }
-        finally
-        {
+            }.BuildAsync();
+            var ctRegistration = _cancellation.Token.Register(() => subscriber.StopAsync(CancellationToken.None));
             try
             {
-                await streamingPull.WriteCompleteAsync();
+                await subscriber.StartAsync(async (PubsubMessage message, CancellationToken cancel) =>
+                    {
+                        var success = await handleMessageAsync(message);
+                        return success ? SubscriberClient.Reply.Ack : SubscriberClient.Reply.Nack;
+                    });
             }
-            catch (Exception ex)
+            finally
             {
-                _logger.LogError(ex, "{Uri}: Error while completing the Google Cloud Platform Pub/Sub streaming pull.",
-                    _endpoint.Uri);
+                ctRegistration.Unregister();
+                await subscriber.StopAsync(CancellationToken.None);
             }
-        }
+        });
     }
 }

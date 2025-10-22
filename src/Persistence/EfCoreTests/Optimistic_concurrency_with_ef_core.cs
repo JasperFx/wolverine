@@ -14,6 +14,7 @@ using Weasel.SqlServer;
 using Weasel.SqlServer.Tables;
 using Wolverine;
 using Wolverine.Attributes;
+using Wolverine.ComplianceTests;
 using Wolverine.EntityFrameworkCore;
 using Wolverine.Runtime.Handlers;
 using Wolverine.SqlServer;
@@ -38,12 +39,12 @@ public class Optimistic_concurrency_with_ef_core
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opt =>
             {
+                opt.DisableConventionalDiscovery().IncludeType(typeof(ConcurrencyTestSaga));
+                
                 opt.Services.AddDbContextWithWolverineIntegration<OptConcurrencyDbContext>(o =>
                 {
                     o.UseSqlServer(Servers.SqlServerConnectionString);
                 });
-
-                opt.Services.AddScoped<IOrderRepository, OrderRepository>();
 
                 opt.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString);
                 opt.UseEntityFrameworkCoreTransactions();

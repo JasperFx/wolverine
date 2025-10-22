@@ -281,7 +281,7 @@ public class PubsubEndpoint : Endpoint<IPubsubEnvelopeMapper, PubsubEnvelopeMapp
     public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
     {
         EnvelopeMapper ??= BuildMapper(runtime);
-        
+
         if (Mode == EndpointMode.Inline)
         {
             return ValueTask.FromResult<IListener>(new InlinePubsubListener(
@@ -303,7 +303,7 @@ public class PubsubEndpoint : Endpoint<IPubsubEnvelopeMapper, PubsubEnvelopeMapp
     public override bool TryBuildDeadLetterSender(IWolverineRuntime runtime, out ISender? deadLetterSender)
     {
         EnvelopeMapper ??= BuildMapper(runtime);
-        
+
         if (DeadLetterName.IsNotEmpty())
         {
             var initialized = _transport.Topics.Contains(DeadLetterName);
@@ -344,6 +344,7 @@ public class PubsubEndpoint : Endpoint<IPubsubEnvelopeMapper, PubsubEnvelopeMapp
         var message = new PubsubMessage();
         var orderBy = Server.Topic.OrderBy(envelope);
 
+        EnvelopeMapper ??= new PubsubEnvelopeMapper(this);
         EnvelopeMapper.MapEnvelopeToOutgoing(envelope, message);
 
         message.OrderingKey = envelope.GroupId ?? orderBy ?? message.OrderingKey;
@@ -381,7 +382,7 @@ public class PubsubEndpoint : Endpoint<IPubsubEnvelopeMapper, PubsubEnvelopeMapp
     protected override ISender CreateSender(IWolverineRuntime runtime)
     {
         EnvelopeMapper ??= BuildMapper(runtime);
-        
+
         if (_transport.PublisherApiClient is null)
         {
             throw new WolverinePubsubTransportNotConnectedException();

@@ -239,11 +239,11 @@ public class TrackedSessionConfiguration
     /// <param name="requestInvocation"></param>
     /// <typeparam name="T"></typeparam>
     /// <returns></returns>
-    public async Task<(ITrackedSession, T?)> InvokeAndWaitAsync<T>(object request)
+    public async Task<(ITrackedSession, T?)> InvokeAndWaitAsync<T>(object request, TimeSpan? timeout = null)
     {
         T? response = default;
 
-        Func<IMessageContext, Task> invocation = async c => { response = await c.InvokeAsync<T>(request); };
+        Func<IMessageContext, Task> invocation = async c => { response = await c.InvokeAsync<T>(request, timeout:timeout); };
 
         var session = await ExecuteAndWaitAsync(invocation);
 
