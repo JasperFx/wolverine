@@ -59,7 +59,7 @@ internal class ReplyTracker : IReplyTracker
             }
             else
             {
-                _logger.LogError("Unable to find a registered reply listener for conversation id {ReplyId} with message type {MessageType} on Node {NodeNumber}. The listener may have previously timed out", response.ConversationId, response.MessageType, AssignedNodeNumber);
+                _logger.LogError("Unable to find a registered reply listener for conversation id {ReplyId} with message type {MessageType} on Node {NodeNumber} at endpoint {EndpointUri}. The listener may have previously timed out or this reply may have been sent to the wrong reply-uri", response.ConversationId, response.MessageType, AssignedNodeNumber, response.Destination);
             }
         }
         catch (Exception e)
