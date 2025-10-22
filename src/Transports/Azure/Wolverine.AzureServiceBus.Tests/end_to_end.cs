@@ -37,7 +37,7 @@ public class end_to_end : IAsyncLifetime
                 opts.PublishMessage<AsbMessage2>()
                     .ToAzureServiceBusQueue("fifo1");
 
-                opts.PublishMessage<AsbMessage3>().ToAzureServiceBusTopic("asb3");
+                opts.PublishMessage<AsbMessage3>().ToAzureServiceBusTopic("asb3").SendInline();
                 opts.ListenToAzureServiceBusSubscription("asb3")
                     .FromTopic("asb3")
 

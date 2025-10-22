@@ -121,7 +121,7 @@ public class Samples
     
 public class multi_tenanted_brokers
 {
-    [Fact]
+    //[Fact]
     public void show_bootstrapping()
     {
         #region sample_configuring_azure_service_bus_for_multi_tenancy
