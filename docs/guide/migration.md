@@ -23,6 +23,8 @@ Marten batch querying for better efficiency when a handler or HTTP endpoint uses
 
 Better control over how [Wolverine generates code with respect to IoC container usage](/guide/codegen.html#wolverine-code-generation-and-ioc).
 
+`IServiceContainer` moved to the `JasperFx` namespace.
+
 ## Key Changes in 4.0
 
 * Wolverine dropped all support for .NET 6/7

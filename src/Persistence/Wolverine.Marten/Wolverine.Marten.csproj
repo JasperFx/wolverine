@@ -12,7 +12,7 @@
         <ProjectReference Include="..\Wolverine.Postgresql\Wolverine.Postgresql.csproj" />
     </ItemGroup>
     <ItemGroup>
-      <PackageReference Include="Marten" Version="8.13.1" />
+      <PackageReference Include="Marten" Version="8.13.2" />
     </ItemGroup>
     <Import Project="../../../Analysis.Build.props" />
 </Project>
