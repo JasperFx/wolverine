@@ -120,7 +120,31 @@ var host = await Host.CreateDefaultBuilder()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/end_to_end.cs#L74-L88' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disable_system_queues_in_azure_service_bus' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Connecting To Multiple Namespaces <Badge type="tip" text="5.0" />
 
+Wolverine supports the "named broker" feature to connect to multiple Azure Service Bus namespaces from one application:
+
+<!-- snippet: sample_using_named_azure_service_bus_broker -->
+<a id='snippet-sample_using_named_azure_service_bus_broker'></a>
+```cs
+var builder = Host.CreateApplicationBuilder();
+builder.UseWolverine(opts =>
+{
+    var connectionString1 = builder.Configuration.GetConnectionString("azureservicebus1");
+    opts.AddNamedAzureServiceBusBroker(new BrokerName("one"), connectionString1);
+    
+    var connectionString2 = builder.Configuration.GetConnectionString("azureservicebus2");
+    opts.AddNamedAzureServiceBusBroker(new BrokerName("two"), connectionString2);
+
+    opts.PublishAllMessages().ToAzureServiceBusQueueOnNamedBroker(new BrokerName("one"), "queue1");
+
+    opts.ListenToAzureServiceBusQueueOnNamedBroker(new BrokerName("two"), "incoming");
+
+    opts.ListenToAzureServiceBusSubscriptionOnNamedBroker(new BrokerName("two"), "subscription1");
+});
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/end_to_end_with_named_broker.cs#L21-L39' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_named_azure_service_bus_broker' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 
 

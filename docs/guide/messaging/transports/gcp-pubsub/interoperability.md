@@ -13,21 +13,10 @@ as shown in the following sample:
 <!-- snippet: sample_custom_pubsub_mapper -->
 <a id='snippet-sample_custom_pubsub_mapper'></a>
 ```cs
-public class CustomPubsubMapper : EnvelopeMapper<ReceivedMessage, PubsubMessage>, IPubsubEnvelopeMapper
+public class CustomPubsubMapper : EnvelopeMapper<PubsubMessage, PubsubMessage>, IPubsubEnvelopeMapper
 {
     public CustomPubsubMapper(PubsubEndpoint endpoint) : base(endpoint)
     {
-    }
-
-    public void MapIncomingToEnvelope(PubsubEnvelope envelope, ReceivedMessage incoming)
-    {
-        envelope.AckId = incoming.AckId;
-
-        // You will have to help Wolverine out by either telling Wolverine
-        // what the message type is, or by reading the actual message object,
-        // or by telling Wolverine separately what the default message type
-        // is for a listening endpoint
-        envelope.MessageType = typeof(Message1).ToMessageTypeName();
     }
 
     public void MapOutgoingToMessage(OutgoingMessageBatch outgoing, PubsubMessage message)
@@ -40,19 +29,19 @@ public class CustomPubsubMapper : EnvelopeMapper<ReceivedMessage, PubsubMessage>
         outgoing.Attributes[key] = value;
     }
 
-    protected override void writeIncomingHeaders(ReceivedMessage incoming, Envelope envelope)
+    protected override void writeIncomingHeaders(PubsubMessage incoming, Envelope envelope)
     {
-        if (incoming.Message.Attributes is null)
+        if (incoming.Attributes is null)
         {
             return;
         }
 
-        foreach (var pair in incoming.Message.Attributes) envelope.Headers[pair.Key] = pair.Value;
+        foreach (var pair in incoming.Attributes) envelope.Headers[pair.Key] = pair.Value;
     }
 
-    protected override bool tryReadIncomingHeader(ReceivedMessage incoming, string key, out string? value)
+    protected override bool tryReadIncomingHeader(PubsubMessage incoming, string key, out string? value)
     {
-        if (incoming.Message.Attributes.TryGetValue(key, out var header))
+        if (incoming.Attributes.TryGetValue(key, out var header))
         {
             value = header;
 
@@ -65,7 +54,7 @@ public class CustomPubsubMapper : EnvelopeMapper<ReceivedMessage, PubsubMessage>
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/DocumentationSamples.cs#L239-L293' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_custom_pubsub_mapper' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/DocumentationSamples.cs#L239-L282' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_custom_pubsub_mapper' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 To apply that mapper to specific endpoints, use this syntax on any type of GCP Pub/Sub endpoint:

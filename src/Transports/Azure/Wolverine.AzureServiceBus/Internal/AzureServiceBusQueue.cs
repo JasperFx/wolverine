@@ -289,4 +289,17 @@ public class AzureServiceBusQueue : AzureServiceBusEndpoint, IBrokerQueue, IMass
     {
         customizeMapping((m, _) => m.InteropWithMassTransit(configure));
     }
+
+    public async Task<long> QueuedCountAsync()
+    {
+        long value = 0;
+        await Parent.WithManagementClientAsync(async client =>
+        {
+            var runtime = await client.GetQueueRuntimePropertiesAsync(QueueName);
+
+            value = runtime.Value.ActiveMessageCount;
+        });
+
+        return value;
+    }
 }
