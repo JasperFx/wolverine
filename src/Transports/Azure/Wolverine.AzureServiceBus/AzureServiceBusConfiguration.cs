@@ -49,7 +49,11 @@ public class AzureServiceBusConfiguration : BrokerExpression<AzureServiceBusTran
     /// <returns></returns>
     public AzureServiceBusConfiguration AddTenantByNamespace(string tenantId, string fullyQualifiedNamespace)
     {
-        Transport.Tenants[tenantId].Transport.FullyQualifiedNamespace = fullyQualifiedNamespace;
+        if (tenantId.IsEmpty()) throw new ArgumentOutOfRangeException(nameof(tenantId), "Empty or null tenantId");
+        if (fullyQualifiedNamespace.IsEmpty()) throw new ArgumentOutOfRangeException(nameof(fullyQualifiedNamespace), "Empty or null namespace");
+        var azureServiceBusTenant = Transport.Tenants[tenantId];
+        azureServiceBusTenant.Transport.FullyQualifiedNamespace = fullyQualifiedNamespace;
+        
         return this;
     }
 

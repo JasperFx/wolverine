@@ -105,6 +105,9 @@ public partial class AzureServiceBusTransport : BrokerTransport<AzureServiceBusE
 
         foreach (var tenant in Tenants)
         {
+            tenant.Transport.NamedKeyCredential ??= NamedKeyCredential;
+            tenant.Transport.SasCredential ??= SasCredential;
+            tenant.Transport.TokenCredential ??= TokenCredential;
             await tenant.Transport.WithManagementClientAsync(action);
         }
     }
@@ -115,6 +118,9 @@ public partial class AzureServiceBusTransport : BrokerTransport<AzureServiceBusE
         
         foreach (var tenant in Tenants)
         {
+            tenant.Transport.NamedKeyCredential ??= NamedKeyCredential;
+            tenant.Transport.SasCredential ??= SasCredential;
+            tenant.Transport.TokenCredential ??= TokenCredential;
             await tenant.Transport.WithServiceBusClientAsync(action);
         }
     }
@@ -132,7 +138,7 @@ public partial class AzureServiceBusTransport : BrokerTransport<AzureServiceBusE
         }
 
         foreach (var tenant in Tenants)
-        {
+        { 
             await tenant.Transport.DisposeAsync();
         }
     }
