@@ -3,13 +3,28 @@ using Azure.Core;
 using Azure.Messaging.ServiceBus;
 using Azure.Messaging.ServiceBus.Administration;
 using JasperFx.Core.Reflection;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Wolverine.AzureServiceBus.Internal;
 using Wolverine.Configuration;
+using Wolverine.Runtime;
 
 namespace Wolverine.AzureServiceBus;
 
 public static class AzureServiceBusTransportExtensions
 {
+    /// <summary>
+    /// CAUTION!!!! This will try to delete all configured objects in the Azure Service Bus namespace.
+    /// This is probably only useful for testing
+    /// </summary>
+    /// <param name="host"></param>
+    public static async Task DeleteAllAzureServiceBusObjectsAsync(this IHost host)
+    {
+        var runtime = host.Services.GetRequiredService<IWolverineRuntime>();
+        var transport = runtime.Options.AzureServiceBusTransport();
+        await transport.DeleteAllObjectsAsync();
+    }
+    
     /// <summary>
     ///     Quick access to the Rabbit MQ Transport within this application.
     ///     This is for advanced usage

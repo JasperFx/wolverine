@@ -41,6 +41,21 @@ public partial class AzureServiceBusTransport : BrokerTransport<AzureServiceBusE
         IdentifierDelimiter = ".";
     }
 
+    public async Task DeleteAllObjectsAsync()
+    {
+        var topics = _managementClient.Value.GetTopicsAsync();
+        await foreach (var topic in topics)
+        {
+            await _managementClient.Value.DeleteTopicAsync(topic.Name);
+        }
+
+        var queues = _managementClient.Value.GetQueuesAsync();
+        await foreach (var queue in queues)
+        {
+            await _managementClient.Value.DeleteQueueAsync(queue.Name);
+        }
+    }
+
     public override Uri ResourceUri
     {
         get
