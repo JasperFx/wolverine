@@ -11,7 +11,8 @@
         <NoWarn>1570;1571;1572;1573;1574;1587;1591;1701;1702;1711;1735;0618</NoWarn>
         <ImplicitUsings>true</ImplicitUsings>
         <Nullable>enable</Nullable>
-        <Version>4.12.1</Version>
+        <VersionPrefix>5.0.0</VersionPrefix>
+        <VersionSuffix>-alpha-1</VersionSuffix>
         <RepositoryUrl>$(PackageProjectUrl)</RepositoryUrl>
         <PublishRepositoryUrl>true</PublishRepositoryUrl>
         <EmbedUntrackedSources>true</EmbedUntrackedSources>
