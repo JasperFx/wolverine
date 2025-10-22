@@ -133,13 +133,14 @@ public static class AzureServiceBusTransportExtensions
     /// Connect to Azure Service Bus with a connection string
     /// </summary>
     /// <param name="endpoints"></param>
-    /// <param name="connectionString"></param>
     /// <param name="brokerName"></param>
+    /// <param name="connectionString"></param>
     /// <param name="configure"></param>
     /// <returns></returns>
     /// <exception cref="ArgumentNullException"></exception>
     public static AzureServiceBusConfiguration AddNamedAzureServiceBusBroker(this WolverineOptions endpoints,
-        string connectionString, BrokerName brokerName, Action<ServiceBusClientOptions>? configure = null)
+        BrokerName brokerName,
+        string connectionString, Action<ServiceBusClientOptions>? configure = null)
     {
         AzureServiceBusTransport transport = endpoints.AzureServiceBusTransport(brokerName);
         transport.ConnectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
@@ -152,14 +153,16 @@ public static class AzureServiceBusTransportExtensions
     /// Connect to Azure Service Bus using a namespace and secured through a TokenCredential
     /// </summary>
     /// <param name="endpoints"></param>
+    /// <param name="brokerName"></param>
     /// <param name="fullyQualifiedNamespace"></param>
     /// <param name="tokenCredential"></param>
-    /// <param name="brokerName"></param>
     /// <param name="configure"></param>
     /// <returns></returns>
     /// <exception cref="ArgumentNullException"></exception>
     public static AzureServiceBusConfiguration AddNamedAzureServiceBusBroker(this WolverineOptions endpoints,
-        string fullyQualifiedNamespace, TokenCredential tokenCredential, BrokerName brokerName, Action<ServiceBusClientOptions>? configure = null)
+        BrokerName brokerName,
+        string fullyQualifiedNamespace, TokenCredential tokenCredential,
+        Action<ServiceBusClientOptions>? configure = null)
     {
         AzureServiceBusTransport transport = endpoints.AzureServiceBusTransport(brokerName);
         transport.FullyQualifiedNamespace = fullyQualifiedNamespace ?? throw new ArgumentNullException(nameof(fullyQualifiedNamespace));
@@ -173,14 +176,16 @@ public static class AzureServiceBusTransportExtensions
     /// Connect to Azure Service Bus using a namespace and secured through an AzureNamedKeyCredential
     /// </summary>
     /// <param name="endpoints"></param>
+    /// <param name="brokerName"></param>
     /// <param name="fullyQualifiedNamespace"></param>
     /// <param name="namedKeyCredential"></param>
-    /// <param name="brokerName"></param>
     /// <param name="configure"></param>
     /// <returns></returns>
     /// <exception cref="ArgumentNullException"></exception>
-    public static AzureServiceBusConfiguration AddNamedAzureServiceBusBroker(this WolverineOptions endpoints,
-        string fullyQualifiedNamespace, AzureNamedKeyCredential namedKeyCredential, BrokerName brokerName, Action<ServiceBusClientOptions>? configure = null)
+    public static AzureServiceBusConfiguration AddNamedAzureServiceBusBroker(WolverineOptions endpoints,
+        BrokerName brokerName,
+        string fullyQualifiedNamespace, AzureNamedKeyCredential namedKeyCredential,
+        Action<ServiceBusClientOptions>? configure = null)
     {
         AzureServiceBusTransport transport = endpoints.AzureServiceBusTransport(brokerName);
         transport.FullyQualifiedNamespace = fullyQualifiedNamespace ?? throw new ArgumentNullException(nameof(fullyQualifiedNamespace));
@@ -194,14 +199,16 @@ public static class AzureServiceBusTransportExtensions
     /// Connect to Azure Service Bus using a namespace and secured through an AzureSasCredential
     /// </summary>
     /// <param name="endpoints"></param>
+    /// <param name="brokerName"></param>
     /// <param name="fullyQualifiedNamespace"></param>
     /// <param name="sasCredential"></param>
-    /// <param name="brokerName"></param>
     /// <param name="configure"></param>
     /// <returns></returns>
     /// <exception cref="ArgumentNullException"></exception>
     public static AzureServiceBusConfiguration AddNamedAzureServiceBusBroker(this WolverineOptions endpoints,
-        string fullyQualifiedNamespace, AzureSasCredential sasCredential, BrokerName brokerName, Action<ServiceBusClientOptions>? configure = null)
+        BrokerName brokerName,
+        string fullyQualifiedNamespace, AzureSasCredential sasCredential,
+        Action<ServiceBusClientOptions>? configure = null)
     {
         AzureServiceBusTransport transport = endpoints.AzureServiceBusTransport(brokerName);
         transport.FullyQualifiedNamespace = fullyQualifiedNamespace ?? throw new ArgumentNullException(nameof(fullyQualifiedNamespace));
@@ -238,12 +245,13 @@ public static class AzureServiceBusTransportExtensions
     ///     Listen for incoming messages at the azure service bus queue by name on a named broker
     /// </summary>
     /// <param name="endpoints"></param>
-    /// <param name="queueName">The name of the Azuer service bus queue</param>
     /// <param name="brokerName">Name of the broker</param>
+    /// <param name="queueName">The name of the Azuer service bus queue</param>
     /// <param name="configure">Optional configuration</param>
-    ///     <returns></returns>
+    /// <returns></returns>
     public static AzureServiceBusQueueListenerConfiguration ListenToAzureServiceBusQueueOnNamedBroker(
-        this WolverineOptions endpoints, string queueName, BrokerName brokerName, Action<AzureServiceBusQueue>? configure = null)
+        this WolverineOptions endpoints, BrokerName brokerName, string queueName,
+        Action<AzureServiceBusQueue>? configure = null)
     {
         AzureServiceBusTransport transport = endpoints.AzureServiceBusTransport(brokerName);
 
@@ -332,16 +340,16 @@ public static class AzureServiceBusTransportExtensions
     /// Listen for messages from an Azure Service Bus topic subscription on a named broker
     /// </summary>
     /// <param name="endpoints"></param>
-    /// <param name="subscriptionName"></param>
     /// <param name="brokerName"></param>
+    /// <param name="subscriptionName"></param>
     /// <param name="configureSubscriptions">Optionally apply customizations to the actual Azure Service Bus subscription</param>
     /// <param name="configureSubscriptionRule">Optionally apply customizations to the Azure Service Bus subscription rule</param>
     /// <returns></returns>
     /// <exception cref="ArgumentNullException"></exception>
     public static SubscriptionExpression ListenToAzureServiceBusSubscriptionOnNamedBroker(
         this WolverineOptions endpoints,
-        string subscriptionName,
         BrokerName brokerName,
+        string subscriptionName,
         Action<CreateSubscriptionOptions>? configureSubscriptions = null,
         Action<CreateRuleOptions>? configureSubscriptionRule = null)
     {
@@ -386,11 +394,11 @@ public static class AzureServiceBusTransportExtensions
     /// Publish the designated messages directly to an Azure Service Bus queue on a named broker
     /// </summary>
     /// <param name="publishing"></param>
-    /// <param name="queueName"></param>
     /// <param name="brokerName"></param>
+    /// <param name="queueName"></param>
     /// <returns></returns>
     public static AzureServiceBusQueueSubscriberConfiguration ToAzureServiceBusQueueOnNamedBroker(
-        this IPublishToExpression publishing, string queueName, BrokerName brokerName)
+        this IPublishToExpression publishing, BrokerName brokerName, string queueName)
     {
         TransportCollection transports = publishing.As<PublishingExpression>().Parent.Transports;
         AzureServiceBusTransport transport = transports.GetOrCreate<AzureServiceBusTransport>(brokerName);
@@ -433,11 +441,11 @@ public static class AzureServiceBusTransportExtensions
     /// Publish the designated messages to an Azure Service Bus topic on a named broker
     /// </summary>
     /// <param name="publishing"></param>
-    /// <param name="topicName"></param>
     /// <param name="brokerName"></param>
+    /// <param name="topicName"></param>
     /// <returns></returns>
     public static AzureServiceBusTopicSubscriberConfiguration ToAzureServiceBusTopicOnNamedBroker(
-        this IPublishToExpression publishing, string topicName, BrokerName brokerName)
+        this IPublishToExpression publishing, BrokerName brokerName, string topicName)
     {
         TransportCollection transports = publishing.As<PublishingExpression>().Parent.Transports;
         AzureServiceBusTransport transport = transports.GetOrCreate<AzureServiceBusTransport>(brokerName);
