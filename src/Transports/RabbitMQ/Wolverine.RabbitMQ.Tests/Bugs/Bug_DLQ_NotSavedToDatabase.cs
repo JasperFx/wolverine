@@ -341,7 +341,7 @@ public class Bug_DLQ_NotSavedToDatabase : IDisposable
             // Query dead letters using Wolverine's API
             var deadLetterQuery = new DeadLetterEnvelopeQuery
             {
-                Limit = 100
+                PageSize = 100
             };
             var deadLetterResults = await messageStore.DeadLetters.QueryAsync(deadLetterQuery, CancellationToken.None);
             

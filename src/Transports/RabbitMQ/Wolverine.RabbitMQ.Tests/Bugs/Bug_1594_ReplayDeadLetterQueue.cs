@@ -61,7 +61,7 @@ public class Bug_1594_ReplayDeadLetterQueue
         await Task.Delay(1000);
 
         var messageStore = host.Services.GetRequiredService<IMessageStore>();
-        var deadLetterQuery = new DeadLetterEnvelopeQuery { Limit = 10 };
+        var deadLetterQuery = new DeadLetterEnvelopeQuery { PageSize = 10 };
         var sw = Stopwatch.StartNew();
         Guid? deadLetterId = null;
         while (sw.Elapsed < TimeSpan.FromSeconds(10))
