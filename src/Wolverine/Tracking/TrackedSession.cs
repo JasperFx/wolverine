@@ -429,7 +429,7 @@ internal class TrackedSession : ITrackedSession
         }
 
         // Ignore these
-        var messageType = envelope.Message.GetType();
+        var messageType = envelope.Message?.GetType();
         if (_ignoreMessageRules.Any(x => x(messageType)))
         {
             return;
