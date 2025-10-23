@@ -97,18 +97,6 @@ public class KafkaTransportExpression : BrokerExpression<KafkaTransport, KafkaTo
     }
 
     /// <summary>
-    /// Configure the Kafka admin client builders within the Wolverine transport
-    /// </summary>
-    /// <param name="configure"></param>
-    /// <returns></returns>
-    [Obsolete($"This method is deprecated. Use {nameof(ConfigureAdminClientBuilders)} instead.")]
-    public KafkaTransportExpression ConfigureAdminConsumerBuilders(Action<AdminClientBuilder> configure)
-    {
-        _transport.ConfigureAdminClientBuilders = configure;
-        return this;
-    }
-
-    /// <summary>
     /// Deletes and rebuilds topics on application startup
     /// </summary>
     /// <returns></returns>
