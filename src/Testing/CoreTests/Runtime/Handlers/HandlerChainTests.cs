@@ -14,7 +14,7 @@ public class HandlerChainTests
     public void the_default_log_level_is_information()
     {
         var chain = HandlerChain.For<Target>(x => x.Go(null), null);
-        chain.ExecutionLogLevel.ShouldBe(LogLevel.Information);
+        chain.SuccessLogLevel.ShouldBe(LogLevel.Information);
     }
 
     [Fact]

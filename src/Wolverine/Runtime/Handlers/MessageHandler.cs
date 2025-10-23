@@ -9,9 +9,6 @@ public interface IMessageHandler
 {
     Type MessageType { get; }
 
-    [Obsolete("This name was misleading, use SuccessLogLevel instead")]
-    LogLevel ExecutionLogLevel { get; }
-
     LogLevel SuccessLogLevel { get; }
 
     LogLevel ProcessingLogLevel { get; }
@@ -31,8 +28,6 @@ public abstract class MessageHandler : IMessageHandler
     public abstract Task HandleAsync(MessageContext context, CancellationToken cancellation);
 
     public virtual Type MessageType => Chain!.MessageType;
-
-    public LogLevel ExecutionLogLevel => Chain!.ExecutionLogLevel;
 
     public LogLevel SuccessLogLevel => Chain!.SuccessLogLevel;
     public LogLevel ProcessingLogLevel => Chain!.ProcessingLogLevel;
