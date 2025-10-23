@@ -210,7 +210,7 @@ public class registration_of_message_stores(ITestOutputHelper Output) : IAsyncLi
                     t.AddSingleTenantDatabase(connectionString3, "t3");
                     t.AddSingleTenantDatabase(connectionString4, "t4");
                 });
-            }).IntegrateWithWolverine(w => w.MasterDatabaseConnectionString = Servers.PostgresConnectionString);
+            }).IntegrateWithWolverine(w => w.MainDatabaseConnectionString = Servers.PostgresConnectionString);
         });
         
         var main = new Uri("wolverinedb://postgresql/localhost/postgres/wolverine");
@@ -247,7 +247,7 @@ public class registration_of_message_stores(ITestOutputHelper Output) : IAsyncLi
                 m.MultiTenantedDatabasesWithMasterDatabaseTable(Servers.PostgresConnectionString);
                 
 
-            }).IntegrateWithWolverine(w => w.MasterDatabaseConnectionString = Servers.PostgresConnectionString);
+            }).IntegrateWithWolverine(w => w.MainDatabaseConnectionString = Servers.PostgresConnectionString);
         });
 
         await _host.ClearAllTenantDatabaseRecordsAsync();

@@ -94,7 +94,7 @@ public class multi_tenancy_queue_usage : PostgresqlContext, IAsyncLifetime
                     .IntegrateWithWolverine(m =>
                     {
                         m.MessageStorageSchemaName = "mt";
-                        m.MasterDatabaseConnectionString = Servers.PostgresConnectionString;
+                        m.MainDatabaseConnectionString = Servers.PostgresConnectionString;
                     })
 
                     // All detected changes will be applied to all
@@ -128,7 +128,7 @@ public class multi_tenancy_queue_usage : PostgresqlContext, IAsyncLifetime
                     .IntegrateWithWolverine(m =>
                     {
                         m.MessageStorageSchemaName = "mt";
-                        m.MasterDatabaseConnectionString = Servers.PostgresConnectionString;
+                        m.MainDatabaseConnectionString = Servers.PostgresConnectionString;
                     })
 
                     // All detected changes will be applied to all
