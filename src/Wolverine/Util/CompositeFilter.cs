@@ -1,6 +1,5 @@
 namespace Wolverine.Util;
 
-[Obsolete("Try to eliminate this, or put back in Jasperfx.core, or add excludes to type filter ")]
 internal class CompositePredicate<T>
 {
     private readonly List<Func<T, bool>> _list = new List<Func<T, bool>>();

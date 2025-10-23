@@ -19,7 +19,6 @@ internal class AgentCommandHandler : MessageHandler
             .Then.Discard();
 
         // Reducing log noise
-        Chain.ExecutionLogLevel = LogLevel.None;
         Chain.ProcessingLogLevel = LogLevel.None;
         Chain.SuccessLogLevel = LogLevel.None;
         Chain.TelemetryEnabled = false;

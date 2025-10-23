@@ -137,18 +137,6 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
     public IReadOnlyList<Endpoint> Endpoints => _endpoints;
 
     /// <summary>
-    ///     At what level should Wolverine log messages about messages succeeding? The default
-    ///     is Information
-    /// </summary>
-    [Obsolete("The naming is misleading, please use SuccessLogLevel")]
-    [IgnoreDescription]
-    public LogLevel ExecutionLogLevel
-    {
-        get => SuccessLogLevel;
-        set => SuccessLogLevel = value;
-    }
-
-    /// <summary>
     ///     At what level should Wolverine log messages of this type about messages succeeding? The default
     ///     is Information
     /// </summary>

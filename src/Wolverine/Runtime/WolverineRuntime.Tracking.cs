@@ -145,7 +145,6 @@ public sealed partial class WolverineRuntime : IMessageTracker
         ActiveSession?.Record(MessageEventType.Requeued, envelope, _serviceName, _uniqueNodeId);
     }
 
-    [Obsolete("Try to eliminate this")]
     public void LogException(Exception ex, object? correlationId = null,
         string message = "Exception detected:")
     {
