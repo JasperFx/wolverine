@@ -124,7 +124,7 @@ public class MultiTenantContext : IAsyncLifetime
                     })
                     .IntegrateWithWolverine(m =>
                     {
-                        m.MasterDatabaseConnectionString = Servers.PostgresConnectionString;
+                        m.MainDatabaseConnectionString = Servers.PostgresConnectionString;
                         m.UseWolverineManagedEventSubscriptionDistribution = true;
                     });
 
@@ -158,7 +158,7 @@ public class MultiTenantContext : IAsyncLifetime
                         m.Projections.Add<StartingProjection>(ProjectionLifecycle.Async);
                         m.Projections.Add<EndingProjection>(ProjectionLifecycle.Async);
                     })
-                    .IntegrateWithWolverine(m => m.MasterDatabaseConnectionString = Servers.PostgresConnectionString);
+                    .IntegrateWithWolverine(m => m.MainDatabaseConnectionString = Servers.PostgresConnectionString);
 
                     // TODO --derive this from Marten Tenancy
 

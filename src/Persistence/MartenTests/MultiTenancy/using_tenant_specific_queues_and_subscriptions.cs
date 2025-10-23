@@ -84,7 +84,7 @@ public class using_tenant_specific_queues_and_subscriptions : PostgresqlContext,
                     .IntegrateWithWolverine(m =>
                     {
                         m.MessageStorageSchemaName = "mt";
-                        m.MasterDatabaseConnectionString = Servers.PostgresConnectionString;
+                        m.MainDatabaseConnectionString = Servers.PostgresConnectionString;
                     })
                     .SubscribeToEvents(new ColorsSubscription())
                     .AddAsyncDaemon(DaemonMode.Solo)
@@ -160,7 +160,7 @@ public class using_tenant_specific_queues_and_subscriptions : PostgresqlContext,
                     .IntegrateWithWolverine(m =>
                     {
                         m.MessageStorageSchemaName = "mt_queues";
-                        m.MasterDatabaseConnectionString = Servers.PostgresConnectionString;
+                        m.MainDatabaseConnectionString = Servers.PostgresConnectionString;
                     })
 
                     // All detected changes will be applied to all

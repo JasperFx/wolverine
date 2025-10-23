@@ -33,7 +33,7 @@ public class multi_tenancy_with_marten_managed_multi_tenancy : MultiTenancyCompl
             });
         }).IntegrateWithWolverine(x =>
         {
-            x.MasterDatabaseConnectionString = Servers.PostgresConnectionString;
+            x.MainDatabaseConnectionString = Servers.PostgresConnectionString;
         });
 
         opts.Services.AddDbContextWithWolverineManagedMultiTenancyByDbDataSource<ItemsDbContext>((builder, dataSource, _) =>
