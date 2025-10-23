@@ -167,7 +167,14 @@ public partial class Envelope
     /// <returns></returns>
     internal Envelope CreateForResponse(object message)
     {
-        var child = ForSend(message);
+        var child = new Envelope
+        {
+            Message = message,
+            CorrelationId = Id.ToString(),
+            ConversationId = Id,
+            SagaId = SagaId,
+            TenantId = TenantId
+        };
         child.CorrelationId = CorrelationId;
         child.ConversationId = Id;
 
@@ -184,19 +191,6 @@ public partial class Envelope
         }
 
         return child;
-    }
-
-    [Obsolete("not really used")]
-    internal Envelope ForSend(object message)
-    {
-        return new Envelope
-        {
-            Message = message,
-            CorrelationId = Id.ToString(),
-            ConversationId = Id,
-            SagaId = SagaId,
-            TenantId = TenantId
-        };
     }
 
     internal ValueTask StoreAndForwardAsync()
