@@ -25,6 +25,8 @@ Better control over how [Wolverine generates code with respect to IoC container 
 
 `IServiceContainer` moved to the `JasperFx` namespace.
 
+By and large, we've *tried* to replace any API nomenclature using "master" with "main."
+
 ## Key Changes in 4.0
 
 * Wolverine dropped all support for .NET 6/7
