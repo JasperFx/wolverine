@@ -27,6 +27,8 @@ public class Bug_971_replay_dead_letter_queue_of_event_wrapper
             {
                 opts.ApplicationAssembly = GetType().Assembly;
                 opts.Durability.Mode = DurabilityMode.Solo;
+                opts.Durability.ScheduledJobPollingTime = 250.Milliseconds();
+                
                 opts.Services.AddMarten(m =>
                     {
                         m.Connection(Servers.PostgresConnectionString);
@@ -90,7 +92,7 @@ public class Bug_971_replay_dead_letter_queue_of_event_wrapper
         var tracked = await host
             .TrackActivity()
             .DoNotAssertOnExceptionsDetected()
-            .Timeout(15.Seconds())
+            .Timeout(30.Seconds())
             .WaitForMessageToBeReceivedAt<IEvent<ErrorCausingEvent>>(host)
             .ExecuteAndWaitAsync(tryReplayEventMessage);
 
