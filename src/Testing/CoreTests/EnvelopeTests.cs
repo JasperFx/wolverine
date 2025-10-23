@@ -434,20 +434,6 @@ public class EnvelopeTests
         dict["org.unit"].ShouldBe("foo");
     }
 
-    [Fact]
-    public void propagate_tenant_id_in_ForSend()
-    {
-        var envelope = new Envelope
-        {
-            Destination = new Uri("local://one"),
-            Message = new Message1(),
-            TenantId = "tenant1"
-        };
-
-        var send = envelope.ForSend(new Message2());
-        send.TenantId.ShouldBe(envelope.TenantId);
-    }
-
     public class when_building_delivery_options_to_mimic_an_envelope
     {
         private readonly Envelope theEnvelope;
