@@ -137,6 +137,16 @@ public static class TodoHandler
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/Wolverine.ComplianceTests/StorageActionCompliance.cs#L294-L394' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_todohandler_to_demonstrate_storage_operations' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+::: warning
+When a handler returns an `IStorageAction`, Wolverine automatically
+applies [transactional middleware](/guide/durability/marten/transactional-middleware) for that handler — even if the
+handler is not explicitly decorated with `[Transactional]` or `AutoApplyTransactions()` is not configured.
+
+This behavior is required because Wolverine needs to automatically call `SaveChangesAsync()` on the EF Core `DbContext`
+to persist the storage operation, which should be done within a single transaction together with publication of messages
+to the outbox/inbox.
+:::
+
 ## [Entity]
 
 Wolverine also supports the usage of the `[Entity]` attribute to load entity data by its identity with EF Core. As you'd 
