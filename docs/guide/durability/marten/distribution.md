@@ -30,7 +30,7 @@ opts.Services.AddMarten(m =>
 <!-- endSnippet -->
 
 ::: tip
-This option replaces the Marten `AddAsyncMarten(HotCold)` option and should not be used in combination
+This option replaces the Marten `AddAsyncDaemon(HotCold)` option and should not be used in combination
 with Marten's own load distribution.
 :::
 
