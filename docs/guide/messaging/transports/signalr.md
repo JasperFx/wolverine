@@ -253,6 +253,8 @@ document.getElementById("sendButton").addEventListener("click", function (event)
 
 Note that the method `ReceiveMessage` is hard coded into the `WolverineHub` service.
 
+Also note that messages are sent and recieved as raw json strings. You need to `JSON.parse` incoming messages and `JSON.stringify` outgoing messages yourself. 
+
 Our vision for this usage is that you probably integrate directly with a client side state tracking tool like [Pinia](https://pinia.vuejs.org/)
 (how we're using the SignalR transport to build "CritterWatch").
 
