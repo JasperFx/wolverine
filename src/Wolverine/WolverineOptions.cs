@@ -36,6 +36,42 @@ public enum MultipleHandlerBehavior
     Separated
 }
 
+public enum WolverineMetricsMode
+{
+    /// <summary>
+    /// Wolverine will publish performance metrics via System.Diagnostics.Meter
+    /// where any Otel tooling can be configured to scrape metrics
+    /// </summary>
+    SystemDiagnosticsMeter,
+    
+    /// <summary>
+    /// Wolverine will accumulate and occasionally publish performance metrics
+    /// via messaging to subscribers configured to listen for Wolverine performance
+    /// data
+    /// </summary>
+    CritterWatch,
+    
+    /// <summary>
+    /// Wolverine will both accumulate and publish metrics information to CritterWatch
+    /// *and* publish metrics via System.Diagnostics.Meter
+    /// </summary>
+    Hybrid
+}
+
+public class MetricsOptions
+{
+    /// <summary>
+    /// How should Wolverine collect and publish metrics about message handling and publications?
+    /// </summary>
+    public WolverineMetricsMode Mode { get; set; } = WolverineMetricsMode.SystemDiagnosticsMeter;
+    
+    /// <summary>
+    /// If using either CritterWatch or Hybrid metrics publishing, this is the period in which
+    /// Wolverine will sample and publish metric data collection. Default is 5 seconds
+    /// </summary>
+    public TimeSpan SamplingPeriod { get; set; } = 5.Seconds();
+}
+
 /// <summary>
 ///     Completely defines and configures a Wolverine application
 /// </summary>
@@ -46,6 +82,7 @@ public sealed partial class WolverineOptions
 
     public WolverineOptions() : this(null)
     {
+        
     }
 
     public WolverineOptions(string? assemblyName)
@@ -81,6 +118,8 @@ public sealed partial class WolverineOptions
 
         MessagePartitioning = new MessagePartitioningRules(this);
     }
+
+    public MetricsOptions Metrics { get; } = new();
 
     /// <summary>
     /// What is the policy within this application for whether or not it is valid to allow Service Location within

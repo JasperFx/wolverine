@@ -12,6 +12,7 @@ using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.Handlers;
+using Wolverine.Runtime.Metrics;
 using Wolverine.Runtime.RemoteInvocation;
 using Wolverine.Runtime.Routing;
 using Wolverine.Transports;
@@ -51,7 +52,10 @@ public class MockWolverineRuntime : IWolverineRuntime, IObserver<IWolverineEvent
     public MockWolverineRuntime()
     {
         Tracker.Subscribe(this);
+        MetricsAccumulator = new MetricsAccumulator(this);
     }
+
+    public MetricsAccumulator MetricsAccumulator { get; }
 
     public IMessageTracker MessageTracking { get; } = Substitute.For<IMessageTracker>();
 

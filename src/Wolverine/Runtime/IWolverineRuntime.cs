@@ -6,6 +6,7 @@ using Wolverine.Persistence;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.Handlers;
+using Wolverine.Runtime.Metrics;
 using Wolverine.Runtime.RemoteInvocation;
 using Wolverine.Runtime.Routing;
 
@@ -26,6 +27,9 @@ public interface IWolverineRuntime
     IReplyTracker Replies { get; }
     IEndpointCollection Endpoints { get; }
     Meter Meter { get; }
+    
+    MetricsAccumulator MetricsAccumulator { get; }
+    
     ILoggerFactory LoggerFactory { get; }
 
     IAgentRuntime Agents { get; }
