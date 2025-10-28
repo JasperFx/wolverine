@@ -197,7 +197,7 @@ builder.UseWolverine(opts =>
 ## Interacting with the Server from the Browser
 
 It's not mandatory, but in developing and dogfooding the Wolverine.SignalR transport, we've found it helpful to use
-the actual [signalr Javascript library](https://learn.microsoft.com/en-us/aspnet/core/signalr/javascript-client?view=aspnetcore-9.0&tabs=visual-studio) and
+the actual [signalr Javascript library](https://learn.microsoft.com/en-us/aspnet/core/signalr/javascript-client) and
 our sample SignalR application uses that library for the browser to server communication.
 
 ```js
@@ -322,7 +322,7 @@ In the next section we'll learn a bit more about working with SignalR groups.
 
 ## SignalR Groups
 
-One of the powerful features of SignalR is being able to work with [groups of connections](https://learn.microsoft.com/en-us/aspnet/signalr/overview/guide-to-the-api/working-with-groups).
+One of the powerful features of SignalR is being able to work with [groups of connections](https://learn.microsoft.com/en-us/aspnet/core/signalr/groups).
 The SignalR transport currently has some simple support for managing and publishing to groups. Let's say you have
 these web socket messages in your system:
 
@@ -381,7 +381,7 @@ type of integration testing through SignalR.
 :::
 
 Wolverine.SignalR is actually two transports in one library! There is also a full fledged messaging transport built
-around the [.NET SignalR client](https://learn.microsoft.com/en-us/aspnet/core/signalr/dotnet-client?view=aspnetcore-9.0&tabs=visual-studio) that we've used extensively for test automation, but could technically be used as 
+around the [.NET SignalR client](https://learn.microsoft.com/en-us/aspnet/core/signalr/dotnet-client) that we've used extensively for test automation, but could technically be used as 
 a "real" messaging transport. The SignalR Client transport was built specifically to enable end to end testing against
 a Wolverine server that hosts SignalR itself. The SignalR Client transport will use the same CloudEvents mechanism to
 send and receive messages from the main Wolverine SignalR transport and is 100% compatible.
