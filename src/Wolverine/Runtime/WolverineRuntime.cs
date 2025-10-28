@@ -13,6 +13,7 @@ using Wolverine.Persistence;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.Handlers;
+using Wolverine.Runtime.Metrics;
 using Wolverine.Runtime.RemoteInvocation;
 using Wolverine.Runtime.Routing;
 using Wolverine.Runtime.Scheduled;
@@ -25,13 +26,14 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
     private readonly EndpointCollection _endpoints;
     private readonly LightweightCache<Type, IMessageInvoker> _invokers;
 
-    private readonly string _serviceName;
+    private string _serviceName;
     private readonly Guid _uniqueNodeId;
 
     private ImHashMap<Type, object?> _extensions = ImHashMap<Type, object?>.Empty;
     private bool _hasStopped;
 
     private readonly Lazy<MessageStoreCollection> _stores;
+    private readonly Lazy<MetricsAccumulator> _accumulator;
 
     public WolverineRuntime(WolverineOptions options,
         IServiceContainer container,
@@ -40,6 +42,8 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
         DurabilitySettings = options.Durability;
         Options = options;
         Handlers = options.HandlerGraph;
+
+        _accumulator = new Lazy<MetricsAccumulator>(() => new MetricsAccumulator(this));
 
         _stores =
             new Lazy<MessageStoreCollection>(() => container.Services.GetRequiredService<MessageStoreCollection>());
@@ -99,6 +103,8 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
             activator.Apply(this);
         }
     }
+
+    public MetricsAccumulator MetricsAccumulator => _accumulator.Value;
 
     public IWolverineObserver Observer { get; set; }
 

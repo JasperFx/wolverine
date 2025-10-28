@@ -251,6 +251,14 @@ public class WolverineOptionsTests
         new WolverineOptions().EnableRemoteInvocation.ShouldBeTrue();
     }
 
+    [Fact]
+    public void metrics_defaults()
+    {
+        var options = new WolverineOptions();
+        options.Metrics.Mode.ShouldBe(WolverineMetricsMode.SystemDiagnosticsMeter);
+        options.Metrics.SamplingPeriod.ShouldBe(5.Seconds());
+    }
+
     public interface IFoo;
 
     public class Foo : IFoo;

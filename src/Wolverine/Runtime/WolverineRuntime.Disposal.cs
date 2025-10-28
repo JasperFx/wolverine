@@ -33,5 +33,10 @@ public partial class WolverineRuntime : IAsyncDisposable
         {
             await definition.As<IAsyncDisposable>().DisposeAsync();
         }
+
+        if (_accumulator.IsValueCreated)
+        {
+            await _accumulator.Value.DisposeAsync();
+        }
     }
 }
