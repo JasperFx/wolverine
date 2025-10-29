@@ -124,6 +124,31 @@ Using this option just means that the PostgreSQL queues can be used for both sen
 with the transactional inbox or outbox. This is a little more performant, but less safe as messages could be
 lost if held in memory when the application shuts down unexpectedly. 
 
+### Polling
+Wolverine has a number of internal polling operations, and any PostgreSQL queues will be polled on a configured interval as Wolverine does not use the PostgreSQL `LISTEN/NOTIFY` feature at this time.   
+The default polling interval is set in the `DurabilitySettings` class and can be configured at runtime as below:
+
+```cs
+var builder = Host.CreateApplicationBuilder();
+builder.UseWolverine(opts =>
+{
+    // Health check message queue/dequeue
+    opts.Durability.HealthCheckPollingTime = TimeSpan.FromSeconds(10);
+    
+    // Node reassigment checks
+    opts.Durability.NodeReassignmentPollingTime = TimeSpan.FromSeconds(5);
+    
+    // User queue poll frequency
+    opts.Durability.ScheduledJobPollingTime = TimeSpan.FromSeconds(5);
+}
+```
+
+::: info Control queue  
+Wolverine has an internal control queue (`dbcontrol`) used for internal operations.  
+This queue is hardcoded to poll every second and should not be changed to ensure the stability of the application.
+:::
+
+
 ## Multi-Tenancy
 
 As of Wolverine 4.0, you have two ways to use multi-tenancy through separate databases per tenant with PostgreSQL:
