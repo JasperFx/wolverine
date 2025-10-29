@@ -75,9 +75,9 @@ public static class SignalRWolverineExtensions
     /// </summary>
     /// <param name="endpoints"></param>
     /// <param name="route"></param>
-    public static void MapWolverineSignalRHub(this IEndpointRouteBuilder endpoints, string route = "messages")
+    public static HubEndpointConventionBuilder MapWolverineSignalRHub(this IEndpointRouteBuilder endpoints, string route = "messages")
     {
-        endpoints.MapHub<WolverineHub>(route);
+        return endpoints.MapHub<WolverineHub>(route);
     }
 
     /// <summary>
