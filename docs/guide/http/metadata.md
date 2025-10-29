@@ -245,3 +245,13 @@ else
     // usual Marten config
 }
 ```
+
+## With NSwag
+
+Be aware that if you want to use NSwag to generate a .NET/Typescript client for Wolverine.HTTP endpoints, you will need to add this line before `return await app.RunJasperFxCommands(args);`:
+
+```cs
+args = args.Where(arg => !arg.StartsWith("--applicationName")).ToArray();
+```
+
+See the full NSwag demo at https://github.com/JasperFx/wolverine/tree/main/src/Http/NSwagDemonstrator
