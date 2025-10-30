@@ -24,10 +24,6 @@ public class RabbitMqBinding
 
     internal async Task DeclareAsync(IChannel channel, ILogger logger)
     {
-        if (HasDeclared)
-        {
-            return;
-        }
         await channel.QueueBindAsync(_queue.EndpointName, ExchangeName, BindingKey, Arguments);
         logger.LogInformation("Declared a Rabbit Mq binding '{Key}' from exchange {Exchange} to {Queue}", BindingKey,
             ExchangeName, _queue.EndpointName);
