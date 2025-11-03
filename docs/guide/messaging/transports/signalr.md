@@ -11,7 +11,7 @@ Much of the sample code is taken from a runnable sample application in the Wolve
 :::
 
 The [SignalR library](https://dotnet.microsoft.com/en-us/apps/aspnet/signalr) from Microsoft isn't hard to use from Wolverine for simplistic WebSockets
-or Server Side Events usage , but what if you want a server side
+or Server Side Events usage, but what if you want a server side
 application to exchange any number of different messages between a browser (or other WebSocket client because that's
 actually possible) and your server side code in a systematic way? To that end, Wolverine now supports a first class messaging transport
 for SignalR. To get started, just add a Nuget reference to the `WolverineFx.SignalR` library:
