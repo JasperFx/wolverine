@@ -378,48 +378,5 @@ public static class WolverineHostTrackingByServiceProviderExtensions
         return session;
     }
 
-    public static void StubHandlers(this IServiceProvider services, Action<IStubHandlers> configure)
-    {
-        if (configure == null)
-        {
-            throw new ArgumentNullException(nameof(configure));
-        }
-
-        configure(services.GetRequiredService<IWolverineRuntime>().Stubs);
-    }
-    
-    public static void StubHandlers(this IHost host, Action<IStubHandlers> configure)
-    {
-        host.Services.StubHandlers(configure);
-    }
-
-    public static void ClearAllStubHandlers(this IServiceProvider services)
-    {
-        services.StubHandlers(x => x.ClearAll());
-    }
-    
-    public static void ClearAllStubHandlers(this IHost host)
-    {
-        host.Services.ClearAllStubHandlers();
-    }
-
-    public static void StubMessageHandler<TRequest, TResponse>(this IServiceProvider services,
-        Func<TRequest, TResponse> func)
-    {
-        services.StubHandlers(stubs =>
-        {
-            stubs.Stub(func);
-        });
-    }
-    
-    public static void StubMessageHandler<TRequest, TResponse>(this IHost host,
-        Func<TRequest, TResponse> func)
-    {
-        host.Services.StubHandlers(stubs =>
-        {
-            stubs.Stub(func);
-        });
-    }
-    
     
 }
