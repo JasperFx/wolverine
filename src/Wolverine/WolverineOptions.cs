@@ -15,6 +15,7 @@ using Wolverine.Runtime.Partitioning;
 using Wolverine.Runtime.Scheduled;
 using Wolverine.Runtime.Serialization;
 using Wolverine.Transports.Local;
+using Wolverine.Transports.Stub;
 
 [assembly: InternalsVisibleTo("Wolverine.Testing")]
 
@@ -117,6 +118,8 @@ public sealed partial class WolverineOptions
         Policies.Add<OutgoingMessagesPolicy>();
 
         MessagePartitioning = new MessagePartitioningRules(this);
+        
+        InternalRouteSources.Insert(0, Transports.GetOrCreate<StubTransport>());
     }
 
     public MetricsOptions Metrics { get; } = new();

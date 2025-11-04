@@ -17,6 +17,8 @@ using Wolverine.Runtime.Metrics;
 using Wolverine.Runtime.RemoteInvocation;
 using Wolverine.Runtime.Routing;
 using Wolverine.Runtime.Scheduled;
+using Wolverine.Runtime.Stubs;
+using Wolverine.Transports.Stub;
 
 namespace Wolverine.Runtime;
 
@@ -103,6 +105,8 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
             activator.Apply(this);
         }
     }
+
+    public IStubHandlers Stubs => Options.Transports.GetOrCreate<StubTransport>();
 
     public MetricsAccumulator MetricsAccumulator => _accumulator.Value;
 

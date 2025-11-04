@@ -25,5 +25,7 @@ public static class TransportConstants
     public static readonly Uri DurableLocalUri = "local://durable".ToUri();
     public static readonly Uri LocalUri = "local://".ToUri();
 
+    public static readonly Uri LocalStubs = "stub://system".ToUri();
+
     public static readonly int AnyNode = 0;
 }
