@@ -46,6 +46,11 @@ internal class WolverineProjectionCoordinator : IProjectionCoordinator
         return _storeAgents.DaemonForDatabase(databaseIdentifier);
     }
 
+    public ValueTask<IReadOnlyList<IProjectionDaemon>> AllDaemonsAsync()
+    {
+        return _storeAgents.AllDaemonsAsync();
+    }
+
     public Task PauseAsync()
     {
         return StopAsync(CancellationToken.None);
