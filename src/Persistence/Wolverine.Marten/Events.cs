@@ -8,6 +8,14 @@ namespace Wolverine.Marten;
 /// </summary>
 public class Events : List<object>, IWolverineReturnType
 {
+    public Events()
+    {
+    }
+
+    public Events(IEnumerable<object> collection) : base(collection)
+    {
+    }
+
     public static Events operator +(Events events, object @event)
     {
         events.Add(@event);

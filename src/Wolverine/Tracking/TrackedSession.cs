@@ -12,11 +12,11 @@ using Wolverine.Transports.Local;
 
 namespace Wolverine.Tracking;
 
-internal class TrackedSession : ITrackedSession
+internal partial class TrackedSession : ITrackedSession
 {
     private readonly IList<ITrackedCondition> _conditions = new List<ITrackedCondition>();
 
-    private readonly Cache<Guid, EnvelopeHistory> _envelopes = new(id => new EnvelopeHistory(id));
+    private Cache<Guid, EnvelopeHistory> _envelopes = new(id => new EnvelopeHistory(id));
 
     private readonly IList<Exception> _exceptions = new List<Exception>();
 
@@ -28,9 +28,10 @@ internal class TrackedSession : ITrackedSession
 
     private bool _executionComplete;
 
-    private readonly Stopwatch _stopwatch = new();
+    private Stopwatch _stopwatch = new();
 
     private readonly List<Func<Type, bool>> _ignoreMessageRules = [t => t.CanBeCastTo<IAgentCommand>()];
+    private CancellationTokenSource _cancellation = new();
 
     private TrackingStatus _status = TrackingStatus.Active;
 
@@ -45,6 +46,13 @@ internal class TrackedSession : ITrackedSession
     {
         
     }
+
+    // Actions to carry out first before execute and track
+    public List<Func<IWolverineRuntime, CancellationToken, Task>> Befores { get; } = new();
+
+    // All previous TrackedSessions
+    public List<TrackedSession> Previous { get; } = new();
+    public Queue<ISecondStateExecution> SecondaryStages { get; } = new();
 
     public TimeSpan Timeout { get; set; } = 5.Seconds();
 
@@ -319,64 +327,7 @@ internal class TrackedSession : ITrackedSession
         _primaryLogger.ActiveSession = session;
         foreach (var runtime in _otherHosts) runtime.ActiveSession = session;
     }
-
-    public async Task ExecuteAndTrackAsync()
-    {
-        setActiveSession(this);
-
-        _stopwatch.Start();
-
-        try
-        {
-            await using var scope = _primaryHost.Services.CreateAsyncScope();
-            var context = scope.ServiceProvider.GetRequiredService<IMessageContext>();
-            await Execution(context).WaitAsync(Timeout);
-            _executionComplete = true;
-        }
-        catch (TimeoutException e)
-        {
-            cleanUp();
-
-            var message =
-                BuildActivityMessage($"This {nameof(TrackedSession)} timed out before all activity completed.");
-
-            throw new TimeoutException(message, e);
-        }
-        catch (Exception)
-        {
-            cleanUp();
-            throw;
-        }
-
-        // This is for race conditions if the activity manages to finish really fast
-        if (IsCompleted())
-        {
-            Status = TrackingStatus.Completed;
-        }
-        else
-        {
-            startTimeoutTracking();
-            await _source.Task;
-        }
-
-        cleanUp();
-
-        if (AssertNoExceptions)
-        {
-            AssertNoExceptionsWereThrown();
-        }
-
-        if (AssertAnyFailureAcknowledgements)
-        {
-            AssertNoFailureAcksWereSent();
-        }
-
-        if (AssertNoExceptions)
-        {
-            AssertNotTimedOut();
-        }
-    }
-
+    
     public void AssertNoFailureAcksWereSent()
     {
         var records = AllRecordsInOrder().Where(x => x.Message is FailureAcknowledgement).ToArray();
@@ -418,6 +369,8 @@ internal class TrackedSession : ITrackedSession
             await Task.Delay(Timeout);
 
             Status = TrackingStatus.TimedOut;
+
+            await _cancellation.CancelAsync();
         }, CancellationToken.None, TaskCreationOptions.RunContinuationsAsynchronously, TaskScheduler.Default);
     }
     

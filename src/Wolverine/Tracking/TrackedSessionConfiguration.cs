@@ -38,6 +38,41 @@ public class TrackedSessionConfiguration
     }
 
     /// <summary>
+    /// Register an action that gets called before the actual execution
+    /// Typically meant for clean up work
+    /// </summary>
+    /// <param name="before"></param>
+    /// <returns></returns>
+    public TrackedSessionConfiguration BeforeExecution(Func<IWolverineRuntime, CancellationToken, Task> before)
+    {
+        Session.Befores.Add(before);
+        return this;
+    }
+
+    /// <summary>
+    /// Add a secondary stage of the tracked session that will execute like a nested tracked session
+    /// </summary>
+    /// <param name="stage"></param>
+    /// <returns></returns>
+    public TrackedSessionConfiguration AddStage(Func<IWolverineRuntime, IMessageContext, CancellationToken, Task> stage)
+    {
+        Session.SecondaryStages.Enqueue(new TrackedSession.SecondaryStage(Session, stage));
+        return this;
+    }
+    
+    /// <summary>
+    /// Add a secondary action against the current Wolverine application *after* the tracked session
+    /// has completed
+    /// </summary>
+    /// <param name="stage"></param>
+    /// <returns></returns>
+    public TrackedSessionConfiguration AfterExecution(Func<IWolverineRuntime, CancellationToken, Task> func)
+    {
+        Session.SecondaryStages.Enqueue(new TrackedSession.SecondaryAction(Session, func));
+        return this;
+    }
+
+    /// <summary>
     /// Do not track any messages where the message type matches this filter.
     /// Helpful for polling operations that maybe happening during your testing
     /// </summary>
