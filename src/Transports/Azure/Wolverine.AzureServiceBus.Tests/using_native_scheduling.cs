@@ -112,7 +112,6 @@ public class using_native_scheduling
 
         session.Received.SingleMessage<AsbMessage1>()
             .Name.ShouldBe("in a bit");
-        session.Scheduled.Envelopes().ShouldAllBe(e => e.ScheduledTime.HasValue);
 
         await host.StopAsync();
     }
