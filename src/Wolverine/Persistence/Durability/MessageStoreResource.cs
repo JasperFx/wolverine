@@ -44,8 +44,9 @@ internal class MessageStoreResource : IStatefulResource
         var table = new Table();
         table.AddColumns("Envelope Category", "Number");
         table.AddRow("Incoming", counts.Incoming.ToString());
-        table.AddRow("Scheduled", counts.Scheduled.ToString());
         table.AddRow("Outgoing", counts.Outgoing.ToString());
+        table.AddRow("Scheduled", counts.Scheduled.ToString());
+        table.AddRow("Dead Letter", counts.DeadLetter.ToString());
 
         return table;
     }
