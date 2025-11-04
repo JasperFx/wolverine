@@ -814,3 +814,229 @@ Host = await AlbaHost.For<Program>(x =>
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/IntegrationContext.cs#L28-L48' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_run_wolverine_in_solo_mode_with_extension' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+
+## Stubbing Message Handlers <Badge type="tip" text="5.1" />
+
+To extend the test automation support even further, Wolverine now has a capability to "stub"
+out message handlers in testing scenarios with pre-canned behavior for more reliable testing
+in some situations. This feature was mostly conceived of for stubbing out calls to external
+systems through `IMessageBus.InvokeAsync<T>()` where the request would normally be sent to 
+an external system through a subscriber. 
+
+Jumping into an example, let's say that your system interacts with another service that estimates
+delivery costs for ordering items. At some point in the system you might reach out through
+a request/reply call in Wolverine to estimate an item delivery before making a purchase
+like this code:
+
+<!-- snippet: sample_code_showing_remote_request_reply -->
+<a id='snippet-sample_code_showing_remote_request_reply'></a>
+```cs
+// This query message is normally sent to an external system through Wolverine
+// messaging
+public record EstimateDelivery(int ItemId, DateOnly Date, string PostalCode);
+
+// This message type is a response from an external system
+public record DeliveryInformation(TimeOnly DeliveryTime, decimal Cost);
+
+public record MaybePurchaseItem(int ItemId, Guid LocationId, DateOnly Date, string PostalCode, decimal BudgetedCost);
+public record MakePurchase(int ItemId, Guid LocationId, DateOnly Date);
+public record PurchaseRejected(int ItemId, Guid LocationId, DateOnly Date);
+
+public static class MaybePurchaseHandler
+{
+    public static Task<DeliveryInformation> LoadAsync(
+        MaybePurchaseItem command, 
+        IMessageBus bus, 
+        CancellationToken cancellation)
+    {
+        var (itemId, _, date, postalCode, budget) = command;
+        var estimateDelivery = new EstimateDelivery(itemId, date, postalCode);
+        
+        // Let's say this is doing a remote request and reply to another system
+        // through Wolverine messaging
+        return bus.InvokeAsync<DeliveryInformation>(estimateDelivery, cancellation);
+    }
+    
+    public static object Handle(
+        MaybePurchaseItem command, 
+        DeliveryInformation estimate)
+    {
+
+        if (estimate.Cost <= command.BudgetedCost)
+        {
+            return new MakePurchase(command.ItemId, command.LocationId, command.Date);
+        }
+
+        return new PurchaseRejected(command.ItemId, command.LocationId, command.Date);
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/StubbingHandlers.cs#L121-L163' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_code_showing_remote_request_reply' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+And for a little more context, the `EstimateDelivery` message will always be sent to
+an external system in this configuration:
+
+<!-- snippet: sample_configuring_estimate_delivery -->
+<a id='snippet-sample_configuring_estimate_delivery'></a>
+```cs
+var builder = Host.CreateApplicationBuilder();
+builder.UseWolverine(opts =>
+{
+    opts
+        .UseRabbitMq(builder.Configuration.GetConnectionString("rabbit"))
+        .AutoProvision();
+
+    // Just showing that EstimateDelivery is handled by
+    // whatever system is on the other end of the "estimates" queue
+    opts.PublishMessage<EstimateDelivery>()
+        .ToRabbitQueue("estimates");
+});
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/StubbingHandlers.cs#L14-L29' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_estimate_delivery' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Using our 
+
+In testing scenarios, maybe the external system isn't available at all, or it's just much more 
+challenging to run tests that also include the external system, or maybe you'd just like to 
+write more isolated tests against your service's behavior before even trying to integrate
+with the other system (my personal preference anyway). To that end we can now stub
+the remote handling like this:
+
+<!-- snippet: sample_using_stub_handler_in_testing_code -->
+<a id='snippet-sample_using_stub_handler_in_testing_code'></a>
+```cs
+public static async Task try_application(IHost host)
+{
+    host.StubWolverineMessageHandling<EstimateDelivery, DeliveryInformation>(
+        query => new DeliveryInformation(new TimeOnly(17, 0), 1000));
+
+    var locationId = Guid.NewGuid();
+    var itemId = 111;
+    var expectedDate = new DateOnly(2025, 12, 1);
+    var postalCode = "78750";
+
+    var maybePurchaseItem = new MaybePurchaseItem(itemId, locationId, expectedDate, postalCode,
+        500);
+    
+    var tracked =
+        await host.InvokeMessageAndWaitAsync(maybePurchaseItem);
+    
+    // The estimated cost from the stub was more than we budgeted
+    // so this message should have been published
+    
+    // This line is an assertion too that there was a single message
+    // of this type published as part of the message handling above
+    var rejected = tracked.Sent.SingleMessage<PurchaseRejected>();
+    rejected.ItemId.ShouldBe(itemId);
+    rejected.LocationId.ShouldBe(locationId);
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/StubbingHandlers.cs#L32-L61' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_stub_handler_in_testing_code' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+After calling making this call:
+
+```csharp
+        host.StubWolverineMessageHandling<EstimateDelivery, DeliveryInformation>(
+            query => new DeliveryInformation(new TimeOnly(17, 0), 1000));
+
+```
+
+Calling this from our Wolverine application:
+
+```csharp
+        // Let's say this is doing a remote request and reply to another system
+        // through Wolverine messaging
+        return bus.InvokeAsync<DeliveryInformation>(estimateDelivery, cancellation);
+```
+
+Will use the stubbed logic we registered. This is enabling you to use fake behavior for
+difficult to use external services. 
+
+For the next test, we can completely remove the stub behavior and revert back to the 
+original configuration like this:
+
+<!-- snippet: sample_clearing_out_stub_behavior -->
+<a id='snippet-sample_clearing_out_stub_behavior'></a>
+```cs
+public static void revert_stub(IHost host)
+{
+    // Selectively clear out the stub behavior for only one message
+    // type
+    host.WolverineStubs(stubs =>
+    {
+        stubs.Clear<EstimateDelivery>();
+    });
+    
+    // Or just clear out all active Wolverine message handler
+    // stubs
+    host.ClearAllWolverineStubs();
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/StubbingHandlers.cs#L63-L79' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_clearing_out_stub_behavior' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Or instead, we can just completely replace the previously registered stub behavior
+with completely new logic that will override our previous stub:
+
+<!-- snippet: sample_override_previous_stub_behavior -->
+<a id='snippet-sample_override_previous_stub_behavior'></a>
+```cs
+public static void override_stub(IHost host)
+{
+    host.StubWolverineMessageHandling<EstimateDelivery, DeliveryInformation>(
+        query => new DeliveryInformation(new TimeOnly(17, 0), 250));
+
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/StubbingHandlers.cs#L81-L90' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_override_previous_stub_behavior' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+So far, we've only looked at simple request/reply behavior, but what if a remote system 
+receiving our message potentially makes multiple calls back to our system? Or really just
+any kind of interaction more complicated than a single response for a request message?
+
+We're still in business, we just have to use a little uglier signature for our stub:
+
+<!-- snippet: sample_using_more_complex_stubs -->
+<a id='snippet-sample_using_more_complex_stubs'></a>
+```cs
+public static void more_complex_stub(IHost host)
+{
+    host.WolverineStubs(stubs =>
+    {
+        stubs.Stub<EstimateDelivery>(async (
+            EstimateDelivery message, 
+            IMessageContext context, 
+            IServiceProvider services,
+            CancellationToken cancellation) =>
+        {
+            // do whatever you want, including publishing any number of messages
+            // back through IMessageContext
+            
+            // And grab any other services you might need from the application 
+            // through the IServiceProvider -- but note that you will have
+            // to deal with scopes yourself here
+
+            // This is an equivalent to get the response back to the 
+            // original caller
+            await context.PublishAsync(new DeliveryInformation(new TimeOnly(17, 0), 250));
+        });
+    });
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/StubbingHandlers.cs#L92-L118' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_more_complex_stubs' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+A few notes about this capability:
+
+* You can use any number of stubs for different message types at the same time
+* Most of the testing samples use extension methods on `IHost`, but we know there are some users who bootstrap only an IoC container for integration tests, so all of the extension methods shown in this section are also available off of `IServiceProvider`
+* The "stub" functions are effectively singletons. There's nothing fancier about argument matching or anything you might expect from a full fledged mock library like NSubstitute or FakeItEasy
+* You can actually fake out the routing to message types that are normally handled by handlers within the application
+* We don't believe this feature will be helpful for "sticky" message handlers where you may have multiple handlers for the same message type interally
+
+
+
