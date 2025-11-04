@@ -61,18 +61,18 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
             {
                 if (envelope.IsScheduledForLater(DateTimeOffset.UtcNow))
                 {
-                    if (envelope.Sender!.SupportsNativeScheduledSend)
+                    if (!envelope.Sender!.IsDurable)
                     {
-                        await sendEnvelopeAsync(envelope);
+                        if (envelope.Sender!.SupportsNativeScheduledSend)
+                        {
+                            await sendEnvelopeAsync(envelope);
+                        }
+                        else
+                        {
+                            Runtime.ScheduleLocalExecutionInMemory(envelope.ScheduledTime!.Value, envelope);
+                        }
                     }
-                    else if (!envelope.Sender!.IsDurable)
-                    {
-                        Runtime.ScheduleLocalExecutionInMemory(envelope.ScheduledTime!.Value, envelope);
-                    }
-                    else
-                    {
-                        await sendEnvelopeAsync(envelope);
-                    }
+
                     // If NullMessageStore, then we're calling a different Send method that is marking the message
                     if (Runtime.Storage is not NullMessageStore)
                     {
