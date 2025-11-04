@@ -51,7 +51,7 @@ public class using_stubs_end_to_end : IAsyncLifetime
     [Fact]
     public async Task stub_single_message()
     {
-        theSender.StubHandlers(stubs =>
+        theSender.WolverineStubs(stubs =>
         {
             stubs.Stub<StubMessage1, StubResponse1>(m => new StubResponse1(m.Id + "-1"));
             
@@ -68,9 +68,9 @@ public class using_stubs_end_to_end : IAsyncLifetime
     [Fact]
     public async Task clear_all_reverts_back_to_normal()
     {
-        theSender.StubMessageHandler<StubMessage1, StubResponse1>(m => new StubResponse1(m.Id + "-1"));
+        theSender.StubWolverineMessageHandling<StubMessage1, StubResponse1>(m => new StubResponse1(m.Id + "-1"));
         
-        theSender.ClearAllStubHandlers();
+        theSender.ClearAllWolverineStubs();
         
         var bus = theSender.MessageBus();
         var response = await bus.InvokeAsync<StubResponse1>(new StubMessage1("green"));
@@ -80,9 +80,9 @@ public class using_stubs_end_to_end : IAsyncLifetime
     [Fact]
     public async Task clear_specific_reverts_back_to_normal()
     {
-        theSender.StubMessageHandler<StubMessage1, StubResponse1>(m => new StubResponse1(m.Id + "-1"));
+        theSender.StubWolverineMessageHandling<StubMessage1, StubResponse1>(m => new StubResponse1(m.Id + "-1"));
 
-        theSender.StubHandlers(x => x.Clear<StubMessage1>());
+        theSender.WolverineStubs(x => x.Clear<StubMessage1>());
         
         var bus = theSender.MessageBus();
         var response = await bus.InvokeAsync<StubResponse1>(new StubMessage1("green"));
@@ -92,13 +92,13 @@ public class using_stubs_end_to_end : IAsyncLifetime
     [Fact]
     public async Task apply_second_stub_on_same_message_type()
     {
-        theSender.StubMessageHandler<StubMessage1, StubResponse1>(m => new StubResponse1(m.Id + "-1"));
+        theSender.StubWolverineMessageHandling<StubMessage1, StubResponse1>(m => new StubResponse1(m.Id + "-1"));
 
         var bus = theSender.MessageBus();
         var response = await bus.InvokeAsync<StubResponse1>(new StubMessage1("green"));
         response.Id.ShouldBe("green-1");
         
-        theSender.StubMessageHandler<StubMessage1, StubResponse1>(m => new StubResponse1(m.Id + "-2"));
+        theSender.StubWolverineMessageHandling<StubMessage1, StubResponse1>(m => new StubResponse1(m.Id + "-2"));
         
         var response2 = await bus.InvokeAsync<StubResponse1>(new StubMessage1("green"));
         response2.Id.ShouldBe("green-2");
