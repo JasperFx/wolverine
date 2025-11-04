@@ -68,6 +68,12 @@ internal class OutgoingSnsBatch
                 {
                     entry.MessageDeduplicationId = envelope.DeduplicationId;
                 }
+                
+                foreach (var attribute in topic.Mapper.ToAttributes(envelope))
+                {
+                    entry.MessageAttributes ??= new();
+                    entry.MessageAttributes.Add(attribute.Key, attribute.Value);
+                }
 
                 entries.Add(entry);
                 _envelopes.Add(entry.Id, envelope);
