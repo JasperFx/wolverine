@@ -189,7 +189,7 @@ public static OrderShipped Ship(ShipOrder command, Order order)
 
 ## JSON Handling
 
-See [JSON serialization for more information](/json)
+See [JSON serialization for more information](/guide/http/json)
 
 ## Returning Strings
 
