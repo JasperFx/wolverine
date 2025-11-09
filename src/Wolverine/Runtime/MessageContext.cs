@@ -63,7 +63,14 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
                 {
                     if (!envelope.Sender!.IsDurable)
                     {
-                        Runtime.ScheduleLocalExecutionInMemory(envelope.ScheduledTime!.Value, envelope);
+                        if (envelope.Sender!.SupportsNativeScheduledSend)
+                        {
+                            await sendEnvelopeAsync(envelope);
+                        }
+                        else
+                        {
+                            Runtime.ScheduleLocalExecutionInMemory(envelope.ScheduledTime!.Value, envelope);
+                        }
                     }
 
                     // If NullMessageStore, then we're calling a different Send method that is marking the message
@@ -73,13 +80,9 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
                         Runtime.MessageTracking.Sent(envelope);
                     }
                 }
-                else if (ReferenceEquals(this, Transaction))
-                {
-                    await envelope.StoreAndForwardAsync();
-                }
                 else
                 {
-                    await envelope.QuickSendAsync();
+                    await sendEnvelopeAsync(envelope);
                 }
             }
             catch (Exception e)
@@ -100,6 +103,18 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         _outstanding.Clear();
 
         _hasFlushed = true;
+
+        async Task sendEnvelopeAsync(Envelope envelope)
+        {
+            if (ReferenceEquals(this, Transaction))
+            {
+                await envelope.StoreAndForwardAsync();
+            }
+            else
+            {
+                await envelope.QuickSendAsync();
+            }
+        }
     }
 
     private List<Envelope>? _sent;
@@ -120,8 +135,8 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
                 {
                     failureDescription += $"No cascading messages were created by this handler for the expected response type {Envelope.ReplyRequested}";
                 }
-            
-                await SendFailureAcknowledgementAsync( failureDescription);
+
+                await SendFailureAcknowledgementAsync(failureDescription);
             }
             else
             {
@@ -174,7 +189,7 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
     {
         // Don't bother with agent commands
         if (Envelope?.Message is IAgentCommand) return;
-        
+
         if (_channel == null || Envelope == null)
         {
             throw new InvalidOperationException("No Envelope is active for this context");
@@ -196,7 +211,7 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
 
             return;
         }
-        
+
         if (Envelope.Batch != null)
         {
             foreach (var envelope in Envelope.Batch)
@@ -408,9 +423,9 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         {
             throw new InvalidOperationException(
                 $"Message of type {message.GetType().FullNameInCode()} implements {typeof(ISideEffect).FullNameInCode()}, and cannot be used as a cascading message. Side effects cannot be mixed in with outgoing cascaded messages.");
-            
+
         }
-        
+
         if (Envelope?.ResponseType != null && (message?.GetType() == Envelope.ResponseType ||
                                                Envelope.ResponseType.IsInstanceOfType(message)))
         {
@@ -485,7 +500,7 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         Envelope = originalEnvelope ?? throw new ArgumentNullException(nameof(originalEnvelope));
 
         originalEnvelope.MaybeCorrectReplyUri();
-        
+
         CorrelationId = originalEnvelope.CorrelationId;
         ConversationId = originalEnvelope.Id;
         _channel = channel;

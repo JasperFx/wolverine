@@ -187,7 +187,7 @@ internal class Executor : IExecutor
 
             _tracker.ExecutionFinished(envelope);
 
-            return MessageSucceededContinuation.Instance;
+            return new MessageSucceededContinuation(_tracker);
         }
         catch (Exception e)
         {
@@ -271,14 +271,16 @@ internal class Executor : IExecutor
 
         return new Executor(contextPool, runtime, handler, rules, timeoutSpan);
     }
-    
+
     public static IExecutor Build(IWolverineRuntime runtime, ObjectPool<MessageContext> contextPool,
-        HandlerGraph handlerGraph, IMessageHandler handler)
+        HandlerGraph handlerGraph, IMessageHandler handler, IMessageTracker tracker)
     {
         var chain = (handler as MessageHandler)?.Chain;
         var timeoutSpan = chain?.DetermineMessageTimeout(runtime.Options) ?? 5.Seconds();
         var rules = chain?.Failures.CombineRules(handlerGraph.Failures) ?? handlerGraph.Failures;
 
-        return new Executor(contextPool, runtime, handler, rules, timeoutSpan);
+        var logger = runtime.LoggerFactory.CreateLogger(handler.MessageType);
+        
+        return new Executor(contextPool, logger, handler, tracker, rules, timeoutSpan);
     }
 }

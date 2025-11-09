@@ -1,6 +1,9 @@
 using System.Diagnostics.Metrics;
+using JasperFx.Core;
+using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Logging;
 using Wolverine.Logging;
+using Wolverine.Runtime.Metrics;
 using Wolverine.Tracking;
 
 namespace Wolverine.Runtime;
@@ -132,6 +135,12 @@ public sealed partial class WolverineRuntime : IMessageTracker
     {
         ActiveSession?.Record(MessageEventType.MovedToErrorQueue, envelope, _serviceName, _uniqueNodeId);
         _movedToErrorQueue(Logger, envelope, ex);
+
+        if (Options.Metrics.Mode != WolverineMetricsMode.SystemDiagnosticsMeter && envelope.MessageType.IsNotEmpty())
+        {
+            var accumulator = _accumulator.Value.FindAccumulator(envelope.MessageType, envelope.Destination);
+            accumulator.EntryPoint.Post(new RecordDeadLetter(ex.GetType().FullNameInCode(), envelope.TenantId));
+        }
     }
 
     public void DiscardedEnvelope(Envelope envelope)

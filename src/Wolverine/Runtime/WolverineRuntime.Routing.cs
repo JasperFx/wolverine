@@ -165,4 +165,9 @@ public partial class WolverineRuntime
 
         return null;
     }
+
+    internal void ClearRoutingFor(Type messageType)
+    {
+        _messageTypeRouting = _messageTypeRouting.Remove(messageType);
+    }
 }

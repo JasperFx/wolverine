@@ -772,7 +772,7 @@ Wolverine supports three modes of event subscriptions from Marten:
 2. Publishing the events as messages through Wolverine. Essentially calling [`IMessageBus.PublishAsync()`](/guide/messaging/message-bus.html#sending-or-publishing-messages) on each event in strict order.
 3. User defined operations on a batch of events at a time, again in strict order that the events are appended to the Marten event store.
 
-In all cases, the Event Subscriptions are running in a background process managed either by Marten itself with its [Async Daemon](/events/projections/async-daemon)
+In all cases, the Event Subscriptions are running in a background process managed either by Marten itself with its [Async Daemon](https://martendb.io/events/projections/async-daemon.html)
 or the [Projection/Subscription Distribution](/guide/durability/marten/distribution) feature in Wolverine. 
 
 ## Scaling Marten Projections

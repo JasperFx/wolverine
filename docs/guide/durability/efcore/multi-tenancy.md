@@ -111,7 +111,7 @@ opts.Services.AddMarten(m =>
     });
 }).IntegrateWithWolverine(x =>
 {
-    x.MasterDatabaseConnectionString = Servers.PostgresConnectionString;
+    x.MainDatabaseConnectionString = Servers.PostgresConnectionString;
 });
 
 opts.Services.AddDbContextWithWolverineManagedMultiTenancyByDbDataSource<ItemsDbContext>((builder, dataSource, _) =>

@@ -103,6 +103,11 @@ public partial class Envelope
     }
 
     /// <summary>
+    /// How long did the current execution take?
+    /// </summary>
+    internal long ExecutionTime => _timer.ElapsedMilliseconds;
+
+    /// <summary>
     /// </summary>
     /// <returns></returns>
     internal TagList ToMetricsHeaders()

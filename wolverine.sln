@@ -300,6 +300,7 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wolverine.RoutingSlip", "src\Extensions\Wolverine.RoutingSlip\Wolverine.RoutingSlip.csproj", "{AFEAA423-E26C-44D4-937D-7B1BFA2DCEAF}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wolverine.RoutingSlip.Tests", "src\Extensions\Wolverine.RoutingSlip.Tests\Wolverine.RoutingSlip.Tests.csproj", "{5110D61B-64DF-4D85-B8F9-08FB975EE083}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MetricsTests", "src\Testing\MetricsTests\MetricsTests.csproj", "{501C5BD8-41D5-4032-85C7-33F8815EA60D}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -1691,6 +1692,18 @@ Global
 		{5110D61B-64DF-4D85-B8F9-08FB975EE083}.Release|x64.Build.0 = Release|Any CPU
 		{5110D61B-64DF-4D85-B8F9-08FB975EE083}.Release|x86.ActiveCfg = Release|Any CPU
 		{5110D61B-64DF-4D85-B8F9-08FB975EE083}.Release|x86.Build.0 = Release|Any CPU
+		{501C5BD8-41D5-4032-85C7-33F8815EA60D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{501C5BD8-41D5-4032-85C7-33F8815EA60D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{501C5BD8-41D5-4032-85C7-33F8815EA60D}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{501C5BD8-41D5-4032-85C7-33F8815EA60D}.Debug|x64.Build.0 = Debug|Any CPU
+		{501C5BD8-41D5-4032-85C7-33F8815EA60D}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{501C5BD8-41D5-4032-85C7-33F8815EA60D}.Debug|x86.Build.0 = Debug|Any CPU
+		{501C5BD8-41D5-4032-85C7-33F8815EA60D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{501C5BD8-41D5-4032-85C7-33F8815EA60D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{501C5BD8-41D5-4032-85C7-33F8815EA60D}.Release|x64.ActiveCfg = Release|Any CPU
+		{501C5BD8-41D5-4032-85C7-33F8815EA60D}.Release|x64.Build.0 = Release|Any CPU
+		{501C5BD8-41D5-4032-85C7-33F8815EA60D}.Release|x86.ActiveCfg = Release|Any CPU
+		{501C5BD8-41D5-4032-85C7-33F8815EA60D}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -1830,5 +1843,6 @@ Global
 		{08C40523-A236-4127-8400-2DBCAB3E98CF} = {1EF7D49F-DDB8-469A-88A0-4A8D6237561C}
 		{AFEAA423-E26C-44D4-937D-7B1BFA2DCEAF} = {F429686D-BB41-4E1C-A84E-518F8A289AEF}
 		{5110D61B-64DF-4D85-B8F9-08FB975EE083} = {F429686D-BB41-4E1C-A84E-518F8A289AEF}
+		{501C5BD8-41D5-4032-85C7-33F8815EA60D} = {96119B5E-B5F0-400A-9580-B342EBE26212}
 	EndGlobalSection
 EndGlobal

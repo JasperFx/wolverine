@@ -11,7 +11,7 @@ Much of the sample code is taken from a runnable sample application in the Wolve
 :::
 
 The [SignalR library](https://dotnet.microsoft.com/en-us/apps/aspnet/signalr) from Microsoft isn't hard to use from Wolverine for simplistic WebSockets
-or Server Side Events usage , but what if you want a server side
+or Server Side Events usage, but what if you want a server side
 application to exchange any number of different messages between a browser (or other WebSocket client because that's
 actually possible) and your server side code in a systematic way? To that end, Wolverine now supports a first class messaging transport
 for SignalR. To get started, just add a Nuget reference to the `WolverineFx.SignalR` library:
@@ -197,7 +197,7 @@ builder.UseWolverine(opts =>
 ## Interacting with the Server from the Browser
 
 It's not mandatory, but in developing and dogfooding the Wolverine.SignalR transport, we've found it helpful to use
-the actual [signalr Javascript library](https://learn.microsoft.com/en-us/aspnet/core/signalr/javascript-client?view=aspnetcore-9.0&tabs=visual-studio) and
+the actual [signalr Javascript library](https://learn.microsoft.com/en-us/aspnet/core/signalr/javascript-client) and
 our sample SignalR application uses that library for the browser to server communication.
 
 ```js
@@ -252,6 +252,8 @@ document.getElementById("sendButton").addEventListener("click", function (event)
 ```
 
 Note that the method `ReceiveMessage` is hard coded into the `WolverineHub` service.
+
+Also note that messages are sent and recieved as raw json strings. You need to `JSON.parse` incoming messages and `JSON.stringify` outgoing messages yourself. 
 
 Our vision for this usage is that you probably integrate directly with a client side state tracking tool like [Pinia](https://pinia.vuejs.org/)
 (how we're using the SignalR transport to build "CritterWatch").
@@ -320,7 +322,7 @@ In the next section we'll learn a bit more about working with SignalR groups.
 
 ## SignalR Groups
 
-One of the powerful features of SignalR is being able to work with [groups of connections](https://learn.microsoft.com/en-us/aspnet/signalr/overview/guide-to-the-api/working-with-groups).
+One of the powerful features of SignalR is being able to work with [groups of connections](https://learn.microsoft.com/en-us/aspnet/core/signalr/groups).
 The SignalR transport currently has some simple support for managing and publishing to groups. Let's say you have
 these web socket messages in your system:
 
@@ -379,7 +381,7 @@ type of integration testing through SignalR.
 :::
 
 Wolverine.SignalR is actually two transports in one library! There is also a full fledged messaging transport built
-around the [.NET SignalR client](https://learn.microsoft.com/en-us/aspnet/core/signalr/dotnet-client?view=aspnetcore-9.0&tabs=visual-studio) that we've used extensively for test automation, but could technically be used as 
+around the [.NET SignalR client](https://learn.microsoft.com/en-us/aspnet/core/signalr/dotnet-client) that we've used extensively for test automation, but could technically be used as 
 a "real" messaging transport. The SignalR Client transport was built specifically to enable end to end testing against
 a Wolverine server that hosts SignalR itself. The SignalR Client transport will use the same CloudEvents mechanism to
 send and receive messages from the main Wolverine SignalR transport and is 100% compatible.
