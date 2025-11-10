@@ -416,7 +416,7 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
 
     public override IEnumerable<ISchemaObject> AllObjects()
     {
-        yield return new OutgoingEnvelopeTable(SchemaName);
+        yield return new OutgoingEnvelopeTable(Durability, SchemaName);
         yield return new IncomingEnvelopeTable(Durability, SchemaName);
         yield return new DeadLettersTable(Durability, SchemaName);
 

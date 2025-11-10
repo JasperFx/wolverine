@@ -1,0 +1,107 @@
+using IntegrationTests;
+using JasperFx.Core;
+using Microsoft.Extensions.Hosting;
+using Npgsql;
+using Shouldly;
+using Weasel.Core;
+using Weasel.Postgresql.Tables;
+using Wolverine;
+using Wolverine.ComplianceTests;
+using Wolverine.Postgresql;
+using Wolverine.RDBMS;
+using Wolverine.RDBMS.Durability;
+using Wolverine.RDBMS.Polling;
+using Wolverine.Runtime;
+using Wolverine.Tracking;
+
+namespace PostgresqlTests;
+
+public class bumping_stale_outbox_messages : IAsyncLifetime
+{
+    private IHost theHost;
+
+    public async Task InitializeAsync()
+    {
+        theHost = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, "stale_outbox");
+                opts.Durability.OutboxStaleTime = 1.Hours();
+            }).StartAsync();
+
+        await theHost.RebuildAllEnvelopeStorageAsync();
+    }
+
+    public async Task DisposeAsync()
+    {
+        await theHost.StopAsync();
+    }
+
+    [Fact]
+    public async Task got_the_right_column()
+    {
+        using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
+        await conn.OpenAsync();
+
+        var table = await new Table(new DbObjectName("stale_outbox", DatabaseConstants.OutgoingTable)).FetchExistingAsync(conn);
+        
+        table.HasColumn(DatabaseConstants.Timestamp).ShouldBeTrue();
+        
+    }
+
+    [Fact]
+    public async Task smoke_test_on_the_persist()
+    {
+        var envelope = ObjectMother.Envelope();
+        var messageStore = theHost.GetRuntime().Storage;
+        await messageStore.Outbox.StoreOutgoingAsync(envelope, 0);
+    }
+
+    [Fact]
+    public async Task using_the_operation()
+    {
+        var envelope1 = ObjectMother.Envelope();
+        var envelope2 = ObjectMother.Envelope();
+        var envelope3 = ObjectMother.Envelope();
+        var envelope4 = ObjectMother.Envelope();
+        var envelope5 = ObjectMother.Envelope();
+        
+        
+        var messageStore = theHost.GetRuntime().Storage;
+        await messageStore.Outbox.StoreOutgoingAsync(envelope1, 3);
+        await messageStore.Outbox.StoreOutgoingAsync(envelope2, 3);
+        await messageStore.Outbox.StoreOutgoingAsync(envelope3, 3);
+        await messageStore.Outbox.StoreOutgoingAsync(envelope4, 3);
+        await messageStore.Outbox.StoreOutgoingAsync(envelope5, 3);
+        
+        using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
+        await conn.OpenAsync();
+        await conn.CreateCommand("update stale_outbox.wolverine_outgoing_envelopes set \"timestamp\" = :time where id = :id")
+            .With("time", DateTimeOffset.UtcNow.Subtract(2.Hours()))
+            .With("id", envelope1.Id)
+            .ExecuteNonQueryAsync();
+        
+        await conn.CreateCommand("update stale_outbox.wolverine_outgoing_envelopes set \"timestamp\" = :time where id = :id")
+            .With("time", DateTimeOffset.UtcNow.Subtract(2.Hours()))
+            .With("id", envelope3.Id)
+            .ExecuteNonQueryAsync();
+        
+        await conn.CreateCommand("update stale_outbox.wolverine_outgoing_envelopes set \"timestamp\" = :time where id = :id")
+            .With("time", DateTimeOffset.UtcNow.Subtract(2.Hours()))
+            .With("id", envelope5.Id)
+            .ExecuteNonQueryAsync();
+        
+        var envelopesBefore = await messageStore.Admin.AllOutgoingAsync();
+        envelopesBefore.Count(x => x.OwnerId == 0).ShouldBe(0);
+
+        var operation = new BumpStaleOutgoingEnvelopesOperation(
+            new DbObjectName("stale_outbox", DatabaseConstants.OutgoingTable), theHost.GetRuntime().Options.Durability, DateTimeOffset.UtcNow);
+        
+        var batch = new DatabaseOperationBatch((IMessageDatabase)messageStore, [operation]);
+        await theHost.InvokeAsync(batch);
+
+        var envelopesAfter = await messageStore.Admin.AllOutgoingAsync();
+        envelopesAfter.Count(x => x.OwnerId == 0).ShouldBe(3);
+
+    }
+}
