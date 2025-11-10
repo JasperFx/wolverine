@@ -275,4 +275,21 @@ public class DocumentationSamples
 
         #endregion
     }
+
+    public static async Task options_for_bumping_stale_outbox_messages()
+    {
+        #region sample_configuring_outbox_stale_timeout
+
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                // Bump any persisted message in the outbox tables
+                // that is more than an hour old to be globally owned
+                // so that the durability agent can recover it and force
+                // it to be sent
+                opts.Durability.OutboxStaleTime = 1.Hours();
+            }).StartAsync();
+
+        #endregion
+    }
 }

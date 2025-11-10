@@ -142,6 +142,28 @@ using var host = await Host.CreateDefaultBuilder()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L53-L63' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_make_all_subscribers_be_durable' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+### Bumping out Stale Outbox Messages <Badge type="tip" text="5.2" />
+
+It should *not* be possible for there to be any path where a message gets "stuck" in the outbox tables without eventually
+being sent by the originating node or recovered by a different node if the original node goes down first. However, it's 
+an imperfect world. If you are using one of the relational backed message stores for Wolverine (SQL Server or PostgreSQL at this point),
+you can "bump" a persisted record in the `wolverine_outgoing_envelopes` to be recovered and sent by the outbox by
+setting the `owner_id` field to zero.
+
+::: info
+Just be aware that opting into the `OutboxStaleTime` threshold will require database changes through Wolverine's database
+migration subsystem
+:::
+
+You also have this setting to force Wolverine to automatically "bump" and older messages that seem to be stalled in
+the outbox table:
+
+snippet: sample_configuring_outbox_stale_timeout
+
+Note that this will still respect the "deliver by" semantics. This is part of the polling that Wolverine normally does
+against the inbox/outbox/node storage tables. Note that this will only happen if the setting above has a non-null
+value.
+
 ## Using the Inbox for Incoming Messages
 
 On the incoming side, external transport endpoint listeners can be enrolled into Wolverine's transactional inbox mechanics
