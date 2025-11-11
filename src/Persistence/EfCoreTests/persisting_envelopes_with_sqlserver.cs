@@ -104,19 +104,6 @@ public class persisting_envelopes_with_sqlserver : IAsyncLifetime
     }
 
     [Fact]
-    public void selectively_building_envelope_transaction()
-    {
-        using var nested = _host.Services.CreateScope();
-        var runtime = _host.GetRuntime();
-        var context = new MessageContext(runtime);
-
-        nested.ServiceProvider.GetRequiredService<SampleDbContext>().BuildTransaction(context)
-            .ShouldBeOfType<RawDatabaseEnvelopeTransaction>();
-        nested.ServiceProvider.GetRequiredService<SampleMappedDbContext>().BuildTransaction(context)
-            .ShouldBeOfType<MappedEnvelopeTransaction>();
-    }
-
-    [Fact]
     public async Task mapping_to_incoming_envelopes()
     {
         var storage = _host.Services.GetRequiredService<IMessageStore>();

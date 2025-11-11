@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Wolverine.EntityFrameworkCore.Internals;
 using Wolverine.Runtime;
 
 namespace Wolverine.EntityFrameworkCore;
@@ -9,7 +10,7 @@ public class DbContextOutbox<T> : MessageContext, IDbContextOutbox<T> where T : 
     {
         DbContext = dbContext;
 
-        Transaction = dbContext.BuildTransaction(this);
+        Transaction = new EfCoreEnvelopeTransaction(dbContext, this);
     }
 
     public T DbContext { get; }
@@ -36,7 +37,7 @@ public class DbContextOutbox : MessageContext, IDbContextOutbox
     {
         ActiveContext = dbContext;
 
-        Transaction = dbContext.BuildTransaction(this);
+        Transaction = new EfCoreEnvelopeTransaction(dbContext, this);
     }
 
     public DbContext? ActiveContext { get; private set; }

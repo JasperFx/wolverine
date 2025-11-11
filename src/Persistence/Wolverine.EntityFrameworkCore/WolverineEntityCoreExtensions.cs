@@ -201,13 +201,6 @@ public static class WolverineEntityCoreExtensions
         return dbContext.Model.FindAnnotation(WolverineEnabled) != null;
     }
 
-    public static IEnvelopeTransaction BuildTransaction(this DbContext dbContext, MessageContext context)
-    {
-        return dbContext.IsWolverineEnabled()
-            ? new MappedEnvelopeTransaction(dbContext, context)
-            : new RawDatabaseEnvelopeTransaction(dbContext, context);
-    }
-
     /// <summary>
     ///     Add entity mappings for Wolverine message storage
     /// </summary>
