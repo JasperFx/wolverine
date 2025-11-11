@@ -12,6 +12,25 @@ using Wolverine.Util;
 
 namespace Wolverine.Runtime;
 
+public enum MultiFlushMode
+{
+    /// <summary>
+    /// The default mode, additional calls to FlushOutgoingMessages() are ignored
+    /// </summary>
+    OnlyOnce,
+    
+    /// <summary>
+    /// Allow for multiple calls to FlushOutgoingMessages()
+    /// </summary>
+    AllowMultiples,
+    
+    /// <summary>
+    /// Throw an exception on additional calls to FlushOutgoingMessages(). Use this to troubleshoot
+    /// erroneous behavior
+    /// </summary>
+    AssertOnMultiples
+}
+
 public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelopeTransaction, IEnvelopeLifecycle
 {
     private IChannelCallback? _channel;
@@ -29,6 +48,12 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         TenantId = runtime.Options.Durability.TenantIdStyle.MaybeCorrectTenantId(tenantId);
     }
 
+    /// <summary>
+    /// Governs how the MessageContext will handle subsequent calls to FlushOutgoingMessages(). The
+    /// default behavior is to quietly ignore any additional calls
+    /// </summary>
+    public MultiFlushMode MultiFlushMode { get; set; } = MultiFlushMode.OnlyOnce;
+
     internal IList<Envelope> Scheduled { get; } = new List<Envelope>();
 
     private bool hasRequestedReply()
@@ -45,9 +70,22 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
     {
         if (_hasFlushed)
         {
-            return;
+            switch (MultiFlushMode)
+            {
+                case MultiFlushMode.OnlyOnce:
+                    return;
+                
+                case MultiFlushMode.AllowMultiples:
+                    Runtime.Logger.LogWarning("Received multiple calls to FlushOutgoingMessagesAsync() to a single MessageContext");
+                    break;
+                
+                case MultiFlushMode.AssertOnMultiples:
+                    throw new InvalidOperationException(
+                        $"This MessageContext does not allow multiple calls to {nameof(FlushOutgoingMessagesAsync)} because {nameof(MultiFlushMode)} = {MultiFlushMode}");
+            }
         }
 
+        
         await AssertAnyRequiredResponseWasGenerated();
 
         if (!Outstanding.Any())
