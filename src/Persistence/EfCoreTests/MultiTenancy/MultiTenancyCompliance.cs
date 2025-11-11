@@ -125,7 +125,7 @@ public abstract class MultiTenancyCompliance : IAsyncLifetime, IWolverineExtensi
 
         var dbContext = await theBuilder.BuildAndEnrollAsync(messageContext, CancellationToken.None);
 
-        messageContext.Transaction.ShouldBeOfType<MappedEnvelopeTransaction>()
+        messageContext.Transaction.ShouldBeOfType<EfCoreEnvelopeTransaction>()
             .DbContext.ShouldBe(dbContext);
     }
     

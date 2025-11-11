@@ -122,7 +122,7 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
 
         outbox.DbContext.ShouldBeSameAs(context);
         outbox.ShouldBeOfType<DbContextOutbox<ItemsDbContext>>()
-            .Transaction.ShouldBeOfType<RawDatabaseEnvelopeTransaction>()
+            .Transaction.ShouldBeOfType<EfCoreEnvelopeTransaction>()
             .DbContext.ShouldBeSameAs(context);
     }
 
@@ -136,7 +136,7 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
 
         outbox.DbContext.ShouldBeSameAs(context);
         outbox.ShouldBeOfType<DbContextOutbox<SampleMappedDbContext>>()
-            .Transaction.ShouldBeOfType<MappedEnvelopeTransaction>()
+            .Transaction.ShouldBeOfType<EfCoreEnvelopeTransaction>()
             .DbContext.ShouldBeSameAs(context);
     }
 
@@ -152,7 +152,7 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
 
         outbox.ActiveContext.ShouldBeSameAs(context);
         outbox.ShouldBeOfType<DbContextOutbox>()
-            .Transaction.ShouldBeOfType<RawDatabaseEnvelopeTransaction>()
+            .Transaction.ShouldBeOfType<EfCoreEnvelopeTransaction>()
             .DbContext.ShouldBeSameAs(context);
     }
 
@@ -169,7 +169,7 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
 
         outbox.ActiveContext.ShouldBeSameAs(context);
         outbox.ShouldBeOfType<DbContextOutbox>()
-            .Transaction.ShouldBeOfType<MappedEnvelopeTransaction>()
+            .Transaction.ShouldBeOfType<EfCoreEnvelopeTransaction>()
             .DbContext.ShouldBeSameAs(context);
     }
 

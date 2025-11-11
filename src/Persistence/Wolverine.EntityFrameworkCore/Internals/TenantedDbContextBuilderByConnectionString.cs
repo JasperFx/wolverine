@@ -64,7 +64,7 @@ public class TenantedDbContextBuilderByConnectionString<T> : IDbContextBuilder<T
         _configuration(builder, new ConnectionString(connectionString), new TenantId(messaging.TenantId));
         var dbContext = _constructor(builder.Options);
 
-        var transaction = new MappedEnvelopeTransaction(dbContext, messaging);
+        var transaction = new EfCoreEnvelopeTransaction(dbContext, messaging);
 
         await messaging.EnlistInOutboxAsync(transaction);
 
