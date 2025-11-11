@@ -1,6 +1,7 @@
 using System.Reflection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
+using Weasel.Core;
 using Wolverine.Persistence.Durability;
 using Wolverine.RDBMS;
 using Wolverine.Runtime;
@@ -125,6 +126,20 @@ public class EfCoreEnvelopeTransaction : IEnvelopeTransaction
 
     public async ValueTask CommitAsync(CancellationToken cancellation)
     {
+        if (_messaging.Envelope != null)
+        {
+            var conn = DbContext.Database.GetDbConnection();
+            var tx = DbContext.Database.CurrentTransaction!.GetDbTransaction();
+            var cmd = conn.CreateCommand(
+                    $"update {_database.SchemaName}.{DatabaseConstants.IncomingTable} set {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}' where id = @id")
+                .With("id", _messaging.Envelope.Id);
+            cmd.Transaction = tx;
+
+            await cmd.ExecuteNonQueryAsync(cancellation);
+
+            _messaging.Envelope.Status = EnvelopeStatus.Handled;
+        }
+
         if (DbContext.Database.CurrentTransaction != null)
         {
             await DbContext.Database.CurrentTransaction.CommitAsync(cancellation);

@@ -2,6 +2,7 @@ using System.Data.Common;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Logging;
+using Weasel.Core;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime.Serialization;
 using DbCommandBuilder = Weasel.Core.DbCommandBuilder;
