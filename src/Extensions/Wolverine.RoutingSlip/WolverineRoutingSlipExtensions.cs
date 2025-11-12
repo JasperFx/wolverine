@@ -1,8 +1,13 @@
-﻿using Microsoft.Extensions.DependencyInjection.Extensions;
+using System.Collections.Generic;
+using JasperFx;
+using JasperFx.CodeGeneration;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
 using Wolverine.RoutingSlip.Abstractions;
 using Wolverine.RoutingSlip.Internal;
 using Wolverine.RoutingSlip.Middlewares;
+using Wolverine.Runtime.Handlers;
 using Wolverine.Tracking;
 
 namespace Wolverine.RoutingSlip;
@@ -16,10 +21,14 @@ public static class WolverineRoutingSlipExtensions
     ///     Enable Routing Slip support for Wolverine
     /// </summary>
     /// <param name="options"></param>
-    public static WolverineOptions UseRoutingSlip(this WolverineOptions options, 
-        Action<PolicyExpression>? configureSlipErrors = null)
+    /// <param name="configure">Optional hook to customize routing slip behavior</param>
+    public static WolverineOptions UseRoutingSlip(this WolverineOptions options,
+        Action<RoutingSlipOptions>? configure = null)
     {
         ArgumentNullException.ThrowIfNull(options);
+        
+        var routingSlipOptions = new RoutingSlipOptions();
+        configure?.Invoke(routingSlipOptions);
         
         options.Services.TryAddScoped<IActivityExecutor, ActivityExecutor>();
         
@@ -31,21 +40,7 @@ public static class WolverineRoutingSlipExtensions
             .ForMessagesOfType<CompensationContext>()
             .AddMiddleware(typeof(RoutingSlipCompensationMiddleware));
         
-        options.Policies
-            .OnAnyException()
-            .Discard()
-            .And(async (_, context, _) =>
-            {
-                if (context.Envelope?.Message is ExecutionContext exec && 
-                    exec.RoutingSlip.ExecutedActivities.TryPop(out var next))
-                {
-                    await context.SendAsync(
-                        new CompensationContext(
-                            exec.Id,
-                            next,
-                            exec.RoutingSlip));
-                }
-            });
+        options.Policies.Add(new RoutingSlipExecutionFailurePolicy(routingSlipOptions));
             
         return options;
     }
