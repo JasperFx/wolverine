@@ -84,6 +84,23 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
         existing.Approved.ShouldBeTrue();
     }
 
+    [Fact]
+    public async Task ef_core_middleware_is_marking_the_envelope_as_handled()
+    {
+        await withItemsTable();
+        
+        var item = new Item { Id = Guid.NewGuid(), Name = "Hey"};
+        await saveItem(item);
+
+        var tracked = await Host.SendMessageAndWaitAsync(new ApproveItem2(item.Id));
+        var envelope = tracked.Executed.SingleEnvelope<ApproveItem2>();
+
+        var fromStore = await Host.GetRuntime().Storage.Admin.AllIncomingAsync();
+        var persisted = fromStore.Single(x => x.Id == envelope.Id);
+        persisted.Status.ShouldBe(EnvelopeStatus.Handled);
+
+    }
+
     private async Task<Item> loadItem(Guid id)
     {
         using var nested = Host.Services.CreateScope();
@@ -122,7 +139,7 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
 
         outbox.DbContext.ShouldBeSameAs(context);
         outbox.ShouldBeOfType<DbContextOutbox<ItemsDbContext>>()
-            .Transaction.ShouldBeOfType<RawDatabaseEnvelopeTransaction>()
+            .Transaction.ShouldBeOfType<EfCoreEnvelopeTransaction>()
             .DbContext.ShouldBeSameAs(context);
     }
 
@@ -136,7 +153,7 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
 
         outbox.DbContext.ShouldBeSameAs(context);
         outbox.ShouldBeOfType<DbContextOutbox<SampleMappedDbContext>>()
-            .Transaction.ShouldBeOfType<MappedEnvelopeTransaction>()
+            .Transaction.ShouldBeOfType<EfCoreEnvelopeTransaction>()
             .DbContext.ShouldBeSameAs(context);
     }
 
@@ -152,7 +169,7 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
 
         outbox.ActiveContext.ShouldBeSameAs(context);
         outbox.ShouldBeOfType<DbContextOutbox>()
-            .Transaction.ShouldBeOfType<RawDatabaseEnvelopeTransaction>()
+            .Transaction.ShouldBeOfType<EfCoreEnvelopeTransaction>()
             .DbContext.ShouldBeSameAs(context);
     }
 
@@ -169,7 +186,7 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
 
         outbox.ActiveContext.ShouldBeSameAs(context);
         outbox.ShouldBeOfType<DbContextOutbox>()
-            .Transaction.ShouldBeOfType<MappedEnvelopeTransaction>()
+            .Transaction.ShouldBeOfType<EfCoreEnvelopeTransaction>()
             .DbContext.ShouldBeSameAs(context);
     }
 

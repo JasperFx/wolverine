@@ -85,6 +85,10 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
 
         _markAsHandled = new RetryBlock<Envelope>(async (e, _) =>
             {
+                // Little optimization. If the envelope has already been marked as handled
+                // as part of transactional middleware, there's no need to mess w/ this
+                if (e.Status == EnvelopeStatus.Handled) return;
+                
                 // Only care about the batch if one exists
                 if (e.Batch != null)
                 {

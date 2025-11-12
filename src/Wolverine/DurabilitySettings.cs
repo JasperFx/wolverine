@@ -93,6 +93,12 @@ public class DurabilitySettings
     public MessageIdentity MessageIdentity { get; set; } = MessageIdentity.IdOnly;
 
     /// <summary>
+    /// If non-null, this directs Wolverine to "push" any message in the durable outbox that is older
+    /// than the configured time even if the message is marked as owned by an active node
+    /// </summary>
+    public TimeSpan? OutboxStaleTime { get; set; }
+
+    /// <summary>
     ///     Should the message durability agent be enabled during execution.
     ///     The default is true.
     /// </summary>
