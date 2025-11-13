@@ -4,12 +4,14 @@ using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Marten;
 using MartenTests.AggregateHandlerWorkflow;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
 using Wolverine;
 using Wolverine.Configuration;
 using Wolverine.Marten;
 using Wolverine.Runtime;
+using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Runtime.Partitioning;
 using Wolverine.Tracking;
@@ -74,6 +76,10 @@ public class concurrency_resilient_sharded_processing
                 });
             }).StartAsync();
 
+        // This is because of https://github.com/JasperFx/wolverine/issues/1835
+        var agents = await new ExclusiveListenerFamily(host.GetRuntime()).AllKnownAgentsAsync();
+        agents.Any().ShouldBeFalse();
+            
         // Re-purposing the test a bit. Making sure we're constructing forwarding correctly
         var executor = host.GetRuntime().As<IExecutorFactory>().BuildFor(typeof(LogA), new StubEndpoint("Wrong", new StubTransport()));
         executor.As<Executor>().Handler.ShouldBeOfType<PartitionedMessageReRouter>()
