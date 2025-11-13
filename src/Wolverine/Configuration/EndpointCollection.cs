@@ -200,7 +200,7 @@ public class EndpointCollection : IEndpointCollection
         }
 
         return allEndpoints
-            .Where(x => x is { IsListener: true, ListenerScope: ListenerScope.Exclusive })
+            .Where(x => x is { IsListener: true, ListenerScope: ListenerScope.Exclusive } and not LocalQueue)
             .ToList();
     }
 
