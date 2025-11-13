@@ -504,6 +504,13 @@ public void Handle(OrderTimeout timeout, ILogger<Order> logger)
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderSagaSample/OrderSaga.cs#L51-L63' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_handling_a_timeout_message' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Saga Concurrency
+
+Both the Marten and EF Core backed saga support has built in support for optimistic concurrency checks on persisting
+a saga after handling a command. See [Dealing with Concurrency](/tutorials/concurrency) and especially the 
+[partitioned sequential messaging](/tutorials/concurrency) and its option for "inferred" message grouping to maybe completely
+side step concurrency issues with saga message handling. 
+
 ## Lightweight Saga Storage <Badge type="tip" text="3.0" />
 
 The Wolverine integration with either Sql Server or PostgreSQL comes with a lightweight saga storage mechanism
@@ -543,3 +550,20 @@ using var host = await Host.CreateDefaultBuilder()
 
 Note that this manual registration is not necessary at development time or if you're content to just let Wolverine
 handle database migrations at runtime.
+
+## Overriding Logging
+
+We recently had a question about how to turn down logging levels for `Saga` message processing when the log
+output was getting too verbose. `Saga` types are officially message handlers to the Wolverine internals, so you can 
+still use the `public static void Configure(HandlerChain)` mechanism for one off configurations to every message handler
+method on the `Saga` like this:
+
+snippet: sample_overriding_logging_on_saga
+
+Or if you wanted to just do it globally, something like this approach:
+
+snippet: sample_turn_down_logging_for_sagas
+
+and register that policy something like this:
+
+snippet: sample_configuring_chain_policy_on_sagas
