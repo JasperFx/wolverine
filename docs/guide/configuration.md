@@ -193,3 +193,12 @@ var builder = Host.CreateApplicationBuilder();
 builder.ConfigureContainer<ServiceRegistry>(new LamarServiceProviderFactory());
 ```
 
+## Splitting Configuration Across Modules <Badge type="tip" text="5.0" />
+
+To keep your `UseWolverine()` configuration from becoming too huge or to keep specific configuration maybe
+within different modules within your system, you can use [Wolverine extensions](/guide/extensions).
+
+You can also use the `IServiceCollection.ConfigureWolverine()` method to add configuration to your
+Wolverine application from outside the main `UseWolverine()` code as shown below:
+
+snippet: sample_using_configure_wolverine

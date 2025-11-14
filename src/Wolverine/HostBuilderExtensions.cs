@@ -416,6 +416,22 @@ public static class HostBuilderExtensions
         return services;
     }
 
+    /// <summary>
+    /// Apply either overrides or additional configuration to Wolverine in this application
+    /// Useful for testing overrides or for splitting configuration between modules
+    /// </summary>
+    /// <param name="services"></param>
+    /// <param name="configure"></param>
+    /// <returns></returns>
+    public static IServiceCollection ConfigureWolverine(this IServiceCollection services,
+        Action<WolverineOptions> configure)
+    {
+        var extension = new LambdaWolverineExtension(configure);
+        services.AddSingleton<IWolverineExtension>(extension);
+
+        return services;
+    }
+
     internal class UseSoloDurabilityMode : IWolverineExtension
     {
         public void Configure(WolverineOptions options)
