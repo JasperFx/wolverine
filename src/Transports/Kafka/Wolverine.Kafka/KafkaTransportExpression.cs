@@ -115,4 +115,16 @@ public class KafkaTransportExpression : BrokerExpression<KafkaTransport, KafkaTo
     {
         return new KafkaSubscriberConfiguration(subscriberEndpoint);
     }
+
+    /// <summary>
+    /// In normal usage Wolverine will try to create a producer for each topic it listens to just for
+    /// "Requeue" actions. In the case of an application that only consumes messages from Kafka, use
+    /// this setting to disable that behavior and eliminate any error messages from that behavior
+    /// </summary>
+    /// <returns></returns>
+    public KafkaTransportExpression ConsumeOnly()
+    {
+        _transport.Usage = KafkaUsage.ConsumeOnly;
+        return this;
+    }
 }

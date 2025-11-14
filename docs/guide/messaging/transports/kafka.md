@@ -234,3 +234,10 @@ using var host = await Host.CreateDefaultBuilder()
 
 Note that the `Uri` scheme within Wolverine for any endpoints from a "named" Kafka broker is the name that you supply
 for the broker. So in the example above, you might see `Uri` values for `emea://colors` or `americas://red`.
+
+## Disabling all Sending
+
+Hey, you might have an application that only consumes Kafka messages, but there are a *few* diagnostics in Wolverine that
+try to send messages. To completely eliminate that, you can disable all message sending in Wolverine like this:
+
+snippet: sample_disable_all_kafka_sending

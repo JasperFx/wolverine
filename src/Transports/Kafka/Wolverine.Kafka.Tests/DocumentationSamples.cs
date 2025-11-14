@@ -100,6 +100,26 @@ public class DocumentationSamples
         #endregion
     }
 
+    public static async Task disable_producing()
+    {
+        #region sample_disable_all_kafka_sending
+
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts
+                    .UseKafka("localhost:9092")
+                    
+                    // Tell Wolverine that this application will never
+                    // produce messages to turn off any diagnostics that might
+                    // try to "ping" a topic and result in errors
+                    .ConsumeOnly();
+                
+            }).StartAsync();
+
+        #endregion
+    }
+
     public static async Task use_named_brokers()
     {
         #region sample_using_multiple_kafka_brokers

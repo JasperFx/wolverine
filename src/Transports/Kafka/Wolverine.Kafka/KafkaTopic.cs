@@ -73,6 +73,9 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
 
     public async ValueTask<bool> CheckAsync()
     {
+        // Can't do anything about this
+        if (Parent.Usage == KafkaUsage.ConsumeOnly) return true;
+
         if (TopicName == WolverineTopicsName) return true; // don't care, this is just a marker
         try
         {

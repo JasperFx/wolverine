@@ -7,6 +7,13 @@ using Wolverine.Transports;
 
 namespace Wolverine.Kafka.Internals;
 
+public enum KafkaUsage
+{
+    ProduceAndConsume,
+    ProduceOnly,
+    ConsumeOnly
+}
+
 public class KafkaTransport : BrokerTransport<KafkaTopic>
 {
     public Cache<string, KafkaTopic> Topics { get; }
@@ -29,6 +36,8 @@ public class KafkaTransport : BrokerTransport<KafkaTopic>
     {
         Topics = new Cache<string, KafkaTopic>(topicName => new KafkaTopic(this, topicName, EndpointRole.Application));
     }
+
+    public KafkaUsage Usage { get; set; } = KafkaUsage.ProduceAndConsume;
 
     public override Uri ResourceUri
     {
