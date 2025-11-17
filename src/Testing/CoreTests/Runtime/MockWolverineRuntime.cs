@@ -54,6 +54,7 @@ public class MockWolverineRuntime : IWolverineRuntime, IObserver<IWolverineEvent
     {
         Tracker.Subscribe(this);
         MetricsAccumulator = new MetricsAccumulator(this);
+        Options.ServiceName = "Mock";
     }
 
     public MetricsAccumulator MetricsAccumulator { get; }

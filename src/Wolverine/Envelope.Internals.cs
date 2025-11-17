@@ -84,6 +84,8 @@ public partial class Envelope
     public bool IsResponse { get; set; }
     public Exception? Failure { get; set; }
     internal Envelope[]? Batch { get; set; }
+    
+    internal bool HasBeenAcked { get; set; }
 
     internal void StartTiming()
     {

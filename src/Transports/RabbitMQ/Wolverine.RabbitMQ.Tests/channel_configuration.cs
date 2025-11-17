@@ -23,7 +23,7 @@ public class channel_configuration
         
         wolverineOptions.PublisherConfirmationsEnabled.ShouldBe(true);
         wolverineOptions.PublisherConfirmationTrackingEnabled.ShouldBe(true);
-        wolverineOptions.ConsumerDispatchConcurrency.ShouldBeEquivalentTo(5);
+        wolverineOptions.ConsumerDispatchConcurrency.ShouldBeEquivalentTo((ushort)5);
     }
 
     [Fact]
@@ -45,6 +45,6 @@ public class channel_configuration
         
         wolverineOptions.PublisherConfirmationsEnabled.ShouldBe(true);
         wolverineOptions.PublisherConfirmationTrackingEnabled.ShouldBe(false);
-        wolverineOptions.ConsumerDispatchConcurrency.ShouldBeEquivalentTo(2);
+        wolverineOptions.ConsumerDispatchConcurrency.ShouldBeEquivalentTo((ushort)2);
     }
 }

@@ -99,6 +99,8 @@ internal class RabbitMqChannelCallback : IChannelCallback, IDisposable, ISupport
         {
             if (envelope.RabbitMqListener.Channel is not null)
             {
+                // For idempotency
+                envelope.HasBeenAcked = true;
                 await envelope.RabbitMqListener.Channel.BasicNackAsync(envelope.DeliveryTag, false, false, token);
             }
         }
