@@ -62,7 +62,7 @@ public class exclusive_listeners : IAsyncLifetime
             }).StartAsync();
 
         var runtime = host.GetRuntime();
-        runtime.Endpoints.ActiveListeners().Select(x => x.Endpoint.EndpointName)
+        runtime.Endpoints.ActiveListeners().Where(x => x.Uri.Scheme != "stub" ).Select(x => x.Endpoint.EndpointName)
             .OrderBy(x => x)
             .ShouldHaveTheSameElementsAs("one", "three", "two");
     }

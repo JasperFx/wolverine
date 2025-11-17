@@ -184,17 +184,20 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         }
     }
 
-    public ValueTask CompleteAsync()
+    public async ValueTask CompleteAsync()
     {
         if (_channel == null || Envelope == null)
         {
             throw new InvalidOperationException("No Envelope is active for this context");
         }
 
-        return _channel.CompleteAsync(Envelope);
+        if (Envelope.HasBeenAcked) return;
+
+        await _channel.CompleteAsync(Envelope);
+        Envelope.HasBeenAcked = true;
     }
 
-    public ValueTask DeferAsync()
+    public async ValueTask DeferAsync()
     {
         if (_channel == null || Envelope == null)
         {
@@ -202,7 +205,7 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         }
 
         Runtime.MessageTracking.Requeued(Envelope);
-        return _channel.DeferAsync(Envelope);
+        await _channel.DeferAsync(Envelope);
     }
 
     public async Task ReScheduleAsync(DateTimeOffset scheduledTime)

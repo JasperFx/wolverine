@@ -69,7 +69,7 @@ public class end_to_end
             opts.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
         });
 
-        var sources = publisher.Services.GetServices<ISystemPart>();
+        var sources = publisher.Services.GetServices<ISystemPart>().OfType<WolverineSystemPart>();
         foreach (var source in sources)
         {
             var resources = await source.FindResources();
