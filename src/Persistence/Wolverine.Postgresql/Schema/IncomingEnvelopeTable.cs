@@ -32,6 +32,7 @@ internal class IncomingEnvelopeTable : Table
 
         if (durability.EnableInboxPartitioning)
         {
+            ModifyColumn(DatabaseConstants.Status).AsPrimaryKey();
             PartitionByList(DatabaseConstants.Status)
                 .AddPartition("incoming", EnvelopeStatus.Incoming.ToString())
                 .AddPartition("scheduled", EnvelopeStatus.Scheduled.ToString())

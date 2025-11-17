@@ -23,11 +23,15 @@ public class compliance_using_table_partitioning : MessageStoreCompliance
 {
     public override async Task<IHost> BuildCleanHost()
     {
+        #region sample_enabling_inbox_partitioning
+
         var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
                 opts.Durability.EnableInboxPartitioning = true;
                 
+
+                #endregion
                 opts.Services.AddMarten(x =>
                 {
                     x.Connection(Servers.PostgresConnectionString);
@@ -58,7 +62,7 @@ public class compliance_using_table_partitioning : MessageStoreCompliance
 
         var hourAgo = DateTimeOffset.UtcNow.Add(1.Hours());
         var operation =
-            new DeleteExpiredEnvelopesOperation(new DbObjectName("receiver", DatabaseConstants.IncomingTable), hourAgo);
+            new DeleteExpiredEnvelopesOperation(new DbObjectName("receiver_partitioned", DatabaseConstants.IncomingTable), hourAgo);
         var batch = new DatabaseOperationBatch((IMessageDatabase)thePersistence, [operation]);
         await theHost.InvokeAsync(batch);
 
