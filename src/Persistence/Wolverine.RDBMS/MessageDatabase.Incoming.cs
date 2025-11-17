@@ -1,6 +1,7 @@
 ﻿using System.Data.Common;
 using Weasel.Core;
 using Wolverine.Persistence.Durability;
+using Wolverine.Runtime.Interop;
 using Wolverine.Transports;
 using DbCommandBuilder = Weasel.Core.DbCommandBuilder;
 

@@ -158,7 +158,21 @@ migration subsystem
 You also have this setting to force Wolverine to automatically "bump" and older messages that seem to be stalled in
 the outbox table:
 
-snippet: sample_configuring_outbox_stale_timeout
+<!-- snippet: sample_configuring_outbox_stale_timeout -->
+<a id='snippet-sample_configuring_outbox_stale_timeout'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        // Bump any persisted message in the outbox tables
+        // that is more than an hour old to be globally owned
+        // so that the durability agent can recover it and force
+        // it to be sent
+        opts.Durability.OutboxStaleTime = 1.Hours();
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L281-L293' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_outbox_stale_timeout' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 Note that this will still respect the "deliver by" semantics. This is part of the polling that Wolverine normally does
 against the inbox/outbox/node storage tables. Note that this will only happen if the setting above has a non-null

@@ -201,4 +201,32 @@ within different modules within your system, you can use [Wolverine extensions](
 You can also use the `IServiceCollection.ConfigureWolverine()` method to add configuration to your
 Wolverine application from outside the main `UseWolverine()` code as shown below:
 
-snippet: sample_using_configure_wolverine
+<!-- snippet: sample_using_configure_wolverine -->
+<a id='snippet-sample_using_configure_wolverine'></a>
+```cs
+var builder = Host.CreateApplicationBuilder();
+
+// Baseline Wolverine configuration
+builder.Services.AddWolverine(opts =>
+{
+    
+});
+
+// This would be applied as an extension
+builder.Services.ConfigureWolverine(w =>
+{
+    // There is a specific helper for this, but just go for it
+    // as an easy example
+    w.Durability.Mode = DurabilityMode.Solo;
+});
+
+using var host = builder.Build();
+
+host.Services.GetRequiredService<IWolverineRuntime>()
+    .Options
+    .Durability
+    .Mode
+    .ShouldBe(DurabilityMode.Solo);
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/using_configure_wolverine.cs#L14-L40' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_configure_wolverine' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->

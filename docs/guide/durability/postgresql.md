@@ -54,7 +54,16 @@ as an optimization. This is not enabled by default just to avoid causing databas
 migrations in a minor point release. Note that this will have some significant benefits
 for inbox/outbox metrics gathering in the future:
 
-snippet: sample_enabling_inbox_partitioning
+<!-- snippet: sample_enabling_inbox_partitioning -->
+<a id='snippet-sample_enabling_inbox_partitioning'></a>
+```cs
+var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.Durability.EnableInboxPartitioning = true;
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PostgresqlTests/compliance_using_table_partitioning.cs#L26-L34' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_enabling_inbox_partitioning' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 ## PostgreSQL Messaging Transport <Badge type="tip" text="2.5" />
 
