@@ -28,6 +28,12 @@ public class WolverineOptionsTests
     }
 
     [Fact]
+    public void default_dead_letter_queue_behavior_is_discard()
+    {
+        new WolverineOptions().UnknownMessageBehavior.ShouldBe(UnknownMessageBehavior.LogOnly);
+    }
+
+    [Fact]
     public void default_service_location_policy_should_be_allowed_by_warn()
     {
         new WolverineOptions().ServiceLocationPolicy.ShouldBe(ServiceLocationPolicy.AllowedButWarn);

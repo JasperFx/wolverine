@@ -7,6 +7,7 @@ using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using JasperFx.Descriptors;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Wolverine.Configuration;
 using Wolverine.Persistence;
 using Wolverine.Persistence.MultiTenancy;
@@ -59,6 +60,21 @@ public enum WolverineMetricsMode
     Hybrid
 }
 
+public enum UnknownMessageBehavior
+{
+    /// <summary>
+    /// Default behavior. Wolverine will log a message that there was no known handler
+    /// for the incoming message, but otherwise discard it
+    /// </summary>
+    LogOnly,
+    
+    /// <summary>
+    /// Wolverine will log a message that there was no known handler for the incoming message,
+    /// then move it to the appropriate dead letter queue for the receiving endpoint
+    /// </summary>
+    DeadLetterQueue
+}
+
 public class MetricsOptions
 {
     /// <summary>
@@ -80,6 +96,7 @@ public sealed partial class WolverineOptions
 {
     private readonly List<Action<WolverineOptions>> _lazyActions = [];
     private AutoCreate? _autoBuildMessageStorageOnStartup;
+    private UnknownMessageBehavior _unknownMessageBehavior = UnknownMessageBehavior.LogOnly;
 
     public WolverineOptions() : this(null)
     {
@@ -361,6 +378,25 @@ public sealed partial class WolverineOptions
     
     // This helps govern some command line work
     internal bool LightweightMode { get; set; }
+
+    public UnknownMessageBehavior UnknownMessageBehavior
+    {
+        get => _unknownMessageBehavior;
+        set
+        {
+            _unknownMessageBehavior = value;
+            if (value == UnknownMessageBehavior.DeadLetterQueue)
+            {
+                Services.TryAddSingleton<IMissingHandler, MoveUnknownMessageToDeadLetterQueue>();
+            }
+            else
+            {
+                Services.RemoveAll(x =>
+                    !x.IsKeyedService && x.ServiceType == typeof(IMissingHandler) && x.ImplementationType ==
+                        typeof(MoveUnknownMessageToDeadLetterQueue));
+            }
+        }
+    }
 
     internal void ReadJasperFxOptions(JasperFxOptions jasperfx)
     {

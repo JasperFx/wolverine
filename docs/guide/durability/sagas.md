@@ -558,12 +558,52 @@ output was getting too verbose. `Saga` types are officially message handlers to 
 still use the `public static void Configure(HandlerChain)` mechanism for one off configurations to every message handler
 method on the `Saga` like this:
 
-snippet: sample_overriding_logging_on_saga
+<!-- snippet: sample_overriding_logging_on_saga -->
+<a id='snippet-sample_overriding_logging_on_saga'></a>
+```cs
+public class RevisionedSaga : Wolverine.Saga
+{
+    // This works just the same as on any other message handler
+    // type
+    public static void Configure(HandlerChain chain)
+    {
+        chain.ProcessingLogLevel = LogLevel.None;
+        chain.SuccessLogLevel = LogLevel.None;
+    }
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/Saga/RevisionedSaga.cs#L80-L92' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_overriding_logging_on_saga' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 Or if you wanted to just do it globally, something like this approach:
 
-snippet: sample_turn_down_logging_for_sagas
+<!-- snippet: sample_turn_down_logging_for_sagas -->
+<a id='snippet-sample_turn_down_logging_for_sagas'></a>
+```cs
+public class TurnDownLoggingOnSagas : IChainPolicy
+{
+    public void Apply(IReadOnlyList<IChain> chains, GenerationRules rules, IServiceContainer container)
+    {
+        foreach (var sagaChain in chains.OfType<SagaChain>())
+        {
+            sagaChain.ProcessingLogLevel = LogLevel.None;
+            sagaChain.SuccessLogLevel = LogLevel.None;
+        }
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/SagaChainPolicies.cs#L27-L41' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_turn_down_logging_for_sagas' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 and register that policy something like this:
 
-snippet: sample_configuring_chain_policy_on_sagas
+<!-- snippet: sample_configuring_chain_policy_on_sagas -->
+<a id='snippet-sample_configuring_chain_policy_on_sagas'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.Policies.Add<TurnDownLoggingOnSagas>();
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/SagaChainPolicies.cs#L15-L23' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_chain_policy_on_sagas' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->

@@ -164,7 +164,7 @@ opts.MessagePartitioning
         });
     });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/concurrency_resilient_sharded_processing.cs#L106-L128' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_inferred_message_group_id' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/concurrency_resilient_sharded_processing.cs#L112-L134' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_inferred_message_group_id' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The built in rules *at this point* include:

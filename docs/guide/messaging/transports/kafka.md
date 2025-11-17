@@ -198,7 +198,7 @@ public static class KafkaInstrumentation
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/DocumentationSamples.cs#L132-L145' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_kafkainstrumentation_middleware' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/DocumentationSamples.cs#L152-L165' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_kafkainstrumentation_middleware' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Connecting to Multiple Brokers <Badge type="tip" text="4.7" />
@@ -229,7 +229,7 @@ using var host = await Host.CreateDefaultBuilder()
         // Other configuration
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/DocumentationSamples.cs#L105-L128' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_multiple_kafka_brokers' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/DocumentationSamples.cs#L125-L148' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_multiple_kafka_brokers' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Note that the `Uri` scheme within Wolverine for any endpoints from a "named" Kafka broker is the name that you supply
@@ -240,4 +240,21 @@ for the broker. So in the example above, you might see `Uri` values for `emea://
 Hey, you might have an application that only consumes Kafka messages, but there are a *few* diagnostics in Wolverine that
 try to send messages. To completely eliminate that, you can disable all message sending in Wolverine like this:
 
-snippet: sample_disable_all_kafka_sending
+<!-- snippet: sample_disable_all_kafka_sending -->
+<a id='snippet-sample_disable_all_kafka_sending'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts
+            .UseKafka("localhost:9092")
+            
+            // Tell Wolverine that this application will never
+            // produce messages to turn off any diagnostics that might
+            // try to "ping" a topic and result in errors
+            .ConsumeOnly();
+        
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/DocumentationSamples.cs#L105-L120' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disable_all_kafka_sending' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->

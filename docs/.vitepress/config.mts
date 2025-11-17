@@ -190,6 +190,7 @@ const config: UserConfig<DefaultTheme.Config> = {
                             ]
                         },
                         {text: 'Partitioned Sequential Messaging', link: '/guide/messaging/partitioning'},
+                        {text: 'Unknown Messages', link: '/guide/messaging/unknown'},
                         {text: 'Endpoint Specific Operations', link: '/guide/messaging/endpoint-operations'},
                         {text: 'Broadcast to a Specific Topic', link: '/guide/messaging/broadcast-to-topic'},
                         {text: 'Message Expiration', link: '/guide/messaging/expiration'},

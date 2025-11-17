@@ -1,8 +1,8 @@
 using Wolverine.Runtime;
-
-namespace Wolverine;
+using Wolverine.Runtime.Interop;
 
 #region sample_IMissingHandler
+namespace Wolverine;
 
 /// <summary>
 ///     Hook interface to receive notifications of envelopes received
@@ -20,3 +20,11 @@ public interface IMissingHandler
 }
 
 #endregion
+
+internal class MoveUnknownMessageToDeadLetterQueue : IMissingHandler
+{
+    public async ValueTask HandleAsync(IEnvelopeLifecycle context, IWolverineRuntime root)
+    {
+        await context.MoveToDeadLetterQueueAsync(new UnknownMessageTypeNameException($"Unknown message type: '{context.Envelope!.MessageType}'"));
+    }
+}
