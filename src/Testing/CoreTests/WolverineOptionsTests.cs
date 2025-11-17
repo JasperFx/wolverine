@@ -32,6 +32,12 @@ public class WolverineOptionsTests
     {
         new WolverineOptions().ServiceLocationPolicy.ShouldBe(ServiceLocationPolicy.AllowedButWarn);
     }
+
+    [Fact]
+    public void inbox_partitioning_is_off_by_default()
+    {
+        new WolverineOptions().Durability.EnableInboxPartitioning.ShouldBeFalse();
+    }       
     
     [Fact]
     public void failure_acks_are_NOT_enabled_by_default()

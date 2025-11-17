@@ -97,6 +97,13 @@ public class DurabilitySettings
     /// than the configured time even if the message is marked as owned by an active node
     /// </summary>
     public TimeSpan? OutboxStaleTime { get; set; }
+    
+    /// <summary>
+    /// For persistence mechanisms that support this (PostgreSQL), this directs Wolverine to use partitioning
+    /// based on the envelope status for the transactional inbox storage. This can be a performance optimization,
+    /// but does require a database migration if enabled
+    /// </summary>
+    public bool EnableInboxPartitioning { get; set; }
 
     /// <summary>
     ///     Should the message durability agent be enabled during execution.
