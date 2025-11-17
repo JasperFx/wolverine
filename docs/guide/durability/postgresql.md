@@ -47,6 +47,15 @@ return await app.RunJasperFxCommands(args);
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L164-L190' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setup_postgresql_storage' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Optimizing the Message Store <Badge type="tip" text="5.3" />
+
+For PostgreSQL, you can enable PostgreSQL backed partitioning for the inbox table
+as an optimization. This is not enabled by default just to avoid causing database
+migrations in a minor point release. Note that this will have some significant benefits
+for inbox/outbox metrics gathering in the future:
+
+snippet: sample_enabling_inbox_partitioning
+
 ## PostgreSQL Messaging Transport <Badge type="tip" text="2.5" />
 
 ::: info
