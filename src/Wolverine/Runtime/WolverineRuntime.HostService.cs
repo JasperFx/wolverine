@@ -47,6 +47,7 @@ public partial class WolverineRuntime
             // Has to be done before initializing the storage
             Handlers.AddMessageHandler(typeof(IAgentCommand), new AgentCommandHandler(this));
             
+            
             if (Options.Durability.DurabilityAgentEnabled)
             {
                 foreach (var store in await _stores.Value.FindAllAsync())
@@ -172,6 +173,12 @@ public partial class WolverineRuntime
     {
         if (_hasStopped)
         {
+            return;
+        }
+
+        if (DynamicCodeBuilder.WithinCodegenCommand)
+        {
+            // Don't do anything here
             return;
         }
 
