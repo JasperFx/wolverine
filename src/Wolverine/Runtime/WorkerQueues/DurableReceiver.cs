@@ -331,6 +331,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
                     try
                     {
                         await _inbox.StoreIncomingAsync(envelope);
+                        envelope.IsPersisted = true;
                     }
                     catch (DuplicateIncomingEnvelopeException)
                     {
@@ -360,6 +361,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
             {
                 envelope.OwnerId = _settings.AssignedNodeNumber;
                 await _inbox.StoreIncomingAsync(envelope);
+                envelope.IsPersisted = true;
             }
             catch (DuplicateIncomingEnvelopeException e)
             {
