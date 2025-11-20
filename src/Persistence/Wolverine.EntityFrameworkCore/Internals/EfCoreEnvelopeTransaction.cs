@@ -125,6 +125,41 @@ public class EfCoreEnvelopeTransaction : IEnvelopeTransaction
         return ValueTask.CompletedTask;
     }
 
+    public async Task<bool> TryMakeEagerIdempotencyCheckAsync(Envelope envelope, CancellationToken cancellation)
+    {
+        if (envelope.IsPersisted) return true;
+        
+        if (DbContext.Database.CurrentTransaction == null)
+        {
+            await DbContext.Database.BeginTransactionAsync(cancellation);
+        }
+
+        try
+        {
+            var copy = Envelope.ForPersistedHandled(envelope);
+            await PersistIncomingAsync(copy);
+            
+            // Gotta flush the call to the database!
+            if (DbContext.IsWolverineEnabled())
+            {
+                await DbContext.SaveChangesAsync(cancellation);
+            }
+            
+            envelope.IsPersisted = true;
+            envelope.Status = EnvelopeStatus.Handled;
+            return true;
+        }
+        catch (Exception )
+        {
+            if (DbContext.Database.CurrentTransaction != null)
+            {
+                await DbContext.Database.CurrentTransaction.RollbackAsync(cancellation);
+            }
+            
+            return false;
+        }
+    }
+
     public async ValueTask CommitAsync(CancellationToken cancellation)
     {
         if (_messaging.Envelope != null && _messaging.Envelope.Destination != null)

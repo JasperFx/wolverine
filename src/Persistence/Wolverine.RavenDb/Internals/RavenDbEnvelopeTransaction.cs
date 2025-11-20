@@ -24,6 +24,22 @@ public class RavenDbEnvelopeTransaction : IEnvelopeTransaction
 
         Session = session;
     }
+    
+    public async Task<bool> TryMakeEagerIdempotencyCheckAsync(Envelope envelope, CancellationToken cancellation)
+    {
+        var copy = Envelope.ForPersistedHandled(envelope);
+        try
+        {
+            await PersistIncomingAsync(copy);
+            envelope.IsPersisted = true;
+            envelope.Status = EnvelopeStatus.Handled;
+            return true;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
 
     public IAsyncDocumentSession Session { get; }
 

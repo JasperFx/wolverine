@@ -48,6 +48,11 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         TenantId = runtime.Options.Durability.TenantIdStyle.MaybeCorrectTenantId(tenantId);
     }
 
+    Task<bool> IEnvelopeTransaction.TryMakeEagerIdempotencyCheckAsync(Envelope envelope, CancellationToken cancellation)
+    {
+        return Task.FromResult(true);
+    }
+
     /// <summary>
     /// Governs how the MessageContext will handle subsequent calls to FlushOutgoingMessages(). The
     /// default behavior is to quietly ignore any additional calls

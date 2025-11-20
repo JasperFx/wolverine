@@ -40,6 +40,22 @@ public class DatabaseEnvelopeTransaction : IEnvelopeTransaction, IDisposable
         return _database.StoreIncomingAsync(_tx, [envelope]);
     }
 
+    public async Task<bool> TryMakeEagerIdempotencyCheckAsync(Envelope envelope, CancellationToken cancellation)
+    {
+        var copy = Envelope.ForPersistedHandled(envelope);
+        try
+        {
+            await PersistIncomingAsync(copy);
+            envelope.IsPersisted = true;
+            envelope.Status = EnvelopeStatus.Handled;
+            return true;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
+
     public ValueTask RollbackAsync()
     {
         return new ValueTask(_tx.RollbackAsync());

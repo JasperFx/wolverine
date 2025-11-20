@@ -1,67 +1,41 @@
-using IntegrationTests;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using JasperFx.Resources;
-using Marten;
 using NSubstitute;
+using SharedPersistenceModels.Items;
 using Shouldly;
+using Weasel.SqlServer.Tables;
 using Wolverine;
 using Wolverine.ComplianceTests;
-using Wolverine.EntityFrameworkCore;
 using Wolverine.EntityFrameworkCore.Internals;
 using Wolverine.Runtime;
-using Wolverine.SqlServer;
 using Wolverine.Tracking;
 using Wolverine.Transports;
 
 namespace EfCoreTests;
 
-[Collection("sqlserver")]
-public class using_add_dbcontext_with_wolverine_integration : IAsyncLifetime
+public class eager_idempotency_with_non_wolverine_mapped_db_context : IClassFixture<EFCorePersistenceContext>
 {
-    private IHost _host;
-
-    public async Task InitializeAsync()
+    public eager_idempotency_with_non_wolverine_mapped_db_context(EFCorePersistenceContext context)
     {
-        _host = await Host.CreateDefaultBuilder()
-            .UseWolverine(opts =>
-            {
-                opts.Services.AddDbContextWithWolverineIntegration<CleanDbContext>(x =>
-                    x.UseSqlServer(Servers.SqlServerConnectionString));
-                opts.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
-
-                opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString, "idempotency");
-                opts.UseEntityFrameworkCoreTransactions();
-            }).StartAsync();
-
-        await _host.RebuildAllEnvelopeStorageAsync();
-    }
-
-    public async Task DisposeAsync()
-    {
-        await _host.StopAsync();
-        _host.Dispose();
-    }
-
-    [Fact]
-    public void is_wolverine_enabled()
-    {
-        using var nested = _host.Services.CreateScope();
-        nested.ServiceProvider.GetRequiredService<CleanDbContext>().IsWolverineEnabled().ShouldBeTrue();
+        Host = context.theHost;
+        ItemsTable = context.ItemsTable;
     }
     
-    [Fact]
+    public Table ItemsTable { get; }
+
+    public IHost Host { get; }
+    
+        [Fact]
     public async Task happy_path_eager_idempotency()
     {
-        var runtime = _host.GetRuntime();
+        var runtime = Host.GetRuntime();
         var envelope = ObjectMother.Envelope();
 
         var context = new MessageContext(runtime);
         context.ReadEnvelope(envelope, Substitute.For<IChannelCallback>());
 
-        using var scope = _host.Services.CreateAsyncScope();
-        var dbContext = scope.ServiceProvider.GetRequiredService<CleanDbContext>();
+        using var scope = Host.Services.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<ItemsDbContext>();
         
         var transaction = new EfCoreEnvelopeTransaction(dbContext, context);
 
@@ -70,8 +44,6 @@ public class using_add_dbcontext_with_wolverine_integration : IAsyncLifetime
 
         await dbContext.Database.CurrentTransaction!.CommitAsync();
 
-        var all = await runtime.Storage.Admin.AllIncomingAsync();
-        
         var persisted = (await runtime.Storage.Admin.AllIncomingAsync()).Single(x => x.Id == envelope.Id);
         persisted.Data.Length.ShouldBe(0);
         persisted.Destination.ShouldBe(envelope.Destination);
@@ -83,14 +55,14 @@ public class using_add_dbcontext_with_wolverine_integration : IAsyncLifetime
     [Fact]
     public async Task sad_path_eager_idempotency()
     {
-        var runtime = _host.GetRuntime();
+        var runtime = Host.GetRuntime();
         var envelope = ObjectMother.Envelope();
 
         var context = new MessageContext(runtime);
         context.ReadEnvelope(envelope, Substitute.For<IChannelCallback>());
 
-        using var scope = _host.Services.CreateAsyncScope();
-        var dbContext = scope.ServiceProvider.GetRequiredService<CleanDbContext>();
+        using var scope = Host.Services.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<ItemsDbContext>();
         
         var transaction = new EfCoreEnvelopeTransaction(dbContext, context);
 
