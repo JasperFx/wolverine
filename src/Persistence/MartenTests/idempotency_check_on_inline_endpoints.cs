@@ -1,24 +1,18 @@
 using IntegrationTests;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using JasperFx.Resources;
 using Marten;
+using Microsoft.Extensions.Hosting;
 using NSubstitute;
 using Shouldly;
 using Wolverine;
 using Wolverine.ComplianceTests;
-using Wolverine.EntityFrameworkCore;
-using Wolverine.EntityFrameworkCore.Internals;
+using Wolverine.Marten;
 using Wolverine.Runtime;
-using Wolverine.SqlServer;
 using Wolverine.Tracking;
 using Wolverine.Transports;
 
-namespace EfCoreTests;
+namespace MartenTests;
 
-[Collection("sqlserver")]
-public class using_add_dbcontext_with_wolverine_integration : IAsyncLifetime
+public class idempotency_check_on_inline_endpoints : IAsyncLifetime
 {
     private IHost _host;
 
@@ -27,12 +21,11 @@ public class using_add_dbcontext_with_wolverine_integration : IAsyncLifetime
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.Services.AddDbContextWithWolverineIntegration<CleanDbContext>(x =>
-                    x.UseSqlServer(Servers.SqlServerConnectionString));
-                opts.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
-
-                opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString, "idempotency");
-                opts.UseEntityFrameworkCoreTransactions();
+                opts.Services.AddMarten(m =>
+                {
+                    m.Connection(Servers.PostgresConnectionString);
+                    m.DatabaseSchemaName = "idempotent";
+                }).IntegrateWithWolverine();
             }).StartAsync();
 
         await _host.RebuildAllEnvelopeStorageAsync();
@@ -41,16 +34,8 @@ public class using_add_dbcontext_with_wolverine_integration : IAsyncLifetime
     public async Task DisposeAsync()
     {
         await _host.StopAsync();
-        _host.Dispose();
     }
 
-    [Fact]
-    public void is_wolverine_enabled()
-    {
-        using var nested = _host.Services.CreateScope();
-        nested.ServiceProvider.GetRequiredService<CleanDbContext>().IsWolverineEnabled().ShouldBeTrue();
-    }
-    
     [Fact]
     public async Task happy_path_eager_idempotency()
     {
@@ -60,18 +45,12 @@ public class using_add_dbcontext_with_wolverine_integration : IAsyncLifetime
         var context = new MessageContext(runtime);
         context.ReadEnvelope(envelope, Substitute.For<IChannelCallback>());
 
-        using var scope = _host.Services.CreateAsyncScope();
-        var dbContext = scope.ServiceProvider.GetRequiredService<CleanDbContext>();
-        
-        var transaction = new EfCoreEnvelopeTransaction(dbContext, context);
+        using var session = _host.DocumentStore().LightweightSession();
+        var transaction = new MartenEnvelopeTransaction(session, context);
 
         var ok = await transaction.TryMakeEagerIdempotencyCheckAsync(envelope, CancellationToken.None);
         ok.ShouldBeTrue();
 
-        await dbContext.Database.CurrentTransaction!.CommitAsync();
-
-        var all = await runtime.Storage.Admin.AllIncomingAsync();
-        
         var persisted = (await runtime.Storage.Admin.AllIncomingAsync()).Single(x => x.Id == envelope.Id);
         persisted.Data.Length.ShouldBe(0);
         persisted.Destination.ShouldBe(envelope.Destination);
@@ -85,19 +64,17 @@ public class using_add_dbcontext_with_wolverine_integration : IAsyncLifetime
     {
         var runtime = _host.GetRuntime();
         var envelope = ObjectMother.Envelope();
+        envelope.Id = Guid.NewGuid();
 
         var context = new MessageContext(runtime);
         context.ReadEnvelope(envelope, Substitute.For<IChannelCallback>());
 
-        using var scope = _host.Services.CreateAsyncScope();
-        var dbContext = scope.ServiceProvider.GetRequiredService<CleanDbContext>();
-        
-        var transaction = new EfCoreEnvelopeTransaction(dbContext, context);
+        using var session = _host.DocumentStore().LightweightSession();
+        var transaction = new MartenEnvelopeTransaction(session, context);
 
         var ok = await transaction.TryMakeEagerIdempotencyCheckAsync(envelope, CancellationToken.None);
         ok.ShouldBeTrue();
-        await dbContext.Database.CurrentTransaction!.CommitAsync();
-        
+
         // Kind of resetting it here
         envelope.IsPersisted = false;
         

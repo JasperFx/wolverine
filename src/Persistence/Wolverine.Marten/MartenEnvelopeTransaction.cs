@@ -10,10 +10,12 @@ namespace Wolverine.Marten;
 
 internal class MartenEnvelopeTransaction : IEnvelopeTransaction
 {
+    private readonly MessageContext _context;
     private readonly int _nodeId;
 
     public MartenEnvelopeTransaction(IDocumentSession session, MessageContext context)
     {
+        _context = context;
         if (context.Storage is PostgresqlMessageStore store)
         {
             Store = store;
@@ -59,5 +61,27 @@ internal class MartenEnvelopeTransaction : IEnvelopeTransaction
     public ValueTask RollbackAsync()
     {
         return ValueTask.CompletedTask;
+    }
+    
+    public async Task<bool> TryMakeEagerIdempotencyCheckAsync(Envelope envelope, CancellationToken cancellation)
+    {
+        if (envelope.IsPersisted) return true;
+
+        try
+        {
+            // Might need to reset!
+            _context.MultiFlushMode = MultiFlushMode.AllowMultiples;
+            var copy = Envelope.ForPersistedHandled(envelope);
+            await PersistIncomingAsync(copy);
+            await Session.SaveChangesAsync(cancellation);
+            
+            envelope.IsPersisted = true;
+            envelope.Status = EnvelopeStatus.Handled;
+            return true;
+        }
+        catch (Exception )
+        {
+            return false;
+        }
     }
 }
