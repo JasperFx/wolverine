@@ -30,9 +30,10 @@ public class MartenOutbox : MessageContext, IMartenOutbox
     public void Enroll(IDocumentSession session)
     {
         Session = session;
-        Transaction = new MartenEnvelopeTransaction(session, this);
-
-        session.Listeners.Add(new FlushOutgoingMessagesOnCommit(this));
+        var martenEnvelopeTransaction = new MartenEnvelopeTransaction(session, this);
+        Transaction = martenEnvelopeTransaction;
+        
+        session.Listeners.Add(new FlushOutgoingMessagesOnCommit(this, martenEnvelopeTransaction.Store));
     }
 
     public IDocumentSession? Session { get; private set; }

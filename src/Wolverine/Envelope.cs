@@ -453,4 +453,18 @@ public partial class Envelope : IHasTenantId
     /// persisted this envelope for later tracking
     /// </summary>
     internal IMessageStore? Store { get; set; }
+
+    public static Envelope ForPersistedHandled(Envelope original)
+    {
+        return new Envelope
+        {
+            Id = original.Id,
+            Data = [],
+            OwnerId = 0,
+            Status = EnvelopeStatus.Handled,
+            Destination = original.Destination,
+            ScheduledTime = DateTimeOffset.UtcNow,
+            MessageType = original.MessageType,
+        };
+    }
 }
