@@ -126,7 +126,7 @@ public class end_to_end_with_persistence : PostgresqlContext, IDisposable, IAsyn
             item2.Name.ShouldBe("Shoe");
         }
 
-        var incoming = await theReceiver.Get<IMessageStore>().Admin.AllIncomingAsync();
-        incoming.Any().ShouldBeFalse();
+        var incoming = await theReceiver.Get<IMessageStore>().Admin.FetchCountsAsync();
+        incoming.Incoming.ShouldBe(0);
     }
 }
