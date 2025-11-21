@@ -679,6 +679,15 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
         _parent.ApplyParameterMatching(this, call);
     }
 
+    public override IdempotencyStyle Idempotency
+    {
+        get => IdempotencyStyle.None;
+        set
+        {
+            // Nothing, you can't actually override it
+        }
+    }
+
     public bool TryReplaceServiceProvider(out Variable serviceProvider)
     {
         serviceProvider = default!;

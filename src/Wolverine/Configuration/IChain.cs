@@ -41,6 +41,8 @@ public interface IChain
     
     void ApplyParameterMatching(MethodCall call);
     
+    IdempotencyStyle Idempotency { get; set; }
+
     /// <summary>
     ///     Frames that would be initially placed in front of
     ///     the primary action(s)
