@@ -1,15 +1,21 @@
 using IntegrationTests;
+using JasperFx;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using JasperFx.Resources;
-using Marten;
+using Microsoft.Data.SqlClient;
 using NSubstitute;
+using SharedPersistenceModels.Items;
 using Shouldly;
+using Weasel.Core;
+using Weasel.SqlServer;
+using Weasel.SqlServer.Tables;
 using Wolverine;
 using Wolverine.ComplianceTests;
 using Wolverine.EntityFrameworkCore;
 using Wolverine.EntityFrameworkCore.Internals;
+using Wolverine.Persistence;
 using Wolverine.Runtime;
 using Wolverine.SqlServer;
 using Wolverine.Tracking;
@@ -43,6 +49,8 @@ public class using_add_dbcontext_with_wolverine_integration : IAsyncLifetime
         await _host.StopAsync();
         _host.Dispose();
     }
+    
+    public Table ItemsTable { get; }
 
     [Fact]
     public void is_wolverine_enabled()
@@ -106,4 +114,23 @@ public class using_add_dbcontext_with_wolverine_integration : IAsyncLifetime
 
         
     }
+    
+    
+    private async Task withItemsTable()
+    {
+        await using (var conn = new SqlConnection(Servers.SqlServerConnectionString))
+        {
+            await conn.OpenAsync();
+            var migration = await SchemaMigration.DetermineAsync(conn, ItemsTable);
+            if (migration.Difference != SchemaPatchDifference.None)
+            {
+                var sqlServerMigrator = new SqlServerMigrator();
+                
+                await sqlServerMigrator.ApplyAllAsync(conn, migration, AutoCreate.CreateOrUpdate);
+            }
+
+            await conn.CloseAsync();
+        }
+    }
 }
+
