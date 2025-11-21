@@ -135,7 +135,7 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         }
         else
         {
-            chain.Middleware.Insert(0, new EnrollDbContextInTransaction(dbContextType));
+            chain.Middleware.Insert(0, new EnrollDbContextInTransaction(dbContextType, chain.Idempotency));
         }
 
         var saveChangesAsync =
@@ -174,7 +174,7 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         }
         else
         {
-            chain.Middleware.Insert(0, new EnrollDbContextInTransaction(dbType));
+            chain.Middleware.Insert(0, new EnrollDbContextInTransaction(dbType, chain.Idempotency));
         }
         
         var saveChangesAsync =

@@ -99,7 +99,7 @@ public class using_add_dbcontext_with_wolverine_integration : IAsyncLifetime
         await dbContext.Database.CurrentTransaction!.CommitAsync();
         
         // Kind of resetting it here
-        envelope.IsPersisted = false;
+        envelope.WasPersistedInInbox = false;
         
         var secondTime = await transaction.TryMakeEagerIdempotencyCheckAsync(envelope, CancellationToken.None);
         secondTime.ShouldBeFalse();

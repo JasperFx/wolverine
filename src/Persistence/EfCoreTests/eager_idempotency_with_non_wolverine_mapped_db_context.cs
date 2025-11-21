@@ -71,7 +71,7 @@ public class eager_idempotency_with_non_wolverine_mapped_db_context : IClassFixt
         await dbContext.Database.CurrentTransaction!.CommitAsync();
         
         // Kind of resetting it here
-        envelope.IsPersisted = false;
+        envelope.WasPersistedInInbox = false;
         
         var secondTime = await transaction.TryMakeEagerIdempotencyCheckAsync(envelope, CancellationToken.None);
         secondTime.ShouldBeFalse();

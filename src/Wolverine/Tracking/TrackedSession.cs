@@ -221,6 +221,8 @@ internal partial class TrackedSession : ITrackedSession
     public RecordCollection Requeued => new(MessageEventType.Requeued, this);
     public RecordCollection Executed => new(MessageEventType.ExecutionFinished, this);
 
+    public RecordCollection Discarded => new(MessageEventType.Discarded, this);
+
     public void WatchOther(IHost host)
     {
         if (ReferenceEquals(host, _primaryHost))
@@ -402,11 +404,6 @@ internal partial class TrackedSession : ITrackedSession
     public void Record(MessageEventType eventType, Envelope envelope, string? serviceName, Guid uniqueNodeId,
         Exception? ex = null)
     {
-        if (envelope.Message is ValueTask)
-        {
-            throw new Exception("Whatcha you doing Willis?");
-        }
-
         // Ignore these
         var messageType = envelope.Message?.GetType();
         if (messageType != null && _ignoreMessageRules.Any(x => x(messageType)))

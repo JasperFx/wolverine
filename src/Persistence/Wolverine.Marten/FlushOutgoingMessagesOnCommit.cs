@@ -29,7 +29,7 @@ internal class FlushOutgoingMessagesOnCommit : DocumentSessionListenerBase
         // Mark as handled!
         if (_context.Envelope.Destination != null)
         {
-            if (_context.Envelope.IsPersisted)
+            if (_context.Envelope.WasPersistedInInbox)
             {
                 session.QueueSqlCommand($"update {_messageStore.IncomingFullName} set {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}' where id = ?", _context.Envelope.Id);
             }

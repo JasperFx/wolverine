@@ -46,7 +46,7 @@ public class DatabaseEnvelopeTransaction : IEnvelopeTransaction, IDisposable
         try
         {
             await PersistIncomingAsync(copy);
-            envelope.IsPersisted = true;
+            envelope.WasPersistedInInbox = true;
             envelope.Status = EnvelopeStatus.Handled;
             return true;
         }
