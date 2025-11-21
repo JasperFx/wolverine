@@ -71,6 +71,23 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         return Outstanding.Concat(_sent ?? []).All(x => x.MessageType != Envelope!.ReplyRequested);
     }
 
+    /// <summary>
+    /// Potentially throws an exception if the current message has already been processed
+    /// </summary>
+    /// <param name="cancellation"></param>
+    /// <exception cref="DuplicateIncomingEnvelopeException"></exception>
+    public async Task AssertEagerIdempotencyAsync(CancellationToken cancellation)
+    {
+        if (Envelope == null || Envelope.IsPersisted ) return;
+        if (Transaction == null) return;
+
+        var check = await Transaction.TryMakeEagerIdempotencyCheckAsync(Envelope, cancellation);
+        if (!check)
+        {
+            throw new DuplicateIncomingEnvelopeException(Envelope);
+        }
+    }
+
     public async Task FlushOutgoingMessagesAsync()
     {
         if (_hasFlushed)
