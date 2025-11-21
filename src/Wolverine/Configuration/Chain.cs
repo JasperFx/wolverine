@@ -33,6 +33,8 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
 
     public abstract MiddlewareScoping Scoping { get; }
 
+    public abstract IdempotencyStyle Idempotency { get; set; }
+
     public List<Frame> Postprocessors { get; } = [];
 
     [IgnoreDescription]

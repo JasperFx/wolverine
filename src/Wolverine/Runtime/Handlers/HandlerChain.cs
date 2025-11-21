@@ -156,6 +156,8 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
 
     public override MiddlewareScoping Scoping => MiddlewareScoping.MessageHandlers;
 
+    public override IdempotencyStyle Idempotency { get; set; } = IdempotencyStyle.None;
+
     public override void ApplyParameterMatching(MethodCall call)
     {
         // Nothing
