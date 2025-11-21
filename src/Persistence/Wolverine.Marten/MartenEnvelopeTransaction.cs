@@ -65,7 +65,7 @@ internal class MartenEnvelopeTransaction : IEnvelopeTransaction
     
     public async Task<bool> TryMakeEagerIdempotencyCheckAsync(Envelope envelope, CancellationToken cancellation)
     {
-        if (envelope.IsPersisted) return true;
+        if (envelope.WasPersistedInInbox) return true;
 
         try
         {
@@ -75,7 +75,7 @@ internal class MartenEnvelopeTransaction : IEnvelopeTransaction
             await PersistIncomingAsync(copy);
             await Session.SaveChangesAsync(cancellation);
             
-            envelope.IsPersisted = true;
+            envelope.WasPersistedInInbox = true;
             envelope.Status = EnvelopeStatus.Handled;
             return true;
         }

@@ -67,6 +67,10 @@ internal class DatabaseOperationBatch : IAgentCommand
 
             await tx.CommitAsync(cancellationToken);
         }
+        catch (ObjectDisposedException)
+        {
+            // The system is shutting down, let this go. 
+        }
         catch (Exception e)
         {
             await conn.CloseAsync();
@@ -81,7 +85,14 @@ internal class DatabaseOperationBatch : IAgentCommand
         }
         finally
         {
-            await conn.CloseAsync();
+            try
+            {
+                await conn.CloseAsync();
+            }
+            catch (Exception )
+            {
+                // Don't let an exception get out of there. 
+            }
         }
     }
 

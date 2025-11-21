@@ -78,7 +78,7 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
     /// <exception cref="DuplicateIncomingEnvelopeException"></exception>
     public async Task AssertEagerIdempotencyAsync(CancellationToken cancellation)
     {
-        if (Envelope == null || Envelope.IsPersisted ) return;
+        if (Envelope == null || Envelope.WasPersistedInInbox ) return;
         if (Transaction == null) return;
 
         var check = await Transaction.TryMakeEagerIdempotencyCheckAsync(Envelope, cancellation);
@@ -86,6 +86,8 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         {
             throw new DuplicateIncomingEnvelopeException(Envelope);
         }
+
+        Envelope.WasPersistedInInbox = true;
     }
 
     public async Task FlushOutgoingMessagesAsync()

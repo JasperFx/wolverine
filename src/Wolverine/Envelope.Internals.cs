@@ -50,7 +50,7 @@ public partial class Envelope
     /// Helps denote to the transactional middleware that this envelope was
     /// persisted or not to aid in the "Handled" behavior
     /// </summary>
-    public bool IsPersisted { get; set; }
+    public bool WasPersistedInInbox { get; set; }
 
     public IMessageSerializer? Serializer { get; set; }
 

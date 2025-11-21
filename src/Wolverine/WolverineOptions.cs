@@ -9,7 +9,9 @@ using JasperFx.Descriptors;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Wolverine.Configuration;
+using Wolverine.ErrorHandling;
 using Wolverine.Persistence;
+using Wolverine.Persistence.Durability;
 using Wolverine.Persistence.MultiTenancy;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Runtime.Partitioning;
@@ -133,6 +135,8 @@ public sealed partial class WolverineOptions
         Policies.Add<SideEffectPolicy>();
         Policies.Add<ResponsePolicy>();
         Policies.Add<OutgoingMessagesPolicy>();
+
+        this.OnException<DuplicateIncomingEnvelopeException>().Discard();
 
         MessagePartitioning = new MessagePartitioningRules(this);
         

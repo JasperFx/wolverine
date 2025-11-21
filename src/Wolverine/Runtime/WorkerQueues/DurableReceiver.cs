@@ -218,7 +218,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
 
     public ValueTask EnqueueAsync(Envelope envelope)
     {
-        envelope.IsPersisted = true;
+        envelope.WasPersistedInInbox = true;
         envelope.ReplyUri = envelope.ReplyUri ?? Uri;
         return _receiver.PostAsync(envelope);
     }
@@ -332,7 +332,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
                     try
                     {
                         await _inbox.StoreIncomingAsync(envelope);
-                        envelope.IsPersisted = true;
+                        envelope.WasPersistedInInbox = true;
                     }
                     catch (DuplicateIncomingEnvelopeException)
                     {
@@ -362,7 +362,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
             {
                 envelope.OwnerId = _settings.AssignedNodeNumber;
                 await _inbox.StoreIncomingAsync(envelope);
-                envelope.IsPersisted = true;
+                envelope.WasPersistedInInbox = true;
             }
             catch (DuplicateIncomingEnvelopeException e)
             {
@@ -435,7 +435,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
                 await _inbox.StoreIncomingAsync(envelopes);
                 foreach (var envelope in envelopes)
                 {
-                    envelope.IsPersisted = true;
+                    envelope.WasPersistedInInbox = true;
                 }
                 
                 batchSucceeded = true;

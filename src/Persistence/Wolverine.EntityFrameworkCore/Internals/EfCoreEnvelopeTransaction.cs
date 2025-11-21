@@ -127,7 +127,7 @@ public class EfCoreEnvelopeTransaction : IEnvelopeTransaction
 
     public async Task<bool> TryMakeEagerIdempotencyCheckAsync(Envelope envelope, CancellationToken cancellation)
     {
-        if (envelope.IsPersisted) return true;
+        if (envelope.WasPersistedInInbox) return true;
         
         if (DbContext.Database.CurrentTransaction == null)
         {
@@ -145,7 +145,7 @@ public class EfCoreEnvelopeTransaction : IEnvelopeTransaction
                 await DbContext.SaveChangesAsync(cancellation);
             }
             
-            envelope.IsPersisted = true;
+            envelope.WasPersistedInInbox = true;
             envelope.Status = EnvelopeStatus.Handled;
             return true;
         }
@@ -168,7 +168,7 @@ public class EfCoreEnvelopeTransaction : IEnvelopeTransaction
             var tx = DbContext.Database.CurrentTransaction!.GetDbTransaction();
             
             // Are we marking an existing envelope as persisted?
-            if (_messaging.Envelope.IsPersisted)
+            if (_messaging.Envelope.WasPersistedInInbox)
             { 
                 var cmd = conn.CreateCommand(
                         $"update {_database.SchemaName}.{DatabaseConstants.IncomingTable} set {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}' where id = @id")

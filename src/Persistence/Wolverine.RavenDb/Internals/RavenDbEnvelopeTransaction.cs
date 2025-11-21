@@ -31,7 +31,7 @@ public class RavenDbEnvelopeTransaction : IEnvelopeTransaction
         try
         {
             await PersistIncomingAsync(copy);
-            envelope.IsPersisted = true;
+            envelope.WasPersistedInInbox = true;
             envelope.Status = EnvelopeStatus.Handled;
             return true;
         }
