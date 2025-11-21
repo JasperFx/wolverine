@@ -1,8 +1,10 @@
 ﻿using JasperFx.Core;
 using JasperFx.Core.Reflection;
+using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.DependencyInjection;
 using Weasel.Core.Migrations;
 using Wolverine.Configuration;
+using Wolverine.ErrorHandling;
 using Wolverine.Persistence.Durability;
 using Wolverine.RDBMS;
 using Wolverine.SqlServer.Transport;
@@ -20,6 +22,10 @@ public static class SqlServerConfigurationExtensions
     public static ISqlServerBackedPersistence PersistMessagesWithSqlServer(this WolverineOptions options, string connectionString,
         string? schema = null, MessageStoreRole role = MessageStoreRole.Main)
     {
+        // For clean idempotency checks
+        options.OnException<SqlException>(e => e.Message.ContainsIgnoreCase("Violation of PRIMARY KEY constraint") &&
+                                               e.Message.ContainsIgnoreCase(".wolverine_incoming_envelopes")).Discard();
+        
         var extension = new SqlServerBackedPersistence(options)
         {
             ConnectionString = connectionString,

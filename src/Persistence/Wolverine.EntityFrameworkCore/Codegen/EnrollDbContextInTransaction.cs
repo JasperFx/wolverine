@@ -43,7 +43,8 @@ internal class EnrollDbContextInTransaction : AsyncFrame
         writer.Write($"using var {Transaction.Usage} = await {_dbContext.Usage}.Database.BeginTransactionAsync({_cancellation.Usage});");
         writer.Write("BLOCK:try");
 
-        if (_idempotencyStyle == IdempotencyStyle.Eager)
+        // EF Core can only do eager idempotent checks
+        if (_idempotencyStyle == IdempotencyStyle.Eager || _idempotencyStyle == IdempotencyStyle.Optimistic)
         {
             writer.Write($"await {_context.Usage}.{nameof(MessageContext.AssertEagerIdempotencyAsync)}({_cancellation.Usage});");
         }
