@@ -38,12 +38,16 @@ public class configuring_idempotency_style
     [Fact]
     public async Task use_transactional_policies_to_eager()
     {
+        #region sample_setting_default_idempotency_check_level
+
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
                 opts.Policies.AutoApplyTransactions(IdempotencyStyle.Eager);
             })
             .StartAsync();
+
+            #endregion
         
         // Forces the codegen rules to be applied that will execute
         // the transactional attribute among other things
@@ -99,11 +103,15 @@ public record DoSomething(Guid Id);
 
 public static class DoSomethingHandler
 {
+    #region sample_using_explicit_idempotency_on_single_handler
+
     [Transactional(IdempotencyStyle.Eager)]
     public static void Handle(DoSomething msg)
     {
         
     }
+
+    #endregion
 
     public static void Handle(TM1 m) => Debug.WriteLine("Got TM1");
     public static void Handle(TM2 m) => Debug.WriteLine("Got TM2");

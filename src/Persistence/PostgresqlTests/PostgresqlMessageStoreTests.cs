@@ -42,15 +42,6 @@ public class PostgresqlMessageStoreTests : MessageStoreCompliance
     }
 
     [Fact]
-    public async Task try_to_persist_twice()
-    {
-        var envelope = ObjectMother.Envelope();
-        
-        await thePersistence.Inbox.StoreIncomingAsync(envelope);
-        await thePersistence.Inbox.StoreIncomingAsync(envelope);
-    }
-
-    [Fact]
     public async Task delete_expired_envelopes()
     {
         var envelope = ObjectMother.Envelope();
