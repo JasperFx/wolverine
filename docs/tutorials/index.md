@@ -9,5 +9,7 @@
 | [CQRS and Event Sourcing with Marten](./cqrs-with-marten)    | Utilize the full "Critter Stack" for a very productive development experience                              |
 | [Railway Programming](./railway-programming)                 | Wolverine builds in some very light weight Railway Programming inspired abilities                          |
 | [Interoperability with Non-Wolverine Systems](./interop)     | Everything you need to know to make Wolverine play nicely and exchange messages with non-Wolverine systems |
-| [Leader Election and Agents](./leader-election)              | Learn about Wolverine's internal leader election and how to write your own "sticky" agent family |
-| [Dealing with Concurrency](./concurrency)                    | Dealing with concurrency can be hard, but Wolverine has plenty of tools to help you manage it |
+| [Leader Election and Agents](./leader-election)              | Learn about Wolverine's internal leader election and how to write your own "sticky" agent family           |
+| [Dealing with Concurrency](./concurrency)                    | Dealing with concurrency can be hard, but Wolverine has plenty of tools to help you manage it              |
+| [Dead Letter Queues](./dead-letter-queues)| Understand how dead letter queueing works in Wolverine and how to manage message failures                  |
+| [Idempotency in Messaging](./idempotency) | Find out how best to use Wolverine's built in support for messaging idempotency                            |
