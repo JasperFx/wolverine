@@ -165,7 +165,7 @@ queue after the initial message handler succeeds. The advantage of doing this is
 slower email generation and sending process to happen in background processes instead of holding up
 the initial web service call.
 
-The `IssueHandled` event message will be handled by this code:
+The `IssueCreated` event message will be handled by this code:
 
 <!-- snippet: sample_Quickstart_IssueCreatedHandler -->
 <a id='snippet-sample_quickstart_issuecreatedhandler'></a>
