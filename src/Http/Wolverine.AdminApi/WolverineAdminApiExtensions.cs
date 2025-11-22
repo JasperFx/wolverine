@@ -67,9 +67,10 @@ public static class WolverineAdminApiExtensions
                 row.Header("Database Name");
             }
             row.Header("Incoming");
-            row.Header("Scheduled");
-            row.Header("Handled");
             row.Header("Outgoing");
+            row.Header("Scheduled");
+            row.Header("Dead Letter");
+            row.Header("Handled");
         });
 
         if (hasMultiples)
@@ -80,9 +81,10 @@ public static class WolverineAdminApiExtensions
                 {
                     row.Cell(pair.Key);
                     row.Cell(pair.Value.Incoming.ToString());
-                    row.Cell(pair.Value.Scheduled.ToString());
-                    row.Cell(pair.Value.Handled.ToString());
                     row.Cell(pair.Value.Outgoing.ToString());
+                    row.Cell(pair.Value.Scheduled.ToString());
+                    row.Cell(pair.Value.DeadLetter.ToString());
+                    row.Cell(pair.Value.Handled.ToString());
                 });
             }
         }
@@ -91,9 +93,10 @@ public static class WolverineAdminApiExtensions
             table.AddBodyRow(row =>
             {
                 row.Cell(counts.Incoming.ToString());
-                row.Cell(counts.Scheduled.ToString());
-                row.Cell(counts.Handled.ToString());
                 row.Cell(counts.Outgoing.ToString());
+                row.Cell(counts.Scheduled.ToString());
+                row.Cell(counts.DeadLetter.ToString());
+                row.Cell(counts.Handled.ToString());
             });
         }
 
