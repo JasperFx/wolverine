@@ -425,6 +425,10 @@ public partial class Envelope : IHasTenantId
     /// <returns></returns>
     public bool IsScheduledForLater(DateTimeOffset utcNow)
     {
+        // Doesn't matter, if it's been scheduled and persisted, it has 
+        // to be scheduled
+        if (Status == EnvelopeStatus.Scheduled) return true;
+        
         return ScheduledTime.HasValue && ScheduledTime.Value > utcNow;
     }
 
