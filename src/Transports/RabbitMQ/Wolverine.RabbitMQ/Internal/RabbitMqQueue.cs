@@ -43,7 +43,7 @@ public partial class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQu
 
         if (QueueName != _parent.DeadLetterQueue.QueueName)
         {
-            DeadLetterQueue = _parent.DeadLetterQueue;
+            DeadLetterQueue = _parent.DeadLetterQueue.Clone();
         }
     }
 

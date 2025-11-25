@@ -2,6 +2,9 @@ using JasperFx.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using JasperFx.Resources;
+using RabbitMQ.Client;
+using Microsoft.Extensions.Logging.Abstractions;
+using NSubstitute;
 using Shouldly;
 using Wolverine.RabbitMQ.Internal;
 using Wolverine.Runtime;
@@ -144,6 +147,120 @@ public class native_dead_letter_queue_mechanics : IDisposable
         }
 
         throw new Exception("Never got a message in the dead letter queue");
+    }
+
+    [Fact]
+    public async Task uses_overridden_dead_letter_exchange_per_queue_when_transport_has_custom_default()
+    {
+        var queueName = "queue-alpha";
+        var defaultDeadLetterQueueName = "default-dlq";
+        var defaultDeadLetterExchangeName = "dlx-exchange";
+        var overriddenDeadLetterQueueName = "queue-alpha-dlx";
+
+        var options = new WolverineOptions();
+        options.UseRabbitMq()
+            .CustomizeDeadLetterQueueing(new DeadLetterQueue(defaultDeadLetterQueueName)
+            {
+                ExchangeName = defaultDeadLetterExchangeName
+            });
+
+        options.ListenToRabbitQueue(queueName, q => q.QueueType = QueueType.quorum)
+            .DeadLetterQueueing(new DeadLetterQueue(overriddenDeadLetterQueueName));
+
+        var runtime = Substitute.For<IWolverineRuntime>();
+        runtime.Options.Returns(options);
+
+        var transport = options.RabbitMqTransport();
+        var queue = transport.Queues[transport.MaybeCorrectName(queueName)];
+
+        queue.Compile(runtime);
+
+        var channel = Substitute.For<IChannel>();
+        channel.QueueDeclareAsync(Arg.Any<string>(), Arg.Any<bool>(), Arg.Any<bool>(), Arg.Any<bool>(),
+                Arg.Any<IDictionary<string, object>>())
+            .Returns(Task.FromResult(new QueueDeclareOk(queue.QueueName, 0, 0)));
+
+        await queue.DeclareAsync(channel, NullLogger.Instance);
+
+        queue.Arguments[RabbitMqTransport.DeadLetterQueueHeader]
+            .ShouldBe(overriddenDeadLetterQueueName);
+    }
+
+    [Fact]
+    public void keeps_per_queue_dead_letter_exchange_when_transport_has_custom_default()
+    {
+        var queueName = "queue-beta";
+        var defaultDeadLetterQueueName = "default-dlq";
+        var defaultDeadLetterExchangeName = "dlx-exchange";
+        var overriddenDeadLetterQueueName = "queue-beta-dlx";
+        var overriddenDeadLetterExchangeName = "queue-beta-dlx-exchange";
+
+        var options = new WolverineOptions();
+        var transportExpression = options.UseRabbitMq()
+            .CustomizeDeadLetterQueueing(new DeadLetterQueue(defaultDeadLetterQueueName)
+            {
+                ExchangeName = defaultDeadLetterExchangeName
+            });
+        var transport = transportExpression.Transport;
+
+        options.ListenToRabbitQueue(queueName)
+            .DeadLetterQueueing(new DeadLetterQueue(overriddenDeadLetterQueueName)
+        {
+            ExchangeName = overriddenDeadLetterExchangeName
+        });
+
+        var queue = transport.Queues[transport.MaybeCorrectName(queueName)];
+
+        var runtime = Substitute.For<IWolverineRuntime>();
+        runtime.Options.Returns(options);
+
+        queue.Compile(runtime);
+
+        queue.DeadLetterQueue!.ExchangeName.ShouldBe(overriddenDeadLetterExchangeName);
+        transport.DeadLetterQueue.ExchangeName.ShouldBe(defaultDeadLetterExchangeName);
+    }
+
+    [Fact]
+    public async Task default_and_override_queues_keep_their_own_dlx_exchange_on_declare()
+    {
+        var defaultExchange = "default-dlx-exchange";
+        var defaultQueue = "queue-default";
+        var overrideQueue = "queue-override";
+        var overrideExchange = "override-dlx-exchange";
+
+        var options = new WolverineOptions();
+        var transport = options.UseRabbitMq()
+            .CustomizeDeadLetterQueueing(new DeadLetterQueue("default-dlq")
+            {
+                ExchangeName = defaultExchange
+            }).Transport;
+
+        options.ListenToRabbitQueue(defaultQueue);
+        options.ListenToRabbitQueue(overrideQueue)
+            .DeadLetterQueueing(new DeadLetterQueue(overrideQueue + "-dlq")
+            {
+                ExchangeName = overrideExchange
+            });
+
+        var runtime = Substitute.For<IWolverineRuntime>();
+        runtime.Options.Returns(options);
+
+        var defaultEndpoint = transport.Queues[transport.MaybeCorrectName(defaultQueue)];
+        var overrideEndpoint = transport.Queues[transport.MaybeCorrectName(overrideQueue)];
+
+        defaultEndpoint.Compile(runtime);
+        overrideEndpoint.Compile(runtime);
+
+        var channel = Substitute.For<IChannel>();
+        channel.QueueDeclareAsync(Arg.Any<string>(), Arg.Any<bool>(), Arg.Any<bool>(), Arg.Any<bool>(),
+                Arg.Any<IDictionary<string, object>>())
+            .Returns(Task.FromResult(new QueueDeclareOk(defaultQueue, 0, 0)));
+
+        await defaultEndpoint.DeclareAsync(channel, NullLogger.Instance);
+        await overrideEndpoint.DeclareAsync(channel, NullLogger.Instance);
+
+        defaultEndpoint.Arguments[RabbitMqTransport.DeadLetterQueueHeader].ShouldBe(defaultExchange);
+        overrideEndpoint.Arguments[RabbitMqTransport.DeadLetterQueueHeader].ShouldBe(overrideExchange);
     }
 
     [Fact]
