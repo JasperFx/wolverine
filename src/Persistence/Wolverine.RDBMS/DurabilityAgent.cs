@@ -179,6 +179,11 @@ internal class DurabilityAgent : IAgent
             ops.Add(new BumpStaleOutgoingEnvelopesOperation(new DbObjectName(_database.SchemaName, DatabaseConstants.OutgoingTable), _runtime.Options.Durability, DateTimeOffset.UtcNow));
         }
 
+        if (_runtime.Options.Durability.InboxStaleTime.HasValue)
+        {
+            ops.Add(new BumpStaleIncomingEnvelopesOperation(new DbObjectName(_database.SchemaName, DatabaseConstants.IncomingTable), _runtime.Options.Durability, DateTimeOffset.UtcNow));
+        }
+
         return ops.ToArray();
     }
 
