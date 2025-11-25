@@ -142,7 +142,7 @@ using var host = await Host.CreateDefaultBuilder()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L53-L63' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_make_all_subscribers_be_durable' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-### Bumping out Stale Outbox Messages <Badge type="tip" text="5.2" />
+### Bumping out Stale Inbox/Outbox Messages <Badge type="tip" text="5.2" />
 
 It should *not* be possible for there to be any path where a message gets "stuck" in the outbox tables without eventually
 being sent by the originating node or recovered by a different node if the original node goes down first. However, it's 
@@ -151,12 +151,12 @@ you can "bump" a persisted record in the `wolverine_outgoing_envelopes` to be re
 setting the `owner_id` field to zero.
 
 ::: info
-Just be aware that opting into the `OutboxStaleTime` threshold will require database changes through Wolverine's database
+Just be aware that opting into the `OutboxStaleTime` or `InboxStaleTime` threshold will require database changes through Wolverine's database
 migration subsystem
 :::
 
 You also have this setting to force Wolverine to automatically "bump" and older messages that seem to be stalled in
-the outbox table:
+the outbox table or the inbox table:
 
 <!-- snippet: sample_configuring_outbox_stale_timeout -->
 <a id='snippet-sample_configuring_outbox_stale_timeout'></a>
