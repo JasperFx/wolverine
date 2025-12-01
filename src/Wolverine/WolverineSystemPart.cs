@@ -67,14 +67,14 @@ internal class WolverineSystemPart : SystemPartBase
             {
                 foreach (var route in routes.OfType<MessageRoute>())
                 {
-                    table.AddRow(messageType.FullNameInCode(), messageType.ToMessageTypeName(), route.Uri.ToString(),
-                        route.Serializer?.ContentType ?? "application/json");
+                    table.AddRow(messageType.FullNameInCode().EscapeMarkup(), messageType.ToMessageTypeName().EscapeMarkup(), route.Uri.ToString().EscapeMarkup(),
+                        route.Serializer?.ContentType.EscapeMarkup() ?? "application/json");
                 }
             }
             else
             {
-                table.AddRow(messageType.FullNameInCode(), messageType.ToMessageTypeName(), "No Routes",
-                    "n/a");
+                table.AddRow(messageType.FullNameInCode().EscapeMarkup(), messageType.ToMessageTypeName().EscapeMarkup(), "No Routes",
+                    "n/a".EscapeMarkup());
             }
             
 
