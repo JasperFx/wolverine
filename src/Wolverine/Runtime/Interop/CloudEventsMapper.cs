@@ -76,7 +76,7 @@ internal class CloudEventsEnvelope
     public string TraceParent { get; set; }
 }
 
-public class CloudEventsMapper : IMessageSerializer
+public class CloudEventsMapper : IUnwrapsMetadataMessageSerializer
 {
     private readonly HandlerGraph _handlers;
     private readonly JsonSerializerOptions _options;
@@ -186,6 +186,12 @@ public class CloudEventsMapper : IMessageSerializer
         MapIncoming(envelope, node);
 
         return envelope.Message;
+    }
+
+    public void Unwrap(Envelope envelope)
+    {
+        var node = JsonNode.Parse(envelope.Data);
+        MapIncoming(envelope, node);
     }
 
     public object ReadFromData(byte[] data)

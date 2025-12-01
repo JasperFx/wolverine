@@ -5,6 +5,7 @@ using Wolverine.Configuration;
 using Wolverine.Logging;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime.Partitioning;
+using Wolverine.Runtime.Serialization;
 using Wolverine.Transports;
 using Wolverine.Transports.Sending;
 
@@ -360,6 +361,11 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
         {
             try
             {
+                if (envelope.MessageType.IsEmpty() && envelope.Serializer is IUnwrapsMetadataMessageSerializer serializer)
+                {
+                    serializer.Unwrap(envelope);
+                }
+                
                 envelope.OwnerId = _settings.AssignedNodeNumber;
                 await _inbox.StoreIncomingAsync(envelope);
                 envelope.WasPersistedInInbox = true;
