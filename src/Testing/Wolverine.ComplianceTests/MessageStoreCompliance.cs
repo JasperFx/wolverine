@@ -105,6 +105,28 @@ public abstract class MessageStoreCompliance : IAsyncLifetime
 
         stored.SentAt.ShouldBe(envelope.SentAt);
     }
+    
+    [Fact]
+    public async Task store_a_single_incoming_envelope_that_is_handled()
+    {
+        // This is for cases where you're only persisting the record for idempotency checks
+        
+        var envelope = ObjectMother.Envelope();
+        envelope.Status = EnvelopeStatus.Handled;
+        envelope.SentAt = ((DateTimeOffset)DateTime.Today).ToUniversalTime();
+
+        await thePersistence.Inbox.StoreIncomingAsync(envelope);
+
+        var stored = (await thePersistence.Admin.AllIncomingAsync()).Single();
+        
+        // This is the important part
+        stored.Data.Length.ShouldBe(0);
+        stored.Destination.ShouldBe(envelope.Destination);
+
+        stored.Id.ShouldBe(envelope.Id);
+        stored.OwnerId.ShouldBe(envelope.OwnerId);
+        stored.Status.ShouldBe(envelope.Status);
+    }
 
     [Fact]
     public async Task store_a_single_incoming_envelope_that_is_a_duplicate()
