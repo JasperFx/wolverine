@@ -471,4 +471,10 @@ public partial class Envelope : IHasTenantId
             MessageType = original.MessageType,
         };
     }
+    
+    /// <summary>
+    /// Marks the time stamp for how long this envelope should be retained as
+    /// "Handled" in the inbox for idempotency protections
+    /// </summary>
+    public DateTimeOffset? KeepUntil { get; set; }
 }
