@@ -17,6 +17,16 @@ public interface IMessageSerializer
 }
 
 /// <summary>
+/// Marker interface that lets Wolverine know that the message serializer
+/// may also unwrap metadata on the Envelope. For protocols like CloudEvents
+/// that smuggle message metadata through the transport's message body
+/// </summary>
+public interface IUnwrapsMetadataMessageSerializer : IMessageSerializer
+{
+    void Unwrap(Envelope envelope);
+}
+
+/// <summary>
 ///  Async version of <seealso cref="IMessageSerializer"/>
 /// </summary>
 public interface IAsyncMessageSerializer : IMessageSerializer
