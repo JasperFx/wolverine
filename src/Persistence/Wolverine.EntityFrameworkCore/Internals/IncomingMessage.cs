@@ -15,10 +15,13 @@ public class IncomingMessage
         OwnerId = envelope.OwnerId;
         ExecutionTime = envelope.ScheduledTime?.ToUniversalTime();
         Attempts = envelope.Attempts;
-        Body = EnvelopeSerializer.Serialize(envelope);
+        Body = envelope.Status == EnvelopeStatus.Handled ? [] : EnvelopeSerializer.Serialize(envelope);
         MessageType = envelope.MessageType!;
         ReceivedAt = envelope.Destination?.ToString();
+        KeepUntil = envelope.KeepUntil;
     }
+
+    public DateTimeOffset? KeepUntil { get; set; }
 
     public Guid Id { get; set; }
     public string Status { get; set; } = EnvelopeStatus.Incoming.ToString();

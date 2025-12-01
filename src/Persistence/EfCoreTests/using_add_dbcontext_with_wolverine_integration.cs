@@ -16,6 +16,7 @@ using Wolverine.ComplianceTests;
 using Wolverine.EntityFrameworkCore;
 using Wolverine.EntityFrameworkCore.Internals;
 using Wolverine.Persistence;
+using Wolverine.RDBMS;
 using Wolverine.Runtime;
 using Wolverine.SqlServer;
 using Wolverine.Tracking;
@@ -78,14 +79,23 @@ public class using_add_dbcontext_with_wolverine_integration : IAsyncLifetime
 
         await dbContext.Database.CurrentTransaction!.CommitAsync();
 
-        var all = await runtime.Storage.Admin.AllIncomingAsync();
-        
         var persisted = (await runtime.Storage.Admin.AllIncomingAsync()).Single(x => x.Id == envelope.Id);
         persisted.Data.Length.ShouldBe(0);
         persisted.Destination.ShouldBe(envelope.Destination);
         persisted.MessageType.ShouldBe(envelope.MessageType);
         persisted.Status.ShouldBe(EnvelopeStatus.Handled);
-        
+        persisted.KeepUntil.HasValue.ShouldBeTrue();
+
+        using var conn = new SqlConnection(Servers.SqlServerConnectionString);
+        await conn.OpenAsync();
+
+        var raw = await conn
+            .CreateCommand($"select keep_until from idempotency.{DatabaseConstants.IncomingTable} where id = @id")
+            .With("id", persisted.Id)
+            .ExecuteScalarAsync();
+
+        raw.ShouldNotBeNull();
+        raw.ShouldBeOfType<DateTimeOffset>().ShouldBeGreaterThan(DateTimeOffset.UtcNow);
     }
     
     [Fact]

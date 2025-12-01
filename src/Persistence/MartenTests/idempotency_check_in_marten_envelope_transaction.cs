@@ -61,6 +61,7 @@ public class idempotency_check_in_marten_envelope_transaction : IAsyncLifetime
         persisted.Destination.ShouldBe(envelope.Destination);
         persisted.MessageType.ShouldBe(envelope.MessageType);
         persisted.Status.ShouldBe(EnvelopeStatus.Handled);
+        persisted.KeepUntil.HasValue.ShouldBeTrue();
         
     }
     
