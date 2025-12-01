@@ -79,7 +79,8 @@ public static class DatabasePersistence
             builder.AddParameter(envelope.ScheduledTime),
             builder.AddParameter(envelope.Attempts),
             builder.AddParameter(envelope.MessageType),
-            builder.AddParameter(envelope.Destination?.ToString())
+            builder.AddParameter(envelope.Destination?.ToString()),
+            builder.AddParameter(envelope.KeepUntil)
         };
 
         var parameterList = list.Select(x => $"@{x.ParameterName}").Join(", ");
@@ -106,6 +107,11 @@ public static class DatabasePersistence
         }
 
         envelope.Attempts = await reader.GetFieldValueAsync<int>(5, cancellation);
+
+        if (!await reader.IsDBNullAsync(8, cancellation))
+        {
+            envelope.KeepUntil = await reader.GetFieldValueAsync<DateTimeOffset>(8, cancellation);
+        }
 
         return envelope;
     }

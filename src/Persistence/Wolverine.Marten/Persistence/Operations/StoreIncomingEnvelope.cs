@@ -39,6 +39,8 @@ internal class StoreIncomingEnvelope : IStorageOperation, NoDataReturnedCall
         builder.AppendParameter(Envelope.MessageType);
         builder.Append(',');
         builder.AppendParameter(Envelope.Destination?.ToString());
+        builder.Append(',');
+        builder.AppendParameter(Envelope.KeepUntil.HasValue ? Envelope.KeepUntil.Value : DBNull.Value);
         builder.Append(");");
     }
 
