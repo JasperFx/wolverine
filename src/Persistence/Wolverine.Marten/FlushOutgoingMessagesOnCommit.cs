@@ -35,7 +35,7 @@ internal class FlushOutgoingMessagesOnCommit : DocumentSessionListenerBase
             }
             else
             {
-                var envelope = Envelope.ForPersistedHandled(_context.Envelope);
+                var envelope = Envelope.ForPersistedHandled(_context.Envelope, DateTimeOffset.UtcNow, _context.Runtime.Options.Durability);
                 session.QueueOperation(new StoreIncomingEnvelope(_messageStore.IncomingFullName, envelope));
             }
             

@@ -39,7 +39,7 @@ public class eager_idempotency_with_non_wolverine_mapped_db_context : IClassFixt
         
         var transaction = new EfCoreEnvelopeTransaction(dbContext, context);
 
-        var ok = await transaction.TryMakeEagerIdempotencyCheckAsync(envelope, CancellationToken.None);
+        var ok = await transaction.TryMakeEagerIdempotencyCheckAsync(envelope, new DurabilitySettings(), CancellationToken.None);
         ok.ShouldBeTrue();
 
         await dbContext.Database.CurrentTransaction!.CommitAsync();
@@ -66,14 +66,15 @@ public class eager_idempotency_with_non_wolverine_mapped_db_context : IClassFixt
         
         var transaction = new EfCoreEnvelopeTransaction(dbContext, context);
 
-        var ok = await transaction.TryMakeEagerIdempotencyCheckAsync(envelope, CancellationToken.None);
+        var durabilitySettings = new DurabilitySettings();
+        var ok = await transaction.TryMakeEagerIdempotencyCheckAsync(envelope, durabilitySettings, CancellationToken.None);
         ok.ShouldBeTrue();
         await dbContext.Database.CurrentTransaction!.CommitAsync();
         
         // Kind of resetting it here
         envelope.WasPersistedInInbox = false;
         
-        var secondTime = await transaction.TryMakeEagerIdempotencyCheckAsync(envelope, CancellationToken.None);
+        var secondTime = await transaction.TryMakeEagerIdempotencyCheckAsync(envelope, durabilitySettings, CancellationToken.None);
         secondTime.ShouldBeFalse();
 
         

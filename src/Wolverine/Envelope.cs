@@ -458,7 +458,7 @@ public partial class Envelope : IHasTenantId
     /// </summary>
     internal IMessageStore? Store { get; set; }
 
-    public static Envelope ForPersistedHandled(Envelope original)
+    public static Envelope ForPersistedHandled(Envelope original, DateTimeOffset now, DurabilitySettings settings)
     {
         return new Envelope
         {
@@ -467,8 +467,8 @@ public partial class Envelope : IHasTenantId
             OwnerId = 0,
             Status = EnvelopeStatus.Handled,
             Destination = original.Destination,
-            ScheduledTime = DateTimeOffset.UtcNow,
             MessageType = original.MessageType,
+            KeepUntil = now.Add(settings.KeepAfterMessageHandling)
         };
     }
     

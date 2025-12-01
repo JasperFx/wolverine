@@ -73,7 +73,7 @@ public class using_add_dbcontext_with_wolverine_integration : IAsyncLifetime
         
         var transaction = new EfCoreEnvelopeTransaction(dbContext, context);
 
-        var ok = await transaction.TryMakeEagerIdempotencyCheckAsync(envelope, CancellationToken.None);
+        var ok = await transaction.TryMakeEagerIdempotencyCheckAsync(envelope, new DurabilitySettings(), CancellationToken.None);
         ok.ShouldBeTrue();
 
         await dbContext.Database.CurrentTransaction!.CommitAsync();
@@ -102,14 +102,15 @@ public class using_add_dbcontext_with_wolverine_integration : IAsyncLifetime
         
         var transaction = new EfCoreEnvelopeTransaction(dbContext, context);
 
-        var ok = await transaction.TryMakeEagerIdempotencyCheckAsync(envelope, CancellationToken.None);
+        var durabilitySettings = new DurabilitySettings();
+        var ok = await transaction.TryMakeEagerIdempotencyCheckAsync(envelope, durabilitySettings, CancellationToken.None);
         ok.ShouldBeTrue();
         await dbContext.Database.CurrentTransaction!.CommitAsync();
         
         // Kind of resetting it here
         envelope.WasPersistedInInbox = false;
         
-        var secondTime = await transaction.TryMakeEagerIdempotencyCheckAsync(envelope, CancellationToken.None);
+        var secondTime = await transaction.TryMakeEagerIdempotencyCheckAsync(envelope, durabilitySettings, CancellationToken.None);
         secondTime.ShouldBeFalse();
 
         

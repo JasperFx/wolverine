@@ -48,7 +48,8 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         TenantId = runtime.Options.Durability.TenantIdStyle.MaybeCorrectTenantId(tenantId);
     }
 
-    Task<bool> IEnvelopeTransaction.TryMakeEagerIdempotencyCheckAsync(Envelope envelope, CancellationToken cancellation)
+    Task<bool> IEnvelopeTransaction.TryMakeEagerIdempotencyCheckAsync(Envelope envelope,
+        DurabilitySettings settings, CancellationToken cancellation)
     {
         return Task.FromResult(true);
     }
@@ -81,7 +82,7 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         if (Envelope == null || Envelope.WasPersistedInInbox ) return;
         if (Transaction == null) return;
 
-        var check = await Transaction.TryMakeEagerIdempotencyCheckAsync(Envelope, cancellation);
+        var check = await Transaction.TryMakeEagerIdempotencyCheckAsync(Envelope, Runtime.Options.Durability, cancellation);
         if (!check)
         {
             throw new DuplicateIncomingEnvelopeException(Envelope);

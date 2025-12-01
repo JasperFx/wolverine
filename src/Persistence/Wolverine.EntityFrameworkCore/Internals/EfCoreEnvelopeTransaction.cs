@@ -17,7 +17,7 @@ public class EfCoreEnvelopeTransaction : IEnvelopeTransaction
 {
     private readonly MessageContext _messaging;
     private readonly IMessageDatabase _database;
-    
+
     public EfCoreEnvelopeTransaction(DbContext dbContext, MessageContext messaging)
     {
         _messaging = messaging;
@@ -125,7 +125,8 @@ public class EfCoreEnvelopeTransaction : IEnvelopeTransaction
         return ValueTask.CompletedTask;
     }
 
-    public async Task<bool> TryMakeEagerIdempotencyCheckAsync(Envelope envelope, CancellationToken cancellation)
+    public async Task<bool> TryMakeEagerIdempotencyCheckAsync(Envelope envelope, DurabilitySettings settings,
+        CancellationToken cancellation)
     {
         if (envelope.WasPersistedInInbox) return true;
         
@@ -136,7 +137,7 @@ public class EfCoreEnvelopeTransaction : IEnvelopeTransaction
 
         try
         {
-            var copy = Envelope.ForPersistedHandled(envelope);
+            var copy = Envelope.ForPersistedHandled(envelope, DateTimeOffset.UtcNow, settings);
             await PersistIncomingAsync(copy);
             
             // Gotta flush the call to the database!
@@ -181,7 +182,7 @@ public class EfCoreEnvelopeTransaction : IEnvelopeTransaction
             // handled messages for the sake of idempotency
             else
             {
-                var envelope = Envelope.ForPersistedHandled(_messaging.Envelope);
+                var envelope = Envelope.ForPersistedHandled(_messaging.Envelope, DateTimeOffset.UtcNow, _messaging.Runtime.Options.Durability);
                 await PersistIncomingAsync(envelope);
             }
             
