@@ -569,4 +569,56 @@ public class EnvelopeTests
             theScheduledEnvelope.ContentType.ShouldBe(TransportConstants.SerializedEnvelope);
         }
     }
+
+    public class when_building_an_envelope_for_persisted_handled
+    {
+        private readonly Envelope theOriginal;
+        private readonly DateTimeOffset now;
+        private readonly DurabilitySettings theSettings;
+        private readonly Envelope theHandledEnvelope;
+
+        public when_building_an_envelope_for_persisted_handled()
+        {
+            theOriginal = ObjectMother.Envelope();
+            theOriginal.Status = EnvelopeStatus.Incoming;
+            
+            now = DateTime.Today.ToUniversalTime();
+            theSettings = new DurabilitySettings
+            {
+                KeepAfterMessageHandling = 5.Minutes()
+            };
+
+            theHandledEnvelope = Envelope.ForPersistedHandled(theOriginal, now, theSettings);
+        }
+
+        [Fact]
+        public void status_should_be_handled()
+        {
+            theHandledEnvelope.Status.ShouldBe(EnvelopeStatus.Handled);
+        }
+
+        [Fact]
+        public void keep_until_should_be_set()
+        {
+            theHandledEnvelope.KeepUntil.Value.ShouldBe(now.AddMinutes(5));
+        }
+
+        [Fact]
+        public void owner_is_any_node()
+        {
+            theHandledEnvelope.OwnerId.ShouldBe(0);
+        }
+
+        [Fact]
+        public void destination()
+        {
+            theHandledEnvelope.Destination.ShouldBe(theOriginal.Destination);
+        }
+
+        [Fact]
+        public void message_type()
+        {
+            theHandledEnvelope.MessageType.ShouldBe(theOriginal.MessageType);
+        }
+    }
 }

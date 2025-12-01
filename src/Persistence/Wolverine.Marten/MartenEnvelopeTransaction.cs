@@ -63,7 +63,8 @@ internal class MartenEnvelopeTransaction : IEnvelopeTransaction
         return ValueTask.CompletedTask;
     }
     
-    public async Task<bool> TryMakeEagerIdempotencyCheckAsync(Envelope envelope, CancellationToken cancellation)
+    public async Task<bool> TryMakeEagerIdempotencyCheckAsync(Envelope envelope, DurabilitySettings settings,
+        CancellationToken cancellation)
     {
         if (envelope.WasPersistedInInbox) return true;
 
@@ -71,7 +72,7 @@ internal class MartenEnvelopeTransaction : IEnvelopeTransaction
         {
             // Might need to reset!
             _context.MultiFlushMode = MultiFlushMode.AllowMultiples;
-            var copy = Envelope.ForPersistedHandled(envelope);
+            var copy = Envelope.ForPersistedHandled(envelope, DateTimeOffset.UtcNow, settings);
             await PersistIncomingAsync(copy);
             await Session.SaveChangesAsync(cancellation);
             

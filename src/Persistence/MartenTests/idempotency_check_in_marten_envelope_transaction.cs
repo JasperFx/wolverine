@@ -53,7 +53,7 @@ public class idempotency_check_in_marten_envelope_transaction : IAsyncLifetime
         using var session = _host.DocumentStore().LightweightSession();
         var transaction = new MartenEnvelopeTransaction(session, context);
 
-        var ok = await transaction.TryMakeEagerIdempotencyCheckAsync(envelope, CancellationToken.None);
+        var ok = await transaction.TryMakeEagerIdempotencyCheckAsync(envelope, new DurabilitySettings(), CancellationToken.None);
         ok.ShouldBeTrue();
 
         var persisted = (await runtime.Storage.Admin.AllIncomingAsync()).Single(x => x.Id == envelope.Id);
@@ -77,16 +77,14 @@ public class idempotency_check_in_marten_envelope_transaction : IAsyncLifetime
         using var session = _host.DocumentStore().LightweightSession();
         var transaction = new MartenEnvelopeTransaction(session, context);
 
-        var ok = await transaction.TryMakeEagerIdempotencyCheckAsync(envelope, CancellationToken.None);
+        var ok = await transaction.TryMakeEagerIdempotencyCheckAsync(envelope, new DurabilitySettings(), CancellationToken.None);
         ok.ShouldBeTrue();
 
         // Kind of resetting it here
         envelope.WasPersistedInInbox = false;
         
-        var secondTime = await transaction.TryMakeEagerIdempotencyCheckAsync(envelope, CancellationToken.None);
+        var secondTime = await transaction.TryMakeEagerIdempotencyCheckAsync(envelope, new DurabilitySettings(), CancellationToken.None);
         secondTime.ShouldBeFalse();
-
-        
     }
 }
 
