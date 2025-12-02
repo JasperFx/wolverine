@@ -39,7 +39,7 @@ public class persisting_envelopes_with_sqlserver : IAsyncLifetime
         theIncomingEnvelope = new Envelope
         {
             Id = Guid.NewGuid(),
-            Status = EnvelopeStatus.Handled,
+            Status = EnvelopeStatus.Incoming,
             OwnerId = 5,
             ScheduledTime = new DateTimeOffset(DateTime.Today.AddHours(5)),
             Attempts = 2,
@@ -61,7 +61,7 @@ public class persisting_envelopes_with_sqlserver : IAsyncLifetime
         theOutgoingEnvelope = new Envelope
         {
             Id = Guid.NewGuid(),
-            Status = EnvelopeStatus.Handled,
+            Status = EnvelopeStatus.Outgoing,
             OwnerId = 5,
             ScheduledTime = new DateTimeOffset(DateTime.Today.AddHours(5)),
             Attempts = 2,
