@@ -32,6 +32,8 @@ public class eager_idempotency_with_non_wolverine_mapped_db_context : IClassFixt
         [Fact]
     public async Task happy_path_eager_idempotency()
     {
+        await Host.RebuildAllEnvelopeStorageAsync();
+        
         var runtime = Host.GetRuntime();
         var envelope = ObjectMother.Envelope();
 
@@ -59,7 +61,7 @@ public class eager_idempotency_with_non_wolverine_mapped_db_context : IClassFixt
         await conn.OpenAsync();
         
         var raw = await conn
-            .CreateCommand($"select keep_until from idempotency.{DatabaseConstants.IncomingTable} where id = @id")
+            .CreateCommand($"select keep_until from dbo.{DatabaseConstants.IncomingTable} where id = @id")
             .With("id", persisted.Id)
             .ExecuteScalarAsync();
 
