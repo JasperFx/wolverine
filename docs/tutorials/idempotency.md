@@ -82,6 +82,12 @@ For `Buffered` or `Inline` endpoints, Wolverine is **only** storing metadata abo
 or `Envelope`. It's just enough information to feed the idempotency checks and to satisfy expected database data constraints.
 :::
 
+::: warning
+As of 5.4.1, **every** usage of explicit idempotency outside of durable listeners will
+use `Eager` checking regardless of the configuration. The `Optimistic` mode has thus far
+proven to be too buggy to be useful.
+:::
+
 Idempotency checking within message handlers executing within `Buffered` or more likely `Inline` listeners will require
 you to "opt in." First though, the idempotency check in this case can be done in one of two modes:
 
