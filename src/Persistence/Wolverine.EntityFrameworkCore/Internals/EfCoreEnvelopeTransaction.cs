@@ -170,10 +170,13 @@ public class EfCoreEnvelopeTransaction : IEnvelopeTransaction
             
             // Are we marking an existing envelope as persisted?
             if (_messaging.Envelope.WasPersistedInInbox)
-            { 
+            {
+                var keepUntil =
+                    DateTimeOffset.UtcNow.Add(_messaging.Runtime.Options.Durability.KeepAfterMessageHandling);
                 var cmd = conn.CreateCommand(
-                        $"update {_database.SchemaName}.{DatabaseConstants.IncomingTable} set {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}' where id = @id")
-                    .With("id", _messaging.Envelope.Id);
+                        $"update {_database.SchemaName}.{DatabaseConstants.IncomingTable} set {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}', {DatabaseConstants.KeepUntil} = @keep where id = @id")
+                    .With("id", _messaging.Envelope.Id)
+                    .With("keep", keepUntil);
                 cmd.Transaction = tx;
                 await cmd.ExecuteNonQueryAsync(cancellation);
             }

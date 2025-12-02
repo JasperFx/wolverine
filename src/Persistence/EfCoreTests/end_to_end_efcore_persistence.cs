@@ -99,6 +99,7 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
         var persisted = fromStore.Single(x => x.Id == envelope.Id);
         persisted.Status.ShouldBe(EnvelopeStatus.Handled);
 
+        persisted.KeepUntil.HasValue.ShouldBeTrue();
     }
 
     private async Task<Item> loadItem(Guid id)
