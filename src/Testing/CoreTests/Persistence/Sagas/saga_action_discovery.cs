@@ -1,4 +1,7 @@
-﻿using Wolverine.ComplianceTests.Compliance;
+﻿using JasperFx.CodeGeneration;
+using JasperFx.Core.Reflection;
+using Wolverine.Attributes;
+using Wolverine.ComplianceTests.Compliance;
 using Wolverine.Runtime.Handlers;
 using Xunit;
 using Xunit.Abstractions;
@@ -31,6 +34,33 @@ public class saga_action_discovery : IntegrationContext
     public void finds_actions_on_saga_state_handler_classes()
     {
         chainFor<SagaMessage2>().ShouldNotBeNull();
+    }
+
+    [Fact]
+    public void automatic_audit_of_saga_message_saga_id()
+    {
+        // Force it to compile
+        var handler = Handlers.HandlerFor<SagaMessage2>();
+        
+        var handlerChain = chainFor<SagaMessage2>();
+        handlerChain.SourceCode.ShouldContain("System.Diagnostics.Activity.Current?.SetTag(\"Id\", sagaMessage2.Id);");
+        
+        handlerChain.AuditedMembers.Single().MemberName
+            .ShouldBe(nameof(SagaMessage2.Id));
+    }
+    
+    [Fact]
+    public void automatic_audit_of_saga_message_saga_id_with_override()
+    {
+        // Force it to compile
+        var handler = Handlers.HandlerFor<SagaMessage1>();
+        
+        var handlerChain = chainFor<SagaMessage1>();
+        handlerChain.SourceCode.ShouldContain("System.Diagnostics.Activity.Current?.SetTag(\"id\", sagaMessage1.Id);");
+        
+        handlerChain.AuditedMembers.Single().MemberName
+            .ShouldBe("StreamId");
+
     }
 
     [Fact]
@@ -78,6 +108,10 @@ public class MySagaStateGuy : Saga
 
 public class SagaStarter : Message3;
 
-public class SagaMessage1 : Message1;
+public class SagaMessage1
+{
+    [Audit("StreamId")]
+    public Guid Id { get; set; } = Guid.NewGuid();
+}
 
 public class SagaMessage2 : Message2;

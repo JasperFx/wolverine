@@ -42,6 +42,9 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
 
     public abstract string Description { get; }
     public List<AuditedMember> AuditedMembers { get; } = [];
+
+    public abstract bool TryInferMessageIdentity(out PropertyInfo? property);
+
     public abstract bool ShouldFlushOutgoingMessages();
     public abstract bool RequiresOutbox();
 

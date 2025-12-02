@@ -133,11 +133,26 @@ public class WriteAggregateAttribute : WolverineParameterAttribute, IDataRequire
         return null;
     }
 
-    public bool TryInferMessageIdentity(HandlerChain chain, out PropertyInfo property)
+    public bool TryInferMessageIdentity(IChain chain, out PropertyInfo property)
     {
-        var aggregateType = AggregateHandling.DetermineAggregateType(chain);
-        var idMember = AggregateHandling.DetermineAggregateIdMember(aggregateType, chain.MessageType);
-        property = idMember as PropertyInfo;
-        return property != null;
+        var inputType = chain.InputType();
+        if (inputType == null)
+        {
+            property = default;
+            return false;
+        }
+
+        // NOT PROUD OF THIS CODE!
+        if (AggregateHandling.TryLoad(chain, out var handling))
+        {
+            if (handling.AggregateId is MemberAccessVariable mav)
+            {
+                property = mav.Member as PropertyInfo;
+                return property != null;
+            }
+        }
+
+        property = null;
+        return false;
     }
 }

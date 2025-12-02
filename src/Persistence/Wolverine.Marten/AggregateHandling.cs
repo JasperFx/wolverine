@@ -128,7 +128,7 @@ internal record AggregateHandling(IDataRequirement Requirement)
             }
         }
     }
-
+    
     internal static MemberInfo DetermineAggregateIdMember(Type aggregateType, Type commandType)
     {
         var conventionalMemberName = $"{aggregateType.Name}Id";
