@@ -1,5 +1,6 @@
 using JasperFx.Blocks;
 using JasperFx.Core;
+using MassTransit;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
 using Wolverine.Logging;
@@ -366,26 +367,26 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
                     serializer.Unwrap(envelope);
                 }
                 
+                // Have to do this before moving to the DLQ
+                if (envelope.Id == Guid.Empty)
+                {
+                    envelope.Id = NewId.NextSequentialGuid();
+                }
+
+                if (envelope.MessageType.IsEmpty())
+                {
+                    _logger.LogInformation("Empty or missing message type name for Envelope {Id} received at durable {Destination}. Moving to dead letter queue", envelope.Id, envelope.Destination);
+                    await _moveToErrors.PostAsync(envelope);
+                    return;
+                }
+
                 envelope.OwnerId = _settings.AssignedNodeNumber;
                 await _inbox.StoreIncomingAsync(envelope);
                 envelope.WasPersistedInInbox = true;
             }
             catch (DuplicateIncomingEnvelopeException e)
             {
-                _logger.LogError(e, "Duplicate incoming envelope detected");
-
-                if (envelope.Listener != null)
-                {
-                    try
-                    {
-                        await envelope.Listener.CompleteAsync(envelope);
-                    }
-                    catch (Exception exception)
-                    {
-                        _logger.LogError(exception, "Error trying to complete duplicated message {Id} from {Uri}",
-                            envelope.Id, Uri);
-                    }
-                }
+                await handleDuplicateIncomingEnvelope(envelope, e);
 
                 return;
             }
@@ -401,6 +402,24 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
         if (envelope.Listener != null)
         {
             await _completeBlock.PostAsync(envelope);
+        }
+    }
+
+    private async Task handleDuplicateIncomingEnvelope(Envelope envelope, DuplicateIncomingEnvelopeException e)
+    {
+        _logger.LogError(e, "Duplicate incoming envelope detected");
+
+        if (envelope.Listener != null)
+        {
+            try
+            {
+                await envelope.Listener.CompleteAsync(envelope);
+            }
+            catch (Exception exception)
+            {
+                _logger.LogError(exception, "Error trying to complete duplicated message {Id} from {Uri}",
+                    envelope.Id, Uri);
+            }
         }
     }
 

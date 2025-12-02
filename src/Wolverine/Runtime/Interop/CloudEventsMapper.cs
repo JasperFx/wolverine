@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using JasperFx.Core.Reflection;
+using MassTransit;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Runtime.Serialization;
 using Wolverine.Util;
@@ -137,9 +138,16 @@ public class CloudEventsMapper : IUnwrapsMetadataMessageSerializer
             envelope.SentAt = time;
         }
 
-        if (node.TryGetValue<Guid>("id", out var id))
+        if (node.TryGetValue<string>("id", out var raw))
         {
-            envelope.Id = id;
+            if (Guid.TryParse(raw, out var id))
+            {
+                envelope.Id = id;
+            }
+            else
+            {
+                envelope.Id = NewId.NextSequentialGuid();
+            }
         }
 
         if (node.TryGetValue<string>("type", out var cloudEventType))
