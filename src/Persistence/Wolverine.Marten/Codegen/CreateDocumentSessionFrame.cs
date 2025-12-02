@@ -64,7 +64,7 @@ internal class CreateDocumentSessionFrame : Frame
                 $"using var {Session!.Usage} = {_factory!.Usage}.{nameof(OutboxedSessionFactory.OpenSession)}({_context!.Usage});");
         }
 
-        if (_chain.Idempotency == IdempotencyStyle.Eager)
+        if (_chain.Idempotency != IdempotencyStyle.None)
         {
             writer.BlankLine();
             writer.WriteComment("This message handler is configured for Eager idempotency checks");

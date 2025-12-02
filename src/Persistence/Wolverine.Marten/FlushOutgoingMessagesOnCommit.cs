@@ -32,14 +32,17 @@ internal class FlushOutgoingMessagesOnCommit : DocumentSessionListenerBase
             if (_context.Envelope.WasPersistedInInbox)
             {
                 session.QueueSqlCommand($"update {_messageStore.IncomingFullName} set {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}' where id = ?", _context.Envelope.Id);
+                _context.Envelope.Status = EnvelopeStatus.Handled;
             }
+            
+            // This was buggy in real usage. 
             else
             {
                 var envelope = Envelope.ForPersistedHandled(_context.Envelope, DateTimeOffset.UtcNow, _context.Runtime.Options.Durability);
                 session.QueueOperation(new StoreIncomingEnvelope(_messageStore.IncomingFullName, envelope));
             }
             
-            _context.Envelope.Status = EnvelopeStatus.Handled;
+            
         }
         
         return Task.CompletedTask;
