@@ -236,9 +236,10 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         handleMethod.DerivedVariables.Add(envelopeVariable);
     }
 
-    internal virtual bool TryInferMessageIdentity(out PropertyInfo? property)
+    public override bool TryInferMessageIdentity(out PropertyInfo? property)
     {
-        var atts = Handlers.SelectMany(x => x.HandlerType.GetCustomAttributes().Concat(x.Method.GetCustomAttributes()))
+        var atts = Handlers
+            .SelectMany(x => x.HandlerType.GetCustomAttributes().Concat(x.Method.GetCustomAttributes().Concat(x.Method.GetParameters().SelectMany(p => p.GetCustomAttributes()))))
             .OfType<IMayInferMessageIdentity>().ToArray();
 
         foreach (var att in atts)
@@ -491,14 +492,24 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
                                                 MessageType.FullName);
         }
 
+        Middleware.Insert(0, messageVariable.Creator!);
+
+        applyCustomizations(rules, container);
+        
+        // This has to be done *after* the customizations so the aggregate handler
+        // workflow can be applied
+        if (TryInferMessageIdentity(out var identity))
+        {
+            if (AuditedMembers.All(x => x.Member != identity))
+            {
+                Audit(identity);
+            }    
+        }
+
         if (AuditedMembers.Count != 0)
         {
             Middleware.Insert(0, new AuditToActivityFrame(this));
         }
-
-        Middleware.Insert(0, messageVariable.Creator!);
-
-        applyCustomizations(rules, container);
 
         var handlerReturnValueFrames = determineHandlerReturnValueFrames().ToArray();
 

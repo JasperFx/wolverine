@@ -163,6 +163,8 @@ public interface IChain
     /// </summary>
     /// <param name="variable"></param>
     Frame[] AddStopConditionIfNull(Variable data, Variable? identity, IDataRequirement requirement);
+
+    bool TryInferMessageIdentity(out PropertyInfo? property);
 }
 
 #endregion

@@ -11,10 +11,6 @@ to selectively filter logging levels in your application, rely on the message ty
 
 ## Configuring Message Logging Levels
 
-::: tip
-This functionality was added in Wolverine 1.7.
-:::
-
 Wolverine automatically logs the execution start and stop of all message handling with `LogLevel.Debug`. Likewise, Wolverine
 logs the successful completion of all messages (including the capture of cascading messages and all middleware) with `LogLevel.Information`.
 However, many folks have found this logging to be too intrusive. Not to worry, you can quickly override the log levels
@@ -138,6 +134,11 @@ In conjunction with the "audited members" that are added to these logging statem
 for better searching within your logs. 
 
 ## Contextual Logging with Audited Members
+
+::: tip
+As of verion 5.5, Wolverine will automatically audit any property that refers to a [saga identity](/guide/durability/sagas) or to an event stream
+identity within the [aggregate handler workflow](/guide/durability/marten/event-sourcing) with Marten event sourcing.
+:::
 
 ::: warning
 Be cognizant of the information you're writing to log files or Open Telemetry data and whether or not that data

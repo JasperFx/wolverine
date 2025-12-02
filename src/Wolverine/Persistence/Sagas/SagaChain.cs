@@ -5,6 +5,7 @@ using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
+using Wolverine.Logging;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
 
@@ -42,9 +43,15 @@ public class SagaChain : HandlerChain
         }
 
         SagaIdMember = DetermineSagaIdMember(MessageType, SagaType);
+
+        // Automatically audit the saga id
+        if (SagaIdMember != null && AuditedMembers.All(x => x.Member != SagaIdMember))
+        {
+            AuditedMembers.Add(new AuditedMember(SagaIdMember, SagaIdMember.Name, SagaIdMember.Name));
+        }
     }
 
-    internal override bool TryInferMessageIdentity(out PropertyInfo? property)
+    public override bool TryInferMessageIdentity(out PropertyInfo? property)
     {
         property = SagaIdMember as PropertyInfo;
         return property != null;
@@ -90,6 +97,11 @@ public class SagaChain : HandlerChain
         MessageVariable messageVariable)
     {
         applyCustomizations(rules, container);
+        
+        if (AuditedMembers.Count != 0)
+        {
+            Middleware.Insert(0, new AuditToActivityFrame(this));
+        }
 
         var frameProvider = rules.GetPersistenceProviders(this, container);
         
