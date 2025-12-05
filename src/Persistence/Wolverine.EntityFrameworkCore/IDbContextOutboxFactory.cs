@@ -38,13 +38,13 @@ public class DbContextOutboxFactory : IDbContextOutboxFactory
         if (_builders.TryFind(typeof(T), out var raw) && raw is IDbContextBuilder<T> builder)
         {
             var dbContext = await builder.BuildAsync(tenantId, cancellationToken);
-            return new DbContextOutbox<T>(_runtime, dbContext){TenantId = tenantId};
+            return new DbContextOutbox<T>(_runtime, dbContext, []){TenantId = tenantId};
         }
 
         builder = _runtime.Services.GetRequiredService<IDbContextBuilder<T>>();
         _builders = _builders.AddOrUpdate(typeof(T), builder);
         
         var dbContext2 = await builder.BuildAsync(tenantId, cancellationToken);
-        return new DbContextOutbox<T>(_runtime, dbContext2){TenantId = tenantId};
+        return new DbContextOutbox<T>(_runtime, dbContext2, []){TenantId = tenantId};
     }
 }
