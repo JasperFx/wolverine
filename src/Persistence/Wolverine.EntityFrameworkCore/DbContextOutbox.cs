@@ -6,8 +6,11 @@ namespace Wolverine.EntityFrameworkCore;
 
 public class DbContextOutbox<T> : MessageContext, IDbContextOutbox<T> where T : DbContext
 {
-    public DbContextOutbox(IWolverineRuntime runtime, T dbContext) : base(runtime)
+    private readonly IEnumerable<IDomainEventScraper> _scrapers;
+
+    public DbContextOutbox(IWolverineRuntime runtime, T dbContext, IEnumerable<IDomainEventScraper> scrapers) : base(runtime)
     {
+        _scrapers = scrapers;
         DbContext = dbContext;
 
         Transaction = new EfCoreEnvelopeTransaction(dbContext, this);

@@ -251,4 +251,17 @@ public static class WolverineEntityCoreExtensions
 
         return modelBuilder;
     }
+
+    /// <summary>
+    /// Enable Wolverine to "scrape" domain events out of a DomainEvents type collection scoped to the current
+    /// Wolverine handler or scoped container
+    /// </summary>
+    /// <param name="options"></param>
+    /// <returns></returns>
+    public static WolverineOptions PublishDomainEventsFromEntityFrameworkCore(this WolverineOptions options)
+    {
+        options.Services.AddScoped<DomainEvents>();
+        options.Services.AddScoped<IDomainEventScraper, DomainEventsScraper>();
+        return options;
+    }
 }
