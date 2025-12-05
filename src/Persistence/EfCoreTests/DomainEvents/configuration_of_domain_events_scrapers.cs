@@ -54,6 +54,8 @@ public class configuration_of_domain_events_scrapers : IAsyncDisposable
                 opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString, "idempotency");
                 opts.UseEntityFrameworkCoreTransactions();
                 opts.Policies.AutoApplyTransactions();
+                
+                opts.Policies.UseDurableLocalQueues();
 
                 opts.Services.AddScoped<IEventPublisher, EventPublisher>();
 
@@ -96,6 +98,41 @@ public class configuration_of_domain_events_scrapers : IAsyncDisposable
         container.DefaultFor<OutgoingDomainEvents>().Lifetime.ShouldBe(ServiceLifetime.Scoped);
 
         scope.ServiceProvider.GetServices<IDomainEventScraper>().Single().ShouldBeOfType<OutgoingDomainEventsScraper>();
+    }
+    
+    [Fact]
+    public async Task publish_domain_events_with_DomainEvents_using_dbcontextoutbox()
+    {
+        await startHostAsync(opts => opts.PublishDomainEventsFromEntityFrameworkCore());
+
+        using var scope = theHost.Services.CreateAsyncScope();
+
+        var context = scope.ServiceProvider.GetRequiredService<IDbContextOutbox<CleanDbContext>>();
+        var tracked = await theHost.ExecuteAndWaitAsync(async _ =>
+        {
+            scope.ServiceProvider.GetRequiredService<OutgoingDomainEvents>().Add(new Event1("orange"));
+            await context.SaveChangesAndFlushMessagesAsync();
+        });
+
+        tracked.MessageSucceeded.SingleMessage<Event1>().Color.ShouldBe("orange");
+    }
+    
+        
+    [Fact]
+    public async Task publish_domain_events_with_DomainEvents_using_dbcontextoutbox_and_ieventpublisher()
+    {
+        await startHostAsync(opts => opts.PublishDomainEventsFromEntityFrameworkCore());
+
+        using var scope = theHost.Services.CreateAsyncScope();
+
+        var context = scope.ServiceProvider.GetRequiredService<IDbContextOutbox<CleanDbContext>>();
+        var tracked = await theHost.ExecuteAndWaitAsync(async _ =>
+        {
+            scope.ServiceProvider.GetRequiredService<IEventPublisher>().Publish(new Event1("orange"));
+            await context.SaveChangesAndFlushMessagesAsync();
+        });
+
+        tracked.MessageSucceeded.SingleMessage<Event1>().Color.ShouldBe("orange");
     }
 
     [Fact]
