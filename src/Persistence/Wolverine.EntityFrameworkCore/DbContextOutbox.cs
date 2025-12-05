@@ -6,11 +6,11 @@ namespace Wolverine.EntityFrameworkCore;
 
 public class DbContextOutbox<T> : MessageContext, IDbContextOutbox<T> where T : DbContext
 {
-    private readonly IEnumerable<IDomainEventScraper> _scrapers;
+    private readonly IDomainEventScraper[] _scrapers;
 
     public DbContextOutbox(IWolverineRuntime runtime, T dbContext, IEnumerable<IDomainEventScraper> scrapers) : base(runtime)
     {
-        _scrapers = scrapers;
+        _scrapers = scrapers.ToArray();
         DbContext = dbContext;
 
         Transaction = new EfCoreEnvelopeTransaction(dbContext, this);
@@ -20,6 +20,11 @@ public class DbContextOutbox<T> : MessageContext, IDbContextOutbox<T> where T : 
 
     public async Task SaveChangesAndFlushMessagesAsync(CancellationToken token = default)
     {
+        foreach (var scraper in _scrapers)
+        {
+            await scraper.ScrapeEvents(DbContext, this);
+        }
+        
         await DbContext.SaveChangesAsync(token);
         if (DbContext.Database.CurrentTransaction != null)
         {
@@ -32,8 +37,11 @@ public class DbContextOutbox<T> : MessageContext, IDbContextOutbox<T> where T : 
 
 public class DbContextOutbox : MessageContext, IDbContextOutbox
 {
-    public DbContextOutbox(IWolverineRuntime runtime) : base(runtime)
+    private readonly IDomainEventScraper[] _scrapers;
+
+    public DbContextOutbox(IWolverineRuntime runtime, IEnumerable<IDomainEventScraper> scrapers) : base(runtime)
     {
+        _scrapers = scrapers.ToArray();
     }
 
     public void Enroll(DbContext dbContext)
@@ -50,6 +58,11 @@ public class DbContextOutbox : MessageContext, IDbContextOutbox
         if (ActiveContext == null)
         {
             throw new InvalidOperationException("No active DbContext. Call Enroll() first");
+        }
+
+        foreach (var scraper in _scrapers)
+        {
+            await scraper.ScrapeEvents(ActiveContext, this);
         }
 
         await ActiveContext.SaveChangesAsync(token);
