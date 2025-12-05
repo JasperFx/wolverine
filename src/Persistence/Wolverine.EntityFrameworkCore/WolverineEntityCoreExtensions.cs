@@ -184,6 +184,7 @@ public static class WolverineEntityCoreExtensions
             options.Services.TryAddSingleton<IDbContextOutboxFactory, DbContextOutboxFactory>();
             options.Services.AddScoped(typeof(IDbContextOutbox<>), typeof(DbContextOutbox<>));
             options.Services.AddScoped<IDbContextOutbox, DbContextOutbox>();
+            options.Services.AddScoped<OutgoingDomainEvents>();
         }
         catch (InvalidOperationException e)
         {
@@ -260,8 +261,39 @@ public static class WolverineEntityCoreExtensions
     /// <returns></returns>
     public static WolverineOptions PublishDomainEventsFromEntityFrameworkCore(this WolverineOptions options)
     {
-        options.Services.AddScoped<DomainEvents>();
-        options.Services.AddScoped<IDomainEventScraper, DomainEventsScraper>();
+        options.Services.AddScoped<IDomainEventScraper, OutgoingDomainEventsScraper>();
+        return options;
+    }
+
+    /// <summary>
+    /// Tell Wolverine how to "scrape" domain events from the active EF Core DbContext to publish as messages
+    /// In this usage, Wolverine is not looking for a specific domain event marker type
+    /// </summary>
+    /// <param name="options"></param>
+    /// <param name="source"></param>
+    /// <typeparam name="TEntityType">The base type or common interface type that designates an entity that publishes domain events</typeparam>
+    /// <returns></returns>
+    public static WolverineOptions PublishDomainEventsFromEntityFrameworkCore<TEntityType>(this WolverineOptions options, 
+        Func<TEntityType, IEnumerable<object>> source)
+    {
+        var scraper = new DomainEventScraper<TEntityType, object>(source);
+        options.Services.AddSingleton<IDomainEventScraper>(scraper);
+        return options;
+    }
+    
+    /// <summary>
+    /// Tell Wolverine how to "scrape" domain events from the active EF Core DbContext to publish as messages
+    /// </summary>
+    /// <param name="options"></param>
+    /// <param name="source"></param>
+    /// <typeparam name="TEntityType">The base type or common interface type that designates an entity that publishes domain events</typeparam>
+    /// <typeparam name="TDomainEvent">The marker interface for domain events</typeparam>
+    /// <returns></returns>
+    public static WolverineOptions PublishDomainEventsFromEntityFrameworkCore<TEntityType, TDomainEvent>(this WolverineOptions options, 
+        Func<TEntityType, IEnumerable<TDomainEvent>> source)
+    {
+        var scraper = new DomainEventScraper<TEntityType, TDomainEvent>(source);
+        options.Services.AddSingleton<IDomainEventScraper>(scraper);
         return options;
     }
 }

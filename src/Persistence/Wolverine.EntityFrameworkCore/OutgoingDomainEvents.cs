@@ -6,13 +6,13 @@ namespace Wolverine.EntityFrameworkCore;
 /// <summary>
 /// Can be used with the EF Core transactional middleware to publish domain events 
 /// </summary>
-public class DomainEvents() : OutgoingMessages;
+public class OutgoingDomainEvents() : OutgoingMessages;
 
-public class DomainEventsScraper : IDomainEventScraper
+public class OutgoingDomainEventsScraper : IDomainEventScraper
 {
-    private readonly DomainEvents _events;
+    private readonly OutgoingDomainEvents _events;
 
-    public DomainEventsScraper(DomainEvents events)
+    public OutgoingDomainEventsScraper(OutgoingDomainEvents events)
     {
         _events = events;
     }

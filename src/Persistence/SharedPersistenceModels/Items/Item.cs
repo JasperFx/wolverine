@@ -9,6 +9,7 @@ public class Item : Entity
 
     public void Approve()
     {
+        Approved = true;
         Publish(new ItemApproved(Id));
     }
 }
@@ -27,7 +28,7 @@ public abstract class Entity : IEntity
     private IReadOnlyList<IDomainEvent> _events;
     public List<object> Events { get; } = new();
 
-    IReadOnlyList<IDomainEvent> IEntity.Events => _events.OfType<IDomainEvent>().ToList();
+    IReadOnlyList<IDomainEvent> IEntity.Events => Events.OfType<IDomainEvent>().ToList();
 
     public void Publish(IDomainEvent e)
     {
