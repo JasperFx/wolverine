@@ -16,11 +16,13 @@ namespace Wolverine.EntityFrameworkCore.Internals;
 public class EfCoreEnvelopeTransaction : IEnvelopeTransaction
 {
     private readonly MessageContext _messaging;
+    private readonly IDomainEventScraper[] _scrapers;
     private readonly IMessageDatabase _database;
-
-    public EfCoreEnvelopeTransaction(DbContext dbContext, MessageContext messaging)
+    
+    public EfCoreEnvelopeTransaction(DbContext dbContext, MessageContext messaging, IEnumerable<IDomainEventScraper> scrapers)
     {
         _messaging = messaging;
+        _scrapers = scrapers.ToArray();
         if (!messaging.TryFindMessageDatabase(out _database))
         {
             throw new InvalidOperationException(
@@ -28,6 +30,12 @@ public class EfCoreEnvelopeTransaction : IEnvelopeTransaction
         }
 
         DbContext = dbContext;
+    }
+
+    // Keep this for backward compatibility w/ existing generated code
+    public EfCoreEnvelopeTransaction(DbContext dbContext, MessageContext messaging) : this(dbContext, messaging, [])
+    {
+
     }
 
     public DbContext DbContext { get; }
@@ -163,6 +171,12 @@ public class EfCoreEnvelopeTransaction : IEnvelopeTransaction
 
     public async ValueTask CommitAsync(CancellationToken cancellation)
     {
+        // Scrape out domain events 
+        foreach (var scraper in _scrapers)
+        {
+            await scraper.ScrapeEvents(DbContext, _messaging);
+        }
+        
         if (_messaging.Envelope != null && _messaging.Envelope.Destination != null)
         {
             var conn = DbContext.Database.GetDbConnection();

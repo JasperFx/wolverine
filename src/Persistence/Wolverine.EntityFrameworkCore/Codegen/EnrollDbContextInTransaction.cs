@@ -17,6 +17,7 @@ internal class EnrollDbContextInTransaction : AsyncFrame
     private Variable _cancellation;
     private Variable _envelopeTransaction;
     private Variable? _context;
+    private Variable _scrapers;
 
     public EnrollDbContextInTransaction(Type dbContextType, IdempotencyStyle idempotencyStyle)
     {
@@ -34,7 +35,7 @@ internal class EnrollDbContextInTransaction : AsyncFrame
         writer.WriteLine("");
         writer.WriteComment(
             "Enroll the DbContext & IMessagingContext in the outgoing Wolverine outbox transaction");
-        writer.Write($"var {_envelopeTransaction.Usage} = new {typeof(EfCoreEnvelopeTransaction).FullNameInCode()}({_dbContext.Usage}, {_context.Usage});");
+        writer.Write($"var {_envelopeTransaction.Usage} = new {typeof(EfCoreEnvelopeTransaction).FullNameInCode()}({_dbContext.Usage}, {_context.Usage}, {_scrapers.Usage});");
         writer.Write(
             $"await {_context.Usage}.{nameof(MessageContext.EnlistInOutboxAsync)}({_envelopeTransaction.Usage});");
 
@@ -61,6 +62,9 @@ internal class EnrollDbContextInTransaction : AsyncFrame
 
     public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
     {
+        _scrapers = chain.FindVariable(typeof(IEnumerable<IDomainEventScraper>));
+        yield return _scrapers;
+        
         _context = chain.FindVariable(typeof(MessageContext));
         yield return _context;
 
