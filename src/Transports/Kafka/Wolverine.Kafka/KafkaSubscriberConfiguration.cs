@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Confluent.Kafka;
+using Confluent.Kafka.Admin;
 using Wolverine.Configuration;
 using Wolverine.Kafka.Internals;
 
@@ -9,6 +10,23 @@ public class KafkaSubscriberConfiguration : InteroperableSubscriberConfiguration
 {
     internal KafkaSubscriberConfiguration(KafkaTopic endpoint) : base(endpoint)
     {
+    }
+
+    /// <summary>
+    /// Fine tune the TopicSpecification for this Kafka Topic if it is being created by Wolverine
+    /// </summary>
+    /// <param name="configure"></param>
+    /// <returns></returns>
+    /// <exception cref="ArgumentNullException"></exception>
+    public KafkaSubscriberConfiguration Specification(Action<TopicSpecification> configure)
+    {
+        if (configure == null)
+        {
+            throw new ArgumentNullException(nameof(configure));
+        }
+
+        add(topic => configure(topic.Specification));
+        return this;
     }
 
     /// <summary>
