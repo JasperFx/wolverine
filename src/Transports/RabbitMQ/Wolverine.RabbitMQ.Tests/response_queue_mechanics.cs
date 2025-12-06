@@ -79,13 +79,15 @@ public class response_queue_mechanics : IAsyncLifetime
     }
 
     [Fact]
-    public void queue_should_be_non_durable()
+    public void queue_should_be_durable()
     {
         var transport = _host.Get<WolverineOptions>().RabbitMqTransport();
         var queue = transport.Queues[theEndpoint.QueueName];
 
         queue.AutoDelete.ShouldBeTrue();
         queue.IsExclusive.ShouldBeFalse();
-        queue.IsDurable.ShouldBeFalse();
+        queue.IsDurable.ShouldBeTrue();
+
+        queue.Arguments["x-expires"].ShouldNotBeNull();
     }
 }
