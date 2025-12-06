@@ -44,11 +44,7 @@ public class MessageStoreCollection : IAgentFamily, IAsyncDisposable
             _ancillaryStores = _ancillaryStores.AddOrUpdate(ancillaryMessageStore.MarkerType, store);
         }
 
-        if (!_runtime.Options.Durability.DurabilityAgentEnabled)
-        {
-            Main = new NullMessageStore();
-        }
-        else if (_services.Count() == 1)
+        if (_services.Count() == 1)
         {
             _onlyOneDatabase = !_multiTenanted.Any();
 
