@@ -161,6 +161,11 @@ using var host = await Host.CreateDefaultBuilder()
 
 ## Disable Rabbit MQ Reply Queues
 
+::: info
+The response queues (and system queues) are now created as durable Rabbit MQ queues with a TTL expiration of 30 minutes
+after there is no connection for these queues. 
+:::
+
 By default, Wolverine creates an in memory queue in the Rabbit MQ broker for each individual node that is used by Wolverine
 for request/reply invocations (`IMessageBus.InvokeAsync<T>()` when used remotely). Great, but if your process does not
 have permissions with your Rabbit MQ broker to create queues, you may encounter errors. Not to worry, you can disable

@@ -234,13 +234,15 @@ public class RabbitMqTransportExpression : BrokerExpression<RabbitMqTransport, R
         var queue = new RabbitMqQueue(queueName, Transport, EndpointRole.System)
         {
             AutoDelete = true,
-            IsDurable = false,
+            IsDurable = true,
             IsListener = true,
             IsUsedForReplies = true,
             ListenerCount = 5,
             EndpointName = "Control",
             QueueType = QueueType.classic
         };
+
+        queue.Arguments["x-expires"] = 180000;
 
         Transport.Queues[queueName] = queue;
 
