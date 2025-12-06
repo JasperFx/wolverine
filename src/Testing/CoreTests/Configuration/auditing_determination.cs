@@ -81,6 +81,52 @@ public class auditing_determination : IntegrationContext
         var chain = chainFor<DebitAccount>();
         chain.AuditedMembers.Single().Member.Name.ShouldBe(nameof(IAccountMessage.AccountId));
     }
+
+    [Fact]
+    public void use_audit_member_named_id_and_disambiguate()
+    {
+        with(opts => opts.Policies.LogMessageStarting(LogLevel.Information));
+        
+        var chain = chainFor<AuditedMessage2>();
+        chain.SourceCode.ShouldContain("Log(Microsoft.Extensions.Logging.LogLevel.Information, \"$Starting to process {_inputType.FullNameInCode()} ({{EnvelopeId}} with Id: {Id}, AccountIdentifier: {AccountId}\", context.Envelope.Id, auditedMessage2.Id, auditedMessage2.AccountId);");
+        
+/*
+    [global::System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")]
+   public sealed class AuditedMessage2Handler46886595 : Wolverine.Runtime.Handlers.MessageHandler
+   {
+       private readonly Microsoft.Extensions.Logging.ILogger<CoreTests.Configuration.AuditedMessage2> _loggerForMessage;
+
+       public AuditedMessage2Handler46886595(Microsoft.Extensions.Logging.ILogger<CoreTests.Configuration.AuditedMessage2> loggerForMessage)
+       {
+           _loggerForMessage = loggerForMessage;
+       }
+
+
+
+       public override System.Threading.Tasks.Task HandleAsync(Wolverine.Runtime.MessageContext context, System.Threading.CancellationToken cancellation)
+       {
+           // The actual message body
+           var auditedMessage2 = (CoreTests.Configuration.AuditedMessage2)context.Envelope.Message;
+
+           // Application-specific Open Telemetry auditing
+           System.Diagnostics.Activity.Current?.SetTag("id", auditedMessage2.Id);
+           System.Diagnostics.Activity.Current?.SetTag("account.id", auditedMessage2.AccountId);
+           // Application specific auditing
+           ((Microsoft.Extensions.Logging.ILogger)_loggerForMessage).Log(Microsoft.Extensions.Logging.LogLevel.Information, "$Starting to process {_inputType.FullNameInCode()} ({{EnvelopeId}} with Id: {Id}, AccountIdentifier: {AccountId}", context.Envelope.Id, auditedMessage2.Id, auditedMessage2.AccountId);
+           System.Diagnostics.Activity.Current?.SetTag("message.handler", "CoreTests.Configuration.AuditedHandler");
+           var auditedHandler = new CoreTests.Configuration.AuditedHandler();
+           
+           // The actual message execution
+           auditedHandler.Handle(auditedMessage2);
+
+           return System.Threading.Tasks.Task.CompletedTask;
+       }
+
+   }
+
+
+ */
+    }
 }
 
 #region sample_using_audit_attribute
@@ -106,6 +152,16 @@ public class AuditedHandler
         var activity = Activity.Current;
         activity?.SetTag(nameof(DebitAccount.AccountId), message.AccountId);
     }
+
+    public void Handle(AuditedMessage2 m) => Debug.WriteLine("Got audited message 2 w/ id " + m.Id);
+}
+
+public class AuditedMessage2
+{
+    [Audit]
+    public string Id { get; set; }
+
+    [Audit("AccountIdentifier")] public int AccountId;
 }
 
 #region sample_account_message_for_auditing
