@@ -358,6 +358,20 @@ public class multi_tenancy_detection_and_integration : IAsyncDisposable, IDispos
     }
 
     [Fact]
+    public async Task working_with_form_data()
+    {
+        await configure(opts =>
+        {
+            opts.TenantId.IsRouteArgumentNamed("tenant");
+            opts.TenantId.AssertExists();
+        });
+
+        var formData = new Dictionary<string, string> { { "value", "blue" } };
+        var result = await theHost.Scenario(x => x.Post.FormData(formData).ToUrl("/tenant/red/formdata"));
+        result.ReadAsText().ShouldBe("red");
+    }
+    
+    [Fact]
     public async Task does_tag_current_activity_with_tenant_id()
     {
         await configure(opts => opts.TenantId.IsRequestHeaderValue("tenant"));
@@ -436,6 +450,14 @@ public static class TenantedEndpoints
     {
         bus.TenantId.ShouldBe(context.TenantId);
         return context.TenantId;
+    }
+    
+    // in this combination, TenantId needs the [FromServices] attribute, otherwise codegen tries to 
+    // parse it from the JSON body and the request fails with HTTP error 415
+    [WolverinePost("/tenant/{tenant}/formdata")]
+    public static string GetTenantIdWithFormData([FromForm] String value, TenantId tenantId)
+    {
+        return tenantId.Value;
     }
 
     #region sample_using_NotTenanted
