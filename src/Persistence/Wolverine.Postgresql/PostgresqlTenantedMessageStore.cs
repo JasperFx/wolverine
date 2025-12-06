@@ -78,7 +78,7 @@ internal class PostgresqlTenantedMessageStore : ITenantedMessageSource
 
         store = new PostgresqlMessageStore(settings, _runtime.Options.Durability, npgsqlDataSource,
             _runtime.LoggerFactory.CreateLogger<PostgresqlMessageStore>(), _sagaTables);
-        store.Name = connectionString;
+        store.Name = store.Describe().DatabaseUri().ToString();
         return store;
     }
 
