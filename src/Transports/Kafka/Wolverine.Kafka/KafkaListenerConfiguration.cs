@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Confluent.Kafka;
+using Confluent.Kafka.Admin;
 using Wolverine.Configuration;
 using Wolverine.Kafka.Internals;
 
@@ -13,6 +14,23 @@ public class KafkaListenerConfiguration : InteroperableListenerConfiguration<Kaf
 
     public KafkaListenerConfiguration(Func<KafkaTopic> source) : base(source)
     {
+    }
+    
+    /// <summary>
+    /// Fine tune the TopicSpecification for this Kafka Topic if it is being created by Wolverine
+    /// </summary>
+    /// <param name="configure"></param>
+    /// <returns></returns>
+    /// <exception cref="ArgumentNullException"></exception>
+    public KafkaListenerConfiguration Specification(Action<TopicSpecification> configure)
+    {
+        if (configure == null)
+        {
+            throw new ArgumentNullException(nameof(configure));
+        }
+
+        add(topic => configure(topic.Specification));
+        return this;
     }
     
     /// <summary>

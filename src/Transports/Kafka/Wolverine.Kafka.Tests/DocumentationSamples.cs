@@ -61,6 +61,13 @@ public class DocumentationSamples
                 opts.PublishMessage<ColorMessage>()
                     .ToKafkaTopic("colors")
                     
+                    // Fine tune how the Kafka Topic is declared by Wolverine
+                    .Specification(spec =>
+                    {
+                        spec.NumPartitions = 6;
+                        spec.ReplicationFactor = 3;
+                    })
+                    
                     // Override the producer configuration for just this topic
                     .ConfigureProducer(config =>
                     {
@@ -85,6 +92,13 @@ public class DocumentationSamples
                         config.BootstrapServers = "localhost:9092";
 
                         // Other configuration
+                    })
+                    
+                    // Fine tune how the Kafka Topic is declared by Wolverine
+                    .Specification(spec =>
+                    {
+                        spec.NumPartitions = 6;
+                        spec.ReplicationFactor = 3;
                     });
 
                 opts.ListenToKafkaTopic("green")
