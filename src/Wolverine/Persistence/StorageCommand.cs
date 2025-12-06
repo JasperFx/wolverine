@@ -55,6 +55,7 @@ public class StorageCommand : JasperFxAsyncCommand<StorageInput>
                 table.AddRow("Outgoing", counts.Outgoing.ToString());
                 table.AddRow("Scheduled", counts.Scheduled.ToString());
                 table.AddRow("Dead Letter", counts.DeadLetter.ToString());
+                table.AddRow("Handled", counts.Handled.ToString());
 
                 AnsiConsole.Write(table);
 
