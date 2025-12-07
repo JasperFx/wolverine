@@ -1,0 +1,6 @@
+@DeepMiddlewareUsage_HostAddress = http://localhost:5063
+
+GET {{DeepMiddlewareUsage_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

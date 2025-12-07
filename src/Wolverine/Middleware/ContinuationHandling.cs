@@ -47,10 +47,12 @@ public static class ContinuationHandling
     {
         var strategies = rules.ContinuationStrategies();
         foreach (var strategy in strategies)
+        {
             if (strategy.TryFindContinuationHandler(chain, call, out frame))
             {
                 return true;
             }
+        }
 
         frame = null;
         return false;
