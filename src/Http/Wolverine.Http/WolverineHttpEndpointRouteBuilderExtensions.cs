@@ -193,6 +193,8 @@ public static class WolverineHttpEndpointRouteBuilderExtensions
 
         configure?.Invoke(options);
         
+        options.Policies.Add(new ProblemDetailsFromMiddleware());
+        
         if (Environment.CommandLine.Contains("codegen", StringComparison.OrdinalIgnoreCase))
         {
             options.WarmUpRoutes = RouteWarmup.Lazy;
