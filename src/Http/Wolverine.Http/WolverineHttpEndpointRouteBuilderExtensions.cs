@@ -158,6 +158,12 @@ public static class WolverineHttpEndpointRouteBuilderExtensions
         services.AddSingleton<WolverineHttpOptions>();
         services.AddSingleton<NewtonsoftHttpSerialization>();
         services.AddSingleton<HttpTransportExecutor>();
+
+        services.ConfigureWolverine(opts =>
+        {
+            opts.CodeGeneration.Sources.Add(new NullableHttpContextSource());
+        });
+        
         return services;
     }
 

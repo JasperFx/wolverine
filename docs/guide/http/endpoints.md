@@ -428,4 +428,11 @@ There is no runtime filtering here because the `MiddlewareScoping` impacts the g
 HTTP endpoint method, and Wolverine already generates code separately for the two use cases. 
 :::
 
+As of Wolverine 5.7, you can also technically use `HttpContext` arguments in the message handler usage *if*
+you are carefully accounting for that being null as shown in this sample:
+
+snippet: sample_HybridHandler_with_null_HttpContext
+
+
+
 

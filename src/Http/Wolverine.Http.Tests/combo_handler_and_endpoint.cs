@@ -1,6 +1,7 @@
 using Alba;
 using Microsoft.AspNetCore.Mvc;
 using Shouldly;
+using Wolverine.Tracking;
 using WolverineWebApi;
 
 namespace Wolverine.Http.Tests;
@@ -62,5 +63,18 @@ public class combo_handler_and_endpoint : IntegrationContext
         
         NumberMessageHandler.CalledBeforeOnlyOnHttpEndpoints.ShouldBeFalse();
         NumberMessageHandler.CalledBeforeOnlyOnMessageHandlers.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task will_not_go_bonkers_with_nullable_http_context()
+    {
+        var response = await Host.Scenario(x =>
+        {
+            x.Post.Json(new DoHybrid("go, go gadget")).ToUrl("/hybrid");
+        });
+        
+        response.ReadAsText().ShouldBe("go, go gadget");
+
+        await Host.InvokeMessageAndWaitAsync(new DoHybrid("now as a handler"));
     }
 }
