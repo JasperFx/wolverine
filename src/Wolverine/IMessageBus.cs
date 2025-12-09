@@ -127,7 +127,7 @@ public interface IMessageBus : ICommandBus
     IReadOnlyList<Envelope> PreviewSubscriptions(object message);
     
     /// <summary>
-    /// Preview how Wolverine will send this message. Use this as a debugging tool.
+    ///     Preview how Wolverine will send this message with the DeliveryOptions. Use this as a debugging tool.
     /// </summary>
     /// <param name="message"></param>
     /// <param name="options"></param>
@@ -135,7 +135,8 @@ public interface IMessageBus : ICommandBus
     IReadOnlyList<Envelope> PreviewSubscriptions(object message, DeliveryOptions options);
 
     /// <summary>
-    /// Preview how Wolverine will send this message with the DeliveryOptions. Use this as a debugging tool.
+    ///     Publish a message to all known subscribers. Send the message expecting there to be at least one subscriber 
+    ///     to be executed later, but don't wait around
     /// </summary>
     /// <param name="message"></param>
     /// <param name="options"></param>
