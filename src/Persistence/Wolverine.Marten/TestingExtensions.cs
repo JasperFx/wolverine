@@ -1,5 +1,11 @@
+using JasperFx.Core;
+using JasperFx.Core.Reflection;
+using JasperFx.Events.Projections;
 using Marten;
 using Marten.Events;
+using Marten.Events.Daemon.Coordination;
+using Microsoft.Extensions.DependencyInjection;
+using Wolverine.Runtime;
 using Wolverine.Tracking;
 
 namespace Wolverine.Marten;
@@ -46,16 +52,55 @@ public static class TestingExtensions
     {
         configuration.BeforeExecution(async (runtime, cancellation) =>
         {
+            var envelope = new Envelope
+            {
+                MessageType = "Pause:Marten:Daemons"
+            };
+            
+            runtime.MessageTracking.ExecutionStarted(envelope);
+            
             await runtime.Services.PauseAllDaemonsAsync();
+            
+            runtime.MessageTracking.ExecutionFinished(envelope);
         });
 
         return configuration.AddStage(async (runtime, _, cancellation) =>
         {
-            var exceptions = await runtime.Services.ForceAllMartenDaemonActivityToCatchUpAsync(cancellation, mode);
-            foreach (var e in exceptions)
+            var envelope = new Envelope
             {
-                runtime.MessageTracking.LogException(e);
+                MessageType = "CatchUp:Marten:DaemonActivity"
+            };
+            
+            runtime.MessageTracking.ExecutionStarted(envelope);
+            
+            // TODO -- be nice if this was in Marten itself
+            var coordinator = runtime.Services.GetRequiredService<IProjectionCoordinator>();
+            var daemons = await coordinator.AllDaemonsAsync().ConfigureAwait(false);
+            var subscriptions = new List<IDisposable>();
+            var observer = new TrackedSessionShardWatcher(runtime);
+            foreach (var daemon in daemons)
+            {
+                var subscription = daemon.Tracker.Subscribe(observer);
+                subscriptions.Add(subscription);
             }
+
+            try
+            {
+                var exceptions = await runtime.Services.ForceAllMartenDaemonActivityToCatchUpAsync(cancellation, mode);
+                foreach (var exception in exceptions)
+                {
+                    runtime.MessageTracking.LogException(exception);
+                }
+            }
+            finally
+            {
+                foreach (var subscription in subscriptions)
+                {
+                    subscription.SafeDispose();
+                }
+            }
+            
+            runtime.MessageTracking.ExecutionFinished(envelope);
         });
     }
 
@@ -73,16 +118,55 @@ public static class TestingExtensions
     {
         configuration.BeforeExecution(async (runtime, cancellation) =>
         {
+            var envelope = new Envelope
+            {
+                MessageType = "Pause:Marten:Daemons:" + typeof(T).NameInCode()
+            };
+            
+            runtime.MessageTracking.ExecutionStarted(envelope);
+            
             await runtime.Services.PauseAllDaemonsAsync<T>();
+            
+            runtime.MessageTracking.ExecutionFinished(envelope);
         });
 
         return configuration.AddStage(async (runtime, _, cancellation) =>
         {
-            var exceptions = await runtime.Services.ForceAllMartenDaemonActivityToCatchUpAsync<T>(cancellation, mode);
-            foreach (var exception in exceptions)
+            var envelope = new Envelope
             {
-                runtime.MessageTracking.LogException(exception);
+                MessageType = "CatchUp:Marten:DaemonActivity:" + typeof(T).FullNameInCode()
+            };
+            
+            runtime.MessageTracking.ExecutionStarted(envelope);
+            
+            // TODO -- be nice if this was in Marten itself
+            var coordinator = runtime.Services.GetRequiredService<IProjectionCoordinator<T>>();
+            var daemons = await coordinator.AllDaemonsAsync().ConfigureAwait(false);
+            var subscriptions = new List<IDisposable>();
+            var observer = new TrackedSessionShardWatcher(runtime);
+            foreach (var daemon in daemons)
+            {
+                var subscription = daemon.Tracker.Subscribe(observer);
+                subscriptions.Add(subscription);
             }
+
+            try
+            {
+                var exceptions = await runtime.Services.ForceAllMartenDaemonActivityToCatchUpAsync<T>(cancellation, mode);
+                foreach (var exception in exceptions)
+                {
+                    runtime.MessageTracking.LogException(exception);
+                }
+            }
+            finally
+            {
+                foreach (var subscription in subscriptions)
+                {
+                    subscription.SafeDispose();
+                }
+            }
+            
+            runtime.MessageTracking.ExecutionFinished(envelope);
         });
     }
 
@@ -131,5 +215,30 @@ public static class TestingExtensions
                 r.MessageTracking.LogException(e);
             }
         });
+    }
+}
+
+internal class TrackedSessionShardWatcher : IObserver<ShardState>
+{
+    private readonly IWolverineRuntime _runtime;
+
+    public TrackedSessionShardWatcher(IWolverineRuntime runtime)
+    {
+        _runtime = runtime;
+    }
+
+    public void OnCompleted()
+    {
+        
+    }
+
+    public void OnError(Exception error)
+    {
+
+    }
+
+    public void OnNext(ShardState value)
+    {
+        _runtime.MessageTracking.LogStatus(value.ToString());
     }
 }

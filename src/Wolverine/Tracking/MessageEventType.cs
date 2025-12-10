@@ -14,6 +14,7 @@ public enum MessageEventType
     MovedToErrorQueue,
     Requeued,
     Scheduled,
-    Discarded
+    Discarded,
+    Status
 }
 #endregion
