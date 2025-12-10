@@ -161,4 +161,9 @@ public sealed partial class WolverineRuntime : IMessageTracker
         ActiveSession?.LogException(ex, _serviceName);
         Logger.LogError(ex, message);
     }
+
+    public void LogStatus(string message)
+    {
+        ActiveSession?.LogStatus(message);
+    }
 }

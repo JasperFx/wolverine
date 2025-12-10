@@ -17,6 +17,7 @@ internal partial class TrackedSession : ITrackedSession
     private readonly IList<ITrackedCondition> _conditions = new List<ITrackedCondition>();
 
     private Cache<Guid, EnvelopeHistory> _envelopes = new(id => new EnvelopeHistory(id));
+    private readonly List<EnvelopeRecord> _statuses = new();
 
     private readonly IList<Exception> _exceptions = new List<Exception>();
 
@@ -142,13 +143,14 @@ internal partial class TrackedSession : ITrackedSession
 
     public EnvelopeRecord[] AllRecordsInOrder()
     {
-        return _envelopes.SelectMany(x => x.Records).OrderBy(x => x.SessionTime).ToArray();
+        return _envelopes.SelectMany(x => x.Records).Concat(_statuses).OrderBy(x => x.SessionTime).ToArray();
     }
 
     public EnvelopeRecord[] AllRecordsInOrder(MessageEventType eventType)
     {
         return _envelopes
             .SelectMany(x => x.Records)
+            .Concat(_statuses)
             .Where(x => x.MessageEventType == eventType)
             .OrderBy(x => x.SessionTime)
             .ToArray();
@@ -482,6 +484,12 @@ internal partial class TrackedSession : ITrackedSession
     public void IgnoreMessageTypes(Func<Type, bool> filter)
     {
         _ignoreMessageRules.Add(filter);
+    }
+
+    public void LogStatus(string message)
+    {
+        var record = new EnvelopeRecord(MessageEventType.Status, null, _stopwatch.ElapsedMilliseconds, null);
+        _statuses.Add(record);
     }
 }
 
