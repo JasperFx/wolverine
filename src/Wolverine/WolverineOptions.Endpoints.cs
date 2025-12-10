@@ -101,6 +101,8 @@ public partial class WolverineOptions : IAsyncDisposable
     /// <returns></returns>
     public PublishingExpression PublishMessage<TMessageType>()
     {
+        RegisterMessageType(typeof(TMessageType));
+        
         var expression = new PublishingExpression(this)
         {
             AutoAddSubscriptions = true
