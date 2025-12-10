@@ -109,7 +109,7 @@ internal class ReadHttpFrame : SyncFrame, IReadHttpFrame
     {
         var assignTo = Mode == AssignMode.WriteToVariable ? $"var {Variable.Usage}" : _property;
         
-        writer.Write($"{assignTo} = {rawValueSource()};");
+        writer.Write($"{assignTo} = {rawValueSource()}?.ToString() {(_isNullable ? "" : "?? \"\"")};");
         
         if (_source == BindingSource.RouteValue)
         {
