@@ -239,8 +239,11 @@ public class RabbitMqTransportExpression : BrokerExpression<RabbitMqTransport, R
             IsUsedForReplies = true,
             ListenerCount = 5,
             EndpointName = "Control",
-            QueueType = QueueType.classic
+            QueueType = QueueType.classic,
         };
+
+        // CLEAR OUT ANY DLQ here!
+        queue.DeadLetterQueue = null;
 
         queue.Arguments["x-expires"] = 180000;
 
