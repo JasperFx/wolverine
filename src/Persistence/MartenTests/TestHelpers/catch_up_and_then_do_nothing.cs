@@ -24,6 +24,12 @@ public class catch_up_and_then_do_nothing : IAsyncLifetime
             {
                 opts.Services.AddMarten(m =>
                 {
+                    m.Connection(Servers.PostgresConnectionString);
+
+                }).IntegrateWithWolverine(x => x.UseWolverineManagedEventSubscriptionDistribution = true);
+                
+                opts.Services.AddMarten(m =>
+                {
                     m.DisableNpgsqlLogging = true;
                     
                     m.Connection(Servers.PostgresConnectionString);
@@ -44,6 +50,8 @@ public class catch_up_and_then_do_nothing : IAsyncLifetime
 
                 opts.Durability.Mode = DurabilityMode.Solo;
             }).StartAsync();
+        
+            
     }
 
     public async Task DisposeAsync()

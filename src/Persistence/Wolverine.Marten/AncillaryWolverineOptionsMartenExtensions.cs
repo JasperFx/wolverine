@@ -107,7 +107,21 @@ public static class AncillaryWolverineOptionsMartenExtensions
 
         // TODO -- watch the service registrations
         expression.Services.AddSingleton<EventSubscriptionAgentFamily>();
-        expression.Services.AddSingleton<IProjectionCoordinator<T>, WolverineProjectionCoordinator<T>>();
+        
+        
+        expression.Services.AddSingleton<IProjectionCoordinator<T>>(s =>
+        {
+            var integration = s.GetService<MartenIntegration>();
+            var store = s.GetRequiredService<T>();
+            
+            if (integration == null || !integration.UseWolverineManagedEventSubscriptionDistribution)
+            {
+                return new ProjectionCoordinator<T>(store, s.GetRequiredService<ILogger<ProjectionCoordinator>>());
+            }
+
+            var agents = s.GetRequiredService<EventSubscriptionAgentFamily>();
+            return new WolverineProjectionCoordinator<T>(agents, store);
+        });
         
         // Limitation is that the wolverine objects go in the same schema
         
