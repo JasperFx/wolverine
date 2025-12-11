@@ -316,8 +316,8 @@ internal partial class TrackedSession : ITrackedSession
             grid.AddColumn("Service (Node Id)", x => $"{x.ServiceName} ({x.UniqueNodeId})");
         }
 
-        grid.AddColumn("Message Id", x => x.Envelope.Id.ToString());
-        grid.AddColumn("Message Type", x => x.Envelope.MessageType ?? string.Empty);
+        grid.AddColumn("Message Id", x => x.Envelope?.Id.ToString() ?? string.Empty);
+        grid.AddColumn("Message Type", x => x.Envelope?.MessageType ?? string.Empty);
         grid.AddColumn("Time (ms)", x => x.SessionTime.ToString(), true);
 
         grid.AddColumn("Event", x => x.MessageEventType.ToString());
