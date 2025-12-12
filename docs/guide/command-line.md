@@ -103,6 +103,21 @@ will describe:
 * "Wolverine Error Handling" - a preview of the active message failure policies active within the system
 * "Wolverine Http Endpoints" - shows all Wolverine HTTP endpoints. This is only active if WolverineFx.HTTP is used within the system
 
+## Exporting System Capabilities <Badge type="tip" text="5.8" />
+
+This command:
+
+```bash
+dotnet run capabilities wolverine.json
+```
+
+Will write a JSON file to "wolverine.json" that will completely describe all the configured settings, message types, message store,
+messaging endpoints, and even event stores configured to this application. The Wolverine team may ask you for this file 
+to help you troubleshoot issues in the future.
+
+This functionality was originally built for consumption in the "CritterWatch" add on tool, but was requested by a [JasperFx Software](https://jasperfx.net)
+client to provide a mechanism to detect any unintentional changes to Wolverine application configuration.
+
 ## Other Highlights
 
 * See the [code generation support](./codegen)
