@@ -50,7 +50,9 @@ public class ServiceCapabilities : OptionsDescription
         var collection = runtime.Stores;
         var stores = await collection.FindAllAsync();
         foreach (var store in stores)
+        {
             capabilities.MessageStores.Add(new MessageStore(store.Uri, true, store.Describe()));
+        }
 
         capabilities.MessageStoreCardinality = collection.Cardinality();
 
