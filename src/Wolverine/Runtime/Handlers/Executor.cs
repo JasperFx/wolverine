@@ -136,6 +136,8 @@ internal class Executor : IExecutor
             TenantId = options?.TenantId ?? bus.TenantId,
             DoNotCascadeResponse = true
         };
+        
+        options?.Override(envelope);
 
         bus.TrackEnvelopeCorrelation(envelope, Activity.Current);
 
@@ -156,6 +158,8 @@ internal class Executor : IExecutor
         {
             TenantId = options?.TenantId ?? bus.TenantId
         };
+        
+        options?.Override(envelope);
 
         bus.TrackEnvelopeCorrelation(envelope, Activity.Current);
         return InvokeInlineAsync(envelope, cancellation);
