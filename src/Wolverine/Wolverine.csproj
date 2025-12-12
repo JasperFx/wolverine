@@ -5,6 +5,7 @@
     </PropertyGroup>
     <ItemGroup>
         <PackageReference Include="JasperFx" Version="1.11.3" />
+        <PackageReference Include="JasperFx.Events" Version="1.12.2" />
         <PackageReference Include="JasperFx.RuntimeCompiler" Version="4.3.0" />
         <PackageReference Include="NewId" Version="4.0.1" />
         <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
@@ -45,6 +46,10 @@
 		<PackageReference Include="Microsoft.Extensions.Hosting" Version="[8.0.1,10.0.0)" />
 		<PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="[8.0.1,10.0.0)" />
 		<PackageReference Include="Microsoft.Extensions.ObjectPool" Version="[8.0.0,10.0.0)" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <ProjectReference Include="..\..\..\jasperfx\src\JasperFx.Events\JasperFx.Events.csproj" />
 	</ItemGroup>
 
     <Import Project="../../Analysis.Build.props" />
