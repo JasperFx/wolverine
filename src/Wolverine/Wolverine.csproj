@@ -48,9 +48,5 @@
 		<PackageReference Include="Microsoft.Extensions.ObjectPool" Version="[8.0.0,10.0.0)" />
 	</ItemGroup>
 
-	<ItemGroup>
-	  <ProjectReference Include="..\..\..\jasperfx\src\JasperFx.Events\JasperFx.Events.csproj" />
-	</ItemGroup>
-
     <Import Project="../../Analysis.Build.props" />
 </Project>
