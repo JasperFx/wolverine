@@ -30,7 +30,7 @@ internal class InlineInvoker : BatchSubscription
 
             try
             {
-                await invoker.InvokeAsync(@event, (MessageBus)bus, cancellationToken, tenantId: @event.TenantId);
+                await invoker.InvokeAsync(@event, (MessageBus)bus, cancellationToken, options: new DeliveryOptions{TenantId = @event.TenantId});
                 sequence = @event.Sequence;
             }
             catch (Exception e)

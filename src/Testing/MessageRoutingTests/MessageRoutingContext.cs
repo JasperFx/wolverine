@@ -41,6 +41,7 @@ public class MessageRoutingContext : IAsyncLifetime
         var actual = runtime
             .Endpoints
             .ActiveListeners()
+            .Where(x => x.Uri.Scheme != "stub")
             .Where(x => x.Endpoint.Role == EndpointRole.Application)
             .OrderBy(x => x.Uri.ToString())
             .Select(x => x.Uri).ToArray();

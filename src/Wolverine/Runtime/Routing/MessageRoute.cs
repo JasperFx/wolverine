@@ -74,9 +74,9 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
     public IList<IEnvelopeRule> Rules { get; } = new List<IEnvelopeRule>();
 
     public Task InvokeAsync(object message, MessageBus bus, CancellationToken cancellation = default,
-        TimeSpan? timeout = null, string? tenantId = null)
+        TimeSpan? timeout = null, DeliveryOptions? options = null)
     {
-        return InvokeAsync<Acknowledgement>(message, bus, cancellation, timeout, tenantId);
+        return InvokeAsync<Acknowledgement>(message, bus, cancellation, timeout, options);
     }
 
     public Envelope CreateForSending(object message, DeliveryOptions? options, ISendingAgent localDurableQueue,
@@ -145,13 +145,13 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
         
     public Task<T> InvokeAsync<T>(object message, MessageBus bus,
         CancellationToken cancellation = default,
-        TimeSpan? timeout = null, string? tenantId = null)
+        TimeSpan? timeout = null, DeliveryOptions? options = null)
     {
-        return RemoteInvokeAsync<T>(message, bus, cancellation, timeout, tenantId);
+        return RemoteInvokeAsync<T>(message, bus, cancellation, timeout, options);
     }
 
     internal async Task<T> RemoteInvokeAsync<T>(object message, MessageBus bus, CancellationToken cancellation,
-        TimeSpan? timeout, string? tenantId, string? topicName = null)
+        TimeSpan? timeout, DeliveryOptions? options, string? topicName = null)
     {
         if (message == null)
         {
@@ -170,9 +170,11 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
         
         var envelope = new Envelope(message, Sender)
         {
-            TenantId = tenantId ?? bus.TenantId,
+            TenantId = options?.TenantId ?? bus.TenantId,
             TopicName = topicName
         };
+        
+        options?.Override(envelope);
 
         foreach (var rule in Rules) rule.Modify(envelope);
         if (typeof(T) == typeof(Acknowledgement))
