@@ -14,18 +14,20 @@ internal class InnerDataInvoker<T> : IMessageInvoker
         _inner = inner;
     }
 
-    public Task<T1> InvokeAsync<T1>(object message, MessageBus bus, CancellationToken cancellation = default, TimeSpan? timeout = null,
-        string? tenantId = null)
+    public Task<T1> InvokeAsync<T1>(object message, MessageBus bus, CancellationToken cancellation = default,
+        TimeSpan? timeout = null,
+        DeliveryOptions? options = null)
     {
         throw new NotSupportedException();
     }
 
-    public Task InvokeAsync(object message, MessageBus bus, CancellationToken cancellation = default, TimeSpan? timeout = null,
-        string? tenantId = null)
+    public Task InvokeAsync(object message, MessageBus bus, CancellationToken cancellation = default,
+        TimeSpan? timeout = null,
+        DeliveryOptions? options = null)
     {
         if (message is IEvent<T> e)
         {
-            return _inner.InvokeAsync(e.Data, bus, cancellation, timeout, tenantId);
+            return _inner.InvokeAsync(e.Data, bus, cancellation, timeout, options);
         }
 
         return Task.CompletedTask;

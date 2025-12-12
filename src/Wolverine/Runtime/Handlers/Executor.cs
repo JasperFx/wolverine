@@ -126,14 +126,14 @@ internal class Executor : IExecutor
     }
 
     public async Task<T> InvokeAsync<T>(object message, MessageBus bus, CancellationToken cancellation = default,
-        TimeSpan? timeout = null, string? tenantId = null)
+        TimeSpan? timeout = null, DeliveryOptions? options = null)
     {
         var envelope = new Envelope(message)
         {
             ReplyUri = TransportConstants.RepliesUri,
             ReplyRequested = typeof(T).ToMessageTypeName(),
             ResponseType = typeof(T),
-            TenantId = tenantId ?? bus.TenantId,
+            TenantId = options?.TenantId ?? bus.TenantId,
             DoNotCascadeResponse = true
         };
 
@@ -150,11 +150,11 @@ internal class Executor : IExecutor
     }
 
     public Task InvokeAsync(object message, MessageBus bus, CancellationToken cancellation = default,
-        TimeSpan? timeout = null, string? tenantId = null)
+        TimeSpan? timeout = null, DeliveryOptions? options = null)
     {
         var envelope = new Envelope(message)
         {
-            TenantId = tenantId ?? bus.TenantId
+            TenantId = options?.TenantId ?? bus.TenantId
         };
 
         bus.TrackEnvelopeCorrelation(envelope, Activity.Current);

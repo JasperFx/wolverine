@@ -129,7 +129,7 @@ public class MessageBus : IMessageBus, IMessageContext
 
         Runtime.AssertHasStarted();
 
-        return Runtime.FindInvoker(message.GetType()).InvokeAsync(message, this, cancellation, timeout, tenantId);
+        return Runtime.FindInvoker(message.GetType()).InvokeAsync(message, this, cancellation, timeout, new DeliveryOptions{TenantId = tenantId});
     }
 
     public Task<T> InvokeForTenantAsync<T>(string tenantId, object message, CancellationToken cancellation = default,
@@ -142,7 +142,7 @@ public class MessageBus : IMessageBus, IMessageContext
 
         Runtime.AssertHasStarted();
 
-        return Runtime.FindInvoker(message.GetType()).InvokeAsync<T>(message, this, cancellation, timeout, tenantId);
+        return Runtime.FindInvoker(message.GetType()).InvokeAsync<T>(message, this, cancellation, timeout, new DeliveryOptions{TenantId = tenantId});
     }
 
     public IReadOnlyList<Envelope> PreviewSubscriptions(object message)
