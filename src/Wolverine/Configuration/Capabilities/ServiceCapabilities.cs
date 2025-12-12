@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Text.Json.Serialization;
+using JasperFx.Core.Reflection;
 using JasperFx.Descriptors;
 using JasperFx.Events;
 using JasperFx.Events.Descriptors;
@@ -49,29 +50,33 @@ public class ServiceCapabilities : OptionsDescription
 
         var collection = runtime.Stores;
         var stores = await collection.FindAllAsync();
-        foreach (var store in stores)
-        {
-            capabilities.MessageStores.Add(new MessageStore(store.Uri, true, store.Describe()));
-        }
+        capabilities.MessageStores.AddRange(stores.Select(MessageStore.For).OrderBy(x => x.Uri.ToString()));
 
         capabilities.MessageStoreCardinality = collection.Cardinality();
 
         var eventStores = runtime.Services.GetServices<IEventStore>();
+        var storeList = new List<EventStoreUsage>();
         foreach (var eventStore in eventStores)
         {
             var eventStoreUsage = await eventStore.TryCreateUsage(token);
             if (eventStoreUsage != null)
             {
-                capabilities.EventStores.Add(eventStoreUsage);
+                storeList.Add(eventStoreUsage);
             }
         }
+        
+        capabilities.EventStores.AddRange(storeList.OrderBy(x => x.SubjectUri.ToString()));
 
         var messageTypes = runtime.Options.Discovery.FindAllMessages(runtime.Options.HandlerGraph);
-        foreach (var messageType in messageTypes)
+        foreach (var messageType in messageTypes.OrderBy(x => x.FullNameInCode()))
+        {
             capabilities.Messages.Add(new MessageDescriptor(messageType, runtime));
+        }
 
-        foreach (var endpoint in runtime.Options.Transports.AllEndpoints())
+        foreach (var endpoint in runtime.Options.Transports.AllEndpoints().OrderBy(x => x.Uri.ToString()))
+        {
             capabilities.MessagingEndpoints.Add(new EndpointDescriptor(endpoint));
+        }
 
         return capabilities;
     }
