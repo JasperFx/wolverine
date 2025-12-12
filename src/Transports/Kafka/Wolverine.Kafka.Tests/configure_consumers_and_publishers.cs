@@ -43,6 +43,11 @@ public class configure_consumers_and_publishers : IAsyncLifetime
                 // Or explicitly make subscription rules
                 opts.PublishMessage<ColorMessage>()
                     .ToKafkaTopic("colors")
+                    .TopicCreation(async (c, t) =>
+                    {
+                        t.Specification.NumPartitions = 4;
+                        await c.CreateTopicsAsync([t.Specification]);
+                    })
                     
                     // Override the producer configuration for just this topic
                     .ConfigureProducer(config =>
