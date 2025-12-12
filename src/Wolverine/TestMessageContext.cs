@@ -322,5 +322,10 @@ public class TestMessageContext : IMessageContext
             var response = _parent.findResponse<T>(message, _destination, _endpointName);
             return Task.FromResult(response);
         }
+
+        public ValueTask SendRawMessageAsync(byte[] data, Type? messageType = null, Action<Envelope>? configure = null)
+        {
+            throw new NotImplementedException();
+        }
     }
 }
