@@ -85,7 +85,7 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
         var envelope = new Envelope(message, Sender)
         {
             Serializer = Serializer,
-            ContentType = Serializer.ContentType,
+            ContentType = Serializer?.ContentType,
             TopicName = topicName
         };
 
