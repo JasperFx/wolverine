@@ -3,6 +3,7 @@ using IntegrationTests;
 using JasperFx;
 using JasperFx.CommandLine.Descriptions;
 using JasperFx.Core;
+using JasperFx.Core.Reflection;
 using Marten;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -76,6 +77,31 @@ public class end_to_end
             resources.OfType<BrokerResource>().Any(x => x.Name == new RabbitMqTransport().Name).ShouldBeTrue();
         }
     }
+
+    [Fact]
+    public async Task find_endpoints_through_conventions_as_part_of_find_resources()
+    {
+        using var host = Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.ApplicationAssembly = GetType().Assembly;
+                opts.UseRabbitMq().UseConventionalRouting();
+            }).Build();
+        
+        var sources = host.Services.GetServices<ISystemPart>().OfType<WolverineSystemPart>();
+        foreach (var source in sources)
+        {
+            var resources = await source.FindResources();
+        }
+
+        var transport = host.GetRuntime().Options.Transports.GetOrCreate<RabbitMqTransport>();
+        transport.Exchanges.Contains(typeof(OM1).FullNameInCode()).ShouldBeTrue();
+        transport.Exchanges.Contains(typeof(OM2).FullNameInCode()).ShouldBeTrue();
+        transport.Exchanges.Contains(typeof(OM3).FullNameInCode()).ShouldBeTrue();
+        transport.Exchanges.Contains(typeof(OM4).FullNameInCode()).ShouldBeTrue();
+    }
+
+
 
     [Fact]
     public async Task rabbitmq_transport_is_NOT_exposed_as_a_resource_if_external_transports_are_stubbed()
@@ -906,3 +932,8 @@ public static class RequestColorsHandler
         }
     }
 }
+
+public record OM1 : IMessage;
+public record OM2 : IMessage;
+public record OM3 : IMessage;
+public record OM4 : IMessage;
