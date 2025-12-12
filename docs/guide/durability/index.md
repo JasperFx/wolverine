@@ -169,9 +169,15 @@ using var host = await Host.CreateDefaultBuilder()
         // so that the durability agent can recover it and force
         // it to be sent
         opts.Durability.OutboxStaleTime = 1.Hours();
+        
+        // Same for the inbox, but it's configured independently
+        // This should *never* be necessary and the Wolverine
+        // team has no clue why this could ever happen and a message
+        // could get "stuck", but yet, here this is:
+        opts.Durability.InboxStaleTime = 10.Minutes();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L281-L293' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_outbox_stale_timeout' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L281-L299' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_outbox_stale_timeout' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Note that this will still respect the "deliver by" semantics. This is part of the polling that Wolverine normally does
