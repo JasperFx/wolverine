@@ -31,7 +31,9 @@ public partial class NodeAgentController
             return AgentCommands.Empty;
         }
         
-        using var activity = WolverineTracing.ActivitySource.StartActivity("wolverine_node_assignments");
+        using var activity = ShouldTraceHealthCheck() 
+            ? WolverineTracing.ActivitySource.StartActivity("wolverine_node_assignments") 
+            : null;
 
         // write health check regardless, and due to GH-1232, pass in the whole node so you can do an upsert
         await _persistence.MarkHealthCheckAsync(WolverineNode.For(_runtime.Options), _cancellation.Token);
