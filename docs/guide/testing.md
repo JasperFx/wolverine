@@ -179,10 +179,11 @@ public enum MessageEventType
     NoRoutes,
     MovedToErrorQueue,
     Requeued,
-    Scheduled
+    Scheduled,
+    Discarded
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Tracking/MessageEventType.cs#L3-L18' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_record_collections' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Tracking/MessageEventType.cs#L3-L19' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_record_collections' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Let's consider we're testing a Wolverine application which publishes a message, when a change to a watched folder is detected. The part we want to test is that a message is actually published when a file is added to the watched folder. We can use the `TrackActivity` method to start a tracked session and then use the `ExecuteAndWaitAsync` method to wait for the message to be published when the file change has happened.

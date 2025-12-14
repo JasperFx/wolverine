@@ -43,6 +43,8 @@ public class RabbitMqExchange : RabbitMqEndpoint, IRabbitMqExchange
         return base.AutoStartSendingAgent() || ExchangeType == ExchangeType.Topic;
     }
 
+    public bool DisableAutoProvision { get; set; }
+
     public bool HasDeclared { get; private set; }
 
     public string DeclaredName { get; }
@@ -72,7 +74,7 @@ public class RabbitMqExchange : RabbitMqEndpoint, IRabbitMqExchange
             return;
         }
 
-        if (_parent.AutoProvision)
+        if (_parent.AutoProvision && !DisableAutoProvision)
         {
             await _parent.WithAdminChannelAsync(model => DeclareAsync(model, logger));
         }

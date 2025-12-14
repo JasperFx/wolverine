@@ -504,6 +504,13 @@ public void Handle(OrderTimeout timeout, ILogger<Order> logger)
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderSagaSample/OrderSaga.cs#L51-L63' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_handling_a_timeout_message' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Saga Concurrency
+
+Both the Marten and EF Core backed saga support has built in support for optimistic concurrency checks on persisting
+a saga after handling a command. See [Dealing with Concurrency](/tutorials/concurrency) and especially the 
+[partitioned sequential messaging](/tutorials/concurrency) and its option for "inferred" message grouping to maybe completely
+side step concurrency issues with saga message handling. 
+
 ## Lightweight Saga Storage <Badge type="tip" text="3.0" />
 
 The Wolverine integration with either Sql Server or PostgreSQL comes with a lightweight saga storage mechanism
@@ -543,3 +550,60 @@ using var host = await Host.CreateDefaultBuilder()
 
 Note that this manual registration is not necessary at development time or if you're content to just let Wolverine
 handle database migrations at runtime.
+
+## Overriding Logging
+
+We recently had a question about how to turn down logging levels for `Saga` message processing when the log
+output was getting too verbose. `Saga` types are officially message handlers to the Wolverine internals, so you can 
+still use the `public static void Configure(HandlerChain)` mechanism for one off configurations to every message handler
+method on the `Saga` like this:
+
+<!-- snippet: sample_overriding_logging_on_saga -->
+<a id='snippet-sample_overriding_logging_on_saga'></a>
+```cs
+public class RevisionedSaga : Wolverine.Saga
+{
+    // This works just the same as on any other message handler
+    // type
+    public static void Configure(HandlerChain chain)
+    {
+        chain.ProcessingLogLevel = LogLevel.None;
+        chain.SuccessLogLevel = LogLevel.None;
+    }
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/Saga/RevisionedSaga.cs#L80-L92' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_overriding_logging_on_saga' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Or if you wanted to just do it globally, something like this approach:
+
+<!-- snippet: sample_turn_down_logging_for_sagas -->
+<a id='snippet-sample_turn_down_logging_for_sagas'></a>
+```cs
+public class TurnDownLoggingOnSagas : IChainPolicy
+{
+    public void Apply(IReadOnlyList<IChain> chains, GenerationRules rules, IServiceContainer container)
+    {
+        foreach (var sagaChain in chains.OfType<SagaChain>())
+        {
+            sagaChain.ProcessingLogLevel = LogLevel.None;
+            sagaChain.SuccessLogLevel = LogLevel.None;
+        }
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/SagaChainPolicies.cs#L27-L41' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_turn_down_logging_for_sagas' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+and register that policy something like this:
+
+<!-- snippet: sample_configuring_chain_policy_on_sagas -->
+<a id='snippet-sample_configuring_chain_policy_on_sagas'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.Policies.Add<TurnDownLoggingOnSagas>();
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/SagaChainPolicies.cs#L15-L23' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_chain_policy_on_sagas' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->

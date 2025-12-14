@@ -7,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Npgsql;
 using Weasel.Core.Migrations;
+using Wolverine.ErrorHandling;
 using Wolverine.Persistence.Durability;
 using Wolverine.Persistence.Sagas;
 using Wolverine.Postgresql.Transport;
@@ -176,6 +177,10 @@ internal class PostgresqlBackedPersistence : IPostgresqlBackedPersistence, IWolv
                 "The PostgreSQL backed persistence needs to at least have either a connection string or NpgsqlDataSource defined for the main envelope database");
         }
 
+        options.OnException<PostgresException>(pg => pg.TableName == DatabaseConstants.IncomingTable && pg.ConstraintName.IsNotEmpty() &&
+                                                     pg.ConstraintName.StartsWith("pkey"))
+            .Discard();
+        
         // This needs to stay in to help w/ EF Core customization
         options.Services.AddSingleton(buildMainDatabaseSettings());
         options.CodeGeneration.AddPersistenceStrategy<LightweightSagaPersistenceFrameProvider>();

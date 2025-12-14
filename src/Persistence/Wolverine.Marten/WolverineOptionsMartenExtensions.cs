@@ -71,6 +71,7 @@ public static class WolverineOptionsMartenExtensions
 
             configure?.Invoke(integration);
 
+            expression.Services.AddSingleton(integration);
             expression.Services.AddSingleton<IWolverineExtension>(integration);
         }
         else

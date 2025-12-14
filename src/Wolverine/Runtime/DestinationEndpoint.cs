@@ -47,7 +47,48 @@ internal class DestinationEndpoint : IDestinationEndpoint
         options?.Override(envelope);
 
         // adjust for local, scheduled send
-        if (envelope.IsScheduledForLater(DateTimeOffset.Now) && !_endpoint.Agent!.SupportsNativeScheduledSend)
+        if (envelope.IsScheduledForLater(DateTimeOffset.UtcNow) && !_endpoint.Agent!.SupportsNativeScheduledSend)
+        {
+            var localDurableQueue =
+                _parent.Runtime.Endpoints.GetOrBuildSendingAgent(TransportConstants.DurableLocalUri);
+            envelope = envelope.ForScheduledSend(localDurableQueue);
+        }
+
+        _parent.TrackEnvelopeCorrelation(envelope, Activity.Current);
+
+        return _parent.PersistOrSendAsync(envelope);
+    }
+
+    public ValueTask SendRawMessageAsync(byte[] data, Type? messageType = null, Action<Envelope>? configure = null)
+    {
+        if (data == null)
+        {
+            throw new ArgumentNullException(nameof(data));
+        }
+
+        if (data.Length == 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(data), "Zero length data is not valid for this usage");
+        }
+
+        var envelope = new Envelope
+        {
+            Data = data,
+            Sender = _parent.Runtime.Endpoints.GetOrBuildSendingAgent(_endpoint.Uri)
+        };
+
+        if (messageType != null)
+        {
+            envelope.SetMessageType(messageType);
+            
+            var route = _endpoint.RouteFor(messageType, _parent.Runtime);
+            foreach (var rule in route.Rules) rule.Modify(envelope);
+        }
+        
+        configure?.Invoke(envelope);
+        
+        // adjust for local, scheduled send
+        if (envelope.IsScheduledForLater(DateTimeOffset.UtcNow) && !_endpoint.Agent!.SupportsNativeScheduledSend)
         {
             var localDurableQueue =
                 _parent.Runtime.Endpoints.GetOrBuildSendingAgent(TransportConstants.DurableLocalUri);

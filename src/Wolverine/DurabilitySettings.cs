@@ -93,6 +93,26 @@ public class DurabilitySettings
     public MessageIdentity MessageIdentity { get; set; } = MessageIdentity.IdOnly;
 
     /// <summary>
+    /// If non-null, this directs Wolverine to "push" any message in the durable outbox that is older
+    /// than the configured time even if the message is marked as owned by an active node
+    /// </summary>
+    public TimeSpan? OutboxStaleTime { get; set; }
+    
+    /// <summary>
+    /// If non-null, this directs Wolverine to "push" any message in the durable inbox that is older
+    /// than the configured time even if the message is marked as owned by an active node. Should NOT ever
+    /// be necessary, but it's an imperfect world. Enable this if you see "stuck" envelopes
+    /// </summary>
+    public TimeSpan? InboxStaleTime { get; set; }
+    
+    /// <summary>
+    /// For persistence mechanisms that support this (PostgreSQL), this directs Wolverine to use partitioning
+    /// based on the envelope status for the transactional inbox storage. This can be a performance optimization,
+    /// but does require a database migration if enabled
+    /// </summary>
+    public bool EnableInboxPartitioning { get; set; }
+
+    /// <summary>
     ///     Should the message durability agent be enabled during execution.
     ///     The default is true.
     /// </summary>

@@ -158,6 +158,12 @@ public static class WolverineHttpEndpointRouteBuilderExtensions
         services.AddSingleton<WolverineHttpOptions>();
         services.AddSingleton<NewtonsoftHttpSerialization>();
         services.AddSingleton<HttpTransportExecutor>();
+
+        services.ConfigureWolverine(opts =>
+        {
+            opts.CodeGeneration.Sources.Add(new NullableHttpContextSource());
+        });
+        
         return services;
     }
 
@@ -192,6 +198,8 @@ public static class WolverineHttpEndpointRouteBuilderExtensions
         options.Endpoints = new HttpGraph(runtime.Options, serviceProvider.GetRequiredService<IServiceContainer>());
 
         configure?.Invoke(options);
+        
+        options.Policies.Add(new ProblemDetailsFromMiddleware());
         
         if (Environment.CommandLine.Contains("codegen", StringComparison.OrdinalIgnoreCase))
         {

@@ -32,6 +32,11 @@ public partial class WolverineRuntime
         {
             _runtime.Received(envelope);
         }
+        
+        public void LogStatus(string message)
+        {
+            _runtime.ActiveSession?.LogStatus(message);
+        }
 
         public void ExecutionStarted(Envelope envelope)
         {

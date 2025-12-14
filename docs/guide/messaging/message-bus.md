@@ -425,4 +425,33 @@ public static async Task SendMessagesWithDeliveryOptions(IMessageBus bus)
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CustomizingMessageDelivery.cs#L9-L27' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sendmessageswithdeliveryoptions' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Sending Raw Message Data  <Badge type="tip" text="5.8" />
 
+In some particular cases, you may want to use Wolverine to send a message to another system (or the same system)
+when you already have the raw binary message data but not an actual .NET message object. An example use case is integrating
+scheduling libraries like Quartz.NET or Hangfire where you might be persisting a `byte[]` for a message to be 
+sent via Wolverine at a certain time. 
+
+Regardless of why you need to do this, Wolverine has a capability to do exactly this, but with the proviso that
+you will have to select the messaging endpoint first. To make this concrete,
+let's say that you've got this application set up:
+
+snippet: sample_simple_rabbit_mq_setup_for_raw_messages
+
+And some more context for the subsequent sample usages:
+
+snippet: sample_context_for_raw_message_sending
+
+The simplest possible usage is when you can assume that the receiving Wolverine
+endpoint or downstream system will "know" what the message type is without you
+having to tell it:
+
+snippet: sample_simple_usage_of_sending_by_raw_data
+
+Note that in this case, you'll have to help Wolverine out by explicitly choosing
+the destination for the raw message data by either using a `Uri` or the endpoint name. 
+
+You can also specify the .NET message type to help Wolverine create the necessary
+metadata for the outgoing message like so:
+
+snippet: sample_more_advanced_usage_of_raw_message_sending~~~~

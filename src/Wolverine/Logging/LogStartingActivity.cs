@@ -11,7 +11,6 @@ namespace Wolverine.Logging;
 internal class LogStartingActivity : SyncFrame
 {
     private readonly Type _inputType;
-    private readonly LogLevel _level;
     private readonly IChain _chain;
     private readonly List<AuditedMember> _members;
     private Variable? _envelope;
@@ -20,11 +19,13 @@ internal class LogStartingActivity : SyncFrame
 
     public LogStartingActivity(LogLevel level, IChain chain)
     {
-        _level = level;
+        Level = level;
         _chain = chain;
         _inputType = chain.InputType()!;
         _members = chain.AuditedMembers;
     }
+
+    public LogLevel Level { get; set; }
 
     public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
     {
@@ -41,7 +42,7 @@ internal class LogStartingActivity : SyncFrame
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
         writer.WriteComment("Application specific auditing");
-        var template = $"Starting to process {_inputType.FullNameInCode()} ({{Id}})";
+        var template = _members.Any(x => x.Member.Name.EqualsIgnoreCase("id")) ? "$Starting to process {_inputType.FullNameInCode()} ({{EnvelopeId}}" : $"Starting to process {_inputType.FullNameInCode()} ({{Id}})" ;
         if (_members.Count != 0)
         {
             template += " with " + _members.Select(m => $"{m.MemberName}: {{{m.Member.Name}}}").Join(", ");
@@ -51,7 +52,7 @@ internal class LogStartingActivity : SyncFrame
         args = args.Concat(_members.Select(x => $"{_input!.Usage}.{x.Member.Name}")).ToArray();
 
         writer.WriteLine(
-            $"{_logger!.Usage}.{nameof(ILogger.Log)}({typeof(LogLevel).FullNameInCode()}.{_level.ToString()}, \"{template}\", {args.Join(", ")});");
+            $"{_logger!.Usage}.{nameof(ILogger.Log)}({typeof(LogLevel).FullNameInCode()}.{Level.ToString()}, \"{template}\", {args.Join(", ")});");
         
         Next?.GenerateCode(method, writer);
     }

@@ -1,6 +1,7 @@
 ﻿using System.Data.Common;
 using Weasel.Core;
 using Wolverine.Persistence.Durability;
+using Wolverine.Runtime.Interop;
 using Wolverine.Transports;
 using DbCommandBuilder = Weasel.Core.DbCommandBuilder;
 
@@ -131,12 +132,6 @@ public abstract partial class MessageDatabase<T>
     public async Task StoreIncomingAsync(Envelope envelope)
     {
         if (HasDisposed) return;
-
-        if (envelope.OwnerId == TransportConstants.AnyNode && envelope.Status == EnvelopeStatus.Incoming)
-        {
-            throw new ArgumentOutOfRangeException(nameof(Envelope),
-                "Erroneous persistence of an incoming envelope to 'any' node");
-        }
 
         var builder = ToCommandBuilder();
         DatabasePersistence.BuildIncomingStorageCommand(this, builder, envelope);

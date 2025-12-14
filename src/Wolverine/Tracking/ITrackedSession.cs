@@ -73,6 +73,12 @@ public interface ITrackedSession
     RecordCollection Executed { get; }
 
     /// <summary>
+    /// Message processing records for messages that were discarded by exception handling policies
+    /// in the application during the test
+    /// </summary>
+    RecordCollection Discarded { get; }
+
+    /// <summary>
     ///     Finds a message of type T that was either sent, received,
     ///     or executed during this session. This will throw an exception
     ///     if there is more than one message

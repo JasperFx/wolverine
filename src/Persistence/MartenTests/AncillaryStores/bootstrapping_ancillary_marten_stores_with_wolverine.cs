@@ -2,6 +2,7 @@ using IntegrationTests;
 using JasperFx.Core;
 using JasperFx.Resources;
 using Marten;
+using Marten.Events.Daemon.Coordination;
 using MartenTests.MultiTenancy;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -95,7 +96,10 @@ public class bootstrapping_ancillary_marten_stores_with_wolverine : IAsyncLifeti
                         tenancy.AddSingleTenantDatabase(tenant3ConnectionString, "tenant3");
                     });
                     m.DatabaseSchemaName = "things";
-                }).IntegrateWithWolverine(x => x.MainConnectionString = Servers.PostgresConnectionString);
+                }).IntegrateWithWolverine(x =>
+                {
+                    x.MainConnectionString = Servers.PostgresConnectionString;
+                });
 
                 opts.Services.AddResourceSetupOnStartup();
             }).StartAsync();
@@ -132,6 +136,13 @@ public class bootstrapping_ancillary_marten_stores_with_wolverine : IAsyncLifeti
         await conn.OpenAsync();
         await conn.DropSchemaAsync(schemaName);
         await conn.CloseAsync();
+    }
+
+    [Fact]
+    public void projection_coordinator_from_marten()
+    {
+        theHost.Services.GetRequiredService<IProjectionCoordinator<IPlayerStore>>()
+            .ShouldBeOfType<ProjectionCoordinator<IPlayerStore>>();
     }
 
     [Fact]

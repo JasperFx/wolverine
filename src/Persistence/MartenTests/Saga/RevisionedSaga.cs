@@ -1,12 +1,17 @@
 using IntegrationTests;
 using JasperFx.CodeGeneration;
 using JasperFx.Core;
+using JasperFx.Core.Reflection;
 using Marten;
 using Marten.Metadata;
 using Microsoft.Extensions.Hosting;
 using JasperFx.Resources;
+using Microsoft.Extensions.Logging;
+using Shouldly;
 using Wolverine;
 using Wolverine.Marten;
+using Wolverine.Runtime;
+using Wolverine.Runtime.Handlers;
 using Wolverine.Tracking;
 
 namespace MartenTests.Saga;
@@ -29,6 +34,16 @@ public class using_revisioned_sagas : IAsyncLifetime
 
                 opts.Services.AddResourceSetupOnStartup();
             }).StartAsync();
+    }
+
+    [Fact]
+    public void can_override_the_log_level()
+    {
+        var runtime = theHost.GetRuntime();
+        runtime.As<IExecutorFactory>().BuildFor(typeof(StartNewRevisionedSaga));
+        var chain = runtime.Handlers.ChainFor<StartNewRevisionedSaga>();
+        chain.SuccessLogLevel.ShouldBe(LogLevel.None);
+        chain.ProcessingLogLevel.ShouldBe(LogLevel.None);
     }
 
     [Fact]
@@ -62,8 +77,20 @@ public class using_revisioned_sagas : IAsyncLifetime
     }
 }
 
+#region sample_overriding_logging_on_saga
+
 public class RevisionedSaga : Wolverine.Saga
 {
+    // This works just the same as on any other message handler
+    // type
+    public static void Configure(HandlerChain chain)
+    {
+        chain.ProcessingLogLevel = LogLevel.None;
+        chain.SuccessLogLevel = LogLevel.None;
+    }
+
+    #endregion
+    
     public static TaskCompletionSource InSlowMessage = new TaskCompletionSource();
     
     public static RevisionedSaga Start(StartNewRevisionedSaga command) => new RevisionedSaga { Id = command.Id };

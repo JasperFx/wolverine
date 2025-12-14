@@ -24,3 +24,18 @@ public interface IAsyncWolverineExtension
 {
     ValueTask Configure(WolverineOptions options);
 }
+
+internal class LambdaWolverineExtension : IWolverineExtension
+{
+    private readonly Action<WolverineOptions> _action;
+
+    public LambdaWolverineExtension(Action<WolverineOptions> action)
+    {
+        _action = action ?? throw new ArgumentNullException(nameof(action));
+    }
+
+    public void Configure(WolverineOptions options)
+    {
+        _action(options);
+    }
+}

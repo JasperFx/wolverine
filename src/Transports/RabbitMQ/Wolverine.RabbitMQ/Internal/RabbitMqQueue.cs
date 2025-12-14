@@ -40,10 +40,10 @@ public partial class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQu
         _parent = parent;
         QueueName = EndpointName = queueName;
         Mode = EndpointMode.Inline;
-
-        if (QueueName != _parent.DeadLetterQueue.QueueName)
+        
+        if (Role == EndpointRole.Application && QueueName != _parent.DeadLetterQueue.QueueName)
         {
-            DeadLetterQueue = _parent.DeadLetterQueue;
+            DeadLetterQueue = _parent.DeadLetterQueue.Clone();
         }
     }
 

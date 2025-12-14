@@ -140,6 +140,14 @@ internal class EventStoreAgents : IAsyncDisposable
 
             await daemon.StartAllAsync();
         }
+
+        if (usage.Database.MainDatabase != null)
+        {
+            var id = new DatabaseId(usage.Database.MainDatabase.ServerName, usage.Database.MainDatabase.DatabaseName);
+            var daemon = await FindDaemonAsync(id);
+
+            await daemon.StartAllAsync();
+        }
     }
 
     public async Task StopAllAsync(CancellationToken cancellationToken)
@@ -149,6 +157,35 @@ internal class EventStoreAgents : IAsyncDisposable
             var daemon = kvEntry.Value;
             await daemon.StopAllAsync();
         }
+    }
+    
+    public async ValueTask<IReadOnlyList<IProjectionDaemon>> AllDaemonsAsync()
+    {
+        var usage = await _store.TryCreateUsage(CancellationToken.None);
+        if (usage == null)
+        {
+            return [];
+        }
+
+        var list = new List<IProjectionDaemon>();
+        
+        foreach (var database in usage.Database.Databases)
+        {
+            var id = new DatabaseId(database.ServerName, database.DatabaseName);
+            var daemon = await FindDaemonAsync(id);
+
+            list.Add(daemon);
+        }
+
+        if (usage.Database.MainDatabase != null && usage.Database.Cardinality == DatabaseCardinality.Single)
+        {
+            var id = new DatabaseId(usage.Database.MainDatabase.ServerName, usage.Database.MainDatabase.DatabaseName);
+            var daemon = await FindDaemonAsync(id);
+
+            list.Add(daemon);
+        }
+
+        return list;
     }
 
     public IProjectionDaemon DaemonForMainDatabase()
@@ -160,4 +197,6 @@ internal class EventStoreAgents : IAsyncDisposable
     {
         throw new NotSupportedException("This method is not supported with the Wolverine managed projection/subscription distribution");
     }
+
+
 }

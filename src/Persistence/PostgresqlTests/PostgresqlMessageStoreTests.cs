@@ -182,4 +182,5 @@ public class PostgresqlMessageStoreTests : MessageStoreCompliance
         counts.Scheduled.ShouldBe(0);
         counts.Handled.ShouldBe(0);
     }
+
 }

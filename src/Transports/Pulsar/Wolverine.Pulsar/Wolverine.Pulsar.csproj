@@ -14,7 +14,7 @@
 
     <ItemGroup>
         <PackageReference Include="DotPulsar" Version="4.2.4" />
-        <PackageReference Include="Microsoft.Extensions.ObjectPool" Version="9.0.5" />
+        <PackageReference Include="Microsoft.Extensions.ObjectPool" Version="10.0.0" />
     </ItemGroup>
 
     <Import Project="../../../../Analysis.Build.props"/>

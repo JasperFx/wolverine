@@ -204,7 +204,9 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
     {
         try
         {
+            envelope.OwnerId = _settings.AssignedNodeNumber;
             await _inbox.StoreIncomingAsync(envelope);
+            envelope.WasPersistedInInbox = true;
         }
         catch (DuplicateIncomingEnvelopeException e)
         {

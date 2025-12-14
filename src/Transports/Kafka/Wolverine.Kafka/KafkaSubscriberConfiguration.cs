@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Confluent.Kafka;
+using Confluent.Kafka.Admin;
 using Wolverine.Configuration;
 using Wolverine.Kafka.Internals;
 
@@ -9,6 +10,42 @@ public class KafkaSubscriberConfiguration : InteroperableSubscriberConfiguration
 {
     internal KafkaSubscriberConfiguration(KafkaTopic endpoint) : base(endpoint)
     {
+    }
+    
+    /// <summary>
+    /// If you need to do anything "special" to create topics at runtime with Wolverine,
+    /// this overrides the simple logic that Wolverine uses and replaces
+    /// it with whatever you need to do having full access to the Kafka IAdminClient
+    /// and the Wolverine KafkaTopic configuration
+    /// </summary>
+    /// <param name="creation"></param>
+    /// <returns></returns>
+    public KafkaSubscriberConfiguration TopicCreation(Func<IAdminClient, KafkaTopic, Task> creation)
+    {
+        if (creation == null)
+        {
+            throw new ArgumentNullException(nameof(creation));
+        }
+
+        add(topic => topic.CreateTopicFunc = creation);
+        return this;
+    }
+
+    /// <summary>
+    /// Fine tune the TopicSpecification for this Kafka Topic if it is being created by Wolverine
+    /// </summary>
+    /// <param name="configure"></param>
+    /// <returns></returns>
+    /// <exception cref="ArgumentNullException"></exception>
+    public KafkaSubscriberConfiguration Specification(Action<TopicSpecification> configure)
+    {
+        if (configure == null)
+        {
+            throw new ArgumentNullException(nameof(configure));
+        }
+
+        add(topic => configure(topic.Specification));
+        return this;
     }
 
     /// <summary>

@@ -160,20 +160,7 @@ internal class DurabilityAgent : IAgent
 
     private IDatabaseOperation[] buildOperationBatch()
     {
-        if (_database.Settings.Role == MessageStoreRole.Main && isTimeToPruneNodeEventRecords())
-        {
-            return
-            [
-                new CheckRecoverableIncomingMessagesOperation(_database, _runtime.Endpoints, _settings, _logger),
-                new CheckRecoverableOutgoingMessagesOperation(_database, _runtime, _logger),
-                new DeleteExpiredEnvelopesOperation(
-                    new DbObjectName(_database.SchemaName, DatabaseConstants.IncomingTable), DateTimeOffset.UtcNow),
-                new MoveReplayableErrorMessagesToIncomingOperation(_database),
-                new DeleteOldNodeEventRecords(_database, _settings)
-            ];
-        }
-
-        return
+        List<IDatabaseOperation> ops =
         [
             new CheckRecoverableIncomingMessagesOperation(_database, _runtime.Endpoints, _settings, _logger),
             new CheckRecoverableOutgoingMessagesOperation(_database, _runtime, _logger),
@@ -181,6 +168,23 @@ internal class DurabilityAgent : IAgent
                 new DbObjectName(_database.SchemaName, DatabaseConstants.IncomingTable), DateTimeOffset.UtcNow),
             new MoveReplayableErrorMessagesToIncomingOperation(_database)
         ];
+
+        if (_database.Settings.Role == MessageStoreRole.Main && isTimeToPruneNodeEventRecords())
+        {
+            ops.Add(new DeleteOldNodeEventRecords(_database, _settings));
+        }
+
+        if (_runtime.Options.Durability.OutboxStaleTime.HasValue)
+        {
+            ops.Add(new BumpStaleOutgoingEnvelopesOperation(new DbObjectName(_database.SchemaName, DatabaseConstants.OutgoingTable), _runtime.Options.Durability, DateTimeOffset.UtcNow));
+        }
+
+        if (_runtime.Options.Durability.InboxStaleTime.HasValue)
+        {
+            ops.Add(new BumpStaleIncomingEnvelopesOperation(new DbObjectName(_database.SchemaName, DatabaseConstants.IncomingTable), _runtime.Options.Durability, DateTimeOffset.UtcNow));
+        }
+
+        return ops.ToArray();
     }
 
     public void StartScheduledJobPolling()

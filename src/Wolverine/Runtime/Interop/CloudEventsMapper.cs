@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using JasperFx.Core.Reflection;
+using MassTransit;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Runtime.Serialization;
 using Wolverine.Util;
@@ -76,7 +77,7 @@ internal class CloudEventsEnvelope
     public string TraceParent { get; set; }
 }
 
-public class CloudEventsMapper : IMessageSerializer
+public class CloudEventsMapper : IUnwrapsMetadataMessageSerializer
 {
     private readonly HandlerGraph _handlers;
     private readonly JsonSerializerOptions _options;
@@ -137,9 +138,16 @@ public class CloudEventsMapper : IMessageSerializer
             envelope.SentAt = time;
         }
 
-        if (node.TryGetValue<Guid>("id", out var id))
+        if (node.TryGetValue<string>("id", out var raw))
         {
-            envelope.Id = id;
+            if (Guid.TryParse(raw, out var id))
+            {
+                envelope.Id = id;
+            }
+            else
+            {
+                envelope.Id = NewId.NextSequentialGuid();
+            }
         }
 
         if (node.TryGetValue<string>("type", out var cloudEventType))
@@ -186,6 +194,12 @@ public class CloudEventsMapper : IMessageSerializer
         MapIncoming(envelope, node);
 
         return envelope.Message;
+    }
+
+    public void Unwrap(Envelope envelope)
+    {
+        var node = JsonNode.Parse(envelope.Data);
+        MapIncoming(envelope, node);
     }
 
     public object ReadFromData(byte[] data)

@@ -20,7 +20,8 @@ public class serialization_and_deserialization_of_single_message
             DeliverBy = DateTime.Today.ToUniversalTime(),
             ReplyUri = "tcp://localhost:2221/replies".ToUri(),
             SagaId = Guid.NewGuid().ToString(),
-            ParentId = Guid.NewGuid().ToString()
+            ParentId = Guid.NewGuid().ToString(),
+            KeepUntil = DateTime.Today.AddDays(1).ToUniversalTime()
         };
 
         outgoing.Headers.Add("name", "Jeremy");
@@ -221,5 +222,11 @@ public class serialization_and_deserialization_of_single_message
     {
         outgoing.PartitionKey = Guid.NewGuid().ToString();
         incoming.PartitionKey.ShouldBe(outgoing.PartitionKey);
+    }
+
+    [Fact]
+    public void keep_until()
+    {
+        incoming.KeepUntil.Value.ShouldBe(outgoing.KeepUntil.Value);
     }
 }

@@ -166,6 +166,6 @@ public static void using_preview_subscriptions(IMessageBus bus)
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Runtime/Routing/routing_rules.cs#L90-L104' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_preview_subscriptions' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Runtime/Routing/routing_rules.cs#L102-L116' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_preview_subscriptions' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 

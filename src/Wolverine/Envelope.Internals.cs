@@ -45,6 +45,12 @@ public partial class Envelope
         Serializer = writer ?? throw new ArgumentNullException(nameof(writer));
         ContentType = writer.ContentType;
     }
+    
+    /// <summary>
+    /// Helps denote to the transactional middleware that this envelope was
+    /// persisted or not to aid in the "Handled" behavior
+    /// </summary>
+    public bool WasPersistedInInbox { get; set; }
 
     public IMessageSerializer? Serializer { get; set; }
 
@@ -84,6 +90,8 @@ public partial class Envelope
     public bool IsResponse { get; set; }
     public Exception? Failure { get; set; }
     internal Envelope[]? Batch { get; set; }
+    
+    internal bool HasBeenAcked { get; set; }
 
     internal void StartTiming()
     {

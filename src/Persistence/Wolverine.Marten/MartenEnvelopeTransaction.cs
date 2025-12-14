@@ -10,19 +10,20 @@ namespace Wolverine.Marten;
 
 internal class MartenEnvelopeTransaction : IEnvelopeTransaction
 {
+    private readonly MessageContext _context;
     private readonly int _nodeId;
-    private readonly PostgresqlMessageStore _store;
 
     public MartenEnvelopeTransaction(IDocumentSession session, MessageContext context)
     {
+        _context = context;
         if (context.Storage is PostgresqlMessageStore store)
         {
-            _store = store;
+            Store = store;
             _nodeId = store.Durability.AssignedNodeNumber;
         }
-        else if (context.Storage is MultiTenantedMessageStore mt && mt.Main is PostgresqlMessageStore s)
+        else if (context.Storage is MultiTenantedMessageStore { Main: PostgresqlMessageStore s })
         {
-            _store = s;
+            Store = s;
             _nodeId = s.Durability.AssignedNodeNumber;
         }
         else
@@ -34,29 +35,54 @@ internal class MartenEnvelopeTransaction : IEnvelopeTransaction
         Session = session;
     }
 
+    public PostgresqlMessageStore Store { get; }
+
     public IDocumentSession Session { get; }
 
     public Task PersistOutgoingAsync(Envelope envelope)
     {
-        Session.StoreOutgoing(_store, envelope, _nodeId);
+        Session.StoreOutgoing(Store, envelope, _nodeId);
         return Task.CompletedTask;
     }
 
     public Task PersistOutgoingAsync(Envelope[] envelopes)
     {
-        foreach (var envelope in envelopes) Session.StoreOutgoing(_store, envelope, _nodeId);
+        foreach (var envelope in envelopes) Session.StoreOutgoing(Store, envelope, _nodeId);
 
         return Task.CompletedTask;
     }
 
     public Task PersistIncomingAsync(Envelope envelope)
     {
-        Session.StoreIncoming(_store, envelope);
+        Session.StoreIncoming(Store, envelope);
         return Task.CompletedTask;
     }
 
     public ValueTask RollbackAsync()
     {
         return ValueTask.CompletedTask;
+    }
+    
+    public async Task<bool> TryMakeEagerIdempotencyCheckAsync(Envelope envelope, DurabilitySettings settings,
+        CancellationToken cancellation)
+    {
+        if (envelope.WasPersistedInInbox) return true;
+
+        try
+        {
+            // Might need to reset!
+            _context.MultiFlushMode = MultiFlushMode.AllowMultiples;
+            var copy = Envelope.ForPersistedHandled(envelope, DateTimeOffset.UtcNow, settings);
+            await PersistIncomingAsync(copy);
+            await Session.SaveChangesAsync(cancellation);
+            
+            envelope.WasPersistedInInbox = true;
+            envelope.Status = EnvelopeStatus.Handled;
+            return true;
+        }
+        catch (Exception )
+        {
+            return false;
+        }
     }
 }

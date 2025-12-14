@@ -1,3 +1,4 @@
+using CoreTests.Runtime;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
@@ -38,9 +39,7 @@ public class exchange_queue_binding_model_setup_and_teardown_smoke_tests
             .BindExchange("fan1")
             .ToQueue("xqueue2", "key2");
 
-        var wolverineRuntime = Substitute.For<IWolverineRuntime>();
-        wolverineRuntime.Logger.Returns(NullLogger.Instance);
-        wolverineRuntime.DurabilitySettings.Returns(new DurabilitySettings());
+        var wolverineRuntime = new MockWolverineRuntime();
         theTransport.TryBuildStatefulResource(wolverineRuntime, out var resource);
 
         theResource = resource;

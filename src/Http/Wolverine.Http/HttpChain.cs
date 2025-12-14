@@ -23,6 +23,7 @@ using Wolverine.Http.Metadata;
 using Wolverine.Http.Policies;
 using Wolverine.Persistence;
 using Wolverine.Runtime;
+using Wolverine.Runtime.Partitioning;
 using ServiceContainer = JasperFx.ServiceContainer;
 
 namespace Wolverine.Http;
@@ -263,6 +264,22 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
     public bool HasResourceType()
     {
         return ResourceType != null && ResourceType != typeof(void) && ResourceType.FullName != "Microsoft.FSharp.Core.Unit";
+    }
+
+    public override bool TryInferMessageIdentity(out PropertyInfo? property)
+    {
+        var atts = Method.HandlerType.GetCustomAttributes()
+            .Concat(Method.Method.GetCustomAttributes())
+            .Concat(Method.Method.GetParameters().SelectMany(x => x.GetCustomAttributes()))
+            .OfType<IMayInferMessageIdentity>().ToArray();
+
+        foreach (var att in atts)
+        {
+            if (att.TryInferMessageIdentity(this, out property)) return true;
+        }
+        
+        property = default;
+        return false;
     }
 
     public override bool ShouldFlushOutgoingMessages()
@@ -677,6 +694,15 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
     public override void ApplyParameterMatching(MethodCall call)
     {
         _parent.ApplyParameterMatching(this, call);
+    }
+
+    public override IdempotencyStyle Idempotency
+    {
+        get => IdempotencyStyle.None;
+        set
+        {
+            // Nothing, you can't actually override it
+        }
     }
 
     public bool TryReplaceServiceProvider(out Variable serviceProvider)

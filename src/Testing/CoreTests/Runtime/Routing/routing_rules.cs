@@ -87,6 +87,18 @@ public class routing_rules
             .Single().Destination.ShouldBe(new Uri("local://purple"));
     }
 
+    [Fact]
+    public async Task capture_message_types_from_explicit_rules()
+    {
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.PublishMessage<BlueMessage>().ToLocalQueue("purple");
+            }).StartAsync();
+        
+        host.GetRuntime().Options.HandlerGraph.AllMessageTypes().ShouldContain(typeof(BlueMessage));
+    }
+
     #region sample_using_preview_subscriptions
 
     public static void using_preview_subscriptions(IMessageBus bus)

@@ -146,6 +146,7 @@ public sealed partial class WolverineRuntime : IMessageTracker
     public void DiscardedEnvelope(Envelope envelope)
     {
         _undeliverable(Logger, envelope, null);
+        ActiveSession?.Record(MessageEventType.Discarded, envelope, _serviceName, _uniqueNodeId);
     }
 
     public void Requeued(Envelope envelope)
@@ -159,5 +160,10 @@ public sealed partial class WolverineRuntime : IMessageTracker
     {
         ActiveSession?.LogException(ex, _serviceName);
         Logger.LogError(ex, message);
+    }
+
+    public void LogStatus(string message)
+    {
+        ActiveSession?.LogStatus(message);
     }
 }

@@ -307,6 +307,43 @@ dotnet run -- codegen write
 This command **should** write all the source code files for each message handler and/or HTTP endpoint handler to `/Internal/Generated/WolverineHandlers`
 directly under the root of your project folder.
 
+## Handling Code Generation with Wolverine when using Aspire or Microsoft.Extensions.ApiDescription.Server
+
+When integrating **Wolverine** with **Aspire**, or using `Microsoft.Extensions.ApiDescription.Server` to generate OpenAPI files at build time, you may encounter issues with code generation because connection strings are only provided by Aspire when the application is run.
+This limitation affects both Wolverine codegen and OpenAPI schema generation, because these processes require connection strings during their execution.
+
+To work around this, add a helper class that detects if we are just generating code (either by the Wolverine codegen command or during OpenAPI generation).
+You can then conditionally disable external Wolverine transports and message persistence to avoid configuration errors.
+
+```csharp
+public static class CodeGeneration
+{
+    public static bool IsRunningGeneration()
+    {
+        return Assembly.GetEntryAssembly()?.GetName().Name == "GetDocument.Insider" || Environment.GetCommandLineArgs().Contains("codegen");
+    }
+}
+```
+
+Example use
+```csharp
+if (CodeGeneration.IsRunningGeneration())
+{
+    builder.Services.DisableAllExternalWolverineTransports();
+    builder.Services.DisableAllWolverineMessagePersistence();
+}
+
+builder.Services.AddWolverine(options =>
+{
+   var connectionString = builder.Configuration.GetConnectionString("postgres");
+   if (CodeGeneration.IsRunningGeneration() == false)
+   {
+       var dataSource = new NpgsqlDataSourceBuilder(connectionString).Build();
+       options.PersistMessagesWithPostgresql(dataSource, "wolverine");
+   }
+}
+```
+
 ## Optimized Workflow
 
 Wolverine and [Marten](https://martendb.io) both use the shared JasperFx library for their code generation, 

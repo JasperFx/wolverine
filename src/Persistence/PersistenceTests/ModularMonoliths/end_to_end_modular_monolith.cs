@@ -23,8 +23,10 @@ using Marten;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.DependencyInjection;
 using Weasel.SqlServer;
+using Wolverine.Configuration.Capabilities;
 using Wolverine.Marten;
 using Wolverine.Persistence;
+using Xunit.Abstractions;
 
 namespace PersistenceTests.ModularMonoliths;
 
@@ -139,10 +141,12 @@ public class MonolithFixture : IAsyncLifetime
 
 public class end_to_end_modular_monolith : IClassFixture<MonolithFixture>, IAsyncLifetime
 {
+    private readonly ITestOutputHelper _output;
     private readonly IHost theHost;
 
-    public end_to_end_modular_monolith(MonolithFixture fixture)
+    public end_to_end_modular_monolith(MonolithFixture fixture, ITestOutputHelper output)
     {
+        _output = output;
         theHost = fixture.Host;
     }
 
@@ -155,6 +159,33 @@ public class end_to_end_modular_monolith : IClassFixture<MonolithFixture>, IAsyn
     public Task DisposeAsync()
     {
         return Task.CompletedTask;
+    }
+
+    [Fact]
+    public async Task system_capabilities_read_stores()
+    {
+        var capabilities = await ServiceCapabilities.ReadFrom(theHost.GetRuntime(), null, CancellationToken.None);
+
+        capabilities.MessageStores.Select(x => x.Uri)
+             .ShouldBe([
+                 new Uri("wolverinedb://postgresql/localhost/postgres/wolverine"),
+                 new Uri("wolverinedb://postgresql/localhost/things/wolverine"),
+                 new Uri("wolverinedb://sqlserver/localhost/master/wolverine")
+             ]);
+    }
+
+    [Fact]
+    public async Task capabilities_has_ancillary_store()
+    {
+        var capabilities = await ServiceCapabilities.ReadFrom(theHost.GetRuntime(), null, CancellationToken.None);
+        capabilities.EventStores.ShouldContain(x => x.SubjectUri == new Uri("marten://ithingstore"));
+    }
+
+    [Fact]
+    public async Task capabilities_has_the_main_marten_store()
+    {
+        var capabilities = await ServiceCapabilities.ReadFrom(theHost.GetRuntime(), null, CancellationToken.None);
+        capabilities.EventStores.ShouldContain(x => x.SubjectUri == new Uri("marten://main"));
     }
 
     [Fact]

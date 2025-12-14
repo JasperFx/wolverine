@@ -432,7 +432,7 @@ class Build : NukeBuild
 
     private IEnumerable<NugetToProjectReference> nugetReferences()
     {
-        yield return new(Solution.Wolverine, ["JasperFx", "JasperFx.RuntimeCompiler"]);
+        yield return new(Solution.Wolverine, ["JasperFx", "JasperFx.RuntimeCompiler", "JasperFx.Events"]);
         
         yield return new(Solution.Persistence.Wolverine_Postgresql, ["Weasel.Postgresql"]);
         yield return new(Solution.Persistence.Wolverine_RDBMS, ["Weasel.Core"]);

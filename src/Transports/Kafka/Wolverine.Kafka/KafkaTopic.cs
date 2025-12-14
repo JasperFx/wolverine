@@ -22,6 +22,8 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
         Parent = parent;
         EndpointName = topicName;
         TopicName = topicName;
+
+        Specification.Name = topicName;
     }
 
     protected override KafkaEnvelopeMapper buildMapper(IWolverineRuntime runtime)
@@ -33,6 +35,8 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
     {
         return true;
     }
+
+    public TopicSpecification Specification { get; } = new();
 
     public string TopicName { get; }
 
@@ -73,6 +77,9 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
 
     public async ValueTask<bool> CheckAsync()
     {
+        // Can't do anything about this
+        if (Parent.Usage == KafkaUsage.ConsumeOnly) return true;
+
         if (TopicName == WolverineTopicsName) return true; // don't care, this is just a marker
         try
         {
@@ -104,16 +111,11 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
         if (TopicName == WolverineTopicsName) return; // don't care, this is just a marker
 
         using var adminClient = Parent.CreateAdminClient();
+        Specification.Name = TopicName;
 
         try
         {
-            await adminClient.CreateTopicsAsync(
-            [
-                new TopicSpecification
-                {
-                    Name = TopicName
-                }
-            ]);
+            await CreateTopicFunc(adminClient, this);
 
             logger.LogInformation("Created Kafka topic {Topic}", TopicName);
         }
@@ -123,6 +125,11 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
             throw;
         }
     }
+
+    /// <summary>
+    /// Override how this Kafka topic is created
+    /// </summary>
+    public Func<IAdminClient, KafkaTopic, Task> CreateTopicFunc { get; internal set; } = (c, t) => c.CreateTopicsAsync([t.Specification]);
 }
 
 public enum QualityOfService

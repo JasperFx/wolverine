@@ -189,7 +189,7 @@ public static OrderShipped Ship(ShipOrder command, Order order)
 
 ## JSON Handling
 
-See [JSON serialization for more information](/json)
+See [JSON serialization for more information](/guide/http/json)
 
 ## Returning Strings
 
@@ -329,7 +329,7 @@ and register that strategy within our `MapWolverineEndpoints()` set up like so:
 // Customizing parameter handling
 opts.AddParameterHandlingStrategy<NowParameterStrategy>();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L270-L275' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_adding_custom_parameter_handling' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L268-L273' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_adding_custom_parameter_handling' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And lastly, here's the application within an HTTP endpoint for extra context:
@@ -427,5 +427,33 @@ limit the applicability of individual middleware methods.
 There is no runtime filtering here because the `MiddlewareScoping` impacts the generated code around your hybrid message handler / 
 HTTP endpoint method, and Wolverine already generates code separately for the two use cases. 
 :::
+
+As of Wolverine 5.7, you can also technically use `HttpContext` arguments in the message handler usage *if*
+you are carefully accounting for that being null as shown in this sample:
+
+<!-- snippet: sample_HybridHandler_with_null_HttpContext -->
+<a id='snippet-sample_hybridhandler_with_null_httpcontext'></a>
+```cs
+public record DoHybrid(string Message);
+
+public static class HybridHandler
+{
+    [WolverinePost("/hybrid")]
+    public static async Task HandleAsync(DoHybrid command, HttpContext? context)
+    {
+        // What this, because it will be null if this is used within 
+        // a message handler!
+        if (context != null)
+        {
+            context.Response.ContentType = "text/plain";
+            await context.Response.WriteAsync(command.Message);
+        }
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/HybridHandler.cs#L5-L24' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_hybridhandler_with_null_httpcontext' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+
 
 

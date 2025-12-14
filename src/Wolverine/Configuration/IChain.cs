@@ -41,6 +41,8 @@ public interface IChain
     
     void ApplyParameterMatching(MethodCall call);
     
+    IdempotencyStyle Idempotency { get; set; }
+
     /// <summary>
     ///     Frames that would be initially placed in front of
     ///     the primary action(s)
@@ -161,6 +163,8 @@ public interface IChain
     /// </summary>
     /// <param name="variable"></param>
     Frame[] AddStopConditionIfNull(Variable data, Variable? identity, IDataRequirement requirement);
+
+    bool TryInferMessageIdentity(out PropertyInfo? property);
 }
 
 #endregion

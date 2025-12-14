@@ -79,7 +79,7 @@ public class leader_pinned_listener : IAsyncDisposable
             w.ExpectRunningAgents(host, 2);
         }, 30.Seconds());
 
-        var listeners = host.GetRuntime().Endpoints.ActiveListeners().Where(x => x.Endpoint.Role == EndpointRole.Application).Select(x => x.Uri).ToArray();
+        var listeners = host.GetRuntime().Endpoints.ActiveListeners().Where(x => x.Uri.Scheme != "stub" && x.Endpoint.Role == EndpointRole.Application).Select(x => x.Uri).ToArray();
         listeners.Length.ShouldBe(2);
         listeners.ShouldContain(new Uri("rabbitmq://queue/admin1"));
         listeners.ShouldContain(new Uri("rabbitmq://queue/admin2"));
