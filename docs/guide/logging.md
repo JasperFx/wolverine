@@ -75,6 +75,25 @@ public static void Configure(HandlerChain chain)
 
 will be called by Wolverine to apply message type specific overrides to Wolverine's message handling.
 
+## Configuring Health Check Tracing
+
+Wolverine's node agent controller performs health checks periodically (every 10 seconds by default) to maintain node assignments and cluster state. By default, these health checks emit Open Telemetry traces named `wolverine_node_assignments`, which can result in high trace volumes in observability platforms.
+
+You can control this tracing behavior through the `DurabilitySettings`:
+
+<!-- snippet: sample_configure_health_check_tracing -->
+<a id='snippet-sample_using_wolverine_logging_attribute'></a>
+```cs
+builder.Host.UseWolverine(opts =>
+{
+    // Disable the "wolverine_node_assignments" traces entirely
+    opts.Durability.NodeAssignmentHealthCheckTracingEnabled = false;
+    
+    // Or, sample those traces to only once every 10 minutes
+    opts.Durability.NodeAssignmentHealthCheckTraceSamplingPeriod = TimeSpan.FromMinutes(10);
+});
+```
+
 ## Controlling Message Specific Logging and Tracing
 
 While Open Telemetry tracing can be disabled on an endpoint by endpoint basis, you may want to disable Open Telemetry

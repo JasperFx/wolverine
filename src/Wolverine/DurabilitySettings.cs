@@ -208,6 +208,20 @@ public class DurabilitySettings
     public bool UseSyncRetryBlock { get; set; }
 
     /// <summary>
+    /// Controls whether health check operations emit telemetry traces for 'wolverine_node_assignments'. 
+    /// Default is true to maintain backwards compatibility. Set to false to completely disable health check tracing.
+    /// </summary>
+    public bool NodeAssignmentHealthCheckTracingEnabled { get; set; } = true;
+
+    /// <summary>
+    /// When set, health check traces will be throttled to emit at most once per this time period.
+    /// For example, set to 10 minutes to only emit traces every 10 minutes instead of every health check.
+    /// This reduces telemetry volume while still providing periodic visibility.
+    /// Default is null (no throttling - all health checks are traced when NodeAssignmentHealthCheckTracingEnabled is true).
+    /// </summary>
+    public TimeSpan? NodeAssignmentHealthCheckTraceSamplingPeriod { get; set; }
+
+    /// <summary>
     ///     Get or set the logical Wolverine service name. By default, this is
     ///     derived from the name of a custom WolverineOptions
     /// </summary>
