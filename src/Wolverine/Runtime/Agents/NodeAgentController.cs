@@ -24,14 +24,39 @@ public partial class NodeAgentController
     // May be valuable later
     private DateTimeOffset? _lastAssignmentCheck;
     private readonly IWolverineObserver _observer;
+    private DateTimeOffset? _lastNodeAssignmentHealthCheckTrace;
 
+    private bool ShouldTraceHealthCheck()
+    {
+        if (!_runtime.DurabilitySettings.NodeAssignmentHealthCheckTracingEnabled)
+        {
+            return false;
+        }
+
+        if (_runtime.DurabilitySettings.NodeAssignmentHealthCheckTraceSamplingPeriod.HasValue)
+        {
+            var now = DateTimeOffset.UtcNow;
+            if (_lastNodeAssignmentHealthCheckTrace.HasValue)
+            {
+                var elapsed = now - _lastNodeAssignmentHealthCheckTrace.Value;
+                if (elapsed < _runtime.DurabilitySettings.NodeAssignmentHealthCheckTraceSamplingPeriod.Value)
+                {
+                    return false;
+                }
+            }
+
+            _lastNodeAssignmentHealthCheckTrace = now;
+        }
+
+        return true;
+    }
 
     internal NodeAgentController(IWolverineRuntime runtime,
         INodeAgentPersistence persistence,
         IEnumerable<IAgentFamily> agentControllers, ILogger logger, CancellationToken cancellation)
     {
         _observer = runtime.Observer;
-        
+
         _runtime = runtime;
         _persistence = persistence;
         foreach (var agentController in agentControllers)
@@ -92,7 +117,7 @@ public partial class NodeAgentController
             {
                 _logger.LogError(e, "Error trying to release the leadership lock");
             }
-            
+
             await _persistence.DeleteAsync(_runtime.Options.UniqueNodeId, _runtime.DurabilitySettings.AssignedNodeNumber);
 
             await _observer.NodeStopped();
