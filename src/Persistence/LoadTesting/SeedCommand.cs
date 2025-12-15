@@ -29,7 +29,7 @@ public class SeedCommand : JasperFxAsyncCommand<NetCoreInput>
                 var envelope = new Envelope
                 {
                     Message = message1,
-                    Destination = new Uri("local://loadtesting.trips.starttrip/"),
+                    Destination = new Uri("rabbitmq://queue/LoadTesting.Trips.ContinueTrip"),
                     Serializer = runtime.Options.DefaultSerializer,
                     ContentType = "application/json",
                     Status = EnvelopeStatus.Incoming,
@@ -48,7 +48,7 @@ public class SeedCommand : JasperFxAsyncCommand<NetCoreInput>
                     var envelope = new Envelope
                     {
                         Message = message,
-                        Destination = new Uri("local://loadtesting.trips.starttrip/"),
+                        Destination = new Uri("rabbitmq://queue/LoadTesting.Trips.StartTrip"),
                         Serializer = runtime.Options.DefaultSerializer,
                         ContentType = "application/json",
                         Status = EnvelopeStatus.Handled

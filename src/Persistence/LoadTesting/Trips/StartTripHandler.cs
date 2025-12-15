@@ -23,6 +23,8 @@ public static class StartTripHandler
     
     public static IStartStream Handle(StartTrip command, ILogger logger)
     {
+        Thread.Sleep(250);
+        
         logger.LogInformation("Starting a new trip {Id}", command.TripId);
         return MartenOps.StartStream<Trip>(command.TripId, new TripStarted(command.StartDay, command.State));
     }
