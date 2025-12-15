@@ -93,6 +93,8 @@ public static class ContinueTripHandler
 {
     public static IEnumerable<object> Handle(ContinueTrip message, Publisher publisher)
     {
+        Thread.Sleep(250);
+        
         return publisher.NextMessages(message.TripId);
     }
 }
