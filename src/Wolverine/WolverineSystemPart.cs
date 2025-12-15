@@ -202,7 +202,7 @@ internal class WolverineSystemPart : SystemPartBase
 
             if (!_runtime.Options.ExternalTransportsAreStubbed)
             {
-                foreach (var transport in _runtime.Options.Transports)
+                foreach (var transport in _runtime.Options.Transports.ToArray())
                 {
                     if (transport.TryBuildStatefulResource(_runtime, out var resource))
                     {
