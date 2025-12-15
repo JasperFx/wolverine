@@ -51,7 +51,7 @@ return await Host.CreateDefaultBuilder()
         opts.Policies.UseDurableInboxOnAllListeners();
         opts.Policies.UseDurableOutboxOnAllSendingEndpoints();
 
-        opts.LocalQueueFor<ContinueTrip>().UseDurableInbox(new BufferingLimits(50, 20));
+        opts.LocalQueueFor<ContinueTrip>().UseDurableInbox();
         
         //opts.Services.AddHostedService<KickOffPublishing>();
         opts.Services.AddResourceSetupOnStartup();
