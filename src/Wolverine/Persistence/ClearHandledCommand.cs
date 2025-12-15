@@ -4,19 +4,19 @@ using Wolverine.Tracking;
 
 namespace Wolverine.Persistence;
 
-[Description("Clear out all peristed inbox messages marked as `Handled`")]
+[Description("Clear out all peristed inbox messages marked as `Handled`", Name = "clear-handled")]
 public class ClearHandledCommand : JasperFxAsyncCommand<NetCoreInput>
 {
     public override async Task<bool> Execute(NetCoreInput input)
     {
         using var host = input.BuildHost();
-        await host.StartAsync();
-
         var runtime = host.GetRuntime();
         var stores = await runtime.Stores.FindAllAsync();
 
         foreach (var store in stores)
         {
+            await store.Admin.MigrateAsync();
+            
             Console.WriteLine("Starting to clear handled inbox messages in " + store.Uri);
 
             await store.Admin.DeleteAllHandledAsync();
@@ -24,5 +24,7 @@ public class ClearHandledCommand : JasperFxAsyncCommand<NetCoreInput>
         }
         
         AnsiConsole.MarkupLine("[green]Finished![/]");
+
+        return true;
     }
 }
