@@ -527,4 +527,39 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
         builder.AppendParameter(messageIds);
         builder.Append(')');
     }
+
+    public override async Task DeleteAllHandledAsync()
+    {
+        await using var conn = CreateConnection();
+        await conn.OpenAsync(CancellationToken.None);
+
+        var deleted = 1;
+        
+        var sql = $@"
+        WITH todo AS (
+            SELECT id
+            FROM {_settings.SchemaName}.{DatabaseConstants.IncomingTable}
+            WHERE status = '{EnvelopeStatus.Handled}'
+            ORDER BY id
+            LIMIT 10000
+            FOR UPDATE SKIP LOCKED
+        )
+        DELETE FROM {_settings.SchemaName}.{DatabaseConstants.IncomingTable} w
+        USING todo
+        WHERE w.id = todo.id;
+";
+        
+        try
+        {
+            while (deleted > 0)
+            {
+                deleted = await conn.CreateCommand(sql).ExecuteNonQueryAsync();
+                await Task.Delay(10.Milliseconds());
+            }
+        }
+        finally
+        {
+            await conn.CloseAsync();
+        }
+    }
 }
