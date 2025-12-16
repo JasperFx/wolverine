@@ -120,6 +120,7 @@ const config: UserConfig<DefaultTheme.Config> = {
                                 {text: 'Multi-Tenancy', link: '/guide/handlers/multi-tenancy'},
                                 {text: 'Execution Timeouts', link: '/guide/handlers/timeout'},
                                 {text: 'Fluent Validation Middleware', link: '/guide/handlers/fluent-validation'},
+                                {text: 'DataAnnotations Validation Middleware', link: '/guide/handlers/dataannotations-validation'},
                                 {text: 'Sticky Handler to Endpoint Assignments', link: '/guide/handlers/sticky'},
                                 {text: 'Message Batching', link: '/guide/handlers/batching'},
                                 {text: 'Persistence Helpers', link: '/guide/handlers/persistence'}
@@ -223,6 +224,7 @@ const config: UserConfig<DefaultTheme.Config> = {
                         {text: 'Integration with Sagas', link: '/guide/http/sagas'},
                         {text: 'Integration with Marten', link: '/guide/http/marten'},
                         {text: 'Fluent Validation', link: '/guide/http/fluentvalidation'},
+                        {text: 'DataAnnotations Validation', link: '/guide/http/dataannotationsvalidation'},
                         {text: 'Problem Details', link: '/guide/http/problemdetails'},
                         {text: 'Caching', link: '/guide/http/caching'}
                     ]
