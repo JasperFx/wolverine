@@ -223,8 +223,8 @@ const config: UserConfig<DefaultTheme.Config> = {
                         {text: 'Uploading Files', link: '/guide/http/files'},
                         {text: 'Integration with Sagas', link: '/guide/http/sagas'},
                         {text: 'Integration with Marten', link: '/guide/http/marten'},
+                        {text: 'Validation', link: '/guide/http/validation'},
                         {text: 'Fluent Validation', link: '/guide/http/fluentvalidation'},
-                        {text: 'DataAnnotations Validation', link: '/guide/http/dataannotationsvalidation'},
                         {text: 'Problem Details', link: '/guide/http/problemdetails'},
                         {text: 'Caching', link: '/guide/http/caching'}
                     ]

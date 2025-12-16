@@ -24,7 +24,7 @@ internal class HttpChainDataAnnotationsValidationPolicy : IHttpPolicy
         if (validatedType == null) return;
 
         // ONLY apply if there are ValidationAttributes
-        if (!validatedType.GetProperties().Any(x => x.GetAllAttributes<ValidationAttribute>().Any()))
+        if (!validatedType.GetProperties().Any(x => x.GetAllAttributes<ValidationAttribute>().Any()) && !validatedType.CanBeCastTo<IValidatableObject>())
         {
             return;
         }
