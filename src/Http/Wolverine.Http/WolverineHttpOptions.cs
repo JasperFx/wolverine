@@ -126,6 +126,7 @@ public class WolverineHttpOptions
         Policies.Add(new HttpAwarePolicy());
         Policies.Add(new RequestIdPolicy());
         Policies.Add(new RequiredEntityPolicy());
+        Policies.Add(new HttpChainResponseCacheHeaderPolicy());
 
         Policies.Add(TenantIdDetection);
     }
