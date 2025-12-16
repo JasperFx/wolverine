@@ -42,7 +42,7 @@ internal class LogStartingActivity : SyncFrame
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
         writer.WriteComment("Application specific auditing");
-        var template = _members.Any(x => x.Member.Name.EqualsIgnoreCase("id")) ? "$Starting to process {_inputType.FullNameInCode()} ({{EnvelopeId}}" : $"Starting to process {_inputType.FullNameInCode()} ({{Id}})" ;
+        var template = _members.Any(x => x.Member.Name.EqualsIgnoreCase("id")) ? $"Starting to process {_inputType.FullNameInCode()} ({{EnvelopeId}}" : $"Starting to process {_inputType.FullNameInCode()} ({{Id}})" ;
         if (_members.Count != 0)
         {
             template += " with " + _members.Select(m => $"{m.MemberName}: {{{m.Member.Name}}}").Join(", ");
