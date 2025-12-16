@@ -145,7 +145,7 @@ class Build : NukeBuild
         });
 
     Target HttpTests => _ => _
-        .DependsOn(CoreHttpTests, DataAnnotationsValidationHttpTests);
+        .DependsOn(CoreHttpTests);
 
     Target CoreHttpTests => _ => _
         .DependsOn(Compile, DockerUp)    
@@ -159,20 +159,6 @@ class Build : NukeBuild
                 .EnableNoRestore()
                 .SetFramework(Framework));
         });
-
-    Target DataAnnotationsValidationHttpTests => _ => _
-        .DependsOn(Compile)
-        .ProceedAfterFailure()
-        .Executes(() =>
-        {
-            DotNetTest(c => c
-                .SetProjectFile(Solution.Http.Wolverine_Http_DataAnnotationsValidation_Tests)
-                .SetConfiguration(Configuration)
-                .EnableNoBuild()
-                .EnableNoRestore()
-                .SetFramework(Framework));
-        });
-
 
     Target Commands => _ => _
         .DependsOn(HelpCommand, DescribeCommand, CodegenPreviewCommand);

@@ -1,10 +1,12 @@
+using System.ComponentModel.DataAnnotations;
 using JasperFx;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
+using JasperFx.Core.Reflection;
 using Microsoft.AspNetCore.Http;
 using Wolverine.Http.CodeGen;
 
-namespace Wolverine.Http.DataAnnotationsValidation.Internals;
+namespace Wolverine.Http.Validation.Internals;
 
 internal class HttpChainDataAnnotationsValidationPolicy : IHttpPolicy
 {
@@ -21,6 +23,12 @@ internal class HttpChainDataAnnotationsValidationPolicy : IHttpPolicy
         var validatedType = chain.HasRequestType ? chain.RequestType : chain.ComplexQueryStringType;
         if (validatedType == null) return;
 
+        // ONLY apply if there are ValidationAttributes
+        if (!validatedType.GetProperties().Any(x => x.GetAllAttributes<ValidationAttribute>().Any()))
+        {
+            return;
+        }
+        
         chain.Metadata.ProducesValidationProblem();
 
         var method =

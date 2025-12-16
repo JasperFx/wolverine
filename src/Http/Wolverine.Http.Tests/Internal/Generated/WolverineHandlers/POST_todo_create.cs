@@ -14,14 +14,14 @@ namespace Internal.Generated.WolverineHandlers
     public sealed class POST_todo_create : Wolverine.Http.HttpHandler
     {
         private readonly Wolverine.Http.WolverineHttpOptions _wolverineHttpOptions;
-        private readonly Wolverine.Runtime.IWolverineRuntime _wolverineRuntime;
         private readonly Wolverine.Marten.Publishing.OutboxedSessionFactory _outboxedSessionFactory;
+        private readonly Wolverine.Runtime.IWolverineRuntime _wolverineRuntime;
 
-        public POST_todo_create(Wolverine.Http.WolverineHttpOptions wolverineHttpOptions, Wolverine.Runtime.IWolverineRuntime wolverineRuntime, Wolverine.Marten.Publishing.OutboxedSessionFactory outboxedSessionFactory) : base(wolverineHttpOptions)
+        public POST_todo_create(Wolverine.Http.WolverineHttpOptions wolverineHttpOptions, Wolverine.Marten.Publishing.OutboxedSessionFactory outboxedSessionFactory, Wolverine.Runtime.IWolverineRuntime wolverineRuntime) : base(wolverineHttpOptions)
         {
             _wolverineHttpOptions = wolverineHttpOptions;
-            _wolverineRuntime = wolverineRuntime;
             _outboxedSessionFactory = outboxedSessionFactory;
+            _wolverineRuntime = wolverineRuntime;
         }
 
 
@@ -40,11 +40,11 @@ namespace Internal.Generated.WolverineHandlers
                 return;
             }
 
+            var tenantIdentifier = new JasperFx.MultiTenancy.TenantId(tenantId);
             var messageContext = new Wolverine.Runtime.MessageContext(_wolverineRuntime);
             messageContext.TenantId = tenantId;
             // Building the Marten session using the detected tenant id
             await using var documentSession = _outboxedSessionFactory.OpenSession(messageContext, tenantId);
-            var tenantIdentifier = new JasperFx.MultiTenancy.TenantId(tenantId);
             // Reading the request body via JSON deserialization
             var (command, jsonContinue) = await ReadJsonAsync<Wolverine.Http.Tests.MultiTenancy.CreateTodo>(httpContext);
             if (jsonContinue == Wolverine.HandlerContinuation.Stop) return;

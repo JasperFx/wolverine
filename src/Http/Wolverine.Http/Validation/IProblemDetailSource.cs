@@ -1,7 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Mvc;
 
-namespace Wolverine.Http.DataAnnotationsValidation;
+namespace Wolverine.Http.Validation;
 
 /// <summary>
 ///     What do you do with a validation failure? Generally assumed to throw an

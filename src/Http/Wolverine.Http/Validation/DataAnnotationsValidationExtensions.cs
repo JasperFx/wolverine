@@ -1,11 +1,11 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using Wolverine.Attributes;
-using Wolverine.Http.DataAnnotationsValidation;
-using Wolverine.Http.DataAnnotationsValidation.Internals;
+using Wolverine.Http.Validation;
+using Wolverine.Http.Validation.Internals;
 
 [assembly: WolverineModule<DataAnnotationsValidationExtension>]
 
-namespace Wolverine.Http.DataAnnotationsValidation;
+namespace Wolverine.Http.Validation;
 
 
 public class DataAnnotationsValidationExtension : IWolverineExtension
