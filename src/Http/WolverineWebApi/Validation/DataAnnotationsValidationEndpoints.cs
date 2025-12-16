@@ -15,6 +15,8 @@ public class ReferenceAttribute : ValidationAttribute
     }
 }
 
+#region sample_validated_CreateAccount
+
 public record CreateAccount(
     // don't forget the property prefix on records
     [property: Required] string AccountName,
@@ -30,19 +32,33 @@ public record CreateAccount(
     }
 }
 
+#endregion
+
 public static class CreateAccountEndpoint
 {
+    #region sample_posting_CreateAccount
+
     [WolverinePost("/validate/account")]
-    public static string Post(CreateAccount account)
+    public static string Post(
+        
+        // In this case CreateAccount is being posted
+        // as JSON
+        CreateAccount account)
     {
         return "Got a new account";
     }
+
+    #endregion
+
+    #region sample_posting_create_account_as_query_string
 
     [WolverinePost("/validate/account2")]
     public static string Post2([FromQuery] CreateAccount customer)
     {
         return "Got a new account";
     }
+
+    #endregion
 }
 
 #endregion
