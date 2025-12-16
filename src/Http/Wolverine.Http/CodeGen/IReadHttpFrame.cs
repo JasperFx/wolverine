@@ -27,7 +27,7 @@ internal class ReadHttpFrame : SyncFrame, IReadHttpFrame
     public ReadHttpFrame(BindingSource source, Type parameterType, string parameterName, bool isOptional = false)
     {
         _source = source;
-        Variable = new HttpElementVariable(parameterType, parameterName!, this);
+        Variable = new HttpElementVariable(parameterType, parameterName!.SanitizeFormNameForVariable(), this);
 
         _isOptional = isOptional;
         _isNullable = parameterType.IsNullable();
