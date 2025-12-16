@@ -20,8 +20,7 @@ internal class HttpChainResponseCacheHeaderPolicy : IHttpPolicy
 
     public void Apply(HttpChain chain, IServiceContainer container)
     {
-        if (chain.Method.HandlerType.TryGetAttribute<ResponseCacheAttribute>(out var cache) ||
-            chain.Method.Method.TryGetAttribute<ResponseCacheAttribute>(out cache))
+        if (chain.Method.Method.TryGetAttribute<ResponseCacheAttribute>(out var cache) || chain.Method.HandlerType.TryGetAttribute<ResponseCacheAttribute>(out cache) )
         {
             chain.Postprocessors.Add(new ResponseCacheFrame(cache));
         }
