@@ -5,6 +5,9 @@ namespace WolverineWebApi;
 
 public static class CachedEndpoint
 {
+    #region sample_using_response_cache_attribute
+
+    // This is all it takes:
     [WolverineGet("/cache/one"), ResponseCache(Duration = 3, VaryByHeader = "accept-encoding", NoStore = false)]
     public static string GetOne()
     {
@@ -16,6 +19,8 @@ public static class CachedEndpoint
     {
         return "two";
     }
+
+    #endregion
 
     [WolverineGet("/cache/none")]
     public static string GetNone()

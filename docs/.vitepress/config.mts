@@ -224,6 +224,7 @@ const config: UserConfig<DefaultTheme.Config> = {
                         {text: 'Integration with Marten', link: '/guide/http/marten'},
                         {text: 'Fluent Validation', link: '/guide/http/fluentvalidation'},
                         {text: 'Problem Details', link: '/guide/http/problemdetails'},
+                        {text: 'Caching', link: '/guide/http/caching'}
                     ]
                 },
                 {
