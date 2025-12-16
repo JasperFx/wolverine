@@ -1,8 +1,8 @@
-﻿using Microsoft.AspNetCore.Http;
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 using System.Runtime.CompilerServices;
+using Microsoft.AspNetCore.Http;
 
-namespace Wolverine.Http.DataAnnotationsValidation.Internals;
+namespace Wolverine.Http.Validation.Internals;
 
 public class DataAnnotationsHttpValidationExecutor
 {

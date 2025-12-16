@@ -1,7 +1,8 @@
 ﻿using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Mvc;
+using Wolverine.Http;
 
-namespace Wolverine.Http.DataAnnotationsValidation.Tests;
+namespace WolverineWebApi.Validation;
 
 
 #region sample_endpoint_with_dataannotations_validation

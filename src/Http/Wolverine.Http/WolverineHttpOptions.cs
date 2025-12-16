@@ -11,6 +11,7 @@ using Wolverine.Http.Policies;
 using Wolverine.Http.Resources;
 using Wolverine.Http.Runtime;
 using Wolverine.Http.Runtime.MultiTenancy;
+using Wolverine.Http.Validation.Internals;
 using Wolverine.Middleware;
 
 namespace Wolverine.Http;
@@ -138,6 +139,15 @@ public class WolverineHttpOptions
     /// who knows what else
     /// </summary>
     public ServiceProviderSource ServiceProviderSource { get; set; } = ServiceProviderSource.IsolatedAndScoped;
+    
+    /// <summary>
+    ///     Apply DataAnnotations Validation middleware to all Wolverine HTTP endpoints
+    /// </summary>
+    /// <param name="httpOptions"></param>
+    public void UseDataAnnotationsValidationProblemDetailMiddleware()
+    {
+        AddPolicy<HttpChainDataAnnotationsValidationPolicy>();
+    }
     
     public async ValueTask<string?> TryDetectTenantId(HttpContext httpContext)
     {

@@ -4,17 +4,22 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
+using Shouldly;
+using WolverineWebApi;
+using WolverineWebApi.Validation;
 
-namespace Wolverine.Http.DataAnnotationsValidation.Tests;
+namespace Wolverine.Http.Tests;
 
-public class dataannotations_validation_middleware : IAsyncLifetime
+public class dataannotations_validation_middleware : IntegrationContext
 {
-    protected IAlbaHost theHost;
+    public dataannotations_validation_middleware(AppFixture fixture) : base(fixture)
+    {
+    }
 
     [Fact]
     public void adds_problem_validation_to_open_api_metadata()
     {
-        var endpoints = theHost.Services.GetServices<EndpointDataSource>().SelectMany(x => x.Endpoints).OfType<RouteEndpoint>()
+        var endpoints = Host.Services.GetServices<EndpointDataSource>().SelectMany(x => x.Endpoints).OfType<RouteEndpoint>()
             .ToList();
 
         var endpoint = endpoints.Single(x => x.RoutePattern.RawText == "/validate/account");
@@ -30,7 +35,7 @@ public class dataannotations_validation_middleware : IAsyncLifetime
         var createCustomer = new CreateAccount("accountName", "12345678");
 
         // Succeeds w/ a 200
-        var result = await theHost.Scenario(x =>
+        var result = await Host.Scenario(x =>
         {
             x.Post.Json(createCustomer).ToUrl("/validate/account");
             x.ContentTypeShouldBe("text/plain");
@@ -42,7 +47,7 @@ public class dataannotations_validation_middleware : IAsyncLifetime
     {
         var createCustomer = new CreateAccount(null, "123");
 
-        var results = await theHost.Scenario(x =>
+        var results = await Host.Scenario(x =>
         {
             x.Post.Json(createCustomer).ToUrl("/validate/account");
             x.ContentTypeShouldBe("application/problem+json");
@@ -58,7 +63,7 @@ public class dataannotations_validation_middleware : IAsyncLifetime
     public async Task one_validator_happy_path_on_complex_query_string_argument()
     {
         // Succeeds w/ a 200
-        var result = await theHost.Scenario(x =>
+        var result = await Host.Scenario(x =>
         {
             x.Post.Url("/validate/account2")
                 .QueryString(nameof(CreateAccount.AccountName), "name")
@@ -70,7 +75,7 @@ public class dataannotations_validation_middleware : IAsyncLifetime
     [Fact]
     public async Task one_validator_sad_path_on_complex_query_string_argument()
     {
-        var results = await theHost.Scenario(x =>
+        var results = await Host.Scenario(x =>
         {
             x.Post.Url("/validate/account2")
                 .QueryString(nameof(CreateAccount.Reference), "11111");
@@ -86,7 +91,7 @@ public class dataannotations_validation_middleware : IAsyncLifetime
     [Fact]
     public async Task when_using_compound_handler_validation_is_called_before_load()
     {
-        var results = await theHost.Scenario(x =>
+        var results = await Host.Scenario(x =>
         {
             x.Post.Url("/validate/account-compound");
             x.ContentTypeShouldBe("application/problem+json");
@@ -96,24 +101,4 @@ public class dataannotations_validation_middleware : IAsyncLifetime
         var problems = results.ReadAsJson<HttpValidationProblemDetails>();
     }
 
-    public async Task InitializeAsync()
-    {
-        var builder = WebApplication.CreateBuilder([]);
-
-        builder.Host.UseWolverine();
-        builder.Services.AddWolverineHttp();
-
-        theHost = await AlbaHost.For(builder, app =>
-        {
-            app.MapWolverineEndpoints(opts =>
-            {
-                opts.UseDataAnnotationsValidationProblemDetailMiddleware();
-            });
-        });
-    }
-
-    public Task DisposeAsync()
-    {
-        return theHost.StopAsync();
-    }
 }
