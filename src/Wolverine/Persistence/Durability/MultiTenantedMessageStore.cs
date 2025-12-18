@@ -368,6 +368,11 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
             Source.AllActive().Select(x => x.StartScheduledJobs(runtime)));
     }
 
+    Task IMessageStoreAdmin.DeleteAllHandledAsync()
+    {
+        return executeOnAllAsync(d => d.Admin.DeleteAllHandledAsync());
+    }
+
     Task IMessageStoreAdmin.ClearAllAsync()
     {
         return executeOnAllAsync(d => d.Admin.ClearAllAsync());

@@ -9,7 +9,7 @@ namespace WolverineWebApi;
 
 public class ProblemDetailsUsageEndpoint
 {
-    public ProblemDetails Before(NumberMessage message)
+    public ProblemDetails Validate(NumberMessage message)
     {
         // If the number is greater than 5, fail with a
         // validation message

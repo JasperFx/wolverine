@@ -68,7 +68,36 @@ internal abstract class RabbitMqChannelAgent : IAsyncDisposable
 
         Channel.CallbackExceptionAsync += (sender, args) =>
         {
-            Logger.LogError(args.Exception, "Callback error in Rabbit Mq agent");
+            Logger.LogError(args.Exception, "Callback error in Rabbit Mq agent. Attempting to restart the channel");
+
+            // Try to restart the connection
+#pragma warning disable VSTHRD110
+            Task.Run(async () =>
+#pragma warning restore VSTHRD110
+            {
+                await Locker.WaitAsync();
+                try
+                {
+                    _monitor.Remove(this);
+                    try
+                    {
+                        await teardownChannel();
+                    }
+                    catch (Exception e)
+                    {
+                        Logger.LogError(e, "Error when trying to tear down a blocked channel");
+                    }
+
+                    Channel = null;
+                    await EnsureInitiated();
+                    Logger.LogInformation("Restarted the Rabbit MQ channel");
+                }
+                finally
+                {
+                    Locker.Release();
+                }
+            });
+            
             return Task.CompletedTask;
         };
 
