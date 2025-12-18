@@ -19,10 +19,59 @@ reaching the message handlers.
 To get started, add the nuget package and configure your Wolverine Application:
 
 <!-- snippet: sample_bootstrap_with_dataannotations_validation -->
+<a id='snippet-sample_bootstrap_with_dataannotations_validation'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        // Apply the validation middleware
+        opts.UseDataAnnotationsValidation();
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Extensions/Wolverine.DataAnnotationsValidation.Tests/Samples.cs#L13-L22' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrap_with_dataannotations_validation' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 Now you can decorate your messages with the built-in or custom `ValidationAttributes`:
 
 <!-- snippet: dataannotations_usage -->
+<a id='snippet-dataannotations_usage'></a>
+```cs
+public record CreateCustomer(
+    // you can use the attributes on a record, but you need to
+    // add the `property` modifier to the attribute
+    [property: Required] string FirstName,
+    [property: MinLength(5)] string LastName,
+    [property: PostalCodeValidator] string PostalCode
+) : IValidatableObject
+{
+    public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+    {
+        // you can implement `IValidatableObject` for custom
+        // validation logic
+        yield break;
+    }
+};
+
+public class PostalCodeValidatorAttribute : ValidationAttribute
+{
+    public override bool IsValid(object? value)
+    {
+        // custom attributes are supported
+        return true;
+    }
+}
+
+public static class CreateCustomerHandler
+{
+    public static void Handle(CreateCustomer customer)
+    {
+        // do whatever you'd do here, but this won't be called
+        // at all if the DataAnnotations Validation rules fail
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Extensions/Wolverine.DataAnnotationsValidation.Tests/Samples.cs#L64-L100' title='Snippet source file'>snippet source</a> | <a href='#snippet-dataannotations_usage' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 In the case above, the Validation check will happen at runtime *before* the call to the handler methods. If 
 the validation fails, the middleware will throw a `ValidationException` and stop all processing.
