@@ -274,6 +274,21 @@ public class ToyOnTray
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HappyMealSaga.cs#L257-L268' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_toyontray' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+After that, you can also use a new `[SagaIdentityFrom]` (as of 5.9) attribute on~~~~ a handler parameter:
+
+<!-- snippet: sample_using_SagaIdentityFrom -->
+<a id='snippet-sample_using_sagaidentityfrom'></a>
+```cs
+public class SomeSaga
+{
+    public Guid Id { get; set; }
+
+    public void Handle([SagaIdentityFrom(nameof(SomeSagaMessage5.Hello))] SomeSagaMessage5 message) { }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Persistence/Sagas/saga_id_member_determination.cs#L35-L44' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_sagaidentityfrom' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
 Next, Wolverine looks for a member named "{saga type name}Id." In the case of our `Order`
 saga type, that would be a public member named `OrderId` as shown in this code:
 

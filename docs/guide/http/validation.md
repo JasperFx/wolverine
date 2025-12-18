@@ -32,7 +32,7 @@ Consider this contrived sample endpoint with explicit validation being done in a
 ```cs
 public class ProblemDetailsUsageEndpoint
 {
-    public ProblemDetails Before(NumberMessage message)
+    public ProblemDetails Validate(NumberMessage message)
     {
         // If the number is greater than 5, fail with a
         // validation message
@@ -255,16 +255,59 @@ Any validation errors detected will cause the HTTP request to fail with a `Probl
 
 For an example, consider this input model that will be a request type in your application:
 
-snippet: sample_validated_CreateAccount
+<!-- snippet: sample_validated_CreateAccount -->
+<a id='snippet-sample_validated_createaccount'></a>
+```cs
+public record CreateAccount(
+    // don't forget the property prefix on records
+    [property: Required] string AccountName,
+    [property: Reference] string Reference
+) : IValidatableObject
+{
+    public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+    {
+        if (AccountName.Equals("invalid", StringComparison.InvariantCultureIgnoreCase))
+        {
+            yield return new("AccountName is invalid", [nameof(AccountName)]);
+        }
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Validation/DataAnnotationsValidationEndpoints.cs#L18-L35' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_validated_createaccount' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 As long as the Data Annotations middleware is active, the `CreateAccount` model would be validated if used 
 as the request body like this:
 
-snippet: sample_posting_CreateAccount
+<!-- snippet: sample_posting_CreateAccount -->
+<a id='snippet-sample_posting_createaccount'></a>
+```cs
+[WolverinePost("/validate/account")]
+public static string Post(
+    
+    // In this case CreateAccount is being posted
+    // as JSON
+    CreateAccount account)
+{
+    return "Got a new account";
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Validation/DataAnnotationsValidationEndpoints.cs#L39-L51' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_posting_createaccount' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 or even like this:
 
-snippet: sample_posting_create_account_as_query_string
+<!-- snippet: sample_posting_create_account_as_query_string -->
+<a id='snippet-sample_posting_create_account_as_query_string'></a>
+```cs
+[WolverinePost("/validate/account2")]
+public static string Post2([FromQuery] CreateAccount customer)
+{
+    return "Got a new account";
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Validation/DataAnnotationsValidationEndpoints.cs#L53-L61' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_posting_create_account_as_query_string' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 ## Fluent Validation Middleware
 
@@ -317,8 +360,12 @@ app.MapWolverineEndpoints(opts =>
     // Opting into the Fluent Validation middleware from
     // Wolverine.Http.FluentValidation
     opts.UseFluentValidationProblemDetailMiddleware();
+    
+    // Or instead, you could use Data Annotations that are built
+    // into the Wolverine.HTTP library
+    opts.UseDataAnnotationsValidationProblemDetailMiddleware();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L214-L235' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_configure_endpoints' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L214-L239' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_configure_endpoints' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## AsParameters Binding

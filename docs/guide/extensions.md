@@ -282,7 +282,7 @@ that issue, or just want a faster start up time, you can disable the automatic e
 using var host = await Microsoft.Extensions.Hosting.Host.CreateDefaultBuilder()
     .UseWolverine(opts =>
     {
-        opts.Discovery.DisableConventionalDiscovery();
+        opts.DisableConventionalDiscovery();
     }, ExtensionDiscovery.ManualOnly)
     
     .StartAsync();
