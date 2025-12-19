@@ -12,7 +12,7 @@ public class ExternalDbTransport : TransportBase<ExternalMessageTable>
 
     public LightweightCache<DbObjectName, ExternalMessageTable> Tables { get; }
 
-    public ExternalDbTransport() : base(ProtocolName, "External Database Tables")
+    public ExternalDbTransport() : base(ProtocolName, "External Database Tables", ["external-db"])
     {
         Tables = new LightweightCache<DbObjectName, ExternalMessageTable>(name =>
             new ExternalMessageTable(name));

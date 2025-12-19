@@ -10,7 +10,7 @@ public class HttpTransport : TransportBase<HttpEndpoint>
     private readonly LightweightCache<Uri, HttpEndpoint> _endpoints
         = new(uri => new HttpEndpoint(uri, EndpointRole.Application){OutboundUri = uri.ToString()});
 
-    public HttpTransport() : base("https", "HTTP Transport")
+    public HttpTransport() : base("https", "HTTP Transport", ["http"])
     {
     }
 

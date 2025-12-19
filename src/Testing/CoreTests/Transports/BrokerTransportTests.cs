@@ -38,7 +38,7 @@ public class BrokerTransportTests
 
 public class FakeTransport : BrokerTransport<FakeEndpoint>
 {
-    public FakeTransport() : base("fake", "Fake")
+    public FakeTransport() : base("fake", "Fake", ["fake"])
     {
         IdentifierDelimiter = "~";
     }

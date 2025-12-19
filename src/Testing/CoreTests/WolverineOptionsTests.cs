@@ -8,6 +8,7 @@ using JasperFx.Resources;
 using Wolverine.ComplianceTests;
 using Wolverine.ComplianceTests.Fakes;
 using Wolverine.Configuration;
+using Wolverine.Configuration.Capabilities;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Routing;
 using Wolverine.Transports;
@@ -290,6 +291,12 @@ public class WolverineOptionsTests
 
         public FakeTransport() : this("fake")
         {
+        }
+        
+        public bool TryBuildBrokerUsage(out BrokerDescription usage)
+        {
+            usage = default;
+            return false;
         }
 
         public string Name => "Fake";

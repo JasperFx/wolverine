@@ -12,7 +12,7 @@ public class PulsarTransport : TransportBase<PulsarEndpoint>, IAsyncDisposable
 
     private readonly LightweightCache<Uri, PulsarEndpoint> _endpoints;
 
-    public PulsarTransport() : base(ProtocolName, "Pulsar")
+    public PulsarTransport() : base(ProtocolName, "Pulsar", ["pulsar"])
     {
         Builder = PulsarClient.Builder();
 

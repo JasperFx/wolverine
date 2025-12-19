@@ -1,15 +1,26 @@
+using JasperFx.Descriptors;
 using JasperFx.Resources;
 using Wolverine.Configuration;
+using Wolverine.Configuration.Capabilities;
 using Wolverine.Runtime;
 
 namespace Wolverine.Transports;
 
-public abstract class TransportBase<TEndpoint> : ITransport where TEndpoint : Endpoint
+public abstract class TransportBase<TEndpoint> : ITransport, ITagged where TEndpoint : Endpoint
 {
-    public TransportBase(string protocol, string name)
+    public TransportBase(string protocol, string name, string[] tags)
     {
         Protocol = protocol;
         Name = name;
+        Tags = tags ?? throw new ArgumentNullException(nameof(tags));
+    }
+
+    public string[] Tags { get; }
+
+    public virtual bool TryBuildBrokerUsage(out BrokerDescription description)
+    {
+        description = new BrokerDescription(this);
+        return true;
     }
 
     public string Name { get; }

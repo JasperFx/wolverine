@@ -10,7 +10,7 @@ public class SignalRClientTransport : TransportBase<SignalRClientEndpoint>
     
     public Cache<Uri, SignalRClientEndpoint> Clients { get; }
 
-    public SignalRClientTransport() : base(ProtocolName, "SignalR Client")
+    public SignalRClientTransport() : base(ProtocolName, "SignalR Client", ["signalr"])
     {
         Clients = new Cache<Uri, SignalRClientEndpoint>(uri => new SignalRClientEndpoint(uri, this));
     }

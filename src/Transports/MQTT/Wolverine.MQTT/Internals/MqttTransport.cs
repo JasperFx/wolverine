@@ -26,7 +26,7 @@ public class MqttTransport : TransportBase<MqttTopic>, IAsyncDisposable
         return uri.LocalPath.Trim('/');
     }
 
-    public MqttTransport() : base("mqtt", "MQTT Transport")
+    public MqttTransport() : base("mqtt", "MQTT Transport", ["mqtt"])
     {
         Topics.OnMissing = topicName => new MqttTopic(topicName, this, EndpointRole.Application);
     }
