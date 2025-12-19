@@ -33,7 +33,7 @@ public class NatsTransport : BrokerTransport<NatsEndpoint>, IAsyncDisposable
     internal ITenantSubjectMapper TenantSubjectMapper { get; set; } = new DefaultTenantSubjectMapper();
 
     public NatsTransport()
-        : base(ProtocolName, "NATS Transport")
+        : base(ProtocolName, "NATS Transport", ["nats.io"])
     {
         _endpoints.OnMissing = subject =>
         {

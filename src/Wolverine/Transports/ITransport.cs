@@ -1,5 +1,6 @@
 using JasperFx.Resources;
 using Wolverine.Configuration;
+using Wolverine.Configuration.Capabilities;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
 
@@ -42,4 +43,6 @@ public interface ITransport
     ValueTask InitializeAsync(IWolverineRuntime runtime);
 
     bool TryBuildStatefulResource(IWolverineRuntime runtime, out IStatefulResource? resource);
+
+    bool TryBuildBrokerUsage(out BrokerDescription description);
 }

@@ -1,4 +1,5 @@
 ﻿using JasperFx.Core;
+using Wolverine.Configuration.Capabilities;
 using Wolverine.Runtime;
 
 namespace Wolverine.Transports.Tcp;
@@ -9,8 +10,14 @@ public class TcpTransport : TransportBase<TcpEndpoint>
         new(uri => new TcpEndpoint(uri.Host, uri.Port));
 
     public TcpTransport() :
-        base("tcp", "TCP Sockets")
+        base("tcp", "TCP Sockets", ["tcp"])
     {
+    }
+
+    public override bool TryBuildBrokerUsage(out BrokerDescription description)
+    {
+        description = default;
+        return false;
     }
 
     protected override IEnumerable<TcpEndpoint> endpoints()

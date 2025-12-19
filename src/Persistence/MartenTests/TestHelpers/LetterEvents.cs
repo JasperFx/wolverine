@@ -35,4 +35,33 @@ public static class LetterEvents
             }
         }
     }
+    
+    public static IEnumerable<object> ToRandomEvents()
+    {
+        for (int i = 0; i < Random.Shared.Next(3, 15); i++)
+        {
+            var number = Random.Shared.Next(0, 10);
+            if (number < 2)
+            {
+                yield return new AEvent();
+            }
+            else if (number < 4)
+            {
+                yield return new BEvent();
+            }
+            else if (number < 6)
+            {
+                yield return new CEvent();
+            }
+            else if (number < 8)
+            {
+                yield return new DEvent();
+            }
+            else
+            {
+                yield return new EEvent();
+            }
+        }
+
+    }
 }

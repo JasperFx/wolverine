@@ -44,14 +44,4 @@ public class MessageDescriptor
     public List<MessageHandlerDescriptor> Handlers { get; set; } = new();
 
     public List<MessageSubscriptionDescriptor> Subscriptions { get; set; } = new();
-
-    /*
-     * TODO
-     * Subscription information. Capture Uri & Content/Type if you have it.
-     * Capture Endpoint information. Definitely describe the mapper.
-     * Make IMessageRoute describe itself. Capture any rules. Put decent ToString() on rules
-     * Test w/ no sticky
-     * Test w/ double handlers
-     *
-     */
 }

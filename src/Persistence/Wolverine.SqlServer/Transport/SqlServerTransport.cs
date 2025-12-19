@@ -19,7 +19,7 @@ public class SqlServerTransport : BrokerTransport<SqlServerQueue>
     {
         
     }
-    public SqlServerTransport(DatabaseSettings settings, string? transportSchemaName) : base(ProtocolName, "Sql Server Transport")
+    public SqlServerTransport(DatabaseSettings settings, string? transportSchemaName) : base(ProtocolName, "Sql Server Transport", [ProtocolName])
     {
         Queues = new LightweightCache<string, SqlServerQueue>(name => new SqlServerQueue(name, this));
         Settings = settings;

@@ -29,7 +29,7 @@ public partial class AzureServiceBusTransport : BrokerTransport<AzureServiceBusE
 
     }
 
-    public AzureServiceBusTransport(string protocolName) : base(protocolName, "Azure Service Bus")
+    public AzureServiceBusTransport(string protocolName) : base(protocolName, "Azure Service Bus", ["azure", "azureservicebus"])
     {
         Queues = new(name => new AzureServiceBusQueue(this, name));
         Topics = new(name => new AzureServiceBusTopic(this, name));

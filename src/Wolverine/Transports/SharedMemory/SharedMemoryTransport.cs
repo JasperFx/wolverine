@@ -1,5 +1,6 @@
 using JasperFx.Core;
 using Wolverine.Configuration;
+using Wolverine.Configuration.Capabilities;
 using Wolverine.Runtime;
 
 namespace Wolverine.Transports.SharedMemory;
@@ -12,7 +13,7 @@ public class SharedMemoryTransport : TransportBase<SharedMemoryEndpoint>
     private string _responseTopic;
     private SharedMemoryTopic _replyEndpoint;
 
-    public SharedMemoryTransport() : base(ProtocolName, "Shared Memory Queues")
+    public SharedMemoryTransport() : base(ProtocolName, "Shared Memory Queues", [])
     {
         _responseTopic = Guid.NewGuid().ToString();
         var topic = Topics[_responseTopic];
@@ -21,6 +22,12 @@ public class SharedMemoryTransport : TransportBase<SharedMemoryEndpoint>
 
         ControlEndpoint = topic;
         _replyEndpoint = topic;
+    }
+    
+    public override bool TryBuildBrokerUsage(out BrokerDescription description)
+    {
+        description = default;
+        return false;
     }
 
     public SharedMemoryEndpoint ControlEndpoint { get; private set; }

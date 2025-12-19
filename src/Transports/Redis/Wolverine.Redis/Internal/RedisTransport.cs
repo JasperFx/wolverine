@@ -44,7 +44,7 @@ public class RedisTransport : BrokerTransport<RedisStreamEndpoint>, IAsyncDispos
         // Default constructor for GetOrCreate<T>()
     }
     
-    public RedisTransport(string connectionString) : base(ProtocolName, "Redis Streams Transport")
+    public RedisTransport(string connectionString) : base(ProtocolName, "Redis Streams Transport", ["redis"])
     {
         _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
         _streams = new LightweightCache<string, RedisStreamEndpoint>(

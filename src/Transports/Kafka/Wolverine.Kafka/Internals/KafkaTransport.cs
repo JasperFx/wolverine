@@ -32,7 +32,7 @@ public class KafkaTransport : BrokerTransport<KafkaTopic>
         
     }
 
-    public KafkaTransport(string protocol) : base(protocol, "Kafka Topics")
+    public KafkaTransport(string protocol) : base(protocol, "Kafka Topics", ["kafka"])
     {
         Topics = new Cache<string, KafkaTopic>(topicName => new KafkaTopic(this, topicName, EndpointRole.Application));
     }

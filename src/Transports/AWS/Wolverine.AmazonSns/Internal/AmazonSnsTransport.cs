@@ -14,7 +14,7 @@ public class AmazonSnsTransport : BrokerTransport<AmazonSnsTopic>
     
     public const char Separator = '-';
     
-    public AmazonSnsTransport() : base(SnsProtocol, "Amazon SNS")
+    public AmazonSnsTransport() : base(SnsProtocol, "Amazon SNS", ["aws", "sns"])
     {
         Topics = new LightweightCache<string, AmazonSnsTopic>(name => new AmazonSnsTopic(name, this));
         

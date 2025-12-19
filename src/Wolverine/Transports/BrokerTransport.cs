@@ -14,7 +14,7 @@ namespace Wolverine.Transports;
 public abstract class BrokerTransport<TEndpoint> : TransportBase<TEndpoint>, IBrokerTransport
     where TEndpoint : Endpoint, IBrokerEndpoint
 {
-    protected BrokerTransport(string protocol, string name) : base(protocol, name)
+    protected BrokerTransport(string protocol, string name, string[] tags) : base(protocol, name, tags)
     {
     }
 
