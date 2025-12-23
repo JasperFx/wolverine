@@ -11,13 +11,25 @@ To configure an endpoint for inline processing:
 <!-- snippet: sample_asb_inline_dlq -->
 <a id='snippet-sample_asb_inline_dlq'></a>
 ```cs
-using var host = await Host.CreateDefaultBuilder()
-    .UseWolverine(opts =>
-    {
-        // Use inline processing with native Azure Service Bus DLQ
-        opts.ListenToAzureServiceBusQueue("inline-queue")
-            .ProcessInline();
-    }).StartAsync();
+var builder = Host.CreateApplicationBuilder();
+builder.UseWolverine(opts =>
+{
+    // One way or another, you're probably pulling the Azure Service Bus
+    // connection string out of configuration
+    var azureServiceBusConnectionString = builder
+        .Configuration
+        .GetConnectionString("azure-service-bus");
+
+    // Connect to the broker
+    opts.UseAzureServiceBus(azureServiceBusConnectionString).AutoProvision();
+
+    // Use inline processing with native Azure Service Bus DLQ
+    opts.ListenToAzureServiceBusQueue("inline-queue")
+        .ProcessInline();
+});
+
+using var host = builder.Build();
+await host.StartAsync();
 ```
 
 ### Buffered Endpoints
@@ -29,14 +41,26 @@ To customize the dead letter queue for buffered endpoints:
 <!-- snippet: sample_asb_buffered_dlq -->
 <a id='snippet-sample_asb_buffered_dlq'></a>
 ```cs
-using var host = await Host.CreateDefaultBuilder()
-    .UseWolverine(opts =>
-    {
-        // Customize the dead letter queue name for buffered endpoint
-        opts.ListenToAzureServiceBusQueue("buffered-queue")
-            .BufferedInMemory()
-            .ConfigureDeadLetterQueue("my-custom-dlq");
-    }).StartAsync();
+var builder = Host.CreateApplicationBuilder();
+builder.UseWolverine(opts =>
+{
+    // One way or another, you're probably pulling the Azure Service Bus
+    // connection string out of configuration
+    var azureServiceBusConnectionString = builder
+        .Configuration
+        .GetConnectionString("azure-service-bus");
+
+    // Connect to the broker
+    opts.UseAzureServiceBus(azureServiceBusConnectionString).AutoProvision();
+
+    // Customize the dead letter queue name for buffered endpoint
+    opts.ListenToAzureServiceBusQueue("buffered-queue")
+        .BufferedInMemory()
+        .ConfigureDeadLetterQueue("my-custom-dlq");
+});
+
+using var host = builder.Build();
+await host.StartAsync();
 ```
 
 ### Durable Endpoints
@@ -48,14 +72,26 @@ To customize the dead letter queue for durable endpoints:
 <!-- snippet: sample_asb_durable_dlq -->
 <a id='snippet-sample_asb_durable_dlq'></a>
 ```cs
-using var host = await Host.CreateDefaultBuilder()
-    .UseWolverine(opts =>
-    {
-        // Customize the dead letter queue name for durable endpoint
-        opts.ListenToAzureServiceBusQueue("durable-queue")
-            .UseDurableInbox()
-            .ConfigureDeadLetterQueue("my-custom-dlq");
-    }).StartAsync();
+var builder = Host.CreateApplicationBuilder();
+builder.UseWolverine(opts =>
+{
+    // One way or another, you're probably pulling the Azure Service Bus
+    // connection string out of configuration
+    var azureServiceBusConnectionString = builder
+        .Configuration
+        .GetConnectionString("azure-service-bus");
+
+    // Connect to the broker
+    opts.UseAzureServiceBus(azureServiceBusConnectionString).AutoProvision();
+
+    // Customize the dead letter queue name for durable endpoint
+    opts.ListenToAzureServiceBusQueue("durable-queue")
+        .UseDurableInbox()
+        .ConfigureDeadLetterQueue("my-custom-dlq");
+});
+
+using var host = builder.Build();
+await host.StartAsync();
 ```
 
 ## Disabling Dead Letter Queues
@@ -65,13 +101,25 @@ You can disable dead letter queuing for specific endpoints if needed:
 <!-- snippet: sample_disable_asb_dlq -->
 <a id='snippet-sample_disable_asb_dlq'></a>
 ```cs
-using var host = await Host.CreateDefaultBuilder()
-    .UseWolverine(opts =>
-    {
-        // Disable dead letter queuing for this endpoint
-        opts.ListenToAzureServiceBusQueue("no-dlq")
-            .DisableDeadLetterQueueing();
-    }).StartAsync();
+var builder = Host.CreateApplicationBuilder();
+builder.UseWolverine(opts =>
+{
+    // One way or another, you're probably pulling the Azure Service Bus
+    // connection string out of configuration
+    var azureServiceBusConnectionString = builder
+        .Configuration
+        .GetConnectionString("azure-service-bus");
+
+    // Connect to the broker
+    opts.UseAzureServiceBus(azureServiceBusConnectionString).AutoProvision();
+
+    // Disable dead letter queuing for this endpoint
+    opts.ListenToAzureServiceBusQueue("no-dlq")
+        .DisableDeadLetterQueueing();
+});
+
+using var host = builder.Build();
+await host.StartAsync();
 ``` 
 
 
