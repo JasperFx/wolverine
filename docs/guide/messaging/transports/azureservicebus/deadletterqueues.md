@@ -44,13 +44,10 @@ To customize the dead letter queue for buffered endpoints:
 var builder = Host.CreateApplicationBuilder();
 builder.UseWolverine(opts =>
 {
-    // One way or another, you're probably pulling the Azure Service Bus
-    // connection string out of configuration
     var azureServiceBusConnectionString = builder
         .Configuration
         .GetConnectionString("azure-service-bus");
 
-    // Connect to the broker
     opts.UseAzureServiceBus(azureServiceBusConnectionString).AutoProvision();
 
     // Customize the dead letter queue name for buffered endpoint
@@ -75,13 +72,10 @@ To customize the dead letter queue for durable endpoints:
 var builder = Host.CreateApplicationBuilder();
 builder.UseWolverine(opts =>
 {
-    // One way or another, you're probably pulling the Azure Service Bus
-    // connection string out of configuration
     var azureServiceBusConnectionString = builder
         .Configuration
         .GetConnectionString("azure-service-bus");
 
-    // Connect to the broker
     opts.UseAzureServiceBus(azureServiceBusConnectionString).AutoProvision();
 
     // Customize the dead letter queue name for durable endpoint
@@ -104,13 +98,10 @@ You can disable dead letter queuing for specific endpoints if needed:
 var builder = Host.CreateApplicationBuilder();
 builder.UseWolverine(opts =>
 {
-    // One way or another, you're probably pulling the Azure Service Bus
-    // connection string out of configuration
     var azureServiceBusConnectionString = builder
         .Configuration
         .GetConnectionString("azure-service-bus");
 
-    // Connect to the broker
     opts.UseAzureServiceBus(azureServiceBusConnectionString).AutoProvision();
 
     // Disable dead letter queuing for this endpoint
