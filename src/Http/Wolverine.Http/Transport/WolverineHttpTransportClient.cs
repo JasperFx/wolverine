@@ -4,13 +4,13 @@ using Wolverine.Transports;
 
 namespace Wolverine.Http.Transport;
 
-public class WolverineHttpTransportClient(IHttpClientFactory clientFactory)
+public class WolverineHttpTransportClient(IHttpClientFactory clientFactory) : IWolverineHttpTransportClient
 {
     public async Task SendBatchAsync(string uri, OutgoingMessageBatch batch)
     {
         var client = clientFactory.CreateClient(uri);
         var content = new ByteArrayContent(EnvelopeSerializer.Serialize(batch.Messages));
-        content.Headers.ContentType = new MediaTypeHeaderValue(HttpTransportExecutor.EnvelopeBatchContentType);
+        content.Headers.ContentType = new MediaTypeHeaderValue(HttpTransport.EnvelopeBatchContentType);
         await client.PostAsync(client.BaseAddress, content);
     }
     
@@ -18,7 +18,7 @@ public class WolverineHttpTransportClient(IHttpClientFactory clientFactory)
     {
         var client = clientFactory.CreateClient(uri);
         var content = new ByteArrayContent(EnvelopeSerializer.Serialize(envelope));
-        content.Headers.ContentType = new MediaTypeHeaderValue(HttpTransportExecutor.EnvelopeContentType);
-        await client.PostAsync(uri, content);
+        content.Headers.ContentType = new MediaTypeHeaderValue(HttpTransport.EnvelopeContentType);
+        await client.PostAsync(client.BaseAddress, content);
     }
 }

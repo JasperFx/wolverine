@@ -14,6 +14,9 @@ public class HttpTransport : TransportBase<HttpEndpoint>
     {
     }
 
+    public const string EnvelopeContentType = "binary/wolverine-envelope";
+    public const string EnvelopeBatchContentType = "binary/wolverine-envelopes";
+
     protected override IEnumerable<HttpEndpoint> endpoints()
     {
         return _endpoints;

@@ -32,7 +32,7 @@ public class http_transport_end_to_end : IntegrationContext
 
         var (tracked, result) = await TrackedHttpCall(s =>
         {
-            s.Post.ByteArray(data).ToUrl("/_wolverine/batch/one").ContentType(HttpTransportExecutor.EnvelopeBatchContentType);
+            s.Post.ByteArray(data).ToUrl("/_wolverine/batch/one").ContentType(HttpTransport.EnvelopeBatchContentType);
         });
 
         tracked.Executed.SingleMessage<HttpMessage1>().Name.ShouldBe("one");
@@ -59,7 +59,7 @@ public class http_transport_end_to_end : IntegrationContext
         
         var (tracked, result) = await TrackedHttpCall(s =>
         {
-            s.Post.ByteArray(data).ToUrl("/_wolverine/invoke").ContentType(HttpTransportExecutor.EnvelopeContentType);
+            s.Post.ByteArray(data).ToUrl("/_wolverine/invoke").ContentType(HttpTransport.EnvelopeContentType);
         });
         
         tracked.Executed.SingleMessage<HttpMessage1>().Name.ShouldBe("Mat Cauthon");
@@ -80,8 +80,8 @@ public class http_transport_end_to_end : IntegrationContext
         
         var (tracked, result) = await TrackedHttpCall(s =>
         {
-            s.Post.ByteArray(data).ToUrl("/_wolverine/invoke").ContentType(HttpTransportExecutor.EnvelopeContentType);
-            s.ContentTypeShouldBe(HttpTransportExecutor.EnvelopeContentType);
+            s.Post.ByteArray(data).ToUrl("/_wolverine/invoke").ContentType(HttpTransport.EnvelopeContentType);
+            s.ContentTypeShouldBe(HttpTransport.EnvelopeContentType);
         });
 
         var resultData = await result.Context.Response.Body.ReadAllBytesAsync();

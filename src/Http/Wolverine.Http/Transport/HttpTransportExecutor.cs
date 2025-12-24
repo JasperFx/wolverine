@@ -13,9 +13,6 @@ namespace Wolverine.Http.Transport;
 
 internal class HttpTransportExecutor
 {
-    public static readonly string EnvelopeContentType = "binary/wolverine-envelope";
-    public static readonly string EnvelopeBatchContentType = "binary/wolverine-envelopes";
-    
     private readonly WolverineRuntime _runtime;
     private readonly ILogger<HttpTransportExecutor> _logger;
 
@@ -29,7 +26,7 @@ internal class HttpTransportExecutor
     {
         if (httpContext.Request.Headers.TryGetValue("content-type", out var values))
         {
-            if (values[0] != EnvelopeBatchContentType)
+            if (values[0] != HttpTransport.EnvelopeBatchContentType)
             {
                 return Results.StatusCode(415);
             }
@@ -74,7 +71,7 @@ internal class HttpTransportExecutor
     {
         if (httpContext.Request.Headers.TryGetValue("content-type", out var values))
         {
-            if (values[0] != EnvelopeContentType)
+            if (values[0] != HttpTransport.EnvelopeContentType)
             {
                 return Results.StatusCode(415);
             }

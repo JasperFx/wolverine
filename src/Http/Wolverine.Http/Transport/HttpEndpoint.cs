@@ -12,6 +12,7 @@ public class HttpEndpoint : Endpoint
     {
     }
 
+    internal bool SupportsNativeScheduledSend { get; set; }
     public string OutboundUri { get; set; }
 
     public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
@@ -21,11 +22,13 @@ public class HttpEndpoint : Endpoint
 
     protected override ISender CreateSender(IWolverineRuntime runtime)
     {
-        return new BatchedSender(
-            this, 
-            new HttpSenderProtocol(this, runtime.Services), 
-            runtime.Cancellation,
-            runtime.LoggerFactory.CreateLogger<HttpSenderProtocol>());
+        return Mode == EndpointMode.Inline
+            ? new InlineHttpSender(this, runtime, runtime.Services)
+            : new BatchedSender(
+                this,
+                new HttpSenderProtocol(this, runtime.Services),
+                runtime.Cancellation,
+                runtime.LoggerFactory.CreateLogger<HttpSenderProtocol>());
     }
 
     public override IDictionary<string, object> DescribeProperties()
@@ -35,6 +38,7 @@ public class HttpEndpoint : Endpoint
 
     protected override bool supportsMode(EndpointMode mode)
     {
-        return mode != EndpointMode.Inline;
+        return true;
     }
 }
+
