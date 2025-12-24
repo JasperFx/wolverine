@@ -41,7 +41,7 @@ public class WolverineHttpTransportClientTests
         _handler.LastRequest.ShouldNotBeNull();
         _handler.LastRequest.Method.ShouldBe(HttpMethod.Post);
         _handler.LastRequest.RequestUri.ToString().ShouldBe(uri);
-        _handler.LastRequest.Content.Headers.ContentType.MediaType.ShouldBe(HttpTransportExecutor.EnvelopeContentType);
+        _handler.LastRequest.Content.Headers.ContentType.MediaType.ShouldBe(HttpTransport.EnvelopeContentType);
 
         var expectedData = EnvelopeSerializer.Serialize(envelope);
         _handler.LastContent.ShouldBe(expectedData);
@@ -67,7 +67,7 @@ public class WolverineHttpTransportClientTests
         _handler.LastRequest.ShouldNotBeNull();
         _handler.LastRequest.Method.ShouldBe(HttpMethod.Post);
         _handler.LastRequest.RequestUri.ToString().ShouldBe("https://target-url/");
-        _handler.LastRequest.Content.Headers.ContentType.MediaType.ShouldBe(HttpTransportExecutor.EnvelopeBatchContentType);
+        _handler.LastRequest.Content.Headers.ContentType.MediaType.ShouldBe(HttpTransport.EnvelopeBatchContentType);
 
         var expectedData = EnvelopeSerializer.Serialize(envelopes);
         _handler.LastContent.ShouldBe(expectedData);
