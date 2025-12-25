@@ -93,3 +93,10 @@ services:
     command: redis-server
     ports:
       - "6379:6379"
+
+  nats:
+    image: "nats:latest"
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    command: ["--jetstream", "-m", "8222"]
