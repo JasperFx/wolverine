@@ -1,6 +1,10 @@
+using JasperFx.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using NSubstitute;
+using Shouldly;
+using Wolverine.Nats.Internal;
 using Wolverine.Nats.Tests.Helpers;
 using Wolverine.Tracking;
 using Wolverine.Transports.Sending;
@@ -9,245 +13,620 @@ using Xunit.Abstractions;
 
 namespace Wolverine.Nats.Tests;
 
-[Collection("NATS MultiTenancy Tests")]
+#region Unit Tests - No NATS Infrastructure Required
+
+/// <summary>
+/// Unit tests for the DefaultTenantSubjectMapper - no NATS connection required
+/// </summary>
+public class DefaultTenantSubjectMapperTests
+{
+    [Fact]
+    public void maps_subject_with_tenant_prefix()
+    {
+        var mapper = new DefaultTenantSubjectMapper();
+        
+        mapper.MapSubject("orders", "tenant1").ShouldBe("tenant1.orders");
+        mapper.MapSubject("orders", "tenant2").ShouldBe("tenant2.orders");
+    }
+    
+    [Fact]
+    public void maps_nested_subject_with_tenant_prefix()
+    {
+        var mapper = new DefaultTenantSubjectMapper();
+        
+        mapper.MapSubject("orders.created", "tenant1").ShouldBe("tenant1.orders.created");
+        mapper.MapSubject("orders.shipped.international", "tenant2").ShouldBe("tenant2.orders.shipped.international");
+    }
+
+    [Fact]
+    public void returns_original_subject_when_tenant_is_empty()
+    {
+        var mapper = new DefaultTenantSubjectMapper();
+        
+        mapper.MapSubject("orders", "").ShouldBe("orders");
+        mapper.MapSubject("orders", null!).ShouldBe("orders");
+    }
+    
+    [Fact]
+    public void extracts_tenant_id_from_subject()
+    {
+        var mapper = new DefaultTenantSubjectMapper();
+        
+        mapper.ExtractTenantId("tenant1.orders").ShouldBe("tenant1");
+        mapper.ExtractTenantId("tenant2.orders").ShouldBe("tenant2");
+    }
+    
+    [Fact]
+    public void extracts_tenant_id_from_nested_subject()
+    {
+        var mapper = new DefaultTenantSubjectMapper();
+        
+        mapper.ExtractTenantId("tenant1.orders.created").ShouldBe("tenant1");
+    }
+    
+    [Fact]
+    public void returns_null_when_no_tenant_in_subject()
+    {
+        var mapper = new DefaultTenantSubjectMapper();
+        
+        mapper.ExtractTenantId("orders").ShouldBeNull();
+        mapper.ExtractTenantId("").ShouldBeNull();
+        mapper.ExtractTenantId(null!).ShouldBeNull();
+    }
+    
+    [Fact]
+    public void generates_wildcard_subscription_pattern()
+    {
+        var mapper = new DefaultTenantSubjectMapper();
+        
+        mapper.GetSubscriptionPattern("orders").ShouldBe("*.orders");
+        mapper.GetSubscriptionPattern("orders.created").ShouldBe("*.orders.created");
+    }
+
+    [Fact]
+    public void normalizes_slashes_in_tenant_id()
+    {
+        var mapper = new DefaultTenantSubjectMapper();
+        
+        // Tenant IDs with slashes get normalized to dots
+        mapper.MapSubject("orders", "org/team").ShouldBe("org.team.orders");
+    }
+    
+    [Fact]
+    public void custom_separator_works()
+    {
+        var mapper = new DefaultTenantSubjectMapper(separator: "-");
+        
+        mapper.MapSubject("orders", "tenant1").ShouldBe("tenant1-orders");
+        mapper.ExtractTenantId("tenant1-orders").ShouldBe("tenant1");
+        mapper.GetSubscriptionPattern("orders").ShouldBe("*-orders");
+    }
+}
+
+/// <summary>
+/// Unit tests for TenantedSender routing logic - uses mocked senders
+/// Following the pattern from Wolverine's CoreTests/Transports/Sending/TenantedSenderTests.cs
+/// </summary>
+public class TenantedSenderRoutingTests
+{
+    private readonly ISender _defaultSender = Substitute.For<ISender>();
+    private readonly ISender _tenant1Sender = Substitute.For<ISender>();
+    private readonly ISender _tenant2Sender = Substitute.For<ISender>();
+    private readonly ISender _tenant3Sender = Substitute.For<ISender>();
+
+    public TenantedSenderRoutingTests()
+    {
+        _defaultSender.Destination.Returns(new Uri("nats://subject/orders"));
+        _tenant1Sender.Destination.Returns(new Uri("nats://subject/tenant1.orders"));
+        _tenant2Sender.Destination.Returns(new Uri("nats://subject/tenant2.orders"));
+        _tenant3Sender.Destination.Returns(new Uri("nats://subject/tenant3.orders"));
+    }
+
+    [Fact]
+    public async Task routes_messages_to_correct_tenant_sender()
+    {
+        var tenantedSender = new TenantedSender(
+            new Uri("nats://subject/orders"),
+            TenantedIdBehavior.TenantIdRequired,
+            null);
+        
+        tenantedSender.RegisterSender("tenant1", _tenant1Sender);
+        tenantedSender.RegisterSender("tenant2", _tenant2Sender);
+        tenantedSender.RegisterSender("tenant3", _tenant3Sender);
+
+        var e1 = new Envelope { TenantId = "tenant1" };
+        var e2 = new Envelope { TenantId = "tenant2" };
+        var e3 = new Envelope { TenantId = "tenant3" };
+
+        await tenantedSender.SendAsync(e1);
+        await tenantedSender.SendAsync(e2);
+        await tenantedSender.SendAsync(e3);
+
+        await _tenant1Sender.Received(1).SendAsync(e1);
+        await _tenant2Sender.Received(1).SendAsync(e2);
+        await _tenant3Sender.Received(1).SendAsync(e3);
+    }
+
+    [Fact]
+    public void throws_when_default_sender_required_but_not_provided()
+    {
+        Should.Throw<ArgumentNullException>(() =>
+        {
+            _ = new TenantedSender(
+                new Uri("nats://subject/orders"),
+                TenantedIdBehavior.FallbackToDefault,
+                null);
+        });
+    }
+
+    [Fact]
+    public async Task throws_when_tenant_id_required_but_missing()
+    {
+        var tenantedSender = new TenantedSender(
+            new Uri("nats://subject/orders"),
+            TenantedIdBehavior.TenantIdRequired,
+            null);
+        
+        tenantedSender.RegisterSender("tenant1", _tenant1Sender);
+
+        var envelope = new Envelope { TenantId = null };
+
+        await Should.ThrowAsync<ArgumentNullException>(async () =>
+        {
+            await tenantedSender.SendAsync(envelope);
+        });
+    }
+
+    [Fact]
+    public async Task throws_when_tenant_id_required_but_empty()
+    {
+        var tenantedSender = new TenantedSender(
+            new Uri("nats://subject/orders"),
+            TenantedIdBehavior.TenantIdRequired,
+            null);
+        
+        tenantedSender.RegisterSender("tenant1", _tenant1Sender);
+
+        var envelope = new Envelope { TenantId = string.Empty };
+
+        await Should.ThrowAsync<ArgumentNullException>(async () =>
+        {
+            await tenantedSender.SendAsync(envelope);
+        });
+    }
+
+    [Fact]
+    public async Task falls_back_to_default_sender_when_tenant_missing()
+    {
+        var tenantedSender = new TenantedSender(
+            new Uri("nats://subject/orders"),
+            TenantedIdBehavior.FallbackToDefault,
+            _defaultSender);
+        
+        tenantedSender.RegisterSender("tenant1", _tenant1Sender);
+        tenantedSender.RegisterSender("tenant2", _tenant2Sender);
+
+        var e1 = new Envelope { TenantId = null };
+        var e2 = new Envelope { TenantId = "tenant2" };
+        var e3 = new Envelope { TenantId = string.Empty };
+
+        await tenantedSender.SendAsync(e1);
+        await tenantedSender.SendAsync(e2);
+        await tenantedSender.SendAsync(e3);
+
+        await _defaultSender.Received(1).SendAsync(e1);
+        await _tenant2Sender.Received(1).SendAsync(e2);
+        await _defaultSender.Received(1).SendAsync(e3);
+    }
+
+    [Fact]
+    public async Task falls_back_to_default_for_unknown_tenant()
+    {
+        var tenantedSender = new TenantedSender(
+            new Uri("nats://subject/orders"),
+            TenantedIdBehavior.FallbackToDefault,
+            _defaultSender);
+        
+        tenantedSender.RegisterSender("tenant1", _tenant1Sender);
+
+        var envelope = new Envelope { TenantId = "unknown_tenant" };
+
+        await tenantedSender.SendAsync(envelope);
+
+        await _defaultSender.Received(1).SendAsync(envelope);
+    }
+
+    [Fact]
+    public async Task throws_for_unknown_tenant_when_required()
+    {
+        var tenantedSender = new TenantedSender(
+            new Uri("nats://subject/orders"),
+            TenantedIdBehavior.TenantIdRequired,
+            null);
+        
+        tenantedSender.RegisterSender("tenant1", _tenant1Sender);
+
+        var envelope = new Envelope { TenantId = "unknown_tenant" };
+
+        await Should.ThrowAsync<InvalidOperationException>(async () =>
+        {
+            await tenantedSender.SendAsync(envelope);
+        });
+    }
+}
+
+/// <summary>
+/// Unit tests for NatsTenant configuration
+/// </summary>
+public class NatsTenantTests
+{
+    [Fact]
+    public void creates_tenant_with_id()
+    {
+        var tenant = new NatsTenant("tenant1");
+        
+        tenant.TenantId.ShouldBe("tenant1");
+        tenant.SubjectMapper.ShouldBeNull();
+        tenant.ConnectionString.ShouldBeNull();
+    }
+
+    [Fact]
+    public void throws_when_tenant_id_is_null()
+    {
+        Should.Throw<ArgumentNullException>(() => new NatsTenant(null!));
+    }
+
+    [Fact]
+    public void can_set_custom_subject_mapper()
+    {
+        var tenant = new NatsTenant("tenant1");
+        var mapper = new DefaultTenantSubjectMapper(separator: "-");
+        
+        tenant.SubjectMapper = mapper;
+        
+        tenant.SubjectMapper.ShouldBe(mapper);
+    }
+}
+
+#endregion
+
+#region Integration Tests - Require NATS Connection
+
+/// <summary>
+/// Integration tests for NATS multi-tenancy using the dual-host pattern
+/// (sender and receiver as separate hosts) for reliable tracking.
+/// </summary>
+[Collection("NATS Integration")]
 [Trait("Category", "Integration")]
-public class MultiTenancyTests
+public class MultiTenancyIntegrationTests : IAsyncLifetime
 {
     private readonly ITestOutputHelper _output;
+    private IHost? _sender;
+    private IHost? _receiver;
+    private string _baseSubject = null!;
+    private string? _natsUrl;
 
-    public MultiTenancyTests(ITestOutputHelper output)
+    public MultiTenancyIntegrationTests(ITestOutputHelper output)
     {
         _output = output;
     }
 
-    [Fact]
-    public void subject_mapper_works_correctly()
+    public async Task InitializeAsync()
     {
-        var mapper = new Internal.DefaultTenantSubjectMapper();
+        _natsUrl = Environment.GetEnvironmentVariable("NATS_URL") ?? "nats://localhost:4222";
+        _baseSubject = $"test.multitenancy.{Guid.NewGuid():N}";
         
-        // Test basic mapping
-        Assert.Equal("tenant1.orders", mapper.MapSubject("orders", "tenant1"));
-        Assert.Equal("tenant2.orders", mapper.MapSubject("orders", "tenant2"));
-        
-        // Test extraction
-        Assert.Equal("tenant1", mapper.ExtractTenantId("tenant1.orders"));
-        Assert.Equal("tenant2", mapper.ExtractTenantId("tenant2.orders"));
-        
-        // Test subscription pattern
-        Assert.Equal("*.orders", mapper.GetSubscriptionPattern("orders"));
-        
-        // Test with nested subjects
-        Assert.Equal("tenant1.orders.created", mapper.MapSubject("orders.created", "tenant1"));
-        Assert.Equal("*.orders.created", mapper.GetSubscriptionPattern("orders.created"));
-        Assert.Equal("tenant1", mapper.ExtractTenantId("tenant1.orders.created"));
-    }
+        _output.WriteLine($"Using NATS URL: {_natsUrl}");
+        _output.WriteLine($"Base subject: {_baseSubject}");
 
-    [Fact(Skip = "Flaky in CI - NATS wildcard subscriptions with Wolverine tracking don't reliably wait for handler execution. " +
-                 "The multi-tenancy feature works correctly (messages are routed to tenant-prefixed subjects), " +
-                 "but the test synchronization is unreliable. Consider using a different testing approach.")]
-    public async Task messages_are_routed_by_tenant()
-    {
-        var natsUrl = Environment.GetEnvironmentVariable("NATS_URL") ?? "nats://localhost:4222";
-        var baseSubject = $"test.multitenancy.{Guid.NewGuid():N}";
+        // Check if NATS is available
+        if (!await IsNatsAvailable(_natsUrl))
+        {
+            _output.WriteLine("NATS not available, skipping test");
+            return;
+        }
         
-        _output.WriteLine($"Using NATS URL: {natsUrl}");
-        _output.WriteLine($"Base subject: {baseSubject}");
-        
-        var receivedMessages = new List<(string? TenantId, TenantTestMessage Message)>();
-        
-        using var host = await Host.CreateDefaultBuilder()
+        // Create sender host with multi-tenancy enabled
+        _sender = await Host.CreateDefaultBuilder()
             .ConfigureLogging(logging => logging.AddXunitLogging(_output))
-            .ConfigureServices(services =>
-            {
-                services.AddSingleton(receivedMessages);
-            })
             .UseWolverine(opts =>
             {
-                opts.UseNats(natsUrl)
+                opts.ServiceName = "MultiTenancySender";
+                
+                opts.UseNats(_natsUrl)
                     .ConfigureMultiTenancy(TenantedIdBehavior.FallbackToDefault)
                     .AddTenant("tenant1")
                     .AddTenant("tenant2");
-
-                // Listen to the base subject - this will create a wildcard subscription
-                opts.ListenToNatsSubject(baseSubject);
                 
-                // Publish to the base subject  
                 opts.PublishMessage<TenantTestMessage>()
-                    .ToNatsSubject(baseSubject);
-                
-                // Add handler
-                opts.Discovery.IncludeType<TenantMessageHandler>();
+                    .ToNatsSubject(_baseSubject);
             })
             .StartAsync();
+
+        // Create receiver host that listens for messages
+        // The receiver uses wildcard subscription to receive all tenant messages
+        _receiver = await Host.CreateDefaultBuilder()
+            .ConfigureLogging(logging => logging.AddXunitLogging(_output))
+            .UseWolverine(opts =>
+            {
+                opts.ServiceName = "MultiTenancyReceiver";
+                
+                opts.UseNats(_natsUrl)
+                    .ConfigureMultiTenancy(TenantedIdBehavior.FallbackToDefault)
+                    .AddTenant("tenant1")
+                    .AddTenant("tenant2");
+                
+                opts.ListenToNatsSubject(_baseSubject);
+            })
+            .StartAsync();
+    }
+
+    public async Task DisposeAsync()
+    {
+        if (_sender != null)
+        {
+            await _sender.StopAsync();
+            _sender.Dispose();
+        }
+        if (_receiver != null)
+        {
+            await _receiver.StopAsync();
+            _receiver.Dispose();
+        }
+    }
+
+    [Fact]
+    public async Task messages_are_routed_to_tenant_specific_subjects()
+    {
+        if (_sender == null || _receiver == null)
+        {
+            _output.WriteLine("NATS not available, skipping test");
+            return;
+        }
+
+        var msg1 = new TenantTestMessage(Guid.NewGuid(), "Message for tenant 1");
         
-        // Send messages for different tenants
+        _output.WriteLine($"Sending message {msg1.Id} with tenant1");
+
+        // Send message with tenant1 and track across both hosts
+        var session = await _sender
+            .TrackActivity()
+            .AlsoTrack(_receiver)
+            .Timeout(30.Seconds())
+            .SendMessageAndWaitAsync(msg1, new DeliveryOptions { TenantId = "tenant1" });
+
+        // Verify message was sent
+        var sentMessage = session.Sent.SingleMessage<TenantTestMessage>();
+        sentMessage.Id.ShouldBe(msg1.Id);
+
+        // Verify message was received with correct tenant context
+        var receivedEnvelope = session.Received.SingleEnvelope<TenantTestMessage>();
+        receivedEnvelope.TenantId.ShouldBe("tenant1");
+        receivedEnvelope.Message.ShouldBeOfType<TenantTestMessage>().Id.ShouldBe(msg1.Id);
+    }
+
+    [Fact]
+    public async Task different_tenants_route_to_different_subjects()
+    {
+        if (_sender == null || _receiver == null)
+        {
+            _output.WriteLine("NATS not available, skipping test");
+            return;
+        }
+
         var msg1 = new TenantTestMessage(Guid.NewGuid(), "Message for tenant 1");
         var msg2 = new TenantTestMessage(Guid.NewGuid(), "Message for tenant 2");
         
         _output.WriteLine($"Sending message {msg1.Id} with tenant1");
         _output.WriteLine($"Sending message {msg2.Id} with tenant2");
-        
-        // Send messages
-        var bus = host.Services.GetRequiredService<IMessageBus>();
-        await bus.PublishAsync(msg1, new DeliveryOptions { TenantId = "tenant1" });
-        await bus.PublishAsync(msg2, new DeliveryOptions { TenantId = "tenant2" });
-        
-        // Wait for processing - increase delay for CI
-        await Task.Delay(3000);
-        
-        _output.WriteLine($"Received {receivedMessages.Count} messages");
-        foreach (var (tenantId, msg) in receivedMessages)
-        {
-            _output.WriteLine($"  - Message {msg.Id}, TenantId: {tenantId ?? "null"}");
-        }
-        
-        // Verify messages were received with correct tenant context
-        Assert.Equal(2, receivedMessages.Count);
-        Assert.Contains(receivedMessages, m => m.TenantId == "tenant1" && m.Message.Id == msg1.Id);
-        Assert.Contains(receivedMessages, m => m.TenantId == "tenant2" && m.Message.Id == msg2.Id);
-        
-        await host.StopAsync();
+
+        // Send message for tenant1
+        var session1 = await _sender
+            .TrackActivity()
+            .AlsoTrack(_receiver)
+            .Timeout(30.Seconds())
+            .SendMessageAndWaitAsync(msg1, new DeliveryOptions { TenantId = "tenant1" });
+
+        var received1 = session1.Received.SingleEnvelope<TenantTestMessage>();
+        received1.TenantId.ShouldBe("tenant1");
+        received1.Message.ShouldBeOfType<TenantTestMessage>().Id.ShouldBe(msg1.Id);
+
+        // Send message for tenant2
+        var session2 = await _sender
+            .TrackActivity()
+            .AlsoTrack(_receiver)
+            .Timeout(30.Seconds())
+            .SendMessageAndWaitAsync(msg2, new DeliveryOptions { TenantId = "tenant2" });
+
+        var received2 = session2.Received.SingleEnvelope<TenantTestMessage>();
+        received2.TenantId.ShouldBe("tenant2");
+        received2.Message.ShouldBeOfType<TenantTestMessage>().Id.ShouldBe(msg2.Id);
     }
 
-    [Fact(Skip = "Flaky in CI - Multi-tenancy tests have timing issues in CI environment. " +
-                 "The feature works correctly locally but CI has reliability issues.")]
-    public async Task tenant_id_required_behavior_latches_sending_agent()
+    [Fact]
+    public async Task fallback_to_default_sends_to_base_subject()
     {
-        var natsUrl = Environment.GetEnvironmentVariable("NATS_URL") ?? "nats://localhost:4222";
-        var baseSubject = $"test.required.{Guid.NewGuid():N}";
+        if (_sender == null || _receiver == null)
+        {
+            _output.WriteLine("NATS not available, skipping test");
+            return;
+        }
+
+        var msgWithTenant = new TenantTestMessage(Guid.NewGuid(), "With tenant");
+        var msgWithoutTenant = new TenantTestMessage(Guid.NewGuid(), "Without tenant");
+
+        // Send message with tenant
+        var session1 = await _sender
+            .TrackActivity()
+            .AlsoTrack(_receiver)
+            .Timeout(30.Seconds())
+            .SendMessageAndWaitAsync(msgWithTenant, new DeliveryOptions { TenantId = "tenant1" });
+
+        var tenantReceived = session1.Received.SingleEnvelope<TenantTestMessage>();
+        tenantReceived.TenantId.ShouldBe("tenant1");
+
+        // Send message without tenant (should fallback to default)
+        var session2 = await _sender
+            .TrackActivity()
+            .AlsoTrack(_receiver)
+            .Timeout(30.Seconds())
+            .SendMessageAndWaitAsync(msgWithoutTenant);
+
+        var defaultReceived = session2.Received.SingleEnvelope<TenantTestMessage>();
+        // Without tenant, should receive on base subject without tenant extraction
+        defaultReceived.TenantId.ShouldBeNull();
+    }
+
+    private async Task<bool> IsNatsAvailable(string natsUrl)
+    {
+        try
+        {
+            using var testHost = await Host.CreateDefaultBuilder()
+                .UseWolverine(opts =>
+                {
+                    opts.UseNats(natsUrl);
+                })
+                .StartAsync();
+
+            await testHost.StopAsync();
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+}
+
+/// <summary>
+/// Tests for TenantIdRequired behavior
+/// </summary>
+[Collection("NATS Integration")]
+[Trait("Category", "Integration")]
+public class TenantIdRequiredBehaviorTests : IAsyncLifetime
+{
+    private readonly ITestOutputHelper _output;
+    private IHost? _sender;
+    private IHost? _receiver;
+    private string _baseSubject = null!;
+    private string? _natsUrl;
+
+    public TenantIdRequiredBehaviorTests(ITestOutputHelper output)
+    {
+        _output = output;
+    }
+
+    public async Task InitializeAsync()
+    {
+        _natsUrl = Environment.GetEnvironmentVariable("NATS_URL") ?? "nats://localhost:4222";
+        _baseSubject = $"test.required.{Guid.NewGuid():N}";
+
+        // Check if NATS is available
+        if (!await IsNatsAvailable(_natsUrl))
+        {
+            _output.WriteLine("NATS not available, skipping test");
+            return;
+        }
         
-        using var host = await Host.CreateDefaultBuilder()
+        _sender = await Host.CreateDefaultBuilder()
             .ConfigureLogging(logging => logging.AddXunitLogging(_output))
             .UseWolverine(opts =>
             {
-                opts.UseNats(natsUrl)
+                opts.ServiceName = "TenantRequiredSender";
+                
+                opts.UseNats(_natsUrl)
                     .ConfigureMultiTenancy(TenantedIdBehavior.TenantIdRequired)
                     .AddTenant("tenant1");
 
                 opts.PublishMessage<TenantTestMessage>()
-                    .ToNatsSubject(baseSubject);
+                    .ToNatsSubject(_baseSubject);
             })
             .StartAsync();
-        
-        var bus = host.Services.GetRequiredService<IMessageBus>();
-        
-        // Try to send without tenant ID - this will fail in the sending agent
-        var msg = new TenantTestMessage(Guid.NewGuid(), "Message without tenant");
-        
-        // This will not throw immediately, but will log errors in the sending agent
-        await bus.PublishAsync(msg);
-        
-        // Give time for the error to be logged
-        await Task.Delay(100);
-        
-        // The sending agent should be latched after the error
-        // We can't easily assert on this without accessing internals,
-        // but the logs will show the error
-        
-        await host.StopAsync();
-    }
 
-    [Fact(Skip = "Flaky in CI - Multi-tenancy tests have timing issues in CI environment. " +
-                 "The feature works correctly locally but CI has reliability issues.")]
-    public async Task fallback_to_default_behavior_sends_to_base_subject()
-    {
-        var natsUrl = Environment.GetEnvironmentVariable("NATS_URL") ?? "nats://localhost:4222";
-        var baseSubject = $"test.fallback.{Guid.NewGuid():N}";
-        
-        var receivedMessages = new List<(string? TenantId, TenantTestMessage Message)>();
-        
-        using var host = await Host.CreateDefaultBuilder()
+        _receiver = await Host.CreateDefaultBuilder()
             .ConfigureLogging(logging => logging.AddXunitLogging(_output))
-            .ConfigureServices(services =>
-            {
-                services.AddSingleton(receivedMessages);
-            })
             .UseWolverine(opts =>
             {
-                opts.UseNats(natsUrl)
-                    .ConfigureMultiTenancy(TenantedIdBehavior.FallbackToDefault)
+                opts.ServiceName = "TenantRequiredReceiver";
+                
+                opts.UseNats(_natsUrl)
+                    .ConfigureMultiTenancy(TenantedIdBehavior.TenantIdRequired)
                     .AddTenant("tenant1");
 
-                // Listen to the base subject - this will create a wildcard subscription
-                opts.ListenToNatsSubject(baseSubject)
-                    .ProcessInline();
-                
-                opts.PublishMessage<TenantTestMessage>()
-                    .ToNatsSubject(baseSubject);
-                
-                opts.Discovery.IncludeType<TenantMessageHandler>();
+                opts.ListenToNatsSubject(_baseSubject);
             })
             .StartAsync();
+    }
+
+    public async Task DisposeAsync()
+    {
+        if (_sender != null)
+        {
+            await _sender.StopAsync();
+            _sender.Dispose();
+        }
+        if (_receiver != null)
+        {
+            await _receiver.StopAsync();
+            _receiver.Dispose();
+        }
+    }
+
+    [Fact]
+    public async Task message_with_tenant_id_is_sent_and_received_successfully()
+    {
+        if (_sender == null || _receiver == null)
+        {
+            _output.WriteLine("NATS not available, skipping test");
+            return;
+        }
+
+        var msg = new TenantTestMessage(Guid.NewGuid(), "With tenant");
         
-        var bus = host.Services.GetRequiredService<IMessageBus>();
-        
-        // Send with tenant
-        var msg1 = new TenantTestMessage(Guid.NewGuid(), "With tenant");
-        await bus.PublishAsync(msg1, new DeliveryOptions { TenantId = "tenant1" });
-        
-        // Send without tenant (should fallback to default)
-        var msg2 = new TenantTestMessage(Guid.NewGuid(), "Without tenant");
-        await bus.PublishAsync(msg2);
-        
-        // Wait for messages to be processed - increased delay for CI reliability
-        await Task.Delay(3000);
-        
-        Assert.Equal(2, receivedMessages.Count);
-        
-        // Check tenant message was received with tenant ID
-        var tenantMsg = receivedMessages.First(m => m.Message.Id == msg1.Id);
-        Assert.Equal("tenant1", tenantMsg.TenantId);
-        
-        // Check non-tenant message was received without tenant ID
-        var defaultMsg = receivedMessages.First(m => m.Message.Id == msg2.Id);
-        Assert.Null(defaultMsg.TenantId);
-        
-        await host.StopAsync();
+        var session = await _sender
+            .TrackActivity()
+            .AlsoTrack(_receiver)
+            .Timeout(30.Seconds())
+            .SendMessageAndWaitAsync(msg, new DeliveryOptions { TenantId = "tenant1" });
+
+        var received = session.Received.SingleEnvelope<TenantTestMessage>();
+        received.TenantId.ShouldBe("tenant1");
+        received.Message.ShouldBeOfType<TenantTestMessage>().Id.ShouldBe(msg.Id);
+    }
+
+    private async Task<bool> IsNatsAvailable(string natsUrl)
+    {
+        try
+        {
+            using var testHost = await Host.CreateDefaultBuilder()
+                .UseWolverine(opts =>
+                {
+                    opts.UseNats(natsUrl);
+                })
+                .StartAsync();
+
+            await testHost.StopAsync();
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
     }
 }
+
+#endregion
+
+#region Supporting Types
 
 public record TenantTestMessage(Guid Id, string Content);
 
-public class TenantMessageHandler
+public class TenantTestMessageHandler
 {
-    private readonly List<(string? TenantId, TenantTestMessage Message)> _receivedMessages;
-    private readonly ILogger<TenantMessageHandler> _logger;
-    
-    public TenantMessageHandler(
-        List<(string? TenantId, TenantTestMessage Message)> receivedMessages,
-        ILogger<TenantMessageHandler> logger)
+    public void Handle(TenantTestMessage message)
     {
-        _receivedMessages = receivedMessages;
-        _logger = logger;
-    }
-    
-    public void Handle(TenantTestMessage message, Envelope envelope)
-    {
-        _logger.LogInformation("Received message {MessageId} with TenantId: {TenantId}", 
-            message.Id, envelope.TenantId ?? "null");
-        _receivedMessages.Add((envelope.TenantId, message));
+        // Message is handled - the test verifies via tracking
     }
 }
 
-
-public class TenantMessageHandlerWithSubject
-{
-    private readonly List<(string? TenantId, TenantTestMessage Message, string Subject)> _receivedMessages;
-    private readonly ILogger<TenantMessageHandlerWithSubject> _logger;
-    
-    public TenantMessageHandlerWithSubject(
-        List<(string? TenantId, TenantTestMessage Message, string Subject)> receivedMessages,
-        ILogger<TenantMessageHandlerWithSubject> logger)
-    {
-        _receivedMessages = receivedMessages;
-        _logger = logger;
-    }
-    
-    public void Handle(TenantTestMessage message, Envelope envelope)
-    {
-        var subject = envelope.Destination?.ToString() ?? "unknown";
-        _logger.LogInformation("Received message {MessageId} with TenantId: {TenantId} on subject: {Subject}", 
-            message.Id, envelope.TenantId ?? "null", subject);
-        _receivedMessages.Add((envelope.TenantId, message, subject));
-    }
-}
+#endregion
