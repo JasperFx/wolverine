@@ -1,4 +1,4 @@
-﻿using JasperFx.Core;
+using JasperFx.Core;
 using Wolverine.Runtime.WorkerQueues;
 
 namespace Wolverine.Runtime.Scheduled;
@@ -74,8 +74,15 @@ public class InMemoryScheduledJobProcessor : IScheduledJobProcessor
             Envelope = envelope;
 
             _cancellation = new CancellationTokenSource();
-            var delayTime = ExecutionTime.Subtract(DateTimeOffset.Now);
-            _task = Task.Delay(delayTime, _cancellation.Token).ContinueWith(_ => publish(), TaskScheduler.Default);
+            var delayTime = ExecutionTime.Subtract(DateTimeOffset.UtcNow);
+            if (delayTime <= TimeSpan.Zero)
+            {
+                _task = Task.Run(() => publish());
+            }
+            else
+            {
+                _task = Task.Delay(delayTime, _cancellation.Token).ContinueWith(_ => publish(), TaskScheduler.Default);
+            }
 
             ReceivedAt = DateTimeOffset.Now;
         }
