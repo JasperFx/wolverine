@@ -28,25 +28,16 @@ public class NatsTransportIntegrationTests : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-        // In CI, NATS_URL is set to use port 4222
-        // Locally, we'll try 4222 first (default), then 4223 (docker-compose)
         var natsUrl = Environment.GetEnvironmentVariable("NATS_URL");
 
         if (string.IsNullOrEmpty(natsUrl))
         {
-            // Try default port first (for CI compatibility)
             if (await IsNatsAvailable("nats://localhost:4222"))
             {
                 natsUrl = "nats://localhost:4222";
             }
-            else if (await IsNatsAvailable("nats://localhost:4223"))
-            {
-                natsUrl = "nats://localhost:4223";
-            }
-            else
-            {
-                return;
-            }
+            return;
+            
         }
 
         if (!await IsNatsAvailable(natsUrl))
@@ -171,6 +162,7 @@ public class NatsTransportIntegrationTests : IAsyncLifetime
         natsEndpoint.Subject.Should().Be(_receiverSubject);
         natsEndpoint.EndpointName.Should().Be("receiver");
     }
+
     private async Task<bool> IsNatsAvailable(string natsUrl)
     {
         try
@@ -193,3 +185,11 @@ public class NatsTransportIntegrationTests : IAsyncLifetime
 }
 
 public record TestMessage(Guid Id, string Text);
+
+public class TestMessageHandler
+{
+    public void Handle(TestMessage message)
+    {
+        // Handler is required for Wolverine's message tracking to register the message as processed
+    }
+}
