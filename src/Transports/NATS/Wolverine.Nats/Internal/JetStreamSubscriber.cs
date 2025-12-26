@@ -147,14 +147,30 @@ internal class JetStreamSubscriber : INatsSubscriber
 
     public async ValueTask DisposeAsync()
     {
+        // Dispose consumer first - this will cause ConsumeAsync to complete
         if (_consumer is IAsyncDisposable disposableConsumer)
         {
-            await disposableConsumer.DisposeAsync();
+            try
+            {
+                await disposableConsumer.DisposeAsync();
+            }
+            catch (Exception)
+            {
+                // Ignore disposal errors
+            }
         }
 
+        // Wait for consumer task to complete - it should exit once consumer is disposed
         if (_consumerTask != null)
         {
-            await _consumerTask;
+            try
+            {
+                await _consumerTask;
+            }
+            catch (OperationCanceledException)
+            {
+                // Expected during shutdown
+            }
         }
     }
 }

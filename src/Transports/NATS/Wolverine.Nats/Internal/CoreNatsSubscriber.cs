@@ -137,14 +137,30 @@ internal class CoreNatsSubscriber : INatsSubscriber
 
     public async ValueTask DisposeAsync()
     {
+        // Dispose subscriptions first - this will cause ReadAllAsync to complete
         foreach (var subscription in _subscriptions)
         {
-            await subscription.DisposeAsync();
+            try
+            {
+                await subscription.DisposeAsync();
+            }
+            catch (Exception)
+            {
+                // Ignore disposal errors
+            }
         }
 
+        // Wait for consumer tasks to complete - they should exit once subscriptions are disposed
         if (_consumerTasks.Any())
         {
-            await Task.WhenAll(_consumerTasks);
+            try
+            {
+                await Task.WhenAll(_consumerTasks);
+            }
+            catch (OperationCanceledException)
+            {
+                // Expected during shutdown
+            }
         }
     }
 }

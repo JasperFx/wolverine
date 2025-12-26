@@ -137,10 +137,10 @@ public class NatsListener : IListener, ISupportDeadLetterQueue
         await _subscriber.StartAsync(this, _receiver, _cancellation.Token);
     }
 
-    public ValueTask StopAsync()
+    public async ValueTask StopAsync()
     {
         _cancellation.Cancel();
-        return ValueTask.CompletedTask;
+        await _subscriber.DisposeAsync();
     }
 
     public void Dispose()
@@ -151,9 +151,11 @@ public class NatsListener : IListener, ISupportDeadLetterQueue
 
     public async ValueTask DisposeAsync()
     {
-        _cancellation.Cancel();
-
-        await _subscriber.DisposeAsync();
+        if (!_cancellation.IsCancellationRequested)
+        {
+            _cancellation.Cancel();
+            await _subscriber.DisposeAsync();
+        }
 
         _complete.Dispose();
         _defer.Dispose();
