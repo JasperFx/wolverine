@@ -45,12 +45,10 @@ public class NatsTransportIntegrationTests : IAsyncLifetime
             }
             else
             {
-                // NATS not available
                 return;
             }
         }
 
-        // Double-check the URL we got works
         if (!await IsNatsAvailable(natsUrl))
         {
             return;
@@ -173,13 +171,6 @@ public class NatsTransportIntegrationTests : IAsyncLifetime
         natsEndpoint.Subject.Should().Be(_receiverSubject);
         natsEndpoint.EndpointName.Should().Be("receiver");
     }
-
-    // Note: Scheduled send tests are covered by the Wolverine compliance test suite.
-    // NATS does not support native scheduled send (SupportsNativeScheduledSend = false),
-    // so Wolverine handles scheduling internally via its durable local queue.
-    // The compliance tests in NatsTransportComplianceTests.cs verify this behavior
-    // when integrated into the Wolverine repository.
-
     private async Task<bool> IsNatsAvailable(string natsUrl)
     {
         try
@@ -202,11 +193,3 @@ public class NatsTransportIntegrationTests : IAsyncLifetime
 }
 
 public record TestMessage(Guid Id, string Text);
-
-public class TestMessageHandler
-{
-    public void Handle(TestMessage message)
-    {
-        // Message is handled
-    }
-}
