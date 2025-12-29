@@ -47,6 +47,14 @@ public class Bug_1961_reserved_characters_in_form_field
 
             x.StatusCodeShouldBe(302);
         });
+        
+        var result2 = await host.Scenario(x =>
+        {
+            x.Post.FormData(new (){ { "foo-bar", "Albert" } })
+                .ToUrl("/angebot/training2");
+
+            x.StatusCodeShouldBe(302);
+        });
     }
 }
 
@@ -56,10 +64,22 @@ public record TrainingRequest(
     bool? rechtlicheHinweiseAkzeptiert
 );
 
+public record TrainingRequest2(
+    [FromForm(Name = "foo-bar")]
+    bool? FooBar
+);
+
 public static class TrainingRequestHandler
 {
     [WolverinePost("angebot/training")]
     public static IResult Post([AsParameters()]TrainingRequest egal)
+
+    {
+        return Results.Redirect($"/vielen-dank");
+    }
+    
+    [WolverinePost("angebot/training2")]
+    public static IResult Post([AsParameters()]TrainingRequest2 egal)
 
     {
         return Results.Redirect($"/vielen-dank");
