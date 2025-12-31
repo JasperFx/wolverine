@@ -11,13 +11,15 @@ public class NatsSender : ISender
     private readonly NatsEnvelopeMapper _mapper;
     private readonly CancellationToken _cancellation;
     private readonly INatsPublisher _publisher;
+    private readonly bool _supportsNativeScheduledSend;
 
     internal NatsSender(
         NatsEndpoint endpoint,
         INatsPublisher publisher,
         ILogger<NatsEndpoint> logger,
         NatsEnvelopeMapper mapper,
-        CancellationToken cancellation
+        CancellationToken cancellation,
+        bool supportsNativeScheduledSend
     )
     {
         _endpoint = endpoint;
@@ -25,6 +27,7 @@ public class NatsSender : ISender
         _logger = logger;
         _mapper = mapper;
         _cancellation = cancellation;
+        _supportsNativeScheduledSend = supportsNativeScheduledSend;
         Destination = endpoint.Uri;
     }
 
@@ -34,17 +37,18 @@ public class NatsSender : ISender
         ILogger<NatsEndpoint> logger,
         NatsEnvelopeMapper mapper,
         CancellationToken cancellation,
-        bool useJetStream
+        bool useJetStream,
+        bool supportsNativeScheduledSend
     )
     {
         INatsPublisher publisher = useJetStream
             ? new JetStreamPublisher(connection, logger)
             : new CoreNatsPublisher(connection, logger);
 
-        return new NatsSender(endpoint, publisher, logger, mapper, cancellation);
+        return new NatsSender(endpoint, publisher, logger, mapper, cancellation, supportsNativeScheduledSend);
     }
 
-    public bool SupportsNativeScheduledSend => false;
+    public bool SupportsNativeScheduledSend => _supportsNativeScheduledSend;
     public Uri Destination { get; }
 
     public async Task<bool> PingAsync()

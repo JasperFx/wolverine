@@ -119,11 +119,24 @@ public class NatsTransportExpression
         params string[] subjects
     )
     {
+        return DefineWorkQueueStream(streamName, null, subjects);
+    }
+
+    /// <summary>
+    /// Define a work queue stream (retention by interest) with additional configuration
+    /// </summary>
+    public NatsTransportExpression DefineWorkQueueStream(
+        string streamName,
+        Action<StreamConfiguration>? configure,
+        params string[] subjects
+    )
+    {
         return DefineStream(
             streamName,
             stream =>
             {
                 stream.AsWorkQueue().WithSubjects(subjects);
+                configure?.Invoke(stream);
             }
         );
     }

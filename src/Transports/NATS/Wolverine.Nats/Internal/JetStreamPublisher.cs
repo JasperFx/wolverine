@@ -70,6 +70,26 @@ internal class JetStreamPublisher : INatsPublisher
         }
         else
         {
+            // Check if this is a scheduled message
+            if (envelope.ScheduledTime.HasValue)
+            {
+                // Add NATS scheduling headers
+                // Format: @at <RFC3339 timestamp>
+                var scheduledTime = envelope.ScheduledTime.Value.ToUniversalTime();
+                headers["Nats-Schedule"] = $"@at {scheduledTime:O}";
+                headers["Nats-Schedule-Target"] = subject;
+                
+                if (_logger.IsEnabled(LogLevel.Debug))
+                {
+                    _logger.LogDebug(
+                        "Scheduling message {MessageId} for delivery at {ScheduledTime} to {Subject}",
+                        envelope.Id,
+                        scheduledTime,
+                        subject
+                    );
+                }
+            }
+            
             var ack = await _jetStreamContext.PublishAsync(
                 subject,
                 data,

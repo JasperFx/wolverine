@@ -118,7 +118,7 @@ public class JetStreamNatsTransportFixture : TransportComplianceFixture, IAsyncL
             opts.UseNats(natsUrl)
                 .AutoProvision()
                 .UseJetStream(js => js.MaxDeliver = 5)
-                .DefineWorkQueueStream(streamName, $"compliance.*.js.{number}");
+                .DefineWorkQueueStream(streamName, s => s.EnableScheduledDelivery(), $"compliance.*.js.{number}");
 
             opts.ListenToNatsSubject(senderSubject)
                 .UseJetStream(streamName, $"sender-consumer-{number}");
@@ -131,7 +131,7 @@ public class JetStreamNatsTransportFixture : TransportComplianceFixture, IAsyncL
             opts.UseNats(natsUrl)
                 .AutoProvision()
                 .UseJetStream(js => js.MaxDeliver = 5)
-                .DefineWorkQueueStream(streamName, $"compliance.*.js.{number}");
+                .DefineWorkQueueStream(streamName, s => s.EnableScheduledDelivery(), $"compliance.*.js.{number}");
 
             opts.ListenToNatsSubject(receiverSubject)
                 .Named("receiver")

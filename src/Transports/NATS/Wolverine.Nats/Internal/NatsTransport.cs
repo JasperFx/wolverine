@@ -18,6 +18,16 @@ public class NatsTransport : BrokerTransport<NatsEndpoint>, IAsyncDisposable
     private NatsConnection? _connection;
     private INatsJSContext? _jetStreamContext;
     private ILogger<NatsTransport>? _logger;
+    
+    /// <summary>
+    /// Minimum NATS server version required for scheduled message delivery
+    /// </summary>
+    private static readonly Version MinScheduledSendVersion = new(2, 12, 0);
+    
+    /// <summary>
+    /// Whether the connected NATS server supports scheduled message delivery (v2.12+)
+    /// </summary>
+    public bool ServerSupportsScheduledSend { get; private set; }
 
     internal JasperFx.Core.LightweightCache<string, NatsTenant> Tenants { get; } = new();
     internal ITenantSubjectMapper TenantSubjectMapper { get; set; } = new DefaultTenantSubjectMapper();
@@ -76,6 +86,19 @@ public class NatsTransport : BrokerTransport<NatsEndpoint>, IAsyncDisposable
         await _connection.ConnectAsync();
 
         _logger.LogInformation("Connected to NATS at {Url}", Configuration.ConnectionString);
+        
+        // Check server version for scheduled send support
+        if (_connection.ServerInfo?.Version != null && 
+            Version.TryParse(_connection.ServerInfo.Version.Split('-')[0], out var serverVersion))
+        {
+            ServerSupportsScheduledSend = serverVersion >= MinScheduledSendVersion;
+            if (ServerSupportsScheduledSend)
+            {
+                _logger.LogInformation(
+                    "NATS server version {Version} supports scheduled message delivery",
+                    _connection.ServerInfo.Version);
+            }
+        }
 
         if (Configuration.EnableJetStream)
         {
@@ -171,7 +194,8 @@ public class NatsTransport : BrokerTransport<NatsEndpoint>, IAsyncDisposable
                         AllowRollupHdrs = config.AllowRollup,
                         AllowDirect = config.AllowDirect,
                         DenyDelete = config.DenyDelete,
-                        DenyPurge = config.DenyPurge
+                        DenyPurge = config.DenyPurge,
+                        AllowMsgSchedules = config.AllowMsgSchedules
                     };
 
                     await JetStreamContext.CreateStreamAsync(streamConfig);

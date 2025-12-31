@@ -163,6 +163,34 @@ public class NatsTransportIntegrationTests : IAsyncLifetime
         natsEndpoint.EndpointName.Should().Be("receiver");
     }
 
+    [Fact]
+    public void server_version_is_detected_and_scheduled_send_support_is_determined()
+    {
+        if (_sender == null)
+            return;
+
+        var runtime = _sender.Services.GetRequiredService<IWolverineRuntime>();
+        var transport = runtime.Options.Transports.GetOrCreate<NatsTransport>();
+
+        // Verify connection has server info
+        transport.Connection.ServerInfo.Should().NotBeNull();
+        transport.Connection.ServerInfo!.Version.Should().NotBeNullOrEmpty();
+        
+        _output.WriteLine($"NATS Server Version: {transport.Connection.ServerInfo.Version}");
+        _output.WriteLine($"ServerSupportsScheduledSend: {transport.ServerSupportsScheduledSend}");
+
+        // Parse version and verify our logic
+        var versionString = transport.Connection.ServerInfo.Version.Split('-')[0];
+        if (Version.TryParse(versionString, out var serverVersion))
+        {
+            var minVersion = new Version(2, 12, 0);
+            var expectedSupport = serverVersion >= minVersion;
+            
+            transport.ServerSupportsScheduledSend.Should().Be(expectedSupport,
+                $"Server version {serverVersion} should {(expectedSupport ? "" : "not ")}support scheduled send (min: {minVersion})");
+        }
+    }
+
     private async Task<bool> IsNatsAvailable(string natsUrl)
     {
         try

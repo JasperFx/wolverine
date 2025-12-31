@@ -59,13 +59,21 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
             _mapper.ReceivesMessage(MessageType);
         }
 
+        var useJetStream = UseJetStream && _transport.Configuration.EnableJetStream;
+        var supportsScheduledSend = useJetStream && 
+                                    _transport.ServerSupportsScheduledSend &&
+                                    StreamName != null &&
+                                    _transport.Configuration.Streams.TryGetValue(StreamName, out var streamConfig) &&
+                                    streamConfig.AllowMsgSchedules;
+        
         var baseSender = NatsSender.Create(
             this,
             _connection,
             _logger,
             _mapper,
             runtime.Cancellation,
-            UseJetStream && _transport.Configuration.EnableJetStream
+            useJetStream,
+            supportsScheduledSend
         );
 
         if (_transport.Tenants.Any() && TenancyBehavior == TenancyBehavior.TenantAware)
@@ -97,7 +105,8 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
                     _logger,
                     _mapper,
                     runtime.Cancellation,
-                    UseJetStream && _transport.Configuration.EnableJetStream
+                    useJetStream,
+                    supportsScheduledSend
                 );
 
                 tenantedSender.RegisterSender(tenant.TenantId, tenantSender);
