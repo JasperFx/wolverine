@@ -144,11 +144,7 @@ public class JetStreamNatsTransportFixture : TransportComplianceFixture, IAsyncL
         return Task.CompletedTask;
     }
 
-    public override void BeforeEach()
-    {
-        // JetStream operations need a small cooldown between tests
-        Thread.Sleep(1.Seconds());
-    }
+
 }
 
 [Collection("NATS Compliance")]
