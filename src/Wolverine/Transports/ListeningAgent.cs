@@ -227,7 +227,7 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
         _restarter = new Restarter(this, pauseTime);
     }
 
-    private readonly SemaphoreSlim _semaphore = new SemaphoreSlim(0, 1);
+    private readonly SemaphoreSlim _semaphore = new SemaphoreSlim(1, 1);
 
     public async ValueTask MarkAsTooBusyAndStopReceivingAsync()
     {
