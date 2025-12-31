@@ -11,3 +11,8 @@ public class NatsIntegrationTestCollection : ICollectionFixture<object>
 public class NatsMultiTenancyTestCollection : ICollectionFixture<object>
 {
 }
+
+[CollectionDefinition("NATS Compliance", DisableParallelization = true)]
+public class NatsComplianceTestCollection : ICollectionFixture<object>
+{
+}

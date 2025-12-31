@@ -59,13 +59,16 @@ public class NatsListener : IListener, ISupportDeadLetterQueue
             {
                 if (envelope.JetStreamMsg != null)
                 {
+                    // JetStream supports native NAK which will redeliver the message
                     await envelope.JetStreamMsg.NakAsync(
                         cancellationToken: _cancellation.Token
                     );
                 }
-
-                await Task.Delay(TimeSpan.FromSeconds(5), _cancellation.Token);
-                await _receiver.ReceivedAsync(this, envelope);
+                else
+                {
+                    // Core NATS doesn't have native requeue - republish the message to the subject
+                    await _subscriber.RepublishAsync(envelope, _cancellation.Token);
+                }
             },
             logger,
             _cancellation.Token

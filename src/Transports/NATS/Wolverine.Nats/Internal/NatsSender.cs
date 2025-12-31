@@ -69,9 +69,11 @@ public class NatsSender : ISender
             var targetSubject = _endpoint.Subject;
             string? replyTo = null;
 
-            if (envelope.IsResponse && envelope.ReplyUri != null)
+            if (envelope.IsResponse && envelope.Destination != null)
             {
-                targetSubject = NatsTransport.ExtractSubjectFromUri(envelope.ReplyUri);
+                // For response messages, Wolverine sets Destination to the original sender's reply URI
+                // We need to use Destination, not ReplyUri (which would be our own reply endpoint)
+                targetSubject = NatsTransport.ExtractSubjectFromUri(envelope.Destination);
 
                 if (_logger.IsEnabled(LogLevel.Debug))
                 {

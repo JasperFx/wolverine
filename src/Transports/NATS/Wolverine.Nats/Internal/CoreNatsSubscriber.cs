@@ -135,6 +135,23 @@ internal class CoreNatsSubscriber : INatsSubscriber
         }
     }
 
+    public async Task RepublishAsync(NatsEnvelope envelope, CancellationToken cancellation)
+    {
+        // Increment attempts before republishing for requeue support
+        envelope.Attempts++;
+        
+        // Republish the message to the same subject for requeue support
+        var headers = new NatsHeaders();
+        _mapper.MapEnvelopeToOutgoing(envelope, headers);
+        
+        await _connection.PublishAsync(
+            _endpoint.Subject,
+            envelope.Data,
+            headers,
+            cancellationToken: cancellation
+        );
+    }
+
     public async ValueTask DisposeAsync()
     {
         // Dispose subscriptions first - this will cause ReadAllAsync to complete

@@ -145,6 +145,13 @@ internal class JetStreamSubscriber : INatsSubscriber
         );
     }
 
+    public Task RepublishAsync(NatsEnvelope envelope, CancellationToken cancellation)
+    {
+        // JetStream uses native NAK for requeue, so this is not needed
+        // This method is only called for Core NATS
+        return Task.CompletedTask;
+    }
+
     public async ValueTask DisposeAsync()
     {
         // Dispose consumer first - this will cause ConsumeAsync to complete
