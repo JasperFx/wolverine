@@ -87,8 +87,6 @@ public class DefaultTenantSubjectMapperTests
     public void normalizes_slashes_in_tenant_id()
     {
         var mapper = new DefaultTenantSubjectMapper();
-        
-        // Tenant IDs with slashes get normalized to dots
         mapper.MapSubject("orders", "org/team").ShouldBe("org.team.orders");
     }
     
@@ -319,14 +317,12 @@ public class MultiTenancyIntegrationTests : IAsyncLifetime
         _output.WriteLine($"Using NATS URL: {_natsUrl}");
         _output.WriteLine($"Base subject: {_baseSubject}");
 
-        // Check if NATS is available
         if (!await IsNatsAvailable(_natsUrl))
         {
             _output.WriteLine("NATS not available, skipping test");
             return;
         }
-        
-        // Create sender host with multi-tenancy enabled
+
         _sender = await Host.CreateDefaultBuilder()
             .ConfigureLogging(logging => logging.AddXunitLogging(_output))
             .UseWolverine(opts =>
@@ -343,8 +339,6 @@ public class MultiTenancyIntegrationTests : IAsyncLifetime
             })
             .StartAsync();
 
-        // Create receiver host that listens for messages
-        // The receiver uses wildcard subscription to receive all tenant messages
         _receiver = await Host.CreateDefaultBuilder()
             .ConfigureLogging(logging => logging.AddXunitLogging(_output))
             .UseWolverine(opts =>
@@ -388,18 +382,15 @@ public class MultiTenancyIntegrationTests : IAsyncLifetime
         
         _output.WriteLine($"Sending message {msg1.Id} with tenant1");
 
-        // Send message with tenant1 and track across both hosts
         var session = await _sender
             .TrackActivity()
             .AlsoTrack(_receiver)
             .Timeout(30.Seconds())
             .SendMessageAndWaitAsync(msg1, new DeliveryOptions { TenantId = "tenant1" });
 
-        // Verify message was sent
         var sentMessage = session.Sent.SingleMessage<TenantTestMessage>();
         sentMessage.Id.ShouldBe(msg1.Id);
 
-        // Verify message was received with correct tenant context
         var receivedEnvelope = session.Received.SingleEnvelope<TenantTestMessage>();
         receivedEnvelope.TenantId.ShouldBe("tenant1");
         receivedEnvelope.Message.ShouldBeOfType<TenantTestMessage>().Id.ShouldBe(msg1.Id);
@@ -420,7 +411,6 @@ public class MultiTenancyIntegrationTests : IAsyncLifetime
         _output.WriteLine($"Sending message {msg1.Id} with tenant1");
         _output.WriteLine($"Sending message {msg2.Id} with tenant2");
 
-        // Send message for tenant1
         var session1 = await _sender
             .TrackActivity()
             .AlsoTrack(_receiver)
@@ -431,7 +421,6 @@ public class MultiTenancyIntegrationTests : IAsyncLifetime
         received1.TenantId.ShouldBe("tenant1");
         received1.Message.ShouldBeOfType<TenantTestMessage>().Id.ShouldBe(msg1.Id);
 
-        // Send message for tenant2
         var session2 = await _sender
             .TrackActivity()
             .AlsoTrack(_receiver)
@@ -455,7 +444,6 @@ public class MultiTenancyIntegrationTests : IAsyncLifetime
         var msgWithTenant = new TenantTestMessage(Guid.NewGuid(), "With tenant");
         var msgWithoutTenant = new TenantTestMessage(Guid.NewGuid(), "Without tenant");
 
-        // Send message with tenant
         var session1 = await _sender
             .TrackActivity()
             .AlsoTrack(_receiver)
@@ -465,7 +453,6 @@ public class MultiTenancyIntegrationTests : IAsyncLifetime
         var tenantReceived = session1.Received.SingleEnvelope<TenantTestMessage>();
         tenantReceived.TenantId.ShouldBe("tenant1");
 
-        // Send message without tenant (should fallback to default)
         var session2 = await _sender
             .TrackActivity()
             .AlsoTrack(_receiver)
@@ -473,7 +460,6 @@ public class MultiTenancyIntegrationTests : IAsyncLifetime
             .SendMessageAndWaitAsync(msgWithoutTenant);
 
         var defaultReceived = session2.Received.SingleEnvelope<TenantTestMessage>();
-        // Without tenant, should receive on base subject without tenant extraction
         defaultReceived.TenantId.ShouldBeNull();
     }
 
@@ -521,7 +507,6 @@ public class TenantIdRequiredBehaviorTests : IAsyncLifetime
         _natsUrl = Environment.GetEnvironmentVariable("NATS_URL") ?? "nats://localhost:4222";
         _baseSubject = $"test.required.{Guid.NewGuid():N}";
 
-        // Check if NATS is available
         if (!await IsNatsAvailable(_natsUrl))
         {
             _output.WriteLine("NATS not available, skipping test");
@@ -625,7 +610,6 @@ public class TenantTestMessageHandler
 {
     public void Handle(TenantTestMessage message)
     {
-        // Message is handled - the test verifies via tracking
     }
 }
 

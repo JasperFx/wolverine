@@ -1,6 +1,3 @@
-// NATS Transport Compliance Tests
-// These tests verify that the NATS transport conforms to Wolverine's transport contract
-
 #if true
 
 using JasperFx.Core;
@@ -25,7 +22,6 @@ public class InlineNatsTransportFixture : TransportComplianceFixture, IAsyncLife
 
         OutboundAddress = new Uri($"nats://subject/{receiverSubject}");
 
-        // Check for NATS availability
         var natsUrl = Environment.GetEnvironmentVariable("NATS_URL") ?? "nats://localhost:4222";
 
         await SenderIs(opts =>
@@ -67,7 +63,6 @@ public class BufferedNatsTransportFixture : TransportComplianceFixture, IAsyncLi
 
         OutboundAddress = new Uri($"nats://subject/{receiverSubject}");
 
-        // Check for NATS availability
         var natsUrl = Environment.GetEnvironmentVariable("NATS_URL") ?? "nats://localhost:4222";
 
         await SenderIs(opts =>
@@ -110,7 +105,6 @@ public class JetStreamNatsTransportFixture : TransportComplianceFixture, IAsyncL
 
         OutboundAddress = new Uri($"nats://subject/{receiverSubject}");
 
-        // Check for NATS availability
         var natsUrl = Environment.GetEnvironmentVariable("NATS_URL") ?? "nats://localhost:4222";
 
         await SenderIs(opts =>

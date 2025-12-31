@@ -85,17 +85,14 @@ public class NatsTransportIntegrationTests : IAsyncLifetime
         if (_sender == null || _receiver == null)
             return; // Skip if NATS not available
 
-        // Arrange
         var message = new TestMessage(Guid.NewGuid(), "Hello NATS!");
 
-        // Act
         var tracked = await _sender
             .TrackActivity()
             .AlsoTrack(_receiver)
             .Timeout(30.Seconds())
             .SendMessageAndWaitAsync(message);
 
-        // Assert
         tracked.Sent.SingleMessage<TestMessage>().Should().BeEquivalentTo(message);
 
         tracked.Received.SingleMessage<TestMessage>().Should().BeEquivalentTo(message);
@@ -107,7 +104,6 @@ public class NatsTransportIntegrationTests : IAsyncLifetime
         if (_sender == null || _receiver == null)
             return;
 
-        // Arrange
         var messages = new[]
         {
             new TestMessage(Guid.NewGuid(), "Message 1"),
@@ -115,7 +111,6 @@ public class NatsTransportIntegrationTests : IAsyncLifetime
             new TestMessage(Guid.NewGuid(), "Message 3")
         };
 
-        // Act & Assert
         foreach (var message in messages)
         {
             var tracked = await _sender
@@ -172,14 +167,12 @@ public class NatsTransportIntegrationTests : IAsyncLifetime
         var runtime = _sender.Services.GetRequiredService<IWolverineRuntime>();
         var transport = runtime.Options.Transports.GetOrCreate<NatsTransport>();
 
-        // Verify connection has server info
         transport.Connection.ServerInfo.Should().NotBeNull();
         transport.Connection.ServerInfo!.Version.Should().NotBeNullOrEmpty();
         
         _output.WriteLine($"NATS Server Version: {transport.Connection.ServerInfo.Version}");
         _output.WriteLine($"ServerSupportsScheduledSend: {transport.ServerSupportsScheduledSend}");
 
-        // Parse version and verify our logic
         var versionString = transport.Connection.ServerInfo.Version.Split('-')[0];
         if (Version.TryParse(versionString, out var serverVersion))
         {
@@ -218,6 +211,5 @@ public class TestMessageHandler
 {
     public void Handle(TestMessage message)
     {
-        // Handler is required for Wolverine's message tracking to register the message as processed
     }
 }

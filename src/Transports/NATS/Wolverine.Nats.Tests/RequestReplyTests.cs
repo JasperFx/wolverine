@@ -23,10 +23,8 @@ public class RequestReplyTests : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-        // Use NATS_URL environment variable or default to local Docker port
         var natsUrl = Environment.GetEnvironmentVariable("NATS_URL") ?? "nats://localhost:4222";
-        
-        // Skip tests if NATS server is not available
+
         if (!await IsNatsServerAvailable(natsUrl))
         {
             _output.WriteLine($"NATS server not available at {natsUrl}. Skipping integration tests.");
