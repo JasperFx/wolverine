@@ -116,12 +116,21 @@ internal class JetStreamSubscriber : INatsSubscriber
                 {
                     try
                     {
+                        // Skip messages without data
                         if (msg.Data == null || msg.Data.Length == 0)
                         {
                             _logger.LogDebug(
                                 "Skipping empty JetStream message from subject {Subject}",
                                 msg.Subject
                             );
+                            await msg.AckAsync(cancellationToken: cancellation);
+                            continue;
+                        }
+
+                        // Skip messages without headers or without message-type header.
+                        // These are typically NATS protocol messages that should not be processed by Wolverine.
+                        if (msg.Headers == null || !msg.Headers.ContainsKey("message-type"))
+                        {
                             await msg.AckAsync(cancellationToken: cancellation);
                             continue;
                         }
