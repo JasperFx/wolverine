@@ -356,7 +356,7 @@ public class EndpointCollection : IEndpointCollection
     public async Task DrainAsync()
     {
         // Drain the listeners
-        foreach (var listener in ActiveListeners())
+        foreach (var listener in ActiveListeners().ToArray())
         {
             try
             {
