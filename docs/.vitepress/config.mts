@@ -186,6 +186,7 @@ const config: UserConfig<DefaultTheme.Config> = {
                                 {text: 'Sql Server', link: '/guide/messaging/transports/sqlserver'},
                                 {text: 'PostgreSQL', link: '/guide/messaging/transports/postgresql'},
                                 {text: 'MQTT', link: '/guide/messaging/transports/mqtt'},
+                                {text: 'NATS', link: '/guide/messaging/transports/nats'},
                                 {text: 'Kafka', link: '/guide/messaging/transports/kafka'},
                                 {text: 'SignalR', link: '/guide/messaging/transports/signalr'},
                                 {text: 'Redis', link: '/guide/messaging/transports/redis'},
