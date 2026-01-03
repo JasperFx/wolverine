@@ -1,9 +1,11 @@
 using System.Diagnostics;
 using System.Linq;
+using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using StackExchange.Redis;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
+using Wolverine.Runtime.Serialization;
 using Wolverine.Transports;
 
 namespace Wolverine.Redis.Internal;
@@ -16,8 +18,10 @@ public class RedisStreamListener : IListener
     private readonly IReceiver _receiver;
     private readonly ILogger _logger;
     private readonly CancellationTokenSource _cancellation = new();
+    private readonly DurabilitySettings _settings;
 
     private Task? _consumerTask;
+    private Task? _scheduledTask;
     private ListeningStatus _status = ListeningStatus.Stopped;
     private string _consumerName;
 
@@ -31,6 +35,7 @@ public class RedisStreamListener : IListener
         _runtime = runtime;
         _receiver = receiver;
         _logger = runtime.LoggerFactory.CreateLogger<RedisStreamListener>();
+        _settings = runtime.DurabilitySettings;
 
         // Generate stable consumer name: service name + node number (+ machine) by default,
         // or use endpoint-level override if specified.
@@ -82,7 +87,9 @@ public class RedisStreamListener : IListener
 
             // Start the consumer loop
             _consumerTask = Task.Run(ConsumerLoop, _cancellation.Token);
-
+            
+            // Start the scheduled messages polling loop
+            _scheduledTask = Task.Run(LookForScheduledMessagesAsync, _cancellation.Token);
         }
     }
 
@@ -111,6 +118,22 @@ public class RedisStreamListener : IListener
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Error while stopping consumer task for stream {StreamKey}", _endpoint.StreamKey);
+            }
+        }
+        
+        if (_scheduledTask != null)
+        {
+            try
+            {
+                await _scheduledTask.WaitAsync(TimeSpan.FromSeconds(10));
+            }
+            catch (TaskCanceledException)
+            {
+                // Expected when cancellation token is used
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Error while stopping scheduled task for stream {StreamKey}", _endpoint.StreamKey);
             }
         }
     }
@@ -352,7 +375,170 @@ public class RedisStreamListener : IListener
     public ValueTask DisposeAsync()
     {
         _cancellation.Cancel();
+        _consumerTask.SafeDispose();
+        _scheduledTask.SafeDispose();
         _cancellation.Dispose();
         return ValueTask.CompletedTask;
+    }
+
+    private async Task LookForScheduledMessagesAsync()
+    {
+        // Add randomness to prevent all nodes from polling at the exact same time
+        await Task.Delay(_settings.ScheduledJobFirstExecution);
+
+        var failedCount = 0;
+
+        while (!_cancellation.Token.IsCancellationRequested)
+        {
+            try
+            {
+                var count = await MoveScheduledToReadyStreamAsync(_cancellation.Token);
+                if (count > 0)
+                {
+                    _logger.LogInformation("Propagated {Number} scheduled messages to Redis stream {StreamKey}", count, _endpoint.StreamKey);
+                }
+
+                await DeleteExpiredAsync(CancellationToken.None);
+
+                failedCount = 0;
+
+                await Task.Delay(_settings.ScheduledJobPollingTime);
+            }
+            catch (Exception e)
+            {
+                if (e is TaskCanceledException && _cancellation.IsCancellationRequested)
+                {
+                    break;
+                }
+
+                failedCount++;
+                var pauseTime = failedCount > 5 ? 1.Seconds() : (failedCount * 100).Milliseconds();
+
+                _logger.LogError(e, "Error while trying to propagate scheduled messages from Redis stream {StreamKey}",
+                    _endpoint.StreamKey);
+
+                await Task.Delay(pauseTime);
+            }
+        }
+    }
+
+    public async Task<long> MoveScheduledToReadyStreamAsync(CancellationToken cancellationToken)
+    {
+        var database = _transport.GetDatabase(database: _endpoint.DatabaseId);
+        var scheduledKey = _endpoint.ScheduledMessagesKey;
+        
+        try
+        {
+            // Get current time as Unix timestamp in milliseconds
+            var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+
+            // Get all messages that are ready to be executed (score <= now)
+            var readyMessages = await database.SortedSetRangeByScoreAsync(
+                scheduledKey, 
+                start: double.NegativeInfinity, 
+                stop: now);
+
+            if (readyMessages == null || readyMessages.Length == 0)
+            {
+                return 0;
+            }
+
+            _logger.LogDebug("Found {Count} scheduled messages ready for execution in {ScheduledKey}", 
+                readyMessages.Length, scheduledKey);
+
+            long count = 0;
+            foreach (var serializedEnvelope in readyMessages)
+            {
+                try
+                {
+                    // Deserialize the envelope
+                    var envelope = EnvelopeSerializer.Deserialize(serializedEnvelope);
+                    
+                    // Add it to the stream
+                    _endpoint.EnvelopeMapper ??= _endpoint.BuildMapper(_runtime);
+                    var fields = new List<NameValueEntry>();
+                    _endpoint.EnvelopeMapper.MapEnvelopeToOutgoing(envelope, fields);
+                    
+                    var messageId = await database.StreamAddAsync(_endpoint.StreamKey, fields.ToArray());
+                    
+                    // Remove from scheduled set
+                    await database.SortedSetRemoveAsync(scheduledKey, serializedEnvelope);
+                    
+                    count++;
+                    
+                    _logger.LogDebug("Moved scheduled message {EnvelopeId} to stream {StreamKey} with message ID {MessageId}", 
+                        envelope.Id, _endpoint.StreamKey, messageId);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error processing scheduled message in {ScheduledKey}", scheduledKey);
+                    // Remove the corrupted message from the scheduled set
+                    await database.SortedSetRemoveAsync(scheduledKey, serializedEnvelope);
+                }
+            }
+
+            return count;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error moving scheduled messages from {ScheduledKey} to stream {StreamKey}", 
+                scheduledKey, _endpoint.StreamKey);
+            throw;
+        }
+    }
+
+    public async Task DeleteExpiredAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var database = _transport.GetDatabase(database: _endpoint.DatabaseId);
+            var scheduledKey = _endpoint.ScheduledMessagesKey;
+            
+            // Get all messages from the scheduled set to check their expiration
+            var allMessages = await database.SortedSetRangeByScoreAsync(scheduledKey);
+            
+            if (allMessages == null || allMessages.Length == 0)
+            {
+                return;
+            }
+
+            var now = DateTimeOffset.UtcNow;
+            var expiredCount = 0;
+
+            foreach (var serializedEnvelope in allMessages)
+            {
+                try
+                {
+                    var envelope = EnvelopeSerializer.Deserialize(serializedEnvelope);
+                    
+                    // Check if the message has expired
+                    if (envelope.DeliverBy.HasValue && envelope.DeliverBy.Value <= now)
+                    {
+                        await database.SortedSetRemoveAsync(scheduledKey, serializedEnvelope);
+                        expiredCount++;
+                        
+                        _logger.LogDebug("Deleted expired scheduled message {EnvelopeId} from {ScheduledKey}", 
+                            envelope.Id, scheduledKey);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Error checking expiration for scheduled message in {ScheduledKey}, removing it", scheduledKey);
+                    // Remove corrupted messages
+                    await database.SortedSetRemoveAsync(scheduledKey, serializedEnvelope);
+                    expiredCount++;
+                }
+            }
+
+            if (expiredCount > 0)
+            {
+                _logger.LogInformation("Deleted {Count} expired scheduled messages from {ScheduledKey}", 
+                    expiredCount, scheduledKey);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error deleting expired messages from {ScheduledKey}", _endpoint.ScheduledMessagesKey);
+        }
     }
 }

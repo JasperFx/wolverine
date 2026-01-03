@@ -11,6 +11,8 @@ namespace Wolverine.Redis.Internal;
 public class RedisStreamEndpoint : Endpoint<IRedisEnvelopeMapper, RedisEnvelopeMapper>, IBrokerEndpoint, IBrokerQueue
 {
     private readonly RedisTransport _transport;
+
+    internal bool SupportsNativeScheduledSend { get; set; } = true;
     
     internal RedisStreamEndpoint(Uri uri, RedisTransport transport, EndpointRole role = EndpointRole.Application) 
         : base(uri, role)
@@ -35,6 +37,11 @@ public class RedisStreamEndpoint : Endpoint<IRedisEnvelopeMapper, RedisEnvelopeM
     /// The Redis database ID (0-15 for standard Redis)
     /// </summary>
     public int DatabaseId { get; }
+    
+    /// <summary>
+    /// The Redis Sorted Set key for scheduled messages
+    /// </summary>
+    public string ScheduledMessagesKey => $"{StreamKey}:scheduled";
     
     /// <summary>
     /// The consumer group name for this endpoint (if listening)
