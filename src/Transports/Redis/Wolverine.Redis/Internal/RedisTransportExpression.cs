@@ -56,6 +56,11 @@ public class RedisTransportExpression : BrokerExpression<RedisTransport, RedisSt
         _transport.SystemQueuesEnabled = enabled;
         return this;
     }
+    
+    public RedisTransportExpression DeleteStreamEntryOnAck(bool deleteStreamEntryOnAck){
+        _transport.DeleteStreamEntryOnAck = deleteStreamEntryOnAck;
+        return this;
+    }
 }
 
 public class RedisListenerConfiguration : ListenerConfiguration<RedisListenerConfiguration, RedisStreamEndpoint>

@@ -48,6 +48,8 @@ public class RedisStreamListener : IListener
     public ListeningStatus Status => _status;
     public IHandlerPipeline? Pipeline => _receiver.Pipeline;
 
+    internal bool DeleteOnAck => _transport.DeleteStreamEntryOnAck;
+
     public async ValueTask InitializeAsync()
     {
         // Only create resources at listener init time if AutoProvision is enabled.
@@ -149,7 +151,10 @@ public class RedisStreamListener : IListener
             }
 
             var db = _transport.GetDatabase();
-            await db.StreamAcknowledgeAsync(_endpoint.StreamKey, _endpoint.ConsumerGroup!, idString!);
+            if (DeleteOnAck)
+                await db.StreamAcknowledgeAndDeleteAsync(_endpoint.StreamKey, _endpoint.ConsumerGroup!, StreamTrimMode.Acknowledged, idString!);
+            else
+                await db.StreamAcknowledgeAsync(_endpoint.StreamKey, _endpoint.ConsumerGroup!, idString!);
             _logger.LogDebug("Acknowledged Redis stream message {StreamId} on {StreamKey}", idString, _endpoint.StreamKey);
         }
         catch (Exception ex)
@@ -169,7 +174,10 @@ public class RedisStreamListener : IListener
             {
                 try
                 {
-                    await db.StreamAcknowledgeAsync(_endpoint.StreamKey, _endpoint.ConsumerGroup!, idString!);
+                    if(DeleteOnAck)
+                        await db.StreamAcknowledgeAndDeleteAsync(_endpoint.StreamKey, _endpoint.ConsumerGroup!, StreamTrimMode.Acknowledged, idString!);
+                    else
+                        await db.StreamAcknowledgeAsync(_endpoint.StreamKey, _endpoint.ConsumerGroup!, idString!);
                 }
                 catch (Exception ackEx)
                 {
