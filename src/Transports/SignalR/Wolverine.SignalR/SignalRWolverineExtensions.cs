@@ -70,6 +70,28 @@ public static class SignalRWolverineExtensions
     }
 
     /// <summary>
+    /// Adds the WolverineHub to this application for Azure SignalR message processing
+    /// </summary>
+    /// <param name="options"></param>
+    /// <param name="configureHub">Optionally configure the SignalR HubOptions for Wolverine</param>
+    /// <param name="configureSignalR">Optionally configure the Azure SignalR options for Wolverine</param>
+    /// <returns></returns>
+    public static SignalRListenerConfiguration UseAzureSignalR(this WolverineOptions options, Action<HubOptions>? configureHub = null, Action<Microsoft.Azure.SignalR.ServiceOptions>? configureSignalR = null)
+    {
+        configureHub ??= _ => { };
+        configureSignalR ??= _ => { };
+
+        options.Services.AddSignalR(configureHub).AddAzureSignalR(configureSignalR);
+
+        var transport = options.SignalRTransport();
+
+        options.Services.AddSingleton<SignalRTransport>(s =>
+            s.GetRequiredService<IWolverineRuntime>().Options.Transports.GetOrCreate<SignalRTransport>());
+
+        return new SignalRListenerConfiguration(transport);
+    }
+
+    /// <summary>
     /// Syntactical shortcut to register the WolverineHub SignalR Hub for sending
     /// messages to this server. Equivalent to MapHub<WolverineHub>(route).
     /// </summary>

@@ -46,6 +46,26 @@ builder.UseWolverine(opts =>
         // for the WolverineHub
         o.ClientTimeoutInterval = 10.Seconds();
     });
+
+    // Instead of self-hosting, it's also possible to
+    // use Azure SignalR. Only one of the two SignalR
+    // registrations are necessary. Both register the
+    // required services in DI
+    opts.UseAzureSignalR(hub =>
+    {
+        // Optionally configure the SignalR HubOptions
+        // for the WolverineHub
+        hub.ClientTimeoutInterval = 10.Seconds();
+    }, service =>
+    {
+        // And optionally configure the Azure SignalR
+        // options for the connection.
+        service.ApplicationName = "wolverine";
+
+        // You probably want one of these from your
+        // configuration somehow
+        service.ConnectionString = "Endpoint=https://myresource.service.signalr.net;AccessKey=...;Version=1.0;";
+    });
     
     // Using explicit routing to send specific
     // messages to SignalR
@@ -59,7 +79,7 @@ builder.UseWolverine(opts =>
     });
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/WolverineChat/Program.cs#L12-L39' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_signalr_on_server_side' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/WolverineChat/Program.cs#L12-L59' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_signalr_on_server_side' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 That handles the Wolverine configuration and the SignalR service registrations, but you will also need to map
@@ -84,7 +104,7 @@ app.MapWolverineSignalRHub("/api/messages");
 
 return await app.RunJasperFxCommands(args);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/WolverineChat/Program.cs#L43-L61' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_map_wolverine_signalrhub' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/WolverineChat/Program.cs#L63-L81' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_map_wolverine_signalrhub' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Messages and Serialization
