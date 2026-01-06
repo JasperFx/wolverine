@@ -111,15 +111,11 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
         if (TopicName == WolverineTopicsName) return; // don't care, this is just a marker
 
         using var adminClient = Parent.CreateAdminClient();
+        Specification.Name = TopicName;
 
         try
         {
-            Specification.Name = TopicName;
-            
-            await adminClient.CreateTopicsAsync(
-            [
-                Specification
-            ]);
+            await CreateTopicFunc(adminClient, this);
 
             logger.LogInformation("Created Kafka topic {Topic}", TopicName);
         }
@@ -129,6 +125,11 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
             throw;
         }
     }
+
+    /// <summary>
+    /// Override how this Kafka topic is created
+    /// </summary>
+    public Func<IAdminClient, KafkaTopic, Task> CreateTopicFunc { get; internal set; } = (c, t) => c.CreateTopicsAsync([t.Specification]);
 }
 
 public enum QualityOfService

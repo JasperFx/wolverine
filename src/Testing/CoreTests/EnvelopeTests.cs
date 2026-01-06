@@ -620,5 +620,21 @@ public class EnvelopeTests
         {
             theHandledEnvelope.MessageType.ShouldBe(theOriginal.MessageType);
         }
+
+        [Fact]
+        public void set_the_message_type_1()
+        {
+            var envelope = new Envelope();
+            envelope.SetMessageType(typeof(Message1));
+            envelope.MessageType.ShouldBe(typeof(Message1).ToMessageTypeName());
+        }
+        
+        [Fact]
+        public void set_the_message_type_2()
+        {
+            var envelope = new Envelope();
+            envelope.SetMessageType<Message1>();
+            envelope.MessageType.ShouldBe(typeof(Message1).ToMessageTypeName());
+        }
     }
 }

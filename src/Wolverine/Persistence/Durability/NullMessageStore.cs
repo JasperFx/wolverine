@@ -197,6 +197,11 @@ public class NullMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IM
         return Task.FromResult(new PersistedCounts());
     }
 
+    public Task DeleteAllHandledAsync()
+    {
+        return Task.CompletedTask;
+    }
+
     public Task ClearAllAsync()
     {
         return Task.CompletedTask;

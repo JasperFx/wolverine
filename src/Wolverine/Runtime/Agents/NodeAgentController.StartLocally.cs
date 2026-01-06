@@ -8,7 +8,9 @@ public partial class NodeAgentController
 
     public async Task StartSoloModeAsync()
     {
-        using var activity = WolverineTracing.ActivitySource.StartActivity("wolverine_node_assignments");
+        using var activity = ShouldTraceHealthCheck() 
+            ? WolverineTracing.ActivitySource.StartActivity("wolverine_node_assignments") 
+            : null;
         
         await _runtime.Storage.Nodes.ClearAllAsync(_cancellation.Token);
         await _runtime.Storage.Admin.ReleaseAllOwnershipAsync();

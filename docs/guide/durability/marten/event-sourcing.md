@@ -697,7 +697,7 @@ public static class RaiseIfValidatedHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AggregateHandlerWorkflow/aggregate_handler_workflow.cs#L407-L423' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_passing_aggregate_into_validate_method' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AggregateHandlerWorkflow/aggregate_handler_workflow.cs#L417-L433' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_passing_aggregate_into_validate_method' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Archiving Streams

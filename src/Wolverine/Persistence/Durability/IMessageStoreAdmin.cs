@@ -4,6 +4,8 @@ namespace Wolverine.Persistence.Durability;
 
 public interface IMessageStoreAdmin
 {
+    Task DeleteAllHandledAsync();
+    
     /// <summary>
     ///     Clears out all persisted envelopes
     /// </summary>

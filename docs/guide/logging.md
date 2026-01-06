@@ -71,6 +71,25 @@ public static void Configure(HandlerChain chain)
 
 will be called by Wolverine to apply message type specific overrides to Wolverine's message handling.
 
+## Configuring Health Check Tracing
+
+Wolverine's node agent controller performs health checks periodically (every 10 seconds by default) to maintain node assignments and cluster state. By default, these health checks emit Open Telemetry traces named `wolverine_node_assignments`, which can result in high trace volumes in observability platforms.
+
+You can control this tracing behavior through the `DurabilitySettings`:
+
+<!-- snippet: sample_configure_health_check_tracing -->
+<a id='snippet-sample_using_wolverine_logging_attribute'></a>
+```cs
+builder.Host.UseWolverine(opts =>
+{
+    // Disable the "wolverine_node_assignments" traces entirely
+    opts.Durability.NodeAssignmentHealthCheckTracingEnabled = false;
+    
+    // Or, sample those traces to only once every 10 minutes
+    opts.Durability.NodeAssignmentHealthCheckTraceSamplingPeriod = TimeSpan.FromMinutes(10);
+});
+```
+
 ## Controlling Message Specific Logging and Tracing
 
 While Open Telemetry tracing can be disabled on an endpoint by endpoint basis, you may want to disable Open Telemetry
@@ -82,9 +101,11 @@ below:
 <!-- snippet: sample_using_Wolverine_Logging_attribute -->
 <a id='snippet-sample_using_wolverine_logging_attribute'></a>
 ```cs
-public class QuietMessage;
+public record QuietMessage;
 
-public class QuietMessageHandler
+public record VerboseMessage;
+
+public class QuietAndVerboseMessageHandler
 {
     [WolverineLogging(
         telemetryEnabled:false,
@@ -94,9 +115,27 @@ public class QuietMessageHandler
     {
         Console.WriteLine("Hush!");
     }
+    
+    [WolverineLogging(
+        // Enable Open Telemetry tracing
+        TelemetryEnabled = true, 
+        
+        // Log on successful completion of this message
+        SuccessLogLevel = LogLevel.Information, 
+        
+        // Log on execution being complete, but before Wolverine does its own book keeping
+        ExecutionLogLevel = LogLevel.Information, 
+        
+        // Throw in yet another contextual logging statement
+        // at the beginning of message execution
+        MessageStartingLevel = LogLevel.Debug)]
+    public void Handle(VerboseMessage message)
+    {
+        Console.WriteLine("Tell me about it!");
+    }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/logging_configuration.cs#L27-L43' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_wolverine_logging_attribute' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/logging_configuration.cs#L78-L114' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_wolverine_logging_attribute' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -162,7 +201,7 @@ public class AuditedMessage
     [Audit("AccountIdentifier")] public int AccountId;
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/auditing_determination.cs#L86-L96' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_audit_attribute' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/auditing_determination.cs#L132-L142' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_audit_attribute' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Or if you are okay using a common message interface for common identification like "this message targets an account/organization/tenant/client"
@@ -180,7 +219,7 @@ public interface IAccountMessage
 // A possible command that uses our marker interface above
 public record DebitAccount(int AccountId, decimal Amount) : IAccountMessage;
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/auditing_determination.cs#L111-L122' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_account_message_for_auditing' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/auditing_determination.cs#L167-L178' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_account_message_for_auditing' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 You can specify audited members through this syntax:

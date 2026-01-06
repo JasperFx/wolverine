@@ -10,6 +10,11 @@ namespace Wolverine.RavenDb.Internals;
 
 public partial class RavenDbMessageStore : IMessageStoreAdmin
 {
+    public Task DeleteAllHandledAsync()
+    {
+        throw new NotSupportedException("This function is not yet supported by RavenDb");
+    }
+
     public async Task ClearAllAsync()
     {
         await _store.DeleteAllAsync<IncomingMessage>();

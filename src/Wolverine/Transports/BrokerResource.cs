@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using JasperFx.Resources;
 using Spectre.Console;
 using Spectre.Console.Rendering;
+using Wolverine.Configuration;
 using Wolverine.Runtime;
 
 namespace Wolverine.Transports;
@@ -28,7 +29,7 @@ public class BrokerResource : IStatefulResource
         var missing = new List<Uri>();
         await _transport.ConnectAsync(_runtime);
 
-        foreach (var endpoint in _transport.Endpoints().OfType<IBrokerEndpoint>())
+        foreach (var endpoint in _transport.Endpoints().OfType<IBrokerEndpoint>().Where(x => x.Role == EndpointRole.Application))
         {
             try
             {

@@ -40,4 +40,15 @@ public interface IDestinationEndpoint
     /// <returns></returns>
     Task<T> InvokeAsync<T>(object message, CancellationToken cancellation = default, TimeSpan? timeout = null)
         where T : class;
+
+
+    /// <summary>
+    /// Send a message by its raw binary contents and optionally configure how Wolverine
+    /// will send this
+    /// </summary>
+    /// <param name="data"></param>
+    /// <param name="messageType">The .NET type for this message if known. If supplied, this will help Wolverine apply any configured sending policies for this message type</param>
+    /// <param name="configure"></param>
+    /// <returns></returns>
+    ValueTask SendRawMessageAsync(byte[] data, Type? messageType = null, Action<Envelope>? configure = null);
 }

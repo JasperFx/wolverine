@@ -231,6 +231,10 @@ app.MapWolverineEndpoints(opts =>
     // Opting into the Fluent Validation middleware from
     // Wolverine.Http.FluentValidation
     opts.UseFluentValidationProblemDetailMiddleware();
+    
+    // Or instead, you could use Data Annotations that are built
+    // into the Wolverine.HTTP library
+    opts.UseDataAnnotationsValidationProblemDetailMiddleware();
 
     #endregion
 

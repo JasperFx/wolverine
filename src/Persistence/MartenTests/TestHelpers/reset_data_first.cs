@@ -24,6 +24,12 @@ public class reset_data_first : IAsyncLifetime
             {
                 opts.Services.AddMarten(m =>
                 {
+                    m.Connection(Servers.PostgresConnectionString);
+
+                }).IntegrateWithWolverine(x => x.UseWolverineManagedEventSubscriptionDistribution = true);
+                
+                opts.Services.AddMarten(m =>
+                {
                     m.DisableNpgsqlLogging = true;
                     
                     m.Connection(Servers.PostgresConnectionString);

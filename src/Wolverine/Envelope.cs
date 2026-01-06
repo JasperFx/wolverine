@@ -230,6 +230,26 @@ public partial class Envelope : IHasTenantId
     public string? MessageType { get; set; }
 
     /// <summary>
+    /// Set the MessageType to Wolverine's message type name for
+    /// T
+    /// </summary>
+    /// <typeparam name="T"></typeparam>
+    public void SetMessageType<T>()
+    {
+        SetMessageType(typeof(T));
+    }
+
+    /// <summary>
+    /// Set the MessageType to Wolverine's message type name for
+    /// this message type
+    /// </summary>
+    /// <param name="messageType"></param>
+    public void SetMessageType(Type messageType)
+    {
+        MessageType = messageType.ToMessageTypeName();
+    }
+
+    /// <summary>
     ///     Location where any replies should be sent
     /// </summary>
     public Uri? ReplyUri { get; set; }

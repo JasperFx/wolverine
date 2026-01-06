@@ -11,7 +11,9 @@ public partial class NodeAgentController
         IReadOnlyList<WolverineNode> nodes,
         AgentRestrictions restrictions)
     {
-        using var activity = WolverineTracing.ActivitySource.StartActivity("wolverine_node_assignments");
+        using var activity = ShouldTraceHealthCheck() 
+            ? WolverineTracing.ActivitySource.StartActivity("wolverine_node_assignments") 
+            : null;
 
         // Not sure how this *could* happen, but we had a report of it happening in production
         // probably because someone messed w/ the database though

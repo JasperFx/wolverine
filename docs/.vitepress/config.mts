@@ -120,6 +120,7 @@ const config: UserConfig<DefaultTheme.Config> = {
                                 {text: 'Multi-Tenancy', link: '/guide/handlers/multi-tenancy'},
                                 {text: 'Execution Timeouts', link: '/guide/handlers/timeout'},
                                 {text: 'Fluent Validation Middleware', link: '/guide/handlers/fluent-validation'},
+                                {text: 'DataAnnotations Validation Middleware', link: '/guide/handlers/dataannotations-validation'},
                                 {text: 'Sticky Handler to Endpoint Assignments', link: '/guide/handlers/sticky'},
                                 {text: 'Message Batching', link: '/guide/handlers/batching'},
                                 {text: 'Persistence Helpers', link: '/guide/handlers/persistence'}
@@ -185,6 +186,7 @@ const config: UserConfig<DefaultTheme.Config> = {
                                 {text: 'Sql Server', link: '/guide/messaging/transports/sqlserver'},
                                 {text: 'PostgreSQL', link: '/guide/messaging/transports/postgresql'},
                                 {text: 'MQTT', link: '/guide/messaging/transports/mqtt'},
+                                {text: 'NATS', link: '/guide/messaging/transports/nats'},
                                 {text: 'Kafka', link: '/guide/messaging/transports/kafka'},
                                 {text: 'SignalR', link: '/guide/messaging/transports/signalr'},
                                 {text: 'Redis', link: '/guide/messaging/transports/redis'},
@@ -222,8 +224,10 @@ const config: UserConfig<DefaultTheme.Config> = {
                         {text: 'Uploading Files', link: '/guide/http/files'},
                         {text: 'Integration with Sagas', link: '/guide/http/sagas'},
                         {text: 'Integration with Marten', link: '/guide/http/marten'},
+                        {text: 'Validation', link: '/guide/http/validation'},
                         {text: 'Fluent Validation', link: '/guide/http/fluentvalidation'},
                         {text: 'Problem Details', link: '/guide/http/problemdetails'},
+                        {text: 'Caching', link: '/guide/http/caching'}
                     ]
                 },
                 {

@@ -63,25 +63,27 @@ public class TopicRouting<T> : IMessageRouteSource, IMessageRoute, IMessageInvok
         };
     }
 
-    public Task<T1> InvokeAsync<T1>(object message, MessageBus bus, CancellationToken cancellation = default, TimeSpan? timeout = null,
-        string? tenantId = null)
+    public Task<T1> InvokeAsync<T1>(object message, MessageBus bus, CancellationToken cancellation = default,
+        TimeSpan? timeout = null,
+        DeliveryOptions? options = null)
     {
         if (message is T typedMessage)
         {
             _route ??= _topicEndpoint.RouteFor(typeof(T), bus.Runtime);
             var topicName = _topicSource(typedMessage);
 
-            return _route.RemoteInvokeAsync<T1>(message, bus, cancellation, timeout, tenantId, topicName);
+            return _route.RemoteInvokeAsync<T1>(message, bus, cancellation, timeout, options, topicName);
         }
 
         throw new InvalidOperationException(
             $"The message of type {message.GetType().FullNameInCode()} cannot be routed as a message of type {typeof(T).FullNameInCode()}");
     }
 
-    public Task InvokeAsync(object message, MessageBus bus, CancellationToken cancellation = default, TimeSpan? timeout = null,
-        string? tenantId = null)
+    public Task InvokeAsync(object message, MessageBus bus, CancellationToken cancellation = default,
+        TimeSpan? timeout = null,
+        DeliveryOptions? options = null)
     {
-        return InvokeAsync<Acknowledgement>(message, bus, cancellation, timeout, tenantId);
+        return InvokeAsync<Acknowledgement>(message, bus, cancellation, timeout, options);
     }
 
     public override string ToString()

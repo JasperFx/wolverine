@@ -6,15 +6,15 @@ namespace Wolverine.Tracking;
 
 public class EnvelopeRecord
 {
-    public EnvelopeRecord(MessageEventType eventType, Envelope envelope, long sessionTime, Exception? exception)
+    public EnvelopeRecord(MessageEventType eventType, Envelope? envelope, long sessionTime, Exception? exception)
     {
         Envelope = envelope;
         SessionTime = sessionTime;
         Exception = exception;
         MessageEventType = eventType;
-        AttemptNumber = envelope.Attempts;
+        AttemptNumber = envelope?.Attempts ?? 0;
 
-        WasScheduled = envelope.IsScheduledForLater(DateTimeOffset.UtcNow);
+        WasScheduled = envelope?.IsScheduledForLater(DateTimeOffset.UtcNow) ?? false;
 
         var activity = Activity.Current;
         if (activity != null)
@@ -24,10 +24,10 @@ public class EnvelopeRecord
             ActivityId = activity.Id;
         }
     }
-
+    
     public bool WasScheduled { get; set; }
 
-    public object? Message => Envelope.Message;
+    public object? Message => Envelope?.Message;
 
     /// <summary>
     ///     If available, the open telemetry activity id when
@@ -37,7 +37,7 @@ public class EnvelopeRecord
     public string? ParentId { get; init; }
     public string? RootId { get; init; }
 
-    public Envelope Envelope { get; private set; }
+    public Envelope? Envelope { get; private set; }
 
     /// <summary>
     ///     A timestamp of the milliseconds since the tracked session was started before this event

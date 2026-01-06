@@ -56,6 +56,18 @@ public interface ICommandBus
     /// <param name="timeout">Optional timeout</param>
     /// <returns></returns>
     Task InvokeAsync(object message, CancellationToken cancellation = default, TimeSpan? timeout = default);
+    
+    /// <summary>
+    ///     Execute the message handling for this message *right now* and wait for the completion.
+    ///     If the message is handled locally, this delegates immediately
+    ///     If the message is handled remotely, the message is sent and the method waits for the response
+    /// </summary>
+    /// <param name="message"></param>
+    /// <param name="options">Use to pass in extra metadata like headers or group id or correlation information to the command execution</param>
+    /// <param name="cancellation"></param>
+    /// <param name="timeout">Optional timeout</param>
+    /// <returns></returns>
+    Task InvokeAsync(object message, DeliveryOptions options, CancellationToken cancellation = default, TimeSpan? timeout = default);
 
     /// <summary>
     ///     Execute the message handling for this message *right now* and wait for the completion and the designated response
@@ -69,6 +81,20 @@ public interface ICommandBus
     /// <typeparam name="T"></typeparam>
     /// <returns></returns>
     Task<T> InvokeAsync<T>(object message, CancellationToken cancellation = default, TimeSpan? timeout = default);
+    
+    /// <summary>
+    ///     Execute the message handling for this message *right now* and wait for the completion and the designated response
+    ///     type T.
+    ///     If the message is handled locally, this delegates immediately
+    ///     If the message is handled remotely, the message is sent and the method waits for the response
+    /// </summary>
+    /// <param name="message"></param>
+    /// <param name="options">Use to pass in extra metadata like headers or group id or correlation information to the command execution</param>
+    /// <param name="cancellation"></param>
+    /// <param name="timeout">Optional timeout</param>
+    /// <typeparam name="T"></typeparam>
+    /// <returns></returns>
+    Task<T> InvokeAsync<T>(object message, DeliveryOptions options, CancellationToken cancellation = default, TimeSpan? timeout = default);
 }
 
 /// <summary>

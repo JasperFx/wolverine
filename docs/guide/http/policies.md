@@ -64,8 +64,12 @@ app.MapWolverineEndpoints(opts =>
     // Opting into the Fluent Validation middleware from
     // Wolverine.Http.FluentValidation
     opts.UseFluentValidationProblemDetailMiddleware();
+    
+    // Or instead, you could use Data Annotations that are built
+    // into the Wolverine.HTTP library
+    opts.UseDataAnnotationsValidationProblemDetailMiddleware();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L216-L237' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_configure_endpoints' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L214-L239' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_configure_endpoints' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The `HttpChain` model is a configuration time structure that Wolverine.Http will use at runtime to create the full
@@ -96,8 +100,12 @@ app.MapWolverineEndpoints(opts =>
     // Opting into the Fluent Validation middleware from
     // Wolverine.Http.FluentValidation
     opts.UseFluentValidationProblemDetailMiddleware();
+    
+    // Or instead, you could use Data Annotations that are built
+    // into the Wolverine.HTTP library
+    opts.UseDataAnnotationsValidationProblemDetailMiddleware();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L216-L237' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_configure_endpoints' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L214-L239' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_configure_endpoints' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Resource Writer Policies
@@ -132,7 +140,7 @@ If you need special handling of a primary return type you can implement `IResour
 ```cs
 opts.AddResourceWriterPolicy<CustomResourceWriterPolicy>();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L255-L257' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_register_resource_writer_policy' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L257-L259' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_register_resource_writer_policy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Resource writer policies registered this way will be applied in order before all built in policies.

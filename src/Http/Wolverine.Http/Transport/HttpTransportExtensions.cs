@@ -33,7 +33,7 @@ public static class HttpTransportExtensions
     /// <param name="publishing"></param>
     /// <param name="url"></param>
     /// <returns></returns>
-    public static HttpTransportSubscriberConfiguration ToHttpEndpoint(this IPublishToExpression publishing, string url)
+    public static HttpTransportSubscriberConfiguration ToHttpEndpoint(this IPublishToExpression publishing, string url, bool supportsNativeScheduledSend = false)
     {
         var transports = publishing.As<PublishingExpression>().Parent.Transports;
         var transport = transports.GetOrCreate<HttpTransport>();
@@ -42,7 +42,7 @@ public static class HttpTransportExtensions
 
         // This is necessary unfortunately to hook up the subscription rules
         publishing.To(endpoint.Uri);
-
+        endpoint.SupportsNativeScheduledSend = supportsNativeScheduledSend;
         return new HttpTransportSubscriberConfiguration(endpoint);
     }
 }

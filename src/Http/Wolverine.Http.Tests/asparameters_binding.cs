@@ -2,6 +2,7 @@ using Alba;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 using WolverineWebApi;
+using WolverineWebApi.Forms;
 
 namespace Wolverine.Http.Tests;
 

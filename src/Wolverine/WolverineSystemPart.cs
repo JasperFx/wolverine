@@ -190,27 +190,49 @@ internal class WolverineSystemPart : SystemPartBase
 
     public override async ValueTask<IReadOnlyList<IStatefulResource>> FindResources()
     {
-        var list = new List<IStatefulResource>();
-        
-        // These have to run first. Right now, the only options are for building multi-tenanted
-        // databases with EF Core
-        list.AddRange(_runtime.Services.GetServices<IResourceCreator>());
+        WithinDescription = true;
 
-        if (!_runtime.Options.ExternalTransportsAreStubbed)
+        try
         {
-            foreach (var transport in _runtime.Options.Transports)
-            {
-                if (transport.TryBuildStatefulResource(_runtime, out var resource))
-                {
-                    list.Add(resource!);
-                }
-            }
-        }
-
-        var stores = await _runtime.Stores.FindAllAsync();
+            var list = new List<IStatefulResource>();
         
-        list.AddRange(stores.Select(store => new MessageStoreResource(_runtime.Options, store)));
+            // These have to run first. Right now, the only options are for building multi-tenanted
+            // databases with EF Core
+            list.AddRange(_runtime.Services.GetServices<IResourceCreator>());
 
-        return list;
+            if (!_runtime.Options.ExternalTransportsAreStubbed)
+            {
+                foreach (var transport in _runtime.Options.Transports.ToArray())
+                {
+                    if (transport.TryBuildStatefulResource(_runtime, out var resource))
+                    {
+                        await transport.InitializeAsync(_runtime);
+                        list.Add(resource!);
+                    }
+                }
+            
+                // TODO -- this did not work. Try again by the end of 2025
+                
+                // Force Wolverine to find all message types...
+                // var messageTypes = _runtime.Options.Discovery.FindAllMessages(_runtime.Options.HandlerGraph);
+                //
+                // // ...and force Wolverine to *also* execute the routing, which
+                // // may discover new endpoints
+                // foreach (var messageType in messageTypes.Where(x => x.Assembly != GetType().Assembly))
+                // {
+                //     _runtime.RoutingFor(messageType);
+                // }
+            }
+
+            var stores = await _runtime.Stores.FindAllAsync();
+        
+            list.AddRange(stores.Select(store => new MessageStoreResource(_runtime.Options, store)));
+
+            return list;
+        }
+        finally
+        {
+            WithinDescription = false;
+        }
     }
 }

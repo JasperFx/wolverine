@@ -91,13 +91,22 @@ public record CSP5;
 
 // Just need this to be explicit
 [WolverineIgnore]
-public static class CSP5User
+public class CSP5User
 {
-    public static IFlag? Flag { get; set; } 
-    
-    public static void Handle(CSP5 message, IFlag flag, IGateway gateway)
+    private readonly IFlag _flag;
+    private readonly IGateway _gateway;
+    public static IFlag? Flag { get; set; }
+
+    public CSP5User(IFlag flag, IGateway gateway)
     {
-        Flag = flag;
+        _flag = flag;
+        _gateway = gateway;
+    }
+
+    public void Handle(CSP5 message)
+    {
+        Flag = _flag;
+        _gateway.ShouldNotBeNull();
     }
 }
 

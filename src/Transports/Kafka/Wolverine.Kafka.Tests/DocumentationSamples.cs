@@ -68,6 +68,18 @@ public class DocumentationSamples
                         spec.ReplicationFactor = 3;
                     })
                     
+                    // OR, you can completely control topic creation through this:
+                    .TopicCreation(async (client, topic) =>
+                    {
+                        topic.Specification.NumPartitions = 8;
+                        topic.Specification.ReplicationFactor = 2;
+                        
+                        // You do have full access to the IAdminClient to do
+                        // whatever you need to do
+
+                        await client.CreateTopicsAsync([topic.Specification]);
+                    })
+                    
                     // Override the producer configuration for just this topic
                     .ConfigureProducer(config =>
                     {

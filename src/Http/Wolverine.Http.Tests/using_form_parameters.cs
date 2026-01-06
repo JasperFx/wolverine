@@ -5,6 +5,7 @@ using Shouldly;
 using Wolverine.Http.CodeGen;
 using Wolverine.Runtime;
 using WolverineWebApi;
+using WolverineWebApi.Forms;
 
 namespace Wolverine.Http.Tests;
 

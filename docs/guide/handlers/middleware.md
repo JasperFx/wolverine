@@ -515,7 +515,7 @@ public interface IHandlerPolicy : IWolverinePolicy
     void Apply(IReadOnlyList<HandlerChain> chains, GenerationRules rules, IServiceContainer container);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Configuration/IHandlerPolicy.cs#L37-L53' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_ihandlerpolicy' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Configuration/IHandlerPolicy.cs#L39-L55' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_ihandlerpolicy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Here's a simple sample that registers middleware on each handler chain:

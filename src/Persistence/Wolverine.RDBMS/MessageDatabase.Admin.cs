@@ -1,5 +1,6 @@
 using System.Data.Common;
 using JasperFx.Core;
+using JasperFx.Core.Reflection;
 using Weasel.Core;
 using Wolverine.Logging;
 using Wolverine.Persistence.Durability;
@@ -13,6 +14,11 @@ namespace Wolverine.RDBMS;
 public abstract partial class MessageDatabase<T>
 {
     public abstract Task<PersistedCounts> FetchCountsAsync();
+
+    public virtual Task DeleteAllHandledAsync()
+    {
+        throw new NotSupportedException($"This function is not (yet) supported by {GetType().FullNameInCode()}");
+    }
 
     public async Task ClearAllAsync()
     {

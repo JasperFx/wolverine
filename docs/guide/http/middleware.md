@@ -49,7 +49,7 @@ Which is registered like this (or as described in [`Registering Middleware by Me
 opts.AddMiddlewareByMessageType(typeof(FakeAuthenticationMiddleware));
 opts.AddMiddlewareByMessageType(typeof(CanShipOrderMiddleWare));
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L250-L253' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_register_http_middleware_by_type' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L252-L255' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_register_http_middleware_by_type' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The key point to notice there is that `IResult` is a "return value" of the middleware. In the case of an HTTP endpoint,
@@ -150,7 +150,31 @@ public class StopwatchMiddleware
 And you want to apply it to a single HTTP endpoint without having to dirty your hands with an attribute. You can use that naming
 convention up above like so:
 
-sample: sample_applying_middleware_programmatically_to_one_chain
+<!-- snippet: sample_applying_middleware_programmatically_to_one_chain -->
+<a id='snippet-sample_applying_middleware_programmatically_to_one_chain'></a>
+```cs
+public class MeasuredEndpoint
+{
+    // The signature is meaningful here
+    public static void Configure(HttpChain chain)
+    {
+        // Call this method before the normal endpoint
+        chain.Middleware.Add(MethodCall.For<StopwatchMiddleware>(x => x.Before()));
+
+        // Call this method after the normal endpoint
+        chain.Postprocessors.Add(MethodCall.For<StopwatchMiddleware>(x => x.Finally(null, null)));
+    }
+
+    [WolverineGet("/timed")]
+    public async Task<string> Get()
+    {
+        await Task.Delay(100.Milliseconds());
+        return "how long did I take?";
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/MiddlewareEndpoints.cs#L30-L52' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_applying_middleware_programmatically_to_one_chain' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 
 ## Apply Middleware by Policy

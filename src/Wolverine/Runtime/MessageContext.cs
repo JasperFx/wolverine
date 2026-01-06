@@ -553,7 +553,8 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         }
 
         _hasFlushed = false;
-
+        
+        _sent?.Clear();
         _outstanding.Clear();
         Scheduled.Clear();
         Envelope = null;
