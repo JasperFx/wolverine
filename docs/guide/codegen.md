@@ -67,6 +67,20 @@ you're quickly starting and stopping your application. The `Auto` mode will writ
 source code for missing types to the `Internal/Generated` folder under your main application 
 project.
 
+::: tip
+If you're using the `Auto` mode in combination with `dotnet watch` you need to disable the watching of
+the `Internal/Generated` folder to avoid application restarts each time codegen writes a new file.
+You can do this by adding the following to the `.csproj` file of your app project.
+
+```xml
+<ItemGroup>
+    <Compile Update="Internal\Generated\**\*.cs" Watch="false" />
+</ItemGroup>
+```
+
+:::
+
+
 At production time, if there is any issue whatsoever with resource utilization, the Wolverine team
 recommends using the `Static` mode where all types are assumed to be pre-generated into what Wolverine
 thinks is the application assembly (more on this in the troubleshooting guide below).
@@ -356,7 +370,7 @@ and you can configure different behavior for production versus development time 
 using var host = await Host.CreateDefaultBuilder()
     .UseWolverine(opts =>
     {
-        // Use "Auto" type load mode at development time, but
+        // Use "Dynamic" type load mode at development time, but
         // "Static" any other time
         opts.Services.CritterStackDefaults(x =>
         {
@@ -377,5 +391,5 @@ using var host = await Host.CreateDefaultBuilder()
 
 Which will use:
 
-1. `TypeLoadMode.Auto` when the .NET environment is "Development" and try to write new source code to file
+1. `TypeLoadMode.Dynamic` when the .NET environment is "Development" and dynamically generate types on the first usage
 2. `TypeLoadMode.Static` for other .NET environments for optimized cold start times
