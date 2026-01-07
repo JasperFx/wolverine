@@ -3,14 +3,17 @@ using StackExchange.Redis;
 using Wolverine.Configuration;
 using Wolverine.Redis;
 using Wolverine.Runtime;
+using Wolverine.Runtime.Serialization;
 using Wolverine.Transports;
 using Wolverine.Transports.Sending;
 
 namespace Wolverine.Redis.Internal;
 
-public class RedisStreamEndpoint : Endpoint<IRedisEnvelopeMapper, RedisEnvelopeMapper>, IBrokerEndpoint, IBrokerQueue
+public class RedisStreamEndpoint : Endpoint<IRedisEnvelopeMapper, RedisEnvelopeMapper>, IBrokerEndpoint, IBrokerQueue, IDatabaseBackedEndpoint
 {
     private readonly RedisTransport _transport;
+
+    internal bool SupportsNativeScheduledSend { get; set; } = true;
     
     internal RedisStreamEndpoint(Uri uri, RedisTransport transport, EndpointRole role = EndpointRole.Application) 
         : base(uri, role)
@@ -35,6 +38,21 @@ public class RedisStreamEndpoint : Endpoint<IRedisEnvelopeMapper, RedisEnvelopeM
     /// The Redis database ID (0-15 for standard Redis)
     /// </summary>
     public int DatabaseId { get; }
+    
+    /// <summary>
+    /// The Redis Sorted Set key for scheduled messages
+    /// </summary>
+    public string ScheduledMessagesKey => $"{StreamKey}:scheduled";
+    
+    /// <summary>
+    /// The Redis Stream key for dead letter messages
+    /// </summary>
+    public string DeadLetterQueueKey => $"{StreamKey}:dead-letter";
+    
+    /// <summary>
+    /// Enable native dead letter queue support for this endpoint
+    /// </summary>
+    public bool NativeDeadLetterQueueEnabled { get; set; } = true;
     
     /// <summary>
     /// The consumer group name for this endpoint (if listening)
@@ -133,6 +151,22 @@ public class RedisStreamEndpoint : Endpoint<IRedisEnvelopeMapper, RedisEnvelopeM
         var listener = new RedisStreamListener(_transport, this, runtime, receiver);
         await listener.InitializeAsync();
         return listener;
+    }
+    
+    public override bool TryBuildDeadLetterSender(IWolverineRuntime runtime, out ISender? deadLetterSender)
+    {
+        if (NativeDeadLetterQueueEnabled)
+        {
+            var deadLetterEndpoint = _transport.StreamEndpoint(DeadLetterQueueKey);
+            deadLetterSender = new InlineRedisStreamSender(
+                _transport,
+                deadLetterEndpoint,
+                runtime);
+            return true;
+        }
+
+        deadLetterSender = null;
+        return false;
     }
 
     public override async ValueTask InitializeAsync(ILogger logger)
@@ -305,6 +339,45 @@ public class RedisStreamEndpoint : Endpoint<IRedisEnvelopeMapper, RedisEnvelopeM
         {
             logger.LogError(ex, "Failed to setup Redis stream endpoint {StreamKey}", StreamKey);
             throw;
+        }
+    }
+
+    // IDatabaseBackedEndpoint implementation
+    public async Task ScheduleRetryAsync(Envelope envelope, CancellationToken cancellation)
+    {
+        try
+        {
+            var database = _transport.GetDatabase(database: DatabaseId);
+            
+            // Note: envelope.Attempts has already been incremented by Executor.ExecuteAsync
+            // before this method is called, so we don't increment it here
+            
+            // CRITICAL FIX: Ensure envelope.Data is populated before serialization
+            // EnvelopeSerializer requires Data to be non-null to serialize all properties correctly
+            if (envelope.Data == null && envelope.Message != null)
+            {
+                // Accessing the Data property will trigger serialization of the Message
+                _ = envelope.Data;
+            }
+            
+            envelope.Headers["attempts"] = envelope.Attempts.ToString();
+            // Serialize the envelope for storage - this includes ALL properties including Attempts
+            var serializedEnvelope = EnvelopeSerializer.Serialize(envelope);
+            
+            
+            // Calculate the score (execution time) for the sorted set
+            var scheduledTime = envelope.ScheduledTime ?? DateTimeOffset.UtcNow.AddSeconds(5); // Default 5 second retry delay
+            var score = scheduledTime.ToUnixTimeMilliseconds();
+            
+            // Add the envelope to the scheduled messages sorted set
+            await database.SortedSetAddAsync(ScheduledMessagesKey, serializedEnvelope, score);
+            
+            // Note: We don't need to add it to the stream yet - the polling mechanism in
+            // RedisStreamListener will move it to the stream when it's due for execution
+        }
+        catch (Exception ex)
+        {
+            throw new Exception($"Failed to schedule retry for envelope {envelope.Id} on Redis stream {StreamKey}", ex);
         }
     }
 }

@@ -1,14 +1,16 @@
 using System.Diagnostics;
 using System.Linq;
+using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using StackExchange.Redis;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
+using Wolverine.Runtime.Serialization;
 using Wolverine.Transports;
 
 namespace Wolverine.Redis.Internal;
 
-public class RedisStreamListener : IListener
+public class RedisStreamListener : IListener, ISupportDeadLetterQueue
 {
     private readonly RedisTransport _transport;
     private readonly RedisStreamEndpoint _endpoint;
@@ -16,8 +18,10 @@ public class RedisStreamListener : IListener
     private readonly IReceiver _receiver;
     private readonly ILogger _logger;
     private readonly CancellationTokenSource _cancellation = new();
+    private readonly DurabilitySettings _settings;
 
     private Task? _consumerTask;
+    private Task? _scheduledTask;
     private ListeningStatus _status = ListeningStatus.Stopped;
     private string _consumerName;
 
@@ -31,6 +35,7 @@ public class RedisStreamListener : IListener
         _runtime = runtime;
         _receiver = receiver;
         _logger = runtime.LoggerFactory.CreateLogger<RedisStreamListener>();
+        _settings = runtime.DurabilitySettings;
 
         // Generate stable consumer name: service name + node number (+ machine) by default,
         // or use endpoint-level override if specified.
@@ -43,6 +48,64 @@ public class RedisStreamListener : IListener
     public ListeningStatus Status => _status;
     public IHandlerPipeline? Pipeline => _receiver.Pipeline;
 
+    internal bool DeleteOnAck => _transport.DeleteStreamEntryOnAck;
+    
+    // ISupportDeadLetterQueue implementation
+    public bool NativeDeadLetterQueueEnabled => _endpoint.NativeDeadLetterQueueEnabled;
+    
+    public async Task MoveToErrorsAsync(Envelope envelope, Exception exception)
+    {
+        try
+        {
+            var database = _transport.GetDatabase(database: _endpoint.DatabaseId);
+            
+            // Serialize the envelope
+            var serializedEnvelope = EnvelopeSerializer.Serialize(envelope);
+            
+            // Build the dead letter entry with error information
+            var fields = new List<NameValueEntry>
+            {
+                new("envelope", serializedEnvelope),
+                new("exception-type", exception.GetType().FullName ?? "Unknown"),
+                new("exception-message", exception.Message ?? ""),
+                new("exception-stack", exception.StackTrace ?? ""),
+                new("failed-at", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString()),
+                new("message-type", envelope.MessageType ?? "Unknown"),
+                new("envelope-id", envelope.Id.ToString()),
+                new("attempts", envelope.Attempts.ToString())
+            };
+            
+            // Add the dead letter entry to the dead letter stream
+            var deadLetterMessageId = await database.StreamAddAsync(_endpoint.DeadLetterQueueKey, fields.ToArray());
+            
+            _logger.LogInformation("Moved envelope {EnvelopeId} to dead letter queue {DeadLetterKey} with message ID {DeadLetterMessageId}. Exception: {ExceptionType}: {ExceptionMessage}",
+                envelope.Id, _endpoint.DeadLetterQueueKey, deadLetterMessageId, exception.GetType().Name, exception.Message);
+            
+            // Acknowledge the original message if we have the Redis entry ID
+            if (envelope.Headers.TryGetValue(RedisEnvelopeMapper.RedisEntryIdHeader, out var idString) && !string.IsNullOrEmpty(idString))
+            {
+                try
+                {
+                    if (DeleteOnAck)
+                        await database.StreamAcknowledgeAndDeleteAsync(_endpoint.StreamKey, _endpoint.ConsumerGroup!, StreamTrimMode.Acknowledged, idString!);
+                    else
+                        await database.StreamAcknowledgeAsync(_endpoint.StreamKey, _endpoint.ConsumerGroup!, idString!);
+                }
+                catch (Exception ackEx)
+                {
+                    _logger.LogWarning(ackEx, "Error ACKing message {EnvelopeId} after moving to dead letter queue", envelope.Id);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to move envelope {EnvelopeId} to dead letter queue {DeadLetterKey}",
+                envelope.Id, _endpoint.DeadLetterQueueKey);
+            throw;
+        }
+    }
+
+    // ISupportNativeScheduling implementation
     public async ValueTask InitializeAsync()
     {
         // Only create resources at listener init time if AutoProvision is enabled.
@@ -82,7 +145,9 @@ public class RedisStreamListener : IListener
 
             // Start the consumer loop
             _consumerTask = Task.Run(ConsumerLoop, _cancellation.Token);
-
+            
+            // Start the scheduled messages polling loop
+            _scheduledTask = Task.Run(LookForScheduledMessagesAsync, _cancellation.Token);
         }
     }
 
@@ -113,6 +178,22 @@ public class RedisStreamListener : IListener
                 _logger.LogWarning(ex, "Error while stopping consumer task for stream {StreamKey}", _endpoint.StreamKey);
             }
         }
+        
+        if (_scheduledTask != null)
+        {
+            try
+            {
+                await _scheduledTask.WaitAsync(TimeSpan.FromSeconds(10));
+            }
+            catch (TaskCanceledException)
+            {
+                // Expected when cancellation token is used
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Error while stopping scheduled task for stream {StreamKey}", _endpoint.StreamKey);
+            }
+        }
     }
 
     public async ValueTask CompleteAsync(Envelope envelope)
@@ -126,7 +207,10 @@ public class RedisStreamListener : IListener
             }
 
             var db = _transport.GetDatabase();
-            await db.StreamAcknowledgeAsync(_endpoint.StreamKey, _endpoint.ConsumerGroup!, idString!);
+            if (DeleteOnAck)
+                await db.StreamAcknowledgeAndDeleteAsync(_endpoint.StreamKey, _endpoint.ConsumerGroup!, StreamTrimMode.Acknowledged, idString!);
+            else
+                await db.StreamAcknowledgeAsync(_endpoint.StreamKey, _endpoint.ConsumerGroup!, idString!);
             _logger.LogDebug("Acknowledged Redis stream message {StreamId} on {StreamKey}", idString, _endpoint.StreamKey);
         }
         catch (Exception ex)
@@ -146,7 +230,10 @@ public class RedisStreamListener : IListener
             {
                 try
                 {
-                    await db.StreamAcknowledgeAsync(_endpoint.StreamKey, _endpoint.ConsumerGroup!, idString!);
+                    if(DeleteOnAck)
+                        await db.StreamAcknowledgeAndDeleteAsync(_endpoint.StreamKey, _endpoint.ConsumerGroup!, StreamTrimMode.Acknowledged, idString!);
+                    else
+                        await db.StreamAcknowledgeAsync(_endpoint.StreamKey, _endpoint.ConsumerGroup!, idString!);
                 }
                 catch (Exception ackEx)
                 {
@@ -352,7 +439,211 @@ public class RedisStreamListener : IListener
     public ValueTask DisposeAsync()
     {
         _cancellation.Cancel();
+        _consumerTask.SafeDispose();
+        _scheduledTask.SafeDispose();
         _cancellation.Dispose();
         return ValueTask.CompletedTask;
+    }
+
+    private async Task LookForScheduledMessagesAsync()
+    {
+        // Add randomness to prevent all nodes from polling at the exact same time
+        await Task.Delay(_settings.ScheduledJobFirstExecution);
+
+        var failedCount = 0;
+
+        while (!_cancellation.Token.IsCancellationRequested)
+        {
+            try
+            {
+                var count = await MoveScheduledToReadyStreamAsync(_cancellation.Token);
+                if (count > 0)
+                {
+                    _logger.LogInformation("Propagated {Number} scheduled messages to Redis stream {StreamKey}", count, _endpoint.StreamKey);
+                }
+
+                await DeleteExpiredAsync(CancellationToken.None);
+
+                failedCount = 0;
+
+                await Task.Delay(_settings.ScheduledJobPollingTime);
+            }
+            catch (Exception e)
+            {
+                if (e is TaskCanceledException && _cancellation.IsCancellationRequested)
+                {
+                    break;
+                }
+
+                failedCount++;
+                var pauseTime = failedCount > 5 ? 1.Seconds() : (failedCount * 100).Milliseconds();
+
+                _logger.LogError(e, "Error while trying to propagate scheduled messages from Redis stream {StreamKey}",
+                    _endpoint.StreamKey);
+
+                await Task.Delay(pauseTime);
+            }
+        }
+    }
+
+    public async Task<long> MoveScheduledToReadyStreamAsync(CancellationToken cancellationToken)
+    {
+        var database = _transport.GetDatabase(database: _endpoint.DatabaseId);
+        var scheduledKey = _endpoint.ScheduledMessagesKey;
+
+        try
+        {
+            // Get current time as Unix timestamp in milliseconds
+            var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+
+            // Get all messages that are ready to be executed (score <= now)
+
+            long count = 0;
+            var limit = 100; // Limit number of messages to move in one call
+            var hasMore = true;
+            while (limit-- > 0 && hasMore && !cancellationToken.IsCancellationRequested)
+            {
+                var setEntries = await database.SortedSetPopAsync(
+                    scheduledKey,
+                    1,
+                    Order.Descending);
+                var readyMessages = new List<RedisValue>();
+                foreach (var sortedSetEntry in setEntries)
+                {
+                    if (sortedSetEntry.Score > now)
+                    {
+                        // Not ready yet, re-add to the sorted set
+                        await database.SortedSetAddAsync(
+                            scheduledKey,
+                            sortedSetEntry.Element,
+                            sortedSetEntry.Score);
+                        hasMore = false;
+                    }
+                    else
+                    {
+                        readyMessages.Add(sortedSetEntry.Element);
+                    }
+                }
+
+                if (readyMessages.Count == 0)
+                {
+                    return 0;
+                }
+
+                _logger.LogDebug(
+                    "Found {Count} scheduled messages ready for execution in {ScheduledKey}",
+                    readyMessages.Count,
+                    scheduledKey);
+
+
+                foreach (var serializedEnvelope in readyMessages)
+                {
+                    try
+                    {
+                        // Deserialize the envelope
+                        var envelope =
+                            EnvelopeSerializer.Deserialize(serializedEnvelope);
+
+                        // Add it to the stream
+                        _endpoint.EnvelopeMapper ??=
+                            _endpoint.BuildMapper(_runtime);
+                        var fields = new List<NameValueEntry>();
+                        _endpoint.EnvelopeMapper.MapEnvelopeToOutgoing(
+                            envelope,
+                            fields);
+
+                        var messageId = await database.StreamAddAsync(
+                            _endpoint.StreamKey,
+                            fields.ToArray());
+
+                        // Remove from scheduled set
+                        // await database.SortedSetRemoveAsync(scheduledKey, serializedEnvelope);
+
+                        count++;
+
+                        _logger.LogDebug(
+                            "Moved scheduled message {EnvelopeId} (Attempts={Attempts}) to stream {StreamKey} with message ID {MessageId}",
+                            envelope.Id,
+                            envelope.Attempts,
+                            _endpoint.StreamKey,
+                            messageId);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(
+                            ex,
+                            "Error processing scheduled message in {ScheduledKey}",
+                            scheduledKey);
+                        // Remove the corrupted message from the scheduled set
+                        await database.SortedSetRemoveAsync(
+                            scheduledKey,
+                            serializedEnvelope);
+                    }
+                }
+            }
+
+            return count;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error moving scheduled messages from {ScheduledKey} to stream {StreamKey}", 
+                scheduledKey, _endpoint.StreamKey);
+            throw;
+        }
+    }
+
+    public async Task DeleteExpiredAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var database = _transport.GetDatabase(database: _endpoint.DatabaseId);
+            var scheduledKey = _endpoint.ScheduledMessagesKey;
+            
+            // Get all messages from the scheduled set to check their expiration
+            var allMessages = await database.SortedSetRangeByScoreAsync(scheduledKey);
+            
+            if (allMessages == null || allMessages.Length == 0)
+            {
+                return;
+            }
+
+            var now = DateTimeOffset.UtcNow;
+            var expiredCount = 0;
+
+            foreach (var serializedEnvelope in allMessages)
+            {
+                try
+                {
+                    var envelope = EnvelopeSerializer.Deserialize(serializedEnvelope);
+                    
+                    // Check if the message has expired
+                    if (envelope.DeliverBy.HasValue && envelope.DeliverBy.Value <= now)
+                    {
+                        await database.SortedSetRemoveAsync(scheduledKey, serializedEnvelope);
+                        expiredCount++;
+                        
+                        _logger.LogDebug("Deleted expired scheduled message {EnvelopeId} from {ScheduledKey}", 
+                            envelope.Id, scheduledKey);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Error checking expiration for scheduled message in {ScheduledKey}, removing it", scheduledKey);
+                    // Remove corrupted messages
+                    await database.SortedSetRemoveAsync(scheduledKey, serializedEnvelope);
+                    expiredCount++;
+                }
+            }
+
+            if (expiredCount > 0)
+            {
+                _logger.LogInformation("Deleted {Count} expired scheduled messages from {ScheduledKey}", 
+                    expiredCount, scheduledKey);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error deleting expired messages from {ScheduledKey}", _endpoint.ScheduledMessagesKey);
+        }
     }
 }
