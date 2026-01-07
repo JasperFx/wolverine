@@ -1,31 +1,40 @@
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.DependencyInjection;
 using JasperFx.Resources;
 using Wolverine;
+using Wolverine.ErrorHandling;
 using Wolverine.Redis;
 
-for (var i = 0; i < 10; i++)
+var builder = Host.CreateDefaultBuilder();
+
+using var host = await builder.UseWolverine(opts =>
 {
-    var builder = Host.CreateDefaultBuilder();
+    opts.UseRedisTransport("localhost:6379").AutoProvision()
+        .SystemQueuesEnabled(false) // Disable reply queues
+        .DeleteStreamEntryOnAck(true); // Clean up stream entries on ack
 
-    using var host = await builder.UseWolverine(opts =>
-    {
-        opts.UseRedisTransport("localhost:6379").AutoProvision()
-            .SystemQueuesEnabled(false); // Disable reply queues
+    // Sending inline so the messages are added to the stream right away
+    opts.PublishAllMessages().ToRedisStream("wolverine-messages")
+        .SendInline();
 
-        // Sending inline is important for scheduling to work properly
-        opts.PublishAllMessages().ToRedisStream("wolverine-messages")
-            .SendInline();
-
-        opts.ListenToRedisStream("wolverine-messages", "default");
-        opts.Services.AddResourceSetupOnStartup();
-    }).StartAsync();
-    var bus = host.MessageBus();
-    var delay = new Random().Next(10, 50);
-    await bus.ScheduleAsync(
-        new TestCommand("Do something"),
-        TimeSpan.FromSeconds(delay));
-}
+    opts.ListenToRedisStream("wolverine-messages", "default")
+        .EnableNativeDeadLetterQueue() // Enable DLQ for failed messages
+        .UseDurableInbox(); // Use durable inbox so retry messages are persisted
+    
+    // schedule retry delays
+    // if durable, these will be scheduled natively in Redis
+    opts.OnException<Exception>()
+        .ScheduleRetry(
+            TimeSpan.FromSeconds(10),
+            TimeSpan.FromSeconds(20),
+            TimeSpan.FromSeconds(30));
+    
+    opts.Services.AddResourceSetupOnStartup();
+}).StartAsync();
+var bus = host.MessageBus();
+var delay = new Random().Next(10, 50);
+await bus.ScheduleAsync(
+    new TestCommand("Do something"),
+    TimeSpan.FromSeconds(delay));
 
 public record TestCommand(string message);
 
