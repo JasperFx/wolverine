@@ -490,54 +490,95 @@ public class RedisStreamListener : IListener, ISupportDeadLetterQueue
     {
         var database = _transport.GetDatabase(database: _endpoint.DatabaseId);
         var scheduledKey = _endpoint.ScheduledMessagesKey;
-        
+
         try
         {
             // Get current time as Unix timestamp in milliseconds
             var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
             // Get all messages that are ready to be executed (score <= now)
-            var readyMessages = await database.SortedSetRangeByScoreAsync(
-                scheduledKey, 
-                start: double.NegativeInfinity, 
-                stop: now);
-
-            if (readyMessages == null || readyMessages.Length == 0)
-            {
-                return 0;
-            }
-
-            _logger.LogDebug("Found {Count} scheduled messages ready for execution in {ScheduledKey}", 
-                readyMessages.Length, scheduledKey);
 
             long count = 0;
-            foreach (var serializedEnvelope in readyMessages)
+            var limit = 100; // Limit number of messages to move in one call
+            var hasMore = true;
+            while (limit-- > 0 && hasMore && !cancellationToken.IsCancellationRequested)
             {
-                try
+                var setEntries = await database.SortedSetPopAsync(
+                    scheduledKey,
+                    1,
+                    Order.Descending);
+                var readyMessages = new List<RedisValue>();
+                foreach (var sortedSetEntry in setEntries)
                 {
-                    // Deserialize the envelope
-                    var envelope = EnvelopeSerializer.Deserialize(serializedEnvelope);
-                    
-                    // Add it to the stream
-                    _endpoint.EnvelopeMapper ??= _endpoint.BuildMapper(_runtime);
-                    var fields = new List<NameValueEntry>();
-                    _endpoint.EnvelopeMapper.MapEnvelopeToOutgoing(envelope, fields);
-                    
-                    var messageId = await database.StreamAddAsync(_endpoint.StreamKey, fields.ToArray());
-                    
-                    // Remove from scheduled set
-                    await database.SortedSetRemoveAsync(scheduledKey, serializedEnvelope);
-                    
-                    count++;
-                    
-                    _logger.LogDebug("Moved scheduled message {EnvelopeId} (Attempts={Attempts}) to stream {StreamKey} with message ID {MessageId}", 
-                        envelope.Id, envelope.Attempts, _endpoint.StreamKey, messageId);
+                    if (sortedSetEntry.Score > now)
+                    {
+                        // Not ready yet, re-add to the sorted set
+                        await database.SortedSetAddAsync(
+                            scheduledKey,
+                            sortedSetEntry.Element,
+                            sortedSetEntry.Score);
+                        hasMore = false;
+                    }
+                    else
+                    {
+                        readyMessages.Add(sortedSetEntry.Element);
+                    }
                 }
-                catch (Exception ex)
+
+                if (readyMessages.Count == 0)
                 {
-                    _logger.LogError(ex, "Error processing scheduled message in {ScheduledKey}", scheduledKey);
-                    // Remove the corrupted message from the scheduled set
-                    await database.SortedSetRemoveAsync(scheduledKey, serializedEnvelope);
+                    return 0;
+                }
+
+                _logger.LogDebug(
+                    "Found {Count} scheduled messages ready for execution in {ScheduledKey}",
+                    readyMessages.Count,
+                    scheduledKey);
+
+
+                foreach (var serializedEnvelope in readyMessages)
+                {
+                    try
+                    {
+                        // Deserialize the envelope
+                        var envelope =
+                            EnvelopeSerializer.Deserialize(serializedEnvelope);
+
+                        // Add it to the stream
+                        _endpoint.EnvelopeMapper ??=
+                            _endpoint.BuildMapper(_runtime);
+                        var fields = new List<NameValueEntry>();
+                        _endpoint.EnvelopeMapper.MapEnvelopeToOutgoing(
+                            envelope,
+                            fields);
+
+                        var messageId = await database.StreamAddAsync(
+                            _endpoint.StreamKey,
+                            fields.ToArray());
+
+                        // Remove from scheduled set
+                        // await database.SortedSetRemoveAsync(scheduledKey, serializedEnvelope);
+
+                        count++;
+
+                        _logger.LogDebug(
+                            "Moved scheduled message {EnvelopeId} (Attempts={Attempts}) to stream {StreamKey} with message ID {MessageId}",
+                            envelope.Id,
+                            envelope.Attempts,
+                            _endpoint.StreamKey,
+                            messageId);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(
+                            ex,
+                            "Error processing scheduled message in {ScheduledKey}",
+                            scheduledKey);
+                        // Remove the corrupted message from the scheduled set
+                        await database.SortedSetRemoveAsync(
+                            scheduledKey,
+                            serializedEnvelope);
+                    }
                 }
             }
 
