@@ -144,6 +144,28 @@ public class RedisListenerConfiguration : ListenerConfiguration<RedisListenerCon
         _endpoint.AutoClaimEnabled = false;
         return this;
     }
+    
+    /// <summary>
+    /// Enable native dead letter queue support for this endpoint.
+    /// Failed messages will be moved to a dead letter stream: {StreamKey}:dead-letter
+    /// </summary>
+    /// <returns>This endpoint for method chaining</returns>
+    public RedisListenerConfiguration EnableNativeDeadLetterQueue()
+    {
+        _endpoint.NativeDeadLetterQueueEnabled = true;
+        return this;
+    }
+    
+    /// <summary>
+    /// Disable native dead letter queue support for this endpoint.
+    /// Failed messages will use Wolverine's default dead letter handling (database persistence).
+    /// </summary>
+    /// <returns>This endpoint for method chaining</returns>
+    public RedisListenerConfiguration DisableNativeDeadLetterQueue()
+    {
+        _endpoint.NativeDeadLetterQueueEnabled = false;
+        return this;
+    }
 }
 
 public class RedisSubscriberConfiguration : SubscriberConfiguration<RedisSubscriberConfiguration, RedisStreamEndpoint>

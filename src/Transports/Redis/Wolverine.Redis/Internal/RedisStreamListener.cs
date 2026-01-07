@@ -10,7 +10,7 @@ using Wolverine.Transports;
 
 namespace Wolverine.Redis.Internal;
 
-public class RedisStreamListener : IListener
+public class RedisStreamListener : IListener, ISupportDeadLetterQueue
 {
     private readonly RedisTransport _transport;
     private readonly RedisStreamEndpoint _endpoint;
@@ -49,7 +49,63 @@ public class RedisStreamListener : IListener
     public IHandlerPipeline? Pipeline => _receiver.Pipeline;
 
     internal bool DeleteOnAck => _transport.DeleteStreamEntryOnAck;
+    
+    // ISupportDeadLetterQueue implementation
+    public bool NativeDeadLetterQueueEnabled => _endpoint.NativeDeadLetterQueueEnabled;
+    
+    public async Task MoveToErrorsAsync(Envelope envelope, Exception exception)
+    {
+        try
+        {
+            var database = _transport.GetDatabase(database: _endpoint.DatabaseId);
+            
+            // Serialize the envelope
+            var serializedEnvelope = EnvelopeSerializer.Serialize(envelope);
+            
+            // Build the dead letter entry with error information
+            var fields = new List<NameValueEntry>
+            {
+                new("envelope", serializedEnvelope),
+                new("exception-type", exception.GetType().FullName ?? "Unknown"),
+                new("exception-message", exception.Message ?? ""),
+                new("exception-stack", exception.StackTrace ?? ""),
+                new("failed-at", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString()),
+                new("message-type", envelope.MessageType ?? "Unknown"),
+                new("envelope-id", envelope.Id.ToString()),
+                new("attempts", envelope.Attempts.ToString())
+            };
+            
+            // Add the dead letter entry to the dead letter stream
+            var deadLetterMessageId = await database.StreamAddAsync(_endpoint.DeadLetterQueueKey, fields.ToArray());
+            
+            _logger.LogInformation("Moved envelope {EnvelopeId} to dead letter queue {DeadLetterKey} with message ID {DeadLetterMessageId}. Exception: {ExceptionType}: {ExceptionMessage}",
+                envelope.Id, _endpoint.DeadLetterQueueKey, deadLetterMessageId, exception.GetType().Name, exception.Message);
+            
+            // Acknowledge the original message if we have the Redis entry ID
+            if (envelope.Headers.TryGetValue(RedisEnvelopeMapper.RedisEntryIdHeader, out var idString) && !string.IsNullOrEmpty(idString))
+            {
+                try
+                {
+                    if (DeleteOnAck)
+                        await database.StreamAcknowledgeAndDeleteAsync(_endpoint.StreamKey, _endpoint.ConsumerGroup!, StreamTrimMode.Acknowledged, idString!);
+                    else
+                        await database.StreamAcknowledgeAsync(_endpoint.StreamKey, _endpoint.ConsumerGroup!, idString!);
+                }
+                catch (Exception ackEx)
+                {
+                    _logger.LogWarning(ackEx, "Error ACKing message {EnvelopeId} after moving to dead letter queue", envelope.Id);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to move envelope {EnvelopeId} to dead letter queue {DeadLetterKey}",
+                envelope.Id, _endpoint.DeadLetterQueueKey);
+            throw;
+        }
+    }
 
+    // ISupportNativeScheduling implementation
     public async ValueTask InitializeAsync()
     {
         // Only create resources at listener init time if AutoProvision is enabled.
@@ -474,8 +530,8 @@ public class RedisStreamListener : IListener
                     
                     count++;
                     
-                    _logger.LogDebug("Moved scheduled message {EnvelopeId} to stream {StreamKey} with message ID {MessageId}", 
-                        envelope.Id, _endpoint.StreamKey, messageId);
+                    _logger.LogDebug("Moved scheduled message {EnvelopeId} (Attempts={Attempts}) to stream {StreamKey} with message ID {MessageId}", 
+                        envelope.Id, envelope.Attempts, _endpoint.StreamKey, messageId);
                 }
                 catch (Exception ex)
                 {
