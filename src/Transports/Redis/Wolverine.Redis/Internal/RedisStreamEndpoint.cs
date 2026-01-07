@@ -26,7 +26,7 @@ public class RedisStreamEndpoint : Endpoint<IRedisEnvelopeMapper, RedisEnvelopeM
         EndpointName = StreamKey;
         
         // Redis Streams work well in buffered mode by default
-        Mode = EndpointMode.Durable;
+        Mode = EndpointMode.BufferedInMemory;
     }
 
     /// <summary>
