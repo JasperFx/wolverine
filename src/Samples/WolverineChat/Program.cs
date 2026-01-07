@@ -23,6 +23,26 @@ builder.UseWolverine(opts =>
         // for the WolverineHub
         o.ClientTimeoutInterval = 10.Seconds();
     });
+
+    // Instead of self-hosting, it's also possible to
+    // use Azure SignalR. Only one of the two SignalR
+    // registrations are necessary. Both register the
+    // required services in DI
+    opts.UseAzureSignalR(hub =>
+    {
+        // Optionally configure the SignalR HubOptions
+        // for the WolverineHub
+        hub.ClientTimeoutInterval = 10.Seconds();
+    }, service =>
+    {
+        // And optionally configure the Azure SignalR
+        // options for the connection.
+        service.ApplicationName = "wolverine";
+
+        // You probably want one of these from your
+        // configuration somehow
+        service.ConnectionString = "Endpoint=https://myresource.service.signalr.net;AccessKey=...;Version=1.0;";
+    });
     
     // Using explicit routing to send specific
     // messages to SignalR
