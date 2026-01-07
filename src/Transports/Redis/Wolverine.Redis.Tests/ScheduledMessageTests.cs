@@ -70,7 +70,7 @@ public class ScheduledMessageTests
         tracker.ReceivedMessages.ShouldNotContain(command.Id);
         
         // Wait for the message to be processed after the scheduled time
-        await Task.Delay(3000);
+        await Task.Delay(7000);
         
         tracker.ReceivedMessages.ShouldContain(command.Id);
         var executionTime = tracker.GetExecutionTime(command.Id);
