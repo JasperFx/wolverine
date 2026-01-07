@@ -8,8 +8,7 @@ For inline endpoints, Wolverine uses native [Azure Service Bus dead letter queue
 
 To configure an endpoint for inline processing:
 
-<!-- snippet: sample_asb_inline_dlq -->
-<a id='snippet-sample_asb_inline_dlq'></a>
+<!-- snippet-todo: sample_asb_inline_dlq -->
 ```cs
 var builder = Host.CreateApplicationBuilder();
 builder.UseWolverine(opts =>
@@ -38,8 +37,7 @@ For buffered endpoints, Wolverine sends failed messages to a designated dead let
 
 To customize the dead letter queue for buffered endpoints:
 
-<!-- snippet: sample_asb_buffered_dlq -->
-<a id='snippet-sample_asb_buffered_dlq'></a>
+<!-- snippet-todo: sample_asb_buffered_dlq -->
 ```cs
 var builder = Host.CreateApplicationBuilder();
 builder.UseWolverine(opts =>
@@ -66,8 +64,7 @@ Durable endpoints behave similarly to buffered endpoints, with dead lettering to
 
 To customize the dead letter queue for durable endpoints:
 
-<!-- snippet: sample_asb_durable_dlq -->
-<a id='snippet-sample_asb_durable_dlq'></a>
+<!-- snippet-todo: sample_asb_durable_dlq -->
 ```cs
 var builder = Host.CreateApplicationBuilder();
 builder.UseWolverine(opts =>
@@ -92,8 +89,7 @@ await host.StartAsync();
 
 You can disable dead letter queuing for specific endpoints if needed:
 
-<!-- snippet: sample_disable_asb_dlq -->
-<a id='snippet-sample_disable_asb_dlq'></a>
+<!-- snippet-todo: sample_disable_asb_dlq -->
 ```cs
 var builder = Host.CreateApplicationBuilder();
 builder.UseWolverine(opts =>
@@ -111,6 +107,4 @@ builder.UseWolverine(opts =>
 
 using var host = builder.Build();
 await host.StartAsync();
-``` 
-
-
+```

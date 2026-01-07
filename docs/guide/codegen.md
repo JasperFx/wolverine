@@ -203,7 +203,7 @@ As of Wolverine 5.0, you now have the ability to better control the usage of the
 code generation to potentially avoid unwanted usage:
 
 <!-- snippet: sample_configuring_ServiceLocationPolicy -->
-<a id='snippet-sample_configuring_servicelocationpolicy'></a>
+<a id='snippet-sample_configuring_ServiceLocationPolicy'></a>
 ```cs
 var builder = Host.CreateApplicationBuilder();
 builder.UseWolverine(opts =>
@@ -225,7 +225,7 @@ builder.UseWolverine(opts =>
     opts.ServiceLocationPolicy = ServiceLocationPolicy.NotAllowed;
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/ServiceLocationUsage.cs#L11-L33' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_servicelocationpolicy' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/ServiceLocationUsage.cs#L11-L33' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_ServiceLocationPolicy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: note
@@ -370,7 +370,7 @@ and you can configure different behavior for production versus development time 
 using var host = await Host.CreateDefaultBuilder()
     .UseWolverine(opts =>
     {
-        // Use "Dynamic" type load mode at development time, but
+        // Use "Auto" type load mode at development time, but
         // "Static" any other time
         opts.Services.CritterStackDefaults(x =>
         {

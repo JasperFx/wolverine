@@ -70,6 +70,25 @@ using var host = await Host.CreateDefaultBuilder()
         opts.PublishMessage<ColorMessage>()
             .ToKafkaTopic("colors")
             
+            // Fine tune how the Kafka Topic is declared by Wolverine
+            .Specification(spec =>
+            {
+                spec.NumPartitions = 6;
+                spec.ReplicationFactor = 3;
+            })
+            
+            // OR, you can completely control topic creation through this:
+            .TopicCreation(async (client, topic) =>
+            {
+                topic.Specification.NumPartitions = 8;
+                topic.Specification.ReplicationFactor = 2;
+                
+                // You do have full access to the IAdminClient to do
+                // whatever you need to do
+
+                await client.CreateTopicsAsync([topic.Specification]);
+            })
+            
             // Override the producer configuration for just this topic
             .ConfigureProducer(config =>
             {
@@ -94,6 +113,13 @@ using var host = await Host.CreateDefaultBuilder()
                 config.BootstrapServers = "localhost:9092";
 
                 // Other configuration
+            })
+            
+            // Fine tune how the Kafka Topic is declared by Wolverine
+            .Specification(spec =>
+            {
+                spec.NumPartitions = 6;
+                spec.ReplicationFactor = 3;
             });
 
         opts.ListenToKafkaTopic("green")
@@ -105,7 +131,7 @@ using var host = await Host.CreateDefaultBuilder()
         opts.Services.AddResourceSetupOnStartup();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/DocumentationSamples.cs#L14-L100' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_with_kafka' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/DocumentationSamples.cs#L14-L126' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_with_kafka' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The various `Configure*****()` methods provide quick access to the full API of the Confluent Kafka library for security
@@ -185,7 +211,7 @@ When receiving messages through Kafka and Wolverine, there are some useful eleme
 on the Wolverine `Envelope` you can use for instrumentation or diagnostics as shown in this sample middleware:
 
 <!-- snippet: sample_KafkaInstrumentation_middleware -->
-<a id='snippet-sample_kafkainstrumentation_middleware'></a>
+<a id='snippet-sample_KafkaInstrumentation_middleware'></a>
 ```cs
 public static class KafkaInstrumentation
 {
@@ -198,7 +224,7 @@ public static class KafkaInstrumentation
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/DocumentationSamples.cs#L152-L165' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_kafkainstrumentation_middleware' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/DocumentationSamples.cs#L178-L191' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_KafkaInstrumentation_middleware' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Connecting to Multiple Brokers <Badge type="tip" text="4.7" />
@@ -229,7 +255,7 @@ using var host = await Host.CreateDefaultBuilder()
         // Other configuration
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/DocumentationSamples.cs#L125-L148' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_multiple_kafka_brokers' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/DocumentationSamples.cs#L151-L174' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_multiple_kafka_brokers' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Note that the `Uri` scheme within Wolverine for any endpoints from a "named" Kafka broker is the name that you supply
@@ -256,5 +282,5 @@ using var host = await Host.CreateDefaultBuilder()
         
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/DocumentationSamples.cs#L105-L120' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disable_all_kafka_sending' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/DocumentationSamples.cs#L131-L146' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disable_all_kafka_sending' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->

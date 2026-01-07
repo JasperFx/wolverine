@@ -93,13 +93,13 @@ For the message routing above, you'll notice that I utilized a marker interface 
 like this:
 
 <!-- snippet: sample_WolverineChatWebSocketMessage -->
-<a id='snippet-sample_wolverinechatwebsocketmessage'></a>
+<a id='snippet-sample_WolverineChatWebSocketMessage'></a>
 ```cs
 // Marker interface for the sample application just to facilitate
 // message routing
 public interface WolverineChatWebSocketMessage : WebSocketMessage;
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/WolverineChat/Server.cs#L7-L13' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverinechatwebsocketmessage' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/WolverineChat/Server.cs#L7-L13' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_WolverineChatWebSocketMessage' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The Wolverine `WebSocketMessage` marker interface does have a little bit of impact in that:

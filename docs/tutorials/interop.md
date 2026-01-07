@@ -109,7 +109,7 @@ In this first sample, I'm going to write a simplistic mapper for Kafka that assu
 endpoint is JSON and a specific type:
 
 <!-- snippet: sample_OurKafkaJsonMapper -->
-<a id='snippet-sample_ourkafkajsonmapper'></a>
+<a id='snippet-sample_OurKafkaJsonMapper'></a>
 ```cs
 // Simplistic envelope mapper that expects every message to be of
 // type "T" and serialized as JSON that works perfectly well w/ our
@@ -145,7 +145,7 @@ public class OurKafkaJsonMapper<TMessage> : IKafkaEnvelopeMapper
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/DocumentationSamples.cs#L167-L203' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_ourkafkajsonmapper' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/DocumentationSamples.cs#L193-L229' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_OurKafkaJsonMapper' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Which is essentially how the built in "Raw JSON" mapper works in external transport mappers. In the envelope mapper above
@@ -200,7 +200,7 @@ a custom mapper from scratch. The NServiceBus interoperability for everything bu
 approach:
 
 <!-- snippet: sample_show_the_NServiceBus_mapping -->
-<a id='snippet-sample_show_the_nservicebus_mapping'></a>
+<a id='snippet-sample_show_the_NServiceBus_mapping'></a>
 ```cs
 public void UseNServiceBusInterop()
 {
@@ -238,13 +238,13 @@ public void UseNServiceBusInterop()
     });
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ/Internal/RabbitMqEndpoint.NServiceBus.cs#L10-L48' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_show_the_nservicebus_mapping' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ/Internal/RabbitMqEndpoint.NServiceBus.cs#L10-L48' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_show_the_NServiceBus_mapping' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Finally, here's another example that works quite differently where the mapper sets a serializer directly on the `Envelope`:
 
 <!-- snippet: sample_MassTransitMapper_for_SQS -->
-<a id='snippet-sample_masstransitmapper_for_sqs'></a>
+<a id='snippet-sample_MassTransitMapper_for_SQS'></a>
 ```cs
 // This guy is the envelope mapper for interoperating
 // with MassTransit 
@@ -282,7 +282,7 @@ internal class MassTransitMapper : ISqsEnvelopeMapper
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs/Internal/MassTransitMapper.cs#L7-L45' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_masstransitmapper_for_sqs' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs/Internal/MassTransitMapper.cs#L7-L45' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_MassTransitMapper_for_SQS' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In the case above, the `MassTransitSerializer` is a two step process that first deserializes a JSON document that contains
