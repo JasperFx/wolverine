@@ -63,6 +63,17 @@ public class DeadLetterQueue
 
     public Action<RabbitMqExchange>? ConfigureExchange { get; set; }
 
+    public DeadLetterQueue Clone()
+    {
+        return new DeadLetterQueue(QueueName, Mode)
+        {
+            ExchangeName = ExchangeName,
+            BindingName = BindingName,
+            ConfigureQueue = ConfigureQueue,
+            ConfigureExchange = ConfigureExchange
+        };
+    }
+
     protected bool Equals(DeadLetterQueue other)
     {
         return _queueName == other._queueName && ExchangeName == other.ExchangeName;

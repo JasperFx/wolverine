@@ -24,6 +24,12 @@ public class wait_for_non_stale_data_after : IAsyncLifetime
             {
                 opts.Services.AddMarten(m =>
                 {
+                    m.Connection(Servers.PostgresConnectionString);
+
+                }).IntegrateWithWolverine(x => x.UseWolverineManagedEventSubscriptionDistribution = true);
+                
+                opts.Services.AddMarten(m =>
+                {
                     m.DisableNpgsqlLogging = true;
                     
                     m.Connection(Servers.PostgresConnectionString);

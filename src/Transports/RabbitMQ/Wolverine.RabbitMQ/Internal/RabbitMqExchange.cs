@@ -94,7 +94,7 @@ public class RabbitMqExchange : RabbitMqEndpoint, IRabbitMqExchange
 
     internal async Task DeclareAsync(IChannel channel, ILogger logger)
     {
-        if (HasDeclared || DeclaredName == string.Empty)
+        if (DeclaredName == string.Empty)
         {
             return;
         }

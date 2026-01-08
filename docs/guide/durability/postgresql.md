@@ -47,6 +47,24 @@ return await app.RunJasperFxCommands(args);
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L164-L190' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setup_postgresql_storage' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Optimizing the Message Store <Badge type="tip" text="5.3" />
+
+For PostgreSQL, you can enable PostgreSQL backed partitioning for the inbox table
+as an optimization. This is not enabled by default just to avoid causing database
+migrations in a minor point release. Note that this will have some significant benefits
+for inbox/outbox metrics gathering in the future:
+
+<!-- snippet: sample_enabling_inbox_partitioning -->
+<a id='snippet-sample_enabling_inbox_partitioning'></a>
+```cs
+var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.Durability.EnableInboxPartitioning = true;
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PostgresqlTests/compliance_using_table_partitioning.cs#L26-L34' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_enabling_inbox_partitioning' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
 ## PostgreSQL Messaging Transport <Badge type="tip" text="2.5" />
 
 ::: info
@@ -203,7 +221,7 @@ Aspire will register `NpgsqlDataSource` services as `Singleton` scoped in your I
 that utilizes the IoC container to register Wolverine like so:
 
 <!-- snippet: sample_OurFancyPostgreSQLMultiTenancy -->
-<a id='snippet-sample_ourfancypostgresqlmultitenancy'></a>
+<a id='snippet-sample_OurFancyPostgreSQLMultiTenancy'></a>
 ```cs
 public class OurFancyPostgreSQLMultiTenancy : IWolverineExtension
 {
@@ -226,7 +244,7 @@ public class OurFancyPostgreSQLMultiTenancy : IWolverineExtension
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests/MultiTenancy/MultiTenancyDocumentationSamples.cs#L165-L188' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_ourfancypostgresqlmultitenancy' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests/MultiTenancy/MultiTenancyDocumentationSamples.cs#L165-L188' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_OurFancyPostgreSQLMultiTenancy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And add that to the greater application like so:

@@ -160,12 +160,14 @@ internal class DurabilityAgent : IAgent
 
     private IDatabaseOperation[] buildOperationBatch()
     {
+        var incomingTable = new DbObjectName(_database.SchemaName, DatabaseConstants.IncomingTable);
+        var now = DateTimeOffset.UtcNow;
         List<IDatabaseOperation> ops =
         [
             new CheckRecoverableIncomingMessagesOperation(_database, _runtime.Endpoints, _settings, _logger),
             new CheckRecoverableOutgoingMessagesOperation(_database, _runtime, _logger),
             new DeleteExpiredEnvelopesOperation(
-                new DbObjectName(_database.SchemaName, DatabaseConstants.IncomingTable), DateTimeOffset.UtcNow),
+                incomingTable, now),
             new MoveReplayableErrorMessagesToIncomingOperation(_database)
         ];
 
@@ -176,7 +178,12 @@ internal class DurabilityAgent : IAgent
 
         if (_runtime.Options.Durability.OutboxStaleTime.HasValue)
         {
-            ops.Add(new BumpStaleOutgoingEnvelopesOperation(new DbObjectName(_database.SchemaName, DatabaseConstants.OutgoingTable), _runtime.Options.Durability, DateTimeOffset.UtcNow));
+            ops.Add(new BumpStaleOutgoingEnvelopesOperation(new DbObjectName(_database.SchemaName, DatabaseConstants.OutgoingTable), _runtime.Options.Durability, now));
+        }
+
+        if (_runtime.Options.Durability.InboxStaleTime.HasValue)
+        {
+            ops.Add(new BumpStaleIncomingEnvelopesOperation(incomingTable, _runtime.Options.Durability, now));
         }
 
         return ops.ToArray();

@@ -7,7 +7,7 @@ tools. To get started, apply Oakton as the command line parser in your applicati
 sample application bootstrapping from Wolverine's [Getting Started](/tutorials/getting-started):
 
 <!-- snippet: sample_Quickstart_Program -->
-<a id='snippet-sample_quickstart_program'></a>
+<a id='snippet-sample_Quickstart_Program'></a>
 ```cs
 using JasperFx;
 using Quickstart;
@@ -49,7 +49,7 @@ app.MapGet("/", () => Results.Redirect("/swagger"));
 // your Wolverine application
 return await app.RunJasperFxCommands(args);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Quickstart/Program.cs#L1-L43' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_quickstart_program' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Quickstart/Program.cs#L1-L43' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_Quickstart_Program' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 From this project's root in the command line terminal tool of your choice, type:
@@ -102,6 +102,21 @@ will describe:
 * "Wolverine Sending Endpoints" - a tabular list of all *known*, configured endpoints that send messages externally
 * "Wolverine Error Handling" - a preview of the active message failure policies active within the system
 * "Wolverine Http Endpoints" - shows all Wolverine HTTP endpoints. This is only active if WolverineFx.HTTP is used within the system
+
+## Exporting System Capabilities <Badge type="tip" text="5.8" />
+
+This command:
+
+```bash
+dotnet run capabilities wolverine.json
+```
+
+Will write a JSON file to "wolverine.json" that will completely describe all the configured settings, message types, message store,
+messaging endpoints, and even event stores configured to this application. The Wolverine team may ask you for this file 
+to help you troubleshoot issues in the future.
+
+This functionality was originally built for consumption in the "CritterWatch" add on tool, but was requested by a [JasperFx Software](https://jasperfx.net)
+client to provide a mechanism to detect any unintentional changes to Wolverine application configuration.
 
 ## Other Highlights
 

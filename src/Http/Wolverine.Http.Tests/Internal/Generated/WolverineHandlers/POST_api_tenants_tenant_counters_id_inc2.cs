@@ -10,7 +10,8 @@ using Wolverine.Runtime;
 namespace Internal.Generated.WolverineHandlers
 {
     // START: POST_api_tenants_tenant_counters_id_inc2
-    public class POST_api_tenants_tenant_counters_id_inc2 : Wolverine.Http.HttpHandler
+    [global::System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")]
+    public sealed class POST_api_tenants_tenant_counters_id_inc2 : Wolverine.Http.HttpHandler
     {
         private readonly Wolverine.Http.WolverineHttpOptions _wolverineHttpOptions;
         private readonly Wolverine.Runtime.IWolverineRuntime _wolverineRuntime;
@@ -27,9 +28,13 @@ namespace Internal.Generated.WolverineHandlers
 
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
-            System.Guid id = default;
+            var messageContext = new Wolverine.Runtime.MessageContext(_wolverineRuntime);
+            // Building the Marten session
+            await using var documentSession = _outboxedSessionFactory.OpenSession(messageContext);
+            string Id_rawValue = (string?)httpContext.GetRouteValue("Id");
+            System.Guid Id = default;
 
-            if (System.Guid.TryParse((string)httpContext.GetRouteValue("id"), System.Globalization.CultureInfo.InvariantCulture, out id))
+            if (Id_rawValue != null && System.Guid.TryParse(Id_rawValue, System.Globalization.CultureInfo.InvariantCulture, out Id))
             {
 
             }
@@ -40,12 +45,11 @@ namespace Internal.Generated.WolverineHandlers
                 return;
             }
 
-            var messageContext = new Wolverine.Runtime.MessageContext(_wolverineRuntime);
-            // Building the Marten session
-            await using var documentSession = _outboxedSessionFactory.OpenSession(messageContext);
-            var counter = await documentSession.LoadAsync<Wolverine.Http.Tests.Bugs.Counter>(id, httpContext.RequestAborted).ConfigureAwait(false);
+            
+            // Try to load the existing saga document
+            var counter_Id = await documentSession.LoadAsync<Wolverine.Http.Tests.Bugs.Counter>(Id, httpContext.RequestAborted).ConfigureAwait(false);
             // 404 if this required object is null
-            if (counter == null)
+            if (counter_Id == null)
             {
                 httpContext.Response.StatusCode = 404;
                 return;
@@ -53,7 +57,7 @@ namespace Internal.Generated.WolverineHandlers
 
             
             // The actual HTTP request handler execution
-            var martenOp = Wolverine.Http.Tests.Bugs.CounterEndpoint.Increment2(counter);
+            var martenOp = Wolverine.Http.Tests.Bugs.CounterEndpoint.Increment2(counter_Id);
 
             if (martenOp != null)
             {

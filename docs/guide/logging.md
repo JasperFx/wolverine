@@ -11,10 +11,6 @@ to selectively filter logging levels in your application, rely on the message ty
 
 ## Configuring Message Logging Levels
 
-::: tip
-This functionality was added in Wolverine 1.7.
-:::
-
 Wolverine automatically logs the execution start and stop of all message handling with `LogLevel.Debug`. Likewise, Wolverine
 logs the successful completion of all messages (including the capture of cascading messages and all middleware) with `LogLevel.Information`.
 However, many folks have found this logging to be too intrusive. Not to worry, you can quickly override the log levels
@@ -43,7 +39,7 @@ you don't want logging for that particular message type, but do for all other me
 level for only that specific message type like so:
 
 <!-- snippet: sample_customized_handler_using_Configure -->
-<a id='snippet-sample_customized_handler_using_configure'></a>
+<a id='snippet-sample_customized_handler_using_Configure'></a>
 ```cs
 public class CustomizedHandler
 {
@@ -64,7 +60,7 @@ public class CustomizedHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/can_customize_handler_chain_through_Configure_call_on_HandlerType.cs#L25-L46' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_customized_handler_using_configure' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/can_customize_handler_chain_through_Configure_call_on_HandlerType.cs#L25-L46' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_customized_handler_using_Configure' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Methods on message handler types with the signature:
@@ -75,20 +71,20 @@ public static void Configure(HandlerChain chain)
 
 will be called by Wolverine to apply message type specific overrides to Wolverine's message handling.
 
-## Controlling Message Specific Logging and Tracing
+## Configuring Health Check Tracing
 
-While Open Telemetry tracing can be disabled on an endpoint by endpoint basis, you may want to disable Open Telemetry
-tracing for specific message types. You may also want to modify the log levels for message success and message execution
-on a message type by message type basis. While you *can* also do that with custom handler chain policies, the easiest
-way to do that is to use the `[WolverineLogging]` attribute on either the handler type or the handler method as shown 
-below:
+Wolverine's node agent controller performs health checks periodically (every 10 seconds by default) to maintain node assignments and cluster state. By default, these health checks emit Open Telemetry traces named `wolverine_node_assignments`, which can result in high trace volumes in observability platforms.
+
+You can control this tracing behavior through the `DurabilitySettings`:
 
 <!-- snippet: sample_using_Wolverine_Logging_attribute -->
-<a id='snippet-sample_using_wolverine_logging_attribute'></a>
+<a id='snippet-sample_using_Wolverine_Logging_attribute'></a>
 ```cs
-public class QuietMessage;
+public record QuietMessage;
 
-public class QuietMessageHandler
+public record VerboseMessage;
+
+public class QuietAndVerboseMessageHandler
 {
     [WolverineLogging(
         telemetryEnabled:false,
@@ -98,9 +94,75 @@ public class QuietMessageHandler
     {
         Console.WriteLine("Hush!");
     }
+    
+    [WolverineLogging(
+        // Enable Open Telemetry tracing
+        TelemetryEnabled = true, 
+        
+        // Log on successful completion of this message
+        SuccessLogLevel = LogLevel.Information, 
+        
+        // Log on execution being complete, but before Wolverine does its own book keeping
+        ExecutionLogLevel = LogLevel.Information, 
+        
+        // Throw in yet another contextual logging statement
+        // at the beginning of message execution
+        MessageStartingLevel = LogLevel.Debug)]
+    public void Handle(VerboseMessage message)
+    {
+        Console.WriteLine("Tell me about it!");
+    }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/logging_configuration.cs#L27-L43' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_wolverine_logging_attribute' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/logging_configuration.cs#L78-L114' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_Wolverine_Logging_attribute' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+## Controlling Message Specific Logging and Tracing
+
+While Open Telemetry tracing can be disabled on an endpoint by endpoint basis, you may want to disable Open Telemetry
+tracing for specific message types. You may also want to modify the log levels for message success and message execution
+on a message type by message type basis. While you *can* also do that with custom handler chain policies, the easiest
+way to do that is to use the `[WolverineLogging]` attribute on either the handler type or the handler method as shown 
+below:
+
+<!-- snippet: sample_using_Wolverine_Logging_attribute -->
+<a id='snippet-sample_using_Wolverine_Logging_attribute'></a>
+```cs
+public record QuietMessage;
+
+public record VerboseMessage;
+
+public class QuietAndVerboseMessageHandler
+{
+    [WolverineLogging(
+        telemetryEnabled:false,
+        successLogLevel: LogLevel.None,
+        executionLogLevel:LogLevel.Trace)]
+    public void Handle(QuietMessage message)
+    {
+        Console.WriteLine("Hush!");
+    }
+    
+    [WolverineLogging(
+        // Enable Open Telemetry tracing
+        TelemetryEnabled = true, 
+        
+        // Log on successful completion of this message
+        SuccessLogLevel = LogLevel.Information, 
+        
+        // Log on execution being complete, but before Wolverine does its own book keeping
+        ExecutionLogLevel = LogLevel.Information, 
+        
+        // Throw in yet another contextual logging statement
+        // at the beginning of message execution
+        MessageStartingLevel = LogLevel.Debug)]
+    public void Handle(VerboseMessage message)
+    {
+        Console.WriteLine("Tell me about it!");
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/logging_configuration.cs#L78-L114' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_Wolverine_Logging_attribute' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -139,6 +201,11 @@ for better searching within your logs.
 
 ## Contextual Logging with Audited Members
 
+::: tip
+As of verion 5.5, Wolverine will automatically audit any property that refers to a [saga identity](/guide/durability/sagas) or to an event stream
+identity within the [aggregate handler workflow](/guide/durability/marten/event-sourcing) with Marten event sourcing.
+:::
+
 ::: warning
 Be cognizant of the information you're writing to log files or Open Telemetry data and whether or not that data
 is some kind of protected data like personal data identifiers.
@@ -161,7 +228,7 @@ public class AuditedMessage
     [Audit("AccountIdentifier")] public int AccountId;
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/auditing_determination.cs#L86-L96' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_audit_attribute' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/auditing_determination.cs#L102-L112' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_audit_attribute' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Or if you are okay using a common message interface for common identification like "this message targets an account/organization/tenant/client"
@@ -179,7 +246,7 @@ public interface IAccountMessage
 // A possible command that uses our marker interface above
 public record DebitAccount(int AccountId, decimal Amount) : IAccountMessage;
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/auditing_determination.cs#L111-L122' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_account_message_for_auditing' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/auditing_determination.cs#L137-L148' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_account_message_for_auditing' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 You can specify audited members through this syntax:
@@ -223,6 +290,14 @@ builder.Services.AddOpenTelemetryTracing(x =>
 });
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/OpenTelemetry/OtelWebApi/Program.cs#L36-L52' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_enabling_open_telemetry' title='Start of snippet'>anchor</a></sup>
+<a id='snippet-sample_enabling_open_telemetry-1'></a>
+```cs
+builder.Services.AddOpenTelemetry()
+    .WithTracing(tracing => { tracing.AddSource("Wolverine"); })
+    .WithMetrics(metrics => { metrics.AddMeter("Wolverine"); })
+    .UseOtlpExporter();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/OpenTelemetry/OtelWebApiWolverineMarten/Program.cs#L34-L41' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_enabling_open_telemetry-1' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: tip

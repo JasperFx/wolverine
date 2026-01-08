@@ -10,7 +10,7 @@ something happened. Just know that as far as Wolverine is concerned, those are r
 Here's a couple simple samples:
 
 <!-- snippet: sample_DebutAccount_command -->
-<a id='snippet-sample_debutaccount_command'></a>
+<a id='snippet-sample_DebutAccount_command'></a>
 ```cs
 // A "command" message
 public record DebitAccount(long AccountId, decimal Amount);
@@ -18,14 +18,14 @@ public record DebitAccount(long AccountId, decimal Amount);
 // An "event" message
 public record AccountOverdrawn(long AccountId);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MessageBusBasics.cs#L69-L77' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_debutaccount_command' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MessageBusBasics.cs#L76-L84' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_DebutAccount_command' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The next concept in Wolverine is a message handler, which is just a method that "knows" how to process an incoming message. Here's an extremely
 simple example:
 
 <!-- snippet: sample_DebitAccountHandler -->
-<a id='snippet-sample_debitaccounthandler'></a>
+<a id='snippet-sample_DebitAccountHandler'></a>
 ```cs
 public static class DebitAccountHandler
 {
@@ -35,7 +35,7 @@ public static class DebitAccountHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MessageBusBasics.cs#L57-L67' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_debitaccounthandler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MessageBusBasics.cs#L64-L74' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_DebitAccountHandler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Wolverine can act as a completely local mediator tool that allows your code to invoke the handler for a message at any time without having

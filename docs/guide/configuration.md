@@ -30,7 +30,7 @@ Below is a sample of adding Wolverine to an ASP.NET Core application that is boo
 `WebApplicationBuilder`:
 
 <!-- snippet: sample_Quickstart_Program -->
-<a id='snippet-sample_quickstart_program'></a>
+<a id='snippet-sample_Quickstart_Program'></a>
 ```cs
 using JasperFx;
 using Quickstart;
@@ -72,7 +72,7 @@ app.MapGet("/", () => Results.Redirect("/swagger"));
 // your Wolverine application
 return await app.RunJasperFxCommands(args);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Quickstart/Program.cs#L1-L43' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_quickstart_program' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Quickstart/Program.cs#L1-L43' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_Quickstart_Program' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## "Headless" Applications
@@ -193,3 +193,40 @@ var builder = Host.CreateApplicationBuilder();
 builder.ConfigureContainer<ServiceRegistry>(new LamarServiceProviderFactory());
 ```
 
+## Splitting Configuration Across Modules <Badge type="tip" text="5.0" />
+
+To keep your `UseWolverine()` configuration from becoming too huge or to keep specific configuration maybe
+within different modules within your system, you can use [Wolverine extensions](/guide/extensions).
+
+You can also use the `IServiceCollection.ConfigureWolverine()` method to add configuration to your
+Wolverine application from outside the main `UseWolverine()` code as shown below:
+
+<!-- snippet: sample_using_configure_wolverine -->
+<a id='snippet-sample_using_configure_wolverine'></a>
+```cs
+var builder = Host.CreateApplicationBuilder();
+
+// Baseline Wolverine configuration
+builder.Services.AddWolverine(opts =>
+{
+    
+});
+
+// This would be applied as an extension
+builder.Services.ConfigureWolverine(w =>
+{
+    // There is a specific helper for this, but just go for it
+    // as an easy example
+    w.Durability.Mode = DurabilityMode.Solo;
+});
+
+using var host = builder.Build();
+
+host.Services.GetRequiredService<IWolverineRuntime>()
+    .Options
+    .Durability
+    .Mode
+    .ShouldBe(DurabilityMode.Solo);
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/using_configure_wolverine.cs#L14-L40' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_configure_wolverine' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->

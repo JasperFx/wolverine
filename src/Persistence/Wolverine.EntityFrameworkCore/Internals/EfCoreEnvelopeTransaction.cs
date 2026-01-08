@@ -1,3 +1,4 @@
+using System.Data.Common;
 using System.Reflection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
@@ -15,11 +16,13 @@ namespace Wolverine.EntityFrameworkCore.Internals;
 public class EfCoreEnvelopeTransaction : IEnvelopeTransaction
 {
     private readonly MessageContext _messaging;
+    private readonly IDomainEventScraper[] _scrapers;
     private readonly IMessageDatabase _database;
     
-    public EfCoreEnvelopeTransaction(DbContext dbContext, MessageContext messaging)
+    public EfCoreEnvelopeTransaction(DbContext dbContext, MessageContext messaging, IEnumerable<IDomainEventScraper> scrapers)
     {
         _messaging = messaging;
+        _scrapers = scrapers.ToArray();
         if (!messaging.TryFindMessageDatabase(out _database))
         {
             throw new InvalidOperationException(
@@ -27,6 +30,12 @@ public class EfCoreEnvelopeTransaction : IEnvelopeTransaction
         }
 
         DbContext = dbContext;
+    }
+
+    // Keep this for backward compatibility w/ existing generated code
+    public EfCoreEnvelopeTransaction(DbContext dbContext, MessageContext messaging) : this(dbContext, messaging, [])
+    {
+
     }
 
     public DbContext DbContext { get; }
@@ -124,19 +133,76 @@ public class EfCoreEnvelopeTransaction : IEnvelopeTransaction
         return ValueTask.CompletedTask;
     }
 
+    public async Task<bool> TryMakeEagerIdempotencyCheckAsync(Envelope envelope, DurabilitySettings settings,
+        CancellationToken cancellation)
+    {
+        if (envelope.WasPersistedInInbox) return true;
+        
+        if (DbContext.Database.CurrentTransaction == null)
+        {
+            await DbContext.Database.BeginTransactionAsync(cancellation);
+        }
+
+        try
+        {
+            var copy = Envelope.ForPersistedHandled(envelope, DateTimeOffset.UtcNow, settings);
+            await PersistIncomingAsync(copy);
+            
+            // Gotta flush the call to the database!
+            if (DbContext.IsWolverineEnabled())
+            {
+                await DbContext.SaveChangesAsync(cancellation);
+            }
+            
+            envelope.WasPersistedInInbox = true;
+            envelope.Status = EnvelopeStatus.Handled;
+            return true;
+        }
+        catch (Exception )
+        {
+            if (DbContext.Database.CurrentTransaction != null)
+            {
+                await DbContext.Database.CurrentTransaction.RollbackAsync(cancellation);
+            }
+            
+            return false;
+        }
+    }
+
     public async ValueTask CommitAsync(CancellationToken cancellation)
     {
-        if (_messaging.Envelope != null)
+        // Scrape out domain events 
+        foreach (var scraper in _scrapers)
+        {
+            await scraper.ScrapeEvents(DbContext, _messaging);
+        }
+        
+        if (_messaging.Envelope != null && _messaging.Envelope.Destination != null)
         {
             var conn = DbContext.Database.GetDbConnection();
             var tx = DbContext.Database.CurrentTransaction!.GetDbTransaction();
-            var cmd = conn.CreateCommand(
-                    $"update {_database.SchemaName}.{DatabaseConstants.IncomingTable} set {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}' where id = @id")
-                .With("id", _messaging.Envelope.Id);
-            cmd.Transaction = tx;
-
-            await cmd.ExecuteNonQueryAsync(cancellation);
-
+            
+            // Are we marking an existing envelope as persisted?
+            if (_messaging.Envelope.WasPersistedInInbox)
+            {
+                var keepUntil =
+                    DateTimeOffset.UtcNow.Add(_messaging.Runtime.Options.Durability.KeepAfterMessageHandling);
+                var cmd = conn.CreateCommand(
+                        $"update {_database.SchemaName}.{DatabaseConstants.IncomingTable} set {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}', {DatabaseConstants.KeepUntil} = @keep where id = @id")
+                    .With("id", _messaging.Envelope.Id)
+                    .With("keep", keepUntil);
+                cmd.Transaction = tx;
+                await cmd.ExecuteNonQueryAsync(cancellation);
+            }
+            
+            // Or inserting a record just to tell the inbox about
+            // handled messages for the sake of idempotency
+            else
+            {
+                var envelope = Envelope.ForPersistedHandled(_messaging.Envelope, DateTimeOffset.UtcNow, _messaging.Runtime.Options.Durability);
+                await PersistIncomingAsync(envelope);
+            }
+            
             _messaging.Envelope.Status = EnvelopeStatus.Handled;
         }
 

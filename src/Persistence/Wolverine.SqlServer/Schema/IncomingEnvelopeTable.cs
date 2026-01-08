@@ -28,5 +28,10 @@ internal class IncomingEnvelopeTable : Table
         }
         
         AddColumn<DateTimeOffset>(DatabaseConstants.KeepUntil);
+        
+        if (durability.InboxStaleTime.HasValue)
+        {
+            AddColumn<DateTimeOffset>(DatabaseConstants.Timestamp).DefaultValueByExpression("GETUTCDATE()");
+        }
     }
 }

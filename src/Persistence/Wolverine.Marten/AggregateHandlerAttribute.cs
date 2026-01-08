@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Reflection;
 using JasperFx;
 using JasperFx.CodeGeneration;
@@ -89,10 +90,27 @@ public class AggregateHandlerAttribute : ModifyChainAttribute, IDataRequirement,
         handling.Apply(chain, container);
     }
 
-    public bool TryInferMessageIdentity(HandlerChain chain, out PropertyInfo property)
+    public bool TryInferMessageIdentity(IChain chain, out PropertyInfo property)
     {
+        var inputType = chain.InputType();
+        property = default!;
+
+        // This is gross
+        if (inputType.Closes(typeof(IEvent<>)))
+        {
+            if (AggregateHandling.TryLoad(chain, out var handling))
+            {
+                property = handling.AggregateId.VariableType == typeof(string)
+                    ? inputType.GetProperty(nameof(IEvent.StreamKey))
+                    : inputType.GetProperty(nameof(IEvent.StreamId));
+                
+            }
+            
+            return property != null;
+        }
+        
         var aggregateType = AggregateHandling.DetermineAggregateType(chain);
-        var idMember = AggregateHandling.DetermineAggregateIdMember(aggregateType, chain.MessageType);
+        var idMember = AggregateHandling.DetermineAggregateIdMember(aggregateType, inputType);
         property = idMember as PropertyInfo;
         return property != null;
     }

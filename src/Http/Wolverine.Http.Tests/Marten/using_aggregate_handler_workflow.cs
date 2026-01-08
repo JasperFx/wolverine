@@ -1,5 +1,6 @@
 using Marten;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 using Wolverine.Marten;
 using WolverineWebApi.Marten;
@@ -32,6 +33,54 @@ public class using_aggregate_handler_workflow(AppFixture fixture) : IntegrationC
 
         order.ShouldNotBeNull();
         order.Items["Socks"].Ready.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task automatically_apply_stream_id_as_audit_member_marked_with_AggregateHandler()
+    {
+        // Guaranteeing that it's warmed up
+        var result1 = await Scenario(x =>
+        {
+            x.Post.Json(new StartOrder(["Socks", "Shoes", "Shirt"])).ToUrl("/orders/create");
+        });
+
+        var status1 = result1.ReadAsJson<OrderStatus>();
+        
+        await Scenario(x =>
+        {
+            x.Post.Json(new ShipOrder(status1.OrderId)).ToUrl("/orders/ship");
+
+            x.StatusCodeShouldBe(204);
+        });
+        
+        var chain = Host.Services.GetRequiredService<WolverineHttpOptions>().Endpoints!.ChainFor("POST", "/orders/ship");
+        chain.ShouldNotBeNull();
+        
+        chain.AuditedMembers.Single().MemberName.ShouldBe(nameof(ShipOrder.OrderId));
+    }
+    
+    [Fact]
+    public async Task automatically_apply_stream_id_as_audit_member_marked_with_WriteAggregate()
+    {
+        // Guaranteeing that it's warmed up
+        var result1 = await Scenario(x =>
+        {
+            x.Post.Json(new StartOrder(["Socks", "Shoes", "Shirt"])).ToUrl("/orders/create");
+        });
+
+        var status1 = result1.ReadAsJson<OrderStatus>();
+        
+        await Scenario(x =>
+        {
+            x.Post.Json(new ShipOrder(status1.OrderId)).ToUrl("/orders/ship3");
+
+            x.StatusCodeShouldBe(204);
+        });
+        
+        var chain = Host.Services.GetRequiredService<WolverineHttpOptions>().Endpoints!.ChainFor("POST", "/orders/ship3");
+        chain.ShouldNotBeNull();
+        
+        chain.AuditedMembers.Single().MemberName.ShouldBe(nameof(ShipOrder.OrderId));
     }
 
     [Fact]

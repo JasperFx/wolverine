@@ -135,12 +135,8 @@ public class durability_modes : PostgresqlContext, IAsyncDisposable
         runtime.NodeController.ShouldNotBeNull();
         runtime.NodeController.HasStartedLocalAgentWorkflowForBalancedMode.ShouldBeFalse();
         runtime.NodeController.HasStartedInSoloMode.ShouldBeTrue();
-
-        // Should NOT be listening on the control endpoint
-        runtime.Endpoints
-            .ActiveListeners()
-            .Any(x => x.Uri == runtime.Options.Transports.NodeControlEndpoint.Uri)
-            .ShouldBeFalse();
+        
+        runtime.Options.Transports.NodeControlEndpoint.ShouldBeNull();
 
         // Should start up the durable scheduled jobs
         runtime.DurableScheduledJobs.ShouldNotBeNull();

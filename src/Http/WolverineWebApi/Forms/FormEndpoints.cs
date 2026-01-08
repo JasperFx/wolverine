@@ -4,10 +4,9 @@ using JasperFx.Core;
 using Marten;
 using Microsoft.AspNetCore.Mvc;
 using Shouldly;
-using Spectre.Console;
 using Wolverine.Http;
 
-namespace WolverineWebApi;
+namespace WolverineWebApi.Forms;
 
 //Uses same test data as QuerystringEndpoints
 public static class FormEndpoints{

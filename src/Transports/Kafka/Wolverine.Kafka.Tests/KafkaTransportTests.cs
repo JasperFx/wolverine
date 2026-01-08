@@ -32,4 +32,12 @@ public class KafkaTransportTests
         new KafkaTopic(transport, "one.two", EndpointRole.Application)
             .EndpointName.ShouldBe("one.two");
     }
+
+    [Fact]
+    public void produce_and_consume_by_default()
+    {
+        new KafkaTransport().Usage.ShouldBe(KafkaUsage.ProduceAndConsume);
+    }
+
+    
 }

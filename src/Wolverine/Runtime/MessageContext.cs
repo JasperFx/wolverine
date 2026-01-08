@@ -48,6 +48,12 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         TenantId = runtime.Options.Durability.TenantIdStyle.MaybeCorrectTenantId(tenantId);
     }
 
+    Task<bool> IEnvelopeTransaction.TryMakeEagerIdempotencyCheckAsync(Envelope envelope,
+        DurabilitySettings settings, CancellationToken cancellation)
+    {
+        return Task.FromResult(true);
+    }
+
     /// <summary>
     /// Governs how the MessageContext will handle subsequent calls to FlushOutgoingMessages(). The
     /// default behavior is to quietly ignore any additional calls
@@ -64,6 +70,25 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
     private bool isMissingRequestedReply()
     {
         return Outstanding.Concat(_sent ?? []).All(x => x.MessageType != Envelope!.ReplyRequested);
+    }
+
+    /// <summary>
+    /// Potentially throws an exception if the current message has already been processed
+    /// </summary>
+    /// <param name="cancellation"></param>
+    /// <exception cref="DuplicateIncomingEnvelopeException"></exception>
+    public async Task AssertEagerIdempotencyAsync(CancellationToken cancellation)
+    {
+        if (Envelope == null || Envelope.WasPersistedInInbox ) return;
+        if (Transaction == null) return;
+
+        var check = await Transaction.TryMakeEagerIdempotencyCheckAsync(Envelope, Runtime.Options.Durability, cancellation);
+        if (!check)
+        {
+            throw new DuplicateIncomingEnvelopeException(Envelope);
+        }
+
+        Envelope.WasPersistedInInbox = true;
     }
 
     public async Task FlushOutgoingMessagesAsync()
@@ -184,17 +209,20 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         }
     }
 
-    public ValueTask CompleteAsync()
+    public async ValueTask CompleteAsync()
     {
         if (_channel == null || Envelope == null)
         {
             throw new InvalidOperationException("No Envelope is active for this context");
         }
 
-        return _channel.CompleteAsync(Envelope);
+        if (Envelope.HasBeenAcked) return;
+
+        await _channel.CompleteAsync(Envelope);
+        Envelope.HasBeenAcked = true;
     }
 
-    public ValueTask DeferAsync()
+    public async ValueTask DeferAsync()
     {
         if (_channel == null || Envelope == null)
         {
@@ -202,7 +230,7 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         }
 
         Runtime.MessageTracking.Requeued(Envelope);
-        return _channel.DeferAsync(Envelope);
+        await _channel.DeferAsync(Envelope);
     }
 
     public async Task ReScheduleAsync(DateTimeOffset scheduledTime)
@@ -525,7 +553,8 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         }
 
         _hasFlushed = false;
-
+        
+        _sent?.Clear();
         _outstanding.Clear();
         Scheduled.Clear();
         Envelope = null;

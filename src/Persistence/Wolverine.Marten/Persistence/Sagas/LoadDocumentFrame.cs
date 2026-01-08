@@ -11,6 +11,7 @@ namespace Wolverine.Marten.Persistence.Sagas;
 internal class LoadDocumentFrame : AsyncFrame, IBatchableFrame
 {
     public const string ExpectedSagaRevision = "expectedSagaRevision";
+    private static Type[] _identityTypes = [typeof(int), typeof(long), typeof(string), typeof(Guid)];
     
     private readonly Variable _sagaId;
     private Variable? _cancellation;
@@ -23,16 +24,34 @@ internal class LoadDocumentFrame : AsyncFrame, IBatchableFrame
         _sagaId = sagaId;
         uses.Add(sagaId);
 
-        Saga = new Variable(sagaType, this);
+        var usage = $"{Variable.DefaultArgName(sagaType)}_{sagaId.Usage.Split('.').Last()}";
+        Saga = new Variable(sagaType, usage, this);
     }
 
     public void WriteCodeToEnlistInBatchQuery(GeneratedMethod method, ISourceWriter writer)
     {
         if (_batchQueryItem == null)
             throw new InvalidOperationException("This frame has not been enlisted in a MartenBatchFrame");
-        
+
         writer.Write(
             $"var {_batchQueryItem.Usage} = {_batchQuery!.Usage}.Load<{Saga.VariableType.FullNameInCode()}>({_sagaId.Usage});");
+        
+        // var rawIdentityType = _sagaId.VariableType.IsNullable()
+        //     ? _sagaId.VariableType.GetInnerTypeFromNullable()
+        //     : _sagaId.VariableType;
+        //
+        // if (_identityTypes.Contains(rawIdentityType))
+        // {
+        //
+        // }
+        // else
+        // {
+        //     var valueType = ValueTypeInfo.ForType(rawIdentityType);
+        //     writer.Write(
+        //         $"var {_batchQueryItem.Usage} = {_batchQuery!.Usage}.Load<{Saga.VariableType.FullNameInCode()}>({_sagaId.Usage}.{valueType.ValueProperty.Name});");
+        // }
+        
+
     }
 
     public void EnlistInBatchQuery(Variable batchQuery)

@@ -266,7 +266,7 @@ of multi-tenancy, so you can completely opt out of all tenant id detection and a
 `[NotTenanted]` attribute as shown here in the tests:
 
 <!-- snippet: sample_using_NotTenanted -->
-<a id='snippet-sample_using_nottenanted'></a>
+<a id='snippet-sample_using_NotTenanted'></a>
 ```cs
 // Mark this endpoint as not using any kind of multi-tenancy
 [WolverineGet("/nottenanted"), NotTenanted]
@@ -275,7 +275,7 @@ public static string NoTenantNoProblem()
     return "hey";
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/MultiTenancy/multi_tenancy_detection_and_integration.cs#L441-L450' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_nottenanted' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/MultiTenancy/multi_tenancy_detection_and_integration.cs#L479-L488' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_NotTenanted' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 If the above usage completely disabled all tenant id detection or validation, in the case of an endpoint that *might* be 
@@ -293,7 +293,7 @@ public static string MaybeTenanted(IMessageBus bus)
     return bus.TenantId ?? "none";
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/MultiTenancy/multi_tenancy_detection_and_integration.cs#L452-L461' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_maybe_tenanted_attribute_usage' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/MultiTenancy/multi_tenancy_detection_and_integration.cs#L490-L499' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_maybe_tenanted_attribute_usage' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -305,7 +305,7 @@ parameters. Wolverine still has you covered by allowing you to create custom imp
 interface:
 
 <!-- snippet: sample_ITenantDetection -->
-<a id='snippet-sample_itenantdetection'></a>
+<a id='snippet-sample_ITenantDetection'></a>
 ```cs
 /// <summary>
 /// Used to create new strategies to detect the tenant id from an HttpContext
@@ -321,13 +321,13 @@ public interface ITenantDetection
     public ValueTask<string?> DetectTenant(HttpContext context);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http/Runtime/MultiTenancy/ITenantDetection.cs#L5-L21' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_itenantdetection' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http/Runtime/MultiTenancy/ITenantDetection.cs#L5-L21' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_ITenantDetection' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 As any example, the route argument detection implementation looks like this:
 
 <!-- snippet: sample_ArgumentDetection -->
-<a id='snippet-sample_argumentdetection'></a>
+<a id='snippet-sample_ArgumentDetection'></a>
 ```cs
 internal class ArgumentDetection : ITenantDetection, ISynchronousTenantDetection
 {
@@ -356,7 +356,7 @@ internal class ArgumentDetection : ITenantDetection, ISynchronousTenantDetection
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http/Runtime/MultiTenancy/ArgumentDetection.cs#L5-L34' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_argumentdetection' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http/Runtime/MultiTenancy/ArgumentDetection.cs#L5-L34' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_ArgumentDetection' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: tip
@@ -468,7 +468,7 @@ Using the `WolverineFx.Http.Marten` Nuget, there's a helper to replace Marten's 
 with a multi-tenanted version like this:
 
 <!-- snippet: sample_using_AddMartenTenancyDetection -->
-<a id='snippet-sample_using_addmartentenancydetection'></a>
+<a id='snippet-sample_using_AddMartenTenancyDetection'></a>
 ```cs
 builder.Services.AddMartenTenancyDetection(tenantId =>
 {
@@ -476,8 +476,8 @@ builder.Services.AddMartenTenancyDetection(tenantId =>
     tenantId.DefaultIs("default-tenant");
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/Marten/multi_tenanted_session_factory_without_wolverine.cs#L29-L37' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_addmartentenancydetection' title='Start of snippet'>anchor</a></sup>
-<a id='snippet-sample_using_addmartentenancydetection-1'></a>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/Marten/multi_tenanted_session_factory_without_wolverine.cs#L29-L37' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_AddMartenTenancyDetection' title='Start of snippet'>anchor</a></sup>
+<a id='snippet-sample_using_AddMartenTenancyDetection-1'></a>
 ```cs
 builder.Services.AddMartenTenancyDetection(tenantId =>
 {
@@ -488,6 +488,6 @@ builder.Services.AddMartenTenancyDetection(tenantId =>
     session.CorrelationId = c.TraceIdentifier;
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/Marten/multi_tenanted_session_factory_without_wolverine.cs#L92-L103' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_addmartentenancydetection-1' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/Marten/multi_tenanted_session_factory_without_wolverine.cs#L92-L103' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_AddMartenTenancyDetection-1' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 

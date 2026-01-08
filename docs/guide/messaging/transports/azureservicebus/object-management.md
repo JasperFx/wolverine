@@ -1,5 +1,12 @@
 # Object Management
 
+::: warning
+If you are using Wolverine to initialize and build Azure Service Bus subscriptions, then it is in control of all
+filters. Any filter built outside of Wolverine will be deleted by Wolverine when it tries to initialize the application.
+
+The "fix" is just to have Wolverine know exactly which filters you want.
+:::
+
 When using the Azure Service Bus transport, Wolverine is able to use the stateful resource model where all missing 
 queues, topics, and subscriptions would be built at application start up time with this option applied:
 

@@ -449,7 +449,7 @@ by using this setting:
 // for all modules for more efficient usage of resources
 opts.Durability.MessageStorageSchemaName = "wolverine";
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AncillaryStores/bootstrapping_ancillary_marten_stores_with_wolverine.cs#L61-L68' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_message_storage_schema_name' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AncillaryStores/bootstrapping_ancillary_marten_stores_with_wolverine.cs#L62-L69' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_message_storage_schema_name' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 By setting any value for `WolverineOptions.Durability.MessageStorageSchemaName`, Wolverine will use that value for the database schema

@@ -152,6 +152,6 @@ var host = await Host.CreateDefaultBuilder()
         opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/Distribution/with_ancillary_stores.cs#L75-L121' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_distributed_projections_with_ancillary_stores' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/Distribution/with_ancillary_stores.cs#L76-L122' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_distributed_projections_with_ancillary_stores' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 

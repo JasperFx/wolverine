@@ -227,33 +227,49 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
         _restarter = new Restarter(this, pauseTime);
     }
 
+    private readonly SemaphoreSlim _semaphore = new(1, 1);
+
     public async ValueTask MarkAsTooBusyAndStopReceivingAsync()
     {
         if (Status != ListeningStatus.Accepting || Listener == null)
         {
             return;
         }
-        
-        using var activity = WolverineTracing.ActivitySource.StartActivity(WolverineTracing.PausingListener);
-        activity?.SetTag(WolverineTracing.EndpointAddress, Listener.Address);
-        activity?.SetTag(WolverineTracing.StopReason, WolverineTracing.TooBusy);
+
+        await _semaphore.WaitAsync();
+        if (Status != ListeningStatus.Accepting || Listener == null)
+        {
+            _semaphore.Release();
+            return;
+        }
 
         try
         {
-            await Listener.StopAsync();
-            await Listener.DisposeAsync();
-        }
-        catch (Exception e)
-        {
-            _logger.LogError(e, "Unable to cleanly stop the listener for {Uri}", Uri);
-        }
+            using var activity = WolverineTracing.ActivitySource.StartActivity(WolverineTracing.PausingListener);
+            activity?.SetTag(WolverineTracing.EndpointAddress, Listener.Address);
+            activity?.SetTag(WolverineTracing.StopReason, WolverineTracing.TooBusy);
+
+            try
+            {
+                await Listener.StopAsync();
+                await Listener.DisposeAsync();
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, "Unable to cleanly stop the listener for {Uri}", Uri);
+            }
         
-        Listener = null;
+            Listener = null;
 
-        Status = ListeningStatus.TooBusy;
-        _runtime.Tracker.Publish(new ListenerState(Uri, Endpoint.EndpointName, Status));
+            Status = ListeningStatus.TooBusy;
+            _runtime.Tracker.Publish(new ListenerState(Uri, Endpoint.EndpointName, Status));
 
-        _logger.LogInformation("Marked listener at {Uri} as too busy and stopped receiving", Uri);
+            _logger.LogInformation("Marked listener at {Uri} as too busy and stopped receiving", Uri);
+        }
+        finally
+        {
+            _semaphore.Release();
+        }
     }
 
     private async ValueTask<IReceiver> buildReceiverAsync()

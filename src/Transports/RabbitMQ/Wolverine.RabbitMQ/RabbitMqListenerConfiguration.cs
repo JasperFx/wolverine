@@ -179,7 +179,7 @@ public class RabbitMqListenerConfiguration : InteroperableListenerConfiguration<
     {
         add(e =>
         {
-            e.DeadLetterQueue = dlq;
+            e.DeadLetterQueue = dlq.Clone();
         });
 
         return this;

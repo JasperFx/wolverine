@@ -16,6 +16,13 @@ internal class ResultContinuationPolicy : IContinuationStrategy
 
         if (result != null)
         {
+            // Preventing double generation
+            if (chain.Middleware.OfType<MaybeEndWithResultFrame>().Any(x => ReferenceEquals(x.Result, result)))
+            {
+                frame = null;
+                return false;
+            }
+            
             frame = new MaybeEndWithResultFrame(result);
             return true;
         }
@@ -31,14 +38,15 @@ internal class ResultContinuationPolicy : IContinuationStrategy
 /// </summary>
 public class MaybeEndWithResultFrame : AsyncFrame
 {
-    private readonly Variable _result;
     private Variable? _context;
 
     public MaybeEndWithResultFrame(Variable result)
     {
         uses.Add(result);
-        _result = result;
+        Result = result;
     }
+
+    public Variable Result { get; }
 
     public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
     {
@@ -48,9 +56,17 @@ public class MaybeEndWithResultFrame : AsyncFrame
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
+        // Super hacky. Cannot for the life of me stop the double generation of "maybe end with IResult", so
+        // this.
+        if (Next is MaybeEndWithResultFrame next && ReferenceEquals(next.Result, Result))
+        {
+            Next?.GenerateCode(method, writer);
+            return;
+        }
+        
         writer.WriteComment("Evaluate whether or not the execution should be stopped based on the IResult value");
-        writer.Write($"BLOCK:if ({_result.Usage} != null && !({_result.Usage} is {typeof(WolverineContinue).FullNameInCode()}))");
-        writer.Write($"await {_result.Usage}.{nameof(IResult.ExecuteAsync)}({_context!.Usage}).ConfigureAwait(false);");
+        writer.Write($"BLOCK:if ({Result.Usage} != null && !({Result.Usage} is {typeof(WolverineContinue).FullNameInCode()}))");
+        writer.Write($"await {Result.Usage}.{nameof(IResult.ExecuteAsync)}({_context!.Usage}).ConfigureAwait(false);");
         writer.Write("return;");
         writer.FinishBlock();
         writer.BlankLine();

@@ -85,9 +85,14 @@ public static async Task invoke_locally(IMessageBus bus)
 {
     // Execute the message inline
     await bus.InvokeAsync(new Message1());
+    
+    // Execute the message inline, but this time pass in
+    // messaging metadata for Wolverine
+    await bus.InvokeAsync(new Message1(),
+        new DeliveryOptions { TenantId = "one", SagaId = "two" }.WithHeader("user.id", "admin"));
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/EnqueueSamples.cs#L9-L17' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_invoke_locally' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/EnqueueSamples.cs#L9-L22' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_invoke_locally' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 If the `Message1` message has a local subscription, the message handler will be invoked in the calling thread. In this usage, the `InvokeAsync()` feature will utilize any registered [retry or retry with cooldown error handling rules](/guide/handlers/error-handling)
@@ -129,7 +134,7 @@ public static class NumbersHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MessageBusBasics.cs#L81-L95' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_numbers_and_results_for_request_response' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MessageBusBasics.cs#L88-L102' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_numbers_and_results_for_request_response' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Note in the sample above that the message handler that accepts `Numbers` returns a `Results` object. That return value is necessary for Wolverine to be able to
@@ -142,9 +147,16 @@ API as shown below:
 public async Task invoke_math_operations(IMessageBus bus)
 {
     var results = await bus.InvokeAsync<Results>(new Numbers(3, 4));
+
+    // Same functionality, but this time we'll configure the active
+    // tenant id and add a message header
+    var results2 = await bus.InvokeAsync<Results>(new Numbers(5, 6), new DeliveryOptions
+    {
+        TenantId = "north.america"
+    }.WithHeader("user.id", "professor"));
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MessageBusBasics.cs#L47-L54' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_invoke_with_response_type' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MessageBusBasics.cs#L47-L61' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_invoke_with_response_type' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Note that this API hides whether or not this operation is a local operation running on the same thread and invoking a local message handler or sending a message through to a remote
@@ -158,7 +170,7 @@ You can explicitly override this behavior on a handler by handler basis with the
 as shown below:
 
 <!-- snippet: sample_using_AlwaysPublishResponse -->
-<a id='snippet-sample_using_alwayspublishresponse'></a>
+<a id='snippet-sample_using_AlwaysPublishResponse'></a>
 ```cs
 public class CreateItemCommandHandler
 {
@@ -179,7 +191,7 @@ public class CreateItemCommandHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/Bugs/Bug_305_invoke_async_with_return_not_publishing_with_tuple_return_value.cs#L65-L86' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_alwayspublishresponse' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/Bugs/Bug_305_invoke_async_with_return_not_publishing_with_tuple_return_value.cs#L65-L86' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_AlwaysPublishResponse' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Disabling Remote Request/Reply
@@ -296,7 +308,7 @@ actually have a couple different syntactical options. First, if you're directly 
 can schedule a message with a delay using this extension method:
 
 <!-- snippet: sample_ScheduleSend_In_3_Days -->
-<a id='snippet-sample_schedulesend_in_3_days'></a>
+<a id='snippet-sample_ScheduleSend_In_3_Days'></a>
 ```cs
 public async Task schedule_send(IMessageContext context, Guid issueId)
 {
@@ -315,13 +327,13 @@ public async Task schedule_send(IMessageContext context, Guid issueId)
     });
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/ScheduledExecutionSamples.cs#L8-L27' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_schedulesend_in_3_days' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/ScheduledExecutionSamples.cs#L8-L27' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_ScheduleSend_In_3_Days' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Or using an absolute time, with this overload of the extension method:
 
 <!-- snippet: sample_ScheduleSend_At_5_PM_Tomorrow -->
-<a id='snippet-sample_schedulesend_at_5_pm_tomorrow'></a>
+<a id='snippet-sample_ScheduleSend_At_5_PM_Tomorrow'></a>
 ```cs
 public async Task schedule_send_at_5_tomorrow_afternoon(IMessageContext context, Guid issueId)
 {
@@ -338,7 +350,7 @@ public async Task schedule_send_at_5_tomorrow_afternoon(IMessageContext context,
     await context.ScheduleAsync(timeout, time);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/ScheduledExecutionSamples.cs#L29-L47' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_schedulesend_at_5_pm_tomorrow' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/ScheduledExecutionSamples.cs#L29-L47' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_ScheduleSend_At_5_PM_Tomorrow' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Now, Wolverine tries really hard to enable you to use [pure functions](https://en.wikipedia.org/wiki/Pure_function) for as many message handlers as possible, so
@@ -371,13 +383,13 @@ Lastly, there's a special base class called `TimeoutMessage` that your message t
 directly to the message itself for easy usage as a cascaded message. Here's an example message type:
 
 <!-- snippet: sample_OrderTimeout -->
-<a id='snippet-sample_ordertimeout'></a>
+<a id='snippet-sample_OrderTimeout'></a>
 ```cs
 // This message will always be scheduled to be delivered after
 // a one minute delay
 public record OrderTimeout(string Id) : TimeoutMessage(1.Minutes());
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderSagaSample/OrderSaga.cs#L12-L18' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_ordertimeout' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderSagaSample/OrderSaga.cs#L12-L18' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_OrderTimeout' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Which is used within this sample saga implementation:
@@ -404,7 +416,7 @@ public static (Order, OrderTimeout) Start(StartOrder order, ILogger<Order> logge
 TODO -- more text here. NEW PAGE???
 
 <!-- snippet: sample_SendMessagesWithDeliveryOptions -->
-<a id='snippet-sample_sendmessageswithdeliveryoptions'></a>
+<a id='snippet-sample_SendMessagesWithDeliveryOptions'></a>
 ```cs
 public static async Task SendMessagesWithDeliveryOptions(IMessageBus bus)
 {
@@ -422,7 +434,130 @@ public static async Task SendMessagesWithDeliveryOptions(IMessageBus bus)
         .WithHeader("tenant", "one"));
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CustomizingMessageDelivery.cs#L9-L27' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sendmessageswithdeliveryoptions' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CustomizingMessageDelivery.cs#L9-L27' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_SendMessagesWithDeliveryOptions' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Sending Raw Message Data  <Badge type="tip" text="5.8" />
 
+In some particular cases, you may want to use Wolverine to send a message to another system (or the same system)
+when you already have the raw binary message data but not an actual .NET message object. An example use case is integrating
+scheduling libraries like Quartz.NET or Hangfire where you might be persisting a `byte[]` for a message to be 
+sent via Wolverine at a certain time. 
+
+Regardless of why you need to do this, Wolverine has a capability to do exactly this, but with the proviso that
+you will have to select the messaging endpoint first. To make this concrete,
+let's say that you've got this application set up:
+
+<!-- snippet: sample_simple_rabbit_mq_setup_for_raw_messages -->
+<a id='snippet-sample_simple_rabbit_mq_setup_for_raw_messages'></a>
+```cs
+var builder = Host.CreateApplicationBuilder();
+var connectionString = builder.Configuration.GetConnectionString("rabbit");
+
+builder.UseWolverine(opts =>
+{
+    opts.UseRabbitMq(connectionString).AutoProvision();
+
+    opts.ListenToRabbitQueue("batches")
+
+        // Pay attention to this. This helps Wolverine
+        // "know" that if the message type isn't specified
+        // on the incoming Rabbit MQ message to assume that
+        // the .NET message type is RunBatch
+        .DefaultIncomingMessage<RunBatch>()
+        
+        // The default endpoint name would be "batches" anyway, but still
+        // good to show this if you want to use more readable names:
+        .Named("batches");
+
+    opts.ListenToRabbitQueue("control");
+});
+
+using var host = builder.Build();
+await host.StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/sending_raw_messages.cs#L135-L162' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_simple_rabbit_mq_setup_for_raw_messages' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+And some more context for the subsequent sample usages:
+
+<!-- snippet: sample_context_for_raw_message_sending -->
+<a id='snippet-sample_context_for_raw_message_sending'></a>
+```cs
+// Helper method for testing in Wolverine that
+// gives you a new IMessageBus instance without having to 
+// muck around with scoped service providers
+IMessageBus bus = host.MessageBus();
+
+// The raw message data, but pretend this was sourced from a database
+// table or some other non-Wolverine storage in your system
+byte[] messageData 
+    = Encoding.Default.GetBytes("{\"Name\": \"George Karlaftis\"}");
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/sending_raw_messages.cs#L164-L176' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_context_for_raw_message_sending' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+The simplest possible usage is when you can assume that the receiving Wolverine
+endpoint or downstream system will "know" what the message type is without you
+having to tell it:
+
+<!-- snippet: sample_simple_usage_of_sending_by_raw_data -->
+<a id='snippet-sample_simple_usage_of_sending_by_raw_data'></a>
+```cs
+// Simplest possible usage. This can work because the
+// listening endpoint has a configured default message
+// type
+await bus
+    
+    // choosing the destination endpoint by its name
+    // Rabbit MQ queues use the queue name by default
+    .EndpointFor("batches")
+    .SendRawMessageAsync(messageData);
+
+// Same usage, but locate by the Wolverine Uri
+await bus
+    
+    // choosing the destination endpoint by its name
+    // Rabbit MQ queues use the queue name by default
+    .EndpointFor(new Uri("rabbitmq://queue/batches"))
+    .SendRawMessageAsync(messageData);
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/sending_raw_messages.cs#L179-L199' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_simple_usage_of_sending_by_raw_data' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Note that in this case, you'll have to help Wolverine out by explicitly choosing
+the destination for the raw message data by either using a `Uri` or the endpoint name. 
+
+You can also specify the .NET message type to help Wolverine create the necessary
+metadata for the outgoing message like so:
+
+<!-- snippet: sample_more_advanced_usage_of_raw_message_sending -->
+<a id='snippet-sample_more_advanced_usage_of_raw_message_sending'></a>
+```cs
+await bus
+    .EndpointFor(new Uri("rabbitmq://queue/control"))
+    
+    // In this case I helped Wolverine out by telling it
+    // what the .NET message type is for this message
+    .SendRawMessageAsync(messageData, typeof(RunBatch));
+
+await bus
+    .EndpointFor(new Uri("rabbitmq://queue/control"))
+    
+    // In this case I helped Wolverine out by telling it
+    // what the .NET message type is for this message
+    .SendRawMessageAsync(messageData, configure: env =>
+    {
+        
+        // Alternative usage to just work directly
+        // with Wolverine's Envelope wrapper
+        env.SetMessageType<RunBatch>();
+
+        // And you can do *anything* with message metadata
+        // using the Envelope wrapper
+        // Use a little bit of caution with this though
+        env.Headers["user"] = "jack";
+    });
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/sending_raw_messages.cs#L201-L228' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_more_advanced_usage_of_raw_message_sending' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->

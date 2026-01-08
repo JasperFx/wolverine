@@ -254,13 +254,15 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IAsy
             var queue = new RabbitMqQueue(queueName, this, EndpointRole.System)
             {
                 AutoDelete = true,
-                IsDurable = false,
+                IsDurable = true, // This was changed for https://github.com/JasperFx/wolverine/issues/1871
                 IsListener = true,
                 IsUsedForReplies = true,
                 ListenerCount = 1,
                 EndpointName = ResponseEndpointName,
                 QueueType = QueueType.classic // This is important, quorum queues cannot be auto-delete
             };
+
+            queue.Arguments["x-expires"] = 1800000; // 30 minute expiry
 
             Queues[queueName] = queue;
         }

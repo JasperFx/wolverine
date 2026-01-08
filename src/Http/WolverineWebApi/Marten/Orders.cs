@@ -133,6 +133,16 @@ public static class MarkItemEndpoint
     }
 
     #endregion
+    
+    [WolverinePost("/orders/ship3"), EmptyResponse]
+    // The OrderShipped return value is treated as an event being posted
+    // to a Marten even stream
+    // instead of as the HTTP response body because of the presence of
+    // the [EmptyResponse] attribute
+    public static OrderShipped Ship3(ShipOrder command, [WriteAggregate] Order order)
+    {
+        return new OrderShipped();
+    }
 
     #region sample_using_aggregate_attribute_1
 

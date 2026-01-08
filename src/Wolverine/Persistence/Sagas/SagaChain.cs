@@ -1,11 +1,11 @@
-using System.Reflection;
 using JasperFx;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
-using Wolverine.Runtime;
+using System.Reflection;
+using Wolverine.Logging;
 using Wolverine.Runtime.Handlers;
 
 namespace Wolverine.Persistence.Sagas;
@@ -28,8 +28,17 @@ public class SagaChain : HandlerChain
     {
         try
         {
-            SagaType = grouping.Where(x => x.HandlerType.CanBeCastTo<Saga>()).Select(x => x.HandlerType)
-                .Distinct().Single();
+            var saga = grouping.Where(x => x.HandlerType.CanBeCastTo<Saga>()).DistinctBy(x => x.HandlerType).Single();
+            SagaType = saga.HandlerType;
+            SagaMethodInfo = saga.Method;
+
+            SagaIdMember = DetermineSagaIdMember(MessageType, SagaType, saga.Method);
+
+            // Automatically audit the saga id
+            if (SagaIdMember != null && AuditedMembers.All(x => x.Member != SagaIdMember))
+            {
+                AuditedMembers.Add(new AuditedMember(SagaIdMember, SagaIdMember.Name, SagaIdMember.Name));
+            }
         }
         catch (Exception e)
         {
@@ -40,11 +49,9 @@ public class SagaChain : HandlerChain
                 $"Command types cannot be handled by multiple saga types. Message {MessageType.FullNameInCode()} is handled by sagas {handlerTypes}",
                 e);
         }
-
-        SagaIdMember = DetermineSagaIdMember(MessageType, SagaType);
     }
 
-    internal override bool TryInferMessageIdentity(out PropertyInfo? property)
+    public override bool TryInferMessageIdentity(out PropertyInfo? property)
     {
         property = SagaIdMember as PropertyInfo;
         return property != null;
@@ -62,6 +69,8 @@ public class SagaChain : HandlerChain
 
     public Type SagaType { get; }
 
+    public MethodInfo? SagaMethodInfo { get; set; }
+
     public MemberInfo? SagaIdMember { get; set; }
 
     public MethodCall[] ExistingCalls { get; set; } = [];
@@ -70,13 +79,18 @@ public class SagaChain : HandlerChain
 
     public MethodCall[] NotFoundCalls { get; set; } = [];
 
-    public static MemberInfo? DetermineSagaIdMember(Type messageType, Type sagaType)
+    public static MemberInfo? DetermineSagaIdMember(Type messageType, Type sagaType, MethodInfo? sagaHandlerMethod = null)
     {
         var expectedSagaIdName = $"{sagaType.Name}Id";
 
+        var specifiedSagaIdMemberName = sagaHandlerMethod?.GetParameters()
+            .Select(x => x.GetCustomAttribute<SagaIdentityFromAttribute>())
+            .FirstOrDefault(a => a != null)?.PropertyName;
+
         var members = messageType.GetFields().OfType<MemberInfo>().Concat(messageType.GetProperties()).ToArray();
         return members.FirstOrDefault(x => x.HasAttribute<SagaIdentityAttribute>())
-               ?? members.FirstOrDefault(x => x.Name == expectedSagaIdName)
+               ?? members.FirstOrDefault(x => x.Name == (specifiedSagaIdMemberName ?? expectedSagaIdName))
+               ?? members.FirstOrDefault(x => x.Name == expectedSagaIdName.Replace("Saga", "", StringComparison.InvariantCultureIgnoreCase))
                ?? members.FirstOrDefault(x => x.Name == SagaIdMemberName) ??
                members.FirstOrDefault(x => x.Name.EqualsIgnoreCase("Id"));
     }
@@ -91,8 +105,13 @@ public class SagaChain : HandlerChain
     {
         applyCustomizations(rules, container);
 
+        if (AuditedMembers.Count != 0)
+        {
+            Middleware.Insert(0, new AuditToActivityFrame(this));
+        }
+
         var frameProvider = rules.GetPersistenceProviders(this, container);
-        
+
         frameProvider.ApplyTransactionSupport(this, container);
 
         NotFoundCalls = findByNames(NotFound);
@@ -121,7 +140,7 @@ public class SagaChain : HandlerChain
             generateCodeForMaybeExisting(container, frameProvider, list);
         }
 
-// .Concat(handlerReturnValueFrames)
+        // .Concat(handlerReturnValueFrames)
 
         return Middleware.Concat(container.TryCreateConstructorFrames(Handlers)).Concat(list).Concat(Postprocessors).ToList();
     }
@@ -173,7 +192,7 @@ public class SagaChain : HandlerChain
         {
             return;
         }
-        
+
         var ifNotCompleted = buildFrameForConditionalInsert(sagaVariable, frameProvider, container);
         frames.Add(ifNotCompleted);
     }

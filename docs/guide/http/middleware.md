@@ -49,7 +49,7 @@ Which is registered like this (or as described in [`Registering Middleware by Me
 opts.AddMiddlewareByMessageType(typeof(FakeAuthenticationMiddleware));
 opts.AddMiddlewareByMessageType(typeof(CanShipOrderMiddleWare));
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L250-L253' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_register_http_middleware_by_type' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L252-L255' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_register_http_middleware_by_type' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The key point to notice there is that `IResult` is a "return value" of the middleware. In the case of an HTTP endpoint,
@@ -59,7 +59,7 @@ object is anything else, Wolverine will execute that `IResult` and stop processi
 For a little more complex example, here's part of the Fluent Validation middleware for Wolverine.Http:
 
 <!-- snippet: sample_FluentValidationHttpExecutor_ExecuteOne -->
-<a id='snippet-sample_fluentvalidationhttpexecutor_executeone'></a>
+<a id='snippet-sample_FluentValidationHttpExecutor_ExecuteOne'></a>
 ```cs
 [MethodImpl(MethodImplOptions.AggressiveInlining)]
 public static async Task<IResult> ExecuteOne<T>(IValidator<T> validator, IProblemDetailSource<T> source, T message)
@@ -79,7 +79,7 @@ public static async Task<IResult> ExecuteOne<T>(IValidator<T> validator, IProble
     return WolverineContinue.Result();
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.FluentValidation/Internals/FluentValidationHttpExecutor.cs#L9-L29' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_fluentvalidationhttpexecutor_executeone' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.FluentValidation/Internals/FluentValidationHttpExecutor.cs#L9-L29' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_FluentValidationHttpExecutor_ExecuteOne' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Likewise, you can also just return a `null` from middleware for `IResult` and Wolverine will interpret that as
@@ -150,7 +150,31 @@ public class StopwatchMiddleware
 And you want to apply it to a single HTTP endpoint without having to dirty your hands with an attribute. You can use that naming
 convention up above like so:
 
-sample: sample_applying_middleware_programmatically_to_one_chain
+<!-- snippet: sample_applying_middleware_programmatically_to_one_chain -->
+<a id='snippet-sample_applying_middleware_programmatically_to_one_chain'></a>
+```cs
+public class MeasuredEndpoint
+{
+    // The signature is meaningful here
+    public static void Configure(HttpChain chain)
+    {
+        // Call this method before the normal endpoint
+        chain.Middleware.Add(MethodCall.For<StopwatchMiddleware>(x => x.Before()));
+
+        // Call this method after the normal endpoint
+        chain.Postprocessors.Add(MethodCall.For<StopwatchMiddleware>(x => x.Finally(null, null)));
+    }
+
+    [WolverineGet("/timed")]
+    public async Task<string> Get()
+    {
+        await Task.Delay(100.Milliseconds());
+        return "how long did I take?";
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/MiddlewareEndpoints.cs#L30-L52' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_applying_middleware_programmatically_to_one_chain' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 
 ## Apply Middleware by Policy
@@ -161,7 +185,7 @@ this middleware is applied to any endpoint that also uses Wolverine message publ
 from the `HttpContext` to subsequent Wolverine messages published during the request:
 
 <!-- snippet: sample_RequestIdMiddleware -->
-<a id='snippet-sample_requestidmiddleware'></a>
+<a id='snippet-sample_RequestIdMiddleware'></a>
 ```cs
 public static class RequestIdMiddleware
 {
@@ -177,13 +201,13 @@ public static class RequestIdMiddleware
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http/Runtime/RequestIdMiddleware.cs#L11-L27' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_requestidmiddleware' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http/Runtime/RequestIdMiddleware.cs#L11-L27' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_RequestIdMiddleware' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And a matching `IHttpPolicy` to apply that middleware to any HTTP endpoint where there is a dependency on Wolverine's `IMessageContext` or `IMessageBus`:
 
 <!-- snippet: sample_RequestIdPolicy -->
-<a id='snippet-sample_requestidpolicy'></a>
+<a id='snippet-sample_RequestIdPolicy'></a>
 ```cs
 internal class RequestIdPolicy : IHttpPolicy
 {
@@ -201,7 +225,7 @@ internal class RequestIdPolicy : IHttpPolicy
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http/Runtime/RequestIdMiddleware.cs#L29-L47' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_requestidpolicy' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http/Runtime/RequestIdMiddleware.cs#L29-L47' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_RequestIdPolicy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Lastly, this particular policy is included by default, but if it wasn't, this is the code to apply it explicitly:

@@ -26,7 +26,7 @@ public interface IPlayerStore : IDocumentStore;
 
 public interface IThingStore : IDocumentStore;
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AncillaryStores/bootstrapping_ancillary_marten_stores_with_wolverine.cs#L259-L265' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_separate_marten_stores' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AncillaryStores/bootstrapping_ancillary_marten_stores_with_wolverine.cs#L270-L276' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_separate_marten_stores' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 We can add Wolverine integration to both through a similar call to `IntegrateWithWolverine()` as normal as shown below:
@@ -71,12 +71,15 @@ theHost = await Host.CreateDefaultBuilder()
                 tenancy.AddSingleTenantDatabase(tenant3ConnectionString, "tenant3");
             });
             m.DatabaseSchemaName = "things";
-        }).IntegrateWithWolverine(x => x.MainConnectionString = Servers.PostgresConnectionString);
+        }).IntegrateWithWolverine(x =>
+        {
+            x.MainConnectionString = Servers.PostgresConnectionString;
+        });
 
         opts.Services.AddResourceSetupOnStartup();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AncillaryStores/bootstrapping_ancillary_marten_stores_with_wolverine.cs#L56-L103' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_with_ancillary_marten_stores' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AncillaryStores/bootstrapping_ancillary_marten_stores_with_wolverine.cs#L57-L107' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_with_ancillary_marten_stores' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Let's specifically zoom in on this code from within the big sample above:
@@ -89,7 +92,7 @@ Let's specifically zoom in on this code from within the big sample above:
 // for all modules for more efficient usage of resources
 opts.Durability.MessageStorageSchemaName = "wolverine";
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AncillaryStores/bootstrapping_ancillary_marten_stores_with_wolverine.cs#L61-L68' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_message_storage_schema_name' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AncillaryStores/bootstrapping_ancillary_marten_stores_with_wolverine.cs#L62-L69' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_message_storage_schema_name' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 If you are using separate Marten document stores for different modules in your application, you can easily make Wolverine 
@@ -102,7 +105,7 @@ Now, moving to message handlers or HTTP endpoints, you will have to explicitly t
 individual messages with the `[MartenStore(store type)]` attribute like this simple example below:
 
 <!-- snippet: sample_PlayerMessageHandler -->
-<a id='snippet-sample_playermessagehandler'></a>
+<a id='snippet-sample_PlayerMessageHandler'></a>
 ```cs
 // This will use a Marten session from the
 // IPlayerStore rather than the main IDocumentStore
@@ -116,7 +119,7 @@ public static class PlayerMessageHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AncillaryStores/bootstrapping_ancillary_marten_stores_with_wolverine.cs#L243-L257' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_playermessagehandler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AncillaryStores/bootstrapping_ancillary_marten_stores_with_wolverine.cs#L254-L268' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_PlayerMessageHandler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: info

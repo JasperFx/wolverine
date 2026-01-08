@@ -1,10 +1,12 @@
 using JasperFx.Blocks;
 using JasperFx.Core;
+using MassTransit;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
 using Wolverine.Logging;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime.Partitioning;
+using Wolverine.Runtime.Serialization;
 using Wolverine.Transports;
 using Wolverine.Transports.Sending;
 
@@ -218,6 +220,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
 
     public ValueTask EnqueueAsync(Envelope envelope)
     {
+        envelope.WasPersistedInInbox = true;
         envelope.ReplyUri = envelope.ReplyUri ?? Uri;
         return _receiver.PostAsync(envelope);
     }
@@ -331,6 +334,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
                     try
                     {
                         await _inbox.StoreIncomingAsync(envelope);
+                        envelope.WasPersistedInInbox = true;
                     }
                     catch (DuplicateIncomingEnvelopeException)
                     {
@@ -358,25 +362,31 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
         {
             try
             {
+                if (envelope.MessageType.IsEmpty() && envelope.Serializer is IUnwrapsMetadataMessageSerializer serializer)
+                {
+                    serializer.Unwrap(envelope);
+                }
+                
+                // Have to do this before moving to the DLQ
+                if (envelope.Id == Guid.Empty)
+                {
+                    envelope.Id = NewId.NextSequentialGuid();
+                }
+
+                if (envelope.MessageType.IsEmpty())
+                {
+                    _logger.LogInformation("Empty or missing message type name for Envelope {Id} received at durable {Destination}. Moving to dead letter queue", envelope.Id, envelope.Destination);
+                    await _moveToErrors.PostAsync(envelope);
+                    return;
+                }
+
                 envelope.OwnerId = _settings.AssignedNodeNumber;
                 await _inbox.StoreIncomingAsync(envelope);
+                envelope.WasPersistedInInbox = true;
             }
             catch (DuplicateIncomingEnvelopeException e)
             {
-                _logger.LogError(e, "Duplicate incoming envelope detected");
-
-                if (envelope.Listener != null)
-                {
-                    try
-                    {
-                        await envelope.Listener.CompleteAsync(envelope);
-                    }
-                    catch (Exception exception)
-                    {
-                        _logger.LogError(exception, "Error trying to complete duplicated message {Id} from {Uri}",
-                            envelope.Id, Uri);
-                    }
-                }
+                await handleDuplicateIncomingEnvelope(envelope, e);
 
                 return;
             }
@@ -392,6 +402,24 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
         if (envelope.Listener != null)
         {
             await _completeBlock.PostAsync(envelope);
+        }
+    }
+
+    private async Task handleDuplicateIncomingEnvelope(Envelope envelope, DuplicateIncomingEnvelopeException e)
+    {
+        _logger.LogError(e, "Duplicate incoming envelope detected");
+
+        if (envelope.Listener != null)
+        {
+            try
+            {
+                await envelope.Listener.CompleteAsync(envelope);
+            }
+            catch (Exception exception)
+            {
+                _logger.LogError(exception, "Error trying to complete duplicated message {Id} from {Uri}",
+                    envelope.Id, Uri);
+            }
         }
     }
 
@@ -430,6 +458,11 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
             try
             {
                 await _inbox.StoreIncomingAsync(envelopes);
+                foreach (var envelope in envelopes)
+                {
+                    envelope.WasPersistedInInbox = true;
+                }
+                
                 batchSucceeded = true;
             }
             catch (Exception e)

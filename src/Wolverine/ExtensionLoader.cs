@@ -9,6 +9,25 @@ namespace Wolverine;
 internal static class ExtensionLoader
 {
     private static Assembly[]? _extensions;
+    private static bool hasWarned = false;
+
+    internal static bool IsModule(Assembly assembly)
+    {
+        try
+        {
+            if (assembly.HasAttribute<WolverineModuleAttribute>()) return true;
+        }
+        catch (Exception)
+        {
+            if (!hasWarned)
+            {
+                Console.WriteLine("To disable automatic Wolverine extension finding, and stop these messages, see:");
+                Console.WriteLine("https://wolverinefx.net/guide/extensions.html#disabling-assembly-scanning");
+            }
+        }
+
+        return false;
+    }
 
     internal static Assembly[] FindExtensionAssemblies()
     {
@@ -17,8 +36,19 @@ internal static class ExtensionLoader
             return _extensions;
         }
 
+        Action<string> logFailure = msg =>
+        {
+            if (!hasWarned)
+            {
+                Console.WriteLine("To disable automatic Wolverine extension finding, and stop these messages, see:");
+                Console.WriteLine("https://wolverinefx.net/guide/extensions.html#disabling-assembly-scanning");
+            }
+
+            Console.WriteLine(msg);
+        };
+
         _extensions = AssemblyFinder
-            .FindAssemblies(msg => Console.WriteLine(msg), a => a.HasAttribute<WolverineModuleAttribute>(), false)
+            .FindAssemblies(logFailure, a =>  a.HasAttribute<WolverineModuleAttribute>(), false)
             .Concat(AppDomain.CurrentDomain.GetAssemblies())
             .Distinct()
             .Where(a => a.HasAttribute<WolverineModuleAttribute>())

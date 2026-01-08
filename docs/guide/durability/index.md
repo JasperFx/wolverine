@@ -27,7 +27,7 @@ getting lost en route.
 Consider this sample message handler from Wolverine's [AppWithMiddleware sample project](https://github.com/JasperFx/wolverine/tree/main/src/Samples/Middleware):
 
 <!-- snippet: sample_DebitAccountHandler_that_uses_IMessageContext -->
-<a id='snippet-sample_debitaccounthandler_that_uses_imessagecontext'></a>
+<a id='snippet-sample_DebitAccountHandler_that_uses_IMessageContext'></a>
 ```cs
 [Transactional]
 public static async Task Handle(
@@ -62,7 +62,7 @@ public static async Task Handle(
         new DeliveryOptions { DeliverWithin = 5.Seconds() });
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Middleware/AppWithMiddleware/Account.cs#L126-L161' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_debitaccounthandler_that_uses_imessagecontext' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Middleware/AppWithMiddleware/Account.cs#L126-L161' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_DebitAccountHandler_that_uses_IMessageContext' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The handler code above is committing changes to an `Account` in the underlying database and potentially sending out additional messages based on the state of the `Account`. 
@@ -142,7 +142,7 @@ using var host = await Host.CreateDefaultBuilder()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L53-L63' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_make_all_subscribers_be_durable' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-### Bumping out Stale Outbox Messages <Badge type="tip" text="5.2" />
+### Bumping out Stale Inbox/Outbox Messages <Badge type="tip" text="5.2" />
 
 It should *not* be possible for there to be any path where a message gets "stuck" in the outbox tables without eventually
 being sent by the originating node or recovered by a different node if the original node goes down first. However, it's 
@@ -151,14 +151,34 @@ you can "bump" a persisted record in the `wolverine_outgoing_envelopes` to be re
 setting the `owner_id` field to zero.
 
 ::: info
-Just be aware that opting into the `OutboxStaleTime` threshold will require database changes through Wolverine's database
+Just be aware that opting into the `OutboxStaleTime` or `InboxStaleTime` threshold will require database changes through Wolverine's database
 migration subsystem
 :::
 
 You also have this setting to force Wolverine to automatically "bump" and older messages that seem to be stalled in
-the outbox table:
+the outbox table or the inbox table:
 
-snippet: sample_configuring_outbox_stale_timeout
+<!-- snippet: sample_configuring_outbox_stale_timeout -->
+<a id='snippet-sample_configuring_outbox_stale_timeout'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        // Bump any persisted message in the outbox tables
+        // that is more than an hour old to be globally owned
+        // so that the durability agent can recover it and force
+        // it to be sent
+        opts.Durability.OutboxStaleTime = 1.Hours();
+        
+        // Same for the inbox, but it's configured independently
+        // This should *never* be necessary and the Wolverine
+        // team has no clue why this could ever happen and a message
+        // could get "stuck", but yet, here this is:
+        opts.Durability.InboxStaleTime = 10.Minutes();
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L281-L299' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_outbox_stale_timeout' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 Note that this will still respect the "deliver by" semantics. This is part of the polling that Wolverine normally does
 against the inbox/outbox/node storage tables. Note that this will only happen if the setting above has a non-null

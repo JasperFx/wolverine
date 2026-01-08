@@ -108,7 +108,7 @@ public interface IListenerConfiguration<T> : IEndpointConfiguration<T>
 
 
     /// <summary>
-    ///     Incoming messages are executed in
+    ///     Incoming messages are executed inline
     /// </summary>
     /// <returns></returns>
     T ProcessInline();

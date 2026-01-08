@@ -4,6 +4,7 @@ using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
 using Microsoft.EntityFrameworkCore.Storage;
 using Wolverine.EntityFrameworkCore.Internals;
+using Wolverine.Persistence;
 using Wolverine.Runtime;
 
 namespace Wolverine.EntityFrameworkCore.Codegen;
@@ -11,14 +12,17 @@ namespace Wolverine.EntityFrameworkCore.Codegen;
 internal class EnrollDbContextInTransaction : AsyncFrame
 {
     private readonly Type _dbContextType;
+    private readonly IdempotencyStyle _idempotencyStyle;
     private Variable _dbContext;
     private Variable _cancellation;
     private Variable _envelopeTransaction;
     private Variable? _context;
+    private Variable _scrapers;
 
-    public EnrollDbContextInTransaction(Type dbContextType)
+    public EnrollDbContextInTransaction(Type dbContextType, IdempotencyStyle idempotencyStyle)
     {
         _dbContextType = dbContextType;
+        _idempotencyStyle = idempotencyStyle;
 
         Transaction = new Variable(typeof(IDbContextTransaction), $"tx_{_dbContextType.NameInCode().Sanitize()}", this);
         _envelopeTransaction = new Variable(typeof(EfCoreEnvelopeTransaction), this);
@@ -31,7 +35,7 @@ internal class EnrollDbContextInTransaction : AsyncFrame
         writer.WriteLine("");
         writer.WriteComment(
             "Enroll the DbContext & IMessagingContext in the outgoing Wolverine outbox transaction");
-        writer.Write($"var {_envelopeTransaction.Usage} = new {typeof(EfCoreEnvelopeTransaction).FullNameInCode()}({_dbContext.Usage}, {_context.Usage});");
+        writer.Write($"var {_envelopeTransaction.Usage} = new {typeof(EfCoreEnvelopeTransaction).FullNameInCode()}({_dbContext.Usage}, {_context.Usage}, {_scrapers.Usage});");
         writer.Write(
             $"await {_context.Usage}.{nameof(MessageContext.EnlistInOutboxAsync)}({_envelopeTransaction.Usage});");
 
@@ -39,6 +43,12 @@ internal class EnrollDbContextInTransaction : AsyncFrame
         writer.WriteComment("Start the actual database transaction");
         writer.Write($"using var {Transaction.Usage} = await {_dbContext.Usage}.Database.BeginTransactionAsync({_cancellation.Usage});");
         writer.Write("BLOCK:try");
+
+        // EF Core can only do eager idempotent checks
+        if (_idempotencyStyle == IdempotencyStyle.Eager || _idempotencyStyle == IdempotencyStyle.Optimistic)
+        {
+            writer.Write($"await {_context.Usage}.{nameof(MessageContext.AssertEagerIdempotencyAsync)}({_cancellation.Usage});");
+        }
         
         Next?.GenerateCode(method, writer);
         
@@ -52,6 +62,9 @@ internal class EnrollDbContextInTransaction : AsyncFrame
 
     public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
     {
+        _scrapers = chain.FindVariable(typeof(IEnumerable<IDomainEventScraper>));
+        yield return _scrapers;
+        
         _context = chain.FindVariable(typeof(MessageContext));
         yield return _context;
 

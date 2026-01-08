@@ -82,7 +82,9 @@ const config: UserConfig<DefaultTheme.Config> = {
                         {text: 'Railway Programming with Wolverine', link: '/tutorials/railway-programming'},
                         {text: 'Interoperability with Non-Wolverine Systems', link: '/tutorials/interop'},
                         {text: 'Leader Election and Agents', link: '/tutorials/leader-election'},
-                        {text: 'Dealing with Concurrency', link:' /tutorials/concurrency'}
+                        {text: 'Dealing with Concurrency', link:'/tutorials/concurrency'},
+                        {text: 'Dead Letter Queues', link: '/tutorials/dead-letter-queues'},
+                        {text: 'Idempotency in Messaging', link: '/tutorials/idempotency'}
                     ]
                 },
                 {
@@ -118,6 +120,7 @@ const config: UserConfig<DefaultTheme.Config> = {
                                 {text: 'Multi-Tenancy', link: '/guide/handlers/multi-tenancy'},
                                 {text: 'Execution Timeouts', link: '/guide/handlers/timeout'},
                                 {text: 'Fluent Validation Middleware', link: '/guide/handlers/fluent-validation'},
+                                {text: 'DataAnnotations Validation Middleware', link: '/guide/handlers/dataannotations-validation'},
                                 {text: 'Sticky Handler to Endpoint Assignments', link: '/guide/handlers/sticky'},
                                 {text: 'Message Batching', link: '/guide/handlers/batching'},
                                 {text: 'Persistence Helpers', link: '/guide/handlers/persistence'}
@@ -183,6 +186,7 @@ const config: UserConfig<DefaultTheme.Config> = {
                                 {text: 'Sql Server', link: '/guide/messaging/transports/sqlserver'},
                                 {text: 'PostgreSQL', link: '/guide/messaging/transports/postgresql'},
                                 {text: 'MQTT', link: '/guide/messaging/transports/mqtt'},
+                                {text: 'NATS', link: '/guide/messaging/transports/nats'},
                                 {text: 'Kafka', link: '/guide/messaging/transports/kafka'},
                                 {text: 'SignalR', link: '/guide/messaging/transports/signalr'},
                                 {text: 'Redis', link: '/guide/messaging/transports/redis'},
@@ -190,6 +194,7 @@ const config: UserConfig<DefaultTheme.Config> = {
                             ]
                         },
                         {text: 'Partitioned Sequential Messaging', link: '/guide/messaging/partitioning'},
+                        {text: 'Unknown Messages', link: '/guide/messaging/unknown'},
                         {text: 'Endpoint Specific Operations', link: '/guide/messaging/endpoint-operations'},
                         {text: 'Broadcast to a Specific Topic', link: '/guide/messaging/broadcast-to-topic'},
                         {text: 'Message Expiration', link: '/guide/messaging/expiration'},
@@ -219,8 +224,10 @@ const config: UserConfig<DefaultTheme.Config> = {
                         {text: 'Uploading Files', link: '/guide/http/files'},
                         {text: 'Integration with Sagas', link: '/guide/http/sagas'},
                         {text: 'Integration with Marten', link: '/guide/http/marten'},
+                        {text: 'Validation', link: '/guide/http/validation'},
                         {text: 'Fluent Validation', link: '/guide/http/fluentvalidation'},
                         {text: 'Problem Details', link: '/guide/http/problemdetails'},
+                        {text: 'Caching', link: '/guide/http/caching'}
                     ]
                 },
                 {

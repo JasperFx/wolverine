@@ -42,7 +42,12 @@ public sealed partial class WolverineOptions : IPolicies
 
     void IPolicies.AutoApplyTransactions()
     {
-        this.As<IPolicies>().Add(new AutoApplyTransactions());
+        RegisteredPolicies.Insert(0, new AutoApplyTransactions());
+    }
+
+    void IPolicies.AutoApplyTransactions(IdempotencyStyle idempotency)
+    {
+        RegisteredPolicies.Insert(0, new AutoApplyTransactions{Idempotency = idempotency});
     }
 
     void IPolicies.Add<T>()

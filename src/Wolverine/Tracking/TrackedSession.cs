@@ -17,6 +17,7 @@ internal partial class TrackedSession : ITrackedSession
     private readonly IList<ITrackedCondition> _conditions = new List<ITrackedCondition>();
 
     private Cache<Guid, EnvelopeHistory> _envelopes = new(id => new EnvelopeHistory(id));
+    private readonly List<EnvelopeRecord> _statuses = new();
 
     private readonly IList<Exception> _exceptions = new List<Exception>();
 
@@ -142,13 +143,14 @@ internal partial class TrackedSession : ITrackedSession
 
     public EnvelopeRecord[] AllRecordsInOrder()
     {
-        return _envelopes.SelectMany(x => x.Records).OrderBy(x => x.SessionTime).ToArray();
+        return _envelopes.SelectMany(x => x.Records).Concat(_statuses).OrderBy(x => x.SessionTime).ToArray();
     }
 
     public EnvelopeRecord[] AllRecordsInOrder(MessageEventType eventType)
     {
         return _envelopes
             .SelectMany(x => x.Records)
+            .Concat(_statuses)
             .Where(x => x.MessageEventType == eventType)
             .OrderBy(x => x.SessionTime)
             .ToArray();
@@ -220,6 +222,8 @@ internal partial class TrackedSession : ITrackedSession
     public RecordCollection MovedToErrorQueue => new(MessageEventType.MovedToErrorQueue, this);
     public RecordCollection Requeued => new(MessageEventType.Requeued, this);
     public RecordCollection Executed => new(MessageEventType.ExecutionFinished, this);
+
+    public RecordCollection Discarded => new(MessageEventType.Discarded, this);
 
     public void WatchOther(IHost host)
     {
@@ -312,8 +316,8 @@ internal partial class TrackedSession : ITrackedSession
             grid.AddColumn("Service (Node Id)", x => $"{x.ServiceName} ({x.UniqueNodeId})");
         }
 
-        grid.AddColumn("Message Id", x => x.Envelope.Id.ToString());
-        grid.AddColumn("Message Type", x => x.Envelope.MessageType ?? string.Empty);
+        grid.AddColumn("Message Id", x => x.Envelope?.Id.ToString() ?? string.Empty);
+        grid.AddColumn("Message Type", x => x.Envelope?.MessageType ?? string.Empty);
         grid.AddColumn("Time (ms)", x => x.SessionTime.ToString(), true);
 
         grid.AddColumn("Event", x => x.MessageEventType.ToString());
@@ -402,11 +406,6 @@ internal partial class TrackedSession : ITrackedSession
     public void Record(MessageEventType eventType, Envelope envelope, string? serviceName, Guid uniqueNodeId,
         Exception? ex = null)
     {
-        if (envelope.Message is ValueTask)
-        {
-            throw new Exception("Whatcha you doing Willis?");
-        }
-
         // Ignore these
         var messageType = envelope.Message?.GetType();
         if (messageType != null && _ignoreMessageRules.Any(x => x(messageType)))
@@ -485,6 +484,12 @@ internal partial class TrackedSession : ITrackedSession
     public void IgnoreMessageTypes(Func<Type, bool> filter)
     {
         _ignoreMessageRules.Add(filter);
+    }
+
+    public void LogStatus(string message)
+    {
+        var record = new EnvelopeRecord(MessageEventType.Status, null, _stopwatch.ElapsedMilliseconds, null);
+        _statuses.Add(record);
     }
 }
 

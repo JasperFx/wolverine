@@ -4,6 +4,7 @@ using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Logging;
 using Weasel.Core;
 using Wolverine.Persistence.Durability;
+using Wolverine.Runtime;
 using Wolverine.Runtime.Serialization;
 using DbCommandBuilder = Weasel.Core.DbCommandBuilder;
 
@@ -66,16 +67,20 @@ public static class DatabasePersistence
     public static void BuildIncomingStorageCommand(IMessageDatabase settings, DbCommandBuilder builder,
         Envelope envelope)
     {
+        // Don't store any data if the envelope is already marked as handled
+        var data = envelope.Status == EnvelopeStatus.Handled ? [] : EnvelopeSerializer.Serialize(envelope);
+        
         var list = new List<DbParameter>
         {
-            builder.AddParameter(EnvelopeSerializer.Serialize(envelope)),
+            builder.AddParameter(data),
             builder.AddParameter(envelope.Id),
             builder.AddParameter(envelope.Status.ToString()),
             builder.AddParameter(envelope.OwnerId),
             builder.AddParameter(envelope.ScheduledTime),
             builder.AddParameter(envelope.Attempts),
             builder.AddParameter(envelope.MessageType),
-            builder.AddParameter(envelope.Destination?.ToString())
+            builder.AddParameter(envelope.Destination?.ToString()),
+            builder.AddParameter(envelope.KeepUntil)
         };
 
         var parameterList = list.Select(x => $"@{x.ParameterName}").Join(", ");
@@ -87,9 +92,14 @@ public static class DatabasePersistence
     public static async Task<Envelope> ReadIncomingAsync(DbDataReader reader, CancellationToken cancellation = default)
     {
         var body = await reader.GetFieldValueAsync<byte[]>(0, cancellation);
-        var envelope = EnvelopeSerializer.Deserialize(body);
+        var envelope = body.Length > 0 ? EnvelopeSerializer.Deserialize(body) : new Envelope{Message = new PlaceHolder()};
+        envelope.Id = await reader.GetFieldValueAsync<Guid>(1, cancellation);
         envelope.Status = Enum.Parse<EnvelopeStatus>(await reader.GetFieldValueAsync<string>(2, cancellation));
         envelope.OwnerId = await reader.GetFieldValueAsync<int>(3, cancellation);
+        envelope.MessageType = await reader.GetFieldValueAsync<string>(6, cancellation);
+
+        var rawUri = await reader.GetFieldValueAsync<string>(7, cancellation);
+        envelope.Destination = new Uri(rawUri);
 
         if (!await reader.IsDBNullAsync(4, cancellation))
         {
@@ -97,6 +107,11 @@ public static class DatabasePersistence
         }
 
         envelope.Attempts = await reader.GetFieldValueAsync<int>(5, cancellation);
+
+        if (!await reader.IsDBNullAsync(8, cancellation))
+        {
+            envelope.KeepUntil = await reader.GetFieldValueAsync<DateTimeOffset>(8, cancellation);
+        }
 
         return envelope;
     }

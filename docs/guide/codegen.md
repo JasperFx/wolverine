@@ -67,6 +67,20 @@ you're quickly starting and stopping your application. The `Auto` mode will writ
 source code for missing types to the `Internal/Generated` folder under your main application 
 project.
 
+::: tip
+If you're using the `Auto` mode in combination with `dotnet watch` you need to disable the watching of
+the `Internal/Generated` folder to avoid application restarts each time codegen writes a new file.
+You can do this by adding the following to the `.csproj` file of your app project.
+
+```xml
+<ItemGroup>
+    <Compile Update="Internal\Generated\**\*.cs" Watch="false" />
+</ItemGroup>
+```
+
+:::
+
+
 At production time, if there is any issue whatsoever with resource utilization, the Wolverine team
 recommends using the `Static` mode where all types are assumed to be pre-generated into what Wolverine
 thinks is the application assembly (more on this in the troubleshooting guide below).
@@ -189,7 +203,7 @@ As of Wolverine 5.0, you now have the ability to better control the usage of the
 code generation to potentially avoid unwanted usage:
 
 <!-- snippet: sample_configuring_ServiceLocationPolicy -->
-<a id='snippet-sample_configuring_servicelocationpolicy'></a>
+<a id='snippet-sample_configuring_ServiceLocationPolicy'></a>
 ```cs
 var builder = Host.CreateApplicationBuilder();
 builder.UseWolverine(opts =>
@@ -211,7 +225,7 @@ builder.UseWolverine(opts =>
     opts.ServiceLocationPolicy = ServiceLocationPolicy.NotAllowed;
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/ServiceLocationUsage.cs#L11-L33' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_servicelocationpolicy' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/ServiceLocationUsage.cs#L11-L33' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_ServiceLocationPolicy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: note
@@ -377,5 +391,5 @@ using var host = await Host.CreateDefaultBuilder()
 
 Which will use:
 
-1. `TypeLoadMode.Auto` when the .NET environment is "Development" and try to write new source code to file
+1. `TypeLoadMode.Dynamic` when the .NET environment is "Development" and dynamically generate types on the first usage
 2. `TypeLoadMode.Static` for other .NET environments for optimized cold start times

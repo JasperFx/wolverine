@@ -93,6 +93,7 @@ internal class EnvelopeHistory
             case MessageEventType.NoRoutes:
             case MessageEventType.MessageFailed:
             case MessageEventType.MessageSucceeded:
+            case MessageEventType.Discarded:
             case MessageEventType.MovedToErrorQueue:
                 // The message is complete
                 foreach (var envelopeRecord in _records) envelopeRecord.IsComplete = true;
@@ -149,6 +150,7 @@ internal class EnvelopeHistory
 
             case MessageEventType.MovedToErrorQueue:
             case MessageEventType.MessageFailed:
+            case MessageEventType.Discarded:
             case MessageEventType.MessageSucceeded:
                 // The message is complete
                 foreach (var envelopeRecord in _records.ToArray().Where(x => x.UniqueNodeId == record.UniqueNodeId))

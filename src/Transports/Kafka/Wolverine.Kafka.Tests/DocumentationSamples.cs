@@ -61,6 +61,25 @@ public class DocumentationSamples
                 opts.PublishMessage<ColorMessage>()
                     .ToKafkaTopic("colors")
                     
+                    // Fine tune how the Kafka Topic is declared by Wolverine
+                    .Specification(spec =>
+                    {
+                        spec.NumPartitions = 6;
+                        spec.ReplicationFactor = 3;
+                    })
+                    
+                    // OR, you can completely control topic creation through this:
+                    .TopicCreation(async (client, topic) =>
+                    {
+                        topic.Specification.NumPartitions = 8;
+                        topic.Specification.ReplicationFactor = 2;
+                        
+                        // You do have full access to the IAdminClient to do
+                        // whatever you need to do
+
+                        await client.CreateTopicsAsync([topic.Specification]);
+                    })
+                    
                     // Override the producer configuration for just this topic
                     .ConfigureProducer(config =>
                     {
@@ -85,6 +104,13 @@ public class DocumentationSamples
                         config.BootstrapServers = "localhost:9092";
 
                         // Other configuration
+                    })
+                    
+                    // Fine tune how the Kafka Topic is declared by Wolverine
+                    .Specification(spec =>
+                    {
+                        spec.NumPartitions = 6;
+                        spec.ReplicationFactor = 3;
                     });
 
                 opts.ListenToKafkaTopic("green")
@@ -95,6 +121,26 @@ public class DocumentationSamples
                 // referenced Kafka topics exist at application start up
                 // time
                 opts.Services.AddResourceSetupOnStartup();
+            }).StartAsync();
+
+        #endregion
+    }
+
+    public static async Task disable_producing()
+    {
+        #region sample_disable_all_kafka_sending
+
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts
+                    .UseKafka("localhost:9092")
+                    
+                    // Tell Wolverine that this application will never
+                    // produce messages to turn off any diagnostics that might
+                    // try to "ping" a topic and result in errors
+                    .ConsumeOnly();
+                
             }).StartAsync();
 
         #endregion

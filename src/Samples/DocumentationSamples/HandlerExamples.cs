@@ -230,7 +230,7 @@ namespace DocumentationSamples
                 .UseWolverine(opts =>
                 {
                     // No automatic discovery of handlers
-                    opts.DisableConventionalDiscovery();
+                    opts.Discovery.DisableConventionalDiscovery();
                 }).StartAsync();
 
             #endregion

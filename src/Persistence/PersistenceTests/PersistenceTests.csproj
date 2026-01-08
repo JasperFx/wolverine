@@ -2,6 +2,7 @@
 
     <PropertyGroup>
         <IsPackable>false</IsPackable>
+        <TargetFrameworks>net8.0;net9.0</TargetFrameworks>
     </PropertyGroup>
 
     <ItemGroup>
@@ -37,6 +38,11 @@
     <ItemGroup Condition="'$(targetframework)' == 'net9.0'">
         <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.0"/>
         <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="9.0.0"/>
+    </ItemGroup>
+
+    <ItemGroup Condition="'$(targetframework)' == 'net10.0'">
+        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.0-rc.2"/>
+        <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.0"/>
     </ItemGroup>
 
     <ItemGroup>

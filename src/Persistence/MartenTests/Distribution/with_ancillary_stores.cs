@@ -3,6 +3,7 @@ using JasperFx.CodeGeneration;
 using JasperFx.Core;
 using JasperFx.Events.Projections;
 using Marten;
+using Marten.Events.Daemon.Coordination;
 using MartenTests.Distribution.Support;
 using MartenTests.Distribution.TripDomain;
 using Microsoft.Extensions.DependencyInjection;
@@ -128,7 +129,13 @@ public class with_ancillary_stores : IAsyncLifetime
 
         return host;
     }
-    
+
+    [Fact]
+    public void projection_coordinators_for_ancillary_stores_are_wolverine_versions()
+    {
+        theOriginalHost.Services.GetRequiredService<IProjectionCoordinator<ITripStore>>()
+            .ShouldBeOfType<WolverineProjectionCoordinator<ITripStore>>();
+    }
     
     [Fact]
     public async Task can_do_the_full_marten_reset_all_data_call()

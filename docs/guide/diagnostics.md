@@ -9,7 +9,7 @@ to utilize this command line integration, you need to apply JasperFx as your com
 sample `Program.cs` file:
 
 <!-- snippet: sample_Quickstart_Program -->
-<a id='snippet-sample_quickstart_program'></a>
+<a id='snippet-sample_Quickstart_Program'></a>
 ```cs
 using JasperFx;
 using Quickstart;
@@ -51,7 +51,7 @@ app.MapGet("/", () => Results.Redirect("/swagger"));
 // your Wolverine application
 return await app.RunJasperFxCommands(args);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Quickstart/Program.cs#L1-L43' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_quickstart_program' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Quickstart/Program.cs#L1-L43' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_Quickstart_Program' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Command Line Description
@@ -166,6 +166,6 @@ public static void using_preview_subscriptions(IMessageBus bus)
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Runtime/Routing/routing_rules.cs#L90-L104' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_preview_subscriptions' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Runtime/Routing/routing_rules.cs#L102-L116' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_preview_subscriptions' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 

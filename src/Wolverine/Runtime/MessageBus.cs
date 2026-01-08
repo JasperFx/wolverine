@@ -119,6 +119,32 @@ public class MessageBus : IMessageBus, IMessageContext
         return Runtime.FindInvoker(message.GetType()).InvokeAsync<T>(message, this, cancellation, timeout);
     }
 
+    public Task InvokeAsync(object message, DeliveryOptions options, CancellationToken cancellation = default,
+        TimeSpan? timeout = default)
+    {
+        if (message == null)
+        {
+            throw new ArgumentNullException(nameof(message));
+        }
+
+        Runtime.AssertHasStarted();
+
+        return Runtime.FindInvoker(message.GetType()).InvokeAsync(message, this, cancellation, timeout, options);
+    }
+
+    public Task<T> InvokeAsync<T>(object message, DeliveryOptions options, CancellationToken cancellation = default,
+        TimeSpan? timeout = default)
+    {
+        if (message == null)
+        {
+            throw new ArgumentNullException(nameof(message));
+        }
+
+        Runtime.AssertHasStarted();
+
+        return Runtime.FindInvoker(message.GetType()).InvokeAsync<T>(message, this, cancellation, timeout, options);
+    }
+
     public Task InvokeForTenantAsync(string tenantId, object message, CancellationToken cancellation = default,
         TimeSpan? timeout = default)
     {
@@ -129,7 +155,7 @@ public class MessageBus : IMessageBus, IMessageContext
 
         Runtime.AssertHasStarted();
 
-        return Runtime.FindInvoker(message.GetType()).InvokeAsync(message, this, cancellation, timeout, tenantId);
+        return Runtime.FindInvoker(message.GetType()).InvokeAsync(message, this, cancellation, timeout, new DeliveryOptions{TenantId = tenantId});
     }
 
     public Task<T> InvokeForTenantAsync<T>(string tenantId, object message, CancellationToken cancellation = default,
@@ -142,7 +168,7 @@ public class MessageBus : IMessageBus, IMessageContext
 
         Runtime.AssertHasStarted();
 
-        return Runtime.FindInvoker(message.GetType()).InvokeAsync<T>(message, this, cancellation, timeout, tenantId);
+        return Runtime.FindInvoker(message.GetType()).InvokeAsync<T>(message, this, cancellation, timeout, new DeliveryOptions{TenantId = tenantId});
     }
 
     public IReadOnlyList<Envelope> PreviewSubscriptions(object message)

@@ -288,6 +288,12 @@ public class DocumentationSamples
                 // so that the durability agent can recover it and force
                 // it to be sent
                 opts.Durability.OutboxStaleTime = 1.Hours();
+                
+                // Same for the inbox, but it's configured independently
+                // This should *never* be necessary and the Wolverine
+                // team has no clue why this could ever happen and a message
+                // could get "stuck", but yet, here this is:
+                opts.Durability.InboxStaleTime = 10.Minutes();
             }).StartAsync();
 
         #endregion

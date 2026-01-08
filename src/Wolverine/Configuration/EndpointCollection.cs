@@ -200,7 +200,7 @@ public class EndpointCollection : IEndpointCollection
         }
 
         return allEndpoints
-            .Where(x => x is { IsListener: true, ListenerScope: ListenerScope.Exclusive })
+            .Where(x => x is { IsListener: true, ListenerScope: ListenerScope.Exclusive } and not LocalQueue)
             .ToList();
     }
 
@@ -356,7 +356,7 @@ public class EndpointCollection : IEndpointCollection
     public async Task DrainAsync()
     {
         // Drain the listeners
-        foreach (var listener in ActiveListeners())
+        foreach (var listener in ActiveListeners().ToArray())
         {
             try
             {

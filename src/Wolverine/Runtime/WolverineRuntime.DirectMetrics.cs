@@ -29,7 +29,12 @@ public partial class WolverineRuntime
         {
             _runtime.LogException(ex, correlationId, message);
         }
-        
+
+        public void LogStatus(string message)
+        {
+            _runtime.ActiveSession?.LogStatus(message);
+        }
+
         public ILogger Logger { get; }
 
         public void Sent(Envelope envelope)

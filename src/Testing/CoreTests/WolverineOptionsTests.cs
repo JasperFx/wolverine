@@ -28,10 +28,22 @@ public class WolverineOptionsTests
     }
 
     [Fact]
+    public void default_dead_letter_queue_behavior_is_discard()
+    {
+        new WolverineOptions().UnknownMessageBehavior.ShouldBe(UnknownMessageBehavior.LogOnly);
+    }
+
+    [Fact]
     public void default_service_location_policy_should_be_allowed_by_warn()
     {
         new WolverineOptions().ServiceLocationPolicy.ShouldBe(ServiceLocationPolicy.AllowedButWarn);
     }
+
+    [Fact]
+    public void inbox_partitioning_is_off_by_default()
+    {
+        new WolverineOptions().Durability.EnableInboxPartitioning.ShouldBeFalse();
+    }       
     
     [Fact]
     public void failure_acks_are_NOT_enabled_by_default()

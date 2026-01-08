@@ -25,4 +25,5 @@ public static class EnvelopeConstants
     public const string GroupIdKey = "group-id";
     public const string PartitionKey = "partition-key";
     public const string TopicNameKey = "topic-name";
+    public const string KeepUntilKey = "keep-until";
 }
