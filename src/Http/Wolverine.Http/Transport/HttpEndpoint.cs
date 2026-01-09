@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
@@ -20,6 +21,11 @@ public class HttpEndpoint : Endpoint
         return ValueTask.FromResult<IListener>(new NulloListener(Uri));
     }
 
+    public JsonSerializerOptions SerializerOptions { get; set; } = new JsonSerializerOptions
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        WriteIndented = false
+    };
     protected override ISender CreateSender(IWolverineRuntime runtime)
     {
         return Mode == EndpointMode.Inline
