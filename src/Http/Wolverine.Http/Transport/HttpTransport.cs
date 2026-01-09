@@ -16,6 +16,8 @@ public class HttpTransport : TransportBase<HttpEndpoint>
 
     public const string EnvelopeContentType = "binary/wolverine-envelope";
     public const string EnvelopeBatchContentType = "binary/wolverine-envelopes";
+    public const string CloudEventsContentType = "application/cloudevents+json";
+    public const string CloudEventsBatchContentType = "application/cloudevents-batch+json";
 
     protected override IEnumerable<HttpEndpoint> endpoints()
     {

@@ -1,3 +1,4 @@
+using System.Text.Json;
 using JasperFx.Core;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -5,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using Wolverine.ErrorHandling;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
+using Wolverine.Runtime.Interop;
 using Wolverine.Runtime.Serialization;
 using Wolverine.Runtime.WorkerQueues;
 using Wolverine.Transports;
@@ -67,11 +69,12 @@ internal class HttpTransportExecutor
         return Results.Ok();
     }
 
-    public async Task<IResult> InvokeAsync(HttpContext httpContext)
+    public async Task<IResult> InvokeAsync(HttpContext httpContext, JsonSerializerOptions options)
     {
         if (httpContext.Request.Headers.TryGetValue("content-type", out var values))
         {
-            if (values[0] != HttpTransport.EnvelopeContentType)
+            if (values[0] != HttpTransport.EnvelopeContentType &&
+                values[0] != "application/cloudevents+json")
             {
                 return Results.StatusCode(415);
             }
@@ -80,9 +83,20 @@ internal class HttpTransportExecutor
         {
             return Results.StatusCode(415);
         }
-        
-        var data = await httpContext.Request.Body.ReadAllBytesAsync();
-        var envelope = EnvelopeSerializer.Deserialize(data);
+
+        Envelope? envelope = null;
+        if (values[0] == HttpTransport.EnvelopeContentType)
+        {
+            var data = await httpContext.Request.Body.ReadAllBytesAsync(); envelope = EnvelopeSerializer.Deserialize(data);
+        }
+        else
+        {
+            var cloudEventMapper = new CloudEventsMapper(_runtime.Handlers, options);
+            var data = await httpContext.Request.Body.ReadAllTextAsync();
+            envelope = new Envelope();
+            cloudEventMapper.MapIncoming(envelope, data);
+        }
+
         envelope.Destination = $"http://localhost{httpContext.Request.Path}".ToUri();
         envelope.DoNotCascadeResponse = true;
         envelope.Serializer = _runtime.Options.FindSerializer(envelope.ContentType);
