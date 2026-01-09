@@ -105,16 +105,8 @@ public class PubsubEndpoint : Endpoint<IPubsubEnvelopeMapper, PubsubEnvelopeMapp
                 MessageRetentionDuration = Server.Topic.Options.MessageRetentionDuration
             });
         }
-        catch (RpcException ex)
+        catch (RpcException ex) when (ex.StatusCode == StatusCode.AlreadyExists)
         {
-            if (ex.StatusCode != StatusCode.AlreadyExists)
-        {
-                logger.LogError(ex, "{Uri}: Error trying to initialize Google Cloud Platform Pub/Sub topic \"{Topic}\"",
-                    Uri, Server.Topic.Name);
-
-                throw;
-            }
-
             logger.LogInformation("{Uri}: Google Cloud Platform Pub/Sub topic \"{Topic}\" already exists", Uri,
                 Server.Topic.Name);
         }
@@ -173,17 +165,8 @@ public class PubsubEndpoint : Endpoint<IPubsubEnvelopeMapper, PubsubEnvelopeMapp
 
             await _transport.SubscriberApiClient.CreateSubscriptionAsync(request);
         }
-        catch (RpcException ex)
+        catch (RpcException ex) when (ex.StatusCode == StatusCode.AlreadyExists)
         {
-            if (ex.StatusCode != StatusCode.AlreadyExists)
-        {
-                logger.LogError(ex,
-                    "{Uri}: Error trying to initialize Google Cloud Platform Pub/Sub subscription \"{Subscription}\" to topic \"{Topic}\"",
-                    Uri, Server.Subscription.Name, Server.Topic.Name);
-
-                throw;
-            }
-
             logger.LogInformation("{Uri}: Google Cloud Platform Pub/Sub subscription \"{Subscription}\" already exists",
                 Uri, Server.Subscription.Name);
         }
