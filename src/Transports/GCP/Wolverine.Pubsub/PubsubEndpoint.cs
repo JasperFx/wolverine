@@ -50,9 +50,8 @@ public class PubsubEndpoint : Endpoint<IPubsubEnvelopeMapper, PubsubEnvelopeMapp
         Server.Topic.Name = new TopicName(transport.ProjectId, topicName);
         Server.Subscription.Name = new SubscriptionName(
             transport.ProjectId,
-            _transport.IdentifierPrefix.IsNotEmpty() &&
-            topicName.StartsWith($"{_transport.IdentifierPrefix}.")
-                ? _transport.MaybeCorrectName(topicName.Substring(_transport.IdentifierPrefix.Length + 1))
+            _transport.IdentifierPrefix.IsNotEmpty() && !topicName.StartsWith($"{_transport.IdentifierPrefix}.")
+                ? _transport.MaybeCorrectName(topicName)
                 : topicName
         );
         EndpointName = topicName;
