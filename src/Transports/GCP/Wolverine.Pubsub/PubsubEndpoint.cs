@@ -18,6 +18,7 @@ public class PubsubEndpoint : Endpoint<IPubsubEnvelopeMapper, PubsubEnvelopeMapp
 
     private bool _hasInitialized;
     public PubsubClientOptions Client = new();
+    internal bool IsExistingSubscription = false;
 
     protected override PubsubEnvelopeMapper buildMapper(IWolverineRuntime runtime)
     {
@@ -69,6 +70,33 @@ public class PubsubEndpoint : Endpoint<IPubsubEnvelopeMapper, PubsubEnvelopeMapp
             throw new WolverinePubsubTransportNotConnectedException();
         }
 
+        if (IsExistingSubscription)
+        {
+            if (!IsListener && !IsDeadLetter)
+            {
+                return;
+            }
+
+            if (_transport.SubscriberApiClient is null)
+            {
+                throw new WolverinePubsubTransportNotConnectedException();
+            }
+
+            try
+            {
+                await _transport.SubscriberApiClient.GetSubscriptionAsync(Server.Subscription.Name);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "{Uri}: Error trying to verify Google Cloud Platform Pub/Sub subscription \"{Subscription}\"",
+                    Uri, Server.Subscription.Name);
+
+                throw;
+            }
+
+            return;
+        }
+
         try
         {
             await _transport.PublisherApiClient.CreateTopicAsync(new Topic
@@ -80,7 +108,7 @@ public class PubsubEndpoint : Endpoint<IPubsubEnvelopeMapper, PubsubEnvelopeMapp
         catch (RpcException ex)
         {
             if (ex.StatusCode != StatusCode.AlreadyExists)
-            {
+        {
                 logger.LogError(ex, "{Uri}: Error trying to initialize Google Cloud Platform Pub/Sub topic \"{Topic}\"",
                     Uri, Server.Topic.Name);
 
@@ -148,7 +176,7 @@ public class PubsubEndpoint : Endpoint<IPubsubEnvelopeMapper, PubsubEnvelopeMapp
         catch (RpcException ex)
         {
             if (ex.StatusCode != StatusCode.AlreadyExists)
-            {
+        {
                 logger.LogError(ex,
                     "{Uri}: Error trying to initialize Google Cloud Platform Pub/Sub subscription \"{Subscription}\" to topic \"{Topic}\"",
                     Uri, Server.Subscription.Name, Server.Topic.Name);
@@ -181,7 +209,10 @@ public class PubsubEndpoint : Endpoint<IPubsubEnvelopeMapper, PubsubEnvelopeMapp
 
         try
         {
-            await _transport.PublisherApiClient.GetTopicAsync(Server.Topic.Name);
+            if (!IsExistingSubscription)
+            {
+                await _transport.PublisherApiClient.GetTopicAsync(Server.Topic.Name);
+            }
 
             if (IsListener || IsDeadLetter)
             {
@@ -239,6 +270,8 @@ public class PubsubEndpoint : Endpoint<IPubsubEnvelopeMapper, PubsubEnvelopeMapp
 
     public async ValueTask TeardownAsync(ILogger logger)
     {
+        if (IsExistingSubscription) { return; }
+
         if (_transport.SubscriberApiClient is not null && IsListener)
         {
             await _transport.SubscriberApiClient.DeleteSubscriptionAsync(Server.Subscription.Name);
@@ -252,6 +285,10 @@ public class PubsubEndpoint : Endpoint<IPubsubEnvelopeMapper, PubsubEnvelopeMapp
 
     public override async ValueTask InitializeAsync(ILogger logger)
     {
+        if (IsExistingSubscription)
+        {
+            _hasInitialized = true;
+        }
         if (_hasInitialized)
         {
             return;
