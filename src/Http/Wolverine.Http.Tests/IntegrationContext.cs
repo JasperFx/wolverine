@@ -5,7 +5,6 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.OpenApi.Models;
-using JasperFx;
 using JasperFx.CommandLine;
 using Shouldly;
 using Swashbuckle.AspNetCore.Swagger;
@@ -30,7 +29,7 @@ public class AppFixture : IAsyncLifetime
         // This is bootstrapping the actual application using
         // its implied Program.Main() set up
         // For non-Alba users, this is using IWebHostBuilder 
-        Host = await AlbaHost.For<Program>(x =>
+        Host = await AlbaHost.For<WolverineWebApi.Program>(x =>
         {
             x.ConfigureServices(services =>
             {

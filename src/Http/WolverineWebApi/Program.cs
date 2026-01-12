@@ -1,18 +1,15 @@
 using IntegrationTests;
+using JasperFx;
 using JasperFx.CodeGeneration;
 using JasperFx.Core;
-using Marten;
-using Marten.Events;
-using Marten.Events.Projections;
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http.HttpResults;
-using Microsoft.EntityFrameworkCore;
-using JasperFx;
 using JasperFx.Events;
 using JasperFx.Events.Projections;
 using JasperFx.MultiTenancy;
 using JasperFx.Resources;
-using Marten.Linq.CreatedAt;
+using Marten;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.EntityFrameworkCore;
 using Wolverine;
 using Wolverine.AdminApi;
 using Wolverine.EntityFrameworkCore;
@@ -32,266 +29,279 @@ using WolverineWebApi.Things;
 using WolverineWebApi.WebSockets;
 using WolverineWebApiFSharp;
 
-#region sample_adding_http_services
+namespace WolverineWebApi;
 
-var builder = WebApplication.CreateBuilder(args);
+public class Program
+{
+    public static async Task<int> Main(string[] args)
+    {
+        #region sample_adding_http_services
+
+        var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 
 // Necessary services for Wolverine HTTP
 // And don't worry, if you forget this, Wolverine
 // will assert this is missing on startup:(
-builder.Services.AddWolverineHttp();
+        builder.Services.AddWolverineHttp();
 
-#endregion
+        #endregion
 
 
-builder.Services.AddLogging();
-builder.Services.AddEndpointsApiExplorer();
+        builder.Services.AddLogging();
+        builder.Services.AddEndpointsApiExplorer();
 
-#region sample_register_custom_swashbuckle_filter
+        #region sample_register_custom_swashbuckle_filter
 
-builder.Services.AddSwaggerGen(x =>
-{
-    x.OperationFilter<WolverineOperationFilter>();
-});
+        builder.Services.AddSwaggerGen(x => { x.OperationFilter<WolverineOperationFilter>(); });
 
-#endregion
+        #endregion
 
-builder.Services.AddSignalR();
-builder.Services.AddSingleton<Broadcaster>();
+        builder.Services.AddSignalR();
+        builder.Services.AddSingleton<Broadcaster>();
 
-builder.Services.AddAuthorization();
+        builder.Services.AddAuthorization();
 
-builder.Services.AddDbContextWithWolverineIntegration<ItemsDbContext>(
-    x => x.UseNpgsql(Servers.PostgresConnectionString));
+        builder.Services.AddDbContextWithWolverineIntegration<ItemsDbContext>(x =>
+            x.UseNpgsql(Servers.PostgresConnectionString));
 
-builder.Services.AddKeyedSingleton<IThing, RedThing>("Red");
-builder.Services.AddKeyedScoped<IThing, BlueThing>("Blue");
-builder.Services.AddKeyedTransient<IThing, GreenThing>("Green");
+        builder.Services.AddKeyedSingleton<IThing, RedThing>("Red");
+        builder.Services.AddKeyedScoped<IThing, BlueThing>("Blue");
+        builder.Services.AddKeyedTransient<IThing, GreenThing>("Green");
 
-builder.Services.AddMarten(opts =>
-{
-    opts.Connection(Servers.PostgresConnectionString);
-    opts.DatabaseSchemaName = "http";
-    opts.DisableNpgsqlLogging = true;
+        builder.Services.AddMarten(opts =>
+        {
+            opts.Connection(Servers.PostgresConnectionString);
+            opts.DatabaseSchemaName = "http";
+            opts.DisableNpgsqlLogging = true;
 
-    // Use this setting to get the very best performance out
-    // of the UpdatedAggregate workflow and aggregate handler
-    // workflow over all
-    opts.Events.UseIdentityMapForAggregates = true;
-}).IntegrateWithWolverine();
+            // Use this setting to get the very best performance out
+            // of the UpdatedAggregate workflow and aggregate handler
+            // workflow over all
+            opts.Events.UseIdentityMapForAggregates = true;
+        }).IntegrateWithWolverine();
 
-builder.Services.AddMartenStore<IThingStore>(options =>
-{
-    options.Connection(Servers.PostgresConnectionString);
-    options.DatabaseSchemaName        = "things";
+        builder.Services.AddMartenStore<IThingStore>(options =>
+        {
+            options.Connection(Servers.PostgresConnectionString);
+            options.DatabaseSchemaName = "things";
 
-    // Configure the event store to use strings as identifiers to support resource names.
-    options.Events.StreamIdentity = StreamIdentity.AsString;
+            // Configure the event store to use strings as identifiers to support resource names.
+            options.Events.StreamIdentity = StreamIdentity.AsString;
 
-    // Add projections
-    options.Projections.Add<ThingProjection>(ProjectionLifecycle.Inline);
-}).IntegrateWithWolverine();
+            // Add projections
+            options.Projections.Add<ThingProjection>(ProjectionLifecycle.Inline);
+        }).IntegrateWithWolverine();
 
-builder.Services.AddResourceSetupOnStartup();
+        builder.Services.AddResourceSetupOnStartup();
 
-builder.Services.AddSingleton<Recorder>();
+        builder.Services.AddSingleton<Recorder>();
 
 // Need this.
-builder.Host.UseWolverine(opts =>
-{
-    opts.Durability.MessageStorageSchemaName = "wolverine";
-    
-    // I'm speeding this up a lot for faster tests
-    opts.Durability.ScheduledJobPollingTime = 250.Milliseconds(); 
-    
-    // Set up Entity Framework Core as the support
-    // for Wolverine's transactional middleware
-    opts.UseEntityFrameworkCoreTransactions();
+        builder.Host.UseWolverine(opts =>
+        {
+            opts.Durability.MessageStorageSchemaName = "wolverine";
 
-    opts.Durability.Mode = DurabilityMode.Solo;
+            // I'm speeding this up a lot for faster tests
+            opts.Durability.ScheduledJobPollingTime = 250.Milliseconds();
 
-    // Other Wolverine configuration...
-    opts.Policies.AutoApplyTransactions();
-    opts.Policies.UseDurableLocalQueues();
-    
-    opts.Policies.OnExceptionOfType(typeof(AlwaysDeadLetterException)).MoveToErrorQueue();
+            // Set up Entity Framework Core as the support
+            // for Wolverine's transactional middleware
+            opts.UseEntityFrameworkCoreTransactions();
 
-    opts.UseFluentValidation();
-    opts.Discovery.IncludeAssembly(typeof(CreateCustomer2).Assembly);
-    opts.Discovery.IncludeAssembly(typeof(DiscoverFSharp).Assembly);
+            opts.Durability.Mode = DurabilityMode.Solo;
 
-    opts.Services.CritterStackDefaults(x =>
-    {
-        x.Production.GeneratedCodeMode = TypeLoadMode.Static;
-        x.Production.ResourceAutoCreate = AutoCreate.None;
+            // Other Wolverine configuration...
+            opts.Policies.AutoApplyTransactions();
+            opts.Policies.UseDurableLocalQueues();
 
-        // These are defaults, but showing for completeness
-        x.Development.GeneratedCodeMode = TypeLoadMode.Dynamic;
-        x.Development.ResourceAutoCreate = AutoCreate.CreateOrUpdate;
-    });
-    
-    opts.Policies.Add<BroadcastClientMessages>();
-});
+            opts.Policies.OnExceptionOfType(typeof(AlwaysDeadLetterException)).MoveToErrorQueue();
+
+            opts.UseFluentValidation();
+            opts.Discovery.IncludeAssembly(typeof(CreateCustomer2).Assembly);
+            opts.Discovery.IncludeAssembly(typeof(DiscoverFSharp).Assembly);
+
+            opts.Services.CritterStackDefaults(x =>
+            {
+                x.Production.GeneratedCodeMode = TypeLoadMode.Static;
+                x.Production.ResourceAutoCreate = AutoCreate.None;
+
+                // These are defaults, but showing for completeness
+                x.Development.GeneratedCodeMode = TypeLoadMode.Dynamic;
+                x.Development.ResourceAutoCreate = AutoCreate.CreateOrUpdate;
+            });
+
+            opts.Policies.Add<BroadcastClientMessages>();
+        });
 
 // These settings would apply to *both* Marten and Wolverine
 // if you happen to be using both
-builder.Services.CritterStackDefaults(x =>
-{
-    x.ServiceName = "MyService";
-    x.TenantIdStyle = TenantIdStyle.ForceLowerCase;
-    
-    // You probably won't have to configure this often,
-    // but if you do, this applies to both tools
-    x.ApplicationAssembly = typeof(Program).Assembly;
-    
-    x.Production.GeneratedCodeMode = TypeLoadMode.Static;
-    x.Production.ResourceAutoCreate = AutoCreate.None;
+        builder.Services.CritterStackDefaults(x =>
+        {
+            x.ServiceName = "MyService";
+            x.TenantIdStyle = TenantIdStyle.ForceLowerCase;
 
-    // These are defaults, but showing for completeness
-    x.Development.GeneratedCodeMode = TypeLoadMode.Dynamic;
-    x.Development.ResourceAutoCreate = AutoCreate.CreateOrUpdate;
-});
+            // You probably won't have to configure this often,
+            // but if you do, this applies to both tools
+            x.ApplicationAssembly = typeof(Program).Assembly;
 
-builder.Services.ConfigureSystemTextJsonForWolverineOrMinimalApi(o =>
-{
-    // Do whatever you want here to customize the JSON
-    // serialization
-    o.SerializerOptions.WriteIndented = true;
-});
+            x.Production.GeneratedCodeMode = TypeLoadMode.Static;
+            x.Production.ResourceAutoCreate = AutoCreate.None;
 
-#region sample_calling_ApplyAsyncWolverineExtensions
+            // These are defaults, but showing for completeness
+            x.Development.GeneratedCodeMode = TypeLoadMode.Dynamic;
+            x.Development.ResourceAutoCreate = AutoCreate.CreateOrUpdate;
+        });
 
-var app = builder.Build();
+        builder.Services.ConfigureSystemTextJsonForWolverineOrMinimalApi(o =>
+        {
+            // Do whatever you want here to customize the JSON
+            // serialization
+            o.SerializerOptions.WriteIndented = true;
+        });
+
+        #region sample_calling_ApplyAsyncWolverineExtensions
+
+        var app = builder.Build();
 
 // In order for async Wolverine extensions to apply to Wolverine.HTTP configuration,
 // you will need to explicitly call this *before* MapWolverineEndpoints()
-await app.Services.ApplyAsyncWolverineExtensions();
+        await app.Services.ApplyAsyncWolverineExtensions();
 
-#endregion
+        #endregion
 
 //Force the default culture to not be en-US to ensure code is culture agnostic
-var supportedCultures = new[] { "fr-FR", "en-US" };
-var localizationOptions = new RequestLocalizationOptions().SetDefaultCulture(supportedCultures[0])
-    .AddSupportedCultures(supportedCultures)
-    .AddSupportedUICultures(supportedCultures);
+        var supportedCultures = new[] { "fr-FR", "en-US" };
+        var localizationOptions = new RequestLocalizationOptions().SetDefaultCulture(supportedCultures[0])
+            .AddSupportedCultures(supportedCultures)
+            .AddSupportedUICultures(supportedCultures);
 
-app.UseRequestLocalization(localizationOptions);
+        app.UseRequestLocalization(localizationOptions);
 
 // Configure the HTTP request pipeline.
-app.UseSwagger();
-app.UseSwaggerUI();
+        app.UseSwagger();
+        app.UseSwaggerUI();
 
-app.UseAuthorization();
+        app.UseAuthorization();
 
 // These routes are for doing
-OpenApiEndpoints.BuildComparisonRoutes(app);
+        OpenApiEndpoints.BuildComparisonRoutes(app);
 
 
-app.MapGet("/orders/{orderId}", [Authorize] Results<BadRequest, Ok<TinyOrder>>(int orderId)
-    => orderId > 999 ? TypedResults.BadRequest() : TypedResults.Ok(new TinyOrder(orderId)));
+        app.MapGet("/orders/{orderId}", [Authorize] Results<BadRequest, Ok<TinyOrder>> (int orderId)
+            => orderId > 999 ? TypedResults.BadRequest() : TypedResults.Ok(new TinyOrder(orderId)));
 
-app.MapPost("/orders", Results<BadRequest, Ok<TinyOrder>>(CreateOrder command)
-    => command.OrderId > 999 ? TypedResults.BadRequest() : TypedResults.Ok(new TinyOrder(command.OrderId)));
+        app.MapPost("/orders", Results<BadRequest, Ok<TinyOrder>> (CreateOrder command)
+            => command.OrderId > 999 ? TypedResults.BadRequest() : TypedResults.Ok(new TinyOrder(command.OrderId)));
 
-app.MapHub<BroadcastHub>("/updates");
+        app.MapHub<BroadcastHub>("/updates");
 
-app.MapWolverineAdminApiEndpoints();
+        app.MapWolverineAdminApiEndpoints();
 
-#region sample_register_dead_letter_endpoints
-app.MapDeadLettersEndpoints()
+        #region sample_register_dead_letter_endpoints
 
-    // It's a Minimal API endpoint group,
-    // so you can add whatever authorization
-    // or OpenAPI metadata configuration you need
-    // for just these endpoints
-    //.RequireAuthorization("Admin")
+        app.MapDeadLettersEndpoints()
 
-    ;
-#endregion
+            // It's a Minimal API endpoint group,
+            // so you can add whatever authorization
+            // or OpenAPI metadata configuration you need
+            // for just these endpoints
+            //.RequireAuthorization("Admin")
+            ;
 
-#region sample_using_configure_endpoints
+        #endregion
 
-app.MapWolverineEndpoints(opts =>
-{
-    // This is strictly to test the endpoint policy
+        #region sample_using_configure_endpoints
 
-    opts.ConfigureEndpoints(httpChain =>
-    {
-        // The HttpChain model is a configuration time
-        // model of how the HTTP endpoint handles requests
+        app.MapWolverineEndpoints(opts =>
+        {
+            // This is strictly to test the endpoint policy
 
-        // This adds metadata for OpenAPI
-        httpChain.WithMetadata(new CustomMetadata());
-    });
+            opts.ConfigureEndpoints(httpChain =>
+            {
+                // The HttpChain model is a configuration time
+                // model of how the HTTP endpoint handles requests
 
-    // more configuration for HTTP...
+                // This adds metadata for OpenAPI
+                httpChain.WithMetadata(new CustomMetadata());
+            });
 
-    // Opting into the Fluent Validation middleware from
-    // Wolverine.Http.FluentValidation
-    opts.UseFluentValidationProblemDetailMiddleware();
-    
-    // Or instead, you could use Data Annotations that are built
-    // into the Wolverine.HTTP library
-    opts.UseDataAnnotationsValidationProblemDetailMiddleware();
+            // more configuration for HTTP...
 
-    #endregion
+            // Opting into the Fluent Validation middleware from
+            // Wolverine.Http.FluentValidation
+            opts.UseFluentValidationProblemDetailMiddleware();
 
-    // Only want this middleware on endpoints on this one handler
-    opts.AddMiddleware(typeof(BeforeAndAfterMiddleware),
-        chain => chain.Method.HandlerType == typeof(MiddlewareEndpoints));
-    opts.AddMiddleware(typeof(LoadTodoMiddleware),
-        chain => chain.Method.HandlerType == typeof(UpdateEndpointWithMiddleware));
-    opts.AddPolicy<LoadTodoPolicy>();
+            // Or instead, you could use Data Annotations that are built
+            // into the Wolverine.HTTP library
+            opts.UseDataAnnotationsValidationProblemDetailMiddleware();
 
-    #region sample_user_marten_compiled_query_policy
-    opts.UseMartenCompiledQueryResultPolicy();
-#endregion
+            #endregion
 
-#region sample_register_http_middleware_by_type
-    opts.AddMiddlewareByMessageType(typeof(FakeAuthenticationMiddleware));
-    opts.AddMiddlewareByMessageType(typeof(CanShipOrderMiddleWare));
-#endregion
+            // Only want this middleware on endpoints on this one handler
+            opts.AddMiddleware(typeof(BeforeAndAfterMiddleware),
+                chain => chain.Method.HandlerType == typeof(MiddlewareEndpoints));
+            opts.AddMiddleware(typeof(LoadTodoMiddleware),
+                chain => chain.Method.HandlerType == typeof(UpdateEndpointWithMiddleware));
+            opts.AddPolicy<LoadTodoPolicy>();
 
-#region sample_register_resource_writer_policy
-    opts.AddResourceWriterPolicy<CustomResourceWriterPolicy>();
-#endregion
+            #region sample_user_marten_compiled_query_policy
 
-    // Publish messages coming from
-    opts.PublishMessage<HttpMessage1>(HttpMethod.Post, "/publish/message1").WithTags("messages");
-    opts.PublishMessage<HttpMessage2>("/publish/message2").WithTags("messages");
-    opts.SendMessage<HttpMessage5>(HttpMethod.Post, "/send/message5").WithTags("messages");
-    opts.SendMessage<HttpMessage6>("/send/message6").WithTags("messages");
-    opts.SendMessage<MessageThatAlwaysGoesToDeadLetter>(HttpMethod.Post, "/send/always-dead-letter").WithTags("messages");
+            opts.UseMartenCompiledQueryResultPolicy();
 
-    opts.AddPolicy<StreamCollisionExceptionPolicy>();
+            #endregion
 
-    opts.AddPolicy<FrameRearrangeMiddleware.HttpPolicy>();
+            #region sample_register_http_middleware_by_type
 
-    #region sample_adding_custom_parameter_handling
+            opts.AddMiddlewareByMessageType(typeof(FakeAuthenticationMiddleware));
+            opts.AddMiddlewareByMessageType(typeof(CanShipOrderMiddleWare));
 
-    // Customizing parameter handling
-    opts.AddParameterHandlingStrategy<NowParameterStrategy>();
+            #endregion
 
-    #endregion
-});
+            #region sample_register_resource_writer_policy
+
+            opts.AddResourceWriterPolicy<CustomResourceWriterPolicy>();
+
+            #endregion
+
+            // Publish messages coming from
+            opts.PublishMessage<HttpMessage1>(HttpMethod.Post, "/publish/message1").WithTags("messages");
+            opts.PublishMessage<HttpMessage2>("/publish/message2").WithTags("messages");
+            opts.SendMessage<HttpMessage5>(HttpMethod.Post, "/send/message5").WithTags("messages");
+            opts.SendMessage<HttpMessage6>("/send/message6").WithTags("messages");
+            opts.SendMessage<MessageThatAlwaysGoesToDeadLetter>(HttpMethod.Post, "/send/always-dead-letter")
+                .WithTags("messages");
+
+            opts.AddPolicy<StreamCollisionExceptionPolicy>();
+
+            opts.AddPolicy<FrameRearrangeMiddleware.HttpPolicy>();
+
+            #region sample_adding_custom_parameter_handling
+
+            // Customizing parameter handling
+            opts.AddParameterHandlingStrategy<NowParameterStrategy>();
+
+            #endregion
+        });
 
 // TODO -- consider making this an option within UseWolverine????
-app.MapWolverineHttpTransportEndpoints();
+        app.MapWolverineHttpTransportEndpoints();
 
-#region sample_optimized_mediator_usage
+        #region sample_optimized_mediator_usage
 
 // Functional equivalent to MapPost(pattern, (command, IMessageBus) => bus.Invoke(command))
-app.MapPostToWolverine<HttpMessage1>("/wolverine");
-app.MapPutToWolverine<HttpMessage2>("/wolverine");
-app.MapDeleteToWolverine<HttpMessage3>("/wolverine");
+        app.MapPostToWolverine<HttpMessage1>("/wolverine");
+        app.MapPutToWolverine<HttpMessage2>("/wolverine");
+        app.MapDeleteToWolverine<HttpMessage3>("/wolverine");
 
 // Functional equivalent to MapPost(pattern, (command, IMessageBus) => bus.Invoke<IResponse>(command))
-app.MapPostToWolverine<CustomRequest, CustomResponse>("/wolverine/request");
-app.MapDeleteToWolverine<CustomRequest, CustomResponse>("/wolverine/request");
-app.MapPutToWolverine<CustomRequest, CustomResponse>("/wolverine/request");
+        app.MapPostToWolverine<CustomRequest, CustomResponse>("/wolverine/request");
+        app.MapDeleteToWolverine<CustomRequest, CustomResponse>("/wolverine/request");
+        app.MapPutToWolverine<CustomRequest, CustomResponse>("/wolverine/request");
 
-    #endregion
+        #endregion
 
-await app.RunJasperFxCommands(args);
+        return await app.RunJasperFxCommands(args);
+    }
+}
