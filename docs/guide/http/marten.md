@@ -344,6 +344,17 @@ public static (UpdatedAggregate, Events) ConfirmDifferent(ConfirmOrder command, 
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L298-L312' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_returning_updated_aggregate_as_response_from_http_endpoint' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+If you should happen to have a message handler or HTTP endpoint signature that uses multiple event streams,
+but you want the `UpdatedAggregate` to **only** apply to one of the streams, you can use the `UpdatedAggregate<T>`
+to tip off Wolverine about that like in this sample:
+
+snippet: sample_MakePurchaseHandler
+
+::: info
+Wolverine can't (yet) handle a signature with multiple event streams of the same aggregate type and
+`UpdatedAggregate`. 
+:::
+
 ## Reading the Latest Version of an Aggregate
 
 ::: info
