@@ -18,6 +18,18 @@ public static class TcpTransportConfigurationExtensions
         endpoint.IsListener = true;
         return new ListenerConfiguration(endpoint);
     }
+    
+    /// <summary>
+    ///     Directs the application to listen at the designated port in a
+    ///     fast, but non-durable way
+    /// </summary>
+    /// <param name="port"></param>
+    public static IListenerConfiguration ListenAtPort(this WolverineOptions options, int port, string hostName)
+    {
+        var endpoint = options.Transports.GetOrCreate<TcpTransport>().GetOrCreateEndpoint(TcpEndpoint.ToUri(port, hostName));
+        endpoint.IsListener = true;
+        return new ListenerConfiguration(endpoint);
+    }
 
     /// <summary>
     ///     Publish the designated message types using Wolverine's lightweight
