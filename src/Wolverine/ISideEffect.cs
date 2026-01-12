@@ -83,7 +83,7 @@ internal class SideEffectPolicy : IChainPolicy
 
     private static void applySideEffectExecution(Variable effect, IChain chain)
     {
-        if (effect.GetType() == typeof(ISideEffect))
+        if (effect.VariableType == typeof(ISideEffect))
         {
             throw new InvalidOperationException($"Return the concrete type of ISideEffect so that Wolverine can 'know' how to call into your side effect and not ISideEffect itself");
         }
