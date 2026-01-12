@@ -294,6 +294,13 @@ public sealed partial class WolverineOptions
     ///     to latch all outgoing message sending
     /// </summary>
     internal bool ExternalTransportsAreStubbed { get; set; }
+    
+    /// <summary>
+    /// Should all listeners for external transports be disabled in
+    /// this process? You may want to use this for command line applications
+    /// that publish outbound messages
+    /// </summary>
+    public bool DisableAllExternalListeners { get; set; }
 
     [IgnoreDescription]
     internal LocalTransport LocalRouting => Transports.GetOrCreate<LocalTransport>();
