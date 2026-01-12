@@ -528,9 +528,7 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         if (!_hasConfiguredFrames)
         {
             _hasConfiguredFrames = true;
-
-            applyAttributesAndConfigureMethods(rules, container);
-
+            
             foreach (var attribute in MessageType
                          .GetCustomAttributes(typeof(ModifyHandlerChainAttribute))
                          .OfType<ModifyHandlerChainAttribute>()) attribute.Modify(this, rules);
@@ -538,8 +536,13 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
             foreach (var attribute in MessageType.GetCustomAttributes(typeof(ModifyChainAttribute))
                          .OfType<ModifyChainAttribute>()) attribute.Modify(this, rules, container);
 
+            // THIS has to go before the baseline attributes and configure
             foreach (var handlerCall in HandlerCalls())
                 WolverineParameterAttribute.TryApply(handlerCall, container, rules, this);
+
+            applyAttributesAndConfigureMethods(rules, container);
+
+
         }
 
         ApplyImpliedMiddlewareFromHandlers(rules);
