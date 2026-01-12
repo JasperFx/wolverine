@@ -109,7 +109,6 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
                         $"This MessageContext does not allow multiple calls to {nameof(FlushOutgoingMessagesAsync)} because {nameof(MultiFlushMode)} = {MultiFlushMode}");
             }
         }
-
         
         await AssertAnyRequiredResponseWasGenerated();
 
@@ -120,6 +119,9 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
 
         foreach (var envelope in Outstanding)
         {
+            // https://github.com/JasperFx/wolverine/issues/2006
+            if (envelope == null) continue;
+            
             try
             {
                 if (envelope.IsScheduledForLater(DateTimeOffset.UtcNow))
