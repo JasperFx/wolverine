@@ -284,8 +284,7 @@ public class Program
 
             #endregion
         });
-
-// TODO -- consider making this an option within UseWolverine????
+        
         app.MapWolverineHttpTransportEndpoints();
 
         #region sample_optimized_mediator_usage

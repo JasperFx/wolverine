@@ -23,6 +23,7 @@ public static class HttpTransportExtensions
         group.MapPost(
             "/batch/{queue}",(HttpContext c, HttpTransportExecutor executor) => executor.ExecuteBatchAsync(c));
 
+        jsonOptions ??= new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
         group.MapPost("/invoke", (HttpContext c, HttpTransportExecutor executor) => executor.InvokeAsync(c, jsonOptions));
 
         return group;

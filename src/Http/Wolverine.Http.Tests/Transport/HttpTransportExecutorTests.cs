@@ -9,6 +9,7 @@ using Wolverine.Runtime.Interop;
 using Wolverine.Runtime.Serialization;
 using Wolverine.Tracking;
 using Wolverine.Util;
+using WolverineWebApi;
 using Xunit;
 
 namespace Wolverine.Http.Tests.Transport;
@@ -213,33 +214,6 @@ public class HttpTransportExecutorTests : IntegrationContext
         });
 
         tracked.Executed.SingleMessage<HttpMessage1>().Name.ShouldBe("queue-test");
-    }
-}
-
-public record HttpMessage1(string Name);
-public static class HttpMessage1Handler
-{
-    public static void Handle(HttpMessage1 message)
-    {
-        // Just receive it
-    }
-}
-
-public record HttpMessage2(string Name);
-public static class HttpMessage2Handler
-{
-    public static void Handle(HttpMessage2 message)
-    {
-        // Just receive it
-    }
-}
-
-public record HttpMessage3(string Name);
-public static class HttpMessage3Handler
-{
-    public static void Handle(HttpMessage3 message)
-    {
-        // Just receive it
     }
 }
 
