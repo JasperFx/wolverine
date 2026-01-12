@@ -237,6 +237,8 @@ public class EndpointCollection : IEndpointCollection
 
     public async Task StartListenersAsync()
     {
+        if (_options.DisableAllExternalListeners) return;
+        
         var listeningEndpoints = _options.Transports.SelectMany(x => x.Endpoints())
             .Where(x => x is not LocalQueue)
             .Where(x => x.ShouldAutoStartAsListener(_options.Durability));

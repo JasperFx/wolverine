@@ -28,6 +28,12 @@ public class WolverineOptionsTests
     }
 
     [Fact]
+    public void do_not_disable_external_listeners_by_default()
+    {
+        new WolverineOptions().DisableAllExternalListeners.ShouldBeFalse();
+    }
+
+    [Fact]
     public void default_dead_letter_queue_behavior_is_discard()
     {
         new WolverineOptions().UnknownMessageBehavior.ShouldBe(UnknownMessageBehavior.LogOnly);
