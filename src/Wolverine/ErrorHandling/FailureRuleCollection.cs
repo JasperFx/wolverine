@@ -71,6 +71,16 @@ public class FailureRuleCollection : IEnumerable<FailureRule>
                 continue;
             }
 
+            if (continuation is CompositeContinuation composite)
+            {
+                foreach (var inner in composite.Inner)
+                {
+                    if (inner is IInlineContinuation inline) return inline;
+                }
+                
+                continue;
+            }
+
             if (continuation is IInlineContinuation retry)
             {
                 return retry;
