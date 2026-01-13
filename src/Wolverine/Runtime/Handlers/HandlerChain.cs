@@ -70,7 +70,7 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         applyAuditAttributes(messageType);
     }
 
-    private HandlerChain(MethodCall call, HandlerGraph parent) : this(call.Method.MessageType()!, parent)
+    protected HandlerChain(MethodCall call, HandlerGraph parent) : this(call.Method.MessageType()!, parent)
     {
         Handlers.Add(call);
     }
@@ -284,7 +284,7 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
     /// </summary>
     public FailureRuleCollection Failures { get; } = new();
 
-    protected virtual void tryAssignStickyEndpoints(HandlerCall handlerCall, WolverineOptions options)
+    protected void tryAssignStickyEndpoints(HandlerCall handlerCall, WolverineOptions options)
     {
         var endpoints = findStickyEndpoints(handlerCall, options).Distinct().ToArray();
         if (endpoints.Any())
@@ -292,7 +292,8 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
             foreach (var stub in endpoints.OfType<StubEndpoint>())
                 stub.Subscriptions.Add(Subscription.ForType(MessageType));
 
-            var chain = new HandlerChain(handlerCall, options.HandlerGraph, endpoints);
+            var chain = handlerCall.HandlerType.CanBeCastTo<Saga>() ? new SagaChain(handlerCall,
+                options.HandlerGraph, endpoints) : new HandlerChain(handlerCall, options.HandlerGraph, endpoints);
 
             Handlers.Remove(handlerCall);
 

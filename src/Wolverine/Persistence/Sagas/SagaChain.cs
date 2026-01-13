@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using JasperFx;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
@@ -5,6 +6,7 @@ using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using System.Reflection;
+using Wolverine.Configuration;
 using Wolverine.Logging;
 using Wolverine.Runtime.Handlers;
 
@@ -51,6 +53,25 @@ public class SagaChain : HandlerChain
         }
     }
 
+    public SagaChain(HandlerCall handlerCall, HandlerGraph handlerGraph, Endpoint[] endpoints) : base(handlerCall, handlerGraph)
+    {
+        foreach (var endpoint in endpoints) RegisterEndpoint(endpoint);
+        
+        var saga = handlerCall;
+        SagaType = saga.HandlerType;
+        SagaMethodInfo = saga.Method;
+        
+        Handlers.Add(handlerCall);
+
+        SagaIdMember = DetermineSagaIdMember(MessageType, SagaType, saga.Method);
+
+        // Automatically audit the saga id
+        if (SagaIdMember != null && AuditedMembers.All(x => x.Member != SagaIdMember))
+        {
+            AuditedMembers.Add(new AuditedMember(SagaIdMember, SagaIdMember.Name, SagaIdMember.Name));
+        }
+    }
+
     public override bool TryInferMessageIdentity(out PropertyInfo? property)
     {
         property = SagaIdMember as PropertyInfo;
@@ -60,11 +81,6 @@ public class SagaChain : HandlerChain
     protected override void validateAgainstInvalidSagaMethods(IGrouping<Type, HandlerCall> grouping)
     {
         // Nothing
-    }
-
-    protected override void tryAssignStickyEndpoints(HandlerCall handlerCall, WolverineOptions options)
-    {
-        // nope, don't do this with saga chains 
     }
 
     public Type SagaType { get; }
