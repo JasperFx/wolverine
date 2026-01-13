@@ -21,10 +21,13 @@ public class LambdaContinuationTests
             return new ValueTask();
         }, new Exception());
 
-        var result = await continuation.ExecuteInlineAsync(Substitute.For<IEnvelopeLifecycle>(),
-            new MockWolverineRuntime(), DateTimeOffset.UtcNow, null, CancellationToken.None);
-        
-        result.ShouldBe(InvokeResult.Stop);
+        await Should.ThrowAsync<Exception>(async () =>
+        {
+            var result = await continuation.ExecuteInlineAsync(Substitute.For<IEnvelopeLifecycle>(),
+                new MockWolverineRuntime(), DateTimeOffset.UtcNow, null, CancellationToken.None);
+
+        });
+
         wasCalled.ShouldBeFalse();
     }
 

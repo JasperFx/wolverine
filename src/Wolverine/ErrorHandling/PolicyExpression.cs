@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.ExceptionServices;
 using Wolverine.ErrorHandling.Matches;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
@@ -371,10 +372,14 @@ internal class LambdaContinuation : IContinuation, IInlineContinuation
     public async ValueTask<InvokeResult> ExecuteInlineAsync(IEnvelopeLifecycle lifecycle, IWolverineRuntime runtime, DateTimeOffset now,
         Activity? activity, CancellationToken cancellation)
     {
-        if (InvokeUsage == null) return InvokeResult.Stop;
+        if (InvokeUsage == null)
+        {
+            ExceptionDispatchInfo.Throw(_exception);
+            return InvokeResult.Stop;
+        }
 
         await _action(runtime, lifecycle, _exception);
-
+        
         return InvokeUsage.Value;
     }
 }
