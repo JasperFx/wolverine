@@ -316,6 +316,21 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
         }
 
         var allChains = Chains.SelectMany(explodeChains).ToArray();
+        
+        // This lovely thing was brought to you by https://github.com/JasperFx/wolverine/issues/2004
+        var duplicateTypeNames = allChains
+            .GroupBy(x => x.TypeName)
+            .Where(x => x.Count() > 1)
+            .ToArray();
+
+        foreach (var @group in duplicateTypeNames)
+        {
+            foreach (var chain in @group)
+            {
+                chain.TypeName =
+                    $"{chain.MessageType.ToSuffixedTypeName("")}_{chain.HandlerCalls().First().HandlerType.ToSuffixedTypeName("Handler")}";
+            }
+        }
 
         foreach (var policy in handlerPolicies(options)) policy.Apply(allChains, Rules, container);
 

@@ -173,7 +173,7 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
     /// <summary>
     ///     Wolverine's string identification for this message type
     /// </summary>
-    public string TypeName { get; }
+    public string TypeName { get; internal set; }
 
     internal MessageHandler? Handler { get; private set; }
 
