@@ -1,5 +1,8 @@
+using System;
 using System.Diagnostics;
+using System.Linq;
 using System.Reflection;
+using System.Threading.Tasks;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Commands;
 using JasperFx.CodeGeneration.Model;
