@@ -330,7 +330,8 @@ class Build : NukeBuild
                 Solution.Http.Wolverine_Http_Marten,
                 Solution.Testing.Wolverine_ComplianceTests,
                 Solution.Transports.Redis.Wolverine_Redis,
-                Solution.Transports.SignalR.Wolverine_SignalR
+                Solution.Transports.SignalR.Wolverine_SignalR,
+                Solution.Transports.NATS.Wolverine_Nats
             };
 
             foreach (var project in nugetProjects)
