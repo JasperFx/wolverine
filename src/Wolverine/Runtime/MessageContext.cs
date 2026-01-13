@@ -593,11 +593,16 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         if (Storage is NullMessageStore)
         {
             foreach (var envelope in Scheduled)
+            {
                 Runtime.ScheduleLocalExecutionInMemory(envelope.ScheduledTime!.Value, envelope);
+            }
         }
         else
         {
-            foreach (var envelope in Scheduled) await Storage.Inbox.RescheduleExistingEnvelopeForRetryAsync(envelope);
+            foreach (var envelope in Scheduled)
+            {
+                await Storage.Inbox.RescheduleExistingEnvelopeForRetryAsync(envelope);
+            }
         }
 
         Scheduled.Clear();

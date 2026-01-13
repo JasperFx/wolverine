@@ -366,4 +366,10 @@ public partial class Envelope
             SagaId = SagaId
         };
     }
+
+    internal void ClearAnyScheduling()
+    {
+        Status = EnvelopeStatus.Incoming;
+        ScheduledTime = null;
+    }
 }
