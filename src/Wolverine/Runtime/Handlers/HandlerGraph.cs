@@ -319,6 +319,7 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
         
         // This lovely thing was brought to you by https://github.com/JasperFx/wolverine/issues/2004
         var duplicateTypeNames = allChains
+            .Where(x => x.Handlers.Any()) // filter out the parent, placeholder HandlerChain for separated handlers
             .GroupBy(x => x.TypeName)
             .Where(x => x.Count() > 1)
             .ToArray();
