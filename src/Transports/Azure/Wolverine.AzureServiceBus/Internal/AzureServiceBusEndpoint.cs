@@ -50,6 +50,7 @@ public abstract class AzureServiceBusEndpoint : Endpoint<IAzureServiceBusEnvelop
     public abstract ValueTask<bool> CheckAsync();
     public abstract ValueTask TeardownAsync(ILogger logger);
     public abstract ValueTask SetupAsync(ILogger logger);
+    public abstract bool IsPartitioned { get; }
 
     protected override bool supportsMode(EndpointMode mode)
     {
