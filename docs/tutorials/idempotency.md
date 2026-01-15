@@ -136,6 +136,33 @@ The idempotency check and the process of marking an incoming envelope are themse
 to avoid Wolverine from making unnecessary database calls. ~~~~
 :::
 
+## Idempotency on Non Transactional Handlers
+
+Every usage you've seen so far has featured utilizing Wolverine's transactional middleware support on handlers that
+use [EF Core](/guide/durability/efcore/transactional-middleware) or [Marten](/guide/durability/marten/transactional-middleware).
+
+But of course, you may have message handlers that don't need to touch your underlying storage at all. For example, a message
+handler might do nothing but call an external web service. You may want to make this message handler be idempotent to protect
+against duplicated calls to that web service. You're in luck, because Wolverine exposes this policy to do exactly that:
+
+snippet: sample_using_AutoApplyIdempotencyOnNonTransactionalHandlers
+
+Specifically, see the call to `WolverineOptions.Policies.AutoApplyIdempotencyOnNonTransactionalHandlers()` above. What that
+is doing is:
+
+1. Inserting a call to assert that the current message doesn't already exist in your applications default envelope storage by
+   the Wolverine message id. If the message is already marked as `Handled` in the inbox, Wolverine will reject and discard the current
+   message processing
+2. Assuming the message is all new, Wolverine will try to persist the `Handled` state in the default inbox storage. In the case
+   of failures to the database storage (stuff happens), Wolverine will attempt to retry out of band, but allow the message processing
+   to go through otherwise without triggering error policies so the message is not retried
+
+::: tip
+While we're talking about call outs to external web services, the Wolverine team recommends isolating the call to that web
+service in its own handler with isolated error handling and maybe even a circuit breaker for outages of that service. Or at
+least making that your default practice.
+:::
+
 ## Handled Message Retention
 
 The way that the idempotency checks work is to keep track of messages that have already been processed in the persisted
