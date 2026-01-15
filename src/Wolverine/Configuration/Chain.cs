@@ -45,6 +45,7 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
 
     public abstract bool TryInferMessageIdentity(out PropertyInfo? property);
 
+    public bool IsTransactional { get; set; }
     public abstract bool ShouldFlushOutgoingMessages();
     public abstract bool RequiresOutbox();
 

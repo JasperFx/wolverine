@@ -28,6 +28,7 @@ internal class AutoApplyTransactions : IChainPolicy
             if (potentials.Length == 1)
             {
                 potentials.Single().ApplyTransactionSupport(chain, container);
+                chain.IsTransactional = true;
             }
         }
     }
