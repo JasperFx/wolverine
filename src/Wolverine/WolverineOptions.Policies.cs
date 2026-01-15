@@ -50,6 +50,11 @@ public sealed partial class WolverineOptions : IPolicies
         RegisteredPolicies.Insert(0, new AutoApplyTransactions{Idempotency = idempotency});
     }
 
+    void IPolicies.AutoApplyIdempotencyOnNonTransactionalHandlers()
+    {
+        RegisteredPolicies.Add(new EagerIdempotencyOnNonTransactionalChains());
+    }
+
     void IPolicies.Add<T>()
     {
         this.As<IPolicies>().Add(new T());

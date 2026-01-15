@@ -83,6 +83,13 @@ public interface IPolicies : IEnumerable<IWolverinePolicy>, IWithFailurePolicies
     void AutoApplyTransactions(IdempotencyStyle idempotency);
 
     /// <summary>
+    /// Apply eager message idempotency checks to any message handler chains that are not otherwise transactional.
+    /// Example is a handler that calls an external web service but does not make any changes to the current system's
+    /// databases or storage
+    /// </summary>
+    void AutoApplyIdempotencyOnNonTransactionalHandlers();
+
+    /// <summary>
     ///     Add Wolverine middleware to message handlers
     /// </summary>
     /// <param name="filter">If specified, limits the applicability of the middleware to certain message types</param>
