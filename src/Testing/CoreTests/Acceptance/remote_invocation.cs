@@ -51,6 +51,8 @@ public class remote_invocation : IAsyncLifetime
         _sender = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.DefaultRemoteInvocationTimeout = 10.Seconds();
+
                 opts.DisableConventionalDiscovery();
                 opts.ServiceName = "Sender";
                 opts.ListenAtPort(senderPort);
@@ -303,6 +305,17 @@ public class remote_invocation : IAsyncLifetime
     }
 
     [Fact]
+    public async Task no_timeout_on_send()
+    {
+        var publisher = _sender.MessageBus();
+
+        await Should.NotThrowAsync(async () =>
+        {
+            await publisher.InvokeAsync(new Request1 { Name = "FAST" });
+        });
+    }
+
+    [Fact]
     public async Task sad_path_request_and_reply_with_no_handler()
     {
         var publisher = _sender.MessageBus();
@@ -383,7 +396,12 @@ public class RequestHandler
 
         if (request.Name == "SLOW")
         {
-            await Task.Delay(5.Seconds());
+            await Task.Delay(11.Seconds());
+        }
+
+        if (request.Name == "FAST")
+        { 
+            await Task.Delay(7.Seconds());
         }
 
         return new Response1 { Name = request.Name };
@@ -399,7 +417,7 @@ public class RequestHandler
 
         if (request.Name == "SLOW")
         {
-            await Task.Delay(6.Seconds());
+            await Task.Delay(11.Seconds());
         }
     }
 
