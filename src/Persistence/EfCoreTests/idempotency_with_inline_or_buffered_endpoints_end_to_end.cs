@@ -1,5 +1,6 @@
 using IntegrationTests;
 using JasperFx;
+using JasperFx.CodeGeneration.Frames;
 using JasperFx.Resources;
 using Marten;
 using Microsoft.Data.SqlClient;
@@ -15,6 +16,7 @@ using Wolverine;
 using Wolverine.EntityFrameworkCore;
 using Wolverine.Marten;
 using Wolverine.Persistence;
+using Wolverine.Runtime;
 using Wolverine.SqlServer;
 using Wolverine.Tracking;
 
@@ -151,9 +153,55 @@ public class idempotency_with_inline_or_buffered_endpoints_end_to_end : IAsyncLi
 
         tracked2.Discarded.SingleEnvelope<MaybeIdempotent>().ShouldNotBeNull();
     }
+
+    [Fact]
+    public async Task apply_idempotency_to_non_transactional_handler()
+    {
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.Services.AddDbContextWithWolverineIntegration<CleanDbContext>(x =>
+                    x.UseSqlServer(Servers.SqlServerConnectionString));
+                
+                opts.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
+                
+                opts.Policies.AutoApplyTransactions(IdempotencyStyle.Eager);
+
+                opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString, "idempotency");
+                opts.UseEntityFrameworkCoreTransactions();
+                
+                opts.Policies.AutoApplyIdempotencyOnNonTransactionalHandlers();
+            }).StartAsync();
+
+        var chain = host.GetRuntime().Handlers.ChainFor<MaybeIdempotentNotTransactional>();
+        chain.IsTransactional.ShouldBeFalse();
+        chain.Middleware.OfType<MethodCall>().Any(x => x.Method.Name == nameof(MessageContext.AssertEagerIdempotencyAsync)).ShouldBeTrue();
+        chain.Postprocessors.OfType<MethodCall>().Any(x => x.Method.Name == nameof(MessageContext.PersistHandledAsync)).ShouldBeTrue();
+        
+        var messageId = Guid.NewGuid();
+        var tracked1 = await host.SendMessageAndWaitAsync(new MaybeIdempotentNotTransactional(messageId));
+
+        // First time through should be perfectly fine
+        var sentMessage = tracked1.Executed.SingleEnvelope<MaybeIdempotentNotTransactional>();
+
+        var runtime = host.GetRuntime();
+        var circuit = runtime.Endpoints.FindListenerCircuit(sentMessage.Destination);
+
+        var tracked2 = await host.TrackActivity()
+            .DoNotAssertOnExceptionsDetected()
+            .ExecuteAndWaitAsync(c =>
+            {
+                sentMessage.WasPersistedInInbox = false;
+                sentMessage.Attempts = 0;
+                return circuit.EnqueueDirectlyAsync([sentMessage]);
+            });
+
+        tracked2.Discarded.SingleEnvelope<MaybeIdempotentNotTransactional>().ShouldNotBeNull();
+    }
 }
 
 public record MaybeIdempotent(Guid Id);
+public record MaybeIdempotentNotTransactional(Guid Id);
 
 public static class MaybeIdempotentHandler
 {
@@ -163,6 +211,11 @@ public static class MaybeIdempotentHandler
     // }
     
     public static void Handle(MaybeIdempotent message, CleanDbContext dbContext)
+    {
+        // Nothing
+    }
+
+    public static void Handle(MaybeIdempotentNotTransactional message)
     {
         // Nothing
     }

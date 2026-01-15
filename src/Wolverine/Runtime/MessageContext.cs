@@ -100,6 +100,13 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         Envelope.WasPersistedInInbox = true;
     }
 
+    public async Task PersistHandledAsync()
+    {
+        // TODO -- add some retries here!!!!
+        var handled = Envelope.ForPersistedHandled(Envelope, DateTimeOffset.UtcNow, Runtime.Options.Durability);
+        await Runtime.Storage.Inbox.StoreIncomingAsync(handled);
+    }
+
     public async Task FlushOutgoingMessagesAsync()
     {
         if (_hasFlushed)
