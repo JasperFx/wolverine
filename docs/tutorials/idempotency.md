@@ -138,6 +138,16 @@ to avoid Wolverine from making unnecessary database calls. ~~~~
 
 ## Idempotency on Non Transactional Handlers
 
+::: tip
+Idempotency checks are automatic for any message handler that uses any kind of
+transactional middleware.
+:::
+
+::: warning
+This functionality does require some kind of message persistence to be configured for your application as it utilizes
+Wolverine's inbox functionality
+:::
+
 Every usage you've seen so far has featured utilizing Wolverine's transactional middleware support on handlers that
 use [EF Core](/guide/durability/efcore/transactional-middleware) or [Marten](/guide/durability/marten/transactional-middleware).
 
@@ -162,6 +172,9 @@ While we're talking about call outs to external web services, the Wolverine team
 service in its own handler with isolated error handling and maybe even a circuit breaker for outages of that service. Or at
 least making that your default practice.
 :::
+
+You can also opt into this behavior on a message type by message type basis by decorating the
+message handler type or handler method with the Wolverine `[Idempotent]` attribute. 
 
 ## Handled Message Retention
 

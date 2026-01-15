@@ -116,6 +116,13 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         }
     }
 
+    internal void ApplyIdempotencyCheck()
+    {
+        Middleware.Insert(0, MethodCall.For<MessageContext>(x => x.AssertEagerIdempotencyAsync(CancellationToken.None)));
+            
+        Postprocessors.Add(MethodCall.For<MessageContext>(x => x.PersistHandledAsync()));
+    }
+
     protected virtual void validateAgainstInvalidSagaMethods(IGrouping<Type, HandlerCall> grouping)
     {
         var illegalSagas = grouping.Where(x => x.HandlerType.CanBeCastTo<Saga>() && x.Method.IsStatic).ToArray();
