@@ -157,6 +157,8 @@ public class idempotency_with_inline_or_buffered_endpoints_end_to_end : IAsyncLi
     [Fact]
     public async Task apply_idempotency_to_non_transactional_handler()
     {
+        #region sample_using_AutoApplyIdempotencyOnNonTransactionalHandlers
+
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -170,8 +172,11 @@ public class idempotency_with_inline_or_buffered_endpoints_end_to_end : IAsyncLi
                 opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString, "idempotency");
                 opts.UseEntityFrameworkCoreTransactions();
                 
+                // THIS RIGHT HERE
                 opts.Policies.AutoApplyIdempotencyOnNonTransactionalHandlers();
             }).StartAsync();
+
+        #endregion
 
         var chain = host.GetRuntime().Handlers.ChainFor<MaybeIdempotentNotTransactional>();
         chain.IsTransactional.ShouldBeFalse();
