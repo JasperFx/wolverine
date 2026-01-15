@@ -13,9 +13,7 @@ internal class EagerIdempotencyOnNonTransactionalChains : IHandlerPolicy
     {
         foreach (var handlerChain in chains.Where(x => !x.IsTransactional))
         {
-            handlerChain.Middleware.Insert(0, MethodCall.For<MessageContext>(x => x.AssertEagerIdempotencyAsync(CancellationToken.None)));
-            
-            handlerChain.Postprocessors.Add(MethodCall.For<MessageContext>(x => x.PersistHandledAsync()));
+            handlerChain.ApplyIdempotencyCheck();
         }
     }
 }
