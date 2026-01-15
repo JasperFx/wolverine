@@ -258,11 +258,16 @@ public sealed partial class WolverineOptions
     public DurabilitySettings Durability { get; }
 
     /// <summary>
-    ///     The default message execution timeout. This uses a CancellationTokenSource
+    ///     The default message execution timeout for local queues. This uses a CancellationTokenSource
     ///     behind the scenes, and the timeout enforcement is dependent on the usage within handlers
     /// </summary>
     public TimeSpan DefaultExecutionTimeout { get; set; } = 60.Seconds();
 
+    /// <summary>
+    ///     The default remote invocation timeout over external transport. If a message is not acknowledged within the time specified,
+    ///     it will throw a TimeoutException
+    /// </summary>
+    public TimeSpan DefaultRemoteInvocationTimeout { get; set; } = 5.Seconds();
 
     /// <summary>
     ///     Register additional services to the underlying IoC container with either .NET standard IServiceCollection extension
