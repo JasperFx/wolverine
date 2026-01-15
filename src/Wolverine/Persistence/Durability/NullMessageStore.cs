@@ -14,6 +14,10 @@ public class NullMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IM
 {
     internal IScheduledJobProcessor? ScheduledJobs { get; set; }
 
+    public Task<bool> ExistsAsync(Envelope envelope, CancellationToken cancellation)
+    {
+        return Task.FromResult(false);
+    }
 
     public MessageStoreRole Role => MessageStoreRole.Main;
     public Uri Uri => new Uri($"{PersistenceConstants.AgentScheme}://null");
