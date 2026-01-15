@@ -80,7 +80,16 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
     public async Task AssertEagerIdempotencyAsync(CancellationToken cancellation)
     {
         if (Envelope == null || Envelope.WasPersistedInInbox ) return;
-        if (Transaction == null) return;
+        if (Transaction == null)
+        {
+            var exists = await Runtime.Storage.Inbox.ExistsAsync(Envelope, cancellation);
+            if (exists)
+            {
+                throw new DuplicateIncomingEnvelopeException(Envelope);
+            }
+
+            return;
+        }
 
         var check = await Transaction.TryMakeEagerIdempotencyCheckAsync(Envelope, Runtime.Options.Durability, cancellation);
         if (!check)

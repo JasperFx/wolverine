@@ -69,6 +69,11 @@ public interface IChain
     IReturnVariableActionSource ReturnVariableActionSource { get; set; }
 
     /// <summary>
+    /// Does this chain have any transactional middleware attached to it?
+    /// </summary>
+    bool IsTransactional { get; set; }
+
+    /// <summary>
     ///     Used internally by Wolverine for "outbox" mechanics
     /// </summary>
     /// <returns></returns>

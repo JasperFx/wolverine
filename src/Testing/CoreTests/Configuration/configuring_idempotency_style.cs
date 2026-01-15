@@ -58,6 +58,10 @@ public class configuring_idempotency_style
         await host.InvokeAsync(new TM4(Guid.NewGuid()));
         
         var runtime = host.GetRuntime();
+        
+        // Just seeing that this caught
+        runtime.Handlers.ChainFor<DoSomething>().IsTransactional.ShouldBeTrue();
+        
         runtime.Handlers.ChainFor<DoSomething>().Idempotency.ShouldBe(IdempotencyStyle.Eager);
         
         // Override by transactional attribute!

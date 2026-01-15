@@ -24,6 +24,8 @@ public class TransactionalAttribute : ModifyChainAttribute
         chain.ApplyImpliedMiddlewareFromHandlers(rules);
         var transactionFrameProvider = rules.As<GenerationRules>().GetPersistenceProviders(chain, container);
         transactionFrameProvider.ApplyTransactionSupport(chain, container);
+
+        chain.IsTransactional = true;
     }
     
     public IdempotencyStyle? Idempotency { get; set; }
