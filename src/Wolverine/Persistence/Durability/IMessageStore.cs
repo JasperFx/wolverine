@@ -39,6 +39,7 @@ public interface IMessageInbox
     Task StoreIncomingAsync(Envelope envelope);
     Task StoreIncomingAsync(IReadOnlyList<Envelope> envelopes);
 
+    Task<bool> ExistsAsync(Envelope envelope, CancellationToken cancellation);
 
     Task MarkIncomingEnvelopeAsHandledAsync(Envelope envelope);
 

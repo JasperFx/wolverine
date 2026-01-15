@@ -255,6 +255,19 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
         return new DbCommandBuilder(new NpgsqlCommand());
     }
 
+    public override async Task<bool> ExistsAsync(Envelope envelope, CancellationToken cancellation)
+    {
+        if (HasDisposed) return false;
+
+        await using var conn = await NpgsqlDataSource.OpenConnectionAsync(cancellation);
+        var count = await conn
+            .CreateCommand($"select count(id) from {SchemaName}.{DatabaseConstants.IncomingTable} where id = :id")
+            .With("id", envelope.Id)
+            .ExecuteScalarAsync(cancellation);
+
+        return ((long)count) > 0;
+    }
+
     public override void WriteLoadScheduledEnvelopeSql(DbCommandBuilder builder, DateTimeOffset utcNow)
     {
         builder.Append(

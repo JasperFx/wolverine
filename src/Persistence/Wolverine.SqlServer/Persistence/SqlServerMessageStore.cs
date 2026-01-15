@@ -201,6 +201,20 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
         return new DbCommandBuilder(new SqlCommand());
     }
 
+    public override async Task<bool> ExistsAsync(Envelope envelope, CancellationToken cancellation)
+    {
+        if (HasDisposed) return false;
+
+        await using var conn = CreateConnection();
+        await conn.OpenAsync(cancellation);
+        var count = await conn
+            .CreateCommand($"select count(id) from {SchemaName}.{DatabaseConstants.IncomingTable} where id = @id")
+            .With("id", envelope.Id)
+            .ExecuteScalarAsync(cancellation);
+
+        return ((int)count) > 0;
+    }
+
     public override void WriteLoadScheduledEnvelopeSql(DbCommandBuilder builder, DateTimeOffset utcNow)
     {
         builder.Append( $"select TOP {Durability.RecoveryBatchSize} {DatabaseConstants.IncomingFields} from {SchemaName}.{DatabaseConstants.IncomingTable} where status = '{EnvelopeStatus.Scheduled}' and execution_time <= ");

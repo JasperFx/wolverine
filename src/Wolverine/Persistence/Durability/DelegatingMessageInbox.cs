@@ -76,4 +76,9 @@ internal class DelegatingMessageInbox : IMessageInbox
             await database.Inbox.ReleaseIncomingAsync(ownerId, receivedAt);
         }
     }
+
+    public Task<bool> ExistsAsync(Envelope envelope, CancellationToken cancellation)
+    {
+        return _inner.ExistsAsync(envelope, cancellation);
+    }
 }
