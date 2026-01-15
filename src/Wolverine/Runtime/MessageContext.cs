@@ -102,9 +102,18 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
 
     public async Task PersistHandledAsync()
     {
-        // TODO -- add some retries here!!!!
         var handled = Envelope.ForPersistedHandled(Envelope, DateTimeOffset.UtcNow, Runtime.Options.Durability);
-        await Runtime.Storage.Inbox.StoreIncomingAsync(handled);
+        try
+        {
+            await Runtime.Storage.Inbox.StoreIncomingAsync(handled);
+        }
+        catch (Exception e)
+        {
+            Runtime.Logger.LogError(e, "Error trying to mark message {Id} as handled. Retrying later.", handled.Id);
+
+            // Retry this off to the side...
+            await new MessageBus(Runtime).PublishAsync(new PersistHandled(handled));
+        }
     }
 
     public async Task FlushOutgoingMessagesAsync()
