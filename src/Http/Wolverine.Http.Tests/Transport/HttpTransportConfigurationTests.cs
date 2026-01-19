@@ -97,6 +97,8 @@ public class HttpTransportConfigurationTests
     [Fact]
     public async Task to_http_endpoint_without_cloud_events_keeps_default_options()
     {
+        #region sample_publishing_rules_for_http
+
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -104,6 +106,8 @@ public class HttpTransportConfigurationTests
                     .ToHttpEndpoint("https://binary.com/api");
             })
             .StartAsync();
+
+        #endregion
 
         var runtime = host.GetRuntime();
         var transport = runtime.Options.Transports.GetOrCreate<HttpTransport>();
