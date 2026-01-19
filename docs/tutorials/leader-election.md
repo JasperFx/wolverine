@@ -190,7 +190,7 @@ For testing, you also have this helper:
 // This is bootstrapping the actual application using
 // its implied Program.Main() set up
 // For non-Alba users, this is using IWebHostBuilder 
-Host = await AlbaHost.For<Program>(x =>
+Host = await AlbaHost.For<WolverineWebApi.Program>(x =>
 {
     x.ConfigureServices(services =>
     {
@@ -205,7 +205,7 @@ Host = await AlbaHost.For<Program>(x =>
     });
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/IntegrationContext.cs#L28-L48' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_run_wolverine_in_solo_mode_with_extension' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/IntegrationContext.cs#L27-L47' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_run_wolverine_in_solo_mode_with_extension' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Likewise, any other `DurabilityMode` setting than `Balanced` (the default) will
@@ -217,7 +217,7 @@ To write your own family of "sticky" agents and use Wolverine to distribute them
 you'll first need to make implementations of this interface:
 
 <!-- snippet: sample_IAgent -->
-<a id='snippet-sample_IAgent'></a>
+<a id='snippet-sample_iagent'></a>
 ```cs
 /// <summary>
 ///     Models a constantly running background process within a Wolverine
@@ -236,8 +236,8 @@ public interface IAgent : IHostedService // Standard .NET interface for backgrou
     AgentStatus Status { get; }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/Agents/IAgent.cs#L9-L28' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_IAgent' title='Start of snippet'>anchor</a></sup>
-<a id='snippet-sample_IAgent-1'></a>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/Agents/IAgent.cs#L9-L28' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_iagent' title='Start of snippet'>anchor</a></sup>
+<a id='snippet-sample_iagent-1'></a>
 ```cs
 /// <summary>
 ///     Models a constantly running background process within a Wolverine
@@ -290,7 +290,7 @@ public class CompositeAgent : IAgent
     public AgentStatus Status { get; private set; } = AgentStatus.Stopped;
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/Agents/IAgent.cs#L7-L64' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_IAgent-1' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/Agents/IAgent.cs#L7-L64' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_iagent-1' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Note that you could use [BackgroundService](https://learn.microsoft.com/en-us/aspnet/core/fundamentals/host/hosted-services?view=aspnetcore-9.0&tabs=visual-studio) as a base class. 
@@ -301,7 +301,7 @@ unique identifier to track where and whether the known agents are executing.
 The next service is the actual distributor. To plug into Wolverine, you need to build an implementation of this service:
 
 <!-- snippet: sample_IAgentFamily -->
-<a id='snippet-sample_IAgentFamily'></a>
+<a id='snippet-sample_iagentfamily'></a>
 ```cs
 /// <summary>
 ///     Pluggable model for managing the assignment and execution of stateful, "sticky"
@@ -343,7 +343,7 @@ public interface IAgentFamily
     ValueTask EvaluateAssignmentsAsync(AssignmentGrid assignments);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/Agents/IAgentFamily.cs#L16-L58' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_IAgentFamily' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/Agents/IAgentFamily.cs#L16-L58' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_iagentfamily' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In this case, you can plug custom `IAgentFamily` strategies into Wolverine by just registering a concrete service in 
