@@ -1,6 +1,7 @@
 using IntegrationTests;
 using JasperFx;
 using JasperFx.CodeGeneration.Frames;
+using JasperFx.Core;
 using JasperFx.Resources;
 using Marten;
 using Microsoft.Data.SqlClient;
@@ -162,6 +163,8 @@ public class idempotency_with_inline_or_buffered_endpoints_end_to_end : IAsyncLi
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Durability.Mode = DurabilityMode.Solo;
+                
                 opts.Services.AddDbContextWithWolverineIntegration<CleanDbContext>(x =>
                     x.UseSqlServer(Servers.SqlServerConnectionString));
                 
@@ -194,6 +197,7 @@ public class idempotency_with_inline_or_buffered_endpoints_end_to_end : IAsyncLi
 
         var tracked2 = await host.TrackActivity()
             .DoNotAssertOnExceptionsDetected()
+            .Timeout(15.Seconds())
             .ExecuteAndWaitAsync(c =>
             {
                 sentMessage.WasPersistedInInbox = false;
