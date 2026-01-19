@@ -258,7 +258,8 @@ const config: UserConfig<DefaultTheme.Config> = {
                                 {text: 'Transactional Inbox and Outbox', link: '/guide/durability/efcore/outbox-and-inbox'},
                                 {text: 'Operation Side Effects', link: '/guide/durability/efcore/operations'},
                                 {text: 'Saga Storage', link: '/guide/durability/efcore/sagas'},
-                                {text: 'Multi-Tenancy', link: '/guide/durability/efcore/multi-tenancy'}
+                                {text: 'Multi-Tenancy', link: '/guide/durability/efcore/multi-tenancy'},
+                                {text: 'Domain Events', link: '/guide/durability/efcore/domain-events'}
                             
                             ]},
                         {text: 'Managing Message Storage', link: '/guide/durability/managing'},
