@@ -72,7 +72,13 @@ public sealed partial class WolverineOptions : IPolicies
 
     void IPolicies.UseDurableInboxOnAllListeners()
     {
-        this.As<IPolicies>().AllListeners(x => x.UseDurableInbox());
+        this.As<IPolicies>().AllListeners(x =>
+        {
+            if (x.Endpoint.SupportsMode(EndpointMode.Durable))
+            {
+                x.UseDurableInbox();
+            }
+        });
     }
 
     internal readonly List<IHandledTypeRule> HandledTypeRules = [new AgentCommandHandledTypeRule()];
@@ -94,7 +100,13 @@ public sealed partial class WolverineOptions : IPolicies
 
     void IPolicies.UseDurableOutboxOnAllSendingEndpoints()
     {
-        this.As<IPolicies>().AllSenders(x => x.UseDurableOutbox());
+        this.As<IPolicies>().AllSenders(x =>
+        {
+            if (x.Endpoint.SupportsMode(EndpointMode.Durable))
+            {
+                x.UseDurableOutbox();
+            }
+        });
     }
 
     void IPolicies.AllListeners(Action<ListenerConfiguration> configure)
