@@ -157,17 +157,26 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IAsy
                               new ConnectionFactory { HostName = "localhost" };
         
         configureDefaults(ConnectionFactory);
-        
-        if (_listenerConnection == null && !UseSenderConnectionOnly)
-        {
-            _listenerConnection = BuildConnection(ConnectionRole.Listening);
-            await _listenerConnection.ConnectAsync();
-        }
 
-        if (_sendingConnection == null && !UseListenerConnectionOnly)
+        try
         {
-            _sendingConnection = BuildConnection(ConnectionRole.Sending);
-            await _sendingConnection.ConnectAsync();
+            if (_listenerConnection == null && !UseSenderConnectionOnly)
+            {
+                _listenerConnection = BuildConnection(ConnectionRole.Listening);
+                await _listenerConnection.ConnectAsync();
+            }
+
+            if (_sendingConnection == null && !UseListenerConnectionOnly)
+            {
+                _sendingConnection = BuildConnection(ConnectionRole.Sending);
+                await _sendingConnection.ConnectAsync();
+            }
+        }
+        catch (Exception)
+        {
+            _listenerConnection = null;
+            _sendingConnection = null;
+            throw;
         }
 
         foreach (var tenant in Tenants)
