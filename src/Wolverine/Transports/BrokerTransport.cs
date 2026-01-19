@@ -91,6 +91,32 @@ public abstract class BrokerTransport<TEndpoint> : TransportBase<TEndpoint>, IBr
 
         tryBuildSystemEndpoints(runtime);
 
+        var attempts = 1;
+
+        for (int i = 0; i < 20; i++)
+        {
+            try
+            {
+                await startupAsync(runtime);
+                return;
+            }
+            catch (Exception e)
+            {
+                runtime.Logger.LogError(e, "Error trying to start message broker {Broker} on Attempt {Attempt} of 20", Protocol, i + 1);
+                if (i < 19)
+                {
+                    runtime.Logger.LogInformation("Will retry to start broker {Broker} in 5 seconds", Protocol);
+                    await Task.Delay(5.Seconds());
+                }
+            }
+        }
+
+        throw new BrokerInitializationException(this);
+
+    }
+
+    private async ValueTask startupAsync(IWolverineRuntime runtime)
+    {
         await ConnectAsync(runtime);
 
         foreach (var endpoint in endpoints())
@@ -118,5 +144,13 @@ public abstract class BrokerTransport<TEndpoint> : TransportBase<TEndpoint>, IBr
     /// <param name="runtime"></param>
     protected virtual void tryBuildSystemEndpoints(IWolverineRuntime runtime)
     {
+    }
+}
+
+public class BrokerInitializationException : Exception
+{
+    public BrokerInitializationException(IBrokerTransport transport) : base($"Unable to initialize the Broker {transport.Protocol} in time")
+    {
+        
     }
 }
