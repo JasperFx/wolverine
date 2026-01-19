@@ -70,6 +70,8 @@ public interface ISubscriberConfiguration<T> : IEndpointConfiguration<T> where T
     /// </summary>
     /// <returns></returns>
     public T GlobalSender();
+
+    public Endpoint Endpoint { get; }
 }
 
 public interface ISubscriberConfiguration : ISubscriberConfiguration<ISubscriberConfiguration>;

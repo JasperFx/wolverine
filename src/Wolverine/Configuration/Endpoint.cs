@@ -442,7 +442,15 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
     {
         return true;
     }
-    
+
+    /// <summary>
+    /// Check if this endpoint supports the specified mode
+    /// </summary>
+    public bool SupportsMode(EndpointMode mode)
+    {
+        return supportsMode(mode);
+    }
+
     // Is this endpoint part of a sharded messaging topology?
     // If so, this should be "auto-started"
     internal bool UsedInShardedTopology { get; set; }
