@@ -227,7 +227,8 @@ const config: UserConfig<DefaultTheme.Config> = {
                         {text: 'Validation', link: '/guide/http/validation'},
                         {text: 'Fluent Validation', link: '/guide/http/fluentvalidation'},
                         {text: 'Problem Details', link: '/guide/http/problemdetails'},
-                        {text: 'Caching', link: '/guide/http/caching'}
+                        {text: 'Caching', link: '/guide/http/caching'},
+                        {text: 'HTTP Messaging Transport', link: '/guide/http/transport'}
                     ]
                 },
                 {

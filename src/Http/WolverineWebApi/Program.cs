@@ -284,8 +284,12 @@ public class Program
 
             #endregion
         });
-        
+
+        #region sample_MapWolverineHttpTransportEndpoints
+
         app.MapWolverineHttpTransportEndpoints();
+
+        #endregion
 
         #region sample_optimized_mediator_usage
 
