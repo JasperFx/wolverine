@@ -151,7 +151,7 @@ Next, the Redis transport supports interoperability through the `IRedisEnvelopeM
 can build your own version of this mapper interface like the following:
 
 <!-- snippet: sample_OurRedisJsonMapper -->
-<a id='snippet-sample_OurRedisJsonMapper'></a>
+<a id='snippet-sample_ourredisjsonmapper'></a>
 ```cs
 // Simplistic envelope mapper that expects every message to be of
 // type "T" and serialized as JSON that works perfectly well w/ our
@@ -213,6 +213,6 @@ public class OurRedisJsonMapper<TMessage> : EnvelopeMapper<StreamEntry, List<Nam
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Redis/Wolverine.Redis.Tests/DocumentationSamples.cs#L186-L248' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_OurRedisJsonMapper' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Redis/Wolverine.Redis.Tests/DocumentationSamples.cs#L186-L248' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_ourredisjsonmapper' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 

@@ -28,7 +28,7 @@ off, explicit validation for certain endpoints.
 Consider this contrived sample endpoint with explicit validation being done in a "Before" middleware method:
 
 <!-- snippet: sample_ProblemDetailsUsageEndpoint -->
-<a id='snippet-sample_ProblemDetailsUsageEndpoint'></a>
+<a id='snippet-sample_problemdetailsusageendpoint'></a>
 ```cs
 public class ProblemDetailsUsageEndpoint
 {
@@ -56,7 +56,7 @@ public class ProblemDetailsUsageEndpoint
 
 public record NumberMessage(int Number);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/ProblemDetailsUsage.cs#L8-L36' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_ProblemDetailsUsageEndpoint' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/ProblemDetailsUsage.cs#L8-L36' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_problemdetailsusageendpoint' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Wolverine.Http now (as of 1.2.0) has a convention that sees a return value of `ProblemDetails` and looks at that as a
@@ -256,7 +256,7 @@ Any validation errors detected will cause the HTTP request to fail with a `Probl
 For an example, consider this input model that will be a request type in your application:
 
 <!-- snippet: sample_validated_CreateAccount -->
-<a id='snippet-sample_validated_CreateAccount'></a>
+<a id='snippet-sample_validated_createaccount'></a>
 ```cs
 public record CreateAccount(
     // don't forget the property prefix on records
@@ -273,14 +273,14 @@ public record CreateAccount(
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Validation/DataAnnotationsValidationEndpoints.cs#L18-L35' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_validated_CreateAccount' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Validation/DataAnnotationsValidationEndpoints.cs#L18-L35' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_validated_createaccount' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 As long as the Data Annotations middleware is active, the `CreateAccount` model would be validated if used 
 as the request body like this:
 
 <!-- snippet: sample_posting_CreateAccount -->
-<a id='snippet-sample_posting_CreateAccount'></a>
+<a id='snippet-sample_posting_createaccount'></a>
 ```cs
 [WolverinePost("/validate/account")]
 public static string Post(
@@ -292,7 +292,7 @@ public static string Post(
     return "Got a new account";
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Validation/DataAnnotationsValidationEndpoints.cs#L39-L51' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_posting_CreateAccount' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Validation/DataAnnotationsValidationEndpoints.cs#L39-L51' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_posting_createaccount' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 or even like this:
@@ -360,12 +360,12 @@ app.MapWolverineEndpoints(opts =>
     // Opting into the Fluent Validation middleware from
     // Wolverine.Http.FluentValidation
     opts.UseFluentValidationProblemDetailMiddleware();
-    
+
     // Or instead, you could use Data Annotations that are built
     // into the Wolverine.HTTP library
     opts.UseDataAnnotationsValidationProblemDetailMiddleware();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L214-L239' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_configure_endpoints' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L215-L240' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_configure_endpoints' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## AsParameters Binding
@@ -374,7 +374,7 @@ The Fluent Validation middleware can also be used against the `[AsParameters]` i
 of an HTTP endpoint:
 
 <!-- snippet: sample_using_fluent_validation_with_AsParameters -->
-<a id='snippet-sample_using_fluent_validation_with_AsParameters'></a>
+<a id='snippet-sample_using_fluent_validation_with_asparameters'></a>
 ```cs
 public static class ValidatedAsParametersEndpoint
 {
@@ -401,7 +401,7 @@ public class ValidatedQuery
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Forms/FormEndpoints.cs#L200-L227' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_fluent_validation_with_AsParameters' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Forms/FormEndpoints.cs#L200-L227' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_fluent_validation_with_asparameters' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## QueryString Binding <Badge type="tip" text="5.0" />
@@ -409,7 +409,7 @@ public class ValidatedQuery
 Wolverine.HTTP can apply the Fluent Validation middleware to complex types that are bound by the `[FromQuery]` behavior:
 
 <!-- snippet: sample_CreateCustomer_endpoint_with_validation -->
-<a id='snippet-sample_CreateCustomer_endpoint_with_validation'></a>
+<a id='snippet-sample_createcustomer_endpoint_with_validation'></a>
 ```cs
 public record CreateCustomer
 (
@@ -444,5 +444,5 @@ public static class CreateCustomerEndpoint
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Validation/CreateCustomerEndpoint.cs#L8-L43' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_CreateCustomer_endpoint_with_validation' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Validation/CreateCustomerEndpoint.cs#L8-L43' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_createcustomer_endpoint_with_validation' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->

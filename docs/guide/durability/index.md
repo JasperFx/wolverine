@@ -27,7 +27,7 @@ getting lost en route.
 Consider this sample message handler from Wolverine's [AppWithMiddleware sample project](https://github.com/JasperFx/wolverine/tree/main/src/Samples/Middleware):
 
 <!-- snippet: sample_DebitAccountHandler_that_uses_IMessageContext -->
-<a id='snippet-sample_DebitAccountHandler_that_uses_IMessageContext'></a>
+<a id='snippet-sample_debitaccounthandler_that_uses_imessagecontext'></a>
 ```cs
 [Transactional]
 public static async Task Handle(
@@ -62,7 +62,7 @@ public static async Task Handle(
         new DeliveryOptions { DeliverWithin = 5.Seconds() });
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Middleware/AppWithMiddleware/Account.cs#L126-L161' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_DebitAccountHandler_that_uses_IMessageContext' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Middleware/AppWithMiddleware/Account.cs#L126-L161' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_debitaccounthandler_that_uses_imessagecontext' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The handler code above is committing changes to an `Account` in the underlying database and potentially sending out additional messages based on the state of the `Account`. 
