@@ -226,6 +226,37 @@ necessary to utilize that.
 For `Buffered` or `Inline` endpoints, you can use native Redis streams for "dead letter queue" messages using
 the name "{StreamKey}:dead-letter":
 
-snippet: sample_using_dead_letter_queue_for_redis
+<!-- snippet: sample_using_dead_letter_queue_for_redis -->
+<a id='snippet-sample_using_dead_letter_queue_for_redis'></a>
+```cs
+var builder = Host.CreateDefaultBuilder();
+
+using var host = await builder.UseWolverine(opts =>
+{
+    opts.UseRedisTransport("localhost:6379").AutoProvision()
+        .SystemQueuesEnabled(false) // Disable reply queues
+        .DeleteStreamEntryOnAck(true); // Clean up stream entries on ack
+
+    // Sending inline so the messages are added to the stream right away
+    opts.PublishAllMessages().ToRedisStream("wolverine-messages")
+        .SendInline();
+
+    opts.ListenToRedisStream("wolverine-messages", "default")
+        .EnableNativeDeadLetterQueue() // Enable DLQ for failed messages
+        .UseDurableInbox(); // Use durable inbox so retry messages are persisted
+    
+    // schedule retry delays
+    // if durable, these will be scheduled natively in Redis
+    opts.OnException<Exception>()
+        .ScheduleRetry(
+            TimeSpan.FromSeconds(10),
+            TimeSpan.FromSeconds(20),
+            TimeSpan.FromSeconds(30));
+    
+    opts.Services.AddResourceSetupOnStartup();
+}).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Redis/Wolverine.Redis.Tests/Samples/RedisTransportWithScheduling.cs#L7-L36' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_dead_letter_queue_for_redis' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 

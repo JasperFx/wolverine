@@ -73,6 +73,12 @@ public class DocumentationSamples
 
                 opts.ListenToPubsubTopic("incoming1");
 
+                // Listen to an existing subscription
+                opts.ListenToPubsubSubscription("subscription1", x =>
+                {
+                    // Other configuration...
+                });
+
                 opts.ListenToPubsubTopic("incoming2")
 
                     // You can optimize the throughput by running multiple listeners
