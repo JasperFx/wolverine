@@ -130,3 +130,34 @@ public class AuthenticatedEndpoint
         return "All good.";
     }
 }
+
+#region sample_middleware_created_dependency
+
+public class HttpMiddlewareUser
+{
+    public string Name { get; set; }
+}
+
+public class HttpServiceWithMiddlewareUser
+{
+    public HttpMiddlewareUser User { get; }
+
+    public HttpServiceWithMiddlewareUser(HttpMiddlewareUser user) => User = user;
+}
+
+public static class HttpMiddlewareUserCreatingMiddleware
+{
+    public static HttpMiddlewareUser Before() => new() { Name = "HttpTestUser" };
+}
+
+public class MiddlewareServiceDependencyEndpoint
+{
+    [WolverineGet("/middleware/service-dependency")]
+    public string Get(HttpServiceWithMiddlewareUser service, Recorder recorder)
+    {
+        recorder.Actions.Add($"Handler received Service with User: {service.User.Name}");
+        return $"User: {service.User.Name}";
+    }
+}
+
+#endregion

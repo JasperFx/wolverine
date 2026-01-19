@@ -57,6 +57,7 @@ public partial class HttpChain
 
             var loggedType = determineLogMarkerType();
 
+            handleMethod.Sources.Add(new MiddlewareVariableSource(Middleware));
             handleMethod.Sources.Add(new LoggerVariableSource(loggedType));
             handleMethod.Sources.Add(new MessageBusSource());
 

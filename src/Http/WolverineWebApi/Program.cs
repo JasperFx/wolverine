@@ -245,6 +245,8 @@ public class Program
             opts.AddMiddleware(typeof(LoadTodoMiddleware),
                 chain => chain.Method.HandlerType == typeof(UpdateEndpointWithMiddleware));
             opts.AddPolicy<LoadTodoPolicy>();
+            opts.AddMiddleware(typeof(HttpMiddlewareUserCreatingMiddleware),
+                chain => chain.Method.HandlerType == typeof(MiddlewareServiceDependencyEndpoint));
 
             #region sample_user_marten_compiled_query_policy
 

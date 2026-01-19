@@ -211,6 +211,7 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
 
         var handleMethod = _generatedType.MethodFor(nameof(MessageHandler.HandleAsync));
 
+        handleMethod.Sources.Add(new MiddlewareVariableSource(Middleware));
         handleMethod.Sources.Add(new LoggerVariableSource(MessageType));
         var envelopeVariable = new Variable(typeof(Envelope),
             $"context.{nameof(IMessageContext.Envelope)}");

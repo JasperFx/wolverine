@@ -335,6 +335,30 @@ public class middleware_usage
             "Score touchdown"
         );
     }
+
+    [Fact]
+    public async Task service_with_middleware_created_dependency_in_constructor()
+    {
+        var list = await invokeMessage(new MessageWithServiceDependingOnMiddlewareType(),
+            handlers => handlers.AddMiddleware<MiddlewareUserCreatingMiddleware>());
+
+        list.ShouldHaveTheSameElementsAs(
+            "MiddlewareUserCreatingMiddleware.Before - Created User: TestUser",
+            "Handler received User: TestUser and Service with User: TestUser"
+        );
+    }
+
+    [Fact]
+    public async Task service_only_with_middleware_created_dependency_in_constructor()
+    {
+        var list = await invokeMessage(new MessageWithServiceOnlyDependingOnMiddlewareType(),
+            handlers => handlers.AddMiddleware<MiddlewareUserCreatingMiddleware>());
+
+        list.ShouldHaveTheSameElementsAs(
+            "MiddlewareUserCreatingMiddleware.Before - Created User: TestUser",
+            "Handler received Service with User: TestUser"
+        );
+    }
 }
 
 public class MiddlewareActivity
@@ -672,3 +696,51 @@ public class MiddlewareWrapper
         }
     }
 }
+
+#region service_with_middleware_created_dependency_in_constructor
+
+public class MessageWithServiceDependingOnMiddlewareType;
+public class MessageWithServiceOnlyDependingOnMiddlewareType;
+
+public class MiddlewareUser
+{
+    public string Name { get; set; }
+}
+
+public class ServiceWithMiddlewareUser
+{
+    public MiddlewareUser User { get; }
+
+    public ServiceWithMiddlewareUser(MiddlewareUser user)
+    {
+        User = user;
+    }
+}
+
+public class MiddlewareUserCreatingMiddleware
+{
+    public MiddlewareUser Before(Recorder recorder)
+    {
+        var user = new MiddlewareUser { Name = "TestUser" };
+        recorder.Actions.Add($"MiddlewareUserCreatingMiddleware.Before - Created User: {user.Name}");
+        return user;
+    }
+}
+
+public class MessageWithServiceDependingOnMiddlewareTypeHandler
+{
+    public void Handle(MessageWithServiceDependingOnMiddlewareType message, MiddlewareUser user, ServiceWithMiddlewareUser service, Recorder recorder)
+    {
+        recorder.Actions.Add($"Handler received User: {user.Name} and Service with User: {service.User.Name}");
+    }
+}
+
+public class MessageWithServiceOnlyDependingOnMiddlewareTypeHandler
+{
+    public void Handle(MessageWithServiceOnlyDependingOnMiddlewareType message, ServiceWithMiddlewareUser service, Recorder recorder)
+    {
+        recorder.Actions.Add($"Handler received Service with User: {service.User.Name}");
+    }
+}
+
+#endregion
