@@ -9,7 +9,7 @@ using Wolverine.Runtime;
 
 namespace Wolverine.EntityFrameworkCore.Codegen;
 
-internal class EnrollTenantedDbContextInTransaction : AsyncFrame
+internal class StartDatabaseTransactionForDbContext : AsyncFrame
 {
     private readonly Type _dbContextType;
     private readonly IdempotencyStyle _idempotencyStyle;
@@ -18,7 +18,7 @@ internal class EnrollTenantedDbContextInTransaction : AsyncFrame
     private Variable _cancellation;
     private Variable? _context;
 
-    public EnrollTenantedDbContextInTransaction(Type dbContextType, IdempotencyStyle idempotencyStyle)
+    public StartDatabaseTransactionForDbContext(Type dbContextType, IdempotencyStyle idempotencyStyle)
     {
         _dbContextType = dbContextType;
         _idempotencyStyle = idempotencyStyle;
@@ -31,19 +31,25 @@ internal class EnrollTenantedDbContextInTransaction : AsyncFrame
         // EF Core can only do eager idempotent checks
         if (_idempotencyStyle == IdempotencyStyle.Eager || _idempotencyStyle == IdempotencyStyle.Optimistic)
         {
-            writer.Write($"await {_context.Usage}.{nameof(MessageContext.AssertEagerIdempotencyAsync)}({_cancellation.Usage});");
+            writer.Write($"await {_context.Usage}.{nameof(MessageContext.AssertEagerIdempotencyAsync)}({_cancellation.Usage}).ConfigureAwait(false);");
         }
 
         writer.Write($"BLOCK:if ({_dbContext.Usage}.Database.CurrentTransaction == null)");
-        writer.Write($"await {_dbContext.Usage}.Database.BeginTransactionAsync({_cancellation.Usage});");
+        writer.Write($"await {_dbContext.Usage}.Database.BeginTransactionAsync({_cancellation.Usage}).ConfigureAwait(false);");
         writer.FinishBlock();
+        
+        // EF Core can only do eager idempotent checks
+        if (_idempotencyStyle == IdempotencyStyle.Eager || _idempotencyStyle == IdempotencyStyle.Optimistic)
+        {
+            writer.Write($"await {_context.Usage}.{nameof(MessageContext.AssertEagerIdempotencyAsync)}({_cancellation.Usage}).ConfigureAwait(false);");
+        }
 
         Next?.GenerateCode(method, writer);
 
-        writer.Write($"await {_dbContext.Usage}.Database.CommitTransactionAsync({_cancellation.Usage});");
+        writer.Write($"await {_dbContext.Usage}.Database.CommitTransactionAsync({_cancellation.Usage}).ConfigureAwait(false);");
         writer.FinishBlock();
         writer.Write($"BLOCK:catch ({typeof(Exception).FullNameInCode()})");
-        writer.Write($"await {_dbContext.Usage}.Database.RollbackTransactionAsync({_cancellation.Usage});");
+        writer.Write($"await {_dbContext.Usage}.Database.RollbackTransactionAsync({_cancellation.Usage}).ConfigureAwait(false);");
         writer.Write("throw;");
         writer.FinishBlock();
     }

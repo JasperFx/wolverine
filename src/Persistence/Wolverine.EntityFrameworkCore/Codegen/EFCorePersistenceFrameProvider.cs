@@ -133,7 +133,7 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
             var createContext = typeof(CreateTenantedDbContext<>).CloseAndBuildAs<Frame>(dbContextType);
 
             chain.Middleware.Insert(0, createContext);
-            chain.Middleware.Insert(0, new EnrollTenantedDbContextInTransaction(dbContextType, chain.Idempotency));
+            chain.Middleware.Insert(0, new StartDatabaseTransactionForDbContext(dbContextType, chain.Idempotency));
         }
         else
         {
@@ -173,7 +173,7 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         {
             var createContext = typeof(CreateTenantedDbContext<>).CloseAndBuildAs<Frame>(dbType);
             chain.Middleware.Insert(0, createContext);
-            chain.Middleware.Insert(0, new EnrollTenantedDbContextInTransaction(dbType, chain.Idempotency));
+            chain.Middleware.Insert(0, new StartDatabaseTransactionForDbContext(dbType, chain.Idempotency));
         }
         else
         {
