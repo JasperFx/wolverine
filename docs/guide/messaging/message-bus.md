@@ -194,6 +194,25 @@ public class CreateItemCommandHandler
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/Bugs/Bug_305_invoke_async_with_return_not_publishing_with_tuple_return_value.cs#L65-L86' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_alwayspublishresponse' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Global Timeout Default for Request/Reply <Badge type="tip" text="5.11" />
+
+The default timeout for all remote invocations, request/reply, or send and wait messaging is 5 seconds. You can override that
+on a case by case basis, or you can set a default global timeout value:
+
+<!-- snippet: sample_global_timeout_for_remote_invocation -->
+<a id='snippet-sample_global_timeout_for_remote_invocation'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        // Set a global default timeout for remote
+        // invocation or request/reply operations
+        opts.DefaultRemoteInvocationTimeout = 10.Seconds();
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/GlobalTimeoutRequestReply.cs#L11-L21' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_global_timeout_for_remote_invocation' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
 ## Disabling Remote Request/Reply
 
 When you call `IMessageBus.InvokeAsync()` or `IMessageBus.InvokeAsync<T>()`, depending on whether Wolverine has a local message
