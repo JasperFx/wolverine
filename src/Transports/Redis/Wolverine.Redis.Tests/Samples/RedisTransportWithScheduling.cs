@@ -4,6 +4,8 @@ using Wolverine;
 using Wolverine.ErrorHandling;
 using Wolverine.Redis;
 
+#region sample_using_dead_letter_queue_for_redis
+
 var builder = Host.CreateDefaultBuilder();
 
 using var host = await builder.UseWolverine(opts =>
@@ -30,6 +32,8 @@ using var host = await builder.UseWolverine(opts =>
     
     opts.Services.AddResourceSetupOnStartup();
 }).StartAsync();
+
+#endregion
 var bus = host.MessageBus();
 var delay = new Random().Next(10, 50);
 await bus.ScheduleAsync(
