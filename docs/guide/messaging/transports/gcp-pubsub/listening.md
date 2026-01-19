@@ -12,6 +12,12 @@ var host = await Host.CreateDefaultBuilder()
 
         opts.ListenToPubsubTopic("incoming1");
 
+        // Listen to an existing subscription
+        opts.ListenToPubsubSubscription("subscription1", x =>
+        {
+            // Other configuration...
+        });
+
         opts.ListenToPubsubTopic("incoming2")
 
             // You can optimize the throughput by running multiple listeners
@@ -34,5 +40,5 @@ var host = await Host.CreateDefaultBuilder()
             });
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/DocumentationSamples.cs#L67-L98' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_listen_to_pubsub_topic' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/DocumentationSamples.cs#L67-L104' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_listen_to_pubsub_topic' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
