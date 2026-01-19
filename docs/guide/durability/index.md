@@ -283,3 +283,40 @@ var host = await Host.CreateDefaultBuilder()
 <!-- endSnippet -->
 
 This might be an important setting for [modular monolith architectures](/tutorials/modular-monolith). 
+
+## Stale Inbox and Outbox Thresholds
+
+::: info
+This is more a "defense in depth" feature than a common problem with the inbox/outbox mechanics. These
+flags are "opt in" only because they require database schema changes.
+:::
+
+It should not ever be possible for messages to get "stuck" in the transactional inbox or outbox, but it's an 
+imperfect world and occasionally there are hiccups that might lead to that situation. To that end, you have
+these "opt in" settings to tell Wolverine to "bump" apparently stalled or stale messages back into play *just in case*:
+
+<!-- snippet: sample_using_inbox_outbox_stale_time -->
+<a id='snippet-sample_using_inbox_outbox_stale_time'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        // configure the actual message persistence...
+
+        // This directs Wolverine to "bump" any messages marked
+        // as being owned by a specific node but older than
+        // these thresholds as  being open to any node pulling 
+        // them in
+        
+        // TL;DR: make Wolverine go grab stale messages and make
+        // sure they are processed or sent to the messaging brokers
+        opts.Durability.InboxStaleTime = 5.Minutes();
+        opts.Durability.OutboxStaleTime = 5.Minutes();
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/InboxOutboxSettings.cs#L11-L29' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_inbox_outbox_stale_time' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+::: info
+These settings will be defaults in Wolverine 6.0.
+:::
