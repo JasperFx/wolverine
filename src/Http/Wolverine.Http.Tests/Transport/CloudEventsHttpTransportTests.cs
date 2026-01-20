@@ -35,6 +35,7 @@ public class CloudEventsHttpTransportTests
         var envelope = new Envelope
         {
             Id = Guid.NewGuid(),
+            TenantId =  "greattenantId",
             MessageType = "TestMessage",
             Message = message,
             Data = Encoding.UTF8.GetBytes("{\"name\":\"test\"}"),
@@ -58,6 +59,7 @@ public class CloudEventsHttpTransportTests
         content.ShouldContain("type");
         content.ShouldContain("source");
         content.ShouldContain("id");
+        content.ShouldContain("tenantid");
     }
 
     [Fact]
@@ -72,6 +74,7 @@ public class CloudEventsHttpTransportTests
         var envelope = new Envelope
         {
             Id = envelopeId,
+            TenantId = "greattenantId",
             MessageType = "MyApp.TestCommand",
             Message = message,
             Data = Encoding.UTF8.GetBytes("{\"value\":42}"),
@@ -94,6 +97,7 @@ public class CloudEventsHttpTransportTests
         ce.Type.ShouldBe("Wolverine.Http.Tests.Transport.CloudEventsTestCommand");
         ce.Source.ShouldBe("test-service");
         ce.Id.ToString().ShouldBe(envelopeId.ToString());
+        ce.TenantId.ShouldBe("greattenantId");
         ce.DataContentType.ShouldStartWith("application/json");
     }
 
