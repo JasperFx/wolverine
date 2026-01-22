@@ -56,12 +56,10 @@ public class SagaChain : HandlerChain
     public SagaChain(HandlerCall handlerCall, HandlerGraph handlerGraph, Endpoint[] endpoints) : base(handlerCall, handlerGraph)
     {
         foreach (var endpoint in endpoints) RegisterEndpoint(endpoint);
-        
+
         var saga = handlerCall;
         SagaType = saga.HandlerType;
         SagaMethodInfo = saga.Method;
-        
-        Handlers.Add(handlerCall);
 
         SagaIdMember = DetermineSagaIdMember(MessageType, SagaType, saga.Method);
 

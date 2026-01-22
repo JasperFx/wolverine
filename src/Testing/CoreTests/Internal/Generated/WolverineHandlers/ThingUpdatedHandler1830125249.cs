@@ -38,10 +38,6 @@ namespace Internal.Generated.WolverineHandlers
                 // The actual message execution
                 trackedThing.Handle(thingUpdated, context.Envelope);
 
-                
-                // The actual message execution
-                trackedThing.Handle(thingUpdated, context.Envelope);
-
                 // Delete the saga if completed, otherwise update it
                 if (trackedThing.IsCompleted())
                 {
