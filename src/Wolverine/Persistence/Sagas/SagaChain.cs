@@ -197,6 +197,12 @@ public class SagaChain : HandlerChain
         foreach (var startingCall in StartingCalls)
         {
             frames.Add(startingCall);
+
+            if (SagaIdMember != null)
+            {
+                frames.Add(new SetSagaIdFromSagaFrame(sagaVariable, SagaIdMember));
+            }
+
             foreach (var frame in startingCall.Creates.SelectMany(x => x.ReturnAction(this).Frames()))
                 frames.Add(frame);
         }
@@ -226,6 +232,8 @@ public class SagaChain : HandlerChain
         if (StartingCalls.Length != 0)
         {
             yield return new CreateMissingSagaFrame(saga);
+
+            yield return new SetSagaIdFrame(sagaId);
 
             foreach (var call in StartingCalls)
             {
@@ -265,6 +273,9 @@ public class SagaChain : HandlerChain
     internal IEnumerable<Frame> DetermineSagaExistsSteps(Variable sagaId, Variable saga,
         IPersistenceFrameProvider frameProvider, IServiceContainer container)
     {
+        // Set the saga ID on the context so cascading messages have the correct saga ID
+        yield return new SetSagaIdFrame(sagaId);
+
         foreach (var call in ExistingCalls)
         {
             yield return call;

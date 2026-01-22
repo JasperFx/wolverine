@@ -18,12 +18,12 @@ public enum MultiFlushMode
     /// The default mode, additional calls to FlushOutgoingMessages() are ignored
     /// </summary>
     OnlyOnce,
-    
+
     /// <summary>
     /// Allow for multiple calls to FlushOutgoingMessages()
     /// </summary>
     AllowMultiples,
-    
+
     /// <summary>
     /// Throw an exception on additional calls to FlushOutgoingMessages(). Use this to troubleshoot
     /// erroneous behavior
@@ -124,17 +124,17 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
             {
                 case MultiFlushMode.OnlyOnce:
                     return;
-                
+
                 case MultiFlushMode.AllowMultiples:
                     Runtime.Logger.LogWarning("Received multiple calls to FlushOutgoingMessagesAsync() to a single MessageContext");
                     break;
-                
+
                 case MultiFlushMode.AssertOnMultiples:
                     throw new InvalidOperationException(
                         $"This MessageContext does not allow multiple calls to {nameof(FlushOutgoingMessagesAsync)} because {nameof(MultiFlushMode)} = {MultiFlushMode}");
             }
         }
-        
+
         await AssertAnyRequiredResponseWasGenerated();
 
         if (!Outstanding.Any())
@@ -146,7 +146,7 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         {
             // https://github.com/JasperFx/wolverine/issues/2006
             if (envelope == null) continue;
-            
+
             try
             {
                 if (envelope.IsScheduledForLater(DateTimeOffset.UtcNow))
@@ -526,7 +526,7 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
 
             if (Runtime.Options.Durability.Mode == DurabilityMode.MediatorOnly) return;
 
-            // This was done specifically for the HTTP transport's optimized 
+            // This was done specifically for the HTTP transport's optimized
             // request/reply mechanism
             if (Envelope.DoNotCascadeResponse)
             {
@@ -580,7 +580,7 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         }
 
         _hasFlushed = false;
-        
+
         _sent?.Clear();
         _outstanding.Clear();
         Scheduled.Clear();
@@ -588,6 +588,8 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         Transaction = null;
         _sagaId = null;
     }
+
+    public void SetSagaId(object sagaId) => _sagaId = sagaId;
 
     internal void ReadEnvelope(Envelope? originalEnvelope, IChannelCallback channel)
     {
