@@ -110,9 +110,16 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
 
         if (grouping.Count() > 1)
         {
-            foreach (var handlerCall in grouping)
-                // ReSharper disable once VirtualMemberCallInConstructor
-                tryAssignStickyEndpoints(handlerCall, options);
+            // ReSharper disable once VirtualMemberCallInConstructor
+            maybeAssignStickyHandlers(options, grouping);
+        }
+    }
+
+    protected virtual void maybeAssignStickyHandlers(WolverineOptions options, IGrouping<Type, HandlerCall> grouping)
+    {
+        foreach (var handlerCall in grouping)
+        {
+            tryAssignStickyEndpoints(handlerCall, options);
         }
     }
 
@@ -297,10 +304,11 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         if (endpoints.Any())
         {
             foreach (var stub in endpoints.OfType<StubEndpoint>())
+            {
                 stub.Subscriptions.Add(Subscription.ForType(MessageType));
+            }
 
-            var chain = handlerCall.HandlerType.CanBeCastTo<Saga>() ? new SagaChain(handlerCall,
-                options.HandlerGraph, endpoints) : new HandlerChain(handlerCall, options.HandlerGraph, endpoints);
+            var chain = new HandlerChain(handlerCall, options.HandlerGraph, endpoints);
 
             Handlers.Remove(handlerCall);
 

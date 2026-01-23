@@ -34,7 +34,7 @@ public class using_a_saga_with_separated_behavior_mode
         var envelopes = tracked.Executed.Envelopes().Where(x => x.Message is ThingUpdated).ToArray();
         envelopes.Length.ShouldBe(2);
 
-        envelopes.Any(x => x.Destination == new Uri("local://coretests.persistence.sagas.trackedthing/")).ShouldBeTrue();
+        envelopes.Any(x => x.Destination == new Uri("local://coretests.persistence.sagas.thingupdated/")).ShouldBeTrue();
         envelopes.Any(x => x.Destination == new Uri("local://coretests.persistence.sagas.otherthingupdatedhandler/")).ShouldBeTrue();
 
         TrackedThing.Updates.ShouldBe(1);
