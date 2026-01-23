@@ -65,7 +65,7 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
 
         if (endpoint.ShouldEnforceBackPressure())
         {
-            _backPressureAgent = new BackPressureAgent(this, endpoint);
+            _backPressureAgent = new BackPressureAgent(this, endpoint, runtime.Observer);
             _backPressureAgent.Start();
         }
     }
@@ -264,7 +264,7 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
             Status = ListeningStatus.TooBusy;
             _runtime.Tracker.Publish(new ListenerState(Uri, Endpoint.EndpointName, Status));
 
-            _logger.LogInformation("Marked listener at {Uri} as too busy and stopped receiving", Uri);
+            _logger.LogInformation("Marked listener at {Uri} as too busy and stopped receiving. The current local message count is {LocalCount}, and the BufferingLimits are set to {BufferingLimits}. You may want to increase the buffering limits", Uri, QueueCount, Endpoint.BufferingLimits);
         }
         finally
         {
