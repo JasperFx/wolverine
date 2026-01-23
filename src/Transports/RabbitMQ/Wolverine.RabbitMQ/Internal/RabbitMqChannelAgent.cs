@@ -44,6 +44,7 @@ internal abstract class RabbitMqChannelAgent : IAsyncDisposable
         
         if (Channel is not null)
         {
+            Locker.Release();
             return;
         }
 
