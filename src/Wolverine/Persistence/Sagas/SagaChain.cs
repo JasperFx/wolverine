@@ -53,6 +53,26 @@ public class SagaChain : HandlerChain
         }
     }
 
+    protected override void maybeAssignStickyHandlers(WolverineOptions options, IGrouping<Type, HandlerCall> grouping)
+    {
+        var notSaga = grouping.Where(x => !x.HandlerType.CanBeCastTo<Saga>());
+        foreach (var handlerCall in notSaga)
+        {
+            tryAssignStickyEndpoints(handlerCall, options);
+        }
+
+        // You just know *somebody* is going to try to handle the same message type
+        // by different sagas because our users hate me
+        var groupedSagas = grouping.Where(x => x.HandlerType.CanBeCastTo<Saga>())
+            .GroupBy(x => x.HandlerType).ToArray();
+
+        if (groupedSagas.Length > 1)
+            throw new NotSupportedException(
+                "Wolverine does not (yet) support having multiple Saga type respond to the same message.");
+
+        // TODO -- MORE HERE!!!!!
+    }
+
     public SagaChain(HandlerCall handlerCall, HandlerGraph handlerGraph, Endpoint[] endpoints) : base(handlerCall, handlerGraph)
     {
         foreach (var endpoint in endpoints) RegisterEndpoint(endpoint);
