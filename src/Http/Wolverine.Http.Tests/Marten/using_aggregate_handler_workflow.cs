@@ -2,6 +2,7 @@ using Marten;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
+using Wolverine.Http.Marten;
 using Wolverine.Marten;
 using WolverineWebApi.Marten;
 
@@ -350,6 +351,32 @@ public class using_aggregate_handler_workflow(AppFixture fixture) : IntegrationC
         var stream = await session.Events.FetchStreamAsync(status.OrderId);
         stream.Select(x => x.Data).OfType<UpdatedAggregate>().Any().ShouldBeFalse();
 
+    }
+    
+    [Fact]
+    public async Task aggregate_id_variable_is_fetchable_from_http_chain_for_handler_marked_with_AggregateHandler()
+    {
+        // Guaranteeing that it's warmed up
+        var result1 = await Scenario(x =>
+        {
+            x.Post.Json(new StartOrder(["Socks", "Shoes", "Shirt"])).ToUrl("/orders/create");
+        });
+        
+        var status1 = result1.ReadAsJson<OrderStatus>();
+        
+        await Scenario(x =>
+        {
+            x.Post.Json(new MarkItemReady(status1.OrderId, "Socks", 1)).ToUrl("/orders/itemready");
+        });
+
+        var chain = Host.Services.GetRequiredService<WolverineHttpOptions>().Endpoints!.ChainFor("POST", "/orders/itemready");
+        chain.ShouldNotBeNull();
+
+        var aggregateIdVariable = chain.GetAggregateIdVariable();
+        aggregateIdVariable.ShouldNotBeNull();
+        
+        aggregateIdVariable.VariableType.FullName.ShouldBe(typeof(Guid).FullName);
+        aggregateIdVariable.Usage.ShouldBe("order_Id");
     }
 
 }
