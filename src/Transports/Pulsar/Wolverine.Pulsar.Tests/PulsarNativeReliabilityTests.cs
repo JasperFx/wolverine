@@ -157,6 +157,53 @@ public class PulsarNativeReliabilityTests : /*TransportComplianceFixture,*/ IAsy
 
     }
 
+    [Fact]
+    public async Task verify_retry_delay_intervals_are_respected()
+    {
+        // This test ensures that custom retry intervals are properly configured
+        var session = await WolverineHost.TrackActivity(TimeSpan.FromSeconds(100))
+            .DoNotAssertOnExceptionsDetected()
+            .IncludeExternalTransports()
+            .WaitForCondition(new WaitForDeadLetteredMessage<SRMessage1>())
+            .SendMessageAndWaitAsync(new SRMessage1());
+
+        // Verify the retry delays match configuration: [4s, 2s, 3s]
+        var requeuedEnvelopes = session.Requeued.Envelopes().ToList();
+        requeuedEnvelopes.Count.ShouldBe(3);
+
+        // First requeue happens immediately (no delay)
+        requeuedEnvelopes[0].Headers.ContainsKey("DELAY_TIME").ShouldBeFalse();
+
+        // Second requeue should have 4 second delay
+        requeuedEnvelopes[1].Headers["DELAY_TIME"].ShouldBe(TimeSpan.FromSeconds(4).TotalMilliseconds.ToString());
+
+        // Third requeue should have 2 second delay
+        requeuedEnvelopes[2].Headers["DELAY_TIME"].ShouldBe(TimeSpan.FromSeconds(2).TotalMilliseconds.ToString());
+    }
+
+    [Fact]
+    public async Task verify_message_attempts_increment_correctly()
+    {
+        // This test verifies that attempt counts are properly tracked
+        var session = await WolverineHost.TrackActivity(TimeSpan.FromSeconds(100))
+            .DoNotAssertOnExceptionsDetected()
+            .IncludeExternalTransports()
+            .WaitForCondition(new WaitForDeadLetteredMessage<SRMessage1>())
+            .SendMessageAndWaitAsync(new SRMessage1());
+
+        // Should have 4 total receives: initial + 3 retries
+        session.Received.MessagesOf<SRMessage1>().Count().ShouldBe(4);
+
+        var requeuedEnvelopes = session.Requeued.Envelopes().ToList();
+        requeuedEnvelopes[0].Attempts.ShouldBe(1);
+        requeuedEnvelopes[1].Attempts.ShouldBe(2);
+        requeuedEnvelopes[2].Attempts.ShouldBe(3);
+
+        // Final DLQ message should have reconsume times = 3 (number of retries)
+        var dlqEnvelope = session.MovedToErrorQueue.Envelopes().First();
+        dlqEnvelope.Headers[PulsarEnvelopeConstants.ReconsumeTimes].ShouldBe("3");
+    }
+
 
 
     public async Task DisposeAsync()
