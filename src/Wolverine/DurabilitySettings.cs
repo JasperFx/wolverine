@@ -93,6 +93,26 @@ public class DurabilitySettings
     public MessageIdentity MessageIdentity { get; set; } = MessageIdentity.IdOnly;
 
     /// <summary>
+    /// If non-null, this directs Wolverine to "push" any message in the durable outbox that is older
+    /// than the configured time even if the message is marked as owned by an active node
+    /// </summary>
+    public TimeSpan? OutboxStaleTime { get; set; }
+    
+    /// <summary>
+    /// If non-null, this directs Wolverine to "push" any message in the durable inbox that is older
+    /// than the configured time even if the message is marked as owned by an active node. Should NOT ever
+    /// be necessary, but it's an imperfect world. Enable this if you see "stuck" envelopes
+    /// </summary>
+    public TimeSpan? InboxStaleTime { get; set; }
+    
+    /// <summary>
+    /// For persistence mechanisms that support this (PostgreSQL), this directs Wolverine to use partitioning
+    /// based on the envelope status for the transactional inbox storage. This can be a performance optimization,
+    /// but does require a database migration if enabled
+    /// </summary>
+    public bool EnableInboxPartitioning { get; set; }
+
+    /// <summary>
     ///     Should the message durability agent be enabled during execution.
     ///     The default is true.
     /// </summary>
@@ -200,6 +220,26 @@ public class DurabilitySettings
     /// Default is 5 days
     /// </summary>
     public TimeSpan NodeEventRecordExpirationTime { get; set; } = 5.Days();
+
+    /// <summary>
+    /// When this option is enabled retry block used in InlineSendingAgent will synchronously wait on sending task to assure the message is send. 
+    /// When set to <see langword="false"/> default behavior is used so InlineSendingAgent agent will try to send a message and when failed it will give control to caller and retry on other thread in async manner
+    /// </summary>
+    public bool UseSyncRetryBlock { get; set; }
+
+    /// <summary>
+    /// Controls whether health check operations emit telemetry traces for 'wolverine_node_assignments'. 
+    /// Default is true to maintain backwards compatibility. Set to false to completely disable health check tracing.
+    /// </summary>
+    public bool NodeAssignmentHealthCheckTracingEnabled { get; set; } = true;
+
+    /// <summary>
+    /// When set, health check traces will be throttled to emit at most once per this time period.
+    /// For example, set to 10 minutes to only emit traces every 10 minutes instead of every health check.
+    /// This reduces telemetry volume while still providing periodic visibility.
+    /// Default is null (no throttling - all health checks are traced when NodeAssignmentHealthCheckTracingEnabled is true).
+    /// </summary>
+    public TimeSpan? NodeAssignmentHealthCheckTraceSamplingPeriod { get; set; }
 
     /// <summary>
     ///     Get or set the logical Wolverine service name. By default, this is

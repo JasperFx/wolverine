@@ -2,6 +2,7 @@ using IntegrationTests;
 using JasperFx.Core;
 using JasperFx.Resources;
 using Marten;
+using Marten.Events.Daemon.Coordination;
 using MartenTests.MultiTenancy;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -19,6 +20,7 @@ using Wolverine.Persistence.Durability;
 using Wolverine.Postgresql;
 using Wolverine.RDBMS;
 using Wolverine.RDBMS.MultiTenancy;
+using Wolverine.Runtime.Agents;
 using Wolverine.Tracking;
 using Xunit.Abstractions;
 
@@ -30,7 +32,7 @@ public class bootstrapping_ancillary_marten_stores_with_wolverine : IAsyncLifeti
     private string tenant1ConnectionString;
     private string tenant2ConnectionString;
     private string tenant3ConnectionString;
-    private DurabilityAgentFamily theFamily;
+    private IAgentFamily theFamily;
     private IHost theHost;
 
     public bootstrapping_ancillary_marten_stores_with_wolverine(ITestOutputHelper output)
@@ -94,14 +96,17 @@ public class bootstrapping_ancillary_marten_stores_with_wolverine : IAsyncLifeti
                         tenancy.AddSingleTenantDatabase(tenant3ConnectionString, "tenant3");
                     });
                     m.DatabaseSchemaName = "things";
-                }).IntegrateWithWolverine(masterDatabaseConnectionString: Servers.PostgresConnectionString);
+                }).IntegrateWithWolverine(x =>
+                {
+                    x.MainConnectionString = Servers.PostgresConnectionString;
+                });
 
                 opts.Services.AddResourceSetupOnStartup();
             }).StartAsync();
 
         #endregion
 
-        theFamily = new DurabilityAgentFamily(theHost.GetRuntime());
+        theFamily = theHost.GetRuntime().Stores;
     }
 
     public async Task DisposeAsync()
@@ -134,20 +139,28 @@ public class bootstrapping_ancillary_marten_stores_with_wolverine : IAsyncLifeti
     }
 
     [Fact]
+    public void projection_coordinator_from_marten()
+    {
+        theHost.Services.GetRequiredService<IProjectionCoordinator<IPlayerStore>>()
+            .ShouldBeOfType<ProjectionCoordinator<IPlayerStore>>();
+    }
+
+    [Fact]
     public void registers_the_single_tenant_ancillary_store()
     {
         theHost.DocumentStore<IPlayerStore>().ShouldNotBeNull();
-        var ancillaries = theHost.Services.GetServices<IAncillaryMessageStore>();
-        ancillaries.OfType<PostgresqlMessageStore<IPlayerStore>>().Any().ShouldBeTrue();
+        var ancillaries = theHost.Services.GetServices<AncillaryMessageStore>();
+        ancillaries.Select(x => x.MarkerType == typeof(IPlayerStore)).Any().ShouldBeTrue();
     }
 
     [Fact]
     public void registers_the_multiple_tenant_ancillary_store()
     {
         theHost.DocumentStore<IThingStore>().ShouldNotBeNull();
-        var ancillaries = theHost.Services.GetServices<IAncillaryMessageStore>();
-        ancillaries.OfType<MultiTenantedMessageStore<IThingStore>>().Any()
-            .ShouldBeTrue();
+        var ancillaries = theHost.Services.GetServices<AncillaryMessageStore>();
+        ancillaries.Single(x => x.MarkerType == typeof(IThingStore))
+            .Inner
+            .ShouldBeOfType<MultiTenantedMessageStore>();
     }
 
     [Fact]

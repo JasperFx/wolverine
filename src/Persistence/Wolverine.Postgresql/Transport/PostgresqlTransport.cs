@@ -16,7 +16,7 @@ public class PostgresqlTransport : BrokerTransport<PostgresqlQueue>, ITransportC
 {
     public const string ProtocolName = "postgresql";
 
-    public PostgresqlTransport() : base(ProtocolName, "PostgreSQL Transport")
+    public PostgresqlTransport() : base(ProtocolName, "PostgreSQL Transport", [ProtocolName])
     {
         Queues = new LightweightCache<string, PostgresqlQueue>(name => new PostgresqlQueue(name, this));
     }
@@ -37,7 +37,14 @@ public class PostgresqlTransport : BrokerTransport<PostgresqlQueue>, ITransportC
     {
         // This is important, let the Postgres queues get built automatically
         AutoProvision = AutoProvision || runtime.Options.AutoBuildMessageStorageOnStartup != AutoCreate.None;
-        if (runtime.Storage is PostgresqlMessageStore store)
+        var stores = await runtime.Stores.FindAllAsync<PostgresqlMessageStore>();
+        if (!stores.Any())
+        {
+            throw new InvalidOperationException(
+                $"The PostgreSQL transport is configured for usage, but the envelope storage is incompatible: {runtime.Storage}");
+        }
+        
+        foreach (var store in stores)
         {
             foreach (var queue in Queues)
             {
@@ -46,38 +53,22 @@ public class PostgresqlTransport : BrokerTransport<PostgresqlQueue>, ITransportC
             }
 
             MessageStorageSchemaName = store.SchemaName;
-
-            Store = store;
         }
-        else if (runtime.Storage is MultiTenantedMessageStore tenants)
+
+        if (runtime.Storage is PostgresqlMessageStore s)
         {
-            Store = tenants.Main as PostgresqlMessageStore;
-
-            if (tenants.Source is IMessageDatabaseSource source)
+            Store = s;
+        }
+        else if (runtime.Storage is MultiTenantedMessageStore mt)
+        {
+            if (mt.Main is PostgresqlMessageStore p)
             {
-                await source.ConfigureDatabaseAsync(messageStore =>
-                {
-                    if (messageStore is PostgresqlMessageStore s)
-                    {
-                        MessageStorageSchemaName = s.SchemaName;
-                        
-                        foreach (var queue in Queues)
-                        {
-                            s.AddTable(queue.QueueTable);
-                            s.AddTable(queue.ScheduledTable);
-                        }
-                    }
-                    else
-                    {
-                        throw new InvalidOperationException(
-                            "The PostgreSQL backed transport can only be used with PostgreSQL is the active envelope storage mechanism");
-                    }
-
-                    return new ValueTask();
-                });
+                Store = p;
+                Databases = mt;
             }
         }
-        else
+
+        if (Store == null)
         {
             throw new InvalidOperationException(
                 $"The PostgreSQL transport is configured for usage, but the envelope storage is incompatible: {runtime.Storage}");
@@ -108,13 +99,15 @@ public class PostgresqlTransport : BrokerTransport<PostgresqlQueue>, ITransportC
         {
             Store = store;
         }
-        else if (runtime.Storage is MultiTenantedMessageStore tenants)
+        else if (runtime.Storage is MultiTenantedMessageStore mt && mt.Main is PostgresqlMessageStore s)
         {
-            Store = tenants.Main as PostgresqlMessageStore ??
-                    throw new ArgumentOutOfRangeException(
-                        "The PostgreSQL transport can only be used if PostgreSQL is the backing message store");
-
-            Databases = tenants;
+            Store = s;
+            Databases = mt;
+        }
+        else
+        {
+            throw new ArgumentOutOfRangeException(
+                "The PostgreSQL transport can only be used if PostgreSQL is the backing message store");
         }
 
         // This is de facto a little environment test
@@ -161,6 +154,8 @@ public class PostgresqlTransport : BrokerTransport<PostgresqlQueue>, ITransportC
         }
         
         if (Queues.Any(x => x is { IsListener: true, ListenerScope: ListenerScope.Exclusive }))
+        {
             yield return new StickyPostgresqlQueueListenerAgentFamily(runtime);
+        }
     }
 }

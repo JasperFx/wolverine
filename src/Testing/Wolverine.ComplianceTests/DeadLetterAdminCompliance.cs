@@ -29,7 +29,7 @@ public abstract class DeadLetterAdminCompliance : IAsyncLifetime
     private DateTimeOffset FourHoursAgo;
     private DateTimeOffset SevenHoursAgo;
     private DateTimeOffset SixHoursAgo;
-    protected IDeadLetterAdminService theDeadLetters;
+    protected IDeadLetters theDeadLetters;
     protected EnvelopeGenerator theGenerator;
     protected IMessageStore thePersistence;
     private IReadOnlyList<DeadLetterQueueCount> theSummaries;
@@ -48,7 +48,7 @@ public abstract class DeadLetterAdminCompliance : IAsyncLifetime
         await theHost.ResetResourceState();
 
         thePersistence = theHost.Services.GetRequiredService<IMessageStore>();
-        theDeadLetters = (IDeadLetterAdminService)thePersistence.DeadLetters;
+        theDeadLetters = thePersistence.DeadLetters;
 
         theGenerator = new EnvelopeGenerator();
         theGenerator.MessageSource = BuildRandomMessage;
@@ -518,8 +518,12 @@ public abstract class DeadLetterAdminCompliance : IAsyncLifetime
             query, CancellationToken.None);
 
         var results = await theDeadLetters.QueryAsync(query, CancellationToken.None);
-        results.TotalCount.ShouldBe(0);
-        results.Envelopes.Count.ShouldBe(0);
+
+        foreach (var envelopeResult in results.Envelopes)
+        {
+            envelopeResult.Replayable.ShouldBeTrue();
+        }
+
     }
 
     [Fact]
@@ -563,7 +567,7 @@ public abstract class DeadLetterAdminCompliance : IAsyncLifetime
         await loadAllEnvelopes();
 
         var ids = allEnvelopes.Envelopes.Take(10).Select(x => x.Id).ToArray();
-        await theDeadLetters.DiscardAsync(new MessageBatchRequest(ids), CancellationToken.None);
+        await theDeadLetters.DiscardAsync(new DeadLetterEnvelopeQuery{MessageIds = ids}, CancellationToken.None);
 
         // Reload
         await loadAllEnvelopes();
@@ -611,11 +615,15 @@ public abstract class DeadLetterAdminCompliance : IAsyncLifetime
         await loadAllEnvelopes();
 
         var ids = allEnvelopes.Envelopes.Take(10).Select(x => x.Id).ToArray();
-        await theDeadLetters.ReplayAsync(new MessageBatchRequest(ids), CancellationToken.None);
+        await theDeadLetters.ReplayAsync(new DeadLetterEnvelopeQuery(ids), CancellationToken.None);
 
         // Reload
         await loadAllEnvelopes();
-        allEnvelopes.Envelopes.Where(x => ids.Contains(x.Id)).Any().ShouldBeFalse();
+
+        foreach (var dle in allEnvelopes.Envelopes.Where(x => ids.Contains(x.Id)))
+        {
+            dle.Replayable.ShouldBeTrue();
+        }
     }
 }
 

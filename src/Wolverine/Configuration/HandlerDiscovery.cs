@@ -148,6 +148,10 @@ public sealed partial class HandlerDiscovery
     {
         foreach (var messageType in handlers.AllMessageTypes())
         {
+            if (messageType == typeof(object)) continue;
+            if (messageType == typeof(object[])) continue;
+            if (messageType == typeof(IEnumerable<object>)) continue;
+            
             yield return messageType;
         }
 

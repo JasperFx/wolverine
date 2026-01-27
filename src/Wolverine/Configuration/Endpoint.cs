@@ -1,5 +1,6 @@
 #nullable enable
 
+using System.Text.Json;
 using System.Threading.Tasks.Dataflow;
 using ImTools;
 using JasperFx.CommandLine.Descriptions;
@@ -9,6 +10,7 @@ using JasperFx.Descriptors;
 using Microsoft.Extensions.Logging;
 using Wolverine.ErrorHandling;
 using Wolverine.Runtime;
+using Wolverine.Runtime.Interop;
 using Wolverine.Runtime.Routing;
 using Wolverine.Runtime.Scheduled;
 using Wolverine.Runtime.Serialization;
@@ -16,6 +18,14 @@ using Wolverine.Transports;
 using Wolverine.Transports.Sending;
 
 namespace Wolverine.Configuration;
+
+public enum PartitionSlots
+{
+    Three = 3,
+    Five = 5,
+    Seven = 7,
+    Nine = 9
+}
 
 /// <summary>
 /// Marker interface that tells Wolverine internals that this endpoint directly
@@ -89,7 +99,65 @@ public enum ListenerScope
     /// If this endpoint is a listener, it should only be active on a single node.
     /// This is mostly appropriate for
     /// </summary>
-    Exclusive
+    Exclusive, 
+    
+    /// <summary>
+    /// This listening endpoint should only be active on leader nodes (or when running in Solo). This
+    /// setting is probably only useful for administrative functions
+    /// </summary>
+    PinnedToLeader
+}
+
+public abstract class Endpoint<TMapper, TConcreteMapper> : Endpoint
+    where TConcreteMapper : TMapper, IEnvelopeMapper
+{
+    protected Endpoint(Uri uri, EndpointRole role) : base(uri, role)
+    {
+        
+    }
+
+    private Action<TConcreteMapper, IWolverineRuntime>? _customizeMapping;
+
+    protected internal void customizeMapping(Action<TConcreteMapper, IWolverineRuntime> customization)
+    {
+        _customizeMapping = customization ?? throw new ArgumentNullException(nameof(customization));
+    }
+
+    protected internal void registerMapperFactory(Func<IWolverineRuntime, TMapper> factory)
+    {
+        _mapperFactory = factory ?? throw new ArgumentNullException(nameof(factory));
+    }
+
+    private Func<IWolverineRuntime, TMapper>? _mapperFactory;
+    
+    public TMapper BuildMapper(IWolverineRuntime runtime)
+    {
+       if (EnvelopeMapper != null) return EnvelopeMapper;
+
+       if (_mapperFactory != null)
+       {
+           return _mapperFactory(runtime);
+       }
+       
+       var mapper = buildMapper(runtime);
+       _customizeMapping?.Invoke(mapper, runtime);
+       
+       if (MessageType != null)
+       {
+           mapper.ReceivesMessage(MessageType);
+       }
+
+       return mapper;
+    }
+
+    protected abstract TConcreteMapper buildMapper(IWolverineRuntime runtime);
+    
+    
+    /// <summary>
+    /// When set, overrides the built in envelope mapping with a custom
+    /// implementation
+    /// </summary>
+    public TMapper? EnvelopeMapper { get; set; }
 }
 
 /// <summary>
@@ -113,10 +181,20 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
         Role = role;
         Uri = uri;
         EndpointName = uri.ToString();
-
-        ExecutionOptions.MaxDegreeOfParallelism = Environment.ProcessorCount;
-        ExecutionOptions.EnsureOrdered = false;
     }
+
+    /// <summary>
+    /// Controls the maximum number of messages that could be processed at one time
+    /// Default is the Environment.ProcessorCount. Setting this to 1 makes this listening endpoint
+    /// be ordered in its processing
+    /// </summary>
+    public int MaxDegreeOfParallelism { get; set; } = Environment.ProcessorCount;
+    
+    /// <summary>
+    /// If specified, directs this endpoint to use by GroupId sharding in processing.
+    /// Only impacts Buffered or Durable endpoints though.
+    /// </summary>
+    public PartitionSlots? GroupShardingSlotNumber { get; set; }
 
     /// <summary>
     /// In the case of using "sticky handlers"
@@ -227,13 +305,6 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
     public Uri Uri { get; }
 
     /// <summary>
-    ///     Configuration for the local TPL Dataflow queue for listening endpoints configured as either
-    ///     BufferedInMemory or Durable
-    /// </summary>
-    [ChildDescription]
-    public ExecutionDataflowBlockOptions ExecutionOptions { get; set; } = new();
-
-    /// <summary>
     ///     Is this endpoint used to listen for incoming messages?
     /// </summary>
     public bool IsListener { get; set; } // TODO -- in 3.0, switch this to using ListeningScope
@@ -318,14 +389,6 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
         if (Mode == EndpointMode.BufferedInMemory)
         {
             dict.Add(nameof(MaximumEnvelopeRetryStorage), MaximumEnvelopeRetryStorage);
-
-            if (IsListener && Mode != EndpointMode.Inline)
-            {
-                dict.Add("ExecutionOptions.MaxDegreeOfParallelism", ExecutionOptions.MaxDegreeOfParallelism);
-                dict.Add("ExecutionOptions.EnsureOrdered", ExecutionOptions.EnsureOrdered);
-                dict.Add("ExecutionOptions.SingleProducerConstrained", ExecutionOptions.SingleProducerConstrained);
-                dict.Add("ExecutionOptions.MaxMessagesPerTask", ExecutionOptions.MaxMessagesPerTask);
-            }
         }
 
         return dict;
@@ -338,12 +401,14 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
             return route;
         }
 
-        route = new MessageRoute(messageType, this, runtime.Replies);
+        route = new MessageRoute(messageType, this, runtime);
 
         Routes = Routes.AddOrUpdate(messageType, route);
 
         return route;
     }
+    
+
 
     internal void RegisterDelayedConfiguration(IDelayedEndpointConfiguration configuration)
     {
@@ -378,9 +443,21 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
         return true;
     }
 
+    /// <summary>
+    /// Check if this endpoint supports the specified mode
+    /// </summary>
+    public bool SupportsMode(EndpointMode mode)
+    {
+        return supportsMode(mode);
+    }
+
+    // Is this endpoint part of a sharded messaging topology?
+    // If so, this should be "auto-started"
+    internal bool UsedInShardedTopology { get; set; }
+
     public virtual bool AutoStartSendingAgent()
     {
-        return Subscriptions.Any();
+        return UsedInShardedTopology || Subscriptions.Any();
     }
 
     internal IMessageSerializer? TryFindSerializer(string? contentType)
@@ -473,17 +550,6 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
         return dict.Select(x => $"{x.Value.GetType().ShortNameInCode()}").Join(", ");
     }
 
-    internal string ExecutionDescription()
-    {
-        if (Mode == EndpointMode.Inline)
-        {
-            return "";
-        }
-
-        return
-            $"{nameof(ExecutionOptions.MaxDegreeOfParallelism)}: {ExecutionOptions.MaxDegreeOfParallelism}, {nameof(ExecutionOptions.EnsureOrdered)}: {ExecutionOptions.EnsureOrdered}";
-    }
-
     public virtual bool TryBuildDeadLetterSender(IWolverineRuntime runtime, out ISender? deadLetterSender)
     {
         deadLetterSender = default;
@@ -507,5 +573,10 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
         }
 
         return true;
+    }
+
+    public CloudEventsMapper BuildCloudEventsMapper(IWolverineRuntime runtime, JsonSerializerOptions options)
+    {
+        return new CloudEventsMapper(runtime.Options.HandlerGraph, options);
     }
 }

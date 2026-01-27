@@ -7,12 +7,12 @@ namespace Wolverine.Tracking;
 
 public class TrackedSessionConfiguration
 {
-    private readonly TrackedSession _session;
-
     internal TrackedSessionConfiguration(TrackedSession session)
     {
-        _session = session;
+        Session = session;
     }
+
+    internal TrackedSession Session { get; }
 
     /// <summary>
     ///     Override the default timeout threshold to wait for all
@@ -22,7 +22,65 @@ public class TrackedSessionConfiguration
     /// <returns></returns>
     public TrackedSessionConfiguration Timeout(TimeSpan timeout)
     {
-        _session.Timeout = timeout;
+        Session.Timeout = timeout;
+        return this;
+    }
+
+    /// <summary>
+    /// Do not track any messages of this type
+    /// Helpful for polling operations that maybe happening during your testing
+    /// </summary>
+    /// <typeparam name="T"></typeparam>
+    /// <returns></returns>
+    public TrackedSessionConfiguration IgnoreMessageType<T>()
+    {
+        return IgnoreMessagesMatchingType(t => t == typeof(T));
+    }
+
+    /// <summary>
+    /// Register an action that gets called before the actual execution
+    /// Typically meant for clean up work
+    /// </summary>
+    /// <param name="before"></param>
+    /// <returns></returns>
+    public TrackedSessionConfiguration BeforeExecution(Func<IWolverineRuntime, CancellationToken, Task> before)
+    {
+        Session.Befores.Add(before);
+        return this;
+    }
+
+    /// <summary>
+    /// Add a secondary stage of the tracked session that will execute like a nested tracked session
+    /// </summary>
+    /// <param name="stage"></param>
+    /// <returns></returns>
+    public TrackedSessionConfiguration AddStage(Func<IWolverineRuntime, IMessageContext, CancellationToken, Task> stage)
+    {
+        Session.SecondaryStages.Enqueue(new TrackedSession.SecondaryStage(Session, stage));
+        return this;
+    }
+    
+    /// <summary>
+    /// Add a secondary action against the current Wolverine application *after* the tracked session
+    /// has completed
+    /// </summary>
+    /// <param name="stage"></param>
+    /// <returns></returns>
+    public TrackedSessionConfiguration AfterExecution(Func<IWolverineRuntime, CancellationToken, Task> func)
+    {
+        Session.SecondaryStages.Enqueue(new TrackedSession.SecondaryAction(Session, func));
+        return this;
+    }
+
+    /// <summary>
+    /// Do not track any messages where the message type matches this filter.
+    /// Helpful for polling operations that maybe happening during your testing
+    /// </summary>
+    /// <param name="filter"></param>
+    /// <returns></returns>
+    public TrackedSessionConfiguration IgnoreMessagesMatchingType(Func<Type, bool> filter)  
+    {
+        Session.IgnoreMessageTypes(filter);
         return this;
     }
 
@@ -38,7 +96,7 @@ public class TrackedSessionConfiguration
         {
             if (host != null)
             {
-                _session.WatchOther(host);
+                Session.WatchOther(host);
             }
         }
 
@@ -58,7 +116,7 @@ public class TrackedSessionConfiguration
         {
             if (serviceProvider != null)
             {
-                _session.WatchOther(serviceProvider);
+                Session.WatchOther(serviceProvider);
             }
         }
 
@@ -72,7 +130,7 @@ public class TrackedSessionConfiguration
     /// <returns></returns>
     public TrackedSessionConfiguration IncludeExternalTransports()
     {
-        _session.AlwaysTrackExternalTransports = true;
+        Session.AlwaysTrackExternalTransports = true;
         return this;
     }
 
@@ -84,7 +142,20 @@ public class TrackedSessionConfiguration
     /// <returns></returns>
     public TrackedSessionConfiguration DoNotAssertOnExceptionsDetected()
     {
-        _session.AssertNoExceptions = false;
+        Session.AssertNoExceptions = false;
+        return this;
+    }
+
+    /// <summary>
+    /// Do not assert or fail if failure acks were sent during the message activity.
+    /// This might be useful if using request/reply mechanics where you are testing
+    /// cases where you want to see if failure acks are sent. Maybe only useful
+    /// inside of Wolverine's own testing to be honest:-)
+    /// </summary>
+    /// <returns></returns>
+    public TrackedSessionConfiguration IgnoreFailureAcks()
+    {
+        Session.AssertAnyFailureAcknowledgements = false;
         return this;
     }
 
@@ -101,14 +172,14 @@ public class TrackedSessionConfiguration
             UniqueNodeId = host.Services.GetRequiredService<IWolverineRuntime>().Options.UniqueNodeId
         };
 
-        _session.AddCondition(condition);
+        Session.AddCondition(condition);
 
         return this;
     }
 
     public TrackedSessionConfiguration WaitForCondition(ITrackedCondition condition)
     {
-        _session.AddCondition(condition);
+        Session.AddCondition(condition);
         return this;
     }
 
@@ -120,9 +191,9 @@ public class TrackedSessionConfiguration
     /// <returns></returns>
     public async Task<ITrackedSession> ExecuteAndWaitAsync(Func<IMessageContext, Task> action)
     {
-        _session.Execution = action;
-        await _session.ExecuteAndTrackAsync();
-        return _session;
+        Session.Execution = action;
+        await Session.ExecuteAndTrackAsync();
+        return Session;
     }
 
     /// <summary>
@@ -133,9 +204,9 @@ public class TrackedSessionConfiguration
     /// <returns></returns>
     public async Task<ITrackedSession> ExecuteAndWaitAsync(Func<IMessageContext, ValueTask> action)
     {
-        _session.Execution = c => action(c).AsTask();
-        await _session.ExecuteAndTrackAsync();
-        return _session;
+        Session.Execution = c => action(c).AsTask();
+        await Session.ExecuteAndTrackAsync();
+        return Session;
     }
 
     /// <summary>
@@ -203,11 +274,11 @@ public class TrackedSessionConfiguration
     /// <param name="requestInvocation"></param>
     /// <typeparam name="T"></typeparam>
     /// <returns></returns>
-    public async Task<(ITrackedSession, T?)> InvokeAndWaitAsync<T>(object request)
+    public async Task<(ITrackedSession, T?)> InvokeAndWaitAsync<T>(object request, TimeSpan? timeout = null)
     {
         T? response = default;
 
-        Func<IMessageContext, Task> invocation = async c => { response = await c.InvokeAsync<T>(request); };
+        Func<IMessageContext, Task> invocation = async c => { response = await c.InvokeAsync<T>(request, timeout:timeout); };
 
         var session = await ExecuteAndWaitAsync(invocation);
 
@@ -226,7 +297,7 @@ public class TrackedSessionConfiguration
 
         Func<IMessageContext, Task> invocation = async c =>
         {
-            response = await c.EndpointFor(address).InvokeAsync<T>(request, timeout: _session.Timeout);
+            response = await c.EndpointFor(address).InvokeAsync<T>(request, timeout: Session.Timeout);
         };
 
         var session = await ExecuteAndWaitAsync(invocation);

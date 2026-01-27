@@ -1,5 +1,9 @@
 # Interoperability
 
+::: tip
+Also see the more generic [Wolverine Guide on Interoperability](/tutorials/interop)
+:::
+
 Hey, it's a complicated world and Wolverine is a relative newcomer, so it's somewhat likely you'll find yourself needing to make a Wolverine application talk via Azure Service Bus to
 a non-Wolverine application. Not to worry (too much), Wolverine has you covered with the ability to customize Wolverine to Azure Service Bus mapping.
 
@@ -30,14 +34,9 @@ public class CustomAzureServiceBusMapper : IAzureServiceBusEnvelopeMapper
         // is for a listening endpoint
         envelope.MessageType = typeof(Message1).ToMessageTypeName();
     }
-
-    public IEnumerable<string> AllHeaders()
-    {
-        yield break;
-    }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/Samples.cs#L191-L221' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_custom_azure_service_bus_mapper' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/Samples.cs#L191-L216' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_custom_azure_service_bus_mapper' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 To apply that mapper to specific endpoints, use this syntax on any type of Azure Service Bus endpoint:

@@ -29,6 +29,11 @@ public interface IRabbitMqQueue
     IDictionary<string, object> Arguments { get; }
 
     /// <summary>
+    ///     Arguments for Rabbit MQ channel consume operations
+    /// </summary>
+    IDictionary<string, object?> ConsumerArguments { get; }
+
+    /// <summary>
     ///     Declare that Wolverine should purge the existing queue
     ///     of all existing messages on startup
     /// </summary>

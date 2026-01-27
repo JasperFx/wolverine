@@ -7,7 +7,18 @@ using Wolverine.Transports;
 
 namespace Wolverine.Pulsar;
 
-public class PulsarEnvelopeMapper : EnvelopeMapper<IMessage<ReadOnlySequence<byte>>, MessageMetadata>
+/// <summary>
+/// Responsible for mapping incoming and outgoing Wolverine Envelope objects to the
+/// Pulsar IMessage<ReadOnlySequence<byte>> or MessageMetadata object. Custom implementations of this can be used
+/// to create interoperability with non-Wolverine applications through Pulsar
+/// </summary>
+public interface IPulsarEnvelopeMapper
+{
+    void MapIncomingToEnvelope(Envelope envelope, IMessage<ReadOnlySequence<byte>> incoming);
+    void MapEnvelopeToOutgoing(Envelope envelope, MessageMetadata outgoing);
+}
+
+public class PulsarEnvelopeMapper : EnvelopeMapper<IMessage<ReadOnlySequence<byte>>, MessageMetadata>, IPulsarEnvelopeMapper
 {
     public PulsarEnvelopeMapper(Endpoint endpoint, IWolverineRuntime runtime) : base(endpoint)
     {

@@ -2,12 +2,13 @@
 
     <PropertyGroup>
         <IsPackable>false</IsPackable>
+        <TargetFrameworks>net8.0;net9.0</TargetFrameworks>
     </PropertyGroup>
 
     <ItemGroup>
         <FrameworkReference Include="Microsoft.AspNetCore.App"/>
 
-        <PackageReference Include="Microsoft.NET.Test.Sdk" Version="15.9.0"/>
+        <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
 
         <PackageReference Include="GitHubActionsTestLogger" Version="2.4.1" PrivateAssets="All" />
         <PackageReference Include="xunit" Version="2.9.0"/>
@@ -19,6 +20,7 @@
 
     <ItemGroup>
         <ProjectReference Include="..\..\Samples\OrderSagaSample\OrderSagaSample.csproj"/>
+        <ProjectReference Include="..\..\Transports\RabbitMQ\Wolverine.RabbitMQ\Wolverine.RabbitMQ.csproj" />
         <ProjectReference Include="..\Wolverine.RDBMS\Wolverine.RDBMS.csproj"/>
         <ProjectReference Include="..\Wolverine.EntityFrameworkCore\Wolverine.EntityFrameworkCore.csproj"/>
         <ProjectReference Include="..\Wolverine.Marten\Wolverine.Marten.csproj"/>
@@ -36,6 +38,11 @@
     <ItemGroup Condition="'$(targetframework)' == 'net9.0'">
         <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.0"/>
         <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="9.0.0"/>
+    </ItemGroup>
+
+    <ItemGroup Condition="'$(targetframework)' == 'net10.0'">
+        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.0-rc.2"/>
+        <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.0"/>
     </ItemGroup>
 
     <ItemGroup>

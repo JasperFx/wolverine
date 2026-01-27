@@ -2,8 +2,11 @@ using System.Diagnostics;
 using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
 using JasperFx.Resources;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Shouldly;
 using Wolverine.Attributes;
+using Wolverine.ComplianceTests;
 using Wolverine.Tracking;
 using Xunit.Abstractions;
 
@@ -26,7 +29,11 @@ public class broadcast_to_topic_rules : IAsyncLifetime
             .UseWolverine(opts =>
             {
                 opts.UseKafka("localhost:9092").AutoProvision();
-                opts.ListenToKafkaTopic("red").ConfigureConsumer(c => c.GroupId = "crimson");
+                opts.ListenToKafkaTopic("red").ConfigureConsumer(c =>
+                {
+                    c.GroupId = "crimson";
+                    c.BootstrapServers = "localhost:9092";
+                });
                 opts.ListenToKafkaTopic("green");
                 opts.ListenToKafkaTopic("blue");
                 opts.ListenToKafkaTopic("purple");
@@ -34,6 +41,7 @@ public class broadcast_to_topic_rules : IAsyncLifetime
                 opts.ServiceName = "receiver";
 
                 opts.Services.AddResourceSetupOnStartup();
+                opts.Services.AddSingleton<ILoggerProvider>(new OutputLoggerProvider(_output));
             }).StartAsync();
 
         
@@ -48,6 +56,7 @@ public class broadcast_to_topic_rules : IAsyncLifetime
                 opts.ServiceName = "sender";
 
                 opts.Services.AddResourceSetupOnStartup();
+                opts.Services.AddSingleton<ILoggerProvider>(new OutputLoggerProvider(_output));
             }).StartAsync();
     }
 

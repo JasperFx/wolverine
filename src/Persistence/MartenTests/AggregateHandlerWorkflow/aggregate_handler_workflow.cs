@@ -38,8 +38,6 @@ public class aggregate_handler_workflow: PostgresqlContext, IAsyncLifetime
                     .IntegrateWithWolverine();
 
                 opts.Services.AddResourceSetupOnStartup();
-
-                opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
             }).StartAsync();
 
         theStore = theHost.Services.GetRequiredService<IDocumentStore>();
@@ -87,6 +85,18 @@ public class aggregate_handler_workflow: PostgresqlContext, IAsyncLifetime
             a.BCount.ShouldBe(1);
             a.CCount.ShouldBe(1);
         });
+    }
+
+    [Fact]
+    public void automatically_adding_stream_id_to_the_audit_members()
+    {
+        // Do this first to force the compilation
+        var handler = theHost.GetRuntime().Handlers.HandlerFor<RaiseABC>();
+        var chain = theHost.GetRuntime().Handlers.ChainFor<RaiseABC>();
+        
+        chain.AuditedMembers.Single().MemberName.ShouldBe(nameof(RaiseABC.LetterAggregateId));
+        
+        chain.SourceCode.ShouldContain("System.Diagnostics.Activity.Current?.SetTag(\"letter.aggregate.id\", raiseABC.LetterAggregateId);");
     }
 
     [Fact]

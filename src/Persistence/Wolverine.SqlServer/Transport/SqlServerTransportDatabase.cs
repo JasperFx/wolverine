@@ -26,6 +26,10 @@ public class SqlServerTransportDatabase : DatabaseBase<SqlConnection>
     {
         _transport = runtime.Options.SqlServerTransport();
         _runtime = runtime;
+        
+        // ReSharper disable once VirtualMemberCallInConstructor
+        var descriptor = Describe();
+        Id = new DatabaseId(descriptor.ServerName, descriptor.DatabaseName);
     }
     
     public override DatabaseDescriptor Describe()
@@ -39,6 +43,8 @@ public class SqlServerTransportDatabase : DatabaseBase<SqlConnection>
             Subject = GetType().FullNameInCode(),
             SchemaOrNamespace = _transport.TransportSchemaName
         };
+        
+        descriptor.TenantIds.AddRange(TenantIds);
 
         descriptor.Properties.Add(OptionsValue.Read(builder, x => x.ApplicationName));
         descriptor.Properties.Add(OptionsValue.Read(builder, x => x.Enlist));

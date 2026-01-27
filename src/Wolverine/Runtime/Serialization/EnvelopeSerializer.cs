@@ -80,7 +80,37 @@ public static class EnvelopeSerializer
                     break;
 
                 case EnvelopeConstants.ExecutionTimeKey:
-                    env.ScheduledTime = XmlConvert.ToDateTime(value, XmlDateTimeSerializationMode.Utc);
+                    // Don't read it twice
+                    if (env.ScheduledTime.HasValue) return;
+
+                    try
+                    {
+                        env.ScheduledTime = XmlConvert.ToDateTime(value, XmlDateTimeSerializationMode.Utc);
+                    }
+                    catch (Exception )
+                    {
+                        if (DateTimeOffset.TryParse(value, out var dt))
+                        {
+                            env.ScheduledTime = dt;
+                        }
+                    }
+                    break;
+                
+                case EnvelopeConstants.KeepUntilKey:
+                    // Don't read it twice
+                    if (env.KeepUntil.HasValue) return;
+
+                    try
+                    {
+                        env.KeepUntil = XmlConvert.ToDateTime(value, XmlDateTimeSerializationMode.Utc);
+                    }
+                    catch (Exception )
+                    {
+                        if (DateTimeOffset.TryParse(value, out var dt))
+                        {
+                            env.KeepUntil = dt;
+                        }
+                    }
                     break;
 
                 case EnvelopeConstants.AttemptsKey:
@@ -229,6 +259,7 @@ public static class EnvelopeSerializer
         writer.WriteProp(ref count, EnvelopeConstants.ParentIdKey, env.ParentId);
         writer.WriteProp(ref count, EnvelopeConstants.TenantIdKey, env.TenantId);
         writer.WriteProp(ref count, EnvelopeConstants.TopicNameKey, env.TopicName);
+        
 
         if (env.AcceptedContentTypes.Length != 0)
         {
@@ -249,6 +280,15 @@ public static class EnvelopeSerializer
                 .ToString("yyyy-MM-ddTHH:mm:ss.fffffff", CultureInfo.InvariantCulture);
             count++;
             writer.Write(EnvelopeConstants.ExecutionTimeKey);
+            writer.Write(dateString);
+        }
+
+        if (env.KeepUntil.HasValue)
+        {
+            var dateString = env.KeepUntil.Value.ToUniversalTime()
+                .ToString("yyyy-MM-ddTHH:mm:ss.fffffff", CultureInfo.InvariantCulture);
+            count++;
+            writer.Write(EnvelopeConstants.KeepUntilKey);
             writer.Write(dateString);
         }
 

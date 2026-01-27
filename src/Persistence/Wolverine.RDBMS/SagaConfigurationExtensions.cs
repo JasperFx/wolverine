@@ -10,6 +10,8 @@ public static class SagaConfigurationExtensions
     /// Add storage for a persistent saga with the Wolverine lightweight saga storage
     /// model. This can be omitted, but is necessary for database schema generation and migration
     /// support
+    ///
+    /// Do NOT use this if you mean for the saga to be persisted by Marten or EF Core
     /// </summary>
     /// <param name="options"></param>
     /// <param name="tableName"></param>
@@ -26,6 +28,8 @@ public static class SagaConfigurationExtensions
     /// Add storage for a persistent saga with the Wolverine lightweight saga storage
     /// model. This can be omitted, but is necessary for database schema generation and migration
     /// support
+    ///
+    /// Do NOT use this if you mean for the saga to be persisted by Marten or EF Core
     /// </summary>
     /// <param name="options"></param>
     /// <param name="tableName"></param>

@@ -8,6 +8,13 @@ namespace Wolverine.Logging;
 public interface IMessageTracker
 {
     /// <summary>
+    /// Strictly for automated testing support. Simply track a message that will be displayed
+    /// in the execution order in any test failures from timeouts with tracked sessions
+    /// </summary>
+    /// <param name="message"></param>
+    void LogStatus(string message);
+    
+    /// <summary>
     ///     Catch all hook for any exceptions encountered by the messaging
     /// </summary>
     /// <param name="ex"></param>

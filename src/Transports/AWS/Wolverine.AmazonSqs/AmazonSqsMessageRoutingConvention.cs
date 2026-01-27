@@ -30,4 +30,11 @@ public class AmazonSqsMessageRoutingConvention : MessageRoutingConvention<Amazon
     {
         return IdentifierForSender(namingRule);
     }
+
+    protected override (AmazonSqsListenerConfiguration, Endpoint) FindOrCreateListenerForIdentifierUsingSeparatedHandler(string identifier,
+        AmazonSqsTransport transport, Type messageType, Type handlerType)
+    {
+        throw new NotSupportedException(
+            "The AWS SQS transport does not (yet) support conventional routing to multiple handlers in the same application. You will have to resort to explicit routing.");
+    }
 }

@@ -10,7 +10,7 @@ namespace Wolverine.Pulsar;
 public class PulsarSender : ISender, IAsyncDisposable
 {
     private readonly CancellationToken _cancellation;
-    private readonly PulsarEnvelopeMapper _mapper;
+    private readonly IPulsarEnvelopeMapper _mapper;
     private readonly IProducer<ReadOnlySequence<byte>> _producer;
 
     public PulsarSender(IWolverineRuntime runtime, PulsarEndpoint endpoint, PulsarTransport transport,

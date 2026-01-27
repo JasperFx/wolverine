@@ -4,6 +4,7 @@ using JasperFx.Core.IoC;
 using JasperFx.Core.Reflection;
 using JasperFx.Events.Subscriptions;
 using Marten;
+using Marten.Events.Daemon.Coordination;
 using Marten.Internal;
 using Marten.Storage;
 using Marten.Subscriptions;
@@ -14,6 +15,7 @@ using Npgsql;
 using Weasel.Core;
 using Weasel.Core.Migrations;
 using Weasel.Postgresql;
+using Wolverine.Marten.Distribution;
 using Wolverine.Marten.Publishing;
 using Wolverine.Marten.Subscriptions;
 using Wolverine.Persistence;
@@ -25,63 +27,101 @@ using Wolverine.Runtime;
 
 namespace Wolverine.Marten;
 
+public class AncillaryMartenIntegration
+{
+    /// <summary>
+    /// Optionally move the Wolverine envelope storage to a separate schema.
+    /// The recommendation would be to either leave this null, or use the same
+    /// schema name as the main Marten store
+    /// </summary>
+    public string? SchemaName { get; set; }
+    
+    /// <summary>
+    ///     In the case of Marten using a database per tenant, you may wish to
+    ///     explicitly determine the master database for Wolverine where Wolverine will store node and envelope information.
+    ///     This does not have to be one of the tenant databases
+    ///     Wolverine will try to use the master database from the Marten configuration when possible
+    /// </summary>
+    public string? MainConnectionString { get; set; }
+    
+    /// <summary>
+    ///     In the case of Marten using a database per tenant, you may wish to
+    ///     explicitly determine the master database for Wolverine where Wolverine will store node and envelope information.
+    ///     This does not have to be one of the tenant databases
+    ///     Wolverine will try to use the master database from the Marten configuration when possible
+    /// </summary>
+    public NpgsqlDataSource? MainDataSource { get; set; }
+    
+    /// <summary>
+    /// Optionally override whether to automatically create message database schema objects. Defaults to <see cref="StoreOptions.AutoCreateSchemaObjects"/>.
+    /// </summary>
+    public AutoCreate? AutoCreate { get; set; }
+
+    internal void AssertValidity()
+    {
+        if (SchemaName.IsNotEmpty() && SchemaName != SchemaName.ToLowerInvariant())
+        {
+            throw new ArgumentOutOfRangeException(nameof(SchemaName),
+                "The schema name must be in all lower case characters");
+        }
+    }
+}
+
 public static class AncillaryWolverineOptionsMartenExtensions
 {
     /// <summary>
     ///     Integrate Marten with Wolverine's persistent outbox and add Marten-specific middleware
     ///     to Wolverine
     /// </summary>
-    /// <param name="expression"></param>
-    /// <param name="schemaName">Optionally move the Wolverine envelope storage to a separate schema</param>
-    /// <param name="masterDataSource">
-    ///     In the case of Marten using a database per tenant, you may wish to
-    ///     explicitly determine the master database for Wolverine where Wolverine will store node and envelope information.
-    ///     This does not have to be one of the tenant databases
-    ///     Wolverine will try to use the master database from the Marten configuration when possible
-    /// </param>
-    /// <param name="masterDatabaseConnectionString">
-    ///     In the case of Marten using a database per tenant, you may wish to
-    ///     explicitly determine the master database for Wolverine where Wolverine will store node and envelope information.
-    ///     This does not have to be one of the tenant databases
-    ///     Wolverine will try to use the master database from the Marten configuration when possible
-    /// </param>
-    /// <param name="autoCreate">Optionally override whether to automatically create message database schema objects. Defaults to <see cref="StoreOptions.AutoCreateSchemaObjects"/>.</param>
-    /// <returns></returns>
+    /// <param name="configure">Optional configuration of ancillary Marten integration</param>
     public static MartenServiceCollectionExtensions.MartenStoreExpression<T> IntegrateWithWolverine<T>(
         this MartenServiceCollectionExtensions.MartenStoreExpression<T> expression, 
-        string? schemaName = null,
-        string? masterDatabaseConnectionString = null, 
-        NpgsqlDataSource? masterDataSource = null, 
-        AutoCreate? autoCreate = null) where T : class, IDocumentStore
+        Action<AncillaryMartenIntegration>? configure = null) where T : class, IDocumentStore
     {
-        if (schemaName.IsNotEmpty() && schemaName != schemaName.ToLowerInvariant())
-        {
-            throw new ArgumentOutOfRangeException(nameof(schemaName),
-                "The schema name must be in all lower case characters");
-        }
+        var integration = new AncillaryMartenIntegration();
+        configure?.Invoke(integration);
+        integration.AssertValidity();
 
         expression.Services.AddSingleton<IConfigureMarten<T>, MartenOverrides<T>>();
 
-        expression.Services.AddSingleton<IAncillaryMessageStore>(s =>
+        expression.Services.AddSingleton<AncillaryMessageStore>(s =>
         {
             var store = s.GetRequiredService<T>().As<DocumentStore>();
 
             var runtime = s.GetRequiredService<IWolverineRuntime>();
             var logger = s.GetRequiredService<ILogger<PostgresqlMessageStore>>();
 
-            schemaName ??= runtime.Options.Durability.MessageStorageSchemaName ?? store.Options.DatabaseSchemaName;
+            integration.SchemaName ??= runtime.Options.Durability.MessageStorageSchemaName ?? store.Options.DatabaseSchemaName;
 
             // TODO -- hacky. Need a way to expose this in Marten
             if (store.Tenancy.GetType().Name == "DefaultTenancy")
             {
-                return BuildSinglePostgresqlMessageStore<T>(schemaName, autoCreate, store, runtime, logger);
+                return BuildSinglePostgresqlMessageStore<T>(integration.SchemaName, integration.AutoCreate, store, runtime, logger);
             }
 
-            return BuildMultiTenantedMessageDatabase<T>(schemaName, autoCreate, masterDatabaseConnectionString, masterDataSource, store, runtime);
+            return BuildMultiTenantedMessageDatabase<T>(integration.SchemaName, integration.AutoCreate, integration.MainConnectionString, integration.MainDataSource, store, runtime);
         });
 
         expression.Services.AddType(typeof(IDatabaseSource), typeof(MessageDatabaseDiscovery),
             ServiceLifetime.Singleton);
+
+        // TODO -- watch the service registrations
+        expression.Services.AddSingleton<EventSubscriptionAgentFamily>();
+        
+        
+        expression.Services.AddSingleton<IProjectionCoordinator<T>>(s =>
+        {
+            var integration = s.GetService<MartenIntegration>();
+            var store = s.GetRequiredService<T>();
+            
+            if (integration == null || !integration.UseWolverineManagedEventSubscriptionDistribution)
+            {
+                return new ProjectionCoordinator<T>(store, s.GetRequiredService<ILogger<ProjectionCoordinator>>());
+            }
+
+            var agents = s.GetRequiredService<EventSubscriptionAgentFamily>();
+            return new WolverineProjectionCoordinator<T>(agents, store);
+        });
         
         // Limitation is that the wolverine objects go in the same schema
         
@@ -103,25 +143,25 @@ public static class AncillaryWolverineOptionsMartenExtensions
                    "There is no configured connectivity for the required master PostgreSQL message database");
     }
 
-    internal static IAncillaryMessageStore<T> BuildMultiTenantedMessageDatabase<T>(string schemaName,
+    internal static AncillaryMessageStore BuildMultiTenantedMessageDatabase<T>(string schemaName,
         AutoCreate? autoCreate,
         string? masterDatabaseConnectionString,
         NpgsqlDataSource? masterDataSource,
         DocumentStore store,
         IWolverineRuntime runtime) where T : IDocumentStore
     {
-        var masterSettings = new DatabaseSettings
+        var mainSettings = new DatabaseSettings
         {
             ConnectionString = masterDatabaseConnectionString,
             SchemaName = schemaName,
             AutoCreate = autoCreate ?? store.Options.AutoCreateSchemaObjects,
-            IsMain = true,
+            Role = MessageStoreRole.Ancillary,
             CommandQueuesEnabled = true,
             DataSource = masterDataSource
         };
 
-        var dataSource = findMasterDataSource(store, masterSettings);
-        var master = new PostgresqlMessageStore<T>(masterSettings, runtime.Options.Durability, dataSource,
+        var dataSource = findMasterDataSource(store, mainSettings);
+        var master = new PostgresqlMessageStore(mainSettings, runtime.Options.Durability, dataSource,
             runtime.LoggerFactory.CreateLogger<PostgresqlMessageStore>())
         {
             Name = "Master",
@@ -131,10 +171,10 @@ public static class AncillaryWolverineOptionsMartenExtensions
 
         master.Initialize(runtime);
 
-        return new MultiTenantedMessageStore<T>(master, runtime, source);
+        return new(typeof(T), new MultiTenantedMessageStore(master, runtime, source));
     }
 
-    internal static IAncillaryMessageStore<T> BuildSinglePostgresqlMessageStore<T>(
+    internal static AncillaryMessageStore BuildSinglePostgresqlMessageStore<T>(
         string schemaName, 
         AutoCreate? autoCreate,
         DocumentStore store,
@@ -145,13 +185,13 @@ public static class AncillaryWolverineOptionsMartenExtensions
         {
             SchemaName = schemaName,
             AutoCreate = autoCreate ?? store.Options.AutoCreateSchemaObjects,
-            IsMain = true,
+            Role = MessageStoreRole.Ancillary,
             ScheduledJobLockId = $"{schemaName ?? "public"}:scheduled-jobs".GetDeterministicHashCode()
         };
 
         var dataSource = store.Storage.Database.As<PostgresqlDatabase>().DataSource;
 
-        return new PostgresqlMessageStore<T>(settings, runtime.Options.Durability, dataSource, logger);
+        return new(typeof(T), new PostgresqlMessageStore(settings, runtime.Options.Durability, dataSource, logger)) ;
     }
 
     /// <summary>

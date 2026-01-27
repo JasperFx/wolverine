@@ -10,6 +10,7 @@ using Microsoft.Extensions.Logging;
 using Weasel.Core;
 using Weasel.SqlServer;
 using Wolverine.Logging;
+using Wolverine.Persistence.Durability;
 using Wolverine.Persistence.Durability.DeadLetterManagement;
 using Wolverine.RDBMS;
 using Wolverine.RDBMS.Sagas;
@@ -48,6 +49,33 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
         {
             var storage = typeof(DatabaseSagaSchema<,>).CloseAndBuildAs<IDatabaseSagaSchema>(sagaTableDefinition, _settings, sagaTableDefinition.IdMember.GetMemberType(), sagaTableDefinition.SagaType);
             _sagaStorage = _sagaStorage.AddOrUpdate(sagaTableDefinition.SagaType, storage);
+        }
+        
+        // ReSharper disable once VirtualMemberCallInConstructor
+        var descriptor = Describe();
+        Id = new DatabaseId(descriptor.ServerName, descriptor.DatabaseName);
+    }
+
+    protected override void writeMessageIdArrayQueryList(DbCommandBuilder builder, Guid[] messageIds)
+    {
+        if (messageIds.Length == 1)
+        {
+            builder.Append($" and {DatabaseConstants.Id} = ");
+            builder.AppendParameter(messageIds.Single());
+        }
+        else
+        {
+            builder.Append(" and (");
+            builder.Append($"{DatabaseConstants.Id} = ");
+            builder.AppendParameter(messageIds[0]);
+
+            for (int i = 1; i < messageIds.Length; i++)
+            {
+                builder.Append($" or {DatabaseConstants.Id} = ");
+                builder.AppendParameter(messageIds[i]);
+            }
+            
+            builder.Append(")");
         }
     }
 
@@ -136,46 +164,6 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
     /// </summary>
     public string DatabasePrincipal { get; set; } = "dbo";
 
-    public override Task MarkDeadLetterEnvelopesAsReplayableAsync(Guid[] ids, string? tenantId = null)
-    {
-        var table = new DataTable();
-        table.Columns.Add(new DataColumn("ID", typeof(Guid)));
-        foreach (var id in ids)
-        {
-            table.Rows.Add(id);
-        }
-
-        var command = CreateCommand($"update {SchemaName}.{DatabaseConstants.DeadLetterTable} set {DatabaseConstants.Replayable} = @replay where id in (select ID from @IDLIST)");
-        command.With("replay", true);
-        var list = command.AddNamedParameter("IDLIST", table).As<SqlParameter>();
-        list.SqlDbType = SqlDbType.Structured;
-        list.TypeName = $"{SchemaName}.EnvelopeIdList";
-
-        return command.ExecuteNonQueryAsync(_cancellation);
-    }
-
-    public override Task DeleteDeadLetterEnvelopesAsync(Guid[] ids, string? tenantId = null)
-    {
-        var table = new DataTable();
-        table.Columns.Add(new DataColumn("ID", typeof(Guid)));
-        foreach (var id in ids)
-        {
-            table.Rows.Add(id);
-        }
-
-        var command = CreateCommand($"delete from {SchemaName}.{DatabaseConstants.DeadLetterTable} where id in (select ID from @IDLIST)");
-        var list = command.AddNamedParameter("IDLIST", table).As<SqlParameter>();
-        list.SqlDbType = SqlDbType.Structured;
-        list.TypeName = $"{SchemaName}.EnvelopeIdList";
-
-        return command.ExecuteNonQueryAsync(_cancellation);
-    }
-
-    public override void Describe(TextWriter writer)
-    {
-        writer.WriteLine($"Sql Server Envelope Storage in Schema '{SchemaName}'");
-    }
-
     protected override string determineOutgoingEnvelopeSql(DurabilitySettings settings)
     {
         return
@@ -211,6 +199,20 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
     public override DbCommandBuilder ToCommandBuilder()
     {
         return new DbCommandBuilder(new SqlCommand());
+    }
+
+    public override async Task<bool> ExistsAsync(Envelope envelope, CancellationToken cancellation)
+    {
+        if (HasDisposed) return false;
+
+        await using var conn = CreateConnection();
+        await conn.OpenAsync(cancellation);
+        var count = await conn
+            .CreateCommand($"select count(id) from {SchemaName}.{DatabaseConstants.IncomingTable} where id = @id")
+            .With("id", envelope.Id)
+            .ExecuteScalarAsync(cancellation);
+
+        return ((int)count) > 0;
     }
 
     public override void WriteLoadScheduledEnvelopeSql(DbCommandBuilder builder, DateTimeOffset utcNow)
@@ -349,7 +351,7 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
                 {
                     logger.LogInformation("Locally enqueuing scheduled message {Id} of type {MessageType}", envelope.Id,
                         envelope.MessageType);
-                    localQueue.Enqueue(envelope);
+                    await localQueue.EnqueueAsync(envelope);
                 }
             }
         }
@@ -371,6 +373,8 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
             SchemaOrNamespace = _settings.SchemaName,
             SubjectUri = SubjectUri
         };
+        
+        descriptor.TenantIds.AddRange(TenantIds);
 
         descriptor.Properties.Add(OptionsValue.Read(builder, x => x.ApplicationName));
         descriptor.Properties.Add(OptionsValue.Read(builder, x => x.Enlist));
@@ -389,7 +393,7 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
 
     public override IEnumerable<ISchemaObject> AllObjects()
     {
-        yield return new OutgoingEnvelopeTable(SchemaName);
+        yield return new OutgoingEnvelopeTable(Durability, SchemaName);
         yield return new IncomingEnvelopeTable(Durability, SchemaName);
         yield return new DeadLettersTable(Durability, SchemaName);
         yield return new EnvelopeIdTable(SchemaName);
@@ -404,7 +408,7 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
             yield return table;
         }
         
-        if (_settings.IsMain)
+        if (Role == MessageStoreRole.Main)
         {
             var nodeTable = new Table(new DbObjectName(SchemaName, DatabaseConstants.NodeTableName));
             nodeTable.AddColumn<Guid>("id").AsPrimaryKey();
@@ -445,6 +449,14 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
                 tenantTable.AddColumn(StorageConstants.ConnectionStringColumn, "varchar(500)").NotNull();
                 yield return tenantTable;
             }
+            
+            var restrictionTable =
+                new Table(new DbObjectName(SchemaName, DatabaseConstants.AgentRestrictionsTableName));
+            restrictionTable.AddColumn<Guid>("id").AsPrimaryKey();
+            restrictionTable.AddColumn<string>("uri").NotNull();
+            restrictionTable.AddColumn<string>("type").NotNull();
+            restrictionTable.AddColumn<int>("node").NotNull().DefaultValue(0);
+            yield return restrictionTable;
 
             var eventTable = new Table(new DbObjectName(SchemaName, DatabaseConstants.NodeRecordTableName));
             eventTable.AddColumn<int>("id").AutoNumber().AsPrimaryKey();
@@ -454,10 +466,11 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
             eventTable.AddColumn("description", "varchar(500)").AllowNulls();
             yield return eventTable;
 
-            foreach (var entry in _sagaStorage.Enumerate())
-            {
-                yield return entry.Value.Table;
-            }
+        }
+        
+        foreach (var entry in _sagaStorage.Enumerate())
+        {
+            yield return entry.Value.Table;
         }
     }
 

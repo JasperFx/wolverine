@@ -39,7 +39,7 @@ public class persisting_envelopes_with_sqlserver : IAsyncLifetime
         theIncomingEnvelope = new Envelope
         {
             Id = Guid.NewGuid(),
-            Status = EnvelopeStatus.Handled,
+            Status = EnvelopeStatus.Incoming,
             OwnerId = 5,
             ScheduledTime = new DateTimeOffset(DateTime.Today.AddHours(5)),
             Attempts = 2,
@@ -61,7 +61,7 @@ public class persisting_envelopes_with_sqlserver : IAsyncLifetime
         theOutgoingEnvelope = new Envelope
         {
             Id = Guid.NewGuid(),
-            Status = EnvelopeStatus.Handled,
+            Status = EnvelopeStatus.Outgoing,
             OwnerId = 5,
             ScheduledTime = new DateTimeOffset(DateTime.Today.AddHours(5)),
             Attempts = 2,
@@ -101,19 +101,6 @@ public class persisting_envelopes_with_sqlserver : IAsyncLifetime
         using var nested = _host.Services.CreateScope();
         nested.ServiceProvider.GetRequiredService<SampleDbContext>().IsWolverineEnabled().ShouldBeFalse();
         nested.ServiceProvider.GetRequiredService<SampleMappedDbContext>().IsWolverineEnabled().ShouldBeTrue();
-    }
-
-    [Fact]
-    public void selectively_building_envelope_transaction()
-    {
-        using var nested = _host.Services.CreateScope();
-        var runtime = _host.GetRuntime();
-        var context = new MessageContext(runtime);
-
-        nested.ServiceProvider.GetRequiredService<SampleDbContext>().BuildTransaction(context)
-            .ShouldBeOfType<RawDatabaseEnvelopeTransaction>();
-        nested.ServiceProvider.GetRequiredService<SampleMappedDbContext>().BuildTransaction(context)
-            .ShouldBeOfType<MappedEnvelopeTransaction>();
     }
 
     [Fact]

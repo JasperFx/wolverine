@@ -26,5 +26,5 @@ public void RequireAuthorizeOnAll()
     ConfigureEndpoints(e => e.RequireAuthorization());
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http/WolverineHttpOptions.cs#L189-L199' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_requireauthorizeonall' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http/WolverineHttpOptions.cs#L240-L250' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_requireauthorizeonall' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->

@@ -16,7 +16,7 @@ public class OutboxedSessionFactory<T> : OutboxedSessionFactory, ISessionFactory
         _store = store;
         _factory = this;
 
-        MessageStore = runtime.AncillaryStores.OfType<IAncillaryMessageStore<T>>().Single();
+        MessageStore = runtime.FindAncillaryStoreForMarkerType(typeof(T));
     }
 
     public IQuerySession QuerySession()
@@ -51,7 +51,6 @@ public class OutboxedSessionFactory
         _factory = factory;
         _store = store;
         
-        // TODO -- this does not work with ancillary stores
         _shouldPublishEvents = runtime.TryFindExtension<MartenIntegration>()?.UseFastEventForwarding ?? false;
 
         MessageStore = runtime.Storage;
@@ -146,14 +145,15 @@ public class OutboxedSessionFactory
 
         session.CorrelationId = context.CorrelationId;
 
-        context.EnlistInOutbox(new MartenEnvelopeTransaction(session, context));
+        var transaction = new MartenEnvelopeTransaction(session, context);
+        context.EnlistInOutbox(transaction);
 
         if (_shouldPublishEvents)
         {
             session.Listeners.Add(new PublishIncomingEventsBeforeCommit(context));
         }
 
-        session.Listeners.Add(new FlushOutgoingMessagesOnCommit(context));
+        session.Listeners.Add(new FlushOutgoingMessagesOnCommit(context, transaction.Store));
     }
 
     /// <summary>Build new instances of IDocumentSession on demand</summary>

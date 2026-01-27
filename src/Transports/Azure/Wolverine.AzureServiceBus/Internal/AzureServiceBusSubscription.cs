@@ -175,6 +175,8 @@ public class AzureServiceBusSubscription : AzureServiceBusEndpoint, IBrokerQueue
         _hasInitialized = true;
     }
 
+    public override bool IsPartitioned { get => Topic.IsPartitioned; }
+
     internal async ValueTask InitializeAsync(ServiceBusAdministrationClient client, ILogger logger)
     {
         if (Parent.AutoProvision)

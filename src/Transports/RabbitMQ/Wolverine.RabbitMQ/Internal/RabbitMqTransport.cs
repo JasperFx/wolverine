@@ -23,7 +23,7 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IAsy
     private ConnectionMonitor? _listenerConnection;
     private ConnectionMonitor? _sendingConnection;
 
-    public RabbitMqTransport(string protocol) : base(protocol, "Rabbit MQ")
+    public RabbitMqTransport(string protocol) : base(protocol, "Rabbit MQ", ["rabbitmq"])
     {
         Queues = new LightweightCache<string, RabbitMqQueue>(name => new RabbitMqQueue(name, this));
         Exchanges = new LightweightCache<string, RabbitMqExchange>(name => new RabbitMqExchange(name, this));
@@ -78,6 +78,13 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IAsy
 
     internal ConnectionMonitor ListeningConnection => _listenerConnection ?? throw new InvalidOperationException("The listening connection has not been created yet or is disabled!");
     internal ConnectionMonitor SendingConnection => _sendingConnection ?? throw new InvalidOperationException("The sending connection has not been created yet or is disabled!");
+
+    /// <summary>
+    /// Specifies a customizable action for configuring channel creation options in RabbitMQ.
+    /// Allows users to modify properties and behaviors of channels used in RabbitMQ communication
+    /// by providing a delegate to apply specific settings.
+    /// </summary>
+    public Action<WolverineRabbitMqChannelOptions>? ChannelCreationOptions { get; set; }
 
     public ConnectionFactory? ConnectionFactory { get; private set; }
 
@@ -150,17 +157,26 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IAsy
                               new ConnectionFactory { HostName = "localhost" };
         
         configureDefaults(ConnectionFactory);
-        
-        if (_listenerConnection == null && !UseSenderConnectionOnly)
-        {
-            _listenerConnection = BuildConnection(ConnectionRole.Listening);
-            await _listenerConnection.ConnectAsync();
-        }
 
-        if (_sendingConnection == null && !UseListenerConnectionOnly)
+        try
         {
-            _sendingConnection = BuildConnection(ConnectionRole.Sending);
-            await _sendingConnection.ConnectAsync();
+            if (_listenerConnection == null && !UseSenderConnectionOnly)
+            {
+                _listenerConnection = BuildConnection(ConnectionRole.Listening);
+                await _listenerConnection.ConnectAsync();
+            }
+
+            if (_sendingConnection == null && !UseListenerConnectionOnly)
+            {
+                _sendingConnection = BuildConnection(ConnectionRole.Sending);
+                await _sendingConnection.ConnectAsync();
+            }
+        }
+        catch (Exception)
+        {
+            _listenerConnection = null;
+            _sendingConnection = null;
+            throw;
         }
 
         foreach (var tenant in Tenants)
@@ -204,6 +220,8 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IAsy
         }
 
         foreach (var queue in Queues) yield return queue;
+        
+        
     }
 
     protected override RabbitMqEndpoint findEndpointByUri(Uri uri)
@@ -245,13 +263,15 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IAsy
             var queue = new RabbitMqQueue(queueName, this, EndpointRole.System)
             {
                 AutoDelete = true,
-                IsDurable = false,
+                IsDurable = true, // This was changed for https://github.com/JasperFx/wolverine/issues/1871
                 IsListener = true,
                 IsUsedForReplies = true,
                 ListenerCount = 1,
                 EndpointName = ResponseEndpointName,
                 QueueType = QueueType.classic // This is important, quorum queues cannot be auto-delete
             };
+
+            queue.Arguments["x-expires"] = 1800000; // 30 minute expiry
 
             Queues[queueName] = queue;
         }

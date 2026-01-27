@@ -18,6 +18,8 @@ internal class ScheduledSendEnvelopeHandler : MessageHandler
 
         var scheduled = (Envelope)context.Envelope!.Message!;
         scheduled.Source = context.Runtime.Options.ServiceName;
+        scheduled.ScheduledTime = null;
+        scheduled.Status = EnvelopeStatus.Outgoing;
 
         return context.ForwardScheduledEnvelopeAsync(scheduled).AsTask();
     }

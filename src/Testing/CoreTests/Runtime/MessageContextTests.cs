@@ -8,6 +8,7 @@ using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
 using Wolverine.Tracking;
 using Wolverine.Transports;
+using Wolverine.Transports.Sending;
 using Wolverine.Transports.Tcp;
 using Wolverine.Util;
 using Xunit;
@@ -39,6 +40,82 @@ public class MessageContextTests
         theEnvelope = ObjectMother.Envelope();
     }
 
+    [Fact]
+    public void default_multi_flush_mode_is_OnlyOnce()
+    {
+        theContext.MultiFlushMode.ShouldBe(MultiFlushMode.OnlyOnce);
+    }
+
+    [Fact]
+    public async Task try_to_call_flush_outgoing_twice_in_normal_mode()
+    {
+        theEnvelope.Sender = Substitute.For<ISendingAgent>();
+        
+        // Wacky, but this adds it to the MessageContext
+        await theContext.As<IEnvelopeTransaction>().PersistOutgoingAsync(theEnvelope);
+        
+        // Point is that nothing happens, no exceptions
+        await theContext.FlushOutgoingMessagesAsync();
+
+        var envelope2 = ObjectMother.Envelope();
+        envelope2.Sender = Substitute.For<ISendingAgent>();
+        
+        // Wacky, but this adds it to the MessageContext
+        await theContext.As<IEnvelopeTransaction>().PersistOutgoingAsync(envelope2);
+        await theContext.FlushOutgoingMessagesAsync();
+
+        await envelope2.Sender.DidNotReceive().StoreAndForwardAsync(envelope2);
+    }
+    
+    [Fact]
+    public async Task try_to_call_flush_outgoing_twice_in_allow_multiples_mode()
+    {
+        theContext.MultiFlushMode = MultiFlushMode.AllowMultiples;
+        
+        theEnvelope.Sender = Substitute.For<ISendingAgent>();
+        
+        // Wacky, but this adds it to the MessageContext
+        await theContext.As<IEnvelopeTransaction>().PersistOutgoingAsync(theEnvelope);
+        
+        // Point is that nothing happens, no exceptions
+        await theContext.FlushOutgoingMessagesAsync();
+
+        var envelope2 = ObjectMother.Envelope();
+        envelope2.Sender = Substitute.For<ISendingAgent>();
+        
+        // Wacky, but this adds it to the MessageContext
+        await theContext.As<IEnvelopeTransaction>().PersistOutgoingAsync(envelope2);
+        await theContext.FlushOutgoingMessagesAsync();
+
+        await envelope2.Sender.Received().StoreAndForwardAsync(envelope2);
+    }
+
+    [Fact]
+    public async Task throw_on_multiple_calls_to_flush_if_the_mode_is_assert_on_multiples()
+    {
+        theContext.MultiFlushMode = MultiFlushMode.AssertOnMultiples;
+        
+        
+        theEnvelope.Sender = Substitute.For<ISendingAgent>();
+        
+        // Wacky, but this adds it to the MessageContext
+        await theContext.As<IEnvelopeTransaction>().PersistOutgoingAsync(theEnvelope);
+        await theContext.FlushOutgoingMessagesAsync();
+        
+        // Wacky, but this adds it to the MessageContext
+        var envelope2 = ObjectMother.Envelope();
+        envelope2.Sender = Substitute.For<ISendingAgent>();
+        
+        // Wacky, but this adds it to the MessageContext
+        await theContext.As<IEnvelopeTransaction>().PersistOutgoingAsync(envelope2);
+        await Should.ThrowAsync<InvalidOperationException>(async () =>
+        {
+            await theContext.FlushOutgoingMessagesAsync();
+        });
+
+        await envelope2.Sender.DidNotReceive().StoreAndForwardAsync(envelope2);
+    }
+    
     [Fact]
     public async Task reject_side_effect_as_cascading_message()
     {
@@ -115,7 +192,7 @@ public class MessageContextTests
 
         theEnvelope.ScheduledTime.ShouldBe(scheduledTime);
 
-        await theContext.Storage.Inbox.Received().ScheduleJobAsync(theEnvelope);
+        await theContext.Storage.Inbox.Received().RescheduleExistingEnvelopeForRetryAsync(theEnvelope);
     }
 
     [Fact]
@@ -130,7 +207,7 @@ public class MessageContextTests
 
         theEnvelope.ScheduledTime.ShouldBe(scheduledTime);
 
-        await theContext.Storage.Inbox.DidNotReceive().ScheduleJobAsync(theEnvelope);
+        await theContext.Storage.Inbox.DidNotReceive().RescheduleExistingEnvelopeForRetryAsync(theEnvelope);
         await callback.As<ISupportNativeScheduling>().Received()
             .MoveToScheduledUntilAsync(theEnvelope, scheduledTime);
     }

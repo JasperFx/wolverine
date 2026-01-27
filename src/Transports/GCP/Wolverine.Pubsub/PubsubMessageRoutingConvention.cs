@@ -26,6 +26,13 @@ public class PubsubMessageRoutingConvention : MessageRoutingConvention<
         return (new PubsubTopicSubscriberConfiguration(topic), topic);
     }
 
+    protected override (PubsubTopicListenerConfiguration, Endpoint) FindOrCreateListenerForIdentifierUsingSeparatedHandler(string identifier,
+        PubsubTransport transport, Type messageType, Type handlerType)
+    {
+        throw new NotSupportedException(
+            "The Google Pubsub transport does not (yet) support conventional routing to multiple handlers in the same application. You will have to resort to explicit routing.");
+    }
+
     /// <summary>
     ///     Alternative syntax to specify the name for the queue that each message type will be sent
     /// </summary>

@@ -55,7 +55,7 @@ public class DeliveryOptions
     ///     If this message is part of a stateful saga, this property identifies
     ///     the underlying saga state object
     /// </summary>
-    public string? SagaId { get; internal set; }
+    public string? SagaId { get; set; }
 
     /// <summary>
     ///     Override the tenant id metadata for a single envelope
@@ -68,6 +68,12 @@ public class DeliveryOptions
     public string? ContentType { get; set; }
 
     internal bool IsResponse { get; set; }
+    
+    /// <summary>
+    /// Extra routing information to send to the eventual
+    /// Wolverine transport. Mostly built for WebSockets
+    /// </summary>
+    public object? RoutingInformation { get; set; }
 
     internal void Override(Envelope envelope)
     {
@@ -134,6 +140,11 @@ public class DeliveryOptions
         if (PartitionKey.IsNotEmpty())
         {
             envelope.PartitionKey = PartitionKey;
+        }
+
+        if (RoutingInformation != null)
+        {
+            envelope.RoutingInformation = RoutingInformation;
         }
     }
 

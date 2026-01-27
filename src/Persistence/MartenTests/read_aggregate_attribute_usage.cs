@@ -90,6 +90,7 @@ public static class FindLettersHandler
         return new LetterAggregateEnvelope(aggregate);
     }
     
+    /* ALTERNATIVE VERSION
     [WolverineHandler]
     public static LetterAggregateEnvelope Handle2(
         FindAggregate command, 
@@ -99,6 +100,7 @@ public static class FindLettersHandler
     {
         return aggregate == null ? null : new LetterAggregateEnvelope(aggregate);
     }
+    */
 }
 
 #endregion

@@ -1,3 +1,4 @@
+using JasperFx;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
 
@@ -19,7 +20,7 @@ internal class StickyPostgresqlQueueListenerAgent : IAgent
         Uri = new Uri($"{StickyPostgresqlQueueListenerAgentFamily.StickyListenerSchema}://{_queue}/{_databaseName}");
     }
     
-    public AgentStatus Status { get; set; } = AgentStatus.Started;
+    public AgentStatus Status { get; set; } = AgentStatus.Running;
 
     public async Task StartAsync(CancellationToken cancellationToken)
     {

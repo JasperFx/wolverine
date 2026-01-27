@@ -1,3 +1,4 @@
+using CoreTests.Acceptance;
 using CoreTests.Util;
 using Wolverine.Util;
 using Xunit;
@@ -267,5 +268,16 @@ public class DeliveryOptionsTests
         options.Override(envelope);
 
         envelope.IsResponse.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void override_routing_information()
+    {
+        var thing = new Thing("What?");
+        var options = new DeliveryOptions { RoutingInformation = thing };
+        
+        var envelope = ObjectMother.Envelope();
+        options.Override(envelope);
+        envelope.RoutingInformation.ShouldBe(thing);
     }
 }

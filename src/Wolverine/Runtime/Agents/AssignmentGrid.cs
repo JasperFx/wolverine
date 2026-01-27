@@ -1,11 +1,15 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using JasperFx.Core;
 
 namespace Wolverine.Runtime.Agents;
 
+
 /// <summary>
 ///     Models the desired assignment of agents between Wolverine nodes
 /// </summary>
-public class AssignmentGrid
+public partial class AssignmentGrid
 {
     private readonly Dictionary<Uri, Agent> _agents = new();
     private readonly List<Node> _nodes = new();
@@ -30,6 +34,16 @@ public class AssignmentGrid
     /// </summary>
     public DateTimeOffset EvaluationTime { get; internal set; }
 
+    public IReadOnlyList<Agent> AgentsForScheme(string scheme)
+    {
+        return _agents.Values.Where(x => x.Uri.Scheme.EqualsIgnoreCase(scheme)).ToList();
+    }
+    
+    public IReadOnlyList<Agent> AvailableAgentsForScheme(string scheme)
+    {
+        return _agents.Values.Where(x => x.Uri.Scheme.EqualsIgnoreCase(scheme) && !x.IsPaused).ToList();
+    }
+
     /// <summary>
     ///     Add an executing node to the grid. Useful for testing custom agent assignment
     ///     schemes
@@ -42,6 +56,8 @@ public class AssignmentGrid
     {
         var node = new Node(this, wolverineNode.AssignedNodeNumber, wolverineNode.NodeId, wolverineNode.Capabilities);
         node.ControlUri = wolverineNode.ControlUri;
+
+        node.IsLeader = wolverineNode.ActiveAgents.Contains(NodeAgentController.LeaderUri);
         
         _nodes.Add(node);
 
@@ -85,7 +101,7 @@ public class AssignmentGrid
     /// <returns></returns>
     public IReadOnlyList<Agent> MatchAgentsToCapableNodesFor(string scheme)
     {
-        var agents = _agents.Values.Where(x => x.Uri.Scheme.EqualsIgnoreCase(scheme)).ToList();
+        var agents = AvailableAgentsForScheme(scheme);
         foreach (var agent in agents)
         {
             agent.CandidateNodes.Clear();
@@ -105,6 +121,11 @@ public class AssignmentGrid
         return _agents[agentUri];
     }
 
+    public Node? NodeFor(int nodeNumber)
+    {
+        return _nodes.FirstOrDefault(x => x.AssignedId == nodeNumber);
+    }
+
     /// <summary>
     ///     Testing helper, adds a new agent to the current assignment grid
     /// </summary>
@@ -117,164 +138,6 @@ public class AssignmentGrid
         return AgentFor(uri);
     }
 
-    /// <summary>
-    ///     Attempts to redistribute agents for a given agent type evenly
-    ///     across the known, executing nodes with minimal disruption
-    /// </summary>
-    /// <param name="scheme"></param>
-    /// <exception cref="InvalidOperationException"></exception>
-    public void DistributeEvenly(string scheme)
-    {
-        if (_nodes.Count == 0)
-        {
-            throw new InvalidOperationException("There are no active nodes");
-        }
-
-        var agents = _agents.Values.Where(x => x.Uri.Scheme.EqualsIgnoreCase(scheme)).ToList();
-        if (agents.Count == 0)
-        {
-            return;
-        }
-
-        if (_nodes.Count == 1)
-        {
-            var node = _nodes.Single();
-            foreach (var agent in agents) node.Assign(agent);
-
-            return;
-        }
-
-        var spread = (double)agents.Count / _nodes.Count;
-        var minimum = (int)Math.Floor(spread);
-        var maximum = (int)Math.Ceiling(spread); // this is helpful to reduce the number of assignments
-
-        // First, pair down number of running agents if necessary. Might have to steal some later
-        foreach (var node in _nodes)
-        {
-            var extras = node.ForScheme(scheme).Skip(maximum).ToArray();
-            foreach (var agent in extras) agent.Detach();
-        }
-
-        var missing = new Queue<Agent>(agents.Where(x => x.AssignedNode == null));
-
-        // 2nd pass
-        foreach (var node in _nodes)
-        {
-            if (missing.Count == 0)
-            {
-                break;
-            }
-
-            var count = node.ForScheme(scheme).Count();
-
-            for (var i = 0; i < minimum - count; i++)
-            {
-                if (missing.Count == 0)
-                {
-                    break;
-                }
-
-                var agent = missing.Dequeue();
-                node.Assign(agent);
-            }
-        }
-
-        var nodesWithCapacity = _nodes.Where(x => !x.IsLeader && x.ForScheme(scheme).Count() < maximum);
-        var nodeQueue = new Queue<Node>(nodesWithCapacity.ToArray());
-
-        // Last pass for remainders
-        while (missing.Count != 0)
-        {
-            var agent = missing.Dequeue();
-
-            var node = _nodes.FirstOrDefault(x => !x.IsLeader && x.ForScheme(scheme).Count() < maximum) ?? _nodes.FirstOrDefault(x => !x.IsLeader) ?? _nodes.First();
-            node.Assign(agent);
-        }
-    }
-
-    public bool AllNodesHaveSameCapabilities(string scheme)
-    {
-        var gold = _nodes[0].Capabilities.Where(x => x.Scheme.EqualsIgnoreCase(scheme)).OrderBy(x => x.ToString())
-            .ToArray();
-
-        foreach (var node in _nodes.Skip(1))
-        {
-            var matching = node.Capabilities.Where(x => x.Scheme.EqualsIgnoreCase(scheme)).OrderBy(x => x.ToString())
-                .ToArray();
-
-            if (!gold.SequenceEqual(matching))
-            {
-                return false;
-            }
-        }
-
-        return true;
-    }
-    
-    /// <summary>
-    /// Attempts to redistribute agents for a given agent type evenly
-    /// across the known, executing nodes with minimal disruption. This version assumes
-    /// that there is some blue/green deployment capability matching
-    /// </summary>
-    /// <param name="scheme"></param>
-    /// <exception cref="InvalidOperationException"></exception>
-    public void DistributeEvenlyWithBlueGreenSemantics(string scheme)
-    {
-        var nodes = _nodes;
-        if (nodes.Count == 0)
-        {
-            throw new InvalidOperationException("There are no active nodes");
-        }
-
-        if (AllNodesHaveSameCapabilities(scheme))
-        {
-            DistributeEvenly(scheme);
-            return;
-        }
-
-        var agents = MatchAgentsToCapableNodesFor(scheme);
-
-        if (agents.Count == 0)
-        {
-            return;
-        }
-
-        if (nodes.Count == 1)
-        {
-            var node = nodes.Single();
-            foreach (var agent in agents) node.Assign(agent);
-
-            return;
-        }
-
-        var spread = (double)agents.Count / nodes.Count;
-        var minimum = (int)Math.Floor(spread);
-        var maximum = (int)Math.Ceiling(spread); // this is helpful to reduce the number of assignments
-
-        // First, pair down number of running agents if necessary. Might have to steal some later
-        foreach (var node in nodes)
-        {
-            var extras = node.ForCurrentlyAssigned(agents).Skip(maximum).ToArray();
-            foreach (var agent in extras)
-            {
-                agent.Detach();
-            }
-        }
-        
-        // In the missing, we're going to put the agents up top that can be supported in fewer places 
-        var missing = agents.Where(x => x.AssignedNode == null).OrderBy(x => x.CandidateNodes.Count).ToList();
-        foreach (var agent in missing)
-        {
-            // First try to find a node that has less than the minimum number of nodes
-            var candidate = agent
-                .CandidateNodes
-                .FirstOrDefault(x => x.ForScheme(scheme).Count() < minimum) 
-                            // Or fall back to the least loaded down node
-                            ?? agent.CandidateNodes.MinBy(x => x.ForScheme(scheme).Count());
-
-            candidate?.Assign(agent);
-        }
-    }
 
     /// <summary>
     ///     Probably just for testing to simulate nodes going down
@@ -324,7 +187,9 @@ public class AssignmentGrid
         }
 
         foreach (var actual in actuals.Where(pair => !_agents.ContainsKey(pair.Key)))
+        {
             yield return new StopRemoteAgent(actual.Key, actual.Value);
+        }
     }
 
     internal Dictionary<Uri, NodeDestination> CompileAssignments()
@@ -347,216 +212,45 @@ public class AssignmentGrid
         node?.Assign(agentUri);
     }
 
-    public class Agent
+    public void ApplyRestrictions(AgentRestrictions restrictions)
     {
-        internal Agent(Uri uri)
+        Restrictions = restrictions;
+        
+        // Assume that the AssignmentGrid is completely fleshed out with the 
+        // known agents and nodes at this point
+        foreach (var pin in restrictions.Pins())
         {
-            Uri = uri;
-            OriginalNode = null;
-        }
-
-        internal Agent(Uri uri, Node? originalNode)
-        {
-            Uri = uri;
-            OriginalNode = originalNode;
-            AssignedNode = originalNode;
-        }
-
-        public Uri Uri { get; }
-
-        /// <summary>
-        ///     The node that was executing this agent at the time the assignment
-        ///     grid was being determined
-        /// </summary>
-        public Node? OriginalNode { get; }
-
-        /// <summary>
-        ///     The Wolverine node that will be assigned this agent when this assignment grid
-        ///     is applied
-        /// </summary>
-        public Node? AssignedNode { get; internal set; }
-
-        /// <summary>
-        /// Possible nodes that can support this agent. NOTE: this is only applied through
-        /// MatchAgentsToNodesFor()
-        /// </summary>
-        public List<Node> CandidateNodes { get; } = new();
-
-        public void Detach()
-        {
-            if (AssignedNode == null)
-            {
-                return;
-            }
-
-            var active = AssignedNode;
-            AssignedNode = null;
-            active.Remove(this);
-        }
-
-        internal bool TryBuildAssignmentCommand(out IAgentCommand command)
-        {
-            command = default!;
-
-            if (OriginalNode == null)
-            {
-                // Do nothing if no assignment
-                if (AssignedNode == null)
-                {
-                    return false;
-                }
-
-                // Start the agent up for the first time on the designated node
-                command = new AssignAgent(Uri, AssignedNode.ToDestination());
-                return true;
-            }
-
-            if (AssignedNode == null)
-            {
-                // No longer assigned, so stop it where it was running
-                command = new StopRemoteAgent(Uri, OriginalNode.ToDestination());
-                return true;
-            }
-
-            if (AssignedNode == OriginalNode)
-            {
-                return false;
-            }
-
-            // reassign the agent to a different node
-            command = new ReassignAgent(Uri, OriginalNode.ToDestination(), AssignedNode.ToDestination());
-            return true;
-        }
-
-        public override string ToString()
-        {
-            return $"{nameof(Uri)}: {Uri}";
-        }
-    }
-
-    public class Node
-    {
-        private readonly List<Agent> _agents = new();
-        private readonly AssignmentGrid _parent;
-        private readonly List<Uri> _capabilities;
-
-        public Node(AssignmentGrid parent, int assignedId, Guid nodeId, List<Uri> capabilities)
-        {
-            _parent = parent;
+            var agent = AgentFor(pin.AgentUri);
+            if (agent == null) continue;
             
-            // It's important to order here
-            _capabilities = capabilities.OrderBy(x => x.ToString()).ToList();
-            AssignedId = assignedId;
-            NodeId = nodeId;
-        }
+            var node = NodeFor(pin.NodeNumber);
 
-        public IReadOnlyList<Uri> Capabilities => _capabilities;
-
-        public int AssignedId { get; }
-        public Guid NodeId { get; }
-
-        public bool IsLeader { get; internal set; }
-
-        public IReadOnlyList<Agent> Agents => _agents;
-        public Uri? ControlUri { get; set; }
-
-        public NodeDestination ToDestination() => new NodeDestination(NodeId, ControlUri!);
-
-        public IEnumerable<Agent> ForScheme(string agentScheme)
-        {
-            return _agents.Where(x => x.Uri.Scheme.EqualsIgnoreCase(agentScheme));
-        }
-
-        /// <summary>
-        /// Fetch any agents that are currently assigned to this node from the supplied
-        /// list of agents
-        /// </summary>
-        /// <param name="agents"></param>
-        /// <returns></returns>
-        public IEnumerable<Agent> ForCurrentlyAssigned(IEnumerable<Agent> agents)
-        {
-            return _agents.Intersect(agents);
-        }
-
-        public Node Running(params Uri[] agentUris)
-        {
-            foreach (var agentUri in agentUris)
+            if (node == null)
             {
-                var agent = new Agent(agentUri, this);
-                _parent._agents[agentUri] = agent;
-
-                _agents.Add(agent);
+                restrictions.RemovePin(pin.AgentUri);
             }
-
-            return this;
-        }
-
-        internal void Remove(Agent agent)
-        {
-            _agents.Remove(agent);
-        }
-
-        /// <summary>
-        ///     Remove an assigned agent from this node
-        /// </summary>
-        /// <param name="agent"></param>
-        public void Detach(Agent agent)
-        {
-            agent.Detach();
-        }
-
-        public bool TryAssign(Uri agentUri)
-        {
-            if (_capabilities.Contains(agentUri))
+            else
             {
-                Assign(agentUri);
-                return true;
+                if (node.TryAssign(pin.AgentUri))
+                {
+                    agent.IsPinned = true;
+                }
             }
-
-            return false;
         }
 
-        /// <summary>
-        ///     Assign a given agent to be executed on this node when the assignment grid
-        ///     is applied
-        /// </summary>
-        /// <param name="agentUri"></param>
-        public void Assign(Uri agentUri)
+        foreach (var agentUri in restrictions.FindPausedAgentUris())
         {
-            if (!_parent._agents.TryGetValue(agentUri, out var agent))
-            {
-                agent = new Agent(agentUri);
-                _parent._agents[agentUri] = agent;
-            }
+            var agent = AgentFor(agentUri);
+            if (agent == null) continue;
 
+            agent.IsPaused = true;
             if (agent.AssignedNode != null)
             {
                 agent.Detach();
             }
-
-            agent.AssignedNode = this;
-            _agents.Fill(agent);
         }
-
-        /// <summary>
-        ///     Assign a given agent to be executed on this node when the assignment grid
-        ///     is applied
-        /// </summary>
-        /// <param name="agent"></param>
-        public void Assign(Agent agent)
-        {
-            if (agent.AssignedNode != null)
-            {
-                agent.Detach();
-            }
-
-            agent.AssignedNode = this;
-            _agents.Fill(agent);
-        }
-
-        public override string ToString()
-        {
-            return $"{nameof(AssignedId)}: {AssignedId}, {nameof(NodeId)}: {NodeId}";
-        }
+        
     }
+
+    public AgentRestrictions? Restrictions { get; set; }
 }

@@ -1,24 +1,50 @@
 using System.Text.Json;
 using Confluent.Kafka;
+using Confluent.Kafka.Admin;
 using Wolverine.Configuration;
+using Wolverine.Kafka.Internals;
 
 namespace Wolverine.Kafka;
 
-public class KafkaSubscriberConfiguration : SubscriberConfiguration<KafkaSubscriberConfiguration, KafkaTopic>
+public class KafkaSubscriberConfiguration : InteroperableSubscriberConfiguration<KafkaSubscriberConfiguration, KafkaTopic, IKafkaEnvelopeMapper, KafkaEnvelopeMapper>
 {
     internal KafkaSubscriberConfiguration(KafkaTopic endpoint) : base(endpoint)
     {
     }
+    
+    /// <summary>
+    /// If you need to do anything "special" to create topics at runtime with Wolverine,
+    /// this overrides the simple logic that Wolverine uses and replaces
+    /// it with whatever you need to do having full access to the Kafka IAdminClient
+    /// and the Wolverine KafkaTopic configuration
+    /// </summary>
+    /// <param name="creation"></param>
+    /// <returns></returns>
+    public KafkaSubscriberConfiguration TopicCreation(Func<IAdminClient, KafkaTopic, Task> creation)
+    {
+        if (creation == null)
+        {
+            throw new ArgumentNullException(nameof(creation));
+        }
+
+        add(topic => topic.CreateTopicFunc = creation);
+        return this;
+    }
 
     /// <summary>
-    /// Use a custom interoperability strategy to map Wolverine messages to an upstream
-    /// system's protocol
+    /// Fine tune the TopicSpecification for this Kafka Topic if it is being created by Wolverine
     /// </summary>
-    /// <param name="mapper"></param>
+    /// <param name="configure"></param>
     /// <returns></returns>
-    public KafkaSubscriberConfiguration UseInterop(IKafkaEnvelopeMapper mapper)
+    /// <exception cref="ArgumentNullException"></exception>
+    public KafkaSubscriberConfiguration Specification(Action<TopicSpecification> configure)
     {
-        add(e => e.Mapper = mapper);
+        if (configure == null)
+        {
+            throw new ArgumentNullException(nameof(configure));
+        }
+
+        add(topic => configure(topic.Specification));
         return this;
     }
 
@@ -30,8 +56,7 @@ public class KafkaSubscriberConfiguration : SubscriberConfiguration<KafkaSubscri
     /// <returns></returns>
     public KafkaSubscriberConfiguration PublishRawJson(JsonSerializerOptions? options = null)
     {
-        add(e => e.Mapper = new JsonOnlyMapper(e, options ?? new JsonSerializerOptions()));
-        return this;
+        return UseInterop((e, _) => new JsonOnlyMapper(e, options ?? new JsonSerializerOptions()));
     }
 
     /// <summary>

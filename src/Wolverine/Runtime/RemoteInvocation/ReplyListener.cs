@@ -57,7 +57,7 @@ internal class ReplyListener<T> : IReplyListener
         if (typeof(T) == typeof(Acknowledgement))
         {
             _completion?.TrySetException(new TimeoutException(
-                $"Timed out waiting for expected acknowledgement for original message {RequestId} of type {RequestType ?? "None"}"));
+                $"Timed out waiting for expected acknowledgement for original message {RequestId} of type {RequestType ?? "None"} on Node {Parent.AssignedNodeNumber}"));
         }
         else
         {

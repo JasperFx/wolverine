@@ -72,7 +72,7 @@ public static void PreviewRouting(IHost host)
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/MessageRoutingTests/MessageRoutingContext.cs#L85-L113' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_previewrouting_programmatically' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/MessageRoutingTests/MessageRoutingContext.cs#L86-L114' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_previewrouting_programmatically' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 First, you can always use the [command line support](/guide/command-line) to preview Wolverine's known message types by using:
@@ -229,7 +229,7 @@ public interface IMessageRoute
     MessageSubscriptionDescriptor Describe();
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/Routing/IMessageRoute.cs#L6-L20' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_imessageroute' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/Routing/IMessageRoute.cs#L5-L19' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_imessageroute' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 This type "knows" about any endpoint or model sending customizations like delivery expiration

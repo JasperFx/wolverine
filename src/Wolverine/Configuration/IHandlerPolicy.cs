@@ -1,4 +1,7 @@
+using JasperFx;
 using JasperFx.CodeGeneration;
+using JasperFx.Core;
+using Wolverine.Logging;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
 
@@ -50,3 +53,4 @@ public interface IHandlerPolicy : IWolverinePolicy
 }
 
 #endregion
+

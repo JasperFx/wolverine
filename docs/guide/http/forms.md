@@ -70,7 +70,7 @@ public async Task use_decimal_form_hit()
     body.ReadAsText().ShouldBe("Amount is 42.1");
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/using_form_parameters.cs#L476-L525' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_form_value_usage' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/using_form_parameters.cs#L478-L527' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_form_value_usage' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -82,7 +82,7 @@ You can also use the FromForm attribute on a complex type, Wolverine will then a
 [WolverinePost("/api/fromformbigquery")]
 public static BigQuery Post([FromForm] BigQuery query) => query;
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/FormEndpoints.cs#L92-L95' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_[fromform]_binding' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Forms/FormEndpoints.cs#L92-L95' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_[fromform]_binding' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Individual properties on the class can be aliased using ``[FromForm(Name = "aliased")]``

@@ -43,11 +43,21 @@ internal class ConnectionMonitor : IAsyncDisposable, IConnectionMonitor
         _connection.RecoverySucceededAsync += connectionOnRecoverySucceededAsync;
     }
 
+    /// <summary>
+    /// Asynchronously creates a new channel for communication with RabbitMQ.
+    /// Configures the channel using custom RabbitMQ channel creation options if specified.
+    /// </summary>
+    /// <returns>A task that resolves to an <see cref="IChannel"/> instance for RabbitMQ communication.</returns>
     public Task<IChannel> CreateChannelAsync()
     {
         if (_connection == null) throw new InvalidOperationException("The connection is not initialized");
 
-        return _connection!.CreateChannelAsync();
+        var wolverineOptions = new WolverineRabbitMqChannelOptions();
+        _transport.ChannelCreationOptions?.Invoke(wolverineOptions);
+
+        var options = new CreateChannelOptions(wolverineOptions.PublisherConfirmationsEnabled, wolverineOptions.PublisherConfirmationTrackingEnabled, consumerDispatchConcurrency: wolverineOptions.ConsumerDispatchConcurrency);
+
+        return _connection!.CreateChannelAsync(options);
     }
 
     public ConnectionRole Role { get; }

@@ -106,7 +106,7 @@ public static class PulsarTransportExtensions
     }
 }
 
-public class PulsarListenerConfiguration : ListenerConfiguration<PulsarListenerConfiguration, PulsarEndpoint>
+public class PulsarListenerConfiguration : InteroperableListenerConfiguration<PulsarListenerConfiguration, PulsarEndpoint, IPulsarEnvelopeMapper, PulsarEnvelopeMapper>
 {
     public PulsarListenerConfiguration(PulsarEndpoint endpoint) : base(endpoint)
     {
@@ -434,6 +434,7 @@ public class PulsarNativeResiliencyRetryLetterConfiguration : PulsarNativeResili
 }
 
 public class PulsarSubscriberConfiguration : SubscriberConfiguration<PulsarSubscriberConfiguration, PulsarEndpoint>
+public class PulsarSubscriberConfiguration : InteroperableSubscriberConfiguration<PulsarSubscriberConfiguration, PulsarEndpoint, IPulsarEnvelopeMapper, PulsarEnvelopeMapper>
 {
     public PulsarSubscriberConfiguration(PulsarEndpoint endpoint) : base(endpoint)
     {

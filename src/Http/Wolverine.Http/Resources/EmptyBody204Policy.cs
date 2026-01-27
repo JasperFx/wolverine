@@ -2,7 +2,6 @@ using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using Microsoft.AspNetCore.Http;
-using Microsoft.FSharp.Core;
 
 namespace Wolverine.Http.Resources;
 
@@ -10,7 +9,7 @@ internal class EmptyBody204Policy : IResourceWriterPolicy
 {
     public bool TryApply(HttpChain chain)
     {
-        if (chain.ResourceType == null || chain.ResourceType == typeof(void) || chain.ResourceType == typeof(Unit))
+        if (chain.ResourceType == null || chain.ResourceType == typeof(void) || chain.ResourceType.FullName == "Microsoft.FSharp.Core.Unit")
         {
             chain.Postprocessors.Insert(0, new WriteEmptyBodyStatusCode());
             chain.Metadata.Produces(204);

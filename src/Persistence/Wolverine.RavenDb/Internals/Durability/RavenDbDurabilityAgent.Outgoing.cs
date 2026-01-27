@@ -13,13 +13,13 @@ public partial class RavenDbDurabilityAgent
 
             var senders = (await session.Query<OutgoingMessage>().Customize(x => x.WaitForNonStaleResults())
                 .Where(x => x.OwnerId == 0).ToListAsync())
-                .Select(x => x.Destination)
+                .Select(x => new { x.Destination })
                 .Distinct()
                 .ToList();
 
-            foreach (var sender in senders)
+            foreach (var sender in senders.Where(x => x.Destination != null))
             {
-                await tryRecoverOutgoingMessagesToSenderAsync(sender);
+                await tryRecoverOutgoingMessagesToSenderAsync(sender.Destination!);
             }
         }
         catch (Exception e)
@@ -34,7 +34,7 @@ public partial class RavenDbDurabilityAgent
         {
             var sendingAgent = _runtime.Endpoints.GetOrBuildSendingAgent(sender);
             if (sendingAgent.Latched) return;
-                
+
             var outgoing = await _parent.Outbox.LoadOutgoingAsync(sendingAgent.Destination);
             var expiredMessages = outgoing.Where(x => x.IsExpired()).ToArray();
             var good = outgoing.Where(x => !x.IsExpired()).ToArray();

@@ -36,16 +36,16 @@ The functionality is used from extension methods off of the ASP.Net Core [WebApp
 <a id='snippet-sample_optimized_mediator_usage'></a>
 ```cs
 // Functional equivalent to MapPost(pattern, (command, IMessageBus) => bus.Invoke(command))
-app.MapPostToWolverine<HttpMessage1>("/wolverine");
-app.MapPutToWolverine<HttpMessage2>("/wolverine");
-app.MapDeleteToWolverine<HttpMessage3>("/wolverine");
+        app.MapPostToWolverine<HttpMessage1>("/wolverine");
+        app.MapPutToWolverine<HttpMessage2>("/wolverine");
+        app.MapDeleteToWolverine<HttpMessage3>("/wolverine");
 
 // Functional equivalent to MapPost(pattern, (command, IMessageBus) => bus.Invoke<IResponse>(command))
-app.MapPostToWolverine<CustomRequest, CustomResponse>("/wolverine/request");
-app.MapDeleteToWolverine<CustomRequest, CustomResponse>("/wolverine/request");
-app.MapPutToWolverine<CustomRequest, CustomResponse>("/wolverine/request");
+        app.MapPostToWolverine<CustomRequest, CustomResponse>("/wolverine/request");
+        app.MapDeleteToWolverine<CustomRequest, CustomResponse>("/wolverine/request");
+        app.MapPutToWolverine<CustomRequest, CustomResponse>("/wolverine/request");
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L276-L288' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_optimized_mediator_usage' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L294-L306' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_optimized_mediator_usage' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 With this mechanism, Wolverine is able to optimize the runtime function for Minimal API by eliminating IoC service locations

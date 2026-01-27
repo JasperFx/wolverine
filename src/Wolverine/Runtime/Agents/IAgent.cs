@@ -1,7 +1,10 @@
 using System;
+using JasperFx;
 using Microsoft.Extensions.Hosting;
 
 namespace Wolverine.Runtime.Agents;
+
+#region sample_IAgent
 
 #region sample_IAgent
 
@@ -9,15 +12,20 @@ namespace Wolverine.Runtime.Agents;
 ///     Models a constantly running background process within a Wolverine
 ///     node cluster
 /// </summary>
-public interface IAgent : IHostedService
+public interface IAgent : IHostedService // Standard .NET interface for background services
 {
     /// <summary>
     ///     Unique identification for this agent within the Wolverine system
     /// </summary>
     Uri Uri { get; }
     
+    // Not really used for anything real *yet*, but 
+    // hopefully becomes something useful for CritterWatch
+    // health monitoring
     AgentStatus Status { get; }
 }
+
+#endregion
 
 public class CompositeAgent : IAgent
 {
@@ -37,7 +45,7 @@ public class CompositeAgent : IAgent
             await agent.StartAsync(cancellationToken);
         }
 
-        Status = AgentStatus.Started;
+        Status = AgentStatus.Running;
     }
 
     public async Task StopAsync(CancellationToken cancellationToken)
@@ -47,17 +55,10 @@ public class CompositeAgent : IAgent
             await agent.StopAsync(cancellationToken);
         }
 
-        Status = AgentStatus.Started;
+        Status = AgentStatus.Running ;
     }
 
     public AgentStatus Status { get; private set; } = AgentStatus.Stopped;
-}
-
-public enum AgentStatus
-{
-    Started,
-    Stopped,
-    Paused
 }
 
 #endregion

@@ -51,8 +51,6 @@ public static class MessageDatabaseExtensions
 public interface IMessageDatabase : IMessageStoreWithAgentSupport, ITenantDatabaseRegistry
 {
     public DatabaseSettings Settings {get; }
-    
-    bool IsMain { get; }
 
     string SchemaName { get; set; }
 
@@ -76,8 +74,6 @@ public interface IMessageDatabase : IMessageStoreWithAgentSupport, ITenantDataba
         DurabilitySettings durabilitySettings,
         CancellationToken cancellationToken);
 
-    void Enqueue(IDatabaseOperation operation);
-    
     IAdvisoryLock AdvisoryLock { get; }
 
     Task PollForMessagesFromExternalTablesAsync(IListener listener,

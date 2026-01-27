@@ -5,7 +5,8 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Internal.Generated.WolverineHandlers
 {
     // START: CSP3Handler460104864
-    public class CSP3Handler460104864 : Wolverine.Runtime.Handlers.MessageHandler
+    [global::System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")]
+    public sealed class CSP3Handler460104864 : Wolverine.Runtime.Handlers.MessageHandler
     {
         private readonly Microsoft.Extensions.DependencyInjection.IServiceScopeFactory _serviceScopeFactory;
 
@@ -22,6 +23,7 @@ namespace Internal.Generated.WolverineHandlers
             // The actual message body
             var csp3 = (CoreTests.Compilation.CSP3)context.Envelope.Message;
 
+            System.Diagnostics.Activity.Current?.SetTag("message.handler", "CoreTests.Compilation.CSP3Handler");
             var csp3Handler = new CoreTests.Compilation.CSP3Handler(serviceScope.ServiceProvider);
             
             // The actual message execution

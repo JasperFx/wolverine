@@ -71,6 +71,7 @@ public static class WolverineOptionsMartenExtensions
 
             configure?.Invoke(integration);
 
+            expression.Services.AddSingleton(integration);
             expression.Services.AddSingleton<IWolverineExtension>(integration);
         }
         else
@@ -109,7 +110,7 @@ public static class WolverineOptionsMartenExtensions
                 return BuildSinglePostgresqlMessageStore(schemaName, integration.AutoCreate, store, runtime, logger);
             }
 
-            var masterDatabaseConnectionString = integration.MasterDatabaseConnectionString;
+            var masterDatabaseConnectionString = integration.MainDatabaseConnectionString;
             var masterDataSource = integration.MasterDataSource;
 
             if (store.Tenancy is MasterTableTenancy masterTableTenancy)
@@ -123,9 +124,10 @@ public static class WolverineOptionsMartenExtensions
 
         if (integration.UseWolverineManagedEventSubscriptionDistribution)
         {
-            expression.Services.AddSingleton<ProjectionAgents>();
-            expression.Services.AddSingleton<IAgentFamily>(s => s.GetRequiredService<ProjectionAgents>());
-            expression.Services.AddSingleton<IProjectionCoordinator>(s => s.GetRequiredService<ProjectionAgents>());
+            expression.Services.AddSingleton<WolverineProjectionCoordinator>();
+            expression.Services.AddSingleton<EventSubscriptionAgentFamily>();
+            expression.Services.AddSingleton<IAgentFamily>(s => s.GetRequiredService<EventSubscriptionAgentFamily>());
+            expression.Services.AddSingleton<IProjectionCoordinator, WolverineProjectionCoordinator>();
         }
 
         expression.Services.AddType(typeof(IDatabaseSource), typeof(MessageDatabaseDiscovery),
@@ -175,11 +177,17 @@ public static class WolverineOptionsMartenExtensions
         IWolverineRuntime runtime,
         IServiceProvider serviceProvider)
     {
+        if (masterDataSource == null && masterDatabaseConnectionString.IsEmpty())
+        {
+            throw new ArgumentOutOfRangeException(nameof(masterDatabaseConnectionString),
+                $"Wolverine requires a main message store database even if the current Marten tenancy model does not. You may need to explicitly configure that in the {nameof(IntegrateWithWolverine)}() configuration.");
+        }
+        
         var masterSettings = new DatabaseSettings
         {
             SchemaName = schemaName,
             AutoCreate = autoCreate ?? store.Options.AutoCreateSchemaObjects,
-            IsMain = true,
+            Role = MessageStoreRole.Main,
             CommandQueuesEnabled = true,
             DataSource = masterDataSource ?? NpgsqlDataSource.Create(masterDatabaseConnectionString)
         };
@@ -211,7 +219,7 @@ public static class WolverineOptionsMartenExtensions
         {
             SchemaName = schemaName,
             AutoCreate = autoCreate ?? store.Options.AutoCreateSchemaObjects,
-            IsMain = true,
+            Role = MessageStoreRole.Main,
             ScheduledJobLockId = $"{schemaName ?? "public"}:scheduled-jobs".GetDeterministicHashCode()
         };
 

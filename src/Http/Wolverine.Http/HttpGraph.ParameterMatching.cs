@@ -1,8 +1,10 @@
 using System.Reflection;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
+using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Wolverine.Http.CodeGen;
+using Wolverine.Persistence;
 
 namespace Wolverine.Http;
 
@@ -57,7 +59,16 @@ public partial class HttpGraph
                 {
                     if (variable.Creator != null)
                     {
-                        chain.Middleware.Add(variable.Creator);
+                        // TODO -- THIS IS SMELLY!!!!!! Only happens because of IEventStream<T> that does not get
+                        // "mirrored" by LoadEntityFrameBlock
+                        if (chain.Middleware.OfType<LoadEntityFrameBlock>()
+                            .Any(x => object.ReferenceEquals(x.Creator, variable.Creator)))
+                        {
+                            continue;
+                        }
+                        
+                        // Do this idempotently!
+                        chain.Middleware.Fill(variable.Creator);
                     }
 
                     methodCall.Arguments[i] = variable;

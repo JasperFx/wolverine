@@ -275,4 +275,27 @@ public class DocumentationSamples
 
         #endregion
     }
+
+    public static async Task options_for_bumping_stale_outbox_messages()
+    {
+        #region sample_configuring_outbox_stale_timeout
+
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                // Bump any persisted message in the outbox tables
+                // that is more than an hour old to be globally owned
+                // so that the durability agent can recover it and force
+                // it to be sent
+                opts.Durability.OutboxStaleTime = 1.Hours();
+                
+                // Same for the inbox, but it's configured independently
+                // This should *never* be necessary and the Wolverine
+                // team has no clue why this could ever happen and a message
+                // could get "stuck", but yet, here this is:
+                opts.Durability.InboxStaleTime = 10.Minutes();
+            }).StartAsync();
+
+        #endregion
+    }
 }

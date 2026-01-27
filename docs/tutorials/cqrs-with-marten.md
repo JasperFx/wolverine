@@ -13,6 +13,8 @@ This guide assumes some familiarity with Event Sourcing nomenclature, but if you
 of development, see [Understanding Event Sourcing with Marten](https://martendb.io/events/learning.html) from the Marten documentation.
 :::
 
+@[youtube](U9zTGdo0Ps8)
+
 Let's get the entire "Critter Stack" (Wolverine + [Marten](https://martendb.io)) assembled and build a system using CQRS with Event Sourcing!
 
 We'll be using the [IncidentService](https://github.com/jasperfx/wolverine/tree/main/src/Samples/IncidentService) example service to show an example of using Wolverine with Marten in a headless
@@ -312,7 +314,7 @@ public void unit_test()
     ]);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/IncidentService/IncidentService.Tests/when_logging_an_incident.cs#L16-L33' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_unit_test_log_incident' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/IncidentService/IncidentService.Tests/when_logging_an_incident.cs#L18-L35' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_unit_test_log_incident' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: tip
@@ -366,6 +368,7 @@ public class AppFixture : IAsyncLifetime
         // its implied Program.Main() set up
         Host = await AlbaHost.For<Program>(x =>
         {
+            
             // Just showing that you *can* override service
             // registrations for testing if that's useful
             x.ConfigureServices(services =>
@@ -373,6 +376,10 @@ public class AppFixture : IAsyncLifetime
                 // If wolverine were using Rabbit MQ / SQS / Azure Service Bus,
                 // turn that off for now
                 services.DisableAllExternalWolverineTransports();
+
+                /// THIS IS IMPORTANT!
+                services.MartenDaemonModeIsSolo();
+                services.RunWolverineInSoloMode();
             });
 
         });
@@ -385,7 +392,7 @@ public class AppFixture : IAsyncLifetime
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/IncidentService/IncidentService.Tests/IntegrationContext.cs#L14-L47' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_appfixture_in_incident_service_testing' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/IncidentService/IncidentService.Tests/IntegrationContext.cs#L15-L53' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_appfixture_in_incident_service_testing' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And I like to add a base class for integration tests with some convenience methods that have
@@ -418,6 +425,9 @@ public abstract class IntegrationContext : IAsyncLifetime
         // Using Marten, wipe out all data and reset the state
         // back to exactly what we described in InitialAccountData
         await Store.Advanced.ResetAllData();
+        
+        // SWitch to this instead please!!!! A super set of the above ^^^
+        await Host.ResetAllMartenDataAsync();
     }
 
     // This is required because of the IAsyncLifetime
@@ -455,7 +465,7 @@ public abstract class IntegrationContext : IAsyncLifetime
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/IncidentService/IncidentService.Tests/IntegrationContext.cs#L49-L113' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_integrationcontext_for_integration_service' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/IncidentService/IncidentService.Tests/IntegrationContext.cs#L55-L122' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_integrationcontext_for_integration_service' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 With all of that in place (and if you're using Docker for your infrastructure, a quick `docker compose up -d` command),
@@ -483,12 +493,16 @@ public async Task happy_path_end_to_end()
     // Reaching into Marten to build the current state of the new Incident
     // just to check the expected outcome
     using var session = Host.DocumentStore().LightweightSession();
-    var incident = await session.Events.AggregateStreamAsync<Incident>(response.Value);
+    
+    
+    
+    // This wallpapers over the exact projection lifecycle....
+    var incident = await session.Events.FetchLatest<Incident>(response.Value);
     
     incident.Status.ShouldBe(IncidentStatus.Pending);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/IncidentService/IncidentService.Tests/when_logging_an_incident.cs#L35-L61' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_end_to_end_on_log_incident' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/IncidentService/IncidentService.Tests/when_logging_an_incident.cs#L37-L67' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_end_to_end_on_log_incident' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Appending Events to an Existing Stream
@@ -758,7 +772,7 @@ Wolverine supports three modes of event subscriptions from Marten:
 2. Publishing the events as messages through Wolverine. Essentially calling [`IMessageBus.PublishAsync()`](/guide/messaging/message-bus.html#sending-or-publishing-messages) on each event in strict order.
 3. User defined operations on a batch of events at a time, again in strict order that the events are appended to the Marten event store.
 
-In all cases, the Event Subscriptions are running in a background process managed either by Marten itself with its [Async Daemon](/events/projections/async-daemon)
+In all cases, the Event Subscriptions are running in a background process managed either by Marten itself with its [Async Daemon](https://martendb.io/events/projections/async-daemon.html)
 or the [Projection/Subscription Distribution](/guide/durability/marten/distribution) feature in Wolverine. 
 
 ## Scaling Marten Projections

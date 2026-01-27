@@ -1,18 +1,22 @@
 using JasperFx;
+using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using JasperFx.Events;
 using Marten;
 using Marten.Events;
+using Marten.Exceptions;
 using Marten.Internal;
 using Marten.Schema;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using Weasel.Core;
+using Wolverine.ErrorHandling;
 using Wolverine.Marten.Codegen;
 using Wolverine.Marten.Persistence.Sagas;
 using Wolverine.Marten.Publishing;
 using Wolverine.Persistence.Sagas;
 using Wolverine.Postgresql.Transport;
+using Wolverine.RDBMS;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Routing;
 using Wolverine.Util;
@@ -33,20 +37,36 @@ public class MartenIntegration : IWolverineExtension, IEventForwarding
     
     /// <summary>
     /// Use this when using Wolverine to evenly distribute event projection and subscription 
-    /// work of Marten asynchronous projections. This replaces Marten's <c>AddAsyncMarten(HotCold)</c> 
+    /// work of Marten asynchronous projections. This replaces Marten's <c>AddAsyncDaemon(HotCold)</c> 
     /// option and should not be used in combination with Marten's own load distribution.
     /// </summary>
     public bool UseWolverineManagedEventSubscriptionDistribution { get; set; }
 
     public void Configure(WolverineOptions options)
     {
+        // Duplicate incoming messages
+        options.OnException<MartenCommandException>(e =>
+            {
+                if (e.InnerException is PostgresException pg)
+                {
+                    return pg.TableName == DatabaseConstants.IncomingTable && pg.ConstraintName.IsNotEmpty() &&
+                           pg.ConstraintName.StartsWith("pkey");
+                }
+
+                return false;
+            })
+            .Discard();
+        
         options.CodeGeneration.Sources.Add(new MartenBackedPersistenceMarker());
 
         options.CodeGeneration.InsertFirstPersistenceStrategy<MartenPersistenceFrameProvider>();
         options.CodeGeneration.Sources.Add(new SessionVariableSource());
         options.CodeGeneration.Sources.Add(new DocumentOperationsSource());
+        options.CodeGeneration.Sources.Add(new EventStoreOperationsSource());
 
         options.Policies.Add<MartenAggregateHandlerStrategy>();
+        
+        options.CodeGeneration.MethodPreCompilation.Add(new MartenBatchingPolicy());
 
         options.Discovery.CustomizeHandlerDiscovery(x =>
         {
@@ -63,14 +83,14 @@ public class MartenIntegration : IWolverineExtension, IEventForwarding
         
         options.Policies.Add<MartenOpPolicy>();
     }
-    
+
     /// <summary>
     ///     In the case of Marten using a database per tenant, you may wish to
     ///     explicitly determine the master database for Wolverine where Wolverine will store node and envelope information.
     ///     This does not have to be one of the tenant databases
     ///     Wolverine will try to use the master database from the Marten configuration when possible
     /// </summary>
-    public string? MasterDatabaseConnectionString { get; set; }
+    public string? MainDatabaseConnectionString { get; set; }
     
     /// <summary>
     ///     In the case of Marten using a database per tenant, you may wish to
@@ -184,10 +204,8 @@ internal class MartenEventRouter : IMessageRouteSource
             var candidates = forEventType.Concat(transformed).Concat(innerRoutes).ToArray();
             return candidates;
         }
-        else
-        {
-            return Array.Empty<IMessageRoute>();
-        }
+
+        return [];
     }
 
     public bool IsAdditive => false;

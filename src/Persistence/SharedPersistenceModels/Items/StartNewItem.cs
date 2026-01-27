@@ -1,3 +1,5 @@
+using Humanizer;
+using Wolverine;
 using Wolverine.Http;
 using Wolverine.Persistence;
 
@@ -19,6 +21,7 @@ public static class StartNewItemHandler
 }
 
 public record StartAndTriggerApproval(Guid Id, string Name);
+public record StartAndScheduleApproval(Guid Id, string Name);
 
 public static class StartAndTriggerApprovalHandler
 {
@@ -26,5 +29,11 @@ public static class StartAndTriggerApprovalHandler
     {
         var storageAction = Storage.Insert(new Item { Id = command.Id, Name = command.Name });
         return (storageAction, new ApproveItem1(command.Id));
+    }
+    
+    public static (IStorageAction<Item>, object) Handle(StartAndScheduleApproval command)
+    {
+        var storageAction = Storage.Insert(new Item { Id = command.Id, Name = command.Name });
+        return (storageAction, new ApproveItem1(command.Id).DelayedFor(1.Hours()));
     }
 }

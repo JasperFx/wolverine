@@ -66,7 +66,8 @@ public class AmazonSqsQueueTests
         {
             MaxNumberOfMessages = 8,
             VisibilityTimeout = 3,
-            WaitTimeSeconds = 11
+            WaitTimeSeconds = 11,
+            MessageAttributeNames = ["All"],
         };
 
         var request = new ReceiveMessageRequest();
@@ -76,6 +77,39 @@ public class AmazonSqsQueueTests
         request.VisibilityTimeout.ShouldBe(endpoint.VisibilityTimeout);
         request.MaxNumberOfMessages.ShouldBe(endpoint.MaxNumberOfMessages);
         request.WaitTimeSeconds.ShouldBe(endpoint.WaitTimeSeconds);
+        request.MessageAttributeNames.ShouldBe(endpoint.MessageAttributeNames);
+    }
+
+    [Fact]
+    public void default_message_attribute_names_is_null_on_endpoint()
+    {
+        new AmazonSqsQueue("foo", new AmazonSqsTransport())
+            .MessageAttributeNames.ShouldBeNull();
+    }
+
+    [Fact]
+    public void configure_request_does_not_set_message_attribute_names_when_null()
+    {
+        var endpoint = new AmazonSqsQueue("foo", new AmazonSqsTransport());
+        var request = new ReceiveMessageRequest();
+
+        endpoint.ConfigureRequest(request);
+
+        request.MessageAttributeNames.ShouldBeNull();
+    }
+
+    [Fact]
+    public void configure_request_does_not_set_when_empty_list()
+    {
+        var endpoint = new AmazonSqsQueue("foo", new AmazonSqsTransport())
+        {
+            MessageAttributeNames = []
+        };
+        var request = new ReceiveMessageRequest();
+
+        endpoint.ConfigureRequest(request);
+
+        request.MessageAttributeNames.ShouldBeNull();
     }
 }
 

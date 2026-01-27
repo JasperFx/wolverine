@@ -14,14 +14,31 @@ public class NullMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IM
 {
     internal IScheduledJobProcessor? ScheduledJobs { get; set; }
 
+    public Task<bool> ExistsAsync(Envelope envelope, CancellationToken cancellation)
+    {
+        return Task.FromResult(false);
+    }
+
+    public MessageStoreRole Role => MessageStoreRole.Main;
     public Uri Uri => new Uri($"{PersistenceConstants.AgentScheme}://null");
 
     public Task MarkIncomingEnvelopeAsHandledAsync(Envelope envelope)
     {
         return Task.CompletedTask;
     }
+    
+    public List<string> TenantIds { get; } = new();
 
     public string Name => "Nullo";
+    public void PromoteToMain(IWolverineRuntime runtime)
+    {
+        
+    }
+
+    public void DemoteToAncillary()
+    {
+        
+    }
 
     public Task MarkIncomingEnvelopeAsHandledAsync(IReadOnlyList<Envelope> envelopes)
     {
@@ -77,7 +94,7 @@ public class NullMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IM
         return Task.CompletedTask;
     }
 
-    public Task ScheduleJobAsync(Envelope envelope)
+    public Task RescheduleExistingEnvelopeForRetryAsync(Envelope envelope)
     {
         if (!envelope.ScheduledTime.HasValue)
         {
@@ -87,11 +104,6 @@ public class NullMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IM
 
         ScheduledJobs?.Enqueue(envelope.ScheduledTime!.Value, envelope);
 
-        return Task.CompletedTask;
-    }
-
-    public Task ReleaseIncomingAsync(int ownerId)
-    {
         return Task.CompletedTask;
     }
 
@@ -131,11 +143,6 @@ public class NullMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IM
     public INodeAgentPersistence Nodes => throw new NotSupportedException();
 
     public IMessageStoreAdmin Admin => this;
-
-    public void Describe(TextWriter writer)
-    {
-        writer.WriteLine("No persistent envelope storage");
-    }
 
     public DatabaseDescriptor Describe()
     {
@@ -194,18 +201,35 @@ public class NullMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IM
         return Task.FromResult(new PersistedCounts());
     }
 
+    public Task DeleteAllHandledAsync()
+    {
+        return Task.CompletedTask;
+    }
+
     public Task ClearAllAsync()
     {
         return Task.CompletedTask;
     }
 
-    public Task<int> MarkDeadLetterEnvelopesAsReplayableAsync(string exceptionType)
+    public Task<IReadOnlyList<DeadLetterQueueCount>> SummarizeAllAsync(string serviceName, TimeRange range, CancellationToken token)
     {
-        return Task.FromResult(0);
+        return Task.FromResult<IReadOnlyList<DeadLetterQueueCount>>(new List<DeadLetterQueueCount>());
     }
 
-    public Task MarkDeadLetterEnvelopesAsReplayableAsync(Guid[] ids, string? tenantId = null) => Task.CompletedTask;
-    public Task DeleteDeadLetterEnvelopesAsync(Guid[] ids, string? tenantId = null) => Task.CompletedTask;
+    public Task<DeadLetterEnvelopeResults> QueryAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
+    {
+        return Task.FromResult(new DeadLetterEnvelopeResults());
+    }
+
+    public Task DiscardAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
+    {
+        return Task.CompletedTask;
+    }
+
+    public Task ReplayAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
+    {
+        return Task.CompletedTask;
+    }
 
     public Task RebuildAsync()
     {
@@ -237,11 +261,6 @@ public class NullMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IM
         throw new NotSupportedException();
     }
 
-    public Task<DeadLetterEnvelopesFound> QueryDeadLetterEnvelopesAsync(DeadLetterEnvelopeQueryParameters queryParameters, string? tenantId)
-    {
-        throw new NotImplementedException();
-    }
-
     public Task<DeadLetterEnvelope?> DeadLetterEnvelopeByIdAsync(Guid id, string? tenantId = null)
     {
         throw new NotImplementedException();
@@ -268,6 +287,17 @@ internal class NullNodeAgentPersistence : INodeAgentPersistence
     public Task<IReadOnlyList<WolverineNode>> LoadAllNodesAsync(CancellationToken cancellationToken)
     {
         return Task.FromResult((IReadOnlyList<WolverineNode>)Array.Empty<WolverineNode>());
+    }
+
+    public Task PersistAgentRestrictionsAsync(IReadOnlyList<AgentRestriction> restrictions,
+        CancellationToken cancellationToken)
+    {
+        return Task.CompletedTask;
+    }
+
+    public Task<NodeAgentState> LoadNodeAgentStateAsync(CancellationToken cancellationToken)
+    {
+        return Task.FromResult(new NodeAgentState([], new AgentRestrictions([])));
     }
 
     public Task AssignAgentsAsync(Guid nodeId, IReadOnlyList<Uri> agents, CancellationToken cancellationToken)

@@ -155,7 +155,7 @@ public class MultiDatabaseMartenStorageStrategy : IMessageStorageStrategy
         .IntegrateWithWolverine(x =>
         {
             x.MessageStorageSchemaName = "chaos_receiver";
-            x.MasterDatabaseConnectionString = Servers.PostgresConnectionString;
+            x.MainDatabaseConnectionString = Servers.PostgresConnectionString;
         });
 
         opts.Services.AddResourceSetupOnStartup();
@@ -188,7 +188,7 @@ public class MultiDatabaseMartenStorageStrategy : IMessageStorageStrategy
         .IntegrateWithWolverine(x =>
         {
             x.MessageStorageSchemaName = "chaos_sender";
-            x.MasterDatabaseConnectionString = "Servers.PostgresConnectionString";
+            x.MainDatabaseConnectionString = "Servers.PostgresConnectionString";
         });
 
         opts.Services.AddResourceSetupOnStartup();

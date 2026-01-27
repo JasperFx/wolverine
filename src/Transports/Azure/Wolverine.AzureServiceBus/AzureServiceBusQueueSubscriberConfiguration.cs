@@ -1,12 +1,15 @@
+using System.Text;
 using Azure.Messaging.ServiceBus.Administration;
+using Newtonsoft.Json;
 using Wolverine.AzureServiceBus.Internal;
 using Wolverine.Configuration;
+using Wolverine.Runtime.Serialization;
 
 namespace Wolverine.AzureServiceBus;
 
-public class AzureServiceBusQueueSubscriberConfiguration : SubscriberConfiguration<
+public class AzureServiceBusQueueSubscriberConfiguration : InteroperableSubscriberConfiguration<
     AzureServiceBusQueueSubscriberConfiguration,
-    AzureServiceBusQueue>
+    AzureServiceBusQueue, IAzureServiceBusEnvelopeMapper, AzureServiceBusEnvelopeMapper>
 {
     public AzureServiceBusQueueSubscriberConfiguration(AzureServiceBusQueue endpoint) : base(endpoint)
     {
@@ -50,7 +53,28 @@ public class AzureServiceBusQueueSubscriberConfiguration : SubscriberConfigurati
     /// <returns></returns>
     public AzureServiceBusQueueSubscriberConfiguration InteropWith(IAzureServiceBusEnvelopeMapper mapper)
     {
-        add(e => e.Mapper = mapper);
+        add(e => e.EnvelopeMapper = mapper);
+        return this;
+    }
+
+    /// <summary>
+    /// Use envelope mapping that is interoperable with Mass Transit
+    /// </summary>
+    /// <returns></returns>
+    public AzureServiceBusQueueSubscriberConfiguration UseMassTransitInterop()
+    {
+        add(e => e.UseMassTransitInterop());
+        
+        return this;
+    }
+
+    /// <summary>
+    /// Use envelope mapping that is interoperable with NServiceBus
+    /// </summary>
+    /// <returns></returns>
+    public AzureServiceBusQueueSubscriberConfiguration UseNServiceBusInterop()
+    {
+        add(e => e.UseNServiceBusInterop());
         return this;
     }
 }

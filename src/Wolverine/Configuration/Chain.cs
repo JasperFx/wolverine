@@ -1,11 +1,14 @@
 ﻿using System.Reflection;
 using System.Security.Claims;
+using JasperFx;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using JasperFx.Descriptors;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Wolverine.Attributes;
 using Wolverine.Logging;
 using Wolverine.Middleware;
@@ -30,6 +33,8 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
 
     public abstract MiddlewareScoping Scoping { get; }
 
+    public abstract IdempotencyStyle Idempotency { get; set; }
+
     public List<Frame> Postprocessors { get; } = [];
 
     [IgnoreDescription]
@@ -37,6 +42,10 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
 
     public abstract string Description { get; }
     public List<AuditedMember> AuditedMembers { get; } = [];
+
+    public abstract bool TryInferMessageIdentity(out PropertyInfo? property);
+
+    public bool IsTransactional { get; set; }
     public abstract bool ShouldFlushOutgoingMessages();
     public abstract bool RequiresOutbox();
 
@@ -280,25 +289,7 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
             foreach (var before in befores)
             {
                 var frame = new MethodCall(handlerType, before);
-                MiddlewarePolicy.AssertMethodDoesNotHaveDuplicateReturnValues(frame);
-
-                Middleware.Add(frame);
-
-                // TODO -- might generalize this a bit. Have a more generic mode of understanding return values
-                // like the HTTP support has
-                var outgoings = frame.Creates.Where(x => x.VariableType == typeof(OutgoingMessages)).ToArray();
-                int start = 100;
-                foreach (var outgoing in outgoings)
-                {
-                    outgoing.OverrideName(outgoing.Usage + (++start));
-                    Middleware.Add(new CaptureCascadingMessages(outgoing));
-                }
-
-                // Potentially add handling for IResult or HandlerContinuation
-                if (generationRules.TryFindContinuationHandler(this, frame, out var continuation))
-                {
-                    Middleware.Add(continuation!);
-                }
+                AddMiddleware(generationRules, frame);
             }
 
             var afters = MiddlewarePolicy.FilterMethods<WolverineAfterAttribute>(this, handlerType.GetMethods(),
@@ -312,6 +303,29 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
                     Postprocessors.Insert(i, frame);
                 }
             }
+        }
+    }
+
+    public void AddMiddleware(GenerationRules generationRules, MethodCall frame)
+    {
+        MiddlewarePolicy.AssertMethodDoesNotHaveDuplicateReturnValues(frame);
+
+        Middleware.Add(frame);
+
+        // TODO -- might generalize this a bit. Have a more generic mode of understanding return values
+        // like the HTTP support has
+        var outgoings = frame.Creates.Where(x => x.VariableType == typeof(OutgoingMessages)).ToArray();
+        int start = 100;
+        foreach (var outgoing in outgoings)
+        {
+            outgoing.OverrideName(outgoing.Usage + (++start));
+            Middleware.Add(new CaptureCascadingMessages(outgoing));
+        }
+
+        // Potentially add handling for IResult or HandlerContinuation
+        if (generationRules.TryFindContinuationHandler(this, frame, out var continuation))
+        {
+            Middleware.Add(continuation!);
         }
     }
 
@@ -331,7 +345,71 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
             .UseReturnAction(new CommentReturnAction(
                 $"{responseAwares[0].VariableType.FullNameInCode()} generates special response handling"));
     }
+    
+    public void AssertServiceLocationsAreAllowed(ServiceLocationReport[] reports, IServiceProvider? services)
+    {
+        if (!reports.Any()) return;
+        
+        var logger = services.GetLoggerOrDefault<ICodeFile>();
+        var options = services.GetService<WolverineOptions>() ?? new WolverineOptions();
+
+        switch (options.ServiceLocationPolicy)
+        {
+            case ServiceLocationPolicy.AllowedButWarn:
+                foreach (var report in reports)
+                {
+                    if (report.ServiceDescriptor.IsKeyedService)
+                    {
+                        logger.LogInformation("Utilizing service location for {Chain} for Service {ServiceType} ({Key}): {Reason}. See https://wolverinefx.net/guide/codegen.html", Description, report.ServiceDescriptor.ServiceType, report.ServiceDescriptor.ServiceKey, report.Reason);
+                    }
+                    else
+                    {
+                        logger.LogInformation("Utilizing service location for {Chain} for Service {ServiceType}: {Reason}. See https://wolverinefx.net/guide/codegen.html", Description, report.ServiceDescriptor.ServiceType, report.Reason);
+                    }
+                }
+                break;
+            
+            case ServiceLocationPolicy.NotAllowed:
+                throw new InvalidServiceLocationException(this, reports);
+            
+            default:
+                return;
+        }
+
+
+    }
 }
+
+public class InvalidServiceLocationException : Exception
+{
+    public static string ToMessage(IChain chain, ServiceLocationReport[] reports)
+    {
+        var writer = new StringWriter();
+        writer.WriteLine($"Found service locations while generating code for {chain.Description}, but the policy is configured as {nameof(WolverineOptions)}.{nameof(WolverineOptions.ServiceLocationPolicy)} = {ServiceLocationPolicy.NotAllowed}");
+        writer.WriteLine("See https://wolverinefx.net/guide/codegen.html for more information");
+        writer.WriteLine("Service location(s):");
+        foreach (var report in reports)
+        {
+            if (report.ServiceDescriptor.IsKeyedService)
+            {
+                writer.WriteLine($"Service {report.ServiceDescriptor.ServiceType.FullNameInCode()} ({report.ServiceDescriptor.ServiceKey}): {report.Reason}");
+            }
+            else
+            {
+                writer.WriteLine($"Service {report.ServiceDescriptor.ServiceType.FullNameInCode()}: {report.Reason}");
+            }
+            
+        }
+
+        return writer.ToString();
+    }
+    
+    public InvalidServiceLocationException(IChain chain, ServiceLocationReport[] reports) : base(ToMessage(chain, reports))
+    {
+    }
+}
+
+
 
 internal interface IApplier
 {

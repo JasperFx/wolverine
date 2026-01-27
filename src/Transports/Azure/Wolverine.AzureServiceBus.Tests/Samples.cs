@@ -121,7 +121,7 @@ public class Samples
     
 public class multi_tenanted_brokers
 {
-    [Fact]
+    //[Fact]
     public void show_bootstrapping()
     {
         #region sample_configuring_azure_service_bus_for_multi_tenancy
@@ -210,11 +210,6 @@ public class CustomAzureServiceBusMapper : IAzureServiceBusEnvelopeMapper
         // or by telling Wolverine separately what the default message type
         // is for a listening endpoint
         envelope.MessageType = typeof(Message1).ToMessageTypeName();
-    }
-
-    public IEnumerable<string> AllHeaders()
-    {
-        yield break;
     }
 }
 

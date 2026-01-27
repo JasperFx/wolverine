@@ -135,7 +135,7 @@ public class Samples
             opts.UseMqtt(mqtt =>
             {
                 var mqttServer = builder.Configuration["mqtt_server"];
-
+                
                 mqtt
                     .WithMaxPendingMessages(3)
                     .WithClientOptions(client => { client.WithTcpServer(mqttServer); });
@@ -150,6 +150,7 @@ public class Samples
                 // with our custom strategy
                 .UseInterop(new MyMqttEnvelopeMapper())
                 .QualityOfService(MqttQualityOfServiceLevel.AtMostOnce);
+
         });
 
         using var host = builder.Build();
@@ -227,11 +228,6 @@ public class MyMqttEnvelopeMapper : IMqttEnvelopeMapper
         envelope.DeliverWithin = 5.Seconds(); // throw away the message if it
         // is not successfully processed
         // within 5 seconds
-    }
-
-    public IEnumerable<string> AllHeaders()
-    {
-        yield break;
     }
 }
 

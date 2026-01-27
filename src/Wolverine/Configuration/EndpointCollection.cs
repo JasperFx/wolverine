@@ -31,6 +31,12 @@ public interface IEndpointCollection : IAsyncDisposable
     /// </summary>
     /// <returns></returns>
     IReadOnlyList<Endpoint> ExclusiveListeners();
+    
+    /// <summary>
+    /// Endpoints where the message listener should only be active on the leader node
+    /// </summary>
+    /// <returns></returns>
+    IReadOnlyList<Endpoint> LeaderPinnedListeners();
 
     Task StartListenerAsync(Endpoint endpoint, CancellationToken cancellationToken);
     Task StopListenerAsync(Endpoint endpoint, CancellationToken cancellationToken);
@@ -194,7 +200,23 @@ public class EndpointCollection : IEndpointCollection
         }
 
         return allEndpoints
-            .Where(x => x is { IsListener: true, ListenerScope: ListenerScope.Exclusive })
+            .Where(x => x is { IsListener: true, ListenerScope: ListenerScope.Exclusive } and not LocalQueue)
+            .ToList();
+    }
+
+    public IReadOnlyList<Endpoint> LeaderPinnedListeners()
+    {
+        var allEndpoints = _options
+            .Transports
+            .AllEndpoints().ToArray();
+
+        foreach (var endpoint in allEndpoints)
+        {
+            endpoint.Compile(_runtime);
+        }
+
+        return allEndpoints
+            .Where(x => x is { IsListener: true, ListenerScope: ListenerScope.PinnedToLeader })
             .ToList();
     }
 
@@ -215,6 +237,8 @@ public class EndpointCollection : IEndpointCollection
 
     public async Task StartListenersAsync()
     {
+        if (_options.DisableAllExternalListeners) return;
+        
         var listeningEndpoints = _options.Transports.SelectMany(x => x.Endpoints())
             .Where(x => x is not LocalQueue)
             .Where(x => x.ShouldAutoStartAsListener(_options.Durability));
@@ -291,9 +315,13 @@ public class EndpointCollection : IEndpointCollection
         switch (endpoint.Mode)
         {
             case EndpointMode.Durable:
+                var outbox = _runtime.Stores.HasAnyAncillaryStores()
+                    ? new DelegatingMessageOutbox(_runtime.Storage.Outbox, _runtime.Stores)
+                    : _runtime.Storage.Outbox;
+                
                 return new DurableSendingAgent(sender, _options.Durability,
                     _runtime.LoggerFactory.CreateLogger<DurableSendingAgent>(), _runtime.MessageTracking,
-                    _runtime.Storage, endpoint);
+                    outbox, endpoint);
 
             case EndpointMode.BufferedInMemory:
                 return new BufferedSendingAgent(_runtime.LoggerFactory.CreateLogger<BufferedSendingAgent>(),
@@ -330,7 +358,7 @@ public class EndpointCollection : IEndpointCollection
     public async Task DrainAsync()
     {
         // Drain the listeners
-        foreach (var listener in ActiveListeners())
+        foreach (var listener in ActiveListeners().ToArray())
         {
             try
             {

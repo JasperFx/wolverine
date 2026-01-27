@@ -5,7 +5,7 @@ using Wolverine.Runtime.Interop.MassTransit;
 namespace Wolverine.RabbitMQ;
 
 public class
-    RabbitMqSubscriberConfiguration : SubscriberConfiguration<RabbitMqSubscriberConfiguration, RabbitMqEndpoint>
+    RabbitMqSubscriberConfiguration : InteroperableSubscriberConfiguration<RabbitMqSubscriberConfiguration, RabbitMqEndpoint, IRabbitMqEnvelopeMapper, RabbitMqEnvelopeMapper>
 {
     internal RabbitMqSubscriberConfiguration(RabbitMqEndpoint endpoint) : base(endpoint)
     {
@@ -31,21 +31,9 @@ public class
         add(e => e.UseNServiceBusInterop());
         return this;
     }
-
-    /// <summary>
-    /// Use a custom interoperability strategy to map Wolverine messages to an upstream
-    /// system's protocol
-    /// </summary>
-    /// <param name="mapper"></param>
-    /// <returns></returns>
-    public RabbitMqSubscriberConfiguration UseInterop(IRabbitMqEnvelopeMapper mapper)
-    {
-        add(e => e.EnvelopeMapper = mapper);
-        return this;
-    }
 }
 
-public class RabbitMqExchangeConfiguration : SubscriberConfiguration<RabbitMqExchangeConfiguration, RabbitMqExchange>
+public class RabbitMqExchangeConfiguration : InteroperableSubscriberConfiguration<RabbitMqExchangeConfiguration, RabbitMqExchange, IRabbitMqEnvelopeMapper, RabbitMqEnvelopeMapper>
 {
     internal RabbitMqExchangeConfiguration(RabbitMqExchange endpoint) : base(endpoint)
     {

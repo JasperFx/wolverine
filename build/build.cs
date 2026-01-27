@@ -90,7 +90,7 @@ class Build : NukeBuild
         });
 
     Target TestExtensions => _ => _
-        .DependsOn(FluentValidationTests, MemoryPackTests, MessagePackTests);
+        .DependsOn(FluentValidationTests, DataAnnotationsValidationTests, MemoryPackTests, MessagePackTests);
     
     Target FluentValidationTests => _ => _
         .DependsOn(Compile)    
@@ -104,7 +104,20 @@ class Build : NukeBuild
                 .EnableNoRestore()
                 .SetFramework(Framework));
         });
-    
+
+    Target DataAnnotationsValidationTests => _ => _
+        .DependsOn(Compile)
+        .ProceedAfterFailure()
+        .Executes(() =>
+        {
+            DotNetTest(c => c
+                .SetProjectFile(Solution.Extensions.Wolverine_DataAnnotationsValidation_Tests)
+                .SetConfiguration(Configuration)
+                .EnableNoBuild()
+                .EnableNoRestore()
+                .SetFramework(Framework));
+        });
+
     Target MemoryPackTests => _ => _
         .DependsOn(Compile)    
         .ProceedAfterFailure()
@@ -130,8 +143,11 @@ class Build : NukeBuild
                 .EnableNoRestore()
                 .SetFramework(Framework));
         });
-    
+
     Target HttpTests => _ => _
+        .DependsOn(CoreHttpTests);
+
+    Target CoreHttpTests => _ => _
         .DependsOn(Compile, DockerUp)    
         .ProceedAfterFailure()
         .Executes(() =>
@@ -144,7 +160,6 @@ class Build : NukeBuild
                 .SetFramework(Framework));
         });
 
-    
     Target Commands => _ => _
         .DependsOn(HelpCommand, DescribeCommand, CodegenPreviewCommand);
     
@@ -309,10 +324,14 @@ class Build : NukeBuild
                 Solution.Extensions.Wolverine_FluentValidation,
                 Solution.Extensions.Wolverine_MemoryPack,
                 Solution.Extensions.Wolverine_MessagePack,
+                Solution.Extensions.Wolverine_Protobuf,
                 Solution.Http.Wolverine_Http,
                 Solution.Http.Wolverine_Http_FluentValidation,
                 Solution.Http.Wolverine_Http_Marten,
-                Solution.Testing.Wolverine_ComplianceTests
+                Solution.Testing.Wolverine_ComplianceTests,
+                Solution.Transports.Redis.Wolverine_Redis,
+                Solution.Transports.SignalR.Wolverine_SignalR,
+                Solution.Transports.NATS.Wolverine_Nats
             };
 
             foreach (var project in nugetProjects)
@@ -429,7 +448,7 @@ class Build : NukeBuild
 
     private IEnumerable<NugetToProjectReference> nugetReferences()
     {
-        yield return new(Solution.Wolverine, ["JasperFx", "JasperFx.RuntimeCompiler"]);
+        yield return new(Solution.Wolverine, ["JasperFx", "JasperFx.RuntimeCompiler", "JasperFx.Events"]);
         
         yield return new(Solution.Persistence.Wolverine_Postgresql, ["Weasel.Postgresql"]);
         yield return new(Solution.Persistence.Wolverine_RDBMS, ["Weasel.Core"]);

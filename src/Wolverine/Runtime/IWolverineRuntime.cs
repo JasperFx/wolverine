@@ -2,11 +2,14 @@
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
 using Wolverine.Logging;
+using Wolverine.Persistence;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.Handlers;
+using Wolverine.Runtime.Metrics;
 using Wolverine.Runtime.RemoteInvocation;
 using Wolverine.Runtime.Routing;
+using Wolverine.Runtime.Stubs;
 
 namespace Wolverine.Runtime;
 
@@ -25,13 +28,25 @@ public interface IWolverineRuntime
     IReplyTracker Replies { get; }
     IEndpointCollection Endpoints { get; }
     Meter Meter { get; }
+    
+    MetricsAccumulator MetricsAccumulator { get; }
+    
     ILoggerFactory LoggerFactory { get; }
 
     IAgentRuntime Agents { get; }
-    IReadOnlyList<IAncillaryMessageStore> AncillaryStores { get; }
     IServiceProvider Services { get; }
     
     IWolverineObserver Observer { get; set; }
+    MessageStoreCollection Stores { get; }
+
+    /// <summary>
+    /// Try to find the main message store in a completely initialized state and safely cast to the type "T"
+    /// </summary>
+    /// <typeparam name="T"></typeparam>
+    /// <returns></returns>
+    Task<T?> TryFindMainMessageStore<T>() where T : class;
+
+    IMessageStore FindAncillaryStoreForMarkerType(Type markerType);
 
     /// <summary>
     ///     Schedule an envelope for later execution in memory
@@ -56,6 +71,12 @@ public interface IWolverineRuntime
     IMessageInvoker FindInvoker(Type messageType);
     void AssertHasStarted();
     IMessageInvoker FindInvoker(string envelopeMessageType);
+    
+    /// <summary>
+    /// Use this to temporarily add message handling stubs to take the place of external systems in testing
+    /// that may be sending replies back to your application
+    /// </summary>
+    IStubHandlers Stubs { get; }
 }
 
 public record NodeDestination(Guid NodeId, Uri ControlUri)

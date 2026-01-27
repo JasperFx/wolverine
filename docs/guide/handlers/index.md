@@ -165,8 +165,9 @@ would use those values.
 Pay attention to this section if you are trying to utilize a "Modular Monolith" architecture.
 :::
 
-::: warning
-The `Separated` setting is ignored by `Saga` handlers
+::: info
+The `Separated` setting is useful even with `Saga` handlers as of Wolverine 5.10, but ignored
+in previous versions.
 :::
 
 Let's say that you want to take more than one action on a message type published in or to your
@@ -415,6 +416,13 @@ public static class ShipOrderHandler
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CompoundHandlerSamples.cs#L28-L58' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_shiporderhandler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+
+::: warning
+You may need to use separate handlers for separate messages if you are wanting to use `Before/After/Validate/Load` methods that
+target a specific message type. Wolverine is not (yet) smart enough to filter out the application of the implied middleware by
+message type and may throw exceptions on code compilation in some cases. Again, the easy work around is to just use separate message
+handler types for different message types in this case.
+:::
 
 The naming conventions for what Wolverine will consider to be either a "before" or "after" method is shown below:
 

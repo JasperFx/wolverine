@@ -142,6 +142,48 @@ using var host = await Host.CreateDefaultBuilder()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L53-L63' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_make_all_subscribers_be_durable' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+### Bumping out Stale Inbox/Outbox Messages <Badge type="tip" text="5.2" />
+
+It should *not* be possible for there to be any path where a message gets "stuck" in the outbox tables without eventually
+being sent by the originating node or recovered by a different node if the original node goes down first. However, it's 
+an imperfect world. If you are using one of the relational backed message stores for Wolverine (SQL Server or PostgreSQL at this point),
+you can "bump" a persisted record in the `wolverine_outgoing_envelopes` to be recovered and sent by the outbox by
+setting the `owner_id` field to zero.
+
+::: info
+Just be aware that opting into the `OutboxStaleTime` or `InboxStaleTime` threshold will require database changes through Wolverine's database
+migration subsystem
+:::
+
+You also have this setting to force Wolverine to automatically "bump" and older messages that seem to be stalled in
+the outbox table or the inbox table:
+
+<!-- snippet: sample_configuring_outbox_stale_timeout -->
+<a id='snippet-sample_configuring_outbox_stale_timeout'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        // Bump any persisted message in the outbox tables
+        // that is more than an hour old to be globally owned
+        // so that the durability agent can recover it and force
+        // it to be sent
+        opts.Durability.OutboxStaleTime = 1.Hours();
+        
+        // Same for the inbox, but it's configured independently
+        // This should *never* be necessary and the Wolverine
+        // team has no clue why this could ever happen and a message
+        // could get "stuck", but yet, here this is:
+        opts.Durability.InboxStaleTime = 10.Minutes();
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L281-L299' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_outbox_stale_timeout' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Note that this will still respect the "deliver by" semantics. This is part of the polling that Wolverine normally does
+against the inbox/outbox/node storage tables. Note that this will only happen if the setting above has a non-null
+value.
+
 ## Using the Inbox for Incoming Messages
 
 On the incoming side, external transport endpoint listeners can be enrolled into Wolverine's transactional inbox mechanics
@@ -241,3 +283,40 @@ var host = await Host.CreateDefaultBuilder()
 <!-- endSnippet -->
 
 This might be an important setting for [modular monolith architectures](/tutorials/modular-monolith). 
+
+## Stale Inbox and Outbox Thresholds
+
+::: info
+This is more a "defense in depth" feature than a common problem with the inbox/outbox mechanics. These
+flags are "opt in" only because they require database schema changes.
+:::
+
+It should not ever be possible for messages to get "stuck" in the transactional inbox or outbox, but it's an 
+imperfect world and occasionally there are hiccups that might lead to that situation. To that end, you have
+these "opt in" settings to tell Wolverine to "bump" apparently stalled or stale messages back into play *just in case*:
+
+<!-- snippet: sample_using_inbox_outbox_stale_time -->
+<a id='snippet-sample_using_inbox_outbox_stale_time'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        // configure the actual message persistence...
+
+        // This directs Wolverine to "bump" any messages marked
+        // as being owned by a specific node but older than
+        // these thresholds as  being open to any node pulling 
+        // them in
+        
+        // TL;DR: make Wolverine go grab stale messages and make
+        // sure they are processed or sent to the messaging brokers
+        opts.Durability.InboxStaleTime = 5.Minutes();
+        opts.Durability.OutboxStaleTime = 5.Minutes();
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/InboxOutboxSettings.cs#L11-L29' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_inbox_outbox_stale_time' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+::: info
+These settings will be defaults in Wolverine 6.0.
+:::

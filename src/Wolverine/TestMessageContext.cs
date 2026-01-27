@@ -201,6 +201,27 @@ public class TestMessageContext : IMessageContext
         return Task.FromResult(response);
     }
 
+    Task ICommandBus.InvokeAsync(object message, DeliveryOptions options, CancellationToken cancellation,
+        TimeSpan? timeout)
+    {
+        _invoked.Add(message);
+        return Task.CompletedTask;
+    }
+
+    Task<T> ICommandBus.InvokeAsync<T>(object message, DeliveryOptions options, CancellationToken cancellation,
+        TimeSpan? timeout)
+    {
+        var envelope = new Envelope(message)
+        {
+
+        };
+
+        _invoked.Add(envelope);
+
+        var response = findResponse<T>(message);
+        return Task.FromResult(response);
+    }
+
     public Task InvokeForTenantAsync(string tenantId, object message, CancellationToken cancellation = default,
         TimeSpan? timeout = default)
     {
@@ -210,6 +231,11 @@ public class TestMessageContext : IMessageContext
     }
 
     IReadOnlyList<Envelope> IMessageBus.PreviewSubscriptions(object message)
+    {
+        throw new NotSupportedException("This function is not yet supported within the TestMessageContext");
+    }
+
+    public IReadOnlyList<Envelope> PreviewSubscriptions(object message, DeliveryOptions options)
     {
         throw new NotSupportedException("This function is not yet supported within the TestMessageContext");
     }
@@ -251,6 +277,11 @@ public class TestMessageContext : IMessageContext
         _responses.Add(response);
 
         return ValueTask.CompletedTask;
+    }
+
+    public Task ReScheduleCurrentAsync(DateTimeOffset rescheduledAt)
+    {
+        throw new NotImplementedException();
     }
 
     /// <summary>
@@ -311,6 +342,11 @@ public class TestMessageContext : IMessageContext
 
             var response = _parent.findResponse<T>(message, _destination, _endpointName);
             return Task.FromResult(response);
+        }
+
+        public ValueTask SendRawMessageAsync(byte[] data, Type? messageType = null, Action<Envelope>? configure = null)
+        {
+            throw new NotImplementedException();
         }
     }
 }

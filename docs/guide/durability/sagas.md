@@ -132,7 +132,7 @@ var app = builder.Build();
 
 // Just delegating to Wolverine's local command bus for all
 app.MapPost("/start", (StartOrder start, IMessageBus bus) => bus.InvokeAsync(start));
-app.MapPost("/complete", (CompleteOrder start, IMessageBus bus) => bus.InvokeAsync(start));
+app.MapPost("/complete", (CompleteOrder complete, IMessageBus bus) => bus.InvokeAsync(complete));
 app.MapGet("/all", (IQuerySession session) => session.Query<Order>().ToListAsync());
 app.MapGet("/", (HttpResponse response) =>
 {
@@ -274,6 +274,21 @@ public class ToyOnTray
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HappyMealSaga.cs#L257-L268' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_toyontray' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+After that, you can also use a new `[SagaIdentityFrom]` (as of 5.9) attribute on~~~~ a handler parameter:
+
+<!-- snippet: sample_using_SagaIdentityFrom -->
+<a id='snippet-sample_using_sagaidentityfrom'></a>
+```cs
+public class SomeSaga
+{
+    public Guid Id { get; set; }
+
+    public void Handle([SagaIdentityFrom(nameof(SomeSagaMessage5.Hello))] SomeSagaMessage5 message) { }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Persistence/Sagas/saga_id_member_determination.cs#L35-L44' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_sagaidentityfrom' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
 Next, Wolverine looks for a member named "{saga type name}Id." In the case of our `Order`
 saga type, that would be a public member named `OrderId` as shown in this code:
 
@@ -404,7 +419,14 @@ methods to try to head off confusion.
 
 ## When Sagas are Not Found
 
-If you receive a command message against a `Saga` that no longer exists, Wolverine will ignore the message unless
+::: warning
+You need to explicitly use the `NotFound()` convention for Wolverine to quietly ignore messages related to a `Saga`
+that cannot be found. As an example, if you receive a "timeout" message for an active `Saga` that has been completed and
+deleted, you will need to implement `NotFound(message)` **even if it is an empty, do nothing method** just so Wolverine
+will not blow up with an exception (not) helpfully telling you the requested `Saga` cannot be found.
+:::
+
+If you receive a command message against a `Saga` that no longer exists, Wolverine will throw an `Exception` unless
 you explicitly handle the "not found" case. To do so for a particular command type -- and note that Wolverine does not
 do any magic handling today based on abstractions -- you can implement a public static method called `NotFound` on your
 `Saga` class for a particular message type that will take action against that incoming message as shown below:
@@ -497,6 +519,13 @@ public void Handle(OrderTimeout timeout, ILogger<Order> logger)
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderSagaSample/OrderSaga.cs#L51-L63' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_handling_a_timeout_message' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Saga Concurrency
+
+Both the Marten and EF Core backed saga support has built in support for optimistic concurrency checks on persisting
+a saga after handling a command. See [Dealing with Concurrency](/tutorials/concurrency) and especially the 
+[partitioned sequential messaging](/tutorials/concurrency) and its option for "inferred" message grouping to maybe completely
+side step concurrency issues with saga message handling. 
+
 ## Lightweight Saga Storage <Badge type="tip" text="3.0" />
 
 The Wolverine integration with either Sql Server or PostgreSQL comes with a lightweight saga storage mechanism
@@ -536,3 +565,60 @@ using var host = await Host.CreateDefaultBuilder()
 
 Note that this manual registration is not necessary at development time or if you're content to just let Wolverine
 handle database migrations at runtime.
+
+## Overriding Logging
+
+We recently had a question about how to turn down logging levels for `Saga` message processing when the log
+output was getting too verbose. `Saga` types are officially message handlers to the Wolverine internals, so you can 
+still use the `public static void Configure(HandlerChain)` mechanism for one off configurations to every message handler
+method on the `Saga` like this:
+
+<!-- snippet: sample_overriding_logging_on_saga -->
+<a id='snippet-sample_overriding_logging_on_saga'></a>
+```cs
+public class RevisionedSaga : Wolverine.Saga
+{
+    // This works just the same as on any other message handler
+    // type
+    public static void Configure(HandlerChain chain)
+    {
+        chain.ProcessingLogLevel = LogLevel.None;
+        chain.SuccessLogLevel = LogLevel.None;
+    }
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/Saga/RevisionedSaga.cs#L80-L92' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_overriding_logging_on_saga' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Or if you wanted to just do it globally, something like this approach:
+
+<!-- snippet: sample_turn_down_logging_for_sagas -->
+<a id='snippet-sample_turn_down_logging_for_sagas'></a>
+```cs
+public class TurnDownLoggingOnSagas : IChainPolicy
+{
+    public void Apply(IReadOnlyList<IChain> chains, GenerationRules rules, IServiceContainer container)
+    {
+        foreach (var sagaChain in chains.OfType<SagaChain>())
+        {
+            sagaChain.ProcessingLogLevel = LogLevel.None;
+            sagaChain.SuccessLogLevel = LogLevel.None;
+        }
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/SagaChainPolicies.cs#L27-L41' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_turn_down_logging_for_sagas' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+and register that policy something like this:
+
+<!-- snippet: sample_configuring_chain_policy_on_sagas -->
+<a id='snippet-sample_configuring_chain_policy_on_sagas'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.Policies.Add<TurnDownLoggingOnSagas>();
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/SagaChainPolicies.cs#L15-L23' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_chain_policy_on_sagas' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->

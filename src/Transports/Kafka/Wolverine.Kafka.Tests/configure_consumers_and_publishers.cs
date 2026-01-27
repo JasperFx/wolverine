@@ -43,6 +43,11 @@ public class configure_consumers_and_publishers : IAsyncLifetime
                 // Or explicitly make subscription rules
                 opts.PublishMessage<ColorMessage>()
                     .ToKafkaTopic("colors")
+                    .TopicCreation(async (c, t) =>
+                    {
+                        t.Specification.NumPartitions = 4;
+                        await c.CreateTopicsAsync([t.Specification]);
+                    })
                     
                     // Override the producer configuration for just this topic
                     .ConfigureProducer(config =>
@@ -61,6 +66,7 @@ public class configure_consumers_and_publishers : IAsyncLifetime
                         // This will also set the Envelope.GroupId for any
                         // received messages at this topic
                         config.GroupId = "foo";
+                        config.BootstrapServers = "localhost:9092";
                         
                         // Other configuration
                     }).Named("red");
@@ -85,7 +91,7 @@ public class configure_consumers_and_publishers : IAsyncLifetime
     public async Task can_receive_the_group_id_for_the_consumer_on_the_envelope()
     {
         Task Send(IMessageContext c) => c.EndpointFor("red").SendAsync(new RedMessage("one")).AsTask();
-        var session = await _host.ExecuteAndWaitAsync(Send);
+        var session = await _host.TrackActivity().IncludeExternalTransports().ExecuteAndWaitAsync(Send);
         
         session.Received.SingleEnvelope<RedMessage>()
             .GroupId.ShouldBe("foo");

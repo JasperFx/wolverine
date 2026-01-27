@@ -1,8 +1,12 @@
-using System.Diagnostics;
+using ImTools;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Module1;
+using System.Diagnostics;
+using System.Reflection;
+using JasperFx.Core.Reflection;
 using Wolverine.Attributes;
+using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Util;
 using Xunit;
@@ -34,7 +38,59 @@ public class HandlerGraphTests
         graph.TryFindMessageType(typeof(IMessageMarker).ToMessageTypeName(), out var markedType).ShouldBeTrue();
         markedType.ShouldBe(typeof(MarkedMessage));
     }
+    
+    [Fact]
+    public async Task register_message_type()
+    {
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.RegisterMessageType(typeof(DummyMessage), "custom-alias");
+            }).StartAsync();
+
+        var graph = host.Services.GetRequiredService<HandlerGraph>();
+
+        graph.TryFindMessageType(typeof(DummyMessage).ToMessageTypeName(), out _).ShouldBeFalse();
+
+        graph.TryFindMessageType("custom-alias", out var type).ShouldBeTrue();
+        type.ShouldBe(typeof(DummyMessage));
+    }
+
+    [Fact]
+    public async Task register_message_types_with_same_alias_throws_invalid_operation_exception()
+    {
+        await Should.ThrowAsync<InvalidOperationException>(async () =>
+        {
+            using var host = await Host.CreateDefaultBuilder()
+                .UseWolverine(opts =>
+                {
+                    opts.RegisterMessageType(typeof(DummyMessage), "custom-alias");
+                    opts.RegisterMessageType(typeof(string), "custom-alias");
+                }).StartAsync();
+        });
+    }
+
+    [Fact]
+    public async Task Concurrent_Registration_No_Race_Condition()
+    {
+        // just make sure the list consists of at least a couple of messages
+        var typesToRegister = typeof(DummyMessage).Assembly.GetTypes().Where(x => x.Name.EndsWith("Message")).ToArray();
+
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine()
+            .StartAsync();
+
+        var graph = host.Services.GetRequiredService<HandlerGraph>();
+        var runtime = host.Services.GetRequiredService<IWolverineRuntime>();
+        Parallel.ForEach(typesToRegister, t => runtime.RegisterMessageType(t));
+
+        var missingTypes = typesToRegister.Select(t => t.ToMessageTypeName())
+            .Where(t => graph.TryFindMessageType(t, out var _) is false).ToArray();
+        missingTypes.ShouldBeEmpty();
+    }
 }
+
+public class DummyMessage { }
 
 public interface IMessageMarker;
 

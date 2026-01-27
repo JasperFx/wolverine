@@ -1,4 +1,5 @@
-﻿using JasperFx.CodeGeneration;
+﻿using JasperFx;
+using JasperFx.CodeGeneration;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
@@ -9,8 +10,16 @@ namespace Wolverine;
 ///     Group of related, outgoing messages to use as a cascading message
 ///     mechanism in Wolverine message handlers
 /// </summary>
-public class OutgoingMessages : List<object>, IWolverineReturnType
+public class OutgoingMessages : List<object>, IWolverineReturnType, INotToBeRouted
 {
+    public OutgoingMessages()
+    {
+    }
+
+    public OutgoingMessages(IEnumerable<object> collection) : base(collection)
+    {
+    }
+
     /// <summary>
     ///     Send a message back to the original sender
     /// </summary>

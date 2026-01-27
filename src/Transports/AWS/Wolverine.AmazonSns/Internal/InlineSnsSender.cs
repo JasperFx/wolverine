@@ -13,6 +13,7 @@ internal class InlineSnsSender : ISender
     {
         _topic = topic;
         _logger = runtime.LoggerFactory.CreateLogger<InlineSnsSender>();
+        topic.Mapper ??= topic.BuildMapper(runtime);
     }
 
     public bool SupportsNativeScheduledSend => false;

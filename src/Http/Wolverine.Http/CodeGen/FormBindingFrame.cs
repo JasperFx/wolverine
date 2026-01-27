@@ -1,4 +1,5 @@
 using System.Reflection;
+using JasperFx;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
@@ -38,7 +39,10 @@ internal class FromFormAttributeUsage : IParameterStrategy
             return false;
         }
         variable = chain.TryFindOrCreateFormValue(parameter);
-        if(variable != null){
+        if(variable != null)
+        {
+            chain.RequestType = typeof(void);
+            chain.IsFormData = true; // THIS IS IMPORTANT!
             return true;
         }
        

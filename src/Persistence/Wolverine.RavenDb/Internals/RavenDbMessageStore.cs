@@ -1,3 +1,4 @@
+using JasperFx.Core.Reflection;
 using JasperFx.Descriptors;
 using Raven.Client.Documents;
 using Wolverine.Persistence.Durability;
@@ -8,7 +9,7 @@ using Wolverine.Transports;
 
 namespace Wolverine.RavenDb.Internals;
 
-public partial class RavenDbMessageStore : IMessageStore
+public partial class RavenDbMessageStore : IMessageStoreWithAgentSupport
 {
     private readonly IDocumentStore _store;
     private readonly WolverineOptions _options;
@@ -19,12 +20,26 @@ public partial class RavenDbMessageStore : IMessageStore
         _identity = options.Durability.MessageIdentity == MessageIdentity.IdOnly
             ? e => e.Id.ToString()
             : e => $"{e.Id}/{e.Destination.ToString().Replace(":/", "").TrimEnd('/')}";
-        
+
         _store = store;
         _options = options;
 
         _leaderLockId = "wolverine/leader";
         _scheduledLockId = "wolverine/scheduled";
+    }
+
+    public MessageStoreRole Role { get; set; } = MessageStoreRole.Main;
+    
+    public List<string> TenantIds { get; } = new();
+    
+    public void PromoteToMain(IWolverineRuntime runtime)
+    {
+        Role = MessageStoreRole.Main;
+    }
+
+    public void DemoteToAncillary()
+    {
+        Role = MessageStoreRole.Ancillary;
     }
 
     public string Name => _store.Identifier;
@@ -51,11 +66,6 @@ public partial class RavenDbMessageStore : IMessageStore
         // NOTHING YET
     }
 
-    public void Describe(TextWriter writer)
-    {
-        writer.WriteLine("RavenDb backed Wolverine envelope storage");
-    }
-
     public DatabaseDescriptor Describe()
     {
         return new DatabaseDescriptor(this)
@@ -75,9 +85,14 @@ public partial class RavenDbMessageStore : IMessageStore
         _leaderLockId = "wolverine/leader/" + runtime.Options.ServiceName.ToLowerInvariant();
         _scheduledLockId = _scheduledLockId + "/" + runtime.Options.ServiceName.ToLowerInvariant();
         _runtime = runtime;
-        var agent =  new RavenDbDurabilityAgent(_store, runtime, this);
-        agent.StartTimers();
+        var agent = BuildAgent(runtime);
+        agent.As<RavenDbDurabilityAgent>().StartTimers();
         return agent;
+    }
+
+    public IAgent BuildAgent(IWolverineRuntime runtime)
+    {
+        return new RavenDbDurabilityAgent(_store, runtime, this);
     }
 
     public IAgentFamily? BuildAgentFamily(IWolverineRuntime runtime)
@@ -95,7 +110,7 @@ public partial class RavenDbMessageStore : IMessageStore
             .OrderBy(x => x.EnvelopeId)
             .Take(limit)
             .ToListAsync();
-        
+
         return incoming.Select(x => x.Read()).ToList();
     }
 

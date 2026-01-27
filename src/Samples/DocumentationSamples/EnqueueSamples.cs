@@ -12,6 +12,11 @@ public class EnqueueSamples
     {
         // Execute the message inline
         await bus.InvokeAsync(new Message1());
+        
+        // Execute the message inline, but this time pass in
+        // messaging metadata for Wolverine
+        await bus.InvokeAsync(new Message1(),
+            new DeliveryOptions { TenantId = "one", SagaId = "two" }.WithHeader("user.id", "admin"));
     }
 
     #endregion

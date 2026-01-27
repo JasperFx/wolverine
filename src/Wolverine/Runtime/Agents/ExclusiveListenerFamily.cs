@@ -1,3 +1,4 @@
+using JasperFx;
 using JasperFx.Core;
 using Wolverine.Configuration;
 
@@ -29,7 +30,7 @@ internal class ExclusiveListenerAgent : IAgent
 
     public Uri Uri { get; set; }
     
-    public AgentStatus Status { get; set; } = AgentStatus.Started;
+    public AgentStatus Status { get; set; } = AgentStatus.Running;
 }
 
 internal class ExclusiveListenerFamily : IStaticAgentFamily
@@ -74,6 +75,7 @@ internal class ExclusiveListenerFamily : IStaticAgentFamily
     public ValueTask EvaluateAssignmentsAsync(AssignmentGrid assignments)
     {
         assignments.DistributeEvenly(SchemeName);
+
         return new ValueTask();
     }
 }

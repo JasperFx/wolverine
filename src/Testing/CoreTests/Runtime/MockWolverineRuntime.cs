@@ -7,12 +7,15 @@ using NSubstitute;
 using Wolverine.ComplianceTests;
 using Wolverine.Configuration;
 using Wolverine.Logging;
+using Wolverine.Persistence;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.Handlers;
+using Wolverine.Runtime.Metrics;
 using Wolverine.Runtime.RemoteInvocation;
 using Wolverine.Runtime.Routing;
+using Wolverine.Runtime.Stubs;
 using Wolverine.Transports;
 using Wolverine.Transports.Sending;
 using Wolverine.Util;
@@ -50,7 +53,13 @@ public class MockWolverineRuntime : IWolverineRuntime, IObserver<IWolverineEvent
     public MockWolverineRuntime()
     {
         Tracker.Subscribe(this);
+        MetricsAccumulator = new MetricsAccumulator(this);
+        Options.ServiceName = "Mock";
     }
+
+    public MetricsAccumulator MetricsAccumulator { get; }
+
+    public IStubHandlers Stubs { get; } = Substitute.For<IStubHandlers>();
 
     public IMessageTracker MessageTracking { get; } = Substitute.For<IMessageTracker>();
 
@@ -97,11 +106,22 @@ public class MockWolverineRuntime : IWolverineRuntime, IObserver<IWolverineEvent
     public IMessageStore Storage { get; } = Substitute.For<IMessageStore>();
     public ILogger Logger { get; } = Substitute.For<ILogger>();
 
-    public IReadOnlyList<IAncillaryMessageStore> AncillaryStores { get;  } = new List<IAncillaryMessageStore>();
+
+    public MessageStoreCollection Stores => new MessageStoreCollection(this, [], []);
+
+    public Task<T?> TryFindMainMessageStore<T>() where T : class
+    {
+        throw new NotImplementedException();
+    }
+
+    public IMessageStore FindAncillaryStoreForMarkerType(Type markerType)
+    {
+        throw new NotImplementedException();
+    }
 
     public void ScheduleLocalExecutionInMemory(DateTimeOffset executionTime, Envelope envelope)
     {
-        throw new NotSupportedException();
+        
     }
 
     public void RegisterMessageType(Type messageType)

@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Text.Json.Serialization;
 using JasperFx.Core;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
@@ -45,17 +46,27 @@ public partial class Envelope
         Serializer = writer ?? throw new ArgumentNullException(nameof(writer));
         ContentType = writer.ContentType;
     }
+    
+    /// <summary>
+    /// Helps denote to the transactional middleware that this envelope was
+    /// persisted or not to aid in the "Handled" behavior
+    /// </summary>
+    [JsonIgnore]
+    public bool WasPersistedInInbox { get; set; }
 
+    [JsonIgnore]
     public IMessageSerializer? Serializer { get; set; }
 
     /// <summary>
     ///     Used by IMessageContext.Invoke<T> to denote the response type
     /// </summary>
+    [JsonIgnore]
     internal Type? ResponseType { get; set; }
 
     /// <summary>
     ///     Also used by IMessageContext.Invoke<T> to catch the response
     /// </summary>
+    [JsonIgnore]
     internal object? Response { get; set; }
     
     /// <summary>
@@ -64,26 +75,41 @@ public partial class Envelope
     /// message as a cascading message. Originally added for the
     /// Http transport request/reply
     /// </summary>
+    [JsonIgnore]
     public bool DoNotCascadeResponse { get; set; }
 
     /// <summary>
     ///     Status according to the message persistence
     /// </summary>
+    [JsonIgnore]
     public EnvelopeStatus Status { get; set; }
 
     /// <summary>
     ///     Node owner of this message. 0 denotes that no node owns this message
     /// </summary>
+    [JsonIgnore]
     public int OwnerId { get; set; }
     
+    [JsonIgnore]
     internal bool InBatch { get; set; }
     
+    [JsonIgnore]
     internal ISendingAgent? Sender { get; set; }
 
+    [JsonIgnore]
     public IListener? Listener { get; internal set; }
+    
+    [JsonIgnore]
     public bool IsResponse { get; set; }
+    
+    [JsonIgnore]
     public Exception? Failure { get; set; }
+    
+    [JsonIgnore]
     internal Envelope[]? Batch { get; set; }
+    
+    [JsonIgnore]
+    internal bool HasBeenAcked { get; set; }
 
     internal void StartTiming()
     {
@@ -101,6 +127,12 @@ public partial class Envelope
         _timer.Stop();
         return _timer.ElapsedMilliseconds;
     }
+
+    /// <summary>
+    /// How long did the current execution take?
+    /// </summary>
+    [JsonIgnore]
+    internal long ExecutionTime => _timer.ElapsedMilliseconds;
 
     /// <summary>
     /// </summary>
@@ -167,7 +199,14 @@ public partial class Envelope
     /// <returns></returns>
     internal Envelope CreateForResponse(object message)
     {
-        var child = ForSend(message);
+        var child = new Envelope
+        {
+            Message = message,
+            CorrelationId = Id.ToString(),
+            ConversationId = Id,
+            SagaId = SagaId,
+            TenantId = TenantId
+        };
         child.CorrelationId = CorrelationId;
         child.ConversationId = Id;
 
@@ -184,19 +223,6 @@ public partial class Envelope
         }
 
         return child;
-    }
-
-    [Obsolete("not really used")]
-    internal Envelope ForSend(object message)
-    {
-        return new Envelope
-        {
-            Message = message,
-            CorrelationId = Id.ToString(),
-            ConversationId = Id,
-            SagaId = SagaId,
-            TenantId = TenantId
-        };
     }
 
     internal ValueTask StoreAndForwardAsync()
@@ -342,5 +368,27 @@ public partial class Envelope
         {
             ReplyUri = ReplyUri.MaybeCorrectScheme(Destination.Scheme);
         }
+    }
+
+    internal DeliveryOptions ToDeliveryOptions()
+    {
+        return new DeliveryOptions
+        {
+            AckRequested = AckRequested,
+            DeduplicationId = DeduplicationId,
+            DeliverBy = DeliverBy,
+            Headers = Headers,
+            IsResponse = IsResponse,
+            PartitionKey = PartitionKey,
+            TenantId = TenantId,
+            ScheduledTime = ScheduledTime,
+            SagaId = SagaId
+        };
+    }
+
+    internal void ClearAnyScheduling()
+    {
+        Status = EnvelopeStatus.Incoming;
+        ScheduledTime = null;
     }
 }

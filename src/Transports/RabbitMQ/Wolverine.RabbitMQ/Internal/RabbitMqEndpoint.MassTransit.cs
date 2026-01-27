@@ -54,19 +54,6 @@ public abstract partial class RabbitMqEndpoint : IMassTransitInteropEndpoint
 
     public void UseMassTransitInterop(Action<IMassTransitInterop>? configure = null)
     {
-        var serializer = new MassTransitJsonSerializer(this);
-        configure?.Invoke(serializer);
-
-        DefaultSerializer = serializer;
-
-        var replyUri = new Lazy<string>(() => MassTransitReplyUri()?.ToString() ?? string.Empty);
-
-        _customizeMapping = m =>
-        {
-            m.MapOutgoingProperty(x => x.ReplyUri!,
-                (e, p) => { p.Headers[MassTransitHeaders.ResponseAddress] = replyUri.Value; });
-
-            m.MapPropertyToHeader(x => x.MessageType!, MassTransitHeaders.MessageType);
-        };
+        customizeMapping((m, _) => m.InteropWithMassTransit());
     }
 }

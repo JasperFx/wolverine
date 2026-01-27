@@ -2,15 +2,38 @@ using Azure.Messaging.ServiceBus.Administration;
 using Wolverine.AzureServiceBus.Internal;
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
+using Wolverine.Runtime.Interop.MassTransit;
 
 namespace Wolverine.AzureServiceBus;
 
 public class
-    AzureServiceBusQueueListenerConfiguration : ListenerConfiguration<AzureServiceBusQueueListenerConfiguration,
-        AzureServiceBusQueue>
+    AzureServiceBusQueueListenerConfiguration : InteroperableListenerConfiguration<AzureServiceBusQueueListenerConfiguration,
+        AzureServiceBusQueue, IAzureServiceBusEnvelopeMapper, AzureServiceBusEnvelopeMapper>
 {
     public AzureServiceBusQueueListenerConfiguration(AzureServiceBusQueue endpoint) : base(endpoint)
     {
+    }
+    
+        /// <summary>
+    /// Configure this Azure Service Bus queue to run exclusively on a single node
+    /// with session-based parallel processing. This ensures only one node processes
+    /// the queue while allowing multiple sessions to be processed in parallel.
+    /// </summary>
+    /// <param name="configuration">The Azure Service Bus listener configuration</param>
+    /// <param name="maxParallelSessions">Maximum number of sessions to process in parallel. Default is 10.</param>
+    /// <param name="endpointName">Optional endpoint name for identification</param>
+    /// <returns>The configuration for method chaining</returns>
+    public AzureServiceBusQueueListenerConfiguration ExclusiveNodeWithSessions(
+        int maxParallelSessions = 10,
+        string? endpointName = null)
+    {
+        // First ensure sessions are required with the specified parallelism
+        RequireSessions(maxParallelSessions);
+        
+        // Then apply exclusive node configuration
+        ExclusiveNodeWithSessionOrdering(maxParallelSessions, endpointName);
+        
+        return this;
     }
 
     /// <summary>
@@ -126,7 +149,28 @@ public class
     /// <returns></returns>
     public AzureServiceBusQueueListenerConfiguration InteropWith(IAzureServiceBusEnvelopeMapper mapper)
     {
-        add(e => e.Mapper = mapper);
+        add(e => e.EnvelopeMapper = mapper);
+        return this;
+    }
+
+    /// <summary>
+    /// Utilize an envelope mapper that is interoperable with MassTransit
+    /// </summary>
+    /// <param name="configure"></param>
+    /// <returns></returns>
+    public AzureServiceBusQueueListenerConfiguration UseMassTransitInterop(Action<IMassTransitInterop> configure)
+    {
+        add(e => e.UseMassTransitInterop(configure));
+        return this;
+    }
+
+    /// <summary>
+    /// Use an envelope mapper that is interoperable with NServiceBus
+    /// </summary>
+    /// <returns></returns>
+    public AzureServiceBusQueueListenerConfiguration UseNServiceBusInterop()
+    {
+        add(e => e.UseNServiceBusInterop());
         return this;
     }
 }

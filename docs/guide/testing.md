@@ -6,7 +6,400 @@ to decouple application code from framework or other infrastructure concerns.
 
 See Jeremy's blog post [How Wolverine allows for easier testing](https://jeremydmiller.com/2022/12/13/how-wolverine-allows-for-easier-testing/) for an introduction to unit testing Wolverine message handlers.
 
-Also see [Wolverine Best Practices](/tutorials/best-practices) for other helpful tips.
+Also see [Wolverine Best Practices](/introduction/best-practices) for other helpful tips.
+
+And this:
+
+@[youtube](ODSAGAllsxw)
+
+## Integration Testing with Tracked Sessions
+
+::: tip
+This is the recommended approach for integration testing against Wolverine message handlers
+if there are any outgoing messages or asynchronous behavior as a result of the messages being
+handled in your test scenario.
+:::
+
+::: info
+As of Wolverine 3.13, the same extension methods shown here are available off of `IServiceProvider`
+in addition to the original support off of `IHost` if you happen to be writing integration tests
+by spinning up just an IoC container and not the full `IHost` in your test harnesses.
+:::
+
+So far we've been mostly focused on unit testing Wolverine handler methods individually with
+unit tests without any direct coupling to infrastructure. Great, that's a great start,
+but you're eventually going to also need some integration tests, and invoking or publishing messages
+is a very logical entry point for integration testing.
+
+First, why integration testing with Wolverine?
+
+1. Wolverine is probably most effective when you're heavily leveraging middleware or Wolverine conventions, and only an integration test is really going to get through the entire "stack"
+2. You may frequently want to test the interaction between your application code and infrastructure concerns like databases
+3. Handling messages will frequently spawn other messages that will be executed in other threads or other processes, and you'll frequently want to write bigger tests that span across messages
+
+::: tip
+I'm not getting into it here, but remember that `IHost` is relatively
+expensive to build, so you'll probably want it cached between
+tests. Or at least be aware that it's expensive.
+:::
+
+This sample was taken from [an introductory blog post](https://jeremydmiller.com/2022/12/12/introducing-wolverine-for-effective-server-side-net-development/) that may give you some additional context for what's happening here.
+
+Going back to our sample message handler for the `DebitAccount` in the previous sections,
+let's say that we want an integration test that spans the middleware that looks up the `Account` data,
+the Fluent Validation middleware, [Marten](https://martendb.io) usage, and even across to any cascading
+messages that are also handled in process as a result of the original message. One of the big challenges
+with automated testing against asynchronous processing is *knowing* when the "action" part of the "arrange/act/assert"
+phase of the test is complete and it's safe to start making assertions. Anyone who has had the misfortune
+to work with complicated Selenium test suites is very aware of this challenge.
+
+Not to fear though, Wolverine comes out of the box with the concept of "tracked sessions" that you can use
+to write predictable and reliable integration tests.
+
+::: warning
+I'm omitting the code necessary to set up system state first just to concentrate on
+the Wolverine mechanics here.
+:::
+
+To start with tracked sessions, let's assume that you have an `IHost` for your Wolverine
+application in your testing harness. Assuming you do, you can start a tracked session using
+the `IHost.InvokeMessageAndWaitAsync()` extension method in Wolverine like this:
+
+<!-- snippet: sample_using_tracked_session -->
+<a id='snippet-sample_using_tracked_session'></a>
+```cs
+public async Task using_tracked_sessions()
+{
+    // The point here is just that you somehow have
+    // an IHost for your application
+    using var host = await Host.CreateDefaultBuilder()
+        .UseWolverine().StartAsync();
+
+    var debitAccount = new DebitAccount(111, 300);
+    var session = await host.InvokeMessageAndWaitAsync(debitAccount);
+
+    var overdrawn = session.Sent.SingleMessage<AccountOverdrawn>();
+    overdrawn.AccountId.ShouldBe(debitAccount.AccountId);
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L122-L138' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_tracked_session' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+The tracked session mechanism utilizes Wolverine's internal instrumentation to "know" when all the outstanding
+work in the system is complete. In this case, if the `AccountOverdrawn` message spawned from `DebitAccount`
+is handled locally, the `InvokeMessageAndWaitAsync()` call will not return until the other messages
+that are routed locally are finished processing or the test times out. The tracked session will also throw
+an `AggregateException` with any exceptions encountered by any message being handled within the activity
+that is tracked.
+
+Note that you'll probably *mostly* *invoke* messages in these tests, but there are additional extension
+methods on `IHost` for other `IMessageBus` operations.
+
+:::info
+The Tracked Session includes only messages sent, published, or scheduled during the tracked session.
+Messages sent before the tracked session are not included in the tracked session.
+:::
+
+Finally, there are some more advanced options in tracked sessions you may find useful as
+shown below:
+
+<!-- snippet: sample_advanced_tracked_session_usage -->
+<a id='snippet-sample_advanced_tracked_session_usage'></a>
+```cs
+public async Task using_tracked_sessions_advanced(IHost otherWolverineSystem)
+{
+    // The point here is just that you somehow have
+    // an IHost for your application
+    using var host = await Host.CreateDefaultBuilder()
+        .UseWolverine().StartAsync();
+
+    var debitAccount = new DebitAccount(111, 300);
+    var session = await host
+
+        // Start defining a tracked session
+        .TrackActivity()
+
+        // Override the timeout period for longer tests
+        .Timeout(1.Minutes())
+
+        // Be careful with this one! This makes Wolverine wait on some indication
+        // that messages sent externally are completed
+        .IncludeExternalTransports()
+
+        // Make the tracked session span across an IHost for another process
+        // May not be super useful to the average user, but it's been crucial
+        // to test Wolverine itself
+        .AlsoTrack(otherWolverineSystem)
+
+        // This is actually helpful if you are testing for error handling
+        // functionality in your system
+        .DoNotAssertOnExceptionsDetected()
+        
+        // Hey, just in case failure acks are getting into your testing session
+        // and you do not care for the tests, tell Wolverine to ignore them
+        .IgnoreFailureAcks()
+
+        // Again, this is testing against processes, with another IHost
+        .WaitForMessageToBeReceivedAt<LowBalanceDetected>(otherWolverineSystem)
+        
+        // Wolverine does this automatically, but it's sometimes
+        // helpful to tell Wolverine to not track certain message
+        // types during testing. Especially messages originating from
+        // some kind of polling operation
+        .IgnoreMessageType<IAgentCommand>()
+        
+        // Another option
+        .IgnoreMessagesMatchingType(type => type.CanBeCastTo<IAgentCommand>())
+
+        // There are many other options as well
+        .InvokeMessageAndWaitAsync(debitAccount);
+
+    var overdrawn = session.Sent.SingleMessage<AccountOverdrawn>();
+    overdrawn.AccountId.ShouldBe(debitAccount.AccountId);
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L140-L194' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_advanced_tracked_session_usage' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+The samples shown above inlcude `Sent` message records, but there are more properties available in the `TrackedSession` object.
+In accordance with the `MessageEventType` enum, you can access these properties on the `TrackedSession` object:
+
+<!-- snippet: sample_record_collections -->
+<a id='snippet-sample_record_collections'></a>
+```cs
+public enum MessageEventType
+{
+    Received,
+    Sent,
+    ExecutionStarted,
+    ExecutionFinished,
+    MessageSucceeded,
+    MessageFailed,
+    NoHandlers,
+    NoRoutes,
+    MovedToErrorQueue,
+    Requeued,
+    Scheduled,
+    Discarded,
+    Status
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Tracking/MessageEventType.cs#L3-L20' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_record_collections' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Let's consider we're testing a Wolverine application which publishes a message, when a change to a watched folder is detected. The part we want to test is that a message is actually published when a file is added to the watched folder. We can use the `TrackActivity` method to start a tracked session and then use the `ExecuteAndWaitAsync` method to wait for the message to be published when the file change has happened.
+
+<!-- snippet: sample_send_message_on_file_change -->
+<a id='snippet-sample_send_message_on_file_change'></a>
+```cs
+public record FileAdded(string FileName);
+
+public class FileAddedHandler
+{
+    public Task Handle(
+        FileAdded message
+    ) =>
+        Task.CompletedTask;
+}
+
+public class RandomFileChange
+{
+    private readonly IMessageBus _messageBus;
+
+    public RandomFileChange(
+        IMessageBus messageBus
+    ) => _messageBus = messageBus;
+
+    public async Task SimulateRandomFileChange()
+    {
+        // Delay task with a random number of milliseconds
+        // Here would be your FileSystemWatcher / IFileProvider
+        await Task.Delay(
+            TimeSpan.FromMilliseconds(
+                new Random().Next(100, 1000)
+            )
+        );
+        var randomFileName = Path.GetRandomFileName();
+        await _messageBus.SendAsync(new FileAdded(randomFileName));
+    }
+}
+
+public class When_message_is_sent : IAsyncLifetime
+{
+    private IHost _host;
+
+    public async Task InitializeAsync()
+    {
+        var hostBuilder = Host.CreateDefaultBuilder();
+        hostBuilder.ConfigureServices(
+            services => { services.AddSingleton<RandomFileChange>(); }
+        );
+        hostBuilder.UseWolverine();
+
+        _host = await hostBuilder.StartAsync();
+    }
+    
+    [Fact]
+    public async Task should_be_in_session_using_service_provider()
+    {
+        var randomFileChange = _host.Services.GetRequiredService<RandomFileChange>();
+
+        var session = await _host.Services
+            .TrackActivity()
+            .Timeout(2.Seconds())
+            .ExecuteAndWaitAsync(
+                (Func<IMessageContext, Task>)(
+                    async (
+                        _
+                    ) => await randomFileChange.SimulateRandomFileChange()
+                )
+            );
+
+        session
+            .Sent
+            .AllMessages()
+            .Count()
+            .ShouldBe(1);
+        
+        session
+            .Sent
+            .AllMessages()
+            .First()
+            .ShouldBeOfType<FileAdded>();
+    }
+
+    [Fact]
+    public async Task should_be_in_session()
+    {
+        var randomFileChange = _host.Services.GetRequiredService<RandomFileChange>();
+
+        var session = await _host
+            .TrackActivity()
+            .Timeout(2.Seconds())
+            .ExecuteAndWaitAsync(
+                (Func<IMessageContext, Task>)(
+                    async (
+                        _
+                    ) => await randomFileChange.SimulateRandomFileChange()
+                )
+            );
+
+        session
+            .Sent
+            .AllMessages()
+            .Count()
+            .ShouldBe(1);
+        
+        session
+            .Sent
+            .AllMessages()
+            .First()
+            .ShouldBeOfType<FileAdded>();
+    }
+
+    public async Task DisposeAsync() => await _host.StopAsync();
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L218-L326' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_send_message_on_file_change' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+As you can see, we just have to start our application, attach a tracked session to it, and then wait for the message to be published. This way, we can test the whole process of the application, from the file change to the message publication, in a single test.
+
+## Dealing with Scheduled Messages  <Badge type="tip" text="4.12" />
+
+As I'm sure you can imagine, [scheduled local execution](/guide/messaging/transports/local.html#scheduling-local-execution) and [scheduled message delivery](/guide/messaging/message-bus.html#scheduling-message-delivery-or-execution)
+can easily be confusing for testing and have occasionally caused trouble for Wolverine users using the tracked session functionality. At this point,
+Wolverine now tracks any scheduled messages a little separately under an `ITrackedSession.Scheduled` collection, and any message that is
+scheduled for later execution or delivery is automatically interpreted as "complete" in the tracked session.
+
+You can also force the "tracked session" to immediately "replay" any scheduled messages tracked in the original session by:
+
+1. Invoking any messages that were scheduled for local execution
+2. Sending any messages that were scheduled for delivery to the original destination
+
+and returning a brand new tracked session for the "replay."
+
+Here's an example from our test suite. First though, here's the message handlers in question (remember, this is rigged up 
+for testing):
+
+<!-- snippet: sample_handlers_for_trigger_scheduled_message -->
+<a id='snippet-sample_handlers_for_trigger_scheduled_message'></a>
+```cs
+public static DeliveryMessage<ScheduledMessage> Handle(TriggerScheduledMessage message)
+{
+    // This causes a message to be scheduled for delivery in 5 minutes from now
+    return new ScheduledMessage(message.Text).DelayedFor(5.Minutes());
+}
+
+public static void Handle(ScheduledMessage message) => Debug.WriteLine("Got scheduled message");
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/SlowTests/tracked_session_mechanics.cs#L153-L163' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_handlers_for_trigger_scheduled_message' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+And the test that exercises this functionality:
+
+<!-- snippet: sample_dealing_with_locally_scheduled_messages -->
+<a id='snippet-sample_dealing_with_locally_scheduled_messages'></a>
+```cs
+// In this case we're just executing everything in memory
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, "wolverine");
+        opts.Policies.UseDurableInboxOnAllListeners();
+    }).StartAsync();
+
+// Should finish cleanly
+var tracked = await host.SendMessageAndWaitAsync(new TriggerScheduledMessage("Chiefs"));
+
+// Here's how you can query against the messages that were detected to be scheduled
+tracked.Scheduled.SingleMessage<ScheduledMessage>()
+    .Text.ShouldBe("Chiefs");
+
+// This API will try to immediately play any scheduled messages immediately
+var replayed = await tracked.PlayScheduledMessagesAsync(10.Seconds());
+replayed.Executed.SingleMessage<ScheduledMessage>().Text.ShouldBe("Chiefs");
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/SlowTests/tracked_session_mechanics.cs#L71-L92' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_dealing_with_locally_scheduled_messages' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+And now, a slightly more complicated test that tests the replay of a message scheduled
+to go to a completely separate application:
+
+<!-- snippet: sample_handling_scheduled_delivery_to_external_transport -->
+<a id='snippet-sample_handling_scheduled_delivery_to_external_transport'></a>
+```cs
+var port1 = PortFinder.GetAvailablePort();
+var port2 = PortFinder.GetAvailablePort();
+
+using var sender = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.PublishMessage<ScheduledMessage>().ToPort(port2);
+        opts.ListenAtPort(port1);
+    }).StartAsync();
+
+using var receiver = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.ListenAtPort(port2);
+    }).StartAsync();
+
+// Should finish cleanly
+var tracked = await sender
+    .TrackActivity()
+    .IncludeExternalTransports()
+    .AlsoTrack(receiver)
+    .InvokeMessageAndWaitAsync(new TriggerScheduledMessage("Broncos"));
+
+tracked.Scheduled.SingleMessage<ScheduledMessage>()
+    .Text.ShouldBe("Broncos");
+
+var replayed = await tracked.PlayScheduledMessagesAsync(10.Seconds());
+replayed.Executed.SingleMessage<ScheduledMessage>().Text.ShouldBe("Broncos");
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/SlowTests/tracked_session_mechanics.cs#L98-L129' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_handling_scheduled_delivery_to_external_transport' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 ## Extension Methods for Outgoing Messages
 
@@ -51,7 +444,7 @@ public static IEnumerable<object> Handle(
     yield return new AccountUpdated(account.Id, account.Balance);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L41-L73' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_accounthandler_for_testing_examples' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L43-L75' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_accounthandler_for_testing_examples' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The testing extensions can be seen in action by the following test:
@@ -94,7 +487,7 @@ public void handle_a_debit_that_makes_the_account_have_a_low_balance()
     messages.ShouldHaveNoMessageOfType<AccountOverdrawn>();
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L78-L115' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_handle_a_debit_that_makes_the_account_have_a_low_balance' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L80-L117' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_handle_a_debit_that_makes_the_account_have_a_low_balance' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The supported extension methods so far are in the [TestingExtensions](https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/TestingExtensions.cs) class.
@@ -304,7 +697,7 @@ builder.UseWolverine(opts =>
 using var host = builder.Build();
 await host.StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L18-L35' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conditionally_disable_transports' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L20-L37' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conditionally_disable_transports' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 I'm not necessarily comfortable with a lot of conditional hosting setup all the time,
@@ -356,283 +749,6 @@ In the sample above, I'm bootstrapping the `IHost` for my production application
 all the external transports turned off in a way that's appropriate for integration testing
 message handlers within the main application.
 
-## Integration Testing with Tracked Sessions
-
-::: tip
-This is the recommended approach for integration testing against Wolverine message handlers
-if there are any outgoing messages or asynchronous behavior as a result of the messages being
-handled in your test scenario.
-:::
-
-::: info
-As of Wolverine 3.13, the same extension methods shown here are available off of `IServiceProvider`
-in addition to the original support off of `IHost` if you happen to be writing integration tests
-by spinning up just an IoC container and not the full `IHost` in your test harnesses.
-:::
-
-So far we've been mostly focused on unit testing Wolverine handler methods individually with 
-unit tests without any direct coupling to infrastructure. Great, that's a great start,
-but you're eventually going to also need some integration tests, and invoking or publishing messages
-is a very logical entry point for integration testing.
-
-First, why integration testing with Wolverine?
-
-1. Wolverine is probably most effective when you're heavily leveraging middleware or Wolverine conventions, and only an integration test is really going to get through the entire "stack"
-2. You may frequently want to test the interaction between your application code and infrastructure concerns like databases
-3. Handling messages will frequently spawn other messages that will be executed in other threads or other processes, and you'll frequently want to write bigger tests that span across messages
-
-::: tip
-I'm not getting into it here, but remember that `IHost` is relatively
-expensive to build, so you'll probably want it cached between
-tests. Or at least be aware that it's expensive.
-:::
-
-This sample was taken from [an introductory blog post](https://jeremydmiller.com/2022/12/12/introducing-wolverine-for-effective-server-side-net-development/) that may give you some additional context for what's happening here.
-
-Going back to our sample message handler for the `DebitAccount` in the previous sections,
-let's say that we want an integration test that spans the middleware that looks up the `Account` data,
-the Fluent Validation middleware, [Marten](https://martendb.io) usage, and even across to any cascading
-messages that are also handled in process as a result of the original message. One of the big challenges
-with automated testing against asynchronous processing is *knowing* when the "action" part of the "arrange/act/assert"
-phase of the test is complete and it's safe to start making assertions. Anyone who has had the misfortune
-to work with complicated Selenium test suites is very aware of this challenge.
-
-Not to fear though, Wolverine comes out of the box with the concept of "tracked sessions" that you can use
-to write predictable and reliable integration tests.
-
-::: warning
-I'm omitting the code necessary to set up system state first just to concentrate on
-the Wolverine mechanics here.
-:::
-
-To start with tracked sessions, let's assume that you have an `IHost` for your Wolverine
-application in your testing harness. Assuming you do, you can start a tracked session using 
-the `IHost.InvokeMessageAndWaitAsync()` extension method in Wolverine like this:
-
-<!-- snippet: sample_using_tracked_session -->
-<a id='snippet-sample_using_tracked_session'></a>
-```cs
-public async Task using_tracked_sessions()
-{
-    // The point here is just that you somehow have
-    // an IHost for your application
-    using var host = await Host.CreateDefaultBuilder()
-        .UseWolverine().StartAsync();
-
-    var debitAccount = new DebitAccount(111, 300);
-    var session = await host.InvokeMessageAndWaitAsync(debitAccount);
-
-    var overdrawn = session.Sent.SingleMessage<AccountOverdrawn>();
-    overdrawn.AccountId.ShouldBe(debitAccount.AccountId);
-}
-```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L120-L136' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_tracked_session' title='Start of snippet'>anchor</a></sup>
-<!-- endSnippet -->
-
-The tracked session mechanism utilizes Wolverine's internal instrumentation to "know" when all the outstanding
-work in the system is complete. In this case, if the `AccountOverdrawn` message spawned from `DebitAccount`
-is handled locally, the `InvokeMessageAndWaitAsync()` call will not return until the other messages
-that are routed locally are finished processing or the test times out. The tracked session will also throw
-an `AggregateException` with any exceptions encountered by any message being handled within the activity
-that is tracked.
-
-Note that you'll probably *mostly* *invoke* messages in these tests, but there are additional extension
-methods on `IHost` for other `IMessageBus` operations.
-
-:::info
-The Tracked Session includes only messages sent, published, or scheduled during the tracked session.
-Messages sent before the tracked session are not included in the tracked session.
-:::
-
-Finally, there are some more advanced options in tracked sessions you may find useful as 
-shown below:
-
-<!-- snippet: sample_advanced_tracked_session_usage -->
-<a id='snippet-sample_advanced_tracked_session_usage'></a>
-```cs
-public async Task using_tracked_sessions_advanced(IHost otherWolverineSystem)
-{
-    // The point here is just that you somehow have
-    // an IHost for your application
-    using var host = await Host.CreateDefaultBuilder()
-        .UseWolverine().StartAsync();
-
-    var debitAccount = new DebitAccount(111, 300);
-    var session = await host
-
-        // Start defining a tracked session
-        .TrackActivity()
-
-        // Override the timeout period for longer tests
-        .Timeout(1.Minutes())
-
-        // Be careful with this one! This makes Wolverine wait on some indication
-        // that messages sent externally are completed
-        .IncludeExternalTransports()
-
-        // Make the tracked session span across an IHost for another process
-        // May not be super useful to the average user, but it's been crucial
-        // to test Wolverine itself
-        .AlsoTrack(otherWolverineSystem)
-
-        // This is actually helpful if you are testing for error handling
-        // functionality in your system
-        .DoNotAssertOnExceptionsDetected()
-
-        // Again, this is testing against processes, with another IHost
-        .WaitForMessageToBeReceivedAt<LowBalanceDetected>(otherWolverineSystem)
-
-        // There are many other options as well
-        .InvokeMessageAndWaitAsync(debitAccount);
-
-    var overdrawn = session.Sent.SingleMessage<AccountOverdrawn>();
-    overdrawn.AccountId.ShouldBe(debitAccount.AccountId);
-}
-```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L138-L179' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_advanced_tracked_session_usage' title='Start of snippet'>anchor</a></sup>
-<!-- endSnippet -->
-
-The samples shown above inlcude `Sent` message records, but there are more properties available in the `TrackedSession` object.
-In accordance with the `MessageEventType` enum, you can access these properties on the `TrackedSession` object:
-
-<!-- snippet: sample_record_collections -->
-<a id='snippet-sample_record_collections'></a>
-```cs
-public enum MessageEventType
-{
-    Received,
-    Sent,
-    ExecutionStarted,
-    ExecutionFinished,
-    MessageSucceeded,
-    MessageFailed,
-    NoHandlers,
-    NoRoutes,
-    MovedToErrorQueue,
-    Requeued
-}
-```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Tracking/MessageEventType.cs#L3-L17' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_record_collections' title='Start of snippet'>anchor</a></sup>
-<!-- endSnippet -->
-
-Let's consider we're testing a Wolverine application which publishes a message, when a change to a watched folder is detected. The part we want to test is that a message is actually published when a file is added to the watched folder. We can use the `TrackActivity` method to start a tracked session and then use the `ExecuteAndWaitAsync` method to wait for the message to be published when the file change has happened.
-
-<!-- snippet: sample_send_message_on_file_change -->
-<a id='snippet-sample_send_message_on_file_change'></a>
-```cs
-public record FileAdded(string FileName);
-
-public class FileAddedHandler
-{
-    public Task Handle(
-        FileAdded message
-    ) =>
-        Task.CompletedTask;
-}
-
-public class RandomFileChange
-{
-    private readonly IMessageBus _messageBus;
-
-    public RandomFileChange(
-        IMessageBus messageBus
-    ) => _messageBus = messageBus;
-
-    public async Task SimulateRandomFileChange()
-    {
-        // Delay task with a random number of milliseconds
-        // Here would be your FileSystemWatcher / IFileProvider
-        await Task.Delay(
-            TimeSpan.FromMilliseconds(
-                new Random().Next(100, 1000)
-            )
-        );
-        var randomFileName = Path.GetRandomFileName();
-        await _messageBus.SendAsync(new FileAdded(randomFileName));
-    }
-}
-
-public class When_message_is_sent : IAsyncLifetime
-{
-    private IHost _host;
-
-    public async Task InitializeAsync()
-    {
-        var hostBuilder = Host.CreateDefaultBuilder();
-        hostBuilder.ConfigureServices(
-            services => { services.AddSingleton<RandomFileChange>(); }
-        );
-        hostBuilder.UseWolverine();
-
-        _host = await hostBuilder.StartAsync();
-    }
-    
-    [Fact]
-    public async Task should_be_in_session_using_service_provider()
-    {
-        var randomFileChange = _host.Services.GetRequiredService<RandomFileChange>();
-
-        var session = await _host.Services
-            .TrackActivity()
-            .Timeout(2.Seconds())
-            .ExecuteAndWaitAsync(
-                (Func<IMessageContext, Task>)(
-                    async (
-                        _
-                    ) => await randomFileChange.SimulateRandomFileChange()
-                )
-            );
-
-        session
-            .Sent
-            .AllMessages()
-            .Count()
-            .ShouldBe(1);
-        
-        session
-            .Sent
-            .AllMessages()
-            .First()
-            .ShouldBeOfType<FileAdded>();
-    }
-
-    [Fact]
-    public async Task should_be_in_session()
-    {
-        var randomFileChange = _host.Services.GetRequiredService<RandomFileChange>();
-
-        var session = await _host
-            .TrackActivity()
-            .Timeout(2.Seconds())
-            .ExecuteAndWaitAsync(
-                (Func<IMessageContext, Task>)(
-                    async (
-                        _
-                    ) => await randomFileChange.SimulateRandomFileChange()
-                )
-            );
-
-        session
-            .Sent
-            .AllMessages()
-            .Count()
-            .ShouldBe(1);
-        
-        session
-            .Sent
-            .AllMessages()
-            .First()
-            .ShouldBeOfType<FileAdded>();
-    }
-
-    public async Task DisposeAsync() => await _host.StopAsync();
-}
-```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L203-L311' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_send_message_on_file_change' title='Start of snippet'>anchor</a></sup>
-<!-- endSnippet -->
-
-As you can see, we just have to start our application, attach a tracked session to it, and then wait for the message to be published. This way, we can test the whole process of the application, from the file change to the message publication, in a single test.
-
 ## Running Wolverine in "Solo" Mode <Badge type="tip" text="3.0" />
 
 Wolverine's [leadership election](/guide/durability/leadership-and-troubleshooting.html#troubleshooting-and-leadership-election) process is necessary for distributing several background tasks in real life production,
@@ -683,7 +799,7 @@ bootstrap your Wolverine application in an integration testing harness, you can 
 // This is bootstrapping the actual application using
 // its implied Program.Main() set up
 // For non-Alba users, this is using IWebHostBuilder 
-Host = await AlbaHost.For<Program>(x =>
+Host = await AlbaHost.For<WolverineWebApi.Program>(x =>
 {
     x.ConfigureServices(services =>
     {
@@ -698,5 +814,231 @@ Host = await AlbaHost.For<Program>(x =>
     });
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/IntegrationContext.cs#L28-L48' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_run_wolverine_in_solo_mode_with_extension' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/IntegrationContext.cs#L27-L47' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_run_wolverine_in_solo_mode_with_extension' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+
+## Stubbing Message Handlers <Badge type="tip" text="5.1" />
+
+To extend the test automation support even further, Wolverine now has a capability to "stub"
+out message handlers in testing scenarios with pre-canned behavior for more reliable testing
+in some situations. This feature was mostly conceived of for stubbing out calls to external
+systems through `IMessageBus.InvokeAsync<T>()` where the request would normally be sent to 
+an external system through a subscriber. 
+
+Jumping into an example, let's say that your system interacts with another service that estimates
+delivery costs for ordering items. At some point in the system you might reach out through
+a request/reply call in Wolverine to estimate an item delivery before making a purchase
+like this code:
+
+<!-- snippet: sample_code_showing_remote_request_reply -->
+<a id='snippet-sample_code_showing_remote_request_reply'></a>
+```cs
+// This query message is normally sent to an external system through Wolverine
+// messaging
+public record EstimateDelivery(int ItemId, DateOnly Date, string PostalCode);
+
+// This message type is a response from an external system
+public record DeliveryInformation(TimeOnly DeliveryTime, decimal Cost);
+
+public record MaybePurchaseItem(int ItemId, Guid LocationId, DateOnly Date, string PostalCode, decimal BudgetedCost);
+public record MakePurchase(int ItemId, Guid LocationId, DateOnly Date);
+public record PurchaseRejected(int ItemId, Guid LocationId, DateOnly Date);
+
+public static class MaybePurchaseHandler
+{
+    public static Task<DeliveryInformation> LoadAsync(
+        MaybePurchaseItem command, 
+        IMessageBus bus, 
+        CancellationToken cancellation)
+    {
+        var (itemId, _, date, postalCode, budget) = command;
+        var estimateDelivery = new EstimateDelivery(itemId, date, postalCode);
+        
+        // Let's say this is doing a remote request and reply to another system
+        // through Wolverine messaging
+        return bus.InvokeAsync<DeliveryInformation>(estimateDelivery, cancellation);
+    }
+    
+    public static object Handle(
+        MaybePurchaseItem command, 
+        DeliveryInformation estimate)
+    {
+
+        if (estimate.Cost <= command.BudgetedCost)
+        {
+            return new MakePurchase(command.ItemId, command.LocationId, command.Date);
+        }
+
+        return new PurchaseRejected(command.ItemId, command.LocationId, command.Date);
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/StubbingHandlers.cs#L121-L163' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_code_showing_remote_request_reply' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+And for a little more context, the `EstimateDelivery` message will always be sent to
+an external system in this configuration:
+
+<!-- snippet: sample_configuring_estimate_delivery -->
+<a id='snippet-sample_configuring_estimate_delivery'></a>
+```cs
+var builder = Host.CreateApplicationBuilder();
+builder.UseWolverine(opts =>
+{
+    opts
+        .UseRabbitMq(builder.Configuration.GetConnectionString("rabbit"))
+        .AutoProvision();
+
+    // Just showing that EstimateDelivery is handled by
+    // whatever system is on the other end of the "estimates" queue
+    opts.PublishMessage<EstimateDelivery>()
+        .ToRabbitQueue("estimates");
+});
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/StubbingHandlers.cs#L14-L29' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_estimate_delivery' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Using our 
+
+In testing scenarios, maybe the external system isn't available at all, or it's just much more 
+challenging to run tests that also include the external system, or maybe you'd just like to 
+write more isolated tests against your service's behavior before even trying to integrate
+with the other system (my personal preference anyway). To that end we can now stub
+the remote handling like this:
+
+<!-- snippet: sample_using_stub_handler_in_testing_code -->
+<a id='snippet-sample_using_stub_handler_in_testing_code'></a>
+```cs
+public static async Task try_application(IHost host)
+{
+    host.StubWolverineMessageHandling<EstimateDelivery, DeliveryInformation>(
+        query => new DeliveryInformation(new TimeOnly(17, 0), 1000));
+
+    var locationId = Guid.NewGuid();
+    var itemId = 111;
+    var expectedDate = new DateOnly(2025, 12, 1);
+    var postalCode = "78750";
+
+    var maybePurchaseItem = new MaybePurchaseItem(itemId, locationId, expectedDate, postalCode,
+        500);
+    
+    var tracked =
+        await host.InvokeMessageAndWaitAsync(maybePurchaseItem);
+    
+    // The estimated cost from the stub was more than we budgeted
+    // so this message should have been published
+    
+    // This line is an assertion too that there was a single message
+    // of this type published as part of the message handling above
+    var rejected = tracked.Sent.SingleMessage<PurchaseRejected>();
+    rejected.ItemId.ShouldBe(itemId);
+    rejected.LocationId.ShouldBe(locationId);
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/StubbingHandlers.cs#L32-L61' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_stub_handler_in_testing_code' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+After calling making this call:
+
+```csharp
+        host.StubWolverineMessageHandling<EstimateDelivery, DeliveryInformation>(
+            query => new DeliveryInformation(new TimeOnly(17, 0), 1000));
+
+```
+
+Calling this from our Wolverine application:
+
+```csharp
+        // Let's say this is doing a remote request and reply to another system
+        // through Wolverine messaging
+        return bus.InvokeAsync<DeliveryInformation>(estimateDelivery, cancellation);
+```
+
+Will use the stubbed logic we registered. This is enabling you to use fake behavior for
+difficult to use external services. 
+
+For the next test, we can completely remove the stub behavior and revert back to the 
+original configuration like this:
+
+<!-- snippet: sample_clearing_out_stub_behavior -->
+<a id='snippet-sample_clearing_out_stub_behavior'></a>
+```cs
+public static void revert_stub(IHost host)
+{
+    // Selectively clear out the stub behavior for only one message
+    // type
+    host.WolverineStubs(stubs =>
+    {
+        stubs.Clear<EstimateDelivery>();
+    });
+    
+    // Or just clear out all active Wolverine message handler
+    // stubs
+    host.ClearAllWolverineStubs();
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/StubbingHandlers.cs#L63-L79' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_clearing_out_stub_behavior' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Or instead, we can just completely replace the previously registered stub behavior
+with completely new logic that will override our previous stub:
+
+<!-- snippet: sample_override_previous_stub_behavior -->
+<a id='snippet-sample_override_previous_stub_behavior'></a>
+```cs
+public static void override_stub(IHost host)
+{
+    host.StubWolverineMessageHandling<EstimateDelivery, DeliveryInformation>(
+        query => new DeliveryInformation(new TimeOnly(17, 0), 250));
+
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/StubbingHandlers.cs#L81-L90' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_override_previous_stub_behavior' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+So far, we've only looked at simple request/reply behavior, but what if a remote system 
+receiving our message potentially makes multiple calls back to our system? Or really just
+any kind of interaction more complicated than a single response for a request message?
+
+We're still in business, we just have to use a little uglier signature for our stub:
+
+<!-- snippet: sample_using_more_complex_stubs -->
+<a id='snippet-sample_using_more_complex_stubs'></a>
+```cs
+public static void more_complex_stub(IHost host)
+{
+    host.WolverineStubs(stubs =>
+    {
+        stubs.Stub<EstimateDelivery>(async (
+            EstimateDelivery message, 
+            IMessageContext context, 
+            IServiceProvider services,
+            CancellationToken cancellation) =>
+        {
+            // do whatever you want, including publishing any number of messages
+            // back through IMessageContext
+            
+            // And grab any other services you might need from the application 
+            // through the IServiceProvider -- but note that you will have
+            // to deal with scopes yourself here
+
+            // This is an equivalent to get the response back to the 
+            // original caller
+            await context.PublishAsync(new DeliveryInformation(new TimeOnly(17, 0), 250));
+        });
+    });
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/StubbingHandlers.cs#L92-L118' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_more_complex_stubs' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+A few notes about this capability:
+
+* You can use any number of stubs for different message types at the same time
+* Most of the testing samples use extension methods on `IHost`, but we know there are some users who bootstrap only an IoC container for integration tests, so all of the extension methods shown in this section are also available off of `IServiceProvider`
+* The "stub" functions are effectively singletons. There's nothing fancier about argument matching or anything you might expect from a full fledged mock library like NSubstitute or FakeItEasy
+* You can actually fake out the routing to message types that are normally handled by handlers within the application
+* We don't believe this feature will be helpful for "sticky" message handlers where you may have multiple handlers for the same message type interally
+
+
+

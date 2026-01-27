@@ -7,10 +7,15 @@ namespace Wolverine.RabbitMQ.Internal;
 
 public abstract partial class RabbitMqEndpoint
 {
+    #region sample_show_the_NServiceBus_mapping
+
     public void UseNServiceBusInterop()
     {
+        // We haven't tried to address this yet, but NSB can stick in some characters
+        // that STJ chokes on, but good ol' Newtonsoft handles just fine
         DefaultSerializer = new NewtonsoftSerializer(new JsonSerializerSettings());
-        _customizeMapping = m =>
+        
+        customizeMapping((m, _) =>
         {
             m.MapPropertyToHeader(x => x.ConversationId, "NServiceBus.ConversationId");
             m.MapPropertyToHeader(x => x.SentAt, "NServiceBus.TimeSent");
@@ -37,6 +42,8 @@ public abstract partial class RabbitMqEndpoint
             }
 
             m.MapProperty(x => x.ReplyUri!, ReadReplyUri, WriteReplyToAddress);
-        };
+        });
     }
+
+    #endregion
 }

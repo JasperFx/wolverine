@@ -21,6 +21,7 @@ public partial class AzureServiceBusTransport : BrokerTransport<AzureServiceBusE
     private readonly Lazy<ServiceBusAdministrationClient> _managementClient;
 
     public readonly List<AzureServiceBusSubscription> Subscriptions = new();
+    private string _hostName;
     public const string DeadLetterQueueName = "wolverine-dead-letter-queue";
 
     public AzureServiceBusTransport() : this(ProtocolName)
@@ -28,7 +29,7 @@ public partial class AzureServiceBusTransport : BrokerTransport<AzureServiceBusE
 
     }
 
-    internal AzureServiceBusTransport(string protocolName) : base(protocolName, "Azure Service Bus")
+    public AzureServiceBusTransport(string protocolName) : base(protocolName, "Azure Service Bus", ["azure", "azureservicebus"])
     {
         Queues = new(name => new AzureServiceBusQueue(this, name));
         Topics = new(name => new AzureServiceBusTopic(this, name));
@@ -38,6 +39,21 @@ public partial class AzureServiceBusTransport : BrokerTransport<AzureServiceBusE
         _busClient = new Lazy<ServiceBusClient>(createServiceBusClient);
 
         IdentifierDelimiter = ".";
+    }
+
+    public async Task DeleteAllObjectsAsync()
+    {
+        var topics = _managementClient.Value.GetTopicsAsync();
+        await foreach (var topic in topics)
+        {
+            await _managementClient.Value.DeleteTopicAsync(topic.Name);
+        }
+
+        var queues = _managementClient.Value.GetQueuesAsync();
+        await foreach (var queue in queues)
+        {
+            await _managementClient.Value.DeleteQueueAsync(queue.Name);
+        }
     }
 
     public override Uri ResourceUri
@@ -89,6 +105,9 @@ public partial class AzureServiceBusTransport : BrokerTransport<AzureServiceBusE
 
         foreach (var tenant in Tenants)
         {
+            tenant.Transport.NamedKeyCredential ??= NamedKeyCredential;
+            tenant.Transport.SasCredential ??= SasCredential;
+            tenant.Transport.TokenCredential ??= TokenCredential;
             await tenant.Transport.WithManagementClientAsync(action);
         }
     }
@@ -99,6 +118,9 @@ public partial class AzureServiceBusTransport : BrokerTransport<AzureServiceBusE
         
         foreach (var tenant in Tenants)
         {
+            tenant.Transport.NamedKeyCredential ??= NamedKeyCredential;
+            tenant.Transport.SasCredential ??= SasCredential;
+            tenant.Transport.TokenCredential ??= TokenCredential;
             await tenant.Transport.WithServiceBusClientAsync(action);
         }
     }
@@ -116,7 +138,7 @@ public partial class AzureServiceBusTransport : BrokerTransport<AzureServiceBusE
         }
 
         foreach (var tenant in Tenants)
-        {
+        { 
             await tenant.Transport.DisposeAsync();
         }
     }
@@ -156,6 +178,27 @@ public partial class AzureServiceBusTransport : BrokerTransport<AzureServiceBusE
     }
 
     internal AzureServiceBusQueue? RetryQueue { get; set; }
+
+    public string HostName
+    {
+        get
+        {
+            if (_hostName == null)
+            {
+                var parts = ConnectionString.Split(';');
+                foreach (var part in parts)
+                {
+                    var split = part.Split('=');
+                    if (split[0].EqualsIgnoreCase("Endpoint"))
+                    {
+                        _hostName = new Uri(split[1]).Host;
+                    }
+                }
+            }
+
+            return _hostName;
+        }
+    }
 
     protected override IEnumerable<Endpoint> explicitEndpoints()
     {

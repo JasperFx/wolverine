@@ -1,19 +1,18 @@
 using Google.Cloud.PubSub.V1;
 using Google.Protobuf.Collections;
 using Grpc.Core;
+using JasperFx.Blocks;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Serialization;
 using Wolverine.Transports;
-using Wolverine.Util.Dataflow;
 
 namespace Wolverine.Pubsub.Internal;
 
 public abstract class PubsubListener : IListener, ISupportDeadLetterQueue
 {
     protected readonly CancellationTokenSource _cancellation = new();
-    protected readonly RetryBlock<Envelope[]> _complete;
     protected readonly RetryBlock<Envelope> _deadLetter;
     protected readonly PubsubEndpoint? _deadLetterTopic;
     protected readonly PubsubEndpoint _endpoint;
@@ -23,8 +22,8 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue
     protected readonly IWolverineRuntime _runtime;
     protected readonly PubsubTransport _transport;
 
-    protected RetryBlock<string[]> _acknowledge;
     protected Task _task;
+    private readonly IPubsubEnvelopeMapper _mapper;
 
     public PubsubListener(
         PubsubEndpoint endpoint,
@@ -37,6 +36,8 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue
         {
             throw new WolverinePubsubTransportNotConnectedException();
         }
+
+        _mapper = endpoint.BuildMapper(runtime);
 
         _endpoint = endpoint;
         _transport = transport;
@@ -51,69 +52,19 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue
             NativeDeadLetterQueueEnabled = true;
         }
 
-        _acknowledge = new RetryBlock<string[]>(async (ackIds, _) =>
-        {
-            if (transport.SubscriberApiClient is null)
-            {
-                throw new WolverinePubsubTransportNotConnectedException();
-            }
-
-            if (ackIds.Any())
-            {
-                await transport.SubscriberApiClient.AcknowledgeAsync(
-                    _endpoint.Server.Subscription.Name,
-                    ackIds
-                );
-            }
-        }, _logger, runtime.Cancellation);
-
         _deadLetter = new RetryBlock<Envelope>(async (e, _) =>
         {
             if (_deadLetterTopic is null)
             {
                 return;
             }
-
-            if (e is PubsubEnvelope pubsubEnvelope)
-            {
-                await _acknowledge.PostAsync([pubsubEnvelope.AckId]);
-            }
-
             await _deadLetterTopic.SendMessageAsync(e, _logger);
         }, _logger, runtime.Cancellation);
 
         _requeue = new RetryBlock<Envelope>(async (e, _) =>
         {
-            if (e is PubsubEnvelope pubsubEnvelope)
-            {
-                await _acknowledge.PostAsync([pubsubEnvelope.AckId]);
-            }
-
             await _endpoint.SendMessageAsync(e, _logger);
         }, _logger, runtime.Cancellation);
-
-        _complete = new RetryBlock<Envelope[]>(async (envelopes, _) =>
-        {
-            var pubsubEnvelopes = envelopes.OfType<PubsubEnvelope>().ToArray();
-
-            if (!pubsubEnvelopes.Any())
-            {
-                return;
-            }
-
-            if (transport.SubscriberApiClient is null)
-            {
-                throw new WolverinePubsubTransportNotConnectedException();
-            }
-
-            var ackIds = pubsubEnvelopes
-                .Select(e => e.AckId)
-                .Where(x => !string.IsNullOrEmpty(x))
-                .Distinct()
-                .ToArray();
-
-            await _acknowledge.PostAsync(ackIds);
-        }, _logger, _cancellation.Token);
 
         _task = StartAsync();
     }
@@ -122,9 +73,9 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue
 
     public IHandlerPipeline? Pipeline => _receiver.Pipeline;
 
-    public async ValueTask CompleteAsync(Envelope envelope)
+    public ValueTask CompleteAsync(Envelope envelope)
     {
-        await _complete.PostAsync([envelope]);
+        return ValueTask.CompletedTask;
     }
 
     public async ValueTask DeferAsync(Envelope envelope)
@@ -150,7 +101,6 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue
     {
         _cancellation.Cancel();
         _task.SafeDispose();
-        _complete.SafeDispose();
         _requeue.SafeDispose();
         _deadLetter.SafeDispose();
 
@@ -229,61 +179,36 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue
         }
     }
 
-    protected async Task handleMessagesAsync(RepeatedField<ReceivedMessage> messages)
+    protected async Task<bool> handleMessageAsync(PubsubMessage message)
     {
-        var envelopes = new List<PubsubEnvelope>(messages.Count);
 
-        foreach (var message in messages)
+        if (message.Attributes.Keys.Contains("batched"))
         {
-            if (message.Message.Attributes.Keys.Contains("batched"))
+            var batched = EnvelopeSerializer.ReadMany(message.Data.ToByteArray());
+
+            if (batched.Any())
             {
-                var batched = EnvelopeSerializer.ReadMany(message.Message.Data.ToByteArray());
-
-                if (batched.Any())
-                {
-                    await _receiver.ReceivedAsync(this, batched);
-                }
-
-                await _acknowledge.PostAsync([message.AckId]);
-
-                continue;
+                await _receiver.ReceivedAsync(this, batched);
             }
 
-            try
-            {
-                var envelope = new PubsubEnvelope();
-
-                _endpoint.Mapper.MapIncomingToEnvelope(envelope, message);
-
-                if (envelope.IsPing())
-                {
-                    try
-                    {
-                        await _complete.PostAsync([envelope]);
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex,
-                            "{Uri}: Error while acknowledging Google Cloud Platform Pub/Sub ping message \"{AckId}\".",
-                            _endpoint.Uri, message.AckId);
-                    }
-
-                    continue;
-                }
-
-                envelopes.Add(envelope);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "{Uri}: Error while mapping Google Cloud Platform Pub/Sub message {AckId}.",
-                    _endpoint.Uri, message.AckId);
-            }
+            return true;
         }
 
-        if (envelopes.Any())
+        try
         {
-            await _receiver.ReceivedAsync(this, envelopes.ToArray());
-            await _complete.PostAsync(envelopes.ToArray());
+            var envelope = new Envelope();
+
+            _mapper.MapIncomingToEnvelope(envelope, message);
+
+            await _receiver.ReceivedAsync(this, [envelope]);
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "{Uri}: Error while mapping Google Cloud Platform Pub/Sub message {MessageId}.", _endpoint.Uri, message.MessageId);
+            return false;
         }
     }
+
 }

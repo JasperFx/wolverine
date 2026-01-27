@@ -1,9 +1,17 @@
 # Aggregate Handlers and Event Sourcing
 
 ::: tip
-Only use the "aggregate handler workflow" is you are wanting to potentially write new events to an existing event stream. If all you
+Only use the "aggregate handler workflow" if you are wanting to potentially write new events to an existing event stream. If all you
 need in a message handler or HTTP endpoint is a read-only copy of an event streamed aggregate from Marten, use the `[ReadAggregate]` attribute
 instead that has a little bit lighter weight runtime within Marten.
+:::
+
+::: info
+If your message handler or HTTP endpoint uses more than one declarative attribute for retrieving Marten data,
+Wolverine 5.0+ is able to utilize [Marten's Batch Querying capability](https://martendb.io/documents/querying/batched-queries.html#batched-queries) for more efficient interaction with the database.
+
+This batching behavior is also supported for all the declarative attributes and the "aggregate handler workflow" in general
+described in this page.
 :::
 
 See the [OrderEventSourcingSample project on GitHub](https://github.com/JasperFx/wolverine/tree/main/src/Persistence/OrderEventSourcingSample) for more samples.
@@ -228,7 +236,17 @@ public class MarkItemReadyHandler1442193977 : MessageHandler
 As you probably guessed, there are some naming conventions or other questions you need to be aware of
 before you use this middleware strategy.
 
-Alternatively, there is also the newer `[WriteAttribute]` usage, with this example being a functional alternative
+::: warning
+There are some open, let's call them _imperfections_ with Wolverine's code generation against the `[WriteAggregate]` and `[ReadAggregate]`
+usage. For best results, only use these attributes on a parameter within the main HTTP endpoint method and not in `Validate/Before/Load` methods.
+:::
+
+::: info
+The `[Aggregate]` and `[WriteAggregate]` attributes _require the requested stream and aggregate to be found by default_, meaning that the handler or HTTP
+endpoint will be stopped if the requested data is not found. You can explicitly mark individual attributes as `Required=false`.
+:::
+
+Alternatively, there is also the newer `[WriteAggregate]` usage, with this example being a functional alternative
 mark up:
 
 <!-- snippet: sample_MarkItemReadyHandler_with_WriteAggregate -->
@@ -519,7 +537,7 @@ public class MarkItemReady
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/OrderEventSourcingSample/Alternatives/Signatures.cs#L9-L20' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_markitemready_with_explicit_identity' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
-~~~~
+
 ## Validation <Badge type="tip" text="4.8" />
 
 Every possible attribute for triggering the "aggregate handler workflow" includes support for data requirements as
@@ -543,7 +561,7 @@ public static string GetLetter2([ReadAggregate(Required = false)] LetterAggregat
 [WolverineGet("/letters3/{id}")]
 public static LetterAggregate GetLetter3([ReadAggregate(OnMissing = OnMissing.ProblemDetailsWith404)] LetterAggregate letters) => letters;
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/Marten/reacting_to_read_aggregate.cs#L116-L135' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_read_aggregate_fine_grained_validation_control' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/Marten/reacting_to_read_aggregate.cs#L149-L168' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_read_aggregate_fine_grained_validation_control' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Forwarding Events
@@ -679,7 +697,7 @@ public static class RaiseIfValidatedHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AggregateHandlerWorkflow/aggregate_handler_workflow.cs#L407-L423' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_passing_aggregate_into_validate_method' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AggregateHandlerWorkflow/aggregate_handler_workflow.cs#L417-L433' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_passing_aggregate_into_validate_method' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Archiving Streams
@@ -710,6 +728,7 @@ public static class FindLettersHandler
         return new LetterAggregateEnvelope(aggregate);
     }
     
+    /* ALTERNATIVE VERSION
     [WolverineHandler]
     public static LetterAggregateEnvelope Handle2(
         FindAggregate command, 
@@ -719,9 +738,10 @@ public static class FindLettersHandler
     {
         return aggregate == null ? null : new LetterAggregateEnvelope(aggregate);
     }
+    */
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/read_aggregate_attribute_usage.cs#L81-L104' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_readaggregate_in_messsage_handlers' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/read_aggregate_attribute_usage.cs#L81-L106' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_readaggregate_in_messsage_handlers' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 If the aggregate doesn't exist, the HTTP request will stop with a 404 status code.
@@ -752,9 +772,256 @@ public static string GetLetter2([ReadAggregate(Required = false)] LetterAggregat
 [WolverineGet("/letters3/{id}")]
 public static LetterAggregate GetLetter3([ReadAggregate(OnMissing = OnMissing.ProblemDetailsWith404)] LetterAggregate letters) => letters;
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/Marten/reacting_to_read_aggregate.cs#L116-L135' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_read_aggregate_fine_grained_validation_control' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/Marten/reacting_to_read_aggregate.cs#L149-L168' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_read_aggregate_fine_grained_validation_control' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 There is also an option with `OnMissing` to throw a `RequiredDataMissingException` exception if a required data element
 is missing. This option is probably most useful with message handlers where you may want to key off the exception with custom
 error handling rules.
+
+## Targeting Multiple Streams at Once <Badge type="tip" text="4.9.0" />
+
+It's now possible to use the "aggregate handler workflow" while needing to append events to more
+than one event stream at a time.
+
+::: tip
+You can use read only views of event streams through `[ReadAggregate]` at will, and that will use
+Marten's `FetchLatest()` API underneath. For appending to multiple streams though, for now you will 
+have to directly target `IEventStream<T>` to help Marten know which stream you're appending events to.
+:::
+
+Using the canonical example of a use case where you move money from one account to another account and need both
+changes to be persisted in one atomic transaction. Let’s start with a simplified domain model of
+events and a “self-aggregating” Account type like this:
+
+<!-- snippet: sample_account_domain_code -->
+<a id='snippet-sample_account_domain_code'></a>
+```cs
+public record AccountCreated(double InitialAmount);
+public record Debited(double Amount);
+public record Withdrawn(double Amount);
+
+public class Account
+{
+    public Guid Id { get; set; }
+    public double Amount { get; set; }
+
+    public static Account Create(IEvent<AccountCreated> e)
+        => new Account { Id = e.StreamId, Amount = e.Data.InitialAmount};
+
+    public void Apply(Debited e) => Amount += e.Amount;
+    public void Apply(Withdrawn e) => Amount -= e.Amount;
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Accounts/AccountCode.cs#L9-L27' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_account_domain_code' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+And you need to handle a command like this:
+
+<!-- snippet: sample_TransferMoney_command -->
+<a id='snippet-sample_transfermoney_command'></a>
+```cs
+public record TransferMoney(Guid FromId, Guid ToId, double Amount);
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Accounts/AccountCode.cs#L29-L33' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_transfermoney_command' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Using the `[WriteAggregate]` attribute to denote the event streams we need to work with,
+we could write this message handler + HTTP endpoint:
+
+<!-- snippet: sample_TransferMoneyEndpoint -->
+<a id='snippet-sample_transfermoneyendpoint'></a>
+```cs
+public static class TransferMoneyHandler    
+{
+    [WolverinePost("/accounts/transfer")]
+    public static void Handle(
+        TransferMoney command,
+
+        [WriteAggregate(nameof(TransferMoney.FromId))] IEventStream<Account> fromAccount,
+        
+        [WriteAggregate(nameof(TransferMoney.ToId))] IEventStream<Account> toAccount)
+    {
+        // Would already 404 if either referenced account does not exist
+        if (fromAccount.Aggregate.Amount >= command.Amount)
+        {
+            fromAccount.AppendOne(new Withdrawn(command.Amount));
+            toAccount.AppendOne(new Debited(command.Amount));
+        }
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Accounts/AccountCode.cs#L35-L56' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_transfermoneyendpoint' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+The `IEventStream<T>` abstraction comes from Marten’s `FetchForWriting()` API that is our
+recommended way to interact with Marten streams in typical command handlers. This
+API is used underneath Wolverine’s “aggregate handler workflow”, but normally hidden
+from user written code if you’re only working with one stream at a time. In this case
+though, we’ll need to work with the raw `IEventStream<T>` objects that both wrap the
+projected aggregation of each Account as well as providing a point where we can explicitly
+append events separately to each event stream. `FetchForWriting()` guarantees that you get
+the most up to date information for the Account view of each event stream regardless of
+how you have configured Marten’s `ProjectionLifecycle` for `Account` (kind of an important
+detail here!).
+
+The typical Marten transactional middleware within Wolverine is calling `SaveChangesAsync()`
+for us on the Marten unit of work IDocumentSession for the command. If there’s enough funds in
+the “From” account, this command will append a `Withdrawn` event to the “From” account and
+a `Debited` event to the “To” account. If either account has been written to between
+fetching the original information, Marten will reject the changes and throw its
+`ConcurrencyException` as an optimistic concurrency check.
+
+In unit testing, we could write a unit test for the “happy path” where you have enough funds to cover the transfer like this:
+
+<!-- snippet: sample_when_transfering_money -->
+<a id='snippet-sample_when_transfering_money'></a>
+```cs
+public class when_transfering_money
+{
+    [Fact]
+    public void happy_path_have_enough_funds()
+    {
+        // StubEventStream<T> is a type that was recently added to Marten
+        // specifically to facilitate testing logic like this
+        var fromAccount = new StubEventStream<Account>(new Account { Amount = 1000 })
+        {
+            Id = Guid.NewGuid()
+        };
+        
+        var toAccount = new StubEventStream<Account>(new Account { Amount = 100})
+        {
+            Id = Guid.NewGuid()
+        };
+        
+        TransferMoneyHandler.Handle(new TransferMoney(fromAccount.Id, toAccount.Id, 100), fromAccount, toAccount);
+
+        // Now check the events we expected to be appended
+        fromAccount.Events.Single().Data.ShouldBeOfType<Withdrawn>().Amount.ShouldBe(100);
+        toAccount.Events.Single().Data.ShouldBeOfType<Debited>().Amount.ShouldBe(100);
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/Marten/working_against_multiple_streams.cs#L105-L132' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_when_transfering_money' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+## Strong Typed Identifiers <Badge type="tip" text="5.0" />
+
+If you're so inclined, you can use strong typed identifiers from tools like  [Vogen](https://github.com/SteveDunn/Vogen) and [StronglyTypedId](https://github.com/andrewlock/StronglyTypedId)
+within the "Aggregate Handler Workflow." You can also use hand rolled value types that wrap either `Guid` or `string`
+depending on your Marten event store configuration (`StreamIdentity`) as long as it conforms to [Marten's
+own rules about value type identifiers](https://martendb.io/documents/identity.html#strong-typed-identifiers).
+
+For a message handler, let's start with this example identifier type and aggregate from the Wolverine tests:
+
+<!-- snippet: sample_strong_typed_identifier_with_aggregate -->
+<a id='snippet-sample_strong_typed_identifier_with_aggregate'></a>
+```cs
+[StronglyTypedId(Template.Guid)]
+public readonly partial struct LetterId;
+
+public class StrongLetterAggregate
+{
+    public StrongLetterAggregate()
+    {
+    }
+
+    public LetterId Id { get; set; }
+
+    public int ACount { get; set; }
+    public int BCount { get; set; }
+    public int CCount { get; set; }
+    public int DCount { get; set; }
+
+    public void Apply(AEvent _) => ACount++;
+    public void Apply(BEvent _) => BCount++;
+    public void Apply(CEvent _) => CCount++;
+    public void Apply(DEvent _) => DCount++;
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AggregateHandlerWorkflow/strong_named_identifiers.cs#L185-L209' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_strong_typed_identifier_with_aggregate' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+And now let's use that identifier type in message handlers:
+
+<!-- snippet: sample_using_strong_typed_identifier_with_aggregate_handler_workflow -->
+<a id='snippet-sample_using_strong_typed_identifier_with_aggregate_handler_workflow'></a>
+```cs
+public record IncrementStrongA(LetterId Id);
+
+public record AddFrom(LetterId Id1, LetterId Id2);
+
+public record IncrementBOnBoth(LetterId Id1, LetterId Id2);
+
+public record FetchCounts(LetterId Id);
+
+public static class StrongLetterHandler
+{
+    public static StrongLetterAggregate Handle(FetchCounts counts,
+        [ReadAggregate] StrongLetterAggregate aggregate) => aggregate;
+
+    public static AEvent Handle(IncrementStrongA command, [WriteAggregate] StrongLetterAggregate aggregate)
+    {
+        return new();
+    }
+
+    public static void Handle(
+        IncrementBOnBoth command,
+        [WriteAggregate(nameof(IncrementBOnBoth.Id1))] IEventStream<StrongLetterAggregate> stream1,
+        [WriteAggregate(nameof(IncrementBOnBoth.Id2))] IEventStream<StrongLetterAggregate> stream2
+    )
+    {
+        stream1.AppendOne(new BEvent());
+        stream2.AppendOne(new BEvent());
+    }
+
+    public static IEnumerable<object> Handle(
+        AddFrom command,
+        [WriteAggregate(nameof(AddFrom.Id1))] StrongLetterAggregate _,
+        [ReadAggregate(nameof(AddFrom.Id2))] StrongLetterAggregate readOnly)
+    {
+        for (int i = 0; i < readOnly.ACount; i++)
+        {
+            yield return new AEvent();
+        }
+        
+        for (int i = 0; i < readOnly.BCount; i++)
+        {
+            yield return new BEvent();
+        }
+        
+        for (int i = 0; i < readOnly.CCount; i++)
+        {
+            yield return new CEvent();
+        }
+        
+        for (int i = 0; i < readOnly.DCount; i++)
+        {
+            yield return new DEvent();
+        }
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AggregateHandlerWorkflow/strong_named_identifiers.cs#L124-L181' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_strong_typed_identifier_with_aggregate_handler_workflow' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+And also in some of the equivalent Wolverine.HTTP endpoints:
+
+<!-- snippet: sample_using_strong_typed_id_as_route_argument -->
+<a id='snippet-sample_using_strong_typed_id_as_route_argument'></a>
+```cs
+[WolverineGet("/sti/aggregate/longhand/{id}")]
+public static ValueTask<StrongLetterAggregate> Handle2(LetterId id, IDocumentSession session) =>
+    session.Events.FetchLatest<StrongLetterAggregate>(id.Value);
+
+// This is an equivalent to the endpoint above 
+[WolverineGet("/sti/aggregate/{id}")]
+public static StrongLetterAggregate Handle(
+    [ReadAggregate] StrongLetterAggregate aggregate) => aggregate;
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/StrongTypedIdentifiers.cs#L11-L22' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_strong_typed_id_as_route_argument' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+
+tools do this for you, and value types generated by these tools are
+legal route argument variables for Wolverine.HTTP now. 

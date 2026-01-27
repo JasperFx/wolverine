@@ -1,10 +1,12 @@
 using System.Text.Json;
 using Confluent.Kafka;
+using Confluent.Kafka.Admin;
 using Wolverine.Configuration;
+using Wolverine.Kafka.Internals;
 
 namespace Wolverine.Kafka;
 
-public class KafkaListenerConfiguration : ListenerConfiguration<KafkaListenerConfiguration, KafkaTopic>
+public class KafkaListenerConfiguration : InteroperableListenerConfiguration<KafkaListenerConfiguration, KafkaTopic, IKafkaEnvelopeMapper, KafkaEnvelopeMapper>
 {
     public KafkaListenerConfiguration(KafkaTopic endpoint) : base(endpoint)
     {
@@ -13,19 +15,43 @@ public class KafkaListenerConfiguration : ListenerConfiguration<KafkaListenerCon
     public KafkaListenerConfiguration(Func<KafkaTopic> source) : base(source)
     {
     }
-
+    
     /// <summary>
-    /// Use a custom interoperability strategy to map Wolverine messages to an upstream
-    /// system's protocol
+    /// Fine tune the TopicSpecification for this Kafka Topic if it is being created by Wolverine
     /// </summary>
-    /// <param name="mapper"></param>
+    /// <param name="configure"></param>
     /// <returns></returns>
-    public KafkaListenerConfiguration UseInterop(IKafkaEnvelopeMapper mapper)
+    /// <exception cref="ArgumentNullException"></exception>
+    public KafkaListenerConfiguration Specification(Action<TopicSpecification> configure)
     {
-        add(e => e.Mapper = mapper);
+        if (configure == null)
+        {
+            throw new ArgumentNullException(nameof(configure));
+        }
+
+        add(topic => configure(topic.Specification));
         return this;
     }
 
+    /// <summary>
+    /// If you need to do anything "special" to create topics at runtime with Wolverine,
+    /// this overrides the simple logic that Wolverine uses and replaces
+    /// it with whatever you need to do having full access to the Kafka IAdminClient
+    /// and the Wolverine KafkaTopic configuration
+    /// </summary>
+    /// <param name="creation"></param>
+    /// <returns></returns>
+    public KafkaListenerConfiguration TopicCreation(Func<IAdminClient, KafkaTopic, Task> creation)
+    {
+        if (creation == null)
+        {
+            throw new ArgumentNullException(nameof(creation));
+        }
+
+        add(topic => topic.CreateTopicFunc = creation);
+        return this;
+    }
+    
     /// <summary>
     /// Configure this endpoint to receive messages of type T from
     /// JSON message bodies. This option maybe be necessary to receive
@@ -49,13 +75,8 @@ public class KafkaListenerConfiguration : ListenerConfiguration<KafkaListenerCon
     /// <returns></returns>
     public KafkaListenerConfiguration ReceiveRawJson(Type messageType, JsonSerializerOptions? options = null)
     {
-        add(e =>
-        {
-            e.Mapper = new JsonOnlyMapper(e, options);
-            e.MessageType = messageType;
-        });
-
-        return this;
+        DefaultIncomingMessage(messageType);
+        return UseInterop((e, _) => new JsonOnlyMapper(e, options ?? new()));
     }
     
     /// <summary>

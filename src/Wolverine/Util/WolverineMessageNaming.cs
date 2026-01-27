@@ -12,6 +12,26 @@ public interface IMessageTypeNaming
     bool TryDetermineName(Type messageType, out string messageTypeName);
 }
 
+internal class WebSocketMessageNaming : IMessageTypeNaming
+{
+    public bool TryDetermineName(Type messageType, out string messageTypeName)
+    {
+        if (messageType.CanBeCastTo<WebSocketMessage>())
+        {
+            messageTypeName = PascalToKebabCase(messageType.NameInCode());
+            return true;
+        }
+
+        messageTypeName = default!;
+        return false;
+    }
+    
+    public static string PascalToKebabCase(string value)
+    {
+        return value.SplitPascalCase().Replace(' ', '_').ToLowerInvariant();
+    }
+}
+
 internal class InteropAttributeForwardingNaming : IMessageTypeNaming
 {
     public bool TryDetermineName(Type messageType, out string messageTypeName)
@@ -110,6 +130,7 @@ public static class WolverineMessageNaming
     private static readonly List<IMessageTypeNaming> _namingStrategies =
     [
         new MessageIdentityAttributeNaming(),
+        new WebSocketMessageNaming(),
         new InteropAttributeForwardingNaming(),
         new ForwardNaming(),
         new InteropAssemblyInterfaces(),

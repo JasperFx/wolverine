@@ -18,6 +18,7 @@ namespace Wolverine.EntityFrameworkCore.Internals;
 public class TenantedDbContextBuilderByDbDataSource<T> : IDbContextBuilder<T> where T : DbContext
 {
     private readonly Action<DbContextOptionsBuilder<T>, DbDataSource, TenantId> _configuration;
+    private readonly IDomainEventScraper[] _domainScrapers;
 
     private readonly Func<DbContextOptions<T>, T> _constructor;
 
@@ -27,12 +28,14 @@ public class TenantedDbContextBuilderByDbDataSource<T> : IDbContextBuilder<T> wh
 
     // Going to assume that it's wolverine enabled here!
     public TenantedDbContextBuilderByDbDataSource(IServiceProvider serviceProvider, MultiTenantedMessageStore store,
-        Action<DbContextOptionsBuilder<T>, DbDataSource, TenantId> configuration)
+        Action<DbContextOptionsBuilder<T>, DbDataSource, TenantId> configuration,
+        IEnumerable<IDomainEventScraper> domainScrapers)
     {
         _serviceProvider = serviceProvider;
         _store = store;
         
         _configuration = configuration;
+        _domainScrapers = domainScrapers.ToArray();
         var optionsType = typeof(DbContextOptions<T>);
         var ctor = typeof(T).GetConstructors().FirstOrDefault(x =>
             x.GetParameters().Length == 1 && x.GetParameters()[0].ParameterType == optionsType);
@@ -66,7 +69,7 @@ public class TenantedDbContextBuilderByDbDataSource<T> : IDbContextBuilder<T> wh
         
         var dbContext = _constructor(builder.Options);
 
-        var transaction = new MappedEnvelopeTransaction(dbContext, messaging);
+        var transaction = new EfCoreEnvelopeTransaction(dbContext, messaging, _domainScrapers);
         await messaging.EnlistInOutboxAsync(transaction);
 
         return dbContext;

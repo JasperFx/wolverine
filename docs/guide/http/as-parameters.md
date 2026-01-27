@@ -67,7 +67,7 @@ public class AsParametersQuery{
     public int? NullableHeader { get; set; }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/FormEndpoints.cs#L98-L144' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_as_parameters_binding' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Forms/FormEndpoints.cs#L98-L144' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_as_parameters_binding' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And the corresponding test case for utilizing this:
@@ -110,7 +110,7 @@ response.IntegerNotUsed.ShouldBe(default);
 response.FloatNotUsed.ShouldBe(default);
 response.BooleanNotUsed.ShouldBe(default);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/asparameters_binding.cs#L24-L61' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_asparameters_test' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/asparameters_binding.cs#L18-L55' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_asparameters_test' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Wolverine.HTTP is also able to support `[FromServices]`, `[FromBody]`, and `[FromRoute]` bindings as well
@@ -152,7 +152,7 @@ public static class AsParametersEndpoints2{
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/FormEndpoints.cs#L146-L181' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_as_parameter_for_services_and_body' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Forms/FormEndpoints.cs#L146-L181' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_as_parameter_for_services_and_body' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And lastly, you can use C# records or really just any constructor function as well
@@ -173,5 +173,40 @@ public static class AsParameterRecordEndpoint
     public static AsParameterRecord Post([AsParameters] AsParameterRecord input) => input;
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/FormEndpoints.cs#L183-L197' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_as_parameter_record' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Forms/FormEndpoints.cs#L183-L197' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_as_parameter_record' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+
+The [Fluent Validation middleware](./fluentvalidation) for Wolverine.HTTP is able to validate against request types
+bound with `[AsParameters]`:
+
+<!-- snippet: sample_using_fluent_validation_with_AsParameters -->
+<a id='snippet-sample_using_fluent_validation_with_asparameters'></a>
+```cs
+public static class ValidatedAsParametersEndpoint
+{
+    [WolverineGet("/asparameters/validated")]
+    public static string Get([AsParameters] ValidatedQuery query)
+    {
+        return $"{query.Name} is {query.Age}";
+    }
+}
+
+public class ValidatedQuery
+{
+    [FromQuery]
+    public string? Name { get; set; }
+    
+    public int Age { get; set; }
+
+    public class ValidatedQueryValidator : AbstractValidator<ValidatedQuery>
+    {
+        public ValidatedQueryValidator()
+        {
+            RuleFor(x => x.Name).NotNull();
+        }
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Forms/FormEndpoints.cs#L200-L227' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_fluent_validation_with_asparameters' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->

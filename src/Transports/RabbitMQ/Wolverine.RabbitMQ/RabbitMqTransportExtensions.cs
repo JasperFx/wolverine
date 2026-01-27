@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using RabbitMQ.Client;
 using Wolverine.Configuration;
 using Wolverine.RabbitMQ.Internal;
+using Wolverine.Runtime.Partitioning;
 using Wolverine.Runtime.Routing;
 
 namespace Wolverine.RabbitMQ;
@@ -464,5 +465,29 @@ public static class RabbitMqTransportExtensions
         var transport = options.RabbitMqTransport();
         var expression = new RabbitMqTransportExpression(transport, options);
         return expression;
+    }
+
+    /// <summary>
+    /// Create a sharded message topology with Rabbit MQ queues named
+    /// baseName1, baseName2, etc.
+    /// </summary>
+    /// <param name="rules"></param>
+    /// <param name="baseName"></param>
+    /// <param name="numberOfEndpoints"></param>
+    /// <param name="configure"></param>
+    /// <returns></returns>
+    public static MessagePartitioningRules PublishToShardedRabbitQueues(this MessagePartitioningRules rules, string baseName, int numberOfEndpoints, Action<PartitionedMessageTopologyWithQueues> configure)
+    {
+        rules.AddPublishingTopology((opts, _) =>
+        {
+            var topology = new PartitionedMessageTopologyWithQueues(opts, PartitionSlots.Five, baseName, numberOfEndpoints);
+            topology.ConfigureListening(x => {});
+            configure(topology);
+            topology.AssertValidity();
+
+            return topology;
+        });
+
+        return rules;
     }
 }

@@ -1,6 +1,7 @@
 using JasperFx.Core.Reflection;
 using Wolverine.Configuration;
 using Wolverine.MQTT.Internals;
+using Wolverine.Runtime;
 
 namespace Wolverine.MQTT;
 
@@ -59,7 +60,7 @@ public class MqttTransportExpression
                 return;
             }
 
-            if (!e.Subscriptions.Any())
+            if (!e.Subscriptions.Any() && e is not ITopicEndpoint)
             {
                 return;
             }

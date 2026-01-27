@@ -2,6 +2,7 @@
 using System.Diagnostics;
 using System.Reflection;
 using ImTools;
+using JasperFx;
 using JasperFx.CodeGeneration;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
@@ -9,6 +10,9 @@ using JasperFx.RuntimeCompiler;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging.Console;
+using Microsoft.Extensions.Logging.Debug;
+using Microsoft.Extensions.Options;
 using Wolverine.Attributes;
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
@@ -41,6 +45,8 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
     private bool _hasCompiled;
 
     private bool _hasGrouped;
+
+    private object _messageTypesLock = new();
 
     private ImHashMap<string, Type> _messageTypes = ImHashMap<string, Type>.Empty;
 
@@ -91,6 +97,13 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
 
     internal void AddMessageHandler(Type messageType, IMessageHandler handler)
     {
+        // Makes error handling and other configuration work cleanly
+        if (handler is MessageHandler h and not AgentCommandHandler)
+        {
+            var chain = new HandlerChain(messageType, this);
+            h.Chain = chain;
+        }
+        
         _handlers = _handlers.AddOrUpdate(messageType, handler);
         RegisterMessageType(messageType);
     }
@@ -230,7 +243,11 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
         {
             lock (_compilingLock)
             {
-                Debug.WriteLine("Starting to compile chain " + chain.MessageType.NameInCode());
+                // TODO -- put this logic in JasperFx
+                var logger = Container?.Services.GetService<ILoggerFactory>()?.CreateLogger<HandlerGraph>() ?? new Logger<HandlerGraph>(new LoggerFactory([new DebugLoggerProvider()]));
+                
+                logger.LogDebug("Starting to compile chain {MessageType}", chain.MessageType.NameInCode());
+
                 if (chain.Handler == null)
                 {
                     chain.InitializeSynchronously(Rules, this, Container.Services);
@@ -241,7 +258,7 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
                     handler = chain.Handler;
                 }
 
-                Debug.WriteLine("Finished building the chain " + chain.MessageType.NameInCode());
+                logger.LogDebug("Finished building the chain {MessageType}", chain.MessageType.NameInCode());
             }
         }
 
@@ -299,6 +316,22 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
         }
 
         var allChains = Chains.SelectMany(explodeChains).ToArray();
+        
+        // This lovely thing was brought to you by https://github.com/JasperFx/wolverine/issues/2004
+        var duplicateTypeNames = allChains
+            .Where(x => x.Handlers.Any()) // filter out the parent, placeholder HandlerChain for separated handlers
+            .GroupBy(x => x.TypeName)
+            .Where(x => x.Count() > 1)
+            .ToArray();
+
+        foreach (var @group in duplicateTypeNames)
+        {
+            foreach (var chain in @group)
+            {
+                chain.TypeName =
+                    $"{chain.MessageType.ToSuffixedTypeName("")}_{chain.HandlerCalls().First().HandlerType.ToSuffixedTypeName("Handler")}";
+            }
+        }
 
         foreach (var policy in handlerPolicies(options)) policy.Apply(allChains, Rules, container);
 
@@ -313,6 +346,8 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
         registerMessageTypes();
 
         tryApplyLocalQueueConfiguration(options);
+
+        options.MessagePartitioning.MaybeInferGrouping(this);
     }
 
     private void tryApplyLocalQueueConfiguration(WolverineOptions options)
@@ -326,24 +361,28 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
 
     private void registerMessageTypes()
     {
-        _messageTypes =
-            _messageTypes.AddOrUpdate(typeof(Acknowledgement).ToMessageTypeName(), typeof(Acknowledgement));
-
-        foreach (var chain in Chains)
+        lock (_messageTypesLock)
         {
-            _messageTypes = _messageTypes.AddOrUpdate(chain.MessageType.ToMessageTypeName(), chain.MessageType);
+            _messageTypes =
+                _messageTypes.AddOrUpdate(typeof(Acknowledgement).ToMessageTypeName(), typeof(Acknowledgement));
 
-            if (chain.MessageType.TryGetAttribute<InteropMessageAttribute>(out var att))
+            foreach (var chain in Chains)
             {
-                _messageTypes = _messageTypes.AddOrUpdate(att.InteropType.ToMessageTypeName(), chain.MessageType);
-            }
-            else
-            {
-                foreach (var @interface in chain.MessageType.GetInterfaces())
+                _messageTypes = _messageTypes.AddOrUpdate(chain.MessageType.ToMessageTypeName(), chain.MessageType);
+
+                if (chain.MessageType.TryGetAttribute<InteropMessageAttribute>(out var att))
                 {
-                    if (InteropAssemblies.Contains(@interface.Assembly))
+                    _messageTypes = _messageTypes.AddOrUpdate(att.InteropType.ToMessageTypeName(), chain.MessageType);
+                }
+                else
+                {
+                    foreach (var @interface in chain.MessageType.GetInterfaces())
                     {
-                        _messageTypes = _messageTypes.AddOrUpdate(@interface.ToMessageTypeName(), chain.MessageType);
+                        if (InteropAssemblies.Contains(@interface.Assembly))
+                        {
+                            _messageTypes =
+                                _messageTypes.AddOrUpdate(@interface.ToMessageTypeName(), chain.MessageType);
+                        }
                     }
                 }
             }
@@ -457,8 +496,30 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
             return;
         }
 
-        _messageTypes = _messageTypes.AddOrUpdate(messageType.ToMessageTypeName(), messageType);
-        _replyTypes = _replyTypes.Add(messageType);
+        lock (_messageTypesLock)
+        {
+            _messageTypes = _messageTypes.AddOrUpdate(messageType.ToMessageTypeName(), messageType);
+            _replyTypes = _replyTypes.Add(messageType);
+        }
+    }
+    
+    public void RegisterMessageType(Type messageType, string messageAlias)
+    {
+        if (_messageTypes.TryFind(messageAlias, out var type))
+        {
+            throw new InvalidOperationException($"Cannot register type {type} with alias {messageAlias} because alias is already used");
+        }
+
+        if (_replyTypes.Contains(messageType))
+        {
+            return;
+        }
+
+        lock (_messageTypesLock)
+        {
+            _messageTypes = _messageTypes.AddOrUpdate(messageAlias, messageType);
+            _replyTypes = _replyTypes.Add(messageType);
+        }
     }
 
     public IEnumerable<HandlerChain> AllChains()
@@ -488,4 +549,5 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
             yield return entry.Value;
         }
     }
+
 }

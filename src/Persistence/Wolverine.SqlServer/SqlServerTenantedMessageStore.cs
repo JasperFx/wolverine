@@ -1,18 +1,18 @@
 using ImTools;
 using JasperFx;
+using JasperFx.Core;
 using JasperFx.Descriptors;
 using JasperFx.MultiTenancy;
 using Microsoft.Extensions.Logging;
 using Wolverine.Persistence.Durability;
 using Wolverine.RDBMS;
-using Wolverine.RDBMS.MultiTenancy;
 using Wolverine.RDBMS.Sagas;
 using Wolverine.Runtime;
 using Wolverine.SqlServer.Persistence;
 
 namespace Wolverine.SqlServer;
 
-internal class SqlServerTenantedMessageStore : ITenantedMessageSource, IMessageDatabaseSource
+internal class SqlServerTenantedMessageStore : ITenantedMessageSource
 {
     private ImHashMap<string, SqlServerMessageStore> _values = ImHashMap<string, SqlServerMessageStore>.Empty;
     private readonly SqlServerBackedPersistence _persistence;
@@ -44,7 +44,8 @@ internal class SqlServerTenantedMessageStore : ITenantedMessageSource, IMessageD
         }
 
         var connectionString = await _persistence.ConnectionStringTenancy!.FindAsync(tenantId);
-        store = buildStoreForConnectionString(connectionString);
+        store = buildTenantStoreForConnectionString(connectionString);
+        store.TenantIds.Fill(tenantId);
         
         if (_runtime.Options.AutoBuildMessageStorageOnStartup != AutoCreate.None)
         {
@@ -55,7 +56,7 @@ internal class SqlServerTenantedMessageStore : ITenantedMessageSource, IMessageD
         return store;
     }
 
-    private SqlServerMessageStore buildStoreForConnectionString(string connectionString)
+    private SqlServerMessageStore buildTenantStoreForConnectionString(string connectionString)
     {
         SqlServerMessageStore store;
         
@@ -66,7 +67,7 @@ internal class SqlServerTenantedMessageStore : ITenantedMessageSource, IMessageD
             CommandQueuesEnabled = false,
             // TODO -- set the AutoCreate here
             ConnectionString = connectionString,
-            IsMain = false,
+            Role = MessageStoreRole.Tenant,
             ScheduledJobLockId = _persistence.ScheduledJobLockId,
             SchemaName = _persistence.EnvelopeStorageSchemaName
         };
@@ -85,7 +86,8 @@ internal class SqlServerTenantedMessageStore : ITenantedMessageSource, IMessageD
             // TODO -- some idempotency
             if (!_stores.Contains(assignment.TenantId))
             {
-                var store = buildStoreForConnectionString(assignment.Value);
+                var store = buildTenantStoreForConnectionString(assignment.Value);
+                store.TenantIds.Fill(assignment.TenantId);
                 
                 if (_runtime.Options.AutoBuildMessageStorageOnStartup != AutoCreate.None)
                 {

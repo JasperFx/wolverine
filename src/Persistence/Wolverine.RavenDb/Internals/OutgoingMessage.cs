@@ -22,7 +22,7 @@ public class OutgoingMessage
 
     public string Id { get; set; }
     public int OwnerId { get; set; }
-    public Uri Destination { get; set; }
+    public Uri? Destination { get; set; }
     public DateTimeOffset? DeliverBy { get; set; }
     public byte[] Body { get; set; } = [];
     public int Attempts { get; set; }

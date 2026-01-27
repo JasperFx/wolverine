@@ -49,6 +49,13 @@ public class MessageBusBasics
     public async Task invoke_math_operations(IMessageBus bus)
     {
         var results = await bus.InvokeAsync<Results>(new Numbers(3, 4));
+
+        // Same functionality, but this time we'll configure the active
+        // tenant id and add a message header
+        var results2 = await bus.InvokeAsync<Results>(new Numbers(5, 6), new DeliveryOptions
+        {
+            TenantId = "north.america"
+        }.WithHeader("user.id", "professor"));
     }
 
     #endregion

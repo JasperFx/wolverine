@@ -1,8 +1,12 @@
+using System.Collections.Concurrent;
 using JasperFx.Core;
+using JasperFx.Core.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using JasperFx.Resources;
+using Shouldly;
+using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
 using Wolverine.Tracking;
 using Xunit;
@@ -45,13 +49,17 @@ public abstract class LeadershipElectionCompliance : IAsyncLifetime
         }
     }
 
+    public IHost OriginalHost => _originalHost;
+
     protected abstract void configureNode(WolverineOptions options);
 
-    private async Task<IHost> startHostAsync()
+    protected async Task<IHost> startHostAsync()
     {
         var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Discovery.IncludeAssembly(GetType().Assembly).IncludeType(typeof(DoOnAgentHandler));
+                
                 opts.Durability.CheckAssignmentPeriod = 1.Seconds();
                 opts.Durability.HealthCheckPollingTime = 1.Seconds();
 
@@ -279,5 +287,75 @@ public abstract class LeadershipElectionCompliance : IAsyncLifetime
         }
 
         throw new Exception("No persisted node records!");
+    }
+
+    [Fact]
+    public async Task ability_to_send_messages_to_correct_node_or_forward()
+    {
+        DoOnAgentHandler.Handled.Clear();
+        
+        await _originalHost.WaitUntilAssumesLeadershipAsync(5.Seconds());
+
+        var host2 = await startHostAsync();
+        var host3 = await startHostAsync();
+        var host4 = await startHostAsync();
+
+        // This is just to eliminate some errors in test output
+        await _originalHost.WaitUntilAssignmentsChangeTo(w =>
+        {
+            w.ExpectRunningAgents(_originalHost, 3);
+            w.ExpectRunningAgents(host2, 3);
+            w.ExpectRunningAgents(host3, 3);
+            w.ExpectRunningAgents(host4, 3);
+        }, 30.Seconds());
+
+        var family = new FakeAgentFamily();
+        var allAgents = family.AllAgentUris();
+
+        foreach (var agentUri in allAgents)
+        {
+            await _originalHost.InvokeMessageAndWaitAsync(new DoOnAgent(agentUri));
+        }
+
+        var nodes = new[]{_originalHost, host2, host3, host4};
+        
+        // We purposely ignore messages to the control queues in the track activity, so boohoo,
+        // gotta do this
+
+        for (var i = 0; i < 10; i++)
+        {
+            if (DoOnAgentHandler.Handled.Count >= allAgents.Length) break;
+
+            await Task.Delay(100.Milliseconds());
+        }
+        
+        foreach (var agent in allAgents)
+        {
+            var handled = DoOnAgentHandler.Handled.First(x => x.AgentUri == agent);
+            var node = nodes.First(x => x.NodeNumber() == handled.NodeNumber);
+            node.RunningAgents().ShouldContain(agent);
+        }
+        
+        
+    }
+}
+
+public record DoOnAgent(Uri AgentUri);
+
+public record AgentHandled(Uri AgentUri, int NodeNumber);
+
+public static class DoOnAgentHandler
+{
+    public static ConcurrentBag<AgentHandled> Handled = new();
+    
+    public static async Task HandleAsync(DoOnAgent command, IMessageContext context, CancellationToken cancellationToken)
+    {
+        await context.InvokeOnAgentOrForwardAsync(command.AgentUri, (runtime, c) =>
+        {
+            runtime.Agents.AllRunningAgentUris().ShouldContain(command.AgentUri);
+            Handled.Add(new AgentHandled(command.AgentUri, runtime.DurabilitySettings.AssignedNodeNumber));
+
+            return Task.CompletedTask;
+        }, cancellationToken);
     }
 }

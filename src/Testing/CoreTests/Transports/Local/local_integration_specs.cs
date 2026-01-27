@@ -91,15 +91,13 @@ public class local_integration_specs : IntegrationContext
     {
         with(opts =>
         {
-            opts.LocalQueueFor<Message1>().MaximumParallelMessages(6, ProcessingOrder.UnOrdered);
+            opts.LocalQueueFor<Message1>().MaximumParallelMessages(6);
         });
 
         var runtime = Host.GetRuntime();
         var queue = runtime.Options.LocalRouting.FindQueueForMessageType(typeof(Message1));
         queue
-            .ExecutionOptions.MaxDegreeOfParallelism.ShouldBe(6);
-
-        queue.ExecutionOptions.EnsureOrdered.ShouldBeFalse();
+            .MaxDegreeOfParallelism.ShouldBe(6);
     }
 
     [Fact]
@@ -107,15 +105,13 @@ public class local_integration_specs : IntegrationContext
     {
         with(opts =>
         {
-            opts.LocalQueueFor<Message1>().MaximumParallelMessages(6, ProcessingOrder.StrictOrdered);
+            opts.LocalQueueFor<Message1>().MaximumParallelMessages(6);
         });
 
         var runtime = Host.GetRuntime();
         var queue = runtime.Options.LocalRouting.FindQueueForMessageType(typeof(Message1));
         queue
-            .ExecutionOptions.MaxDegreeOfParallelism.ShouldBe(6);
-
-        queue.ExecutionOptions.EnsureOrdered.ShouldBeTrue();
+            .MaxDegreeOfParallelism.ShouldBe(6);
     }
 
     [Fact]

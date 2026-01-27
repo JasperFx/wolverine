@@ -61,15 +61,15 @@ public class Bug_1594_ReplayDeadLetterQueue
         await Task.Delay(1000);
 
         var messageStore = host.Services.GetRequiredService<IMessageStore>();
-        var deadLetterQuery = new DeadLetterEnvelopeQueryParameters { Limit = 10 };
+        var deadLetterQuery = new DeadLetterEnvelopeQuery { PageSize = 10 };
         var sw = Stopwatch.StartNew();
         Guid? deadLetterId = null;
         while (sw.Elapsed < TimeSpan.FromSeconds(10))
         {
-            var deadLetterResults = await messageStore.DeadLetters.QueryDeadLetterEnvelopesAsync(deadLetterQuery);
-            if (deadLetterResults.DeadLetterEnvelopes.Any())
+            var deadLetterResults = await messageStore.DeadLetters.QueryAsync(deadLetterQuery, CancellationToken.None);
+            if (deadLetterResults.Envelopes.Any())
             {
-                deadLetterId = deadLetterResults.DeadLetterEnvelopes.First().Id;
+                deadLetterId = deadLetterResults.Envelopes.First().Id;
                 break;
             }
             await Task.Delay(100);
@@ -78,9 +78,9 @@ public class Bug_1594_ReplayDeadLetterQueue
         deadLetterId.ShouldNotBeNull("Message should be in DLQ after failure");
 
         // Log state before replay
-        var beforeReplay = await messageStore.DeadLetters.QueryDeadLetterEnvelopesAsync(deadLetterQuery);
+        var beforeReplay = await messageStore.DeadLetters.QueryAsync(deadLetterQuery, CancellationToken.None);
         var beforeIncoming = await messageStore.Admin.AllIncomingAsync();
-        _output.WriteLine($"[BEFORE REPLAY] DLQ: {beforeReplay.DeadLetterEnvelopes.Count}, Incoming: {beforeIncoming.Count}");
+        _output.WriteLine($"[BEFORE REPLAY] DLQ: {beforeReplay.Envelopes.Count}, Incoming: {beforeIncoming.Count}");
 
         // Force handler to succeed on replay (mimic Marten test)
         ReplayTestHandler.FailFirst = false;
@@ -93,9 +93,8 @@ public class Bug_1594_ReplayDeadLetterQueue
             .ExecuteAndWaitAsync((IMessageContext _) => messageStore.DeadLetters.MarkDeadLetterEnvelopesAsReplayableAsync(new[] { deadLetterId.Value }));
 
         // Log state after replay
-        var afterReplay = await messageStore.DeadLetters.QueryDeadLetterEnvelopesAsync(deadLetterQuery);
+        var afterReplay = await messageStore.DeadLetters.QueryAsync(deadLetterQuery, CancellationToken.None);
         var afterIncoming = await messageStore.Admin.AllIncomingAsync();
-        _output.WriteLine($"[AFTER REPLAY] DLQ: {afterReplay.DeadLetterEnvelopes.Count}, Incoming: {afterIncoming.Count}");
         foreach (var env in afterIncoming)
         {
             _output.WriteLine($"[INCOMING] Id: {env.Id}, Status: {env.Status}, OwnerId: {env.OwnerId}, ScheduledTime: {env.ScheduledTime}, Attempts: {env.Attempts}, ReceivedAt: {env.Destination}");
@@ -104,7 +103,7 @@ public class Bug_1594_ReplayDeadLetterQueue
         // Assert using the tracking result, mimicking the Marten test
         tracked.MessageSucceeded.SingleMessage<ReplayTestMessage>()
             .ShouldNotBeNull("ReplayTestMessage should be successfully processed after replay");
-        afterReplay.DeadLetterEnvelopes.Any(dl => dl.Id == deadLetterId).ShouldBeFalse("Message should be removed from DLQ after successful replay (this should work for both durable and non-durable queues)");
+        afterReplay.Envelopes.Any(dl => dl.Id == deadLetterId).ShouldBeFalse("Message should be removed from DLQ after successful replay (this should work for both durable and non-durable queues)");
         afterIncoming.Any(env => env.Status == EnvelopeStatus.Incoming && env.Id == deadLetterId).ShouldBeFalse("Message should not remain in Incoming after successful processing");
     }
 }

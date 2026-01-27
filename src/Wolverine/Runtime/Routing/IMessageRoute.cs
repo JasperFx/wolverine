@@ -1,4 +1,3 @@
-using JasperFx.Core.Reflection;
 using Wolverine.Transports.Sending;
 
 namespace Wolverine.Runtime.Routing;
@@ -24,9 +23,46 @@ public interface IMessageRoute
 /// </summary>
 public class MessageSubscriptionDescriptor
 {
-    public Uri Endpoint { get; init; } = new Uri("null://null");
+    public Uri Endpoint { get; init; } = new("null://null");
     public string ContentType { get; set; } = "application/json";
     public string Description { get; set; } = string.Empty;
+    public MessageSubscriptionDescriptor[] Partitions { get; set; } = [];
+
+    public override string ToString()
+    {
+        return
+            $"{nameof(Endpoint)}: {Endpoint}, {nameof(ContentType)}: {ContentType}, {nameof(Description)}: {Description}";
+    }
+
+    protected bool Equals(MessageSubscriptionDescriptor other)
+    {
+        return Endpoint.Equals(other.Endpoint) && ContentType == other.ContentType && Description == other.Description;
+    }
+
+    public override bool Equals(object? obj)
+    {
+        if (obj is null)
+        {
+            return false;
+        }
+
+        if (ReferenceEquals(this, obj))
+        {
+            return true;
+        }
+
+        if (obj.GetType() != GetType())
+        {
+            return false;
+        }
+
+        return Equals((MessageSubscriptionDescriptor)obj);
+    }
+
+    public override int GetHashCode()
+    {
+        return HashCode.Combine(Endpoint, ContentType, Description);
+    }
 
     // TODO -- add something about envelope rules?
 }
@@ -40,35 +76,4 @@ internal class TransformedMessageRouteSource : IMessageRouteSource
     }
 
     public bool IsAdditive => true;
-}
-
-internal class TransformedMessageRoute<TSource, TDestination> : IMessageRoute
-{
-    private readonly Func<TSource, TDestination> _transformation;
-    private readonly IMessageRoute _inner;
-
-    public TransformedMessageRoute(Func<TSource, TDestination> transformation, IMessageRoute inner)
-    {
-        _transformation = transformation;
-        _inner = inner;
-    }
-
-    public MessageSubscriptionDescriptor Describe()
-    {
-        var descriptor = _inner.Describe();
-        descriptor.Description = "Transformed to " + typeof(TDestination).FullNameInCode();
-        return descriptor;
-    }
-
-    public Envelope CreateForSending(object message, DeliveryOptions? options, ISendingAgent localDurableQueue,
-        WolverineRuntime runtime, string? topicName)
-    {
-        var transformed = _transformation((TSource)message);
-        return _inner.CreateForSending(transformed!, options, localDurableQueue, runtime, topicName);
-    }
-
-    public override string ToString()
-    {
-        return "Forward message as " + typeof(TDestination).FullNameInCode();
-    }
 }

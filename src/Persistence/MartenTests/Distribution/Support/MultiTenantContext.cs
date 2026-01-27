@@ -35,7 +35,7 @@ public class MultiTenantContext : IAsyncLifetime
     protected string tenant3ConnectionString;
     protected string tenant4ConnectionString;
     protected IHost theOriginalHost;
-    internal ProjectionAgents theProjectionAgents;
+    internal EventSubscriptionAgentFamily theDistributor;
 
     public MultiTenantContext(ITestOutputHelper output)
     {
@@ -69,7 +69,7 @@ public class MultiTenantContext : IAsyncLifetime
 
         theOriginalHost = await startHostAsync();
 
-        theProjectionAgents = theOriginalHost.Services.GetServices<IAgentFamily>().OfType<ProjectionAgents>().Single();
+        theDistributor = theOriginalHost.Services.GetServices<IAgentFamily>().OfType<EventSubscriptionAgentFamily>().Single();
     }
 
     public async Task DisposeAsync()
@@ -124,7 +124,7 @@ public class MultiTenantContext : IAsyncLifetime
                     })
                     .IntegrateWithWolverine(m =>
                     {
-                        m.MasterDatabaseConnectionString = Servers.PostgresConnectionString;
+                        m.MainDatabaseConnectionString = Servers.PostgresConnectionString;
                         m.UseWolverineManagedEventSubscriptionDistribution = true;
                     });
 
@@ -158,7 +158,7 @@ public class MultiTenantContext : IAsyncLifetime
                         m.Projections.Add<StartingProjection>(ProjectionLifecycle.Async);
                         m.Projections.Add<EndingProjection>(ProjectionLifecycle.Async);
                     })
-                    .IntegrateWithWolverine(m => m.MasterDatabaseConnectionString = Servers.PostgresConnectionString);
+                    .IntegrateWithWolverine(m => m.MainDatabaseConnectionString = Servers.PostgresConnectionString);
 
                     // TODO --derive this from Marten Tenancy
 
@@ -185,6 +185,6 @@ public class MultiTenantContext : IAsyncLifetime
     protected Uri[] runningSubscriptions(IHost host)
     {
         var runtime = host.Services.GetRequiredService<IWolverineRuntime>();
-        return runtime.Agents.AllRunningAgentUris().Where(x => x.Scheme == ProjectionAgents.SchemeName).ToArray();
+        return runtime.Agents.AllRunningAgentUris().Where(x => x.Scheme == EventSubscriptionAgentFamily.SchemeName).ToArray();
     }
 }

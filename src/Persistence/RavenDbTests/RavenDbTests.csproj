@@ -11,7 +11,7 @@
 
     <ItemGroup>
         <FrameworkReference Include="Microsoft.AspNetCore.App"/>
-        <PackageReference Include="Microsoft.NET.Test.Sdk" Version="15.9.0"/>
+        <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
         <PackageReference Include="GitHubActionsTestLogger" Version="2.4.1" PrivateAssets="All" />
         <PackageReference Include="RavenDB.DependencyInjection" Version="5.0.1" />
         <PackageReference Include="RavenDB.TestDriver" Version="7.0.2" />

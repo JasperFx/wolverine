@@ -1,25 +1,27 @@
-using System.Threading.Tasks.Dataflow;
+using System.Diagnostics;
+using JasperFx.Blocks;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
 using Wolverine.Logging;
+using Wolverine.Runtime.Partitioning;
 using Wolverine.Runtime.Scheduled;
 using Wolverine.Transports;
 using Wolverine.Transports.Sending;
-using Wolverine.Util.Dataflow;
 
 namespace Wolverine.Runtime.WorkerQueues;
 
 internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeScheduling, ISupportDeadLetterQueue
 {
-    private readonly Endpoint _endpoint;
     private readonly RetryBlock<Envelope> _completeBlock;
 
     private readonly ISender? _deadLetterSender;
     private readonly RetryBlock<Envelope> _deferBlock;
+    private readonly Endpoint _endpoint;
+    private readonly IWolverineRuntime _runtime;
     private readonly ILogger _logger;
     private readonly RetryBlock<Envelope>? _moveToErrors;
-    private readonly ActionBlock<Envelope> _receivingBlock;
+    private readonly IBlock<Envelope> _receivingBlock;
     private readonly InMemoryScheduledJobProcessor _scheduler;
     private readonly DurabilitySettings _settings;
     private bool _latched;
@@ -27,43 +29,22 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
     public BufferedReceiver(Endpoint endpoint, IWolverineRuntime runtime, IHandlerPipeline pipeline)
     {
         _endpoint = endpoint;
+        _runtime = runtime;
         Uri = endpoint.Uri;
         _logger = runtime.LoggerFactory.CreateLogger<BufferedReceiver>();
         _settings = runtime.DurabilitySettings;
         Pipeline = pipeline;
-        
-        _scheduler = new InMemoryScheduledJobProcessor(this);
 
-        endpoint.ExecutionOptions.CancellationToken = _settings.Cancellation;
+        _scheduler = new InMemoryScheduledJobProcessor(this);
 
         _deferBlock = new RetryBlock<Envelope>((env, _) => env.Listener!.DeferAsync(env).AsTask(), runtime.Logger,
             runtime.Cancellation);
         _completeBlock = new RetryBlock<Envelope>((env, _) => env.Listener!.CompleteAsync(env).AsTask(), runtime.Logger,
             runtime.Cancellation);
 
-        _receivingBlock = new ActionBlock<Envelope>(async envelope =>
-        {
-            if (_latched && envelope.Listener != null)
-            {
-                await _deferBlock.PostAsync(envelope);
-                return;
-            }
-
-            try
-            {
-                if (envelope.ContentType.IsEmpty())
-                {
-                    envelope.ContentType = EnvelopeConstants.JsonContentType;
-                }
-
-                await Pipeline.InvokeAsync(envelope, this);
-            }
-            catch (Exception? e)
-            {
-                // This *should* never happen, but of course it will
-                _logger.LogError(e, "Unexpected error in Pipeline invocation");
-            }
-        }, endpoint.ExecutionOptions);
+        _receivingBlock = endpoint.GroupShardingSlotNumber == null  
+            ? new Block<Envelope>(endpoint.MaxDegreeOfParallelism, executeAsync)
+            : new ShardedExecutionBlock((int)endpoint.GroupShardingSlotNumber, runtime.Options.MessagePartitioning, executeAsync).DeserializeFirst(pipeline, runtime, this);
 
         if (endpoint.TryBuildDeadLetterSender(runtime, out var dlq))
         {
@@ -75,9 +56,29 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
         }
     }
 
-    public IHandlerPipeline? Pipeline { get; }
+    internal async Task executeAsync(Envelope envelope, CancellationToken _)
+    {
+        if (_latched && envelope.Listener != null)
+        {
+            await _deferBlock.PostAsync(envelope);
+            return;
+        }
 
-    public Uri Uri { get; }
+        try
+        {
+            if (envelope.ContentType.IsEmpty())
+            {
+                envelope.ContentType = EnvelopeConstants.JsonContentType;
+            }
+
+            await Pipeline.InvokeAsync(envelope, this);
+        }
+        catch (Exception? e)
+        {
+            // This *should* never happen, but of course it will
+            _logger.LogError(e, "Unexpected error in Pipeline invocation");
+        }
+    }
 
     ValueTask IChannelCallback.CompleteAsync(Envelope envelope)
     {
@@ -88,7 +89,7 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
     {
         if (envelope.Listener == null)
         {
-            Enqueue(envelope);
+            await EnqueueAsync(envelope);
             return;
         }
 
@@ -97,17 +98,21 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
             var nativelyRequeued = await envelope.Listener.TryRequeueAsync(envelope);
             if (!nativelyRequeued)
             {
-                Enqueue(envelope);
+                await EnqueueAsync(envelope);
             }
         }
         catch (Exception e)
         {
             _logger.LogError(e, "Error trying to use native dead letter queue for {Uri}", Uri);
-            Enqueue(envelope);
+            await EnqueueAsync(envelope);
         }
     }
 
-    public int QueueCount => _receivingBlock.InputCount;
+    public IHandlerPipeline? Pipeline { get; }
+
+    public Uri Uri { get; }
+
+    public int QueueCount => (int)_receivingBlock.Count;
 
     public async ValueTask DrainAsync()
     {
@@ -138,6 +143,18 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
         activity?.Stop();
     }
 
+    public async ValueTask EnqueueAsync(Envelope envelope)
+    {
+        if (envelope.IsPing())
+        {
+            return;
+        }
+
+        var activity = _endpoint.TelemetryEnabled ? WolverineTracing.StartReceiving(envelope) : null;
+        await _receivingBlock.PostAsync(envelope);
+        activity?.Stop();
+    }
+
     async ValueTask IReceiver.ReceivedAsync(IListener listener, Envelope[] messages)
     {
         var now = DateTimeOffset.Now;
@@ -152,9 +169,9 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
             envelope.MarkReceived(listener, now, _settings);
             if (!envelope.IsExpired())
             {
-                Enqueue(envelope);
+                await EnqueueAsync(envelope);
             }
-            
+
             await _completeBlock.PostAsync(envelope);
         }
 
@@ -178,7 +195,7 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
         }
         else
         {
-            Enqueue(envelope);
+            await EnqueueAsync(envelope);
         }
 
         await _completeBlock.PostAsync(envelope);

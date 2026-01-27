@@ -4,6 +4,8 @@ using JasperFx.CodeGeneration.Model;
 using Marten;
 using Wolverine.Configuration;
 using Wolverine.Marten.Publishing;
+using Wolverine.Persistence;
+using Wolverine.Runtime;
 
 namespace Wolverine.Marten.Codegen;
 
@@ -60,6 +62,14 @@ internal class CreateDocumentSessionFrame : Frame
             writer.WriteComment("message context to support the outbox functionality");
             writer.Write(
                 $"using var {Session!.Usage} = {_factory!.Usage}.{nameof(OutboxedSessionFactory.OpenSession)}({_context!.Usage});");
+        }
+
+        if (_chain.Idempotency != IdempotencyStyle.None)
+        {
+            writer.BlankLine();
+            writer.WriteComment("This message handler is configured for Eager idempotency checks");
+            
+            writer.Write($"await {_context.Usage}.{nameof(MessageContext.AssertEagerIdempotencyAsync)}({_cancellation.Usage});");
         }
 
         Next?.GenerateCode(method, writer);

@@ -6,7 +6,7 @@ namespace Wolverine.SqlServer.Schema;
 
 internal class OutgoingEnvelopeTable : Table
 {
-    public OutgoingEnvelopeTable(string schemaName) : base(
+    public OutgoingEnvelopeTable(DurabilitySettings durability, string schemaName) : base(
         new DbObjectName(schemaName, DatabaseConstants.OutgoingTable))
     {
         AddColumn<Guid>(DatabaseConstants.Id).AsPrimaryKey();
@@ -17,5 +17,10 @@ internal class OutgoingEnvelopeTable : Table
 
         AddColumn<int>(DatabaseConstants.Attempts).DefaultValue(0);
         AddColumn(DatabaseConstants.MessageType, "varchar(250)").NotNull();
+
+        if (durability.OutboxStaleTime.HasValue)
+        {
+            AddColumn<DateTimeOffset>(DatabaseConstants.Timestamp).DefaultValueByExpression("GETUTCDATE()");
+        }
     }
 }

@@ -1,4 +1,6 @@
+using System.Net;
 using System.Reflection;
+using JasperFx;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
@@ -55,7 +57,10 @@ internal class RouteParameterStrategy : IParameterStrategy
 
     public static bool CanParse(Type argType)
     {
-        return TypeOutputs.ContainsKey(argType) || argType.IsEnum;
+        // Edge case from GH-1941
+        if (argType == typeof(IPAddress)) return false;
+        
+        return TypeOutputs.ContainsKey(argType) || argType.IsEnum || argType.GetMethods().Any( x=> x.Name == "TryParse");
     }
 
     public static void TryApplyRouteVariables(HttpChain chain, MethodCall call)

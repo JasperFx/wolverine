@@ -1,6 +1,10 @@
+using System.Text.Json;
+using Confluent.Kafka;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using JasperFx.Resources;
+using Wolverine.Util;
+
 namespace Wolverine.Kafka.Tests;
 
 public class DocumentationSamples
@@ -57,6 +61,25 @@ public class DocumentationSamples
                 opts.PublishMessage<ColorMessage>()
                     .ToKafkaTopic("colors")
                     
+                    // Fine tune how the Kafka Topic is declared by Wolverine
+                    .Specification(spec =>
+                    {
+                        spec.NumPartitions = 6;
+                        spec.ReplicationFactor = 3;
+                    })
+                    
+                    // OR, you can completely control topic creation through this:
+                    .TopicCreation(async (client, topic) =>
+                    {
+                        topic.Specification.NumPartitions = 8;
+                        topic.Specification.ReplicationFactor = 2;
+                        
+                        // You do have full access to the IAdminClient to do
+                        // whatever you need to do
+
+                        await client.CreateTopicsAsync([topic.Specification]);
+                    })
+                    
                     // Override the producer configuration for just this topic
                     .ConfigureProducer(config =>
                     {
@@ -78,8 +101,16 @@ public class DocumentationSamples
                         // This will also set the Envelope.GroupId for any
                         // received messages at this topic
                         config.GroupId = "foo";
-                        
+                        config.BootstrapServers = "localhost:9092";
+
                         // Other configuration
+                    })
+                    
+                    // Fine tune how the Kafka Topic is declared by Wolverine
+                    .Specification(spec =>
+                    {
+                        spec.NumPartitions = 6;
+                        spec.ReplicationFactor = 3;
                     });
 
                 opts.ListenToKafkaTopic("green")
@@ -90,6 +121,26 @@ public class DocumentationSamples
                 // referenced Kafka topics exist at application start up
                 // time
                 opts.Services.AddResourceSetupOnStartup();
+            }).StartAsync();
+
+        #endregion
+    }
+
+    public static async Task disable_producing()
+    {
+        #region sample_disable_all_kafka_sending
+
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts
+                    .UseKafka("localhost:9092")
+                    
+                    // Tell Wolverine that this application will never
+                    // produce messages to turn off any diagnostics that might
+                    // try to "ping" a topic and result in errors
+                    .ConsumeOnly();
+                
             }).StartAsync();
 
         #endregion
@@ -138,4 +189,49 @@ public static class KafkaInstrumentation
 }
 
 #endregion
+
+#region sample_OurKafkaJsonMapper
+
+// Simplistic envelope mapper that expects every message to be of
+// type "T" and serialized as JSON that works perfectly well w/ our
+// application's default JSON serialization
+public class OurKafkaJsonMapper<TMessage> : IKafkaEnvelopeMapper
+{
+    // Wolverine needs to know the 
+    private readonly string _messageTypeName = typeof(TMessage).ToMessageTypeName();
+
+    // Map the Wolverine Envelope structure to the outgoing Kafka structure
+    public void MapEnvelopeToOutgoing(Envelope envelope, Message<string, byte[]> outgoing)
+    {
+        // We'll come back to this later...
+        throw new NotSupportedException();
+    }
+
+    // Map the incoming message from Kafka to the incoming Wolverine envelope
+    public void MapIncomingToEnvelope(Envelope envelope, Message<string, byte[]> incoming)
+    {
+        // We're making an assumption here that only one type of message
+        // is coming in on this particular Kafka topic, so we're telling
+        // Wolverine what the message type is according to Wolverine's own
+        // message naming scheme
+        envelope.MessageType = _messageTypeName;
+
+        // Tell Wolverine to use JSON serialization for the message 
+        // data
+        envelope.ContentType = "application/json";
+
+        // Put the raw binary data right on the Envelope where
+        // Wolverine "knows" how to get at it later
+        envelope.Data = incoming.Value;
+    }
+}
+
+#endregion
+
+/*
+// Who knows, maybe the upstream app uses a different JSON naming
+// scheme than our .NET message types, so let's have the ability
+// to specify JSON serialization policies just in case
+_options = options;
+*/
 

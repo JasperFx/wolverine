@@ -1,7 +1,7 @@
+using JasperFx.Blocks;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Shouldly;
-using Wolverine.Util.Dataflow;
 using Xunit;
 
 namespace SlowTests;

@@ -1,4 +1,5 @@
 using System.Reflection;
+using JasperFx;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
@@ -53,11 +54,35 @@ public class MiddlewarePolicy : IChainPolicy
                 $"It's not currently legal in Wolverine to return the message type for a handler or the request type for an HTTP chain from middleware. Chain: {chain}. If you receive this on the compilation for an HTTP endpoint, you may want to use [NotBody] on the HTTP endpoint parameter so Wolverine will not use that parameter as the request body model");
         }
 
-        for (var i = 0; i < befores.Length; i++)
-        {
-            chain.Middleware.Insert(i, befores[i]);
-        }
+        var position = 0;
 
+        foreach (var before in befores)
+        {
+            chain.Middleware.Insert(position, before);
+            if (before is MethodCall frame)
+            {
+                AssertMethodDoesNotHaveDuplicateReturnValues(frame);
+                
+                // TODO -- might generalize this a bit. Have a more generic mode of understanding return values
+                // like the HTTP support has
+                var outgoings = frame.Creates.Where(x => x.VariableType == typeof(OutgoingMessages)).ToArray();
+                int start = 200;
+                foreach (var outgoing in outgoings)
+                {
+                    outgoing.OverrideName(outgoing.Usage + (++start));
+                    chain.Middleware.Insert(++position, new CaptureCascadingMessages(outgoing));
+                }
+
+                // Potentially add handling for IResult or HandlerContinuation
+                if (rules.TryFindContinuationHandler(chain, frame, out var continuation))
+                {
+                    chain.Middleware.Insert(++position, continuation!);
+                }
+            }
+
+            position++;
+        }
+        
         var afters = applications.ToArray().Reverse().SelectMany(x => x.BuildAfterCalls(chain, rules)).ToArray();
         
         if (afters.Any())

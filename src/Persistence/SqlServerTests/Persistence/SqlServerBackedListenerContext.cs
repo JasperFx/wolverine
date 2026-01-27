@@ -3,6 +3,7 @@ using JasperFx.Core;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Wolverine;
+using Wolverine.Persistence;
 using Wolverine.RDBMS;
 using Wolverine.RDBMS.Sagas;
 using Wolverine.Runtime;
@@ -34,6 +35,9 @@ public class SqlServerBackedListenerContext : SqlServerContext
         var runtime = Substitute.For<IWolverineRuntime>();
         runtime.Storage.Returns(thePersistence);
         runtime.Pipeline.Returns(thePipeline);
+        runtime.Options.Returns(new WolverineOptions());
+        
+        //runtime.Stores.Returns(new MessageStoreCollection(runtime, [], []));
         runtime.DurabilitySettings.Returns(theSettings);
 
 

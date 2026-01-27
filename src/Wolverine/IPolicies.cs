@@ -2,6 +2,7 @@ using System.Reflection;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
+using Wolverine.Persistence;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Runtime.Routing;
 
@@ -73,6 +74,20 @@ public interface IPolicies : IEnumerable<IWolverinePolicy>, IWithFailurePolicies
     ///     to every message handler that uses transactional services
     /// </summary>
     void AutoApplyTransactions();
+    
+    /// <summary>
+    ///     In place of using [Transactional] attributes, apply transactional middleware
+    ///     to every message handler that uses transactional services
+    /// </summary>
+    /// <param name="idempotency">Define a default IdempotencyStyle for message handlers executing in Buffered or Inline endpoints</param>
+    void AutoApplyTransactions(IdempotencyStyle idempotency);
+
+    /// <summary>
+    /// Apply eager message idempotency checks to any message handler chains that are not otherwise transactional.
+    /// Example is a handler that calls an external web service but does not make any changes to the current system's
+    /// databases or storage
+    /// </summary>
+    void AutoApplyIdempotencyOnNonTransactionalHandlers();
 
     /// <summary>
     ///     Add Wolverine middleware to message handlers

@@ -11,6 +11,7 @@ using Wolverine.ErrorHandling;
 using Wolverine.Marten;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime.Handlers;
+using Wolverine.Tracking;
 using Xunit;
 
 namespace PersistenceTests;
@@ -21,6 +22,8 @@ public class durability_with_local : PostgresqlContext
     public async Task should_recover_persisted_messages()
     {
         using var host1 = await WolverineHost.ForAsync(opts => opts.ConfigureDurableSender(true, true));
+        await host1.GetRuntime().Storage.Admin.RebuildAsync();
+        
         await host1.SendAsync(new ReceivedMessage());
 
         var counts = await host1.Get<IMessageStore>().Admin.FetchCountsAsync();

@@ -9,7 +9,7 @@ public class DatabaseConstants
     public const string Body = "body";
     public const string Version = "version";
     public const string Status = "status";
-
+    
     public const string ExecutionTime = "execution_time";
     public const string Attempts = "attempts";
     public const string Source = "source";
@@ -29,16 +29,20 @@ public class DatabaseConstants
     public const string NodeAssignmentsTableName = "wolverine_node_assignments";
     public const string TenantsTableName = "wolverine_tenants";
 
+    public const string Timestamp = "timestamp";
+
     public const string ReceivedAt = "received_at"; // add to all
     public const string SentAt = "sent_at"; // add to all
 
     public const string KeepUntil = "keep_until";
     public const string NodeRecordTableName = "wolverine_node_records";
 
+    public const string AgentRestrictionsTableName = "wolverine_agent_restrictions";
+
     public const string Expires = "expires";
 
     public static readonly string IncomingFields =
-        $"{Body}, {Id}, {Status}, {OwnerId}, {ExecutionTime}, {Attempts}, {MessageType}, {ReceivedAt}";
+        $"{Body}, {Id}, {Status}, {OwnerId}, {ExecutionTime}, {Attempts}, {MessageType}, {ReceivedAt}, {KeepUntil}";
 
     public static readonly string OutgoingFields =
         $"{Body}, {Id}, {OwnerId}, {Destination}, {DeliverBy}, {Attempts}, {MessageType}";

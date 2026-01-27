@@ -58,6 +58,41 @@ public class fluent_validation_middleware : IntegrationContext
         // in the request
         var problems = results.ReadAsJson<HttpValidationProblemDetails>();
     }
+    
+    [Fact]
+    public async Task one_validator_happy_path_on_complex_query_string_argument()
+    {
+        // Succeeds w/ a 200
+        var result = await Scenario(x =>
+        {
+            x.Post.Url("/validate/customer2")
+                .QueryString(nameof(CreateCustomer.FirstName), "Creed")
+                .QueryString(nameof(CreateCustomer.LastName), "Humphrey")
+                .QueryString(nameof(CreateCustomer.PostalCode), "11111") ;
+            x.ContentTypeShouldBe("text/plain");
+        });
+    }
+
+    [Fact]
+    public async Task one_validator_sad_path_on_complex_query_string_argument()
+    {
+        var createCustomer = new CreateCustomer(null, "Humphrey", "11111");
+
+        var results = await Scenario(x =>
+        {
+            x.Post.Url("/validate/customer2")
+                .QueryString(nameof(CreateCustomer.FirstName), "Creed")
+                //.QueryString(nameof(CreateCustomer.LastName), "Humphrey")
+                .QueryString(nameof(CreateCustomer.PostalCode), "11111") ;
+            x.ContentTypeShouldBe("application/problem+json");
+            x.StatusCodeShouldBe(400);
+        });
+
+        // Just proving that we have HttpValidationProblemDetails content
+        // in the request
+        var problems = results.ReadAsJson<HttpValidationProblemDetails>();
+    }
+    
     [Fact]
     public async Task one_validator_sad_path_in_different_assembly()
     {

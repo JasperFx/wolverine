@@ -1,6 +1,8 @@
 using JasperFx.Core;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Wolverine.Runtime;
+using Wolverine.Runtime.Stubs;
 
 namespace Wolverine.Tracking;
 
@@ -14,6 +16,17 @@ public static class WolverineHostMessageTrackingExtensions
     public static WolverineRuntime GetRuntime(this IHost host)
     {
         return (WolverineRuntime)host.Get<IWolverineRuntime>();
+    }
+
+    /// <summary>
+    /// Retrieves the assigned node number for this host. Maybe not be
+    /// useful outside of tests for Wolverine itself:)
+    /// </summary>
+    /// <param name="host"></param>
+    /// <returns></returns>
+    public static int NodeNumber(this IHost host)
+    {
+        return host.GetRuntime().Options.Durability.AssignedNodeNumber;
     }
 
     /// <summary>
@@ -364,4 +377,6 @@ public static class WolverineHostTrackingByServiceProviderExtensions
 
         return session;
     }
+
+    
 }

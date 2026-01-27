@@ -1,4 +1,6 @@
+using ImTools;
 using JasperFx.Core;
+using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Logging;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime.Agents;
@@ -111,6 +113,29 @@ public partial class WolverineRuntime : IAgentRuntime
         NodeController?.CancelHeartbeatChecking();
     }
 
+    public async Task ApplyRestrictionsAsync(AgentRestrictions restrictions, CancellationToken cancellationToken)
+    {
+        await KickstartHealthDetectionAsync();
+        
+        var (nodes, assignments) = await Storage.Nodes.LoadNodeAgentStateAsync(cancellationToken);
+        assignments.MergeChanges(restrictions);
+        await Storage.Nodes.PersistAgentRestrictionsAsync(assignments.FindChanges(), cancellationToken);
+
+        await NodeController!.EvaluateAssignmentsAsync(nodes, assignments);
+    }
+
+    public bool TryFindActiveAgent<T>(Uri agentUri, out T agent) where T : class
+    {
+        agent = default!;
+        if (NodeController.Agents.TryGetValue(agentUri, out var raw))
+        {
+            agent = raw as T;
+            return agent != null;
+        }
+
+        return false;
+    }
+
     public IAgentRuntime Agents => this;
 
     private async Task startAgentsAsync()
@@ -143,7 +168,7 @@ public partial class WolverineRuntime : IAgentRuntime
 
     private async Task startDurableScheduledJobs()
     {
-        DurableScheduledJobs = await DurabilityAgentFamily.StartScheduledJobProcessing(this);
+        DurableScheduledJobs = await _stores.Value.StartScheduledJobProcessing(this);
     }
 
     internal IAgent? DurableScheduledJobs { get; private set; }
@@ -165,6 +190,8 @@ public partial class WolverineRuntime : IAgentRuntime
         if (NodeController != null)
         {
             var commands = await NodeController.StartLocalAgentProcessingAsync(Options);
+            Replies.AssignedNodeNumber = Options.Durability.AssignedNodeNumber;
+            
             foreach (var command in commands)
             {
                 await new MessageBus(this).PublishAsync(command);
@@ -236,7 +263,7 @@ public partial class WolverineRuntime : IAgentRuntime
         if (NodeController != null)
         {
             await NodeController.DisableAgentsAsync();
-            await _persistence.Value.Nodes.OverwriteHealthCheckTimeAsync(Options.UniqueNodeId, lastHeartbeatTime);
+            await Storage.Nodes.OverwriteHealthCheckTimeAsync(Options.UniqueNodeId, lastHeartbeatTime);
         }
 
         NodeController = null;
@@ -250,5 +277,29 @@ public partial class WolverineRuntime : IAgentRuntime
         }
 
         return Task.FromResult(AgentCommands.Empty);
+    }
+}
+
+public static class AgentMessagingExtensions
+{
+    public static async Task<bool> InvokeOnAgentOrForwardAsync(this IMessageContext context, Uri agentUri,
+        Func<IWolverineRuntime, CancellationToken, Task> action, CancellationToken cancellationToken)
+    {
+        var messageContext = context.As<MessageContext>();
+        var runtime = messageContext.Runtime;
+
+        if (runtime.Agents.AllRunningAgentUris().Contains(agentUri))
+        {
+            await action(runtime, cancellationToken);
+            return true;
+        }
+
+        var all = await runtime.Storage.Nodes.LoadAllNodesAsync(cancellationToken);
+        var node = all.FirstOrDefault(x => x.ActiveAgents.Contains(agentUri));
+
+        if (node == null) return false;
+
+        await messageContext.EndpointFor(node!.ControlUri!).SendAsync(context.Envelope!.Message);
+        return true;
     }
 }

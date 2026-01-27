@@ -1,5 +1,7 @@
 using System.Diagnostics;
 using System.Reflection;
+using ImTools;
+using JasperFx;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
@@ -29,6 +31,7 @@ internal record AggregateHandling(IDataRequirement Requirement)
 
     public ConcurrencyStyle LoadStyle { get; init; }
     public Variable? Version { get; init; }
+    public ParameterInfo? Parameter { get; set; }
 
     public Variable Apply(IChain chain, IServiceContainer container)
     {
@@ -36,10 +39,16 @@ internal record AggregateHandling(IDataRequirement Requirement)
 
         new MartenPersistenceFrameProvider().ApplyTransactionSupport(chain, container);
 
-        var loader = GenerateLoadAggregateCode(chain);
+        var loader = new LoadAggregateFrame(this);
+        chain.Middleware.Add(loader);
+        
         var firstCall = chain.HandlerCalls().First();
 
-        var eventStream = loader.ReturnVariable!;
+        var eventStream = loader.Stream!;
+        if (Parameter != null)
+        {
+            eventStream.OverrideName("stream_" + Parameter.Name);
+        }
         
         if (AggregateType == firstCall.HandlerType)
         {
@@ -52,12 +61,33 @@ internal record AggregateHandling(IDataRequirement Requirement)
         ValidateMethodSignatureForEmittedEvents(chain, firstCall, chain);
         var aggregate = RelayAggregateToHandlerMethod(eventStream, chain, firstCall, AggregateType);
 
+        if (Parameter != null && Parameter.ParameterType.Closes(typeof(IEventStream<>)))
+        {
+            return eventStream;
+        }
+        
         return aggregate;
     }
 
     public void Store(IChain chain)
     {
-        chain.Tags[nameof(AggregateHandling)] = this;
+        if (chain.Tags.TryGetValue(nameof(AggregateHandling), out var raw))
+        {
+            if (raw is AggregateHandling handling)
+            {
+                if (ReferenceEquals(handling, this)) return;
+
+                chain.Tags[nameof(AggregateHandling)] = new List<AggregateHandling> { handling, this };
+            }
+            else if (raw is List<AggregateHandling> list)
+            {
+                list.Add(this);
+            }
+        }
+        else
+        {
+            chain.Tags[nameof(AggregateHandling)] = this;
+        }
     }
 
     public static bool TryLoad(IChain chain, out AggregateHandling handling)
@@ -74,18 +104,26 @@ internal record AggregateHandling(IDataRequirement Requirement)
         handling = default;
         return false;
     }
-
-    public MethodCall GenerateLoadAggregateCode(IChain chain)
+    
+    public static bool TryLoad<T>(IChain chain, out AggregateHandling handling)
     {
-        if (!chain.Middleware.OfType<EventStoreFrame>().Any())
+        if (chain.Tags.TryGetValue(nameof(AggregateHandling), out var raw))
         {
-            chain.Middleware.Add(new EventStoreFrame());
+            if (raw is AggregateHandling h && h.AggregateType == typeof(T))
+            {
+                handling = h;
+                return true;
+            }
+
+            if (raw is List<AggregateHandling> list)
+            {
+                handling = list.FirstOrDefault(x => x.AggregateType == typeof(T));
+                return handling != null;
+            }
         }
 
-        var loader = typeof(LoadAggregateFrame<>).CloseAndBuildAs<MethodCall>(this, AggregateType!);
-
-        chain.Middleware.Add(loader);
-        return loader;
+        handling = default;
+        return false;
     }
 
     internal static (MemberInfo, MemberInfo?) DetermineAggregateIdAndVersion(Type aggregateType, Type commandType,
@@ -127,7 +165,7 @@ internal record AggregateHandling(IDataRequirement Requirement)
             }
         }
     }
-
+    
     internal static MemberInfo DetermineAggregateIdMember(Type aggregateType, Type commandType)
     {
         var conventionalMemberName = $"{aggregateType.Name}Id";
@@ -183,19 +221,16 @@ internal record AggregateHandling(IDataRequirement Requirement)
     internal Variable RelayAggregateToHandlerMethod(Variable eventStream, IChain chain, MethodCall firstCall,
         Type aggregateType)
     {
-        if (aggregateType.Name == "LetterAggregate")
-        {
-            Debug.WriteLine("Here");
-        }
-        
         Variable aggregateVariable = new MemberAccessVariable(eventStream,
             typeof(IEventStream<>).MakeGenericType(aggregateType).GetProperty(nameof(IEventStream<string>.Aggregate)));
+        
 
         if (Requirement.Required)
         {
             var otherFrames = chain.AddStopConditionIfNull(aggregateVariable, AggregateId, Requirement);
             
             var block = new LoadEntityFrameBlock(aggregateVariable, otherFrames);
+            block.AlsoMirrorAsTheCreator(eventStream);
             chain.Middleware.Add(block);
 
             aggregateVariable = block.Mirror;
@@ -208,7 +243,19 @@ internal record AggregateHandling(IDataRequirement Requirement)
         }
         else
         {
-            firstCall.TrySetArgument(aggregateVariable);
+            if (!firstCall.TrySetArgument(aggregateVariable))
+            {
+                if (Parameter != null && Parameter.ParameterType.Closes(typeof(IEventStream<>)))
+                {
+                    var index = firstCall.Method.GetParameters().IndexOf(x => x.Name == Parameter.Name);
+                    firstCall.Arguments[index] = eventStream;
+                }
+            };
+        }
+
+        foreach (var methodCall in chain.Middleware.OfType<MethodCall>())
+        {
+            methodCall.TrySetArgument(aggregateVariable);
         }
 
         return aggregateVariable;

@@ -36,7 +36,7 @@ _host = await Host.CreateDefaultBuilder()
         opts.PublishMessage<AsbMessage2>()
             .ToAzureServiceBusQueue("fifo1");
 
-        opts.PublishMessage<AsbMessage3>().ToAzureServiceBusTopic("asb3");
+        opts.PublishMessage<AsbMessage3>().ToAzureServiceBusTopic("asb3").SendInline();
         opts.ListenToAzureServiceBusSubscription("asb3")
             .FromTopic("asb3")
 
@@ -44,9 +44,21 @@ _host = await Host.CreateDefaultBuilder()
             .RequireSessions(1)
 
             .ProcessInline();
+
+        opts.PublishMessage<AsbMessage4>().ToAzureServiceBusTopic("asb4").BufferedInMemory();
+        opts.ListenToAzureServiceBusSubscription("asb4")
+            .FromTopic("asb4", cfg =>
+            {
+                cfg.EnablePartitioning = true;
+            })
+
+            // Require sessions on this subscription
+            .RequireSessions(1)
+
+            .ProcessInline();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/end_to_end.cs#L17-L50' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_azure_service_bus_session_identifiers' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/end_to_end.cs#L18-L63' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_azure_service_bus_session_identifiers' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 To publish messages to Azure Service Bus with a session id, you will need to of course supply the session id:
@@ -59,7 +71,7 @@ await bus.SendAsync(new AsbMessage3("Red"), new DeliveryOptions { GroupId = "2" 
 await bus.SendAsync(new AsbMessage3("Green"), new DeliveryOptions { GroupId = "2" });
 await bus.SendAsync(new AsbMessage3("Refactor"), new DeliveryOptions { GroupId = "2" });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/end_to_end.cs#L140-L147' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sending_with_session_identifier' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/end_to_end.cs#L153-L160' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sending_with_session_identifier' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: info
@@ -81,12 +93,9 @@ public static IEnumerable<object> Handle(IncomingMessage message)
     yield return new Message3().ScheduleToGroup("one", 5.Minutes());
 
     // Long hand
-    yield return new Message4().WithDeliveryOptions(new DeliveryOptions
-    {
-        GroupId = "one"
-    });
+    yield return new Message4().WithDeliveryOptions(new() { GroupId = "one" });
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/using_group_ids.cs#L9-L25' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_group_id_and_cascading_messages' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/using_group_ids.cs#L9-L22' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_group_id_and_cascading_messages' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 

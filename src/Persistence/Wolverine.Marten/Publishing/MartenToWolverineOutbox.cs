@@ -18,7 +18,11 @@ internal class MartenToWolverineOutbox : IMessageOutbox
 
     public async ValueTask<IMessageBatch> CreateBatch(DocumentSessionBase session)
     {
-        var context = new MessageContext(_runtime.Value, session.TenantId);
+        var context = new MessageContext(_runtime.Value, session.TenantId)
+        {
+            MultiFlushMode = MultiFlushMode.AllowMultiples
+        };
+        
         await context.EnlistInOutboxAsync(new MartenEnvelopeTransaction(session, context));
         
         return new MartenToWolverineMessageBatch(context, session);

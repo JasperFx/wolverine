@@ -4,6 +4,7 @@ using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Wolverine.Attributes;
 using Wolverine.Configuration;
+using Wolverine.Runtime.Partitioning;
 using Wolverine.Runtime.RemoteInvocation;
 using Wolverine.Runtime.Scheduled;
 using Wolverine.Runtime.Serialization;
@@ -20,12 +21,14 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
         ImHashMap<Type, IList<IEnvelopeRule>>.Empty;
 
     private readonly IReplyTracker _replyTracker;
+    private readonly MessagePartitioningRules _partitioning;
     private readonly Endpoint _endpoint;
 
-    public MessageRoute(Type messageType, Endpoint endpoint, IReplyTracker replies)
+    public MessageRoute(Type messageType, Endpoint endpoint, IWolverineRuntime runtime)
     {
         IsLocal = endpoint is LocalQueue;
-        _replyTracker = replies;
+        _replyTracker = runtime.Replies;
+        _partitioning = runtime.Options.MessagePartitioning;
 
         if (WolverineSystemPart.WithinDescription)
         {
@@ -71,9 +74,9 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
     public IList<IEnvelopeRule> Rules { get; } = new List<IEnvelopeRule>();
 
     public Task InvokeAsync(object message, MessageBus bus, CancellationToken cancellation = default,
-        TimeSpan? timeout = null, string? tenantId = null)
+        TimeSpan? timeout = null, DeliveryOptions? options = null)
     {
-        return InvokeAsync<Acknowledgement>(message, bus, cancellation, timeout, tenantId);
+        return InvokeAsync<Acknowledgement>(message, bus, cancellation, timeout, options);
     }
 
     public Envelope CreateForSending(object message, DeliveryOptions? options, ISendingAgent localDurableQueue,
@@ -82,7 +85,7 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
         var envelope = new Envelope(message, Sender)
         {
             Serializer = Serializer,
-            ContentType = Serializer.ContentType,
+            ContentType = Serializer?.ContentType,
             TopicName = topicName
         };
 
@@ -96,6 +99,9 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
             envelope.Serializer = runtime.Options.FindSerializer(options.ContentType);
             envelope.ContentType = envelope.Serializer.ContentType;
         }
+
+        // Apply application wide message grouping policies
+        envelope.GroupId = _partitioning.DetermineGroupId(envelope);
 
         foreach (var rule in Rules) rule.Modify(envelope);
 
@@ -139,13 +145,13 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
         
     public Task<T> InvokeAsync<T>(object message, MessageBus bus,
         CancellationToken cancellation = default,
-        TimeSpan? timeout = null, string? tenantId = null)
+        TimeSpan? timeout = null, DeliveryOptions? options = null)
     {
-        return RemoteInvokeAsync<T>(message, bus, cancellation, timeout, tenantId);
+        return RemoteInvokeAsync<T>(message, bus, cancellation, timeout, options);
     }
 
     internal async Task<T> RemoteInvokeAsync<T>(object message, MessageBus bus, CancellationToken cancellation,
-        TimeSpan? timeout, string? tenantId, string? topicName = null)
+        TimeSpan? timeout, DeliveryOptions? options, string? topicName = null)
     {
         if (message == null)
         {
@@ -160,13 +166,15 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
         
         bus.Runtime.RegisterMessageType(typeof(T));
 
-        timeout ??= 5.Seconds();
-        
+        timeout ??= bus.Runtime.Options.DefaultRemoteInvocationTimeout;
+
         var envelope = new Envelope(message, Sender)
         {
-            TenantId = tenantId ?? bus.TenantId,
+            TenantId = options?.TenantId ?? bus.TenantId,
             TopicName = topicName
         };
+        
+        options?.Override(envelope);
 
         foreach (var rule in Rules) rule.Modify(envelope);
         if (typeof(T) == typeof(Acknowledgement))

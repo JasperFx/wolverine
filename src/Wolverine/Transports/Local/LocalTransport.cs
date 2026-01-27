@@ -2,6 +2,7 @@ using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Wolverine.Attributes;
 using Wolverine.Configuration;
+using Wolverine.Configuration.Capabilities;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.Handlers;
@@ -19,7 +20,7 @@ internal class LocalTransport : TransportBase<LocalQueue>, ILocalMessageRoutingC
     private Func<Type, string> _determineName = t => t.ToMessageTypeName().Replace('+', '.').Replace("[", "").Replace("]", "");
 
 
-    public LocalTransport() : base(TransportConstants.Local, "Local (In Memory)")
+    public LocalTransport() : base(TransportConstants.Local, "Local (In Memory)", ["local"])
     {
         _queues = new Cache<string, LocalQueue>(name => new LocalQueue(name));
 
@@ -38,9 +39,15 @@ internal class LocalTransport : TransportBase<LocalQueue>, ILocalMessageRoutingC
         agentQueue.TelemetryEnabled = false;
         agentQueue.Subscriptions.Add(new Subscription
             { Scope = RoutingScope.Implements, BaseType = typeof(IAgentCommand) });
-        agentQueue.ExecutionOptions.MaxDegreeOfParallelism = 20;
+        agentQueue.MaxDegreeOfParallelism = 20;
         agentQueue.Role = EndpointRole.System;
         agentQueue.Mode = EndpointMode.BufferedInMemory;
+    }
+    
+    public override bool TryBuildBrokerUsage(out BrokerDescription description)
+    {
+        description = default;
+        return false;
     }
 
     public Dictionary<Type, LocalQueue> Assignments { get; } = new();

@@ -1,3 +1,4 @@
+using Google.Cloud.PubSub.V1;
 using Wolverine.Runtime;
 using Wolverine.Transports;
 
@@ -12,24 +13,33 @@ public class InlinePubsubListener : PubsubListener
         IWolverineRuntime runtime
     ) : base(endpoint, transport, receiver, runtime)
     {
+
     }
 
     public override async Task StartAsync()
     {
         await listenForMessagesAsync(async () =>
         {
-            if (_transport.SubscriberApiClient is null)
+            var subscriptionName = _endpoint.Server.Subscription.Name;
+            await using SubscriberClient subscriber = await new SubscriberClientBuilder
             {
-                throw new WolverinePubsubTransportNotConnectedException();
+                SubscriptionName = subscriptionName,
+                EmulatorDetection = _transport.EmulatorDetection,
+            }.BuildAsync();
+            var ctRegistration = _cancellation.Token.Register(() => subscriber.StopAsync(CancellationToken.None));
+            try
+            {
+                await subscriber.StartAsync(async (PubsubMessage message, CancellationToken cancel) =>
+                {
+                    var success = await handleMessageAsync(message);
+                    return success ? SubscriberClient.Reply.Ack : SubscriberClient.Reply.Nack;
+                });
             }
-
-            var response = await _transport.SubscriberApiClient.PullAsync(
-                _endpoint.Server.Subscription.Name,
-                1,
-                _cancellation.Token
-            );
-
-            await handleMessagesAsync(response.ReceivedMessages);
+            finally
+            {
+                ctRegistration.Unregister();
+                await subscriber.StopAsync(CancellationToken.None);
+            }
         });
     }
 }

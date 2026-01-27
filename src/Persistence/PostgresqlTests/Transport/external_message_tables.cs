@@ -213,8 +213,8 @@ public class external_message_tables : IAsyncLifetime
         Guid[] ids = new Guid[0];
         while (!ids.Any())
         {
-            var queued = await storage.DeadLetters.QueryDeadLetterEnvelopesAsync(new DeadLetterEnvelopeQueryParameters());
-            ids = queued.DeadLetterEnvelopes.Select(x => x.Envelope.Id).ToArray();
+            var queued = await storage.DeadLetters.QueryAsync(new DeadLetterEnvelopeQuery(TimeRange.AllTime()), CancellationToken.None);
+            ids = queued.Envelopes.Select(x => x.Envelope.Id).ToArray();
         }
         
         // need to reset it

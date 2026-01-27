@@ -1,4 +1,5 @@
 using IntegrationTests;
+using JasperFx;
 using Marten;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
@@ -11,6 +12,7 @@ using Wolverine;
 using Wolverine.EntityFrameworkCore;
 using Wolverine.EntityFrameworkCore.Codegen;
 using Wolverine.Marten.Persistence.Sagas;
+using Wolverine.Persistence.Durability;
 using Wolverine.Postgresql;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
@@ -29,13 +31,14 @@ public class application_of_transaction_middleware : IAsyncLifetime
     {
         _host = await Host.CreateDefaultBuilder().UseWolverine(opts =>
         {
+            opts.Durability.Mode = DurabilityMode.Solo;
             opts.Durability.DurabilityAgentEnabled = false;
 
             opts.Services.AddMarten(Servers.PostgresConnectionString);
             opts.Services.AddDbContextWithWolverineIntegration<SampleDbContext>(x =>
                 x.UseSqlServer(Servers.SqlServerConnectionString));
 
-            opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString);
+            opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString, role:MessageStoreRole.Ancillary);
             opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString);
 
             opts.Policies.AutoApplyTransactions();

@@ -28,13 +28,22 @@ public class RabbitMqExchange : RabbitMqEndpoint, IRabbitMqExchange
         Routings = new LightweightCache<string, RabbitMqRouting>(key => new RabbitMqRouting(this, key, _parent));
     }
 
-    internal LightweightCache<string, RabbitMqTopicEndpoint> Topics { get; }
-    internal LightweightCache<string, RabbitMqRouting> Routings { get; }
+    /// <summary>
+    /// All active topic endpoints by name
+    /// </summary>
+    public LightweightCache<string, RabbitMqTopicEndpoint> Topics { get; }
+    
+    /// <summary>
+    /// All active routing keys
+    /// </summary>
+    public LightweightCache<string, RabbitMqRouting> Routings { get; }
 
     public override bool AutoStartSendingAgent()
     {
         return base.AutoStartSendingAgent() || ExchangeType == ExchangeType.Topic;
     }
+
+    public bool DisableAutoProvision { get; set; }
 
     public bool HasDeclared { get; private set; }
 
@@ -65,7 +74,7 @@ public class RabbitMqExchange : RabbitMqEndpoint, IRabbitMqExchange
             return;
         }
 
-        if (_parent.AutoProvision)
+        if (_parent.AutoProvision && !DisableAutoProvision)
         {
             await _parent.WithAdminChannelAsync(model => DeclareAsync(model, logger));
         }

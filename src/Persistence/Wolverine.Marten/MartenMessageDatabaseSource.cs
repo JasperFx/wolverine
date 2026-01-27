@@ -28,7 +28,7 @@ internal class MartenMessageDatabaseSource<T> : MartenMessageDatabaseSource wher
     }
 }
 
-internal class MartenMessageDatabaseSource : IMessageDatabaseSource
+internal class MartenMessageDatabaseSource : ITenantedMessageSource
 {
     private readonly AutoCreate _autoCreate;
 
@@ -92,7 +92,7 @@ internal class MartenMessageDatabaseSource : IMessageDatabaseSource
                 return store;
             }
 
-            store = createWolverineStore(database);
+            store = createTenantWolverineStore(database);
             store.Initialize(_runtime);
 
             _stores = _stores.AddOrUpdate(tenantId, store);
@@ -117,7 +117,7 @@ internal class MartenMessageDatabaseSource : IMessageDatabaseSource
         {
             if (!_databases.Contains(martenDatabase.Identifier))
             {
-                var wolverineStore = createWolverineStore(martenDatabase);
+                var wolverineStore = createTenantWolverineStore(martenDatabase);
                 if (_runtime.Options.AutoBuildMessageStorageOnStartup != AutoCreate.None)
                 {
                     await wolverineStore.Admin.MigrateAsync();
@@ -145,12 +145,12 @@ internal class MartenMessageDatabaseSource : IMessageDatabaseSource
         _configurations.Add(configureDatabase);
     }
 
-    private PostgresqlMessageStore createWolverineStore(IMartenDatabase database)
+    private PostgresqlMessageStore createTenantWolverineStore(IMartenDatabase database)
     {
         var settings = new DatabaseSettings
         {
             SchemaName = _schemaName,
-            IsMain = false,
+            Role = MessageStoreRole.Tenant,
             AutoCreate = _autoCreate,
             CommandQueuesEnabled = false,
             DataSource = database.As<PostgresqlDatabase>().DataSource
@@ -162,6 +162,8 @@ internal class MartenMessageDatabaseSource : IMessageDatabaseSource
         {
             Name = database.Identifier ?? new NpgsqlConnectionStringBuilder(settings.ConnectionString).Database
         };
+        
+        store.TenantIds.AddRange(database.TenantIds.Distinct());
 
         return store;
     }

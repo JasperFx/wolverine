@@ -3,6 +3,7 @@ using IntegrationTests;
 using JasperFx;
 using JasperFx.CommandLine.Descriptions;
 using JasperFx.Core;
+using JasperFx.Core.Reflection;
 using Marten;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -69,13 +70,44 @@ public class end_to_end
             opts.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
         });
 
-        var sources = publisher.Services.GetServices<ISystemPart>();
+        var sources = publisher.Services.GetServices<ISystemPart>().OfType<WolverineSystemPart>();
         foreach (var source in sources)
         {
             var resources = await source.FindResources();
             resources.OfType<BrokerResource>().Any(x => x.Name == new RabbitMqTransport().Name).ShouldBeTrue();
         }
     }
+
+    [Fact]
+    public async Task find_endpoints_through_conventions_as_part_of_find_resources()
+    {
+        if (DateTimeOffset.UtcNow > new DateTime(2025, 12, 25))
+        {
+            // Uncomment code in WolverineSystemPart
+            throw new Exception("Jeremy, you need to go try to fix this again!");
+        }
+        
+        using var host = Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.ApplicationAssembly = GetType().Assembly;
+                opts.UseRabbitMq().UseConventionalRouting();
+            }).Build();
+        
+        var sources = host.Services.GetServices<ISystemPart>().OfType<WolverineSystemPart>();
+        foreach (var source in sources)
+        {
+            var resources = await source.FindResources();
+        }
+
+        var transport = host.GetRuntime().Options.Transports.GetOrCreate<RabbitMqTransport>();
+        transport.Exchanges.Contains(typeof(OM1).FullNameInCode()).ShouldBeTrue();
+        transport.Exchanges.Contains(typeof(OM2).FullNameInCode()).ShouldBeTrue();
+        transport.Exchanges.Contains(typeof(OM3).FullNameInCode()).ShouldBeTrue();
+        transport.Exchanges.Contains(typeof(OM4).FullNameInCode()).ShouldBeTrue();
+    }
+
+
 
     [Fact]
     public async Task rabbitmq_transport_is_NOT_exposed_as_a_resource_if_external_transports_are_stubbed()
@@ -185,6 +217,53 @@ public class end_to_end
             opts.UseRabbitMq().AutoProvision();
 
             opts.ListenToRabbitQueue(queueName).ProcessInline().Named(queueName);
+            opts.Services.AddSingleton<ColorHistory>();
+
+
+            opts.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
+        });
+
+        await receiver.ResetResourceState();
+
+        for (int i = 0; i < 10000; i++)
+        {
+            await publisher.SendAsync(new ColorChosen { Name = "blue" });
+        }
+
+        var cancellation = new CancellationTokenSource(30.Seconds());
+        var queue = receiver.Get<IWolverineRuntime>().Endpoints.EndpointByName(queueName).ShouldBeOfType<RabbitMqQueue>();
+
+        while (!cancellation.IsCancellationRequested && await queue.QueuedCountAsync() > 0)
+        {
+            await Task.Delay(250.Milliseconds(), cancellation.Token);
+        }
+
+        cancellation.Token.ThrowIfCancellationRequested();
+
+
+    }
+    
+    [Fact]
+    public async Task send_message_to_and_receive_through_rabbitmq_with_inline_receivers_and_with_CloudEvents()
+    {
+        var queueName = RabbitTesting.NextQueueName();
+        using var publisher = WolverineHost.For(opts =>
+        {
+            opts.UseRabbitMq().AutoProvision().AutoPurgeOnStartup();
+
+            opts.PublishAllMessages()
+                .ToRabbitQueue(queueName)
+                .SendInline().InteropWithCloudEvents();
+
+            opts.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
+        });
+
+
+        using var receiver = WolverineHost.For(opts =>
+        {
+            opts.UseRabbitMq().AutoProvision();
+
+            opts.ListenToRabbitQueue(queueName).ProcessInline().Named(queueName).InteropWithCloudEvents();
             opts.Services.AddSingleton<ColorHistory>();
 
 
@@ -859,3 +938,8 @@ public static class RequestColorsHandler
         }
     }
 }
+
+public record OM1 : IMessage;
+public record OM2 : IMessage;
+public record OM3 : IMessage;
+public record OM4 : IMessage;

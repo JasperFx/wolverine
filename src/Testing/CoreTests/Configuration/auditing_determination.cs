@@ -81,6 +81,22 @@ public class auditing_determination : IntegrationContext
         var chain = chainFor<DebitAccount>();
         chain.AuditedMembers.Single().Member.Name.ShouldBe(nameof(IAccountMessage.AccountId));
     }
+
+    [Fact]
+    public void use_audit_member_named_id_and_disambiguate()
+    {
+        with(opts => opts.Policies.LogMessageStarting(LogLevel.Information));
+        
+        var chain = chainFor<AuditedMessage2>();
+        
+        
+        
+        chain.SourceCode.ShouldContain("\"Starting to process CoreTests.Configuration.AuditedMessage2 ({EnvelopeId} with Id: {Id}, AccountIdentifier: {AccountId}\"");
+        
+/*
+((Microsoft.Extensions.Logging.ILogger)_loggerForMessage).Log(Microsoft.Extensions.Logging.LogLevel.Information, "Starting to process CoreTests.Configuration.AuditedMessage2 ({EnvelopeId} with Id: {Id}, AccountIdentifier: {AccountId}", context.Envelope.Id, auditedMessage2.Id, auditedMessage2.AccountId);
+ */
+    }
 }
 
 #region sample_using_audit_attribute
@@ -106,6 +122,16 @@ public class AuditedHandler
         var activity = Activity.Current;
         activity?.SetTag(nameof(DebitAccount.AccountId), message.AccountId);
     }
+
+    public void Handle(AuditedMessage2 m) => Debug.WriteLine("Got audited message 2 w/ id " + m.Id);
+}
+
+public class AuditedMessage2
+{
+    [Audit]
+    public string Id { get; set; }
+
+    [Audit("AccountIdentifier")] public int AccountId;
 }
 
 #region sample_account_message_for_auditing

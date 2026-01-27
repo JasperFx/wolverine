@@ -97,18 +97,6 @@ public class KafkaTransportExpression : BrokerExpression<KafkaTransport, KafkaTo
     }
 
     /// <summary>
-    /// Configure the Kafka admin client builders within the Wolverine transport
-    /// </summary>
-    /// <param name="configure"></param>
-    /// <returns></returns>
-    [Obsolete($"This method is deprecated. Use {nameof(ConfigureAdminClientBuilders)} instead.")]
-    public KafkaTransportExpression ConfigureAdminConsumerBuilders(Action<AdminClientBuilder> configure)
-    {
-        _transport.ConfigureAdminClientBuilders = configure;
-        return this;
-    }
-
-    /// <summary>
     /// Deletes and rebuilds topics on application startup
     /// </summary>
     /// <returns></returns>
@@ -126,5 +114,17 @@ public class KafkaTransportExpression : BrokerExpression<KafkaTransport, KafkaTo
     protected override KafkaSubscriberConfiguration createSubscriberExpression(KafkaTopic subscriberEndpoint)
     {
         return new KafkaSubscriberConfiguration(subscriberEndpoint);
+    }
+
+    /// <summary>
+    /// In normal usage Wolverine will try to create a producer for each topic it listens to just for
+    /// "Requeue" actions. In the case of an application that only consumes messages from Kafka, use
+    /// this setting to disable that behavior and eliminate any error messages from that behavior
+    /// </summary>
+    /// <returns></returns>
+    public KafkaTransportExpression ConsumeOnly()
+    {
+        _transport.Usage = KafkaUsage.ConsumeOnly;
+        return this;
     }
 }

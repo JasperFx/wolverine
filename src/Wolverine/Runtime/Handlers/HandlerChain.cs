@@ -1,22 +1,24 @@
 ﻿using System.Diagnostics;
 using System.Linq.Expressions;
 using System.Reflection;
+using JasperFx;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
+using JasperFx.CodeGeneration.Services;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using JasperFx.Descriptors;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Wolverine.Attributes;
-using Wolverine.Codegen;
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
 using Wolverine.Logging;
 using Wolverine.Middleware;
 using Wolverine.Persistence;
 using Wolverine.Persistence.Sagas;
+using Wolverine.Runtime.Partitioning;
 using Wolverine.Runtime.Routing;
 using Wolverine.Transports.Local;
 using Wolverine.Transports.Stub;
@@ -68,7 +70,7 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         applyAuditAttributes(messageType);
     }
 
-    private HandlerChain(MethodCall call, HandlerGraph parent) : this(call.Method.MessageType()!, parent)
+    protected HandlerChain(MethodCall call, HandlerGraph parent) : this(call.Method.MessageType()!, parent)
     {
         Handlers.Add(call);
     }
@@ -108,10 +110,24 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
 
         if (grouping.Count() > 1)
         {
-            foreach (var handlerCall in grouping)
-                // ReSharper disable once VirtualMemberCallInConstructor
-                tryAssignStickyEndpoints(handlerCall, options);
+            // ReSharper disable once VirtualMemberCallInConstructor
+            maybeAssignStickyHandlers(options, grouping);
         }
+    }
+
+    protected virtual void maybeAssignStickyHandlers(WolverineOptions options, IGrouping<Type, HandlerCall> grouping)
+    {
+        foreach (var handlerCall in grouping)
+        {
+            tryAssignStickyEndpoints(handlerCall, options);
+        }
+    }
+
+    internal void ApplyIdempotencyCheck()
+    {
+        Middleware.Insert(0, MethodCall.For<MessageContext>(x => x.AssertEagerIdempotencyAsync(CancellationToken.None)));
+            
+        Postprocessors.Add(MethodCall.For<MessageContext>(x => x.PersistHandledAsync()));
     }
 
     protected virtual void validateAgainstInvalidSagaMethods(IGrouping<Type, HandlerCall> grouping)
@@ -135,18 +151,6 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
     public IReadOnlyList<Endpoint> Endpoints => _endpoints;
 
     /// <summary>
-    ///     At what level should Wolverine log messages about messages succeeding? The default
-    ///     is Information
-    /// </summary>
-    [Obsolete("The naming is misleading, please use SuccessLogLevel")]
-    [IgnoreDescription]
-    public LogLevel ExecutionLogLevel
-    {
-        get => SuccessLogLevel;
-        set => SuccessLogLevel = value;
-    }
-
-    /// <summary>
     ///     At what level should Wolverine log messages of this type about messages succeeding? The default
     ///     is Information
     /// </summary>
@@ -166,6 +170,8 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
 
     public override MiddlewareScoping Scoping => MiddlewareScoping.MessageHandlers;
 
+    public override IdempotencyStyle Idempotency { get; set; } = IdempotencyStyle.None;
+
     public override void ApplyParameterMatching(MethodCall call)
     {
         // Nothing
@@ -181,7 +187,7 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
     /// <summary>
     ///     Wolverine's string identification for this message type
     /// </summary>
-    public string TypeName { get; }
+    public string TypeName { get; internal set; }
 
     internal MessageHandler? Handler { get; private set; }
 
@@ -244,6 +250,21 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         handleMethod.DerivedVariables.Add(envelopeVariable);
     }
 
+    public override bool TryInferMessageIdentity(out PropertyInfo? property)
+    {
+        var atts = Handlers
+            .SelectMany(x => x.HandlerType.GetCustomAttributes().Concat(x.Method.GetCustomAttributes().Concat(x.Method.GetParameters().SelectMany(p => p.GetCustomAttributes()))))
+            .OfType<IMayInferMessageIdentity>().ToArray();
+
+        foreach (var att in atts)
+        {
+            if (att.TryInferMessageIdentity(this, out property)) return true;
+        }
+        
+        property = default;
+        return false;
+    }
+
     Task<bool> ICodeFile.AttachTypes(GenerationRules rules, Assembly assembly, IServiceProvider? services,
         string containingNamespace)
     {
@@ -277,13 +298,15 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
     /// </summary>
     public FailureRuleCollection Failures { get; } = new();
 
-    protected virtual void tryAssignStickyEndpoints(HandlerCall handlerCall, WolverineOptions options)
+    protected void tryAssignStickyEndpoints(HandlerCall handlerCall, WolverineOptions options)
     {
         var endpoints = findStickyEndpoints(handlerCall, options).Distinct().ToArray();
         if (endpoints.Any())
         {
             foreach (var stub in endpoints.OfType<StubEndpoint>())
+            {
                 stub.Subscriptions.Add(Subscription.ForType(MessageType));
+            }
 
             var chain = new HandlerChain(handlerCall, options.HandlerGraph, endpoints);
 
@@ -485,14 +508,24 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
                                                 MessageType.FullName);
         }
 
+        Middleware.Insert(0, messageVariable.Creator!);
+
+        applyCustomizations(rules, container);
+        
+        // This has to be done *after* the customizations so the aggregate handler
+        // workflow can be applied
+        if (TryInferMessageIdentity(out var identity))
+        {
+            if (AuditedMembers.All(x => x.Member != identity))
+            {
+                Audit(identity);
+            }    
+        }
+
         if (AuditedMembers.Count != 0)
         {
             Middleware.Insert(0, new AuditToActivityFrame(this));
         }
-
-        Middleware.Insert(0, messageVariable.Creator!);
-
-        applyCustomizations(rules, container);
 
         var handlerReturnValueFrames = determineHandlerReturnValueFrames().ToArray();
 
@@ -511,9 +544,7 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         if (!_hasConfiguredFrames)
         {
             _hasConfiguredFrames = true;
-
-            applyAttributesAndConfigureMethods(rules, container);
-
+            
             foreach (var attribute in MessageType
                          .GetCustomAttributes(typeof(ModifyHandlerChainAttribute))
                          .OfType<ModifyHandlerChainAttribute>()) attribute.Modify(this, rules);
@@ -521,8 +552,13 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
             foreach (var attribute in MessageType.GetCustomAttributes(typeof(ModifyChainAttribute))
                          .OfType<ModifyChainAttribute>()) attribute.Modify(this, rules, container);
 
+            // THIS has to go before the baseline attributes and configure
             foreach (var handlerCall in HandlerCalls())
                 WolverineParameterAttribute.TryApply(handlerCall, container, rules, this);
+
+            applyAttributesAndConfigureMethods(rules, container);
+
+
         }
 
         ApplyImpliedMiddlewareFromHandlers(rules);

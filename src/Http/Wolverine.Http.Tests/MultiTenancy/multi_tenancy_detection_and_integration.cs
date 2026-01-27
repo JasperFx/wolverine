@@ -4,6 +4,7 @@ using Alba;
 using Alba.Security;
 using IntegrationTests;
 using JasperFx;
+using JasperFx.CodeGeneration;
 using JasperFx.MultiTenancy;
 using Marten;
 using Marten.Metadata;
@@ -35,7 +36,7 @@ public class multi_tenancy_detection_and_integration : IAsyncDisposable, IDispos
 
     public void Dispose()
     {
-        theHost.Dispose();
+        theHost?.Dispose();
     }
 
     // The configuration of the Wolverine.HTTP endpoints is the only variable
@@ -63,6 +64,11 @@ public class multi_tenancy_detection_and_integration : IAsyncDisposable, IDispos
         {
             opts.Discovery.IncludeAssembly(GetType().Assembly);
             opts.Policies.AutoApplyTransactions();
+        });
+
+        builder.Services.CritterStackDefaults(opts =>
+        {
+            opts.Development.GeneratedCodeMode = TypeLoadMode.Auto;
         });
 
         builder.Services.AddWolverineHttp();
@@ -358,6 +364,30 @@ public class multi_tenancy_detection_and_integration : IAsyncDisposable, IDispos
     }
 
     [Fact]
+    public async Task working_with_form_data()
+    {
+        await configure(opts =>
+        {
+            opts.TenantId.IsRouteArgumentNamed("tenant");
+            opts.TenantId.AssertExists();
+        });
+        
+
+
+        var chain = theHost.Services.GetRequiredService<WolverineHttpOptions>().Endpoints
+            .ChainFor("POST", "/tenant/{tenant}/formdata");
+        
+        chain.IsFormData.ShouldBeTrue();
+
+        var formData = new Dictionary<string, string> { { "value", "blue" } };
+        var result = await theHost.Scenario(x =>
+        {
+            x.Post.FormData(formData).ContentType("application/x-www-form-urlencoded").ToUrl("/tenant/red/formdata");
+        });
+        result.ReadAsText().ShouldBe("red");
+    }
+    
+    [Fact]
     public async Task does_tag_current_activity_with_tenant_id()
     {
         await configure(opts => opts.TenantId.IsRequestHeaderValue("tenant"));
@@ -436,6 +466,14 @@ public static class TenantedEndpoints
     {
         bus.TenantId.ShouldBe(context.TenantId);
         return context.TenantId;
+    }
+    
+    // in this combination, TenantId needs the [FromServices] attribute, otherwise codegen tries to 
+    // parse it from the JSON body and the request fails with HTTP error 415
+    [WolverinePost("/tenant/{tenant}/formdata")]
+    public static string GetTenantIdWithFormData([FromForm] String value, TenantId tenantId)
+    {
+        return tenantId.Value;
     }
 
     #region sample_using_NotTenanted

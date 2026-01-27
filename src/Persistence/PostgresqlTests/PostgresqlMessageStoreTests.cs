@@ -9,6 +9,7 @@ using Weasel.Core;
 using Wolverine;
 using Wolverine.ComplianceTests;
 using Wolverine.Marten;
+using Wolverine.Persistence.Durability;
 using Wolverine.RDBMS;
 using Wolverine.RDBMS.Durability;
 using Wolverine.RDBMS.Polling;
@@ -136,7 +137,7 @@ public class PostgresqlMessageStoreTests : MessageStoreCompliance
         await thePersistence.Inbox.MoveToDeadLetterStorageAsync(replayableEnvelope, applicationException);
 
         // make one of the messages(DivideByZeroException) replayable
-        var replayableErrorMessagesCountAfterMakingReplayable = await thePersistence
+        await thePersistence
             .DeadLetters
             .MarkDeadLetterEnvelopesAsReplayableAsync(divideByZeroException.GetType().FullName!);
 
@@ -147,7 +148,6 @@ public class PostgresqlMessageStoreTests : MessageStoreCompliance
 
         var counts = await thePersistence.Admin.FetchCountsAsync();
 
-        replayableErrorMessagesCountAfterMakingReplayable.ShouldBe(1);
         counts.DeadLetter.ShouldBe(1);
         counts.Incoming.ShouldBe(1);
         counts.Scheduled.ShouldBe(0);
@@ -182,4 +182,5 @@ public class PostgresqlMessageStoreTests : MessageStoreCompliance
         counts.Scheduled.ShouldBe(0);
         counts.Handled.ShouldBe(0);
     }
+
 }

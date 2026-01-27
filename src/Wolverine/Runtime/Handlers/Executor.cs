@@ -73,7 +73,7 @@ internal class Executor : IExecutor
         _logger = logger;
 
         _messageSucceeded =
-            LoggerMessage.Define<string, Guid, string>(handler.ExecutionLogLevel, MessageSucceededEventId,
+            LoggerMessage.Define<string, Guid, string>(handler.SuccessLogLevel, MessageSucceededEventId,
                 "Successfully processed message {Name}#{envelope} from {ReplyUri}");
 
         _messageFailed = LoggerMessage.Define<string, Guid, string>(LogLevel.Error, MessageFailedEventId,
@@ -126,16 +126,18 @@ internal class Executor : IExecutor
     }
 
     public async Task<T> InvokeAsync<T>(object message, MessageBus bus, CancellationToken cancellation = default,
-        TimeSpan? timeout = null, string? tenantId = null)
+        TimeSpan? timeout = null, DeliveryOptions? options = null)
     {
         var envelope = new Envelope(message)
         {
             ReplyUri = TransportConstants.RepliesUri,
             ReplyRequested = typeof(T).ToMessageTypeName(),
             ResponseType = typeof(T),
-            TenantId = tenantId ?? bus.TenantId,
+            TenantId = options?.TenantId ?? bus.TenantId,
             DoNotCascadeResponse = true
         };
+        
+        options?.Override(envelope);
 
         bus.TrackEnvelopeCorrelation(envelope, Activity.Current);
 
@@ -150,12 +152,14 @@ internal class Executor : IExecutor
     }
 
     public Task InvokeAsync(object message, MessageBus bus, CancellationToken cancellation = default,
-        TimeSpan? timeout = null, string? tenantId = null)
+        TimeSpan? timeout = null, DeliveryOptions? options = null)
     {
         var envelope = new Envelope(message)
         {
-            TenantId = tenantId ?? bus.TenantId
+            TenantId = options?.TenantId ?? bus.TenantId
         };
+        
+        options?.Override(envelope);
 
         bus.TrackEnvelopeCorrelation(envelope, Activity.Current);
         return InvokeInlineAsync(envelope, cancellation);
@@ -187,7 +191,7 @@ internal class Executor : IExecutor
 
             _tracker.ExecutionFinished(envelope);
 
-            return MessageSucceededContinuation.Instance;
+            return new MessageSucceededContinuation(_tracker);
         }
         catch (Exception e)
         {
@@ -271,14 +275,16 @@ internal class Executor : IExecutor
 
         return new Executor(contextPool, runtime, handler, rules, timeoutSpan);
     }
-    
+
     public static IExecutor Build(IWolverineRuntime runtime, ObjectPool<MessageContext> contextPool,
-        HandlerGraph handlerGraph, IMessageHandler handler)
+        HandlerGraph handlerGraph, IMessageHandler handler, IMessageTracker tracker)
     {
         var chain = (handler as MessageHandler)?.Chain;
         var timeoutSpan = chain?.DetermineMessageTimeout(runtime.Options) ?? 5.Seconds();
         var rules = chain?.Failures.CombineRules(handlerGraph.Failures) ?? handlerGraph.Failures;
 
-        return new Executor(contextPool, runtime, handler, rules, timeoutSpan);
+        var logger = runtime.LoggerFactory.CreateLogger(handler.MessageType);
+        
+        return new Executor(contextPool, logger, handler, tracker, rules, timeoutSpan);
     }
 }

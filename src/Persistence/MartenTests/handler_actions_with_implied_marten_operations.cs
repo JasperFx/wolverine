@@ -24,6 +24,7 @@ public class handler_actions_with_implied_marten_operations : PostgresqlContext,
                     .AddMarten(Servers.PostgresConnectionString)
                     .IntegrateWithWolverine();
 
+                opts.Policies.UseDurableLocalQueues();
                 opts.Policies.AutoApplyTransactions();
             }).StartAsync();
 
@@ -69,7 +70,7 @@ public class handler_actions_with_implied_marten_operations : PostgresqlContext,
 
 
     }
-
+    
     [Fact]
     public async Task update_document_happy_path()
     {
@@ -96,6 +97,17 @@ public class handler_actions_with_implied_marten_operations : PostgresqlContext,
     {
         await _host.InvokeMessageAndWaitAsync(new InsertMartenDocument("Max"));
         await _host.InvokeMessageAndWaitAsync(new DeleteMartenDocument("Max"));
+
+        using var session = _store.LightweightSession();
+        var doc = await session.LoadAsync<NamedDocument>("Max");
+        doc.ShouldBeNull();
+    }
+    
+    [Fact] // used this to checkout inbox behavior
+    public async Task delete_document_through_send()
+    {
+        await _host.SendMessageAndWaitAsync(new InsertMartenDocument("Max"));
+        await _host.SendMessageAndWaitAsync(new DeleteMartenDocument("Max"));
 
         using var session = _store.LightweightSession();
         var doc = await session.LoadAsync<NamedDocument>("Max");

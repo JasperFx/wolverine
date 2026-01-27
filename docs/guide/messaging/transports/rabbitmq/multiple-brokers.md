@@ -39,7 +39,7 @@ builder.UseWolverine(opts =>
     opts.PublishAllMessages().ToRabbitTopicsOnNamedBroker(external, "topics");
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L611-L645' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configure_additional_rabbit_mq_broker' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L673-L707' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configure_additional_rabbit_mq_broker' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The `Uri` values for endpoints to the additional broker follows the same rules as the normal usage of the Rabbit MQ

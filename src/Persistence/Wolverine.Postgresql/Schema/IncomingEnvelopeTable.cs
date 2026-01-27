@@ -29,5 +29,21 @@ internal class IncomingEnvelopeTable : Table
         
         
         AddColumn<DateTimeOffset>(DatabaseConstants.KeepUntil);
+        
+        if (durability.InboxStaleTime.HasValue)
+        {
+            AddColumn<DateTimeOffset>(DatabaseConstants.Timestamp).DefaultValueByExpression("(now() at time zone 'utc')");
+        }
+
+        if (durability.EnableInboxPartitioning)
+        {
+            ModifyColumn(DatabaseConstants.Status).AsPrimaryKey();
+            PartitionByList(DatabaseConstants.Status)
+                .AddPartition("incoming", EnvelopeStatus.Incoming.ToString())
+                .AddPartition("scheduled", EnvelopeStatus.Scheduled.ToString())
+                .AddPartition("handled", EnvelopeStatus.Handled.ToString());
+        }
+        
+        
     }
 }

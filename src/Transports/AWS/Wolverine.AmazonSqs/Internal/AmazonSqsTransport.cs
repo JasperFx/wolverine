@@ -15,7 +15,7 @@ public class AmazonSqsTransport : BrokerTransport<AmazonSqsQueue>
 
     public const char Separator = '-';
 
-    public AmazonSqsTransport(string protocol) : base(protocol, "Amazon SQS")
+    public AmazonSqsTransport(string protocol) : base(protocol, "Amazon SQS", ["aws", "sqs"])
     {
         Queues = new LightweightCache<string, AmazonSqsQueue>(name => new AmazonSqsQueue(name, this));
         IdentifierDelimiter = "-";
@@ -133,4 +133,6 @@ public class AmazonSqsTransport : BrokerTransport<AmazonSqsQueue>
         CredentialSource = _ => new BasicAWSCredentials("ignore", "ignore");
         Config.ServiceURL = $"http://localhost:{port}";
     }
+
+    public string ServerHost => Config.ServiceURL?.ToUri().Host;
 }

@@ -80,8 +80,8 @@ So you might notice a couple of things that are different right away:
 * Like MVC Core and Minimal API, Wolverine supports "method injection" such that you can pass in IoC registered services directly as arguments to the handler methods for a wee bit less ceremony
 * There are no required interfaces on either the message type or the handler type
 * Wolverine [discovers message handlers](/guide/handlers/discovery) through naming conventions (or you can also use marker interfaces or attributes if you have to)
-* You can use synchronous methods for your handlers when that's valuable so you don't have to scatter `return Task.CompletedTask();` all over your code
-* Moreover, Wolverine's [best practice](/tutorials/best-practices) as much as possible is to use pure functions for the message handlers for the absolute best testability
+* You can use synchronous methods for your handlers when that's valuable so you don't have to scatter `return Task.CompletedTask;` all over your code
+* Moreover, Wolverine's [best practice](/introduction/best-practices) as much as possible is to use pure functions for the message handlers for the absolute best testability
 
 There are more differences though. At a minimum, you probably want to look at Wolverine's [compound handler](/guide/handlers/#compound-handlers) capability as a way
 to build more complex handlers. 
@@ -186,9 +186,15 @@ public static class CreateCustomerEndpoint
     {
         return "Got a new customer";
     }
+    
+    [WolverinePost("/validate/customer2")]
+    public static string Post2([FromQuery] CreateCustomer customer)
+    {
+        return "Got a new customer";
+    }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Validation/CreateCustomerEndpoint.cs#L7-L36' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_createcustomer_endpoint_with_validation' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Validation/CreateCustomerEndpoint.cs#L8-L43' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_createcustomer_endpoint_with_validation' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In the application bootstrapping, I've added this option:

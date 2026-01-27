@@ -84,6 +84,8 @@ public class multi_tenancy_queue_usage : PostgresqlContext, IAsyncLifetime
 
                 opts.Services.AddMarten(o =>
                     {
+                        o.DisableNpgsqlLogging = true;
+                        
                         // This is a new strategy for configuring tenant databases with Marten
                         // In this usage, Marten is tracking the tenant databases in a single table in the "master"
                         // database by tenant
@@ -92,7 +94,7 @@ public class multi_tenancy_queue_usage : PostgresqlContext, IAsyncLifetime
                     .IntegrateWithWolverine(m =>
                     {
                         m.MessageStorageSchemaName = "mt";
-                        m.MasterDatabaseConnectionString = Servers.PostgresConnectionString;
+                        m.MainDatabaseConnectionString = Servers.PostgresConnectionString;
                     })
 
                     // All detected changes will be applied to all
@@ -126,7 +128,7 @@ public class multi_tenancy_queue_usage : PostgresqlContext, IAsyncLifetime
                     .IntegrateWithWolverine(m =>
                     {
                         m.MessageStorageSchemaName = "mt";
-                        m.MasterDatabaseConnectionString = Servers.PostgresConnectionString;
+                        m.MainDatabaseConnectionString = Servers.PostgresConnectionString;
                     })
 
                     // All detected changes will be applied to all
@@ -191,6 +193,7 @@ public class multi_tenancy_queue_usage : PostgresqlContext, IAsyncLifetime
         var message = new CreateTenantDoc("Blue", 10);
         var tracked = await _sender.TrackActivity()
             .AlsoTrack(_receiver)
+            .Timeout(20.Seconds())
             .IncludeExternalTransports()
             .SendMessageAndWaitAsync(message, new DeliveryOptions { TenantId = "tenant3" });
 

@@ -1,4 +1,4 @@
-using JasperFx.CommandLine.Descriptions;
+using JasperFx.CodeGeneration.Frames;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Spectre.Console;
@@ -36,36 +36,29 @@ public partial class HandlerGraph
             foreach (var chain in Chains)
             {
                 var messageType = $"[bold]{chain.MessageType.NameInCode().EscapeMarkup()}[/]\n  [dim]{chain.MessageType.Namespace.EscapeMarkup()}[/]";
-            
+                var chainTypeName = chain.TypeName.EscapeMarkup();
+                var messageTypeName = chain.MessageType.ToMessageTypeName().EscapeMarkup();
+                
                 if (hasStickys)
                 {
                     // Default handlers
                     if (chain.Handlers.Any())
                     {
-                        var handlerType = chain.Handlers.Select(handler =>
-                                $"[bold]{handler.HandlerType.NameInCode()}.{handler.Method.Name}({handler.Method.GetParameters().Select(x => x.Name)!.Join(", ")})[/]\n  [dim]{handler.HandlerType.Namespace}[/]")
-                            .Join("\n");
-
-                        table.AddRow(chain.MessageType.ToMessageTypeName(), messageType, handlerType, chain.TypeName, "");
+                        var handlerType = FormatHandlerType(chain.Handlers);
+                        table.AddRow(messageTypeName, messageType, handlerType, chainTypeName, "");
                     }
 
                     foreach (var handlerChain in chain.ByEndpoint)
                     {
-                        var handlerType = handlerChain.Handlers.Select(handler =>
-                                $"[bold]{handler.HandlerType.NameInCode()}.{handler.Method.Name}({handler.Method.GetParameters().Select(x => x.Name)!.Join(", ").EscapeMarkup()})[/]\n  [dim]{handler.HandlerType.Namespace}[/]")
-                            .Join("\n");
-
+                        var handlerType = FormatHandlerType(handlerChain.Handlers);
                         var endpoints = handlerChain.Endpoints.Select(x => x.Uri.ToString()).Join(", ");
-                        table.AddRow(chain.MessageType.ToMessageTypeName(), messageType, handlerType, handlerChain.TypeName, endpoints);
+                        table.AddRow(messageTypeName, messageType, handlerType, handlerChain.TypeName.EscapeMarkup(), endpoints);
                     }
                 }
                 else
                 {
-                    var handlerType = chain.Handlers.Select(handler =>
-                            $"[bold]{handler.HandlerType.NameInCode()}.{handler.Method.Name}({handler.Method.GetParameters().Select(x => x.Name)!.Join(", ")}.EscapeMarkup())[/]\n  [dim]{handler.HandlerType.Namespace}[/]")
-                        .Join("\n");
-
-                    table.AddRow(chain.MessageType.ToMessageTypeName().EscapeMarkup(), messageType, handlerType, chain.TypeName.EscapeMarkup());
+                    var handlerType = FormatHandlerType(chain.Handlers);
+                    table.AddRow(messageTypeName, messageType, handlerType, chainTypeName);
                 }
             }
 
@@ -73,6 +66,15 @@ public partial class HandlerGraph
         }
 
         return Task.CompletedTask;
+
+        string FormatHandlerType(List<MethodCall> handlers)
+        {
+            var handlerType = handlers
+                .Select(handler => $"[bold]{handler.HandlerType.NameInCode()}.{handler.Method.Name}({handler.Method.GetParameters().Select(x => x.Name)!.Join(", ").EscapeMarkup()})[/]\n  [dim]{handler.HandlerType.Namespace}[/]")
+                .Join("\n");
+
+            return handlerType;
+        }
     }
 
     private void writeHandlerDiscoveryRules()

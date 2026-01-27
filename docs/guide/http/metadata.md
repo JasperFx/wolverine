@@ -92,12 +92,9 @@ And that would be registered with Swashbuckle inside of your `Program.Main()` me
 <!-- snippet: sample_register_custom_swashbuckle_filter -->
 <a id='snippet-sample_register_custom_swashbuckle_filter'></a>
 ```cs
-builder.Services.AddSwaggerGen(x =>
-{
-    x.OperationFilter<WolverineOperationFilter>();
-});
+builder.Services.AddSwaggerGen(x => { x.OperationFilter<WolverineOperationFilter>(); });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L51-L58' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_register_custom_swashbuckle_filter' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L55-L59' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_register_custom_swashbuckle_filter' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Operation Id
@@ -161,7 +158,7 @@ public record CreationResponse([StringSyntax("Route")]string Url) : IHttpAware
     public static CreationResponse<T> For<T>(T value, string url) => new CreationResponse<T>(url, value);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http/IHttpAware.cs#L81-L107' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_creationresponse' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http/IHttpAware.cs#L82-L108' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_creationresponse' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Any endpoint that returns `CreationResponse` or a sub class will automatically expose a status code of `201` for successful
@@ -216,3 +213,42 @@ you get an `ObjectDisposedException` error on compilation against the `IServiceP
 
 For whatever reason, the source generator for OpenAPI tries to start the entire application, including Wolverine's
 `IHostedService`, and the whole thing blows up with that very unhelpful message if anything is wrong with the application.
+
+Chances are good that one of the things preventing a successful startup is that Marten and Wolverine will, by default, begin performing their usual tasks immediately  upon startup. This entails connecting to the database, as well as to any external messaging providers you may be using. Since those connections are probably not going to be possible in your build environment, they will need to be disabled while the OpenApi generation is being done.
+
+Microsoft's recomendation for detecting whether the application is running for the purpose of document generation is to use this code:
+```cs
+var generatingOpenApi = Assembly.GetEntryAssembly()?.GetName().Name == "GetDocument.Insider"
+```
+
+If this mode is detected, all connections can be disabled like so:
+```cs
+builder.Services.DisableAllExternalWolverineTransports();
+builder.Services.DisableAllWolverineMessagePersistence();
+```
+
+Note that a syntactically valid connection string still needs to be provided to Marten, but it does not need to represent a real DB; a minimal placeholder is sufficient.
+Also, if you are using the async daemon, you'll want to use the `DaemonMode.Disabled` mode.
+```cs
+if(generatingOpenApi)
+{
+    builder.Services
+        .AddMarten(ConfigureMarten("Server=.;Database=Foo"))
+        .AddAsyncDaemon(DaemonMode.Disabled)
+        .UseLightweightSessions();
+}
+else
+{
+    // usual Marten config
+}
+```
+
+## With NSwag
+
+Be aware that if you want to use NSwag to generate a .NET/Typescript client for Wolverine.HTTP endpoints, you will need to add this line before `return await app.RunJasperFxCommands(args);`:
+
+```cs
+args = args.Where(arg => !arg.StartsWith("--applicationName")).ToArray();
+```
+
+See the full NSwag demo at https://github.com/JasperFx/wolverine/tree/main/src/Http/NSwagDemonstrator

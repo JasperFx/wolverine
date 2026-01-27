@@ -48,8 +48,13 @@ public class MessageBus : IMessageBus, IMessageContext
         throw new NotSupportedException("Not supported from MessageBus, only within message handlers executing against MessageContext");
     }
 
+    public virtual Task ReScheduleCurrentAsync(DateTimeOffset rescheduledAt)
+    {
+        throw new NotSupportedException("Not supported from MessageBus, only within message handlers executing against MessageContext");
+    }
+
     public IWolverineRuntime Runtime { get; }
-    public IMessageStore Storage { get; protected set; }
+    public IMessageStore Storage { get; internal set; }
 
     public IEnumerable<Envelope> Outstanding => _outstanding;
 
@@ -114,6 +119,32 @@ public class MessageBus : IMessageBus, IMessageContext
         return Runtime.FindInvoker(message.GetType()).InvokeAsync<T>(message, this, cancellation, timeout);
     }
 
+    public Task InvokeAsync(object message, DeliveryOptions options, CancellationToken cancellation = default,
+        TimeSpan? timeout = default)
+    {
+        if (message == null)
+        {
+            throw new ArgumentNullException(nameof(message));
+        }
+
+        Runtime.AssertHasStarted();
+
+        return Runtime.FindInvoker(message.GetType()).InvokeAsync(message, this, cancellation, timeout, options);
+    }
+
+    public Task<T> InvokeAsync<T>(object message, DeliveryOptions options, CancellationToken cancellation = default,
+        TimeSpan? timeout = default)
+    {
+        if (message == null)
+        {
+            throw new ArgumentNullException(nameof(message));
+        }
+
+        Runtime.AssertHasStarted();
+
+        return Runtime.FindInvoker(message.GetType()).InvokeAsync<T>(message, this, cancellation, timeout, options);
+    }
+
     public Task InvokeForTenantAsync(string tenantId, object message, CancellationToken cancellation = default,
         TimeSpan? timeout = default)
     {
@@ -124,7 +155,7 @@ public class MessageBus : IMessageBus, IMessageContext
 
         Runtime.AssertHasStarted();
 
-        return Runtime.FindInvoker(message.GetType()).InvokeAsync(message, this, cancellation, timeout, tenantId);
+        return Runtime.FindInvoker(message.GetType()).InvokeAsync(message, this, cancellation, timeout, new DeliveryOptions{TenantId = tenantId});
     }
 
     public Task<T> InvokeForTenantAsync<T>(string tenantId, object message, CancellationToken cancellation = default,
@@ -137,12 +168,17 @@ public class MessageBus : IMessageBus, IMessageContext
 
         Runtime.AssertHasStarted();
 
-        return Runtime.FindInvoker(message.GetType()).InvokeAsync<T>(message, this, cancellation, timeout, tenantId);
+        return Runtime.FindInvoker(message.GetType()).InvokeAsync<T>(message, this, cancellation, timeout, new DeliveryOptions{TenantId = tenantId});
     }
 
     public IReadOnlyList<Envelope> PreviewSubscriptions(object message)
     {
         return Runtime.RoutingFor(message.GetType()).RouteForPublish(message, null);
+    }
+    
+    public IReadOnlyList<Envelope> PreviewSubscriptions(object message, DeliveryOptions options)
+    {
+        return Runtime.RoutingFor(message.GetType()).RouteForPublish(message, options);
     }
 
     public ValueTask SendAsync<T>(T message, DeliveryOptions? options = null)
@@ -216,6 +252,8 @@ public class MessageBus : IMessageBus, IMessageContext
 
     internal async ValueTask PersistOrSendAsync(Envelope envelope)
     {
+        if (envelope is null) return; // Not sure how this would happen
+        
         if (envelope.Sender is null)
         {
             throw new InvalidOperationException("Envelope has not been routed");
@@ -263,6 +301,7 @@ public class MessageBus : IMessageBus, IMessageContext
         outbound.ConversationId = outbound.Id; // the message chain originates here
         outbound.TenantId ??= TenantId; // don't override a tenant id that's specifically set on the envelope itself
         outbound.ParentId = activity?.Id;
+        outbound.Store = Storage;
     }
 
     internal async ValueTask PersistOrSendAsync(params Envelope[] outgoing)
@@ -273,7 +312,7 @@ public class MessageBus : IMessageBus, IMessageContext
             // the sender is currently latched
             var envelopes = outgoing.Where(isDurable).ToArray();
             foreach (var envelope in envelopes.Where(x =>
-                         x.Sender is { Latched: true } && x.Status == EnvelopeStatus.Outgoing))
+                         x is { Sender: { Latched: true }, Status: EnvelopeStatus.Outgoing }))
                 envelope.OwnerId = TransportConstants.AnyNode;
 
             await Transaction.PersistAsync(envelopes);

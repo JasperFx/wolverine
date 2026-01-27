@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Wolverine.Transports;
 
 namespace Wolverine.Tracking;
@@ -59,10 +60,12 @@ internal class EnvelopeHistory
                     record.Envelope.MessageType == TransportConstants.ScheduledEnvelope)
                 {
                     record.IsComplete = true;
+                    record.WasScheduled = true;
                 }
 
                 if (record.Envelope.Status == EnvelopeStatus.Scheduled)
                 {
+                    record.WasScheduled = true;
                     record.IsComplete = true;
                 }
 
@@ -90,6 +93,7 @@ internal class EnvelopeHistory
             case MessageEventType.NoRoutes:
             case MessageEventType.MessageFailed:
             case MessageEventType.MessageSucceeded:
+            case MessageEventType.Discarded:
             case MessageEventType.MovedToErrorQueue:
                 // The message is complete
                 foreach (var envelopeRecord in _records) envelopeRecord.IsComplete = true;
@@ -116,7 +120,10 @@ internal class EnvelopeHistory
             case MessageEventType.Sent:
                 if (record.Envelope.Status == EnvelopeStatus.Scheduled)
                 {
+                    record.WasScheduled = true;
                     record.IsComplete = true;
+                    
+                    record.TryUseInnerFromScheduledEnvelope();
                 }
 
                 // This can be out of order with Rabbit MQ *somehow*, so:
@@ -143,6 +150,7 @@ internal class EnvelopeHistory
 
             case MessageEventType.MovedToErrorQueue:
             case MessageEventType.MessageFailed:
+            case MessageEventType.Discarded:
             case MessageEventType.MessageSucceeded:
                 // The message is complete
                 foreach (var envelopeRecord in _records.ToArray().Where(x => x.UniqueNodeId == record.UniqueNodeId))
@@ -154,8 +162,10 @@ internal class EnvelopeHistory
 
             case MessageEventType.NoHandlers:
             case MessageEventType.NoRoutes:
+                record.IsComplete = true;
+                break;
+            
             case MessageEventType.Requeued:
-
                 break;
 
             default:

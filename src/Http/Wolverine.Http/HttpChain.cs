@@ -2,9 +2,11 @@ using System.Diagnostics.CodeAnalysis;
 using System.Linq.Expressions;
 using System.Reflection;
 using System.Text.Json;
+using JasperFx;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
+using JasperFx.CodeGeneration.Services;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using JasperFx.Descriptors;
@@ -15,15 +17,14 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.Routing.Patterns;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.FSharp.Core;
-using Wolverine.Codegen;
 using Wolverine.Configuration;
 using Wolverine.Http.CodeGen;
 using Wolverine.Http.Metadata;
 using Wolverine.Http.Policies;
 using Wolverine.Persistence;
 using Wolverine.Runtime;
-using ServiceContainer = Wolverine.Runtime.ServiceContainer;
+using Wolverine.Runtime.Partitioning;
+using ServiceContainer = JasperFx.ServiceContainer;
 
 namespace Wolverine.Http;
 
@@ -262,7 +263,23 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
 
     public bool HasResourceType()
     {
-        return ResourceType != null && ResourceType != typeof(void) && ResourceType != typeof(Unit);
+        return ResourceType != null && ResourceType != typeof(void) && ResourceType.FullName != "Microsoft.FSharp.Core.Unit";
+    }
+
+    public override bool TryInferMessageIdentity(out PropertyInfo? property)
+    {
+        var atts = Method.HandlerType.GetCustomAttributes()
+            .Concat(Method.Method.GetCustomAttributes())
+            .Concat(Method.Method.GetParameters().SelectMany(x => x.GetCustomAttributes()))
+            .OfType<IMayInferMessageIdentity>().ToArray();
+
+        foreach (var att in atts)
+        {
+            if (att.TryInferMessageIdentity(this, out property)) return true;
+        }
+        
+        property = default;
+        return false;
     }
 
     public override bool ShouldFlushOutgoingMessages()
@@ -392,13 +409,11 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
             if (parameterType == typeof(string))
             {
                 variable = new ReadHttpFrame(BindingSource.Form, parameterType,key).Variable;
-                variable.Name = key;
                 _formValueVariables.Add(variable);
             }
             if (parameterType == typeof(string[]))
             {
                 variable = new ParsedArrayFormValue(parameterType, parameterName).Variable;
-                variable.Name = key;
                 _formValueVariables.Add(variable);
             }
 
@@ -667,6 +682,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
 
     public bool IsFormData { get; internal set; }
     public Type? ComplexQueryStringType { get; set; }
+    public ServiceProviderSource ServiceProviderSource { get; set; } = ServiceProviderSource.IsolatedAndScoped;
 
     internal Variable BuildJsonDeserializationVariable()
     {
@@ -677,4 +693,23 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
     {
         _parent.ApplyParameterMatching(this, call);
     }
+
+    public override IdempotencyStyle Idempotency
+    {
+        get => IdempotencyStyle.None;
+        set
+        {
+            // Nothing, you can't actually override it
+        }
+    }
+
+    public bool TryReplaceServiceProvider(out Variable serviceProvider)
+    {
+        serviceProvider = default!;
+        if (ServiceProviderSource == ServiceProviderSource.IsolatedAndScoped) return false;
+
+        serviceProvider = new Variable(typeof(IServiceProvider), $"httpContext.{nameof(HttpContext.RequestServices)}");
+        return true;
+    }
 }
+

@@ -5,7 +5,7 @@ using Wolverine.Runtime.Serialization;
 
 namespace Wolverine.MQTT.Internals;
 
-internal class MqttEnvelopeMapper : IMqttEnvelopeMapper
+public class MqttEnvelopeMapper : IMqttEnvelopeMapper
 {
     private readonly MqttTopic _topic;
 
@@ -105,15 +105,11 @@ internal class MqttEnvelopeMapper : IMqttEnvelopeMapper
         envelope.Data = incoming.PayloadSegment.ToArray();
 
         envelope.MessageType = _topic.MessageTypeName;
+        envelope.TopicName = incoming.Topic;
 
         foreach (var property in incoming.UserProperties)
         {
             EnvelopeSerializer.ReadDataElement(envelope, property.Name, property.Value);
         }
-    }
-
-    public IEnumerable<string> AllHeaders()
-    {
-        yield break;
     }
 }

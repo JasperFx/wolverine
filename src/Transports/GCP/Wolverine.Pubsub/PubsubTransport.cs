@@ -31,7 +31,7 @@ public class PubsubTransport : BrokerTransport<PubsubEndpoint>, IAsyncDisposable
     /// </summary>
     public bool SystemEndpointsEnabled = false;
 
-    public PubsubTransport() : base(ProtocolName, "Google Cloud Platform Pub/Sub")
+    public PubsubTransport() : base(ProtocolName, "Google Cloud Platform Pub/Sub", ["gcp", ProtocolName])
     {
         IdentifierDelimiter = ".";
         Topics = new LightweightCache<string, PubsubEndpoint>(name => new PubsubEndpoint(name, this));

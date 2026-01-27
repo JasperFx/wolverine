@@ -1,13 +1,18 @@
 using System.Reflection;
+using JasperFx;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Model;
+using JasperFx.CodeGeneration.Services;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Marten;
+using Marten.Events;
 using Wolverine.Attributes;
 using Wolverine.Configuration;
 using Wolverine.Persistence;
 using Wolverine.Runtime;
+using Wolverine.Runtime.Handlers;
+using Wolverine.Runtime.Partitioning;
 
 namespace Wolverine.Marten;
 
@@ -16,7 +21,7 @@ namespace Wolverine.Marten;
 ///     "aggregate handler" workflow
 /// </summary>
 [AttributeUsage(AttributeTargets.Parameter)]
-public class WriteAggregateAttribute : WolverineParameterAttribute, IDataRequirement
+public class WriteAggregateAttribute : WolverineParameterAttribute, IDataRequirement, IMayInferMessageIdentity
 {
     public WriteAggregateAttribute()
     {
@@ -29,7 +34,7 @@ public class WriteAggregateAttribute : WolverineParameterAttribute, IDataRequire
 
     public string? RouteOrParameterName { get; }
 
-    public bool Required { get; set; }
+    public bool Required { get; set; } = true;
     public string MissingMessage { get; set; }
     public OnMissing OnMissing { get; set; }
 
@@ -41,17 +46,15 @@ public class WriteAggregateAttribute : WolverineParameterAttribute, IDataRequire
 
     public override Variable Modify(IChain chain, ParameterInfo parameter, IServiceContainer container, GenerationRules rules)
     {
-        // TODO -- this goes away soon-ish
-        if (chain.HandlerCalls().First().Method.GetParameters().Count(x => x.HasAttribute<WriteAggregateAttribute>()) > 1)
-        {
-            throw new InvalidOperationException(
-                "It is only possible (today) to use a single [Aggregate] attribute on an HTTP handler method. Maybe use [ReadAggregate] if all you need is the projected data");
-        }
-
         var aggregateType = parameter.ParameterType;
         if (aggregateType.IsNullable())
         {
             aggregateType = aggregateType.GetInnerTypeFromNullable();
+        }
+
+        if (aggregateType.Closes(typeof(IEventStream<>)))
+        {
+            aggregateType = aggregateType.GetGenericArguments()[0];
         }
 
         var store = container.GetInstance<IDocumentStore>();
@@ -75,7 +78,8 @@ public class WriteAggregateAttribute : WolverineParameterAttribute, IDataRequire
             AggregateType = aggregateType,
             AggregateId = identity,
             LoadStyle = LoadStyle,
-            Version = version
+            Version = version,
+            Parameter = parameter
         };
 
         return handling.Apply(chain, container);
@@ -127,5 +131,28 @@ public class WriteAggregateAttribute : WolverineParameterAttribute, IDataRequire
         }
 
         return null;
+    }
+
+    public bool TryInferMessageIdentity(IChain chain, out PropertyInfo property)
+    {
+        var inputType = chain.InputType();
+        if (inputType == null)
+        {
+            property = default;
+            return false;
+        }
+
+        // NOT PROUD OF THIS CODE!
+        if (AggregateHandling.TryLoad(chain, out var handling))
+        {
+            if (handling.AggregateId is MemberAccessVariable mav)
+            {
+                property = mav.Member as PropertyInfo;
+                return property != null;
+            }
+        }
+
+        property = null;
+        return false;
     }
 }

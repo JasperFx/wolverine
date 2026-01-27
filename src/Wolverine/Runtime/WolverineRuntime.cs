@@ -1,18 +1,24 @@
 using System.Diagnostics.Metrics;
 using ImTools;
+using JasperFx;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.ObjectPool;
 using Wolverine.Configuration;
 using Wolverine.Logging;
+using Wolverine.Persistence;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.Handlers;
+using Wolverine.Runtime.Metrics;
 using Wolverine.Runtime.RemoteInvocation;
 using Wolverine.Runtime.Routing;
 using Wolverine.Runtime.Scheduled;
+using Wolverine.Runtime.Stubs;
+using Wolverine.Transports.Stub;
 
 namespace Wolverine.Runtime;
 
@@ -22,15 +28,14 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
     private readonly EndpointCollection _endpoints;
     private readonly LightweightCache<Type, IMessageInvoker> _invokers;
 
-    private readonly Lazy<IMessageStore> _persistence;
-
-    private readonly string _serviceName;
+    private string _serviceName;
     private readonly Guid _uniqueNodeId;
 
     private ImHashMap<Type, object?> _extensions = ImHashMap<Type, object?>.Empty;
     private bool _hasStopped;
 
-    private readonly Lazy<IReadOnlyList<IAncillaryMessageStore>> _ancillaryStores;
+    private readonly Lazy<MessageStoreCollection> _stores;
+    private readonly Lazy<MetricsAccumulator> _accumulator;
 
     public WolverineRuntime(WolverineOptions options,
         IServiceContainer container,
@@ -39,6 +44,11 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
         DurabilitySettings = options.Durability;
         Options = options;
         Handlers = options.HandlerGraph;
+
+        _accumulator = new Lazy<MetricsAccumulator>(() => new MetricsAccumulator(this));
+
+        _stores =
+            new Lazy<MessageStoreCollection>(() => container.Services.GetRequiredService<MessageStoreCollection>());
 
         LoggerFactory = loggers;
         Logger = loggers.CreateLogger<WolverineRuntime>();
@@ -57,8 +67,6 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
 
         Pipeline = new HandlerPipeline(this, this);
 
-        _persistence = new Lazy<IMessageStore>(container.GetInstance<IMessageStore>);
-
         _container = container;
 
         Cancellation = DurabilitySettings.Cancellation;
@@ -68,7 +76,7 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
 
         _endpoints = new EndpointCollection(this);
 
-        Replies = new ReplyTracker(loggers.CreateLogger<ReplyTracker>());
+        Replies = new ReplyTracker(loggers.CreateLogger<ReplyTracker>(), DurabilitySettings.AssignedNodeNumber);
         Handlers.AddMessageHandler(typeof(Acknowledgement), new AcknowledgementHandler(Replies));
         Handlers.AddMessageHandler(typeof(FailureAcknowledgement), new FailureAcknowledgementHandler(Replies, LoggerFactory.CreateLogger<FailureAcknowledgementHandler>()));
 
@@ -91,9 +99,6 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
 
         _invokers = new LightweightCache<Type, IMessageInvoker>(findInvoker);
 
-        _ancillaryStores =
-            new Lazy<IReadOnlyList<IAncillaryMessageStore>>(() => _container.GetAllInstances<IAncillaryMessageStore>());
-
         var activators = container.GetAllInstances<IWolverineActivator>();
         foreach (var activator in activators)
         {
@@ -101,11 +106,13 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
         }
     }
 
+    public IStubHandlers Stubs => Options.Transports.GetOrCreate<StubTransport>();
+
+    public MetricsAccumulator MetricsAccumulator => _accumulator.Value;
+
     public IWolverineObserver Observer { get; set; }
 
     public IServiceProvider Services => _container.Services;
-
-    public IReadOnlyList<IAncillaryMessageStore> AncillaryStores => _ancillaryStores.Value;
 
     public ObjectPool<MessageContext> ExecutionPool { get; }
 
@@ -130,14 +137,16 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
     
     internal class NulloMessageInvoker : IMessageInvoker
     {
-        public Task<T> InvokeAsync<T>(object message, MessageBus bus, CancellationToken cancellation = default, TimeSpan? timeout = null,
-            string? tenantId = null)
+        public Task<T> InvokeAsync<T>(object message, MessageBus bus, CancellationToken cancellation = default,
+            TimeSpan? timeout = null,
+            DeliveryOptions? options = null)
         {
             throw new NotSupportedException();
         }
 
-        public Task InvokeAsync(object message, MessageBus bus, CancellationToken cancellation = default, TimeSpan? timeout = null,
-            string? tenantId = null)
+        public Task InvokeAsync(object message, MessageBus bus, CancellationToken cancellation = default,
+            TimeSpan? timeout = null,
+            DeliveryOptions? options = null)
         {
             return Task.CompletedTask;
         }
@@ -192,12 +201,24 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
         ScheduledJobs.Enqueue(executionTime, envelope);
     }
 
+    public IMessageStore FindAncillaryStoreForMarkerType(Type markerType)
+    {
+        return _stores.Value.FindAncillaryStore(markerType);
+    }
+
+    public MessageStoreCollection Stores => _stores.Value;
+
+    public async Task<T?> TryFindMainMessageStore<T>() where T : class
+    {
+        await _stores.Value.InitializeAsync();
+        return _stores.Value.Main as T;
+    }
+
     public IHandlerPipeline Pipeline { get; }
 
     public IMessageTracker MessageTracking => this;
 
-
-    public IMessageStore Storage => _persistence.Value;
+    public IMessageStore Storage => _stores.Value.Main;
 
     private IMessageInvoker findInvoker(Type messageType)
     {

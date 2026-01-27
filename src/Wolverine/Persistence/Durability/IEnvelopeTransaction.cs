@@ -9,6 +9,9 @@ public interface IEnvelopeTransaction
     Task PersistIncomingAsync(Envelope envelope);
 
     ValueTask RollbackAsync();
+
+    Task<bool> TryMakeEagerIdempotencyCheckAsync(Envelope envelope, DurabilitySettings settings,
+        CancellationToken cancellation);
 }
 
 public static class EnvelopeTransactionExtensions

@@ -1,5 +1,6 @@
 using NSubstitute;
 using Wolverine.Configuration;
+using Wolverine.Runtime.Agents;
 using Wolverine.Transports;
 using Wolverine.Transports.Tcp;
 using Xunit;
@@ -11,14 +12,16 @@ public class BackPressureAgentTests
     private readonly BackPressureAgent theBackPressureAgent;
     private readonly Endpoint theEndpoint = new TcpEndpoint(5555);
     private readonly IListeningAgent theListeningAgent = Substitute.For<IListeningAgent>();
+    private readonly IWolverineObserver theObserver;
 
     public BackPressureAgentTests()
     {
-        theBackPressureAgent = new BackPressureAgent(theListeningAgent, theEndpoint);
+        theObserver = Substitute.For<IWolverineObserver>();
+        theBackPressureAgent = new BackPressureAgent(theListeningAgent, theEndpoint, theObserver);
     }
 
     [Fact]
-    public void do_nothing_when_accepting_and_under_the_threshold()
+    public async Task do_nothing_when_accepting_and_under_the_threshold()
     {
         theListeningAgent.Status
             .Returns(ListeningStatus.Accepting);
@@ -29,70 +32,74 @@ public class BackPressureAgentTests
         // based on the current queued item count, the current status
         // of the listening agent, and the configured buffering limits
         // for the endpoint
-        theBackPressureAgent.CheckNowAsync();
+        await theBackPressureAgent.CheckNowAsync();
 
         // Should decide NOT to do anything in this particular case
-        theListeningAgent.DidNotReceive().MarkAsTooBusyAndStopReceivingAsync();
-        theListeningAgent.DidNotReceive().StartAsync();
+        await theListeningAgent.DidNotReceive().MarkAsTooBusyAndStopReceivingAsync();
+        await theListeningAgent.DidNotReceive().StartAsync();
     }
 
     [Fact]
-    public void do_nothing_when_accepting_at_the_threshold()
+    public async Task do_nothing_when_accepting_at_the_threshold()
     {
         theListeningAgent.Status.Returns(ListeningStatus.Accepting);
         theListeningAgent.QueueCount.Returns(theEndpoint.BufferingLimits.Maximum);
 
-        theBackPressureAgent.CheckNowAsync();
+        await theBackPressureAgent.CheckNowAsync();
 
-        theListeningAgent.DidNotReceive().MarkAsTooBusyAndStopReceivingAsync();
-        theListeningAgent.DidNotReceive().StartAsync();
+        await theListeningAgent.DidNotReceive().MarkAsTooBusyAndStopReceivingAsync();
+        await theListeningAgent.DidNotReceive().StartAsync();
     }
 
     [Fact]
-    public void stop_receiving_accepting_over_the_threshold()
+    public async Task stop_receiving_accepting_over_the_threshold()
     {
         theListeningAgent.Status.Returns(ListeningStatus.Accepting);
         theListeningAgent.QueueCount.Returns(theEndpoint.BufferingLimits.Maximum + 1);
 
-        theBackPressureAgent.CheckNowAsync();
+        await theBackPressureAgent.CheckNowAsync();
 
-        theListeningAgent.Received().MarkAsTooBusyAndStopReceivingAsync();
-        theListeningAgent.DidNotReceive().StartAsync();
+        await theListeningAgent.Received().MarkAsTooBusyAndStopReceivingAsync();
+        await theListeningAgent.DidNotReceive().StartAsync();
+
+        await theObserver.Received().BackPressureTriggered(theEndpoint, theListeningAgent);
     }
 
     [Fact]
-    public void do_nothing_when_too_busy_and_over_the_restart_limit()
+    public async Task do_nothing_when_too_busy_and_over_the_restart_limit()
     {
         theListeningAgent.Status.Returns(ListeningStatus.TooBusy);
         theListeningAgent.QueueCount.Returns(theEndpoint.BufferingLimits.Restart + 1);
 
-        theBackPressureAgent.CheckNowAsync();
+        await theBackPressureAgent.CheckNowAsync();
 
-        theListeningAgent.DidNotReceive().MarkAsTooBusyAndStopReceivingAsync();
-        theListeningAgent.DidNotReceive().StartAsync();
+        await theListeningAgent.DidNotReceive().MarkAsTooBusyAndStopReceivingAsync();
+        await theListeningAgent.DidNotReceive().StartAsync();
+        
+        await theObserver.DidNotReceive().BackPressureTriggered(theEndpoint, theListeningAgent);
     }
 
     [Fact]
-    public void restart_when_too_busy_but_reached_the_restart_threshold()
+    public async Task restart_when_too_busy_but_reached_the_restart_threshold()
     {
         theListeningAgent.Status.Returns(ListeningStatus.TooBusy);
         theListeningAgent.QueueCount.Returns(theEndpoint.BufferingLimits.Restart);
 
-        theBackPressureAgent.CheckNowAsync();
+        await theBackPressureAgent.CheckNowAsync();
 
-        theListeningAgent.DidNotReceive().MarkAsTooBusyAndStopReceivingAsync();
-        theListeningAgent.Received().StartAsync();
+        await theListeningAgent.DidNotReceive().MarkAsTooBusyAndStopReceivingAsync();
+        await theListeningAgent.Received().StartAsync();
     }
 
     [Fact]
-    public void restart_when_too_busy_but_below_the_restart_threshold()
+    public async Task restart_when_too_busy_but_below_the_restart_threshold()
     {
         theListeningAgent.Status.Returns(ListeningStatus.TooBusy);
         theListeningAgent.QueueCount.Returns(theEndpoint.BufferingLimits.Restart - 1);
 
-        theBackPressureAgent.CheckNowAsync();
+        await theBackPressureAgent.CheckNowAsync();
 
-        theListeningAgent.DidNotReceive().MarkAsTooBusyAndStopReceivingAsync();
-        theListeningAgent.Received().StartAsync();
+        await theListeningAgent.DidNotReceive().MarkAsTooBusyAndStopReceivingAsync();
+        await theListeningAgent.Received().StartAsync();
     }
 }

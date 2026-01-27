@@ -1,8 +1,11 @@
 ﻿using JasperFx.Core;
 using JasperFx.Core.Reflection;
+using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.DependencyInjection;
 using Weasel.Core.Migrations;
 using Wolverine.Configuration;
+using Wolverine.ErrorHandling;
+using Wolverine.Persistence.Durability;
 using Wolverine.RDBMS;
 using Wolverine.SqlServer.Transport;
 
@@ -17,11 +20,16 @@ public static class SqlServerConfigurationExtensions
     /// <param name="connectionString"></param>
     /// <param name="schema">Potentially override the schema name for Wolverine envelope storage. Default is to use WolverineOptions.Durability.MessageStorageSchemaName ?? "dbo"</param>
     public static ISqlServerBackedPersistence PersistMessagesWithSqlServer(this WolverineOptions options, string connectionString,
-        string? schema = null)
+        string? schema = null, MessageStoreRole role = MessageStoreRole.Main)
     {
-        var extension = new SqlServerBackedPersistence
+        // For clean idempotency checks
+        options.OnException<SqlException>(e => e.Message.ContainsIgnoreCase("Violation of PRIMARY KEY constraint") &&
+                                               e.Message.ContainsIgnoreCase(".wolverine_incoming_envelopes")).Discard();
+        
+        var extension = new SqlServerBackedPersistence(options)
         {
-            ConnectionString = connectionString
+            ConnectionString = connectionString,
+            Role = role
         };
 
         if (schema.IsNotEmpty())
@@ -33,7 +41,7 @@ public static class SqlServerConfigurationExtensions
             extension.EnvelopeStorageSchemaName = options.Durability.MessageStorageSchemaName ?? "dbo";
         }
         
-        options.Include(extension);
+        extension.Configure(options);
 
         return extension;
     }

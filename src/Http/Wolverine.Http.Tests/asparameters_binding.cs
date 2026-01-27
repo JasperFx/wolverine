@@ -1,6 +1,8 @@
+using Alba;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 using WolverineWebApi;
+using WolverineWebApi.Forms;
 
 namespace Wolverine.Http.Tests;
 
@@ -9,14 +11,6 @@ public class asparameters_binding : IntegrationContext
     public asparameters_binding(AppFixture fixture) : base(fixture)
     {
     }
-
-    /*
-     * TODOs
-     * Bind the body, and when you do that, set the request type
-     * Bind a service
-     * Bind a route argument
-     */
-
 
     [Fact]
     public async Task fill_all_fields()
@@ -168,5 +162,26 @@ public class asparameters_binding : IntegrationContext
         value.Number.ShouldBe(2);
         value.Direction.ShouldBe(Direction.East);
         value.IsTrue.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task using_with_FluentValidation_middleware()
+    {
+        // Happy path
+        await Scenario(x =>
+        {
+            x.Get.Url("/asparameters/validated")
+                .QueryString("Name", "Jeremy")
+                .QueryString("Age", "51");
+        });
+
+        var result = await Scenario(x =>
+        {
+            x.Get.Url("/asparameters/validated")
+                .QueryString("Age", "51");
+
+            x.StatusCodeShouldBe(400);
+            x.ContentTypeShouldBe("application/problem+json");
+        });
     }
 }

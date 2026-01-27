@@ -7,7 +7,7 @@ using Wolverine.RDBMS.Durability;
 
 namespace Wolverine.RDBMS;
 
-public abstract partial class MessageDatabase<T> : IDeadLetterAdminService
+public abstract partial class MessageDatabase<T>
 {
     public async Task<IReadOnlyList<DeadLetterQueueCount>> SummarizeAllAsync(string serviceName, TimeRange range,
         CancellationToken token)
@@ -57,14 +57,6 @@ public abstract partial class MessageDatabase<T> : IDeadLetterAdminService
         }
 
         return envelopes;
-    }
-
-    public Task<IReadOnlyList<DeadLetterQueueCount>> SummarizeByDatabaseAsync(string serviceName,
-        Uri database,
-        TimeRange range,
-        CancellationToken token)
-    {
-        return SummarizeAllAsync(serviceName, range, token);
     }
 
     protected virtual string toTopClause(DeadLetterEnvelopeQuery query)
@@ -121,7 +113,7 @@ public abstract partial class MessageDatabase<T> : IDeadLetterAdminService
         return results;
     }
 
-    private static void writeDeadLetterWhereClause(DeadLetterEnvelopeQuery query, DbCommandBuilder builder)
+    private void writeDeadLetterWhereClause(DeadLetterEnvelopeQuery query, DbCommandBuilder builder)
     {
         if (query.Range.From.HasValue)
         {
@@ -140,7 +132,13 @@ public abstract partial class MessageDatabase<T> : IDeadLetterAdminService
             builder.Append($" and {DatabaseConstants.ExceptionType} = ");
             builder.AppendParameter(query.ExceptionType);
         }
-        
+
+        if (query.ExceptionMessage.IsNotEmpty())
+        {
+            builder.Append($" and {DatabaseConstants.ExceptionMessage} LIKE ");
+            builder.AppendParameter(query.ExceptionMessage);
+        }
+
         if (query.MessageType.IsNotEmpty())
         {
             builder.Append($" and {DatabaseConstants.MessageType} = ");
@@ -152,7 +150,14 @@ public abstract partial class MessageDatabase<T> : IDeadLetterAdminService
             builder.Append($" and {DatabaseConstants.ReceivedAt} = ");
             builder.AppendParameter(query.ReceivedAt);
         }
+
+        if (query.MessageIds != null && query.MessageIds.Any())
+        {
+            writeMessageIdArrayQueryList(builder, query.MessageIds);
+        }
     }
+
+    protected abstract void writeMessageIdArrayQueryList(DbCommandBuilder builder, Guid[] messageIds);
 
     protected abstract void writePagingAfter(DbCommandBuilder builder, int offset, int limit);
 
@@ -177,50 +182,8 @@ public abstract partial class MessageDatabase<T> : IDeadLetterAdminService
         builder.Append(" where 1 = 1");
         writeDeadLetterWhereClause(query, builder);
         builder.Append(';');
-        builder.Append(
-            $"delete from {SchemaName}.{DatabaseConstants.DeadLetterTable} where {DatabaseConstants.Replayable} = ");
-        builder.AppendParameter(true);
-        builder.Append(';');
-        
+
         return executeCommandBatch(builder, token);
     }
 
-    public Task DiscardAsync(MessageBatchRequest request, CancellationToken token)
-    {
-        var builder = ToCommandBuilder();
-
-        foreach (var id in request.Ids)
-        {
-            builder.Append($"delete from {SchemaName}.{DatabaseConstants.DeadLetterTable} where {DatabaseConstants.Id} = ");
-            builder.AppendParameter(id);
-            builder.Append(';');
-        }
-        
-        new MoveReplayableErrorMessagesToIncomingOperation(this).ConfigureCommand(builder);
-        
-        return executeCommandBatch(builder, token);
-    }
-
-    public Task ReplayAsync(MessageBatchRequest request, CancellationToken token)
-    {
-        var builder = ToCommandBuilder();
-
-        foreach (var id in request.Ids)
-        {
-            builder.Append(
-                $"update {SchemaName}.{DatabaseConstants.DeadLetterTable} set {DatabaseConstants.Replayable} = ");
-            builder.AppendParameter(true);
-            builder.Append($" where {DatabaseConstants.Id} = ");
-            builder.AppendParameter(id);
-            builder.Append(';');
-            builder.Append(
-                $"delete from {SchemaName}.{DatabaseConstants.DeadLetterTable} where {DatabaseConstants.Replayable} = ");
-            builder.AppendParameter(true);
-            builder.Append(';');
-        }
-        
-        new MoveReplayableErrorMessagesToIncomingOperation(this).ConfigureCommand(builder);
-        
-        return executeCommandBatch(builder, token);
-    }
 }

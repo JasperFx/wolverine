@@ -16,7 +16,7 @@ public record DebitAccount(long AccountId, decimal Amount);
 // An "event" message
 public record AccountOverdrawn(long AccountId);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MessageBusBasics.cs#L69-L77' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_debutaccount_command' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MessageBusBasics.cs#L76-L84' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_debutaccount_command' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And the message handling code for the messages, which in Wolverine's case just means a function or method that accepts the message type as its first argument like so:
@@ -32,7 +32,7 @@ public static class DebitAccountHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MessageBusBasics.cs#L57-L67' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_debitaccounthandler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MessageBusBasics.cs#L64-L74' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_debitaccounthandler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Invoking a Message Inline
@@ -245,13 +245,36 @@ interface like so:
 ///     Models a constantly running background process within a Wolverine
 ///     node cluster
 /// </summary>
-public interface IAgent : IHostedService
+public interface IAgent : IHostedService // Standard .NET interface for background services
 {
     /// <summary>
     ///     Unique identification for this agent within the Wolverine system
     /// </summary>
     Uri Uri { get; }
     
+    // Not really used for anything real *yet*, but 
+    // hopefully becomes something useful for CritterWatch
+    // health monitoring
+    AgentStatus Status { get; }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/Agents/IAgent.cs#L9-L28' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_iagent' title='Start of snippet'>anchor</a></sup>
+<a id='snippet-sample_iagent-1'></a>
+```cs
+/// <summary>
+///     Models a constantly running background process within a Wolverine
+///     node cluster
+/// </summary>
+public interface IAgent : IHostedService // Standard .NET interface for background services
+{
+    /// <summary>
+    ///     Unique identification for this agent within the Wolverine system
+    /// </summary>
+    Uri Uri { get; }
+    
+    // Not really used for anything real *yet*, but 
+    // hopefully becomes something useful for CritterWatch
+    // health monitoring
     AgentStatus Status { get; }
 }
 
@@ -273,7 +296,7 @@ public class CompositeAgent : IAgent
             await agent.StartAsync(cancellationToken);
         }
 
-        Status = AgentStatus.Started;
+        Status = AgentStatus.Running;
     }
 
     public async Task StopAsync(CancellationToken cancellationToken)
@@ -283,20 +306,13 @@ public class CompositeAgent : IAgent
             await agent.StopAsync(cancellationToken);
         }
 
-        Status = AgentStatus.Started;
+        Status = AgentStatus.Running ;
     }
 
     public AgentStatus Status { get; private set; } = AgentStatus.Stopped;
 }
-
-public enum AgentStatus
-{
-    Started,
-    Stopped,
-    Paused
-}
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/Agents/IAgent.cs#L6-L63' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_iagent' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/Agents/IAgent.cs#L7-L64' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_iagent-1' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 With related groups of agents built and assigned by IoC-registered implementations of this interface:

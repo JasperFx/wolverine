@@ -11,6 +11,7 @@ internal class PubsubSenderProtocol : ISenderProtocol
     private readonly PublisherServiceApiClient _client;
     private readonly PubsubEndpoint _endpoint;
     private readonly ILogger<PubsubSenderProtocol> _logger;
+    private readonly IPubsubEnvelopeMapper _mapper;
 
     public PubsubSenderProtocol(
         PubsubEndpoint endpoint,
@@ -18,6 +19,7 @@ internal class PubsubSenderProtocol : ISenderProtocol
         IWolverineRuntime runtime
     )
     {
+        _mapper = endpoint.BuildMapper(runtime);
         _endpoint = endpoint;
         _client = client;
         _logger = runtime.LoggerFactory.CreateLogger<PubsubSenderProtocol>();
@@ -31,7 +33,7 @@ internal class PubsubSenderProtocol : ISenderProtocol
         {
             var message = new PubsubMessage();
 
-            _endpoint.Mapper.MapOutgoingToMessage(batch, message);
+            _mapper.MapOutgoingToMessage(batch, message);
 
             await _client.PublishAsync(new PublishRequest
             {

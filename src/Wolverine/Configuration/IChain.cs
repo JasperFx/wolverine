@@ -1,4 +1,5 @@
 using System.Reflection;
+using JasperFx;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
@@ -40,6 +41,8 @@ public interface IChain
     
     void ApplyParameterMatching(MethodCall call);
     
+    IdempotencyStyle Idempotency { get; set; }
+
     /// <summary>
     ///     Frames that would be initially placed in front of
     ///     the primary action(s)
@@ -64,6 +67,11 @@ public interface IChain
     ///     Strategy for dealing with any return values from the handler methods
     /// </summary>
     IReturnVariableActionSource ReturnVariableActionSource { get; set; }
+
+    /// <summary>
+    /// Does this chain have any transactional middleware attached to it?
+    /// </summary>
+    bool IsTransactional { get; set; }
 
     /// <summary>
     ///     Used internally by Wolverine for "outbox" mechanics
@@ -160,6 +168,8 @@ public interface IChain
     /// </summary>
     /// <param name="variable"></param>
     Frame[] AddStopConditionIfNull(Variable data, Variable? identity, IDataRequirement requirement);
+
+    bool TryInferMessageIdentity(out PropertyInfo? property);
 }
 
 #endregion

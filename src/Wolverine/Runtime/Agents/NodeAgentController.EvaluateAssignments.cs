@@ -7,9 +7,13 @@ public partial class NodeAgentController
     public AssignmentGrid? LastAssignments { get; internal set; }
 
     // Tested w/ integration tests all the way
-    public async Task<AgentCommands> EvaluateAssignmentsAsync(IReadOnlyList<WolverineNode> nodes)
+    public async Task<AgentCommands> EvaluateAssignmentsAsync(
+        IReadOnlyList<WolverineNode> nodes,
+        AgentRestrictions restrictions)
     {
-        using var activity = WolverineTracing.ActivitySource.StartActivity("wolverine_node_assignments");
+        using var activity = ShouldTraceHealthCheck() 
+            ? WolverineTracing.ActivitySource.StartActivity("wolverine_node_assignments") 
+            : null;
 
         // Not sure how this *could* happen, but we had a report of it happening in production
         // probably because someone messed w/ the database though
@@ -17,6 +21,7 @@ public partial class NodeAgentController
         {
             // At least use the current node
             nodes = new List<WolverineNode> { WolverineNode.For(_runtime.Options) };
+            nodes[0].AssignAgents([LeaderUri]);
         }
         
         var grid = new AssignmentGrid();
@@ -29,20 +34,23 @@ public partial class NodeAgentController
             grid.WithNode(node);
         }
 
-        foreach (var controller in _agentFamilies.Values)
+        foreach (var agentFamily in _agentFamilies.Values)
         {
             try
             {
-                var allAgents = await controller.AllKnownAgentsAsync();
+                var allAgents = await agentFamily.AllKnownAgentsAsync();
                 grid.WithAgents(allAgents
                     .ToArray()); // Just in case something has gotten lost, and this is master anyway
-
-                await controller.EvaluateAssignmentsAsync(grid);
+                
+                // Apply this every time to pick up any agents from above
+                grid.ApplyRestrictions(restrictions);
+                
+                await agentFamily.EvaluateAssignmentsAsync(grid);
             }
             catch (Exception e)
             {
                 _logger.LogError(e, "Error trying to reevaluate agent assignments for '{Scheme}' agents",
-                    controller.Scheme);
+                    agentFamily.Scheme);
             }
         }
 

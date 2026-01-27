@@ -45,10 +45,17 @@ public class MultiTenantedRabbitFixture : IAsyncLifetime
                 
                 opts.ServiceName = "main";
                 
-                opts.UseRabbitMq().AutoProvision().AutoPurgeOnStartup()
+                opts.UseRabbitMq().AutoProvision().AutoPurgeOnStartup().DisableDeadLetterQueueing()
                     .AddTenant("one", "vh1")
                     .AddTenant("two", "vh2")
                     .AddTenant("three", "vh3");
+                
+                // Really just to manually test https://github.com/JasperFx/wolverine/issues/1658
+                opts.ListenToRabbitQueue("Queue1", conf =>
+                {
+                    conf.BindExchange("Exchange1");
+                    conf.BindExchange("Exchange2");
+                });
 
                 // Listen for multiples
                 opts.ListenToRabbitQueue("multi_response");
@@ -71,7 +78,7 @@ public class MultiTenantedRabbitFixture : IAsyncLifetime
             {
                 opts.Policies.DisableConventionalLocalRouting();
                 opts.ServiceName = "one";
-                opts.UseRabbitMq(f => f.VirtualHost = "vh1");
+                opts.UseRabbitMq(f => f.VirtualHost = "vh1").DisableDeadLetterQueueing();
                 opts.ListenToRabbitQueue("multi_incoming");
                 
                 opts.Services.AddResourceSetupOnStartup();
@@ -84,7 +91,7 @@ public class MultiTenantedRabbitFixture : IAsyncLifetime
             {
                 opts.Policies.DisableConventionalLocalRouting();
                 opts.ServiceName = "two";
-                opts.UseRabbitMq(f => f.VirtualHost = "vh2");
+                opts.UseRabbitMq(f => f.VirtualHost = "vh2").DisableDeadLetterQueueing();
                 opts.ListenToRabbitQueue("multi_incoming");
                 
                 opts.Services.AddResourceSetupOnStartup();
@@ -95,7 +102,7 @@ public class MultiTenantedRabbitFixture : IAsyncLifetime
             {
                 opts.Policies.DisableConventionalLocalRouting();
                 opts.ServiceName = "three";
-                opts.UseRabbitMq(f => f.VirtualHost = "vh3");
+                opts.UseRabbitMq(f => f.VirtualHost = "vh3").DisableDeadLetterQueueing();
                 opts.ListenToRabbitQueue("multi_incoming");
                 
                 opts.Services.AddResourceSetupOnStartup();
@@ -148,6 +155,7 @@ public class multi_tenancy_through_virtual_hosts : IClassFixture<MultiTenantedRa
         var message = new MultiTenantMessage(Guid.NewGuid());
         var session = await _fixture.Main
             .TrackActivity()
+            .Timeout(15.Seconds())
             .AlsoTrack(_fixture.One, _fixture.Two, _fixture.Three)
             .WaitForMessageToBeReceivedAt<MultiTenantMessage>(_fixture.Two)
             .SendMessageAndWaitAsync(message, new DeliveryOptions{TenantId = "two"});

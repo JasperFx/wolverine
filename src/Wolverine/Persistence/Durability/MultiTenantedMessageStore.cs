@@ -1,5 +1,6 @@
 using ImTools;
 using JasperFx;
+using JasperFx.Blocks;
 using JasperFx.Core;
 using JasperFx.Descriptors;
 using JasperFx.MultiTenancy;
@@ -10,27 +11,18 @@ using Wolverine.Persistence.Sagas;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
 using Wolverine.Transports;
-using Wolverine.Util.Dataflow;
 
 namespace Wolverine.Persistence.Durability;
 
-public class MultiTenantedMessageStore<T> : MultiTenantedMessageStore, IAncillaryMessageStore<T>
-{
-    public MultiTenantedMessageStore(IMessageStore main, IWolverineRuntime runtime, ITenantedMessageSource source) : base(main, runtime, source)
-    {
-    }
-
-    public Type MarkerType => typeof(T);
-}
-
-public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IMessageStoreAdmin, IDeadLetters, ISagaSupport
+public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IMessageStoreAdmin,
+    IDeadLetters, ISagaSupport, INodeAgentPersistence
 {
     private readonly ILogger _logger;
     private readonly RetryBlock<IEnvelopeCommand> _retryBlock;
     private readonly IWolverineRuntime _runtime;
-    private bool _initialized;
-    
+
     private ImHashMap<string, IMessageStore> _byTenant = ImHashMap<string, IMessageStore>.Empty;
+    private bool _initialized;
 
 
     public MultiTenantedMessageStore(IMessageStore main, IWolverineRuntime runtime,
@@ -46,37 +38,66 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
         Main = main;
     }
 
+    public List<string> TenantIds { get; } = new();
+
+    public void DemoteToAncillary()
+    {
+        Main.DemoteToAncillary();
+    }
+
+    public MessageStoreRole Role => MessageStoreRole.Composite;
+
     public ITenantedMessageSource Source { get; }
 
-    public Uri Uri => new Uri($"{PersistenceConstants.AgentScheme}://multitenanted");
-
+    public Uri Uri => new($"{PersistenceConstants.AgentScheme}://multitenanted");
 
     public IMessageStore Main { get; }
+
+    public Task<IReadOnlyList<DeadLetterQueueCount>> SummarizeAllAsync(string serviceName, TimeRange range, CancellationToken token)
+    {
+        throw new NotSupportedException();
+    }
+
+    public Task<DeadLetterEnvelopeResults> QueryAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
+    {
+        throw new NotSupportedException();
+    }
+
+    public Task DiscardAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
+    {
+        throw new NotSupportedException();
+    }
+
+    public Task ReplayAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
+    {
+        throw new NotSupportedException();
+    }
+
+    public async Task<DeadLetterEnvelope?> DeadLetterEnvelopeByIdAsync(Guid id, string? tenantId = null)
+    {
+        if (tenantId is not null)
+        {
+            var database = await GetDatabaseAsync(tenantId);
+            return await database.DeadLetters.DeadLetterEnvelopeByIdAsync(id);
+        }
+
+        foreach (var database in databases())
+        {
+            var deadLetterEnvelope = await database.DeadLetters.DeadLetterEnvelopeByIdAsync(id);
+            if (deadLetterEnvelope != null)
+            {
+                return deadLetterEnvelope;
+            }
+        }
+
+        return null;
+    }
 
     async Task IMessageInbox.ScheduleExecutionAsync(Envelope envelope)
     {
         var database = await GetDatabaseAsync(envelope.TenantId);
         await database.Inbox.ScheduleExecutionAsync(envelope);
     }
-
-    public async Task ReassignIncomingAsync(int ownerId, IReadOnlyList<Envelope> incoming)
-    {
-        string tenantId = null;
-        try
-        {
-            tenantId = incoming.Select(x => x.TenantId).Distinct().Single();
-        }
-        catch (Exception e)
-        {
-            throw new ArgumentOutOfRangeException(nameof(incoming),
-                "Invalid in this case to use a mixed bag of tenanted envelopes");
-        }
-        
-        var database = await GetDatabaseAsync(tenantId);
-        await database.ReassignIncomingAsync(ownerId, incoming);
-    }
-
-    public string Name { get; }
 
     async Task IMessageInbox.MoveToDeadLetterStorageAsync(Envelope envelope, Exception? exception)
     {
@@ -123,22 +144,16 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
         }
     }
 
-    public async Task<IReadOnlyList<Envelope>> LoadPageOfGloballyOwnedIncomingAsync(Uri listenerAddress, int limit)
-    {
-        // Really just here for diagnostics
-        var list = new List<Envelope>();
-        foreach (var database in databases())
-        {
-            list.AddRange(await database.LoadPageOfGloballyOwnedIncomingAsync(listenerAddress, limit));
-        }
-
-        return list;
-    }
-
-    async Task IMessageInbox.ScheduleJobAsync(Envelope envelope)
+    public async Task<bool> ExistsAsync(Envelope envelope, CancellationToken cancellation)
     {
         var database = await GetDatabaseAsync(envelope.TenantId);
-        await database.Inbox.ScheduleJobAsync(envelope);
+        return await database.Inbox.ExistsAsync(envelope, cancellation);
+    }
+
+    async Task IMessageInbox.RescheduleExistingEnvelopeForRetryAsync(Envelope envelope)
+    {
+        var database = await GetDatabaseAsync(envelope.TenantId);
+        await database.Inbox.RescheduleExistingEnvelopeForRetryAsync(envelope);
     }
 
     async Task IMessageInbox.MarkIncomingEnvelopeAsHandledAsync(Envelope envelope)
@@ -171,11 +186,6 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
                     group.Key);
             }
         }
-    }
-
-    Task IMessageInbox.ReleaseIncomingAsync(int ownerId)
-    {
-        return executeOnAllAsync(d => d.Inbox.ReleaseIncomingAsync(ownerId));
     }
 
     Task IMessageInbox.ReleaseIncomingAsync(int ownerId, Uri receivedAt)
@@ -276,9 +286,46 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
         foreach (var value in dict.Values) await _retryBlock.PostAsync(value);
     }
 
+    public async Task ReassignIncomingAsync(int ownerId, IReadOnlyList<Envelope> incoming)
+    {
+        string tenantId = null;
+        try
+        {
+            tenantId = incoming.Select(x => x.TenantId).Distinct().Single();
+        }
+        catch (Exception e)
+        {
+            throw new ArgumentOutOfRangeException(nameof(incoming),
+                "Invalid in this case to use a mixed bag of tenanted envelopes");
+        }
+
+        var database = await GetDatabaseAsync(tenantId);
+        await database.ReassignIncomingAsync(ownerId, incoming);
+    }
+
+    public string Name { get; }
+    public void PromoteToMain(IWolverineRuntime runtime)
+    {
+        // Nothing here. 
+    }
+
+    public async Task<IReadOnlyList<Envelope>> LoadPageOfGloballyOwnedIncomingAsync(Uri listenerAddress, int limit)
+    {
+        // Really just here for diagnostics
+        var list = new List<Envelope>();
+        foreach (var database in databases())
+            list.AddRange(await database.LoadPageOfGloballyOwnedIncomingAsync(listenerAddress, limit));
+
+        return list;
+    }
+
     public async ValueTask DisposeAsync()
     {
-        if (HasDisposed) return;
+        if (HasDisposed)
+        {
+            return;
+        }
+
         foreach (var database in databases())
         {
             try
@@ -299,34 +346,12 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
         InitializeAsync(runtime).GetAwaiter().GetResult();
     }
 
-    public async Task InitializeAsync(IWolverineRuntime runtime)
-    {
-        if (_initialized)
-        {
-            return;
-        }
-
-        await Source.RefreshAsync();
-
-        foreach (var database in databases())
-        {
-            database.Initialize(runtime);
-        }
-
-        _initialized = true;
-    }
-    
     public bool HasDisposed { get; private set; }
     public IMessageInbox Inbox => this;
     public IMessageOutbox Outbox => this;
     public IDeadLetters DeadLetters => this;
-    public INodeAgentPersistence Nodes => Main.Nodes;
+    public INodeAgentPersistence Nodes => this;
     public IMessageStoreAdmin Admin => this;
-
-    public void Describe(TextWriter writer)
-    {
-        Main.Describe(writer);
-    }
 
     public DatabaseDescriptor Describe()
     {
@@ -349,59 +374,14 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
             Source.AllActive().Select(x => x.StartScheduledJobs(runtime)));
     }
 
+    Task IMessageStoreAdmin.DeleteAllHandledAsync()
+    {
+        return executeOnAllAsync(d => d.Admin.DeleteAllHandledAsync());
+    }
+
     Task IMessageStoreAdmin.ClearAllAsync()
     {
         return executeOnAllAsync(d => d.Admin.ClearAllAsync());
-    }
-
-    async Task<int> IDeadLetters.MarkDeadLetterEnvelopesAsReplayableAsync(string exceptionType)
-    {
-        var size = 0;
-
-        foreach (var database in databases())
-        {
-            try
-            {
-                size += await database.DeadLetters.MarkDeadLetterEnvelopesAsReplayableAsync(exceptionType);
-            }
-            catch (Exception e)
-            {
-                _logger.LogError(e, "Error trying to mark dead letter envelopes as replayable for database {Name}",
-                    database.Name);
-            }
-        }
-
-        return size;
-    }
-
-    public async Task MarkDeadLetterEnvelopesAsReplayableAsync(Guid[] ids, string? tenantId = null)
-    {
-        if (tenantId is { })
-        {
-            var database = await GetDatabaseAsync(tenantId);
-            await database.DeadLetters.MarkDeadLetterEnvelopesAsReplayableAsync(ids);
-            return;
-        }
-
-        foreach (var database in databases())
-        {
-            await database.DeadLetters.MarkDeadLetterEnvelopesAsReplayableAsync(ids);
-        }
-    }
-
-    public async Task DeleteDeadLetterEnvelopesAsync(Guid[] ids, string? tenantId = null)
-    {
-        if (tenantId is { })
-        {
-            var database = await GetDatabaseAsync(tenantId);
-            await database.DeadLetters.DeleteDeadLetterEnvelopesAsync(ids);
-            return;
-        }
-
-        foreach (var database in databases())
-        {
-            await database.DeadLetters.DeleteDeadLetterEnvelopesAsync(ids);
-        }
     }
 
     Task IMessageStoreAdmin.RebuildAsync()
@@ -483,7 +463,7 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
         }
 
         await Main.Admin.MigrateAsync();
-        
+
         var exceptions = new List<Exception>();
 
         foreach (var assignment in Source.AllActiveByTenant())
@@ -505,6 +485,128 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
         }
     }
 
+    Task INodeAgentPersistence.ClearAllAsync(CancellationToken cancellationToken)
+    {
+        return Main.Nodes.ClearAllAsync(cancellationToken);
+    }
+
+    Task<int> INodeAgentPersistence.PersistAsync(WolverineNode node, CancellationToken cancellationToken)
+    {
+        return Main.Nodes.PersistAsync(node, cancellationToken);
+    }
+
+    async Task INodeAgentPersistence.DeleteAsync(Guid nodeId, int assignedNodeNumber)
+    {
+        await Main.Nodes.DeleteAsync(nodeId, assignedNodeNumber);
+        await executeOnAllAsync(async store => { await store.Admin.ReleaseAllOwnershipAsync(assignedNodeNumber); });
+    }
+
+    Task<IReadOnlyList<WolverineNode>> INodeAgentPersistence.LoadAllNodesAsync(CancellationToken cancellationToken)
+    {
+        return Main.Nodes.LoadAllNodesAsync(cancellationToken);
+    }
+
+    Task INodeAgentPersistence.PersistAgentRestrictionsAsync(IReadOnlyList<AgentRestriction> restrictions, CancellationToken cancellationToken)
+    {
+        return Main.Nodes.PersistAgentRestrictionsAsync(restrictions, cancellationToken);
+    }
+
+    Task<NodeAgentState> INodeAgentPersistence.LoadNodeAgentStateAsync(CancellationToken cancellationToken)
+    {
+        return Main.Nodes.LoadNodeAgentStateAsync(cancellationToken);
+    }
+
+    Task INodeAgentPersistence.AssignAgentsAsync(Guid nodeId, IReadOnlyList<Uri> agents,
+        CancellationToken cancellationToken)
+    {
+        return Main.Nodes.AssignAgentsAsync(nodeId, agents, cancellationToken);
+    }
+
+    Task INodeAgentPersistence.RemoveAssignmentAsync(Guid nodeId, Uri agentUri, CancellationToken cancellationToken)
+    {
+        return Main.Nodes.RemoveAssignmentAsync(nodeId, agentUri, cancellationToken);
+    }
+
+    Task INodeAgentPersistence.AddAssignmentAsync(Guid nodeId, Uri agentUri, CancellationToken cancellationToken)
+    {
+        return Main.Nodes.AddAssignmentAsync(nodeId, agentUri, cancellationToken);
+    }
+
+    Task<WolverineNode?> INodeAgentPersistence.LoadNodeAsync(Guid nodeId, CancellationToken cancellationToken)
+    {
+        return Main.Nodes.LoadNodeAsync(nodeId, cancellationToken);
+    }
+
+    Task INodeAgentPersistence.MarkHealthCheckAsync(WolverineNode node, CancellationToken cancellationToken)
+    {
+        return Main.Nodes.MarkHealthCheckAsync(node, cancellationToken);
+    }
+
+    Task INodeAgentPersistence.OverwriteHealthCheckTimeAsync(Guid nodeId, DateTimeOffset lastHeartbeatTime)
+    {
+        return Main.Nodes.OverwriteHealthCheckTimeAsync(nodeId, lastHeartbeatTime);
+    }
+
+    Task INodeAgentPersistence.LogRecordsAsync(params NodeRecord[] records)
+    {
+        return Main.Nodes.LogRecordsAsync(records);
+    }
+
+    Task<IReadOnlyList<NodeRecord>> INodeAgentPersistence.FetchRecentRecordsAsync(int count)
+    {
+        return Main.Nodes.FetchRecentRecordsAsync(count);
+    }
+
+    bool INodeAgentPersistence.HasLeadershipLock()
+    {
+        return Main.Nodes.HasLeadershipLock();
+    }
+
+    Task<bool> INodeAgentPersistence.TryAttainLeadershipLockAsync(CancellationToken token)
+    {
+        return Main.Nodes.TryAttainLeadershipLockAsync(token);
+    }
+
+    Task INodeAgentPersistence.ReleaseLeadershipLockAsync()
+    {
+        return Main.Nodes.ReleaseLeadershipLockAsync();
+    }
+
+    public async ValueTask<ISagaStorage<TId, TSaga>> EnrollAndFetchSagaStorage<TId, TSaga>(MessageContext context)
+        where TSaga : Saga
+    {
+        if (context.IsDefaultTenant())
+        {
+            if (Main is ISagaSupport s1)
+            {
+                return await s1.EnrollAndFetchSagaStorage<TId, TSaga>(context);
+            }
+        }
+
+        var store = await Source.FindAsync(context.TenantId) as ISagaSupport;
+        if (store != null)
+        {
+            return await store.EnrollAndFetchSagaStorage<TId, TSaga>(context);
+        }
+
+        throw new InvalidOperationException(
+            "The tenant stores do not implement ISagaSupport and cannot be used for saga persistence");
+    }
+
+    public async Task InitializeAsync(IWolverineRuntime runtime)
+    {
+        if (_initialized)
+        {
+            return;
+        }
+
+        await Source.RefreshAsync();
+
+        foreach (var database in databases()) database.Initialize(runtime);
+
+        _initialized = true;
+    }
+
     public IReadOnlyList<IMessageStore> ActiveDatabases()
     {
         return databases().ToArray();
@@ -512,11 +614,25 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
 
     public async ValueTask<IMessageStore> GetDatabaseAsync(string? tenantId)
     {
-        if (tenantId.IsDefaultTenant()) return Main;
-        if (tenantId.EqualsIgnoreCase(TransportConstants.Default)) return Main;
-        if (tenantId.EqualsIgnoreCase(StorageConstants.Main)) return Main;
+        if (tenantId.IsDefaultTenant())
+        {
+            return Main;
+        }
 
-        if (_byTenant.TryFind(tenantId, out var store)) return store;
+        if (tenantId.EqualsIgnoreCase(TransportConstants.Default))
+        {
+            return Main;
+        }
+
+        if (tenantId.EqualsIgnoreCase(StorageConstants.Main))
+        {
+            return Main;
+        }
+
+        if (_byTenant.TryFind(tenantId, out var store))
+        {
+            return store;
+        }
 
         store = await Source.FindAsync(tenantId);
         if (store != null && _runtime.Options.AutoBuildMessageStorageOnStartup != AutoCreate.None)
@@ -558,32 +674,6 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
         }
     }
 
-    public async Task<DeadLetterEnvelopesFound> QueryDeadLetterEnvelopesAsync(DeadLetterEnvelopeQueryParameters queryParameters, string? tenantId)
-    {
-        var database = await GetDatabaseAsync(tenantId);
-        return await database.DeadLetters.QueryDeadLetterEnvelopesAsync(queryParameters, tenantId);
-    }
-
-    public async Task<DeadLetterEnvelope?> DeadLetterEnvelopeByIdAsync(Guid id, string? tenantId = null)
-    {
-        if (tenantId is { })
-        {
-            var database = await GetDatabaseAsync(tenantId);
-            return await database.DeadLetters.DeadLetterEnvelopeByIdAsync(id);
-        }
-
-        foreach (var database in databases())
-        {
-            var deadLetterEnvelope = await database.DeadLetters.DeadLetterEnvelopeByIdAsync(id);
-            if (deadLetterEnvelope != null)
-            {
-                return deadLetterEnvelope;
-            }
-        }
-
-        return null;
-    }
-
     internal interface IEnvelopeCommand
     {
         Task ExecuteAsync(CancellationToken cancellationToken);
@@ -591,8 +681,8 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
 
     internal class StoreIncomingAsyncGroup : IEnvelopeCommand
     {
-        private readonly IMessageStore _store;
         private readonly Envelope[] _envelopes;
+        private readonly IMessageStore _store;
 
         public StoreIncomingAsyncGroup(IMessageStore store, Envelope[] envelopes)
         {
@@ -608,8 +698,8 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
 
     internal class DeleteOutgoingAsyncGroup : IEnvelopeCommand
     {
-        private readonly IMessageStore _store;
         private readonly Envelope[] _envelopes;
+        private readonly IMessageStore _store;
 
         public DeleteOutgoingAsyncGroup(IMessageStore store, Envelope[] envelopes)
         {
@@ -625,10 +715,10 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
 
     internal class DiscardAndReassignOutgoingAsyncGroup : IEnvelopeCommand
     {
-        private readonly IMessageStore _store;
         private readonly List<Envelope> _discards = new();
         private readonly int _nodeId;
         private readonly List<Envelope> _reassigned = new();
+        private readonly IMessageStore _store;
 
         public DiscardAndReassignOutgoingAsyncGroup(IMessageStore store, int nodeId)
         {
@@ -650,22 +740,5 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
         {
             _reassigned.AddRange(reassigns);
         }
-    }
-
-    public async ValueTask<ISagaStorage<TId, TSaga>> EnrollAndFetchSagaStorage<TId, TSaga>(MessageContext context) where TSaga : Saga
-    {
-        if (context.IsDefaultTenant())
-        {
-            if (Main is ISagaSupport s1) return await s1.EnrollAndFetchSagaStorage<TId, TSaga>(context);
-        }
-
-        var store = (await Source.FindAsync(context.TenantId)) as ISagaSupport;
-        if (store != null)
-        {
-            return await store.EnrollAndFetchSagaStorage<TId, TSaga>(context);
-        }
-
-        throw new InvalidOperationException(
-            "The tenant stores do not implement ISagaSupport and cannot be used for saga persistence");
     }
 }

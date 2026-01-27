@@ -47,6 +47,24 @@ return await app.RunJasperFxCommands(args);
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L164-L190' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setup_postgresql_storage' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Optimizing the Message Store <Badge type="tip" text="5.3" />
+
+For PostgreSQL, you can enable PostgreSQL backed partitioning for the inbox table
+as an optimization. This is not enabled by default just to avoid causing database
+migrations in a minor point release. Note that this will have some significant benefits
+for inbox/outbox metrics gathering in the future:
+
+<!-- snippet: sample_enabling_inbox_partitioning -->
+<a id='snippet-sample_enabling_inbox_partitioning'></a>
+```cs
+var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.Durability.EnableInboxPartitioning = true;
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PostgresqlTests/compliance_using_table_partitioning.cs#L26-L34' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_enabling_inbox_partitioning' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
 ## PostgreSQL Messaging Transport <Badge type="tip" text="2.5" />
 
 ::: info
@@ -124,6 +142,31 @@ Using this option just means that the PostgreSQL queues can be used for both sen
 with the transactional inbox or outbox. This is a little more performant, but less safe as messages could be
 lost if held in memory when the application shuts down unexpectedly. 
 
+### Polling
+Wolverine has a number of internal polling operations, and any PostgreSQL queues will be polled on a configured interval as Wolverine does not use the PostgreSQL `LISTEN/NOTIFY` feature at this time.   
+The default polling interval is set in the `DurabilitySettings` class and can be configured at runtime as below:
+
+```cs
+var builder = Host.CreateApplicationBuilder();
+builder.UseWolverine(opts =>
+{
+    // Health check message queue/dequeue
+    opts.Durability.HealthCheckPollingTime = TimeSpan.FromSeconds(10);
+    
+    // Node reassigment checks
+    opts.Durability.NodeReassignmentPollingTime = TimeSpan.FromSeconds(5);
+    
+    // User queue poll frequency
+    opts.Durability.ScheduledJobPollingTime = TimeSpan.FromSeconds(5);
+}
+```
+
+::: info Control queue  
+Wolverine has an internal control queue (`dbcontrol`) used for internal operations.  
+This queue is hardcoded to poll every second and should not be changed to ensure the stability of the application.
+:::
+
+
 ## Multi-Tenancy
 
 As of Wolverine 4.0, you have two ways to use multi-tenancy through separate databases per tenant with PostgreSQL:
@@ -195,8 +238,8 @@ public class OurFancyPostgreSQLMultiTenancy : IWolverineExtension
             .RegisterStaticTenantsByDataSource(tenants =>
             {
                 tenants.Register("tenant1", _provider.GetRequiredKeyedService<NpgsqlDataSource>("tenant1"));
-                tenants.Register("tenant1", _provider.GetRequiredKeyedService<NpgsqlDataSource>("tenant2"));
-                tenants.Register("tenant1", _provider.GetRequiredKeyedService<NpgsqlDataSource>("tenant3"));
+                tenants.Register("tenant2", _provider.GetRequiredKeyedService<NpgsqlDataSource>("tenant2"));
+                tenants.Register("tenant3", _provider.GetRequiredKeyedService<NpgsqlDataSource>("tenant3"));
             });
     }
 }

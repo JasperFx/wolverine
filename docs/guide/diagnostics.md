@@ -136,25 +136,6 @@ using var host = await Host.CreateDefaultBuilder()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerDiscoverySamples.cs#L148-L160' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_describe_handler_match' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-## Asserting Wolverine Configuration
-
-Probably mostly for testing projects, you can verify that all the message handlers and the underlying Lamar IoC container for your
-application are in a valid state by executing this method:
-
-<!-- snippet: sample_using_AssertWolverineConfigurationIsValid -->
-<a id='snippet-sample_using_assertwolverineconfigurationisvalid'></a>
-```cs
-public static void assert_configuration_is_valid(IHost host)
-{
-    host.AssertWolverineConfigurationIsValid();
-}
-```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/DiagnosticSamples.cs#L8-L15' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_assertwolverineconfigurationisvalid' title='Start of snippet'>anchor</a></sup>
-<!-- endSnippet -->
-
-Note that this method will attempt to generate and compile the source code for each message type and use [Lamar's own
-diagnostics](https://jasperfx.github.io/lamar/guide/ioc/diagnostics/) as well.
-
 ## Troubleshooting Message Routing
 
 Among other information, you can find a preview of how Wolverine will route known message types through the command line
@@ -185,6 +166,6 @@ public static void using_preview_subscriptions(IMessageBus bus)
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Runtime/Routing/routing_rules.cs#L90-L104' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_preview_subscriptions' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Runtime/Routing/routing_rules.cs#L102-L116' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_preview_subscriptions' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 

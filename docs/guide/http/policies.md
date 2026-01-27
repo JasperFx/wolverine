@@ -20,7 +20,7 @@ public interface IHttpPolicy
     void Apply(IReadOnlyList<HttpChain> chains, GenerationRules rules, IServiceContainer container);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http/IHttpPolicy.cs#L6-L22' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_ihttppolicy' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http/IHttpPolicy.cs#L7-L23' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_ihttppolicy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And then adding a policy to the `WolverineHttpOptions` like this code from the Fluent Validation extension for HTTP:
@@ -64,8 +64,12 @@ app.MapWolverineEndpoints(opts =>
     // Opting into the Fluent Validation middleware from
     // Wolverine.Http.FluentValidation
     opts.UseFluentValidationProblemDetailMiddleware();
+
+    // Or instead, you could use Data Annotations that are built
+    // into the Wolverine.HTTP library
+    opts.UseDataAnnotationsValidationProblemDetailMiddleware();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L215-L236' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_configure_endpoints' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L215-L240' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_configure_endpoints' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The `HttpChain` model is a configuration time structure that Wolverine.Http will use at runtime to create the full
@@ -96,8 +100,12 @@ app.MapWolverineEndpoints(opts =>
     // Opting into the Fluent Validation middleware from
     // Wolverine.Http.FluentValidation
     opts.UseFluentValidationProblemDetailMiddleware();
+
+    // Or instead, you could use Data Annotations that are built
+    // into the Wolverine.HTTP library
+    opts.UseDataAnnotationsValidationProblemDetailMiddleware();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L215-L236' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_configure_endpoints' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L215-L240' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_configure_endpoints' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Resource Writer Policies
@@ -132,7 +140,7 @@ If you need special handling of a primary return type you can implement `IResour
 ```cs
 opts.AddResourceWriterPolicy<CustomResourceWriterPolicy>();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L251-L253' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_register_resource_writer_policy' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L262-L266' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_register_resource_writer_policy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Resource writer policies registered this way will be applied in order before all built in policies.

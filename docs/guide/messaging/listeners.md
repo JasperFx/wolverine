@@ -162,5 +162,32 @@ This option does a couple things:
 * Sets any local execution of the listener's internal, local queue to be strictly sequential and only process messages with
   a single thread
 
+## Disabling All External Listeners
 
+In some cases, you may want to disable all message processing for messages received from external
+transports like Rabbit MQ or AWS SQS. To do that, simply set:
+
+<!-- snippet: sample_disable_all_listeners -->
+<a id='snippet-sample_disable_all_listeners'></a>
+```cs
+.UseWolverine(opts =>
+{
+    // This will disable all message listening to
+    // external message brokers
+    opts.DisableAllExternalListeners = true;
+    
+    opts.DisableConventionalDiscovery();
+
+    // This could never, ever work
+    opts.UseRabbitMq().AutoProvision();
+    opts.ListenToRabbitQueue("incoming");
+}).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/disable_external_listeners.cs#L16-L31' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disable_all_listeners' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+The original use case for this flag was a command line tool that needed to publish messages to
+a system through Rabbit MQ then exit. Having that process also trying to publish messages received
+from Rabbit MQ kept the command line tool from quitting quickly as Wolverine had to "drain" ongoing
+work. For that kind of tool, we recommend this setting.
 

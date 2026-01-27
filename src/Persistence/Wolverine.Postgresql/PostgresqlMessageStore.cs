@@ -25,20 +25,6 @@ using Table = Weasel.Postgresql.Tables.Table;
 
 namespace Wolverine.Postgresql;
 
-/// <summary>
-/// Built to work with separate Marten stores
-/// </summary>
-/// <typeparam name="T"></typeparam>
-internal class PostgresqlMessageStore<T> : PostgresqlMessageStore, IAncillaryMessageStore<T>
-{
-    public PostgresqlMessageStore(DatabaseSettings databaseSettings, DurabilitySettings settings, NpgsqlDataSource dataSource, ILogger<PostgresqlMessageStore> logger) : base(databaseSettings, settings, dataSource, logger)
-    {
-
-    }
-
-    public Type MarkerType => typeof(T);
-}
-
 internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
 {
     private readonly string _deleteOutgoingEnvelopesSql;
@@ -54,6 +40,9 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
     public PostgresqlMessageStore(DatabaseSettings databaseSettings, DurabilitySettings settings, NpgsqlDataSource dataSource,
         ILogger<PostgresqlMessageStore> logger) : this(databaseSettings, settings, GetPrimaryNpgsqlNodeIfPossible(dataSource), logger, Array.Empty<SagaTableDefinition>())
     {
+        // ReSharper disable once VirtualMemberCallInConstructor
+        var descriptor = Describe();
+        Id = new DatabaseId(descriptor.ServerName, descriptor.DatabaseName);
     }
 
     private static NpgsqlDataSource GetPrimaryNpgsqlNodeIfPossible(NpgsqlDataSource dataSource)
@@ -226,52 +215,6 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
 
         return counts;
     }
-    
-    public override async Task MarkDeadLetterEnvelopesAsReplayableAsync(Guid[] ids, string? tenantId = null)
-    {
-        var builder = ToCommandBuilder();
-        builder.Append($"update {SchemaName}.{DatabaseConstants.DeadLetterTable} set {DatabaseConstants.Replayable} = @replay where id = ANY(@ids)");
-
-        var cmd = builder.Compile();
-        cmd.With("replay", true);
-        var param = new NpgsqlParameter("ids", NpgsqlDbType.Array | NpgsqlDbType.Uuid) { Value = ids };
-        cmd.Parameters.Add(param);
-        await using var conn = await NpgsqlDataSource.OpenConnectionAsync(_cancellation);
-        cmd.Connection = conn;
-        try
-        {
-            await cmd.ExecuteNonQueryAsync(_cancellation);
-        }
-        finally
-        {
-            await conn.CloseAsync();
-        }
-    }
-
-    public override async Task DeleteDeadLetterEnvelopesAsync(Guid[] ids, string? tenantId = null)
-    {
-        var builder = ToCommandBuilder();
-        builder.Append($"delete from {SchemaName}.{DatabaseConstants.DeadLetterTable} where id = ANY(@ids)");
-
-        var cmd = builder.Compile();
-        var param = new NpgsqlParameter("ids", NpgsqlDbType.Array | NpgsqlDbType.Uuid) { Value = ids };
-        cmd.Parameters.Add(param);
-        await using var conn = await NpgsqlDataSource.OpenConnectionAsync(_cancellation);
-        cmd.Connection = conn;
-        try
-        {
-            await cmd.ExecuteNonQueryAsync(_cancellation);
-        }
-        finally
-        {
-            await conn.CloseAsync();
-        }
-    }
-
-    public override void Describe(TextWriter writer)
-    {
-        writer.WriteLine($"Persistent Envelope storage using Postgresql in schema '{SchemaName}'");
-    }
 
     public override async Task DiscardAndReassignOutgoingAsync(Envelope[] discards, Envelope[] reassigned, int nodeId)
     {
@@ -310,6 +253,19 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
     public override DbCommandBuilder ToCommandBuilder()
     {
         return new DbCommandBuilder(new NpgsqlCommand());
+    }
+
+    public override async Task<bool> ExistsAsync(Envelope envelope, CancellationToken cancellation)
+    {
+        if (HasDisposed) return false;
+
+        await using var conn = await NpgsqlDataSource.OpenConnectionAsync(cancellation);
+        var count = await conn
+            .CreateCommand($"select count(id) from {SchemaName}.{DatabaseConstants.IncomingTable} where id = :id")
+            .With("id", envelope.Id)
+            .ExecuteScalarAsync(cancellation);
+
+        return ((long)count) > 0;
     }
 
     public override void WriteLoadScheduledEnvelopeSql(DbCommandBuilder builder, DateTimeOffset utcNow)
@@ -362,7 +318,7 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
                 {
                     logger.LogInformation("Locally enqueuing scheduled message {Id} of type {MessageType}", envelope.Id,
                         envelope.MessageType);
-                    localQueue.Enqueue(envelope);
+                    await localQueue.EnqueueAsync(envelope);
                 }
             }
         }
@@ -411,6 +367,8 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
             SubjectUri = SubjectUri,
             Identifier = Identifier
         };
+        
+        descriptor.TenantIds.AddRange(TenantIds);
 
         descriptor.Properties.Add(OptionsValue.Read(builder, x => x.Host));
         descriptor.Properties.Add(OptionsValue.Read(builder, x => x.Port));
@@ -471,7 +429,7 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
 
     public override IEnumerable<ISchemaObject> AllObjects()
     {
-        yield return new OutgoingEnvelopeTable(SchemaName);
+        yield return new OutgoingEnvelopeTable(Durability, SchemaName);
         yield return new IncomingEnvelopeTable(Durability, SchemaName);
         yield return new DeadLettersTable(Durability, SchemaName);
 
@@ -480,7 +438,7 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
             yield return table;
         }
 
-        if (_settings.IsMain)
+        if (Role == MessageStoreRole.Main)
         {
             var nodeTable = new Table(new DbObjectName(SchemaName, DatabaseConstants.NodeTableName));
             nodeTable.AddColumn<Guid>("id").AsPrimaryKey();
@@ -530,7 +488,14 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
             eventTable.AddColumn<DateTimeOffset>("timestamp").DefaultValueByExpression("now()").NotNull();
             eventTable.AddColumn<string>("description").AllowNulls();
             yield return eventTable;
-
+            
+            var restrictionTable =
+                new Table(new DbObjectName(SchemaName, DatabaseConstants.AgentRestrictionsTableName));
+            restrictionTable.AddColumn<Guid>("id").AsPrimaryKey();
+            restrictionTable.AddColumn<string>("uri").NotNull();
+            restrictionTable.AddColumn<string>("type").NotNull();
+            restrictionTable.AddColumn<int>("node").NotNull().DefaultValue(0);
+            yield return restrictionTable;
 
         }
         
@@ -569,4 +534,45 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
         return storage;
     }
 
+    protected override void writeMessageIdArrayQueryList(DbCommandBuilder builder, Guid[] messageIds)
+    {
+        builder.Append($" and {DatabaseConstants.Id} = ANY(");
+        builder.AppendParameter(messageIds);
+        builder.Append(')');
+    }
+
+    public override async Task DeleteAllHandledAsync()
+    {
+        await using var conn = CreateConnection();
+        await conn.OpenAsync(CancellationToken.None);
+
+        var deleted = 1;
+        
+        var sql = $@"
+        WITH todo AS (
+            SELECT id
+            FROM {_settings.SchemaName}.{DatabaseConstants.IncomingTable}
+            WHERE status = '{EnvelopeStatus.Handled}'
+            ORDER BY id
+            LIMIT 10000
+            FOR UPDATE SKIP LOCKED
+        )
+        DELETE FROM {_settings.SchemaName}.{DatabaseConstants.IncomingTable} w
+        USING todo
+        WHERE w.id = todo.id;
+";
+        
+        try
+        {
+            while (deleted > 0)
+            {
+                deleted = await conn.CreateCommand(sql).ExecuteNonQueryAsync();
+                await Task.Delay(10.Milliseconds());
+            }
+        }
+        finally
+        {
+            await conn.CloseAsync();
+        }
+    }
 }

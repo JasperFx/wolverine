@@ -19,7 +19,7 @@ public class blue_green_deployment_with_single_tenant : SingleTenantContext
 
         await theOriginalHost.WaitUntilAssignmentsChangeTo(w =>
         {
-            w.AgentScheme = ProjectionAgents.SchemeName;
+            w.AgentScheme = EventSubscriptionAgentFamily.SchemeName;
             w.ExpectRunningAgents(theOriginalHost, 3);
             w.ExpectRunningAgents(greenHost, 3);
         }, 30.Seconds());

@@ -78,7 +78,7 @@ public class dynamically_spin_up_new_durability_agents_for_new_tenant_databases 
                     .IntegrateWithWolverine(m =>
                     {
                         m.MessageStorageSchemaName = "mt";
-                        m.MasterDatabaseConnectionString = Servers.PostgresConnectionString;
+                        m.MainDatabaseConnectionString = Servers.PostgresConnectionString;
                     })
 
                     // All detected changes will be applied to all
@@ -170,7 +170,7 @@ public class dynamically_spin_up_new_durability_agents_for_new_tenant_databases 
                     .IntegrateWithWolverine(m =>
                     {
                         m.MessageStorageSchemaName = "mt";
-                        m.MasterDatabaseConnectionString = Servers.PostgresConnectionString;
+                        m.MainDatabaseConnectionString = Servers.PostgresConnectionString;
                     })
 
                     // All detected changes will be applied to all

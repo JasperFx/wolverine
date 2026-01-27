@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
@@ -12,6 +13,7 @@ public class HttpEndpoint : Endpoint
     {
     }
 
+    internal bool SupportsNativeScheduledSend { get; set; }
     public string OutboundUri { get; set; }
 
     public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
@@ -19,13 +21,20 @@ public class HttpEndpoint : Endpoint
         return ValueTask.FromResult<IListener>(new NulloListener(Uri));
     }
 
+    public JsonSerializerOptions SerializerOptions { get; set; } = new JsonSerializerOptions
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        WriteIndented = false
+    };
     protected override ISender CreateSender(IWolverineRuntime runtime)
     {
-        return new BatchedSender(
-            this, 
-            new HttpSenderProtocol(this, runtime.Services), 
-            runtime.Cancellation,
-            runtime.LoggerFactory.CreateLogger<HttpSenderProtocol>());
+        return Mode == EndpointMode.Inline
+            ? new InlineHttpSender(this, runtime, runtime.Services)
+            : new BatchedSender(
+                this,
+                new HttpSenderProtocol(this, runtime.Services),
+                runtime.Cancellation,
+                runtime.LoggerFactory.CreateLogger<HttpSenderProtocol>());
     }
 
     public override IDictionary<string, object> DescribeProperties()
@@ -35,6 +44,7 @@ public class HttpEndpoint : Endpoint
 
     protected override bool supportsMode(EndpointMode mode)
     {
-        return mode != EndpointMode.Inline;
+        return true;
     }
 }
+

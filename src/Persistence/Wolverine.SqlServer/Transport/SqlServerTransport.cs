@@ -19,7 +19,7 @@ public class SqlServerTransport : BrokerTransport<SqlServerQueue>
     {
         
     }
-    public SqlServerTransport(DatabaseSettings settings, string? transportSchemaName) : base(ProtocolName, "Sql Server Transport")
+    public SqlServerTransport(DatabaseSettings settings, string? transportSchemaName) : base(ProtocolName, "Sql Server Transport", [ProtocolName])
     {
         Queues = new LightweightCache<string, SqlServerQueue>(name => new SqlServerQueue(name, this));
         Settings = settings;
@@ -72,8 +72,8 @@ public class SqlServerTransport : BrokerTransport<SqlServerQueue>
     public override async ValueTask ConnectAsync(IWolverineRuntime runtime)
     {
         AutoProvision = AutoProvision || runtime.Options.AutoBuildMessageStorageOnStartup != AutoCreate.None;
-        
-        var storage = runtime.Storage as SqlServerMessageStore;
+
+        var storage = await runtime.TryFindMainMessageStore<SqlServerMessageStore>();
 
         Storage = storage ?? throw new InvalidOperationException(
             "The Sql Server Transport can only be used if the message persistence is also Sql Server backed");

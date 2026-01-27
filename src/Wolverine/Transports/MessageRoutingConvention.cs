@@ -2,6 +2,7 @@ using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
+using Wolverine.Runtime.RemoteInvocation;
 using Wolverine.Runtime.Routing;
 using Wolverine.Util;
 
@@ -50,7 +51,7 @@ public abstract class MessageRoutingConvention<TTransport, TListener, TSubscribe
                 foreach (var handlerChain in chain.ByEndpoint)
                 {
                     var handlerType = handlerChain.Handlers.First().HandlerType;
-                    var endpoint = maybeCreateListenerForMessageOrHandlerType(transport, handlerType, runtime);
+                    var endpoint = maybeCreateListenerForMessageAndSeparatedHandlerType(transport, messageType, handlerType, runtime);
                     if (endpoint != null)
                     {
                         handlerChain.RegisterEndpoint(endpoint);
@@ -61,6 +62,33 @@ public abstract class MessageRoutingConvention<TTransport, TListener, TSubscribe
             
             
         }
+    }
+
+    private Endpoint? maybeCreateListenerForMessageAndSeparatedHandlerType(TTransport transport, Type messageType, Type handlerType, IWolverineRuntime runtime)
+    {
+        // Can be null, so bail out if there's no queue
+        var topicName = _queueNameForListener(messageType);
+        if (topicName.IsEmpty())
+        {
+            return null;
+        }
+
+        var corrected = transport.MaybeCorrectName(topicName);
+
+        var (configuration, endpoint) = FindOrCreateListenerForIdentifierUsingSeparatedHandler(corrected, transport, messageType, handlerType);
+        //endpoint.EndpointName = queueName;
+
+        endpoint.IsListener = true;
+
+        var context = new MessageRoutingContext(messageType, runtime);
+
+        _configureListener(configuration, context);
+
+        configuration!.As<IDelayedEndpointConfiguration>().Apply();
+            
+        ApplyListenerRoutingDefaults(endpoint.EndpointName, transport, messageType);
+
+        return endpoint;
     }
 
     private Endpoint? maybeCreateListenerForMessageOrHandlerType(TTransport transport, Type messageOrHandlerType, IWolverineRuntime runtime)
@@ -98,6 +126,11 @@ public abstract class MessageRoutingConvention<TTransport, TListener, TSubscribe
         }
 
         if (!_typeFilters.Matches(messageType))
+        {
+            yield break;
+        }
+
+        if (messageType.CanBeCastTo<INotToBeRouted>() || messageType == typeof(Envelope))
         {
             yield break;
         }
@@ -168,6 +201,9 @@ public abstract class MessageRoutingConvention<TTransport, TListener, TSubscribe
 
     protected abstract (TListener, Endpoint) FindOrCreateListenerForIdentifier(string identifier,
         TTransport transport, Type messageType);
+    
+    protected abstract (TListener, Endpoint) FindOrCreateListenerForIdentifierUsingSeparatedHandler(string identifier,
+        TTransport transport, Type messageType, Type handlerType);
 
     protected abstract (TSubscriber, Endpoint) FindOrCreateSubscriber(string identifier, TTransport transport);
 

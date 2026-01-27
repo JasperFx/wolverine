@@ -24,13 +24,16 @@ public class TenantedDbContextBuilderByConnectionString<T> : IDbContextBuilder<T
     private readonly IServiceProvider _serviceProvider;
     private readonly MultiTenantedMessageStore _store;
     private ImHashMap<string, string> _connectionStrings = ImHashMap<string, string>.Empty;
+    private readonly IDomainEventScraper[] _domainScrapers;
 
     // Going to assume that it's wolverine enabled here!
     public TenantedDbContextBuilderByConnectionString(IServiceProvider serviceProvider, MultiTenantedMessageStore store,
-        Action<DbContextOptionsBuilder<T>, ConnectionString, TenantId> configuration)
+        Action<DbContextOptionsBuilder<T>, ConnectionString, TenantId> configuration,
+        IEnumerable<IDomainEventScraper> domainScrapers)
     {
         _serviceProvider = serviceProvider;
         _store = store;
+        _domainScrapers = domainScrapers.ToArray();
 
         _configuration = configuration;
         var optionsType = typeof(DbContextOptions<T>);
@@ -64,7 +67,7 @@ public class TenantedDbContextBuilderByConnectionString<T> : IDbContextBuilder<T
         _configuration(builder, new ConnectionString(connectionString), new TenantId(messaging.TenantId));
         var dbContext = _constructor(builder.Options);
 
-        var transaction = new MappedEnvelopeTransaction(dbContext, messaging);
+        var transaction = new EfCoreEnvelopeTransaction(dbContext, messaging, _domainScrapers);
 
         await messaging.EnlistInOutboxAsync(transaction);
 

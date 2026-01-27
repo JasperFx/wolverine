@@ -8,7 +8,6 @@ internal class HttpSenderProtocol : ISenderProtocol
 {
     private readonly HttpEndpoint _endpoint;
     private readonly IServiceProvider _services;
-    private readonly IHttpClientFactory _clientFactory;
 
     public HttpSenderProtocol(HttpEndpoint endpoint, IServiceProvider services)
     {
@@ -19,7 +18,8 @@ internal class HttpSenderProtocol : ISenderProtocol
     public async Task SendBatchAsync(ISenderCallback callback, OutgoingMessageBatch batch)
     {
         using var scope = _services.CreateScope();
-        var client = scope.ServiceProvider.GetRequiredService<WolverineHttpTransportClient>();
+        var client = scope.ServiceProvider.GetRequiredService<IWolverineHttpTransportClient>() ??
+                     throw new InvalidOperationException("IWolverineHttpTransportClient is not registered in the service container");
         await client.SendBatchAsync(_endpoint.OutboundUri, batch);
     }
 }

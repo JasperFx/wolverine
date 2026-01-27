@@ -10,7 +10,7 @@ public class HttpElementVariable : Variable
 {
     public HttpElementVariable(Type variableType, string usage, Frame? creator) : base(variableType, usage, creator)
     {
-        Name = usage;
+        Name = usage.SanitizeFormNameForVariable();
     }
 
     public string Name { get; set; }

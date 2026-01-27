@@ -1,5 +1,15 @@
 # HTTP Endpoints
 
+::: warning
+While Wolverine.HTTP has a relaxed view of naming conventions since it depends on the routing attributes for discovery. It
+is very possible to utilize the same method as both an HTTP endpoint and Wolverine message handler if the method both
+follows the correct naming conventions for message handler discovery and is decorated with one of the `[WolverineVerb]` attributes.
+
+This can lead to unexpected code generation errors on the message handler side if the method refers to HTTP route arguments,
+query string values, or other AspNetCore services. Our strong advice is to use the `Endpoint` class name nomenclature for HTTP
+endpoints unless you are explicitly meaning for a method to be both an HTTP endpoint and message handler. 
+:::
+
 First, a little terminology about Wolverine HTTP endpoints. Consider the following endpoint method:
 
 <!-- snippet: sample_simple_wolverine_http_endpoint -->
@@ -145,7 +155,7 @@ public static class TodoCreationEndpoint
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Samples/TodoController.cs#L80-L112' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_wolverine_endpoint_for_create_todo' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Samples/TodoController.cs#L84-L116' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_wolverine_endpoint_for_create_todo' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In the case above, `TodoCreationResponse` is the first item in the tuple, so Wolverine treats that as 
@@ -174,12 +184,12 @@ public static OrderShipped Ship(ShipOrder command, Order order)
     return new OrderShipped();
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L119-L132' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_emptyresponse' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L122-L135' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_emptyresponse' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## JSON Handling
 
-See [JSON serialization for more information](/json)
+See [JSON serialization for more information](/guide/http/json)
 
 ## Returning Strings
 
@@ -282,7 +292,7 @@ public interface IParameterStrategy
     bool TryMatch(HttpChain chain, IServiceContainer container, ParameterInfo parameter, out Variable? variable);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http/CodeGen/IParameterStrategy.cs#L7-L19' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_iparameterstrategy' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http/CodeGen/IParameterStrategy.cs#L8-L20' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_iparameterstrategy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 As an example, let's say that you want any parameter of type `DateTimeOffset` that's named "now" to receive the current
@@ -308,7 +318,7 @@ public class NowParameterStrategy : IParameterStrategy
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Samples/CustomParameter.cs#L10-L29' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_nowparameterstrategy' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Samples/CustomParameter.cs#L11-L30' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_nowparameterstrategy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 and register that strategy within our `MapWolverineEndpoints()` set up like so:
@@ -319,7 +329,7 @@ and register that strategy within our `MapWolverineEndpoints()` set up like so:
 // Customizing parameter handling
 opts.AddParameterHandlingStrategy<NowParameterStrategy>();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L265-L270' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_adding_custom_parameter_handling' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L280-L285' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_adding_custom_parameter_handling' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And lastly, here's the application within an HTTP endpoint for extra context:
@@ -352,7 +362,59 @@ To make a single class and method be both a message handler and HTTP endpoint, j
 with the route directly on your message handler. As long as that method follows Wolverine's normal naming rules for message
 discovery, Wolverine will treat it as both a message handler and as an HTTP endpoint. Here's an example from our tests:
 
-snippet: sample_using_problem_details_in_message_handler
+<!-- snippet: sample_using_problem_details_in_message_handler -->
+<a id='snippet-sample_using_problem_details_in_message_handler'></a>
+```cs
+public static class NumberMessageHandler
+{
+    public static ProblemDetails Validate(NumberMessage message)
+    {
+        if (message.Number > 5)
+        {
+            return new ProblemDetails
+            {
+                Detail = "Number is bigger than 5",
+                Status = 400
+            };
+        }
+        
+        // All good, keep on going!
+        return WolverineContinue.NoProblems;
+    }
+
+    // This "Before" method would only be utilized as
+    // an HTTP endpoint
+    [WolverineBefore(MiddlewareScoping.HttpEndpoints)]
+    public static void BeforeButOnlyOnHttp(HttpContext context)
+    {
+        Debug.WriteLine("Got an HTTP request for " + context.TraceIdentifier);
+        CalledBeforeOnlyOnHttpEndpoints = true;
+    }
+
+    // This "Before" method would only be utilized as
+    // a message handler
+    [WolverineBefore(MiddlewareScoping.MessageHandlers)]
+    public static void BeforeButOnlyOnMessageHandlers()
+    {
+        CalledBeforeOnlyOnMessageHandlers = true;
+    }
+
+    // Look at this! You can use this as an HTTP endpoint too!
+    [WolverinePost("/problems2")]
+    public static void Handle(NumberMessage message)
+    {
+        Debug.WriteLine("Handled " + message);
+        Handled = true;
+    }
+
+    // These properties are just a cheap trick in Wolverine internal tests
+    public static bool Handled { get; set; }
+    public static bool CalledBeforeOnlyOnMessageHandlers { get; set; }
+    public static bool CalledBeforeOnlyOnHttpEndpoints { get; set; }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/ProblemDetailsUsage.cs#L38-L88' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_problem_details_in_message_handler' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 If you are using Wolverine.HTTP in your application, Wolverine is able to treat `ProblemDetails` similar to the built in
 `HandlerContinuation` when running inside of message handlers.
@@ -365,5 +427,33 @@ limit the applicability of individual middleware methods.
 There is no runtime filtering here because the `MiddlewareScoping` impacts the generated code around your hybrid message handler / 
 HTTP endpoint method, and Wolverine already generates code separately for the two use cases. 
 :::
+
+As of Wolverine 5.7, you can also technically use `HttpContext` arguments in the message handler usage *if*
+you are carefully accounting for that being null as shown in this sample:
+
+<!-- snippet: sample_HybridHandler_with_null_HttpContext -->
+<a id='snippet-sample_hybridhandler_with_null_httpcontext'></a>
+```cs
+public record DoHybrid(string Message);
+
+public static class HybridHandler
+{
+    [WolverinePost("/hybrid")]
+    public static async Task HandleAsync(DoHybrid command, HttpContext? context)
+    {
+        // What this, because it will be null if this is used within 
+        // a message handler!
+        if (context != null)
+        {
+            context.Response.ContentType = "text/plain";
+            await context.Response.WriteAsync(command.Message);
+        }
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/HybridHandler.cs#L5-L24' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_hybridhandler_with_null_httpcontext' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+
 
 

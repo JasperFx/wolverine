@@ -1,4 +1,5 @@
 ﻿using System.Reflection;
+using JasperFx;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
@@ -17,7 +18,7 @@ namespace Wolverine;
 ///     handler action. Any *public* Execute() or ExecuteAsync() method will be
 ///     called on this object
 /// </summary>
-public interface ISideEffect : IWolverineReturnType;
+public interface ISideEffect : IWolverineReturnType, INotToBeRouted;
 
 
 /// <summary>
@@ -82,7 +83,7 @@ internal class SideEffectPolicy : IChainPolicy
 
     private static void applySideEffectExecution(Variable effect, IChain chain)
     {
-        if (effect.GetType() == typeof(ISideEffect))
+        if (effect.VariableType == typeof(ISideEffect))
         {
             throw new InvalidOperationException($"Return the concrete type of ISideEffect so that Wolverine can 'know' how to call into your side effect and not ISideEffect itself");
         }

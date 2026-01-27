@@ -1,3 +1,4 @@
+using JasperFx;
 using JasperFx.Events;
 using Marten;
 using Marten.Events;
@@ -5,9 +6,11 @@ using Marten.Linq;
 using Marten.Pagination;
 using Microsoft.AspNetCore.Mvc;
 using Wolverine.Attributes;
+using Wolverine.ErrorHandling;
 using Wolverine.Http;
 using Wolverine.Http.Marten;
 using Wolverine.Marten;
+using Wolverine.Runtime.Handlers;
 
 namespace WolverineWebApi.Marten;
 
@@ -130,6 +133,16 @@ public static class MarkItemEndpoint
     }
 
     #endregion
+    
+    [WolverinePost("/orders/ship3"), EmptyResponse]
+    // The OrderShipped return value is treated as an event being posted
+    // to a Marten even stream
+    // instead of as the HTTP response body because of the presence of
+    // the [EmptyResponse] attribute
+    public static OrderShipped Ship3(ShipOrder command, [WriteAggregate] Order order)
+    {
+        return new OrderShipped();
+    }
 
     #region sample_using_aggregate_attribute_1
 
@@ -363,5 +376,40 @@ public static class QueryOrdersEndpoint
     }
 }
 
+
+#endregion
+
+#region sample_showing_concurrency_exception_moving_directly_to_DLQ
+
+public static class MarkItemReadyHandler
+{
+    // This will let us specify error handling policies specific
+    // to only this message handler
+    public static void Configure(HandlerChain chain)
+    {
+        // Can't ever process this message, so send it directly 
+        // to the DLQ
+        // Do not pass Go, do not collect $200...
+        chain.OnException<ConcurrencyException>()
+            .MoveToErrorQueue();
+        
+        // Or instead...
+        // Can't ever process this message, so just throw it away
+        // Do not pass Go, do not collect $200...
+        chain.OnException<ConcurrencyException>()
+            .Discard();
+    }
+    
+    public static IEnumerable<object> Post(
+        MarkItemReady command, 
+        
+        // Wolverine + Marten will assert that the Order stream
+        // in question has not advanced from command.Version
+        [WriteAggregate] Order order)
+    {
+        // process the message and emit events
+        yield break;
+    }
+}
 
 #endregion

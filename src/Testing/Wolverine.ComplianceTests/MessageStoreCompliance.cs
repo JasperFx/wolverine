@@ -6,6 +6,7 @@ using JasperFx.Resources;
 using Shouldly;
 using Wolverine.Persistence.Durability;
 using Wolverine.Persistence.Durability.DeadLetterManagement;
+using Wolverine.Runtime.Agents;
 using Wolverine.Transports;
 using Xunit;
 
@@ -103,6 +104,42 @@ public abstract class MessageStoreCompliance : IAsyncLifetime
         stored.Status.ShouldBe(envelope.Status);
 
         stored.SentAt.ShouldBe(envelope.SentAt);
+    }
+
+    [Fact]
+    public async Task incoming_exists()
+    {
+        var envelope = ObjectMother.Envelope();
+        envelope.Status = EnvelopeStatus.Incoming;
+        envelope.SentAt = ((DateTimeOffset)DateTime.Today).ToUniversalTime();
+        
+        (await thePersistence.Inbox.ExistsAsync(envelope, CancellationToken.None)).ShouldBeFalse();
+        
+        await thePersistence.Inbox.StoreIncomingAsync(envelope);
+        
+        (await thePersistence.Inbox.ExistsAsync(envelope, CancellationToken.None)).ShouldBeTrue();
+    }
+    
+    [Fact]
+    public async Task store_a_single_incoming_envelope_that_is_handled()
+    {
+        // This is for cases where you're only persisting the record for idempotency checks
+        
+        var envelope = ObjectMother.Envelope();
+        envelope.Status = EnvelopeStatus.Handled;
+        envelope.SentAt = ((DateTimeOffset)DateTime.Today).ToUniversalTime();
+
+        await thePersistence.Inbox.StoreIncomingAsync(envelope);
+
+        var stored = (await thePersistence.Admin.AllIncomingAsync()).Single();
+        
+        // This is the important part
+        stored.Data.Length.ShouldBe(0);
+        stored.Destination.ShouldBe(envelope.Destination);
+
+        stored.Id.ShouldBe(envelope.Id);
+        stored.OwnerId.ShouldBe(envelope.OwnerId);
+        stored.Status.ShouldBe(envelope.Status);
     }
 
     [Fact]
@@ -266,7 +303,7 @@ public abstract class MessageStoreCompliance : IAsyncLifetime
 
         await thePersistence
             .DeadLetters
-            .DeleteDeadLetterEnvelopesAsync([replayableEnvelope.Id]);
+            .DiscardAsync(new DeadLetterEnvelopeQuery([replayableEnvelope.Id]), CancellationToken.None);
 
         var counts = await thePersistence.Admin.FetchCountsAsync();
 
@@ -528,14 +565,12 @@ public abstract class MessageStoreCompliance : IAsyncLifetime
         await thePersistence.Inbox.MoveToDeadLetterStorageAsync(report3.Envelope, ex);
         await thePersistence.Inbox.MoveToDeadLetterStorageAsync(report4.Envelope, ex);
 
+        var stored = await thePersistence.DeadLetters.QueryAsync(new DeadLetterEnvelopeQuery()
+        {
+            PageSize = 2
+        }, CancellationToken.None);
 
-        var stored = await thePersistence.DeadLetters.QueryDeadLetterEnvelopesAsync(
-            new DeadLetterEnvelopeQueryParameters
-            {
-                Limit = 2
-            });
-
-        stored.DeadLetterEnvelopes.Count.ShouldBe(2);
+        stored.Envelopes.Count.ShouldBe(2);
     }
 
     [Fact]
@@ -564,60 +599,14 @@ public abstract class MessageStoreCompliance : IAsyncLifetime
         await thePersistence.Inbox.MoveToDeadLetterStorageAsync(report3.Envelope, ex);
         await thePersistence.Inbox.MoveToDeadLetterStorageAsync(report4.Envelope, ex);
 
+        var query = new DeadLetterEnvelopeQuery(new TimeRange(DateTimeOffset.Now.AddDays(-1),
+            DateTimeOffset.Now.AddDays(1)));
+        
+        var result = await thePersistence.DeadLetters.QueryAsync(query, CancellationToken.None);
 
-        var parameters = new DeadLetterEnvelopeQueryParameters
-        {
-            From = DateTimeOffset.Now.AddDays(-1),
-            Until = DateTimeOffset.Now.AddDays(1)
-        };
-
-        var result = await thePersistence.DeadLetters.QueryDeadLetterEnvelopesAsync(parameters);
-
-        result.DeadLetterEnvelopes.Count.ShouldBe(3);
+        result.Envelopes.Count.ShouldBe(3);
     }
-    
-    [Fact]
-    public async Task query_dead_letter_envelopes_with_start_id()
-    {
-        var list = new List<Envelope>();
 
-        for (var i = 0; i < 10; i++)
-        {
-            var envelope = ObjectMother.Envelope();
-            envelope.Id = Guid.Parse($"00000000-0000-0000-0000-00000000000{i}");
-            envelope.Status = EnvelopeStatus.Incoming;
-
-
-            list.Add(envelope);
-        }
-
-        await thePersistence.Inbox.StoreIncomingAsync(list.ToArray());
-
-
-        var ex = new DivideByZeroException("Kaboom!");
-
-        var report2 = new ErrorReport(list[2], ex);
-        var report3 = new ErrorReport(list[3], ex);
-        var report4 = new ErrorReport(list[4], ex);
-
-        await thePersistence.Inbox.MoveToDeadLetterStorageAsync(report2.Envelope, ex);
-        await thePersistence.Inbox.MoveToDeadLetterStorageAsync(report3.Envelope, ex);
-        await thePersistence.Inbox.MoveToDeadLetterStorageAsync(report4.Envelope, ex);
-
-
-        var parameters = new DeadLetterEnvelopeQueryParameters
-        {
-            StartId = report3.Id
-        };
-
-        var result = await thePersistence.DeadLetters.QueryDeadLetterEnvelopesAsync(parameters);
-
-        result.DeadLetterEnvelopes.Count.ShouldBe(2);
-        result.DeadLetterEnvelopes.ShouldNotContain(x => x.Envelope.Id == report2.Id);
-        result.DeadLetterEnvelopes.ShouldContain(x => x.Envelope.Id == report3.Id);
-        result.DeadLetterEnvelopes.ShouldContain(x => x.Envelope.Id == report4.Id);
-    }
-    
     [Fact]
     public async Task load_dead_letter_envelopes_by_exception_type()
     {
@@ -645,16 +634,16 @@ public abstract class MessageStoreCompliance : IAsyncLifetime
         await thePersistence.Inbox.MoveToDeadLetterStorageAsync(report4.Envelope, ex);
 
 
-        var stored = await thePersistence.DeadLetters.QueryDeadLetterEnvelopesAsync(
-            new DeadLetterEnvelopeQueryParameters
+        var stored = await thePersistence.DeadLetters.QueryAsync(
+            new()
             {
                 ExceptionType = report2.ExceptionType
-            });
+            }, CancellationToken.None);
 
-        stored.DeadLetterEnvelopes.Count.ShouldBe(3);
-        stored.DeadLetterEnvelopes.ShouldContain(x => x.Envelope.Id == report2.Id);
-        stored.DeadLetterEnvelopes.ShouldContain(x => x.Envelope.Id == report3.Id);
-        stored.DeadLetterEnvelopes.ShouldContain(x => x.Envelope.Id == report4.Id);
+        stored.Envelopes.Count.ShouldBe(3);
+        stored.Envelopes.ShouldContain(x => x.Envelope.Id == report2.Id);
+        stored.Envelopes.ShouldContain(x => x.Envelope.Id == report3.Id);
+        stored.Envelopes.ShouldContain(x => x.Envelope.Id == report4.Id);
     }
 
     [Fact]
@@ -739,16 +728,16 @@ public abstract class MessageStoreCompliance : IAsyncLifetime
         await thePersistence.Inbox.MoveToDeadLetterStorageAsync(report4.Envelope, ex);
 
 
-        var stored = await thePersistence.DeadLetters.QueryDeadLetterEnvelopesAsync(
-            new DeadLetterEnvelopeQueryParameters
+        var stored = await thePersistence.DeadLetters.QueryAsync(
+            new()
             {
                 MessageType = report2.Envelope.MessageType
-            });
+            }, CancellationToken.None);
 
-        stored.DeadLetterEnvelopes.Count.ShouldBe(3);
-        stored.DeadLetterEnvelopes.ShouldContain(x => x.Envelope.Id == report2.Id);
-        stored.DeadLetterEnvelopes.ShouldContain(x => x.Envelope.Id == report3.Id);
-        stored.DeadLetterEnvelopes.ShouldContain(x => x.Envelope.Id == report4.Id);
+        stored.Envelopes.Count.ShouldBe(3);
+        stored.Envelopes.ShouldContain(x => x.Envelope.Id == report2.Id);
+        stored.Envelopes.ShouldContain(x => x.Envelope.Id == report3.Id);
+        stored.Envelopes.ShouldContain(x => x.Envelope.Id == report4.Id);
     }
 
     [Fact]
@@ -776,6 +765,58 @@ public abstract class MessageStoreCompliance : IAsyncLifetime
         stored.Any(x => x.Id == list[2].Id).ShouldBeFalse();
         stored.Any(x => x.Id == list[3].Id).ShouldBeFalse();
         stored.Any(x => x.Id == list[7].Id).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task persist_and_load_pin_and_pause_restrictions()
+    {
+        await thePersistence.Admin.ClearAllAsync();
+        
+        var restriction1 = new AgentRestriction(Guid.NewGuid(), new Uri("fake://1"), AgentRestrictionType.Pinned, 1);
+        var restriction2 = new AgentRestriction(Guid.NewGuid(), new Uri("fake://2"), AgentRestrictionType.Pinned, 2);
+        var restriction3 = new AgentRestriction(Guid.NewGuid(), new Uri("fake://3"), AgentRestrictionType.Pinned, 3);
+        
+        var restriction4 = new AgentRestriction(Guid.NewGuid(), new Uri("fake://4"), AgentRestrictionType.Paused, 0);
+        var restriction5 = new AgentRestriction(Guid.NewGuid(), new Uri("fake://5"), AgentRestrictionType.Paused, 0);
+        var restriction6 = new AgentRestriction(Guid.NewGuid(), new Uri("fake://6"), AgentRestrictionType.Paused, 0);
+
+        IReadOnlyList<AgentRestriction> restrictions = [restriction1, restriction2, restriction3, restriction4, restriction5, restriction6];
+        await thePersistence.Nodes.PersistAgentRestrictionsAsync(
+            restrictions,
+            CancellationToken.None);
+
+        var state = await thePersistence.Nodes.LoadNodeAgentStateAsync(CancellationToken.None);
+
+        state.Restrictions.Current.OrderBy(x => x.AgentUri.ToString()).ShouldBe(restrictions.OrderBy(x => x.AgentUri.ToString()));
+    }
+    
+    [Fact]
+    public async Task persist_then_overwrite_with_none_restriction_deletes()
+    {
+        await thePersistence.Admin.ClearAllAsync();
+        
+        var restriction1 = new AgentRestriction(Guid.NewGuid(), new Uri("fake://1"), AgentRestrictionType.Pinned, 1);
+        var restriction2 = new AgentRestriction(Guid.NewGuid(), new Uri("fake://2"), AgentRestrictionType.Pinned, 2);
+        var restriction3 = new AgentRestriction(Guid.NewGuid(), new Uri("fake://3"), AgentRestrictionType.Pinned, 3);
+        
+        var restriction4 = new AgentRestriction(Guid.NewGuid(), new Uri("fake://4"), AgentRestrictionType.Paused, 0);
+        var restriction5 = new AgentRestriction(Guid.NewGuid(), new Uri("fake://5"), AgentRestrictionType.Paused, 0);
+        var restriction6 = new AgentRestriction(Guid.NewGuid(), new Uri("fake://6"), AgentRestrictionType.Paused, 0);
+
+        IReadOnlyList<AgentRestriction> restrictions = [restriction1, restriction2, restriction3, restriction4, restriction5, restriction6];
+        await thePersistence.Nodes.PersistAgentRestrictionsAsync(
+            restrictions,
+            CancellationToken.None);
+
+        await thePersistence.Nodes.PersistAgentRestrictionsAsync(
+        [
+            restriction3 with { Type = AgentRestrictionType.None },
+            restriction4 with { Type = AgentRestrictionType.None }
+        ], CancellationToken.None);
+
+        var state = await thePersistence.Nodes.LoadNodeAgentStateAsync(CancellationToken.None);
+
+        state.Restrictions.Current.OrderBy(x => x.AgentUri.ToString()).ShouldBe([restriction1, restriction2, restriction5, restriction6]);
     }
 
 }

@@ -4,14 +4,22 @@
         <TargetFramework>net8.0</TargetFramework>
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
         <LangVersion>8.0</LangVersion>
+        <OutputType>Exe</OutputType>
     </PropertyGroup>
 
     <ItemGroup>
         <Compile Include="Library.fs"/>
+        <Compile Include="TupleSupport.fs" />
+        <Compile Include="SideEffects.fs" />
     </ItemGroup>
 
     <ItemGroup>
       <ProjectReference Include="..\src\Http\Wolverine.Http\Wolverine.Http.csproj" />
+      <ProjectReference Include="..\src\Persistence\Wolverine.Marten\Wolverine.Marten.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <PackageReference Update="FSharp.Core" Version="9.0.303" />
     </ItemGroup>
 
 </Project>

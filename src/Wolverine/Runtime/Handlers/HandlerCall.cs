@@ -63,4 +63,9 @@ public class HandlerCall : MethodCall
 
         return clone;
     }
+
+    internal IEnumerable<Attribute> GetAllAttributes()
+    {
+        return HandlerType.GetCustomAttributes().Concat(Method.GetCustomAttributes());
+    }
 }

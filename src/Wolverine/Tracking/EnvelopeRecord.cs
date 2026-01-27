@@ -1,17 +1,20 @@
 using System.Diagnostics;
 using JasperFx.Core.Reflection;
+using Wolverine.Transports;
 
 namespace Wolverine.Tracking;
 
 public class EnvelopeRecord
 {
-    public EnvelopeRecord(MessageEventType eventType, Envelope envelope, long sessionTime, Exception? exception)
+    public EnvelopeRecord(MessageEventType eventType, Envelope? envelope, long sessionTime, Exception? exception)
     {
         Envelope = envelope;
         SessionTime = sessionTime;
         Exception = exception;
         MessageEventType = eventType;
-        AttemptNumber = envelope.Attempts;
+        AttemptNumber = envelope?.Attempts ?? 0;
+
+        WasScheduled = envelope?.IsScheduledForLater(DateTimeOffset.UtcNow) ?? false;
 
         var activity = Activity.Current;
         if (activity != null)
@@ -21,8 +24,10 @@ public class EnvelopeRecord
             ActivityId = activity.Id;
         }
     }
+    
+    public bool WasScheduled { get; set; }
 
-    public object? Message => Envelope.Message;
+    public object? Message => Envelope?.Message;
 
     /// <summary>
     ///     If available, the open telemetry activity id when
@@ -32,7 +37,7 @@ public class EnvelopeRecord
     public string? ParentId { get; init; }
     public string? RootId { get; init; }
 
-    public Envelope Envelope { get; }
+    public Envelope? Envelope { get; private set; }
 
     /// <summary>
     ///     A timestamp of the milliseconds since the tracked session was started before this event
@@ -40,7 +45,7 @@ public class EnvelopeRecord
     public long SessionTime { get; }
 
     public Exception? Exception { get; }
-    public MessageEventType MessageEventType { get; }
+    public MessageEventType MessageEventType { get; private set; }
 
     public int AttemptNumber { get; }
 
@@ -57,6 +62,10 @@ public class EnvelopeRecord
         {
             case MessageEventType.Sent:
                 return $"{prefix}Sent {message} to {Envelope.Destination}";
+            
+            case MessageEventType.Scheduled:
+                return
+                    $"{prefix}Scheduled {message} to {Envelope.Destination} at {Envelope.ScheduledTime?.ToString("O")}";
 
             case MessageEventType.Received:
                 return $"{prefix}Received {message} at {Envelope.Destination}";
@@ -86,5 +95,14 @@ public class EnvelopeRecord
         var icon = IsComplete ? "+" : "-";
         return
             $"{icon} Service: {ServiceName}, Id: {Envelope.Id}, {nameof(SessionTime)}: {SessionTime}, {nameof(MessageEventType)}: {MessageEventType}, MessageType: {Envelope.MessageType} at node #{UniqueNodeId}";
+    }
+
+    internal void TryUseInnerFromScheduledEnvelope()
+    {
+        if (Envelope.MessageType == TransportConstants.ScheduledEnvelope)
+        {
+            MessageEventType = MessageEventType.Scheduled;
+            Envelope = (Envelope)Envelope.Message;
+        }
     }
 }

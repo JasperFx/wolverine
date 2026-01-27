@@ -91,6 +91,19 @@ public interface ISqlServerBackedPersistence
     /// <returns></returns>
     ISqlServerBackedPersistence UseMasterTableTenancy(Action<StaticConnectionStringSource> configure);
 
+    /// <summary>
+    /// Tell Wolverine that the persistence service (Marten? EF Core DbContext? Something else?) of the given
+    /// type should be enrolled in envelope storage with this PostgreSQL database
+    /// </summary>
+    /// <param name="serviceType"></param>
+    ISqlServerBackedPersistence Enroll(Type serviceType);
+    
+    /// <summary>
+    /// Tell Wolverine that the persistence service (Marten? EF Core DbContext? Something else?) of the given
+    /// type should be enrolled in envelope storage with this PostgreSQL database
+    /// </summary>
+    /// <param name="serviceType"></param>
+    ISqlServerBackedPersistence Enroll<T>();
 }
 
 /// <summary>
@@ -98,6 +111,13 @@ public interface ISqlServerBackedPersistence
 /// </summary>
 internal class SqlServerBackedPersistence : IWolverineExtension, ISqlServerBackedPersistence
 {
+    private readonly WolverineOptions _options;
+
+    public SqlServerBackedPersistence(WolverineOptions options)
+    {
+        _options = options;
+    }
+
     public string? ConnectionString { get; set; }
     
     public string EnvelopeStorageSchemaName { get; set; } = "wolverine";
@@ -170,38 +190,44 @@ internal class SqlServerBackedPersistence : IWolverineExtension, ISqlServerBacke
         
         var logger = runtime.LoggerFactory.CreateLogger<SqlServerMessageStore>();
         
-        var defaultStore = new SqlServerMessageStore(settings, runtime.DurabilitySettings,
-            logger, sagaTables);
-        
         if (UseMasterTableTenancy)
         {
+            var defaultStore = new SqlServerMessageStore(settings, runtime.DurabilitySettings,
+                logger, sagaTables);
+            
             ConnectionStringTenancy = new MasterTenantSource(defaultStore, runtime.Options);
             
             return new MultiTenantedMessageStore(defaultStore, runtime,
-                new SqlServerTenantedMessageStore(runtime, this, sagaTables));
-        }
-        else if (ConnectionStringTenancy != null)
-        {
-            return new MultiTenantedMessageStore(defaultStore, runtime,
-                new SqlServerTenantedMessageStore(runtime, this, sagaTables));
+                new SqlServerTenantedMessageStore(runtime, this, sagaTables){DataSource = ConnectionStringTenancy});
         }
 
-        return defaultStore;
+        if (ConnectionStringTenancy != null)
+        {
+            var defaultStore = new SqlServerMessageStore(settings, runtime.DurabilitySettings,
+                logger, sagaTables);
+            
+            return new MultiTenantedMessageStore(defaultStore, runtime,
+                new SqlServerTenantedMessageStore(runtime, this, sagaTables){DataSource = ConnectionStringTenancy});
+        }
+
+        settings.Role = Role;
+        
+        return new SqlServerMessageStore(settings, runtime.DurabilitySettings,
+            logger, sagaTables);
     }
 
     private DatabaseSettings buildMainDatabaseSettings()
     {
-        var settings = new DatabaseSettings
+        return new DatabaseSettings
         {
             CommandQueuesEnabled = CommandQueuesEnabled,
-            IsMain = true,
+            Role = MessageStoreRole.Main,
             ConnectionString = ConnectionString,
             ScheduledJobLockId = ScheduledJobLockId,
             SchemaName = EnvelopeStorageSchemaName,
             AddTenantLookupTable = UseMasterTableTenancy,
             TenantConnections = TenantConnections
         };
-        return settings;
     }
 
     private List<Action<SqlServerPersistenceExpression>> _transportConfigurations = new();
@@ -260,9 +286,22 @@ internal class SqlServerBackedPersistence : IWolverineExtension, ISqlServerBacke
         TenantConnections = source;
         return this;
     }
-    
+
+    public ISqlServerBackedPersistence Enroll(Type serviceType)
+    {
+        _options.Services.AddSingleton<AncillaryMessageStore>(s => new (serviceType,BuildMessageStore(s.GetRequiredService<IWolverineRuntime>())));
+        return this;
+    }
+
+    public ISqlServerBackedPersistence Enroll<T>()
+    {
+        return Enroll(typeof(T));
+    }
+
     /// <summary>
     /// This is any default connection strings by tenant that should be loaded at start up time
     /// </summary>
     public StaticConnectionStringSource? TenantConnections { get; set; }
+
+    public MessageStoreRole Role { get; set; } = MessageStoreRole.Main;
 }

@@ -43,6 +43,8 @@ internal class MoveToErrorQueue : IContinuation
         }
 
         await lifecycle.MoveToDeadLetterQueueAsync(Exception);
+        
+        await lifecycle.CompleteAsync();
 
         activity?.AddEvent(new ActivityEvent(WolverineTracing.MovedToErrorQueue));
 

@@ -1,50 +1,47 @@
 using JasperFx.Core;
-using JasperFx.Resources;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
 using Wolverine.Transports;
 
 namespace Wolverine.Http.Transport;
 
-internal class HttpTransport : ITransport
+public class HttpTransport : TransportBase<HttpEndpoint>
 {
-    private readonly Cache<Uri, HttpEndpoint> _endpoints 
-        = new(uri => new HttpEndpoint(uri, EndpointRole.Application));
-    
-    public string Protocol { get; } = "http";
-    public string Name { get; } = "Http Transport";
-    public Endpoint? ReplyEndpoint()
+    private readonly LightweightCache<Uri, HttpEndpoint> _endpoints
+        = new(uri => new HttpEndpoint(uri, EndpointRole.Application){OutboundUri = uri.ToString()});
+
+    public HttpTransport() : base("https", "HTTP Transport", ["http"])
     {
-        throw new NotImplementedException();
     }
 
-    public Endpoint GetOrCreateEndpoint(Uri uri)
+    public const string EnvelopeContentType = "binary/wolverine-envelope";
+    public const string EnvelopeBatchContentType = "binary/wolverine-envelopes";
+    public const string CloudEventsContentType = "application/cloudevents+json";
+    public const string CloudEventsBatchContentType = "application/cloudevents-batch+json";
+
+    protected override IEnumerable<HttpEndpoint> endpoints()
     {
-        throw new NotImplementedException();
+        return _endpoints;
     }
 
-    public Endpoint? TryGetEndpoint(Uri uri)
+    protected override HttpEndpoint findEndpointByUri(Uri uri)
     {
-        throw new NotImplementedException();
+        return _endpoints[uri];
     }
 
-    public IEnumerable<Endpoint> Endpoints()
+    public override ValueTask InitializeAsync(IWolverineRuntime runtime)
     {
-        throw new NotImplementedException();
-    }
+        foreach (var endpoint in _endpoints)
+        {
+            endpoint.Compile(runtime);
+        }
 
-    public async ValueTask InitializeAsync(IWolverineRuntime runtime)
-    {
-        throw new NotImplementedException();
-    }
-
-    public bool TryBuildStatefulResource(IWolverineRuntime runtime, out IStatefulResource? resource)
-    {
-        throw new NotImplementedException();
+        return ValueTask.CompletedTask;
     }
 
     public HttpEndpoint EndpointFor(string url)
     {
-        throw new NotImplementedException();
+        var uri = new Uri(url);
+        return _endpoints[uri];
     }
 }

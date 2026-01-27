@@ -125,7 +125,7 @@ public abstract class MultiTenancyCompliance : IAsyncLifetime, IWolverineExtensi
 
         var dbContext = await theBuilder.BuildAndEnrollAsync(messageContext, CancellationToken.None);
 
-        messageContext.Transaction.ShouldBeOfType<MappedEnvelopeTransaction>()
+        messageContext.Transaction.ShouldBeOfType<EfCoreEnvelopeTransaction>()
             .DbContext.ShouldBe(dbContext);
     }
     
@@ -179,6 +179,39 @@ public abstract class MultiTenancyCompliance : IAsyncLifetime, IWolverineExtensi
         }
     }
 
+    [Fact]
+    public async Task end_to_end_with_cascading_messages()
+    {
+        var blueId = Guid.NewGuid();
+        var redId = Guid.NewGuid();
+        var greenId = Guid.NewGuid();
+
+        await theHost.InvokeMessageAndWaitAsync(new StartAndTriggerApproval(blueId, "Blue!"), "blue");
+        await theHost.InvokeMessageAndWaitAsync(new StartAndTriggerApproval(redId, "Red!"), "red");
+        await theHost.InvokeMessageAndWaitAsync(new StartAndTriggerApproval(greenId, "Green!"), "green");
+
+        var blueDbContext = await theBuilder.BuildAsync("blue", CancellationToken.None);
+        var greenDbContext = await theBuilder.BuildAsync("green", CancellationToken.None);
+        var redDbContext = await theBuilder.BuildAsync("red", CancellationToken.None);
+
+        var blue = await blueDbContext.Items.FindAsync(blueId);
+        blue.Name.ShouldBe("Blue!");
+        blue.Approved.ShouldBeTrue();
+        (await greenDbContext.Items.FindAsync(blueId)).ShouldBeNull();
+        (await redDbContext.Items.FindAsync(blueId)).ShouldBeNull();
+
+        (await blueDbContext.Items.FindAsync(redId)).ShouldBeNull();
+        (await greenDbContext.Items.FindAsync(redId)).ShouldBeNull();
+        var red = await redDbContext.Items.FindAsync(redId);
+        red.Name.ShouldBe("Red!");
+        red.Approved.ShouldBeTrue();
+
+        (await blueDbContext.Items.FindAsync(greenId)).ShouldBeNull();
+        var green = await greenDbContext.Items.FindAsync(greenId);
+        green.Name.ShouldBe("Green!");
+        green.Approved.ShouldBeTrue();
+        (await redDbContext.Items.FindAsync(greenId)).ShouldBeNull();
+    }
 
     [Fact]
     public async Task with_http_posts_using_storage_actions()

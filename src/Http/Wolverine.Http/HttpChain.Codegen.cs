@@ -115,6 +115,14 @@ public partial class HttpChain
             Postprocessors.Add(new WriteEmptyBodyStatusCode());
         }
 
+        if (TryInferMessageIdentity(out var identity))
+        {
+            if (AuditedMembers.All(x => x.Member != identity))
+            {
+                Audit(identity);
+            }    
+        }
+        
         if (AuditedMembers.Count != 0)
         {
             Middleware.Insert(0, new AuditToActivityFrame(this));

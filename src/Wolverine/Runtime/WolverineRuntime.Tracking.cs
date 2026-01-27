@@ -1,6 +1,9 @@
 using System.Diagnostics.Metrics;
+using JasperFx.Core;
+using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Logging;
 using Wolverine.Logging;
+using Wolverine.Runtime.Metrics;
 using Wolverine.Tracking;
 
 namespace Wolverine.Runtime;
@@ -58,7 +61,7 @@ public sealed partial class WolverineRuntime : IMessageTracker
     public void Sent(Envelope envelope)
     {
         _sentCounter.Add(1, envelope.ToMetricsHeaders());
-        ActiveSession?.Record(MessageEventType.Sent, envelope, _serviceName, _uniqueNodeId);
+        ActiveSession?.MaybeRecord(MessageEventType.Sent, envelope, _serviceName, _uniqueNodeId);
         _sent(Logger, envelope.CorrelationId!, envelope.GetMessageTypeName(), envelope.Id,
             envelope.Destination?.ToString() ?? string.Empty,
             null);
@@ -137,11 +140,18 @@ public sealed partial class WolverineRuntime : IMessageTracker
     {
         ActiveSession?.Record(MessageEventType.MovedToErrorQueue, envelope, _serviceName, _uniqueNodeId);
         _movedToErrorQueue(Logger, envelope, ex);
+
+        if (Options.Metrics.Mode != WolverineMetricsMode.SystemDiagnosticsMeter && envelope.MessageType.IsNotEmpty())
+        {
+            var accumulator = _accumulator.Value.FindAccumulator(envelope.MessageType, envelope.Destination);
+            accumulator.EntryPoint.Post(new RecordDeadLetter(ex.GetType().FullNameInCode(), envelope.TenantId));
+        }
     }
 
     public void DiscardedEnvelope(Envelope envelope)
     {
         _undeliverable(Logger, envelope, null);
+        ActiveSession?.Record(MessageEventType.Discarded, envelope, _serviceName, _uniqueNodeId);
     }
 
     public void Requeued(Envelope envelope)
@@ -151,11 +161,15 @@ public sealed partial class WolverineRuntime : IMessageTracker
         _rescheduled(Logger, envelope, null);
     }
 
-    [Obsolete("Try to eliminate this")]
     public void LogException(Exception ex, object? correlationId = null,
         string message = "Exception detected:")
     {
         ActiveSession?.LogException(ex, _serviceName);
         Logger.LogError(ex, message);
+    }
+
+    public void LogStatus(string message)
+    {
+        ActiveSession?.LogStatus(message);
     }
 }

@@ -87,3 +87,16 @@ services:
       - "8082:8082"
       - "9092:9092"
       - "9101:9101"
+        
+  redis-server:
+    image: "redis:alpine"
+    command: redis-server
+    ports:
+      - "6379:6379"
+
+  nats:
+    image: "nats:latest"
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    command: ["--jetstream", "-m", "8222"]

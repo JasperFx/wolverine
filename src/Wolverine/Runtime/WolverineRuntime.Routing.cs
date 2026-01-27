@@ -37,7 +37,7 @@ internal class AgentMessages : IMessageRouteSource
         if (messageType.CanBeCastTo<IAgentCommand>())
         {
             var queue = runtime.Endpoints.AgentForLocalQueue(TransportConstants.Agents);
-            yield return new MessageRoute(messageType, queue.Endpoint, runtime.Replies);
+            yield return new MessageRoute(messageType, queue.Endpoint, runtime);
         }
     }
 
@@ -48,12 +48,25 @@ internal class ExplicitRouting : IMessageRouteSource
 {
     public IEnumerable<IMessageRoute> FindRoutes(Type messageType, IWolverineRuntime runtime)
     {
-        return runtime
+        var explicitRoutes = runtime
             .Options
             .Transports
             .AllEndpoints()
             .Where(x => x.ShouldSendMessage(messageType))
-            .Select(x => new MessageRoute(messageType, x, runtime.Replies));
+            .Select(x => new MessageRoute(messageType, x, runtime));
+
+        foreach (var explicitRoute in explicitRoutes)
+        {
+            yield return explicitRoute;
+        }
+
+        foreach (var topology in runtime.Options.MessagePartitioning.ShardedMessageTopologies)
+        {
+            if (topology.TryMatch(messageType, runtime, out var route))
+            {
+                yield return route!;
+            }
+        }
     }
 
     public bool IsAdditive => false;
@@ -69,19 +82,19 @@ internal class LocalRouting : IMessageRouteSource
         if (options.HandlerGraph.CanHandle(messageType))
         {
             var endpoints = options.LocalRouting.DiscoverSenders(messageType, runtime).ToArray();
-            return endpoints.Select(e => new MessageRoute(messageType, e, runtime.Replies));
+            return endpoints.Select(e => new MessageRoute(messageType, e, runtime));
         }
 
         var batching = options.BatchDefinitions.FirstOrDefault(x => x.ElementType == messageType);
         if (batching == null)
         {
-            return Array.Empty<IMessageRoute>();
+            return [];
         }
 
         var endpoint = options.Transports.GetOrCreate<LocalTransport>()
             .QueueFor(batching.LocalExecutionQueueName);
 
-        return [new MessageRoute(messageType, endpoint, runtime.Replies)];
+        return [new MessageRoute(messageType, endpoint, runtime)];
 
     }
 
@@ -93,7 +106,7 @@ internal class MessageRoutingConventions : IMessageRouteSource
     public IEnumerable<IMessageRoute> FindRoutes(Type messageType, IWolverineRuntime runtime)
     {
         return runtime.Options.RoutingConventions.SelectMany(x => x.DiscoverSenders(messageType, runtime))
-            .Select(e => new MessageRoute(messageType, e, runtime.Replies));
+            .Select(e => new MessageRoute(messageType, e, runtime));
     }
 
     public bool IsAdditive => true;
@@ -151,5 +164,10 @@ public partial class WolverineRuntime
         }
 
         return null;
+    }
+
+    internal void ClearRoutingFor(Type messageType)
+    {
+        _messageTypeRouting = _messageTypeRouting.Remove(messageType);
     }
 }

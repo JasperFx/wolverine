@@ -6,7 +6,7 @@ using Wolverine.Runtime.Serialization;
 
 namespace Wolverine.Runtime.Interop.MassTransit;
 
-internal class MassTransitJsonSerializer : IMessageSerializer, IMassTransitInterop
+public class MassTransitJsonSerializer : IMessageSerializer, IMassTransitInterop
 {
     private readonly string? _destination;
     private readonly IMassTransitInteropEndpoint _endpoint;

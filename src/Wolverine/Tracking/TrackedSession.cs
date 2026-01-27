@@ -1,18 +1,23 @@
 using System.Diagnostics;
+using JasperFx.CommandLine.TextualDisplays;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
+using Wolverine.Runtime.RemoteInvocation;
+using Wolverine.Transports;
+using Wolverine.Transports.Local;
 
 namespace Wolverine.Tracking;
 
-internal class TrackedSession : ITrackedSession
+internal partial class TrackedSession : ITrackedSession
 {
     private readonly IList<ITrackedCondition> _conditions = new List<ITrackedCondition>();
 
-    private readonly Cache<Guid, EnvelopeHistory> _envelopes = new(id => new EnvelopeHistory(id));
+    private Cache<Guid, EnvelopeHistory> _envelopes = new(id => new EnvelopeHistory(id));
+    private readonly List<EnvelopeRecord> _statuses = new();
 
     private readonly IList<Exception> _exceptions = new List<Exception>();
 
@@ -24,7 +29,10 @@ internal class TrackedSession : ITrackedSession
 
     private bool _executionComplete;
 
-    private readonly Stopwatch _stopwatch = new();
+    private Stopwatch _stopwatch = new();
+
+    private readonly List<Func<Type, bool>> _ignoreMessageRules = [t => t.CanBeCastTo<IAgentCommand>()];
+    private CancellationTokenSource _cancellation = new();
 
     private TrackingStatus _status = TrackingStatus.Active;
 
@@ -40,9 +48,18 @@ internal class TrackedSession : ITrackedSession
         
     }
 
+    // Actions to carry out first before execute and track
+    public List<Func<IWolverineRuntime, CancellationToken, Task>> Befores { get; } = new();
+
+    // All previous TrackedSessions
+    public List<TrackedSession> Previous { get; } = new();
+    public Queue<ISecondStateExecution> SecondaryStages { get; } = new();
+
     public TimeSpan Timeout { get; set; } = 5.Seconds();
 
     public bool AssertNoExceptions { get; set; } = true;
+
+    public bool AssertAnyFailureAcknowledgements { get; set; } = true;
 
     public Func<IMessageContext, Task> Execution { get; set; } = _ => Task.CompletedTask;
 
@@ -126,13 +143,14 @@ internal class TrackedSession : ITrackedSession
 
     public EnvelopeRecord[] AllRecordsInOrder()
     {
-        return _envelopes.SelectMany(x => x.Records).OrderBy(x => x.SessionTime).ToArray();
+        return _envelopes.SelectMany(x => x.Records).Concat(_statuses).OrderBy(x => x.SessionTime).ToArray();
     }
 
     public EnvelopeRecord[] AllRecordsInOrder(MessageEventType eventType)
     {
         return _envelopes
             .SelectMany(x => x.Records)
+            .Concat(_statuses)
             .Where(x => x.MessageEventType == eventType)
             .OrderBy(x => x.SessionTime)
             .ToArray();
@@ -153,6 +171,46 @@ internal class TrackedSession : ITrackedSession
         throw new Exception(description);
     }
 
+    public Task<ITrackedSession> PlayScheduledMessagesAsync(TimeSpan timeout)
+    {
+        var serviceName = _primaryHost.GetRuntime().Options.ServiceName;
+        var recordsInOrder = _envelopes.SelectMany(x => x.Records).Where(x => x.MessageEventType == MessageEventType.Scheduled || x.Envelope.Status == EnvelopeStatus.Scheduled || x.WasScheduled).ToArray();
+        var records = recordsInOrder.Where(x => x.ServiceName == serviceName).ToArray();
+        if (!records.Any())
+        {
+            var message = BuildActivityMessage("No scheduled messages recorded.");
+            throw new Exception(message);
+        }
+
+        var trackedSessionConfiguration = _primaryHost.TrackActivity().Timeout(timeout).As<TrackedSessionConfiguration>();
+        var replayed = trackedSessionConfiguration.Session;
+        replayed.AlwaysTrackExternalTransports = AlwaysTrackExternalTransports;
+        replayed.AssertAnyFailureAcknowledgements = AssertAnyFailureAcknowledgements;
+        replayed.AssertNoExceptions = AssertNoExceptions;
+        replayed._otherHosts.AddRange(_otherHosts);
+        
+        return trackedSessionConfiguration.ExecuteAndWaitAsync(c => ReplayAll(c, records));
+    }
+
+    internal async Task ReplayAll(IMessageContext context, EnvelopeRecord[] records)
+    {
+        var envelopes = records.Select(x => x.Envelope).Distinct().ToArray();
+        
+        foreach (var envelope in envelopes)
+        {
+            if (envelope.Destination.Scheme == TransportConstants.Local)
+            {
+                await context.InvokeAsync(envelope.Message);
+            }
+            else
+            {
+                await context.EndpointFor(envelope.Destination).SendAsync(envelope.Message);
+            }
+        }
+    }
+
+    public RecordCollection Scheduled => new ScheduledActivityRecordCollection(MessageEventType.Scheduled, this);
+
     public RecordCollection Received => new(MessageEventType.Received, this);
     public RecordCollection Sent => new(MessageEventType.Sent, this);
     public RecordCollection ExecutionStarted => new(MessageEventType.ExecutionStarted, this);
@@ -164,6 +222,8 @@ internal class TrackedSession : ITrackedSession
     public RecordCollection MovedToErrorQueue => new(MessageEventType.MovedToErrorQueue, this);
     public RecordCollection Requeued => new(MessageEventType.Requeued, this);
     public RecordCollection Executed => new(MessageEventType.ExecutionFinished, this);
+
+    public RecordCollection Discarded => new(MessageEventType.Discarded, this);
 
     public void WatchOther(IHost host)
     {
@@ -256,8 +316,8 @@ internal class TrackedSession : ITrackedSession
             grid.AddColumn("Service (Node Id)", x => $"{x.ServiceName} ({x.UniqueNodeId})");
         }
 
-        grid.AddColumn("Message Id", x => x.Envelope.Id.ToString());
-        grid.AddColumn("Message Type", x => x.Envelope.MessageType ?? string.Empty);
+        grid.AddColumn("Message Id", x => x.Envelope?.Id.ToString() ?? string.Empty);
+        grid.AddColumn("Message Type", x => x.Envelope?.MessageType ?? string.Empty);
         grid.AddColumn("Time (ms)", x => x.SessionTime.ToString(), true);
 
         grid.AddColumn("Event", x => x.MessageEventType.ToString());
@@ -271,57 +331,23 @@ internal class TrackedSession : ITrackedSession
         _primaryLogger.ActiveSession = session;
         foreach (var runtime in _otherHosts) runtime.ActiveSession = session;
     }
-
-    public async Task ExecuteAndTrackAsync()
+    
+    public void AssertNoFailureAcksWereSent()
     {
-        setActiveSession(this);
-
-        _stopwatch.Start();
-
-        try
+        var records = AllRecordsInOrder().Where(x => x.Message is FailureAcknowledgement).ToArray();
+        if (records.Any())
         {
-            await using var scope = _primaryHost.Services.CreateAsyncScope();
-            var context = scope.ServiceProvider.GetRequiredService<IMessageContext>();
-            await Execution(context).WaitAsync(Timeout);
-            _executionComplete = true;
-        }
-        catch (TimeoutException e)
-        {
-            cleanUp();
+            var writer = new StringWriter();
+            writer.WriteLine($"{nameof(FailureAcknowledgement)} messages were detected. ");
+            writer.WriteLine($"Configure the tracked activity with {nameof(TrackedSessionConfiguration.IgnoreFailureAcks)}() to ignore these failure acks in the test.");
+            foreach (EnvelopeRecord record in records)
+            {
+                writer.WriteLine(record.Message.As<FailureAcknowledgement>().Message);
+            }
 
-            var message =
-                BuildActivityMessage($"This {nameof(TrackedSession)} timed out before all activity completed.");
-
-            throw new TimeoutException(message, e);
+            throw new Exception(writer.ToString());
         }
-        catch (Exception)
-        {
-            cleanUp();
-            throw;
-        }
-
-        // This is for race conditions if the activity manages to finish really fast
-        if (IsCompleted())
-        {
-            Status = TrackingStatus.Completed;
-        }
-        else
-        {
-            startTimeoutTracking();
-            await _source.Task;
-        }
-
-        cleanUp();
-
-        if (AssertNoExceptions)
-        {
-            AssertNoExceptionsWereThrown();
-        }
-
-        if (AssertNoExceptions)
-        {
-            AssertNotTimedOut();
-        }
+        
     }
 
     public Task TrackAsync()
@@ -347,11 +373,12 @@ internal class TrackedSession : ITrackedSession
             await Task.Delay(Timeout);
 
             Status = TrackingStatus.TimedOut;
+
+            await _cancellation.CancelAsync();
         }, CancellationToken.None, TaskCreationOptions.RunContinuationsAsynchronously, TaskScheduler.Default);
     }
-
-    public void Record(MessageEventType eventType, Envelope envelope, string? serviceName, Guid uniqueNodeId,
-        Exception? ex = null)
+    
+    public void MaybeRecord(MessageEventType messageEventType, Envelope envelope, string serviceName, Guid uniqueNodeId)
     {
         if (envelope.Message is ValueTask)
         {
@@ -359,7 +386,29 @@ internal class TrackedSession : ITrackedSession
         }
 
         // Ignore these
-        if (envelope.Message is IAgentCommand)
+        var messageType = envelope.Message?.GetType();
+        if (_ignoreMessageRules.Any(x => x(messageType)))
+        {
+            return;
+        }
+        
+        // Really just doing this idempotently
+        var history = _envelopes[envelope.Id];
+        if (history.Records.Any(r =>
+                r.MessageEventType == messageEventType && object.ReferenceEquals(r.Envelope, envelope)))
+        {
+            return;
+        }
+        
+        Record(messageEventType, envelope, serviceName, uniqueNodeId);
+    }
+
+    public void Record(MessageEventType eventType, Envelope envelope, string? serviceName, Guid uniqueNodeId,
+        Exception? ex = null)
+    {
+        // Ignore these
+        var messageType = envelope.Message?.GetType();
+        if (messageType != null && _ignoreMessageRules.Any(x => x(messageType)))
         {
             return;
         }
@@ -430,6 +479,17 @@ internal class TrackedSession : ITrackedSession
         var exceptions = $"Exceptions:\n{_exceptions.Select(x => x.ToString()).Join("\n")}";
 
         return $"{conditions}\n\n{activity}\\{exceptions}";
+    }
+
+    public void IgnoreMessageTypes(Func<Type, bool> filter)
+    {
+        _ignoreMessageRules.Add(filter);
+    }
+
+    public void LogStatus(string message)
+    {
+        var record = new EnvelopeRecord(MessageEventType.Status, null, _stopwatch.ElapsedMilliseconds, null);
+        _statuses.Add(record);
     }
 }
 

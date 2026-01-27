@@ -28,11 +28,8 @@ public class DocumentAttribute : EntityAttribute
         ValueSource = ValueSource.Anything;
     }
 
-    public DocumentAttribute(string routeArgumentName) : base(routeArgumentName)
+    public DocumentAttribute(string argumentName) : base(argumentName)
     {
         
     }
-
-    [Obsolete("Prefer the more generic ArgumentName")]
-    public string? RouteArgumentName => ArgumentName;
 }

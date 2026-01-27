@@ -47,9 +47,4 @@ internal class JsonOnlyMapper : IKafkaEnvelopeMapper
         envelope.Data = incoming.Value;
         envelope.MessageType = _messageTypeName;
     }
-
-    public IEnumerable<string> AllHeaders()
-    {
-        yield break;
-    }
 }

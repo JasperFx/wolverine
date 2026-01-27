@@ -1,4 +1,5 @@
 using JasperFx.Core;
+using JasperFx.Core.Reflection;
 using Marten;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -6,6 +7,7 @@ using NSubstitute;
 using Shouldly;
 using Wolverine;
 using Wolverine.Attributes;
+using Wolverine.Runtime.Agents;
 using Wolverine.Tracking;
 using Xunit;
 
@@ -165,9 +167,22 @@ public class AccountHandlerTests
             // This is actually helpful if you are testing for error handling
             // functionality in your system
             .DoNotAssertOnExceptionsDetected()
+            
+            // Hey, just in case failure acks are getting into your testing session
+            // and you do not care for the tests, tell Wolverine to ignore them
+            .IgnoreFailureAcks()
 
             // Again, this is testing against processes, with another IHost
             .WaitForMessageToBeReceivedAt<LowBalanceDetected>(otherWolverineSystem)
+            
+            // Wolverine does this automatically, but it's sometimes
+            // helpful to tell Wolverine to not track certain message
+            // types during testing. Especially messages originating from
+            // some kind of polling operation
+            .IgnoreMessageType<IAgentCommand>()
+            
+            // Another option
+            .IgnoreMessagesMatchingType(type => type.CanBeCastTo<IAgentCommand>())
 
             // There are many other options as well
             .InvokeMessageAndWaitAsync(debitAccount);
