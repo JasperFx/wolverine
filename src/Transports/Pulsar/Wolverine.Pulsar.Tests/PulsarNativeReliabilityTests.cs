@@ -172,13 +172,13 @@ public class PulsarNativeReliabilityTests : /*TransportComplianceFixture,*/ IAsy
         requeuedEnvelopes.Count.ShouldBe(3);
 
         // First requeue happens immediately (no delay)
-        requeuedEnvelopes[0].Headers.ContainsKey("DELAY_TIME").ShouldBeFalse();
+        requeuedEnvelopes[0].Headers.ContainsKey(PulsarEnvelopeConstants.DelayTimeMetadataKey).ShouldBeFalse();
 
         // Second requeue should have 4 second delay
-        requeuedEnvelopes[1].Headers["DELAY_TIME"].ShouldBe(TimeSpan.FromSeconds(4).TotalMilliseconds.ToString());
+        requeuedEnvelopes[1].Headers[PulsarEnvelopeConstants.DelayTimeMetadataKey].ShouldBe(TimeSpan.FromSeconds(4).TotalMilliseconds.ToString());
 
         // Third requeue should have 2 second delay
-        requeuedEnvelopes[2].Headers["DELAY_TIME"].ShouldBe(TimeSpan.FromSeconds(2).TotalMilliseconds.ToString());
+        requeuedEnvelopes[2].Headers[PulsarEnvelopeConstants.DelayTimeMetadataKey].ShouldBe(TimeSpan.FromSeconds(2).TotalMilliseconds.ToString());
     }
 
     [Fact]
