@@ -125,22 +125,43 @@ public static class HostBuilderExtensions
             var environment = s.GetService<IHostEnvironment>();
             var directory = environment?.ContentRootPath ?? AppContext.BaseDirectory;
 
-#if DEBUG
-            if (directory.EndsWith("Debug", StringComparison.OrdinalIgnoreCase))
-            {
-                directory = directory.ParentDirectory()!.ParentDirectory();
-            }
-            else if (directory.ParentDirectory()!.EndsWith("Debug", StringComparison.OrdinalIgnoreCase))
-            {
-                directory = directory.ParentDirectory()!.ParentDirectory()!.ParentDirectory();
-            }
-#endif
-
-            // Don't correct for the path if it's already been set
+            // Don't correct for the path if it's already been set (from JasperFxOptions or user)
             if (options.CodeGeneration.GeneratedCodeOutputPath == "Internal/Generated")
             {
-                options.CodeGeneration.GeneratedCodeOutputPath =
-                    directory!.AppendPath("Internal", "Generated");
+#if DEBUG
+                // In DEBUG builds, try to resolve project root like JasperFx does during codegen
+                if (jasperfx.AutoResolveProjectRoot)
+                {
+                    var resolvedRoot = JasperFxOptions.ResolveProjectRoot(directory);
+                    if (resolvedRoot != null)
+                    {
+                        directory = resolvedRoot;
+                    }
+                }
+                else
+                {
+                    // Legacy behavior for backward compatibility when AutoResolveProjectRoot is false
+                    if (directory.EndsWith("Debug", StringComparison.OrdinalIgnoreCase))
+                    {
+                        directory = directory.ParentDirectory()!.ParentDirectory();
+                    }
+                    else if (directory.ParentDirectory()!.EndsWith("Debug", StringComparison.OrdinalIgnoreCase))
+                    {
+                        directory = directory.ParentDirectory()!.ParentDirectory()!.ParentDirectory();
+                    }
+                }
+#endif
+
+                // Use JasperFxOptions path if set, otherwise use the resolved directory
+                if (jasperfx.GeneratedCodeOutputPath != null)
+                {
+                    options.CodeGeneration.GeneratedCodeOutputPath = jasperfx.GeneratedCodeOutputPath;
+                }
+                else
+                {
+                    options.CodeGeneration.GeneratedCodeOutputPath =
+                        directory!.AppendPath("Internal", "Generated");
+                }
             }
 
             return options;
