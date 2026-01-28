@@ -433,7 +433,6 @@ public class PulsarNativeResiliencyRetryLetterConfiguration : PulsarNativeResili
     }
 }
 
-public class PulsarSubscriberConfiguration : SubscriberConfiguration<PulsarSubscriberConfiguration, PulsarEndpoint>
 public class PulsarSubscriberConfiguration : InteroperableSubscriberConfiguration<PulsarSubscriberConfiguration, PulsarEndpoint, IPulsarEnvelopeMapper, PulsarEnvelopeMapper>
 {
     public PulsarSubscriberConfiguration(PulsarEndpoint endpoint) : base(endpoint)
