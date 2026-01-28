@@ -126,7 +126,7 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
                     return;
 
                 case MultiFlushMode.AllowMultiples:
-                    Runtime.Logger.LogInformation("Received multiple calls to FlushOutgoingMessagesAsync() to a single MessageContext");
+                    Runtime.Logger.LogDebug("Received multiple calls to FlushOutgoingMessagesAsync() to a single MessageContext");
                     break;
 
                 case MultiFlushMode.AssertOnMultiples:
