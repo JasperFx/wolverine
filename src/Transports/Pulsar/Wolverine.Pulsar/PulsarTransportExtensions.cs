@@ -280,7 +280,7 @@ public class PulsarListenerConfiguration : InteroperableListenerConfiguration<Pu
 
 public class PulsarNativeResiliencyConfig
 {
-    public DeadLetterTopic DeadLetterTopic { get; set; }
+    public DeadLetterTopic? DeadLetterTopic { get; set; }
     public RetryLetterTopic? RetryLetterTopic { get; set; }
 
 
@@ -313,30 +313,11 @@ public class PulsarNativeResiliencyConfig
                 // Set retry configuration
                 endpoint.RetryLetterTopic = RetryLetterTopic;
 
-                endpoint.Runtime.Options.EnableAutomaticFailureAcks = false;
+                if (endpoint.Runtime?.Options != null)
+                {
+                    endpoint.Runtime.Options.EnableAutomaticFailureAcks = false;
+                }
             }
-
-            //if (RetryLetterTopic is null)
-            //{
-            //    // Just move to error queue with no retry
-            //    endpoint.Runtime.Options.Policies.OnAnyException().MoveToErrorQueue();
-            //}
-            //else
-            //{
-                
-            //    // Set retry configuration
-            //    endpoint.RetryLetterTopic = RetryLetterTopic;
-
-            //    // Configure retry policy
-
-            //    //endpoint.IncomingRules
-            //    endpoint.Runtime.Options.Policies.OnAnyException()
-            //        .ScheduleRetry(RetryLetterTopic.Retry.ToArray())
-            //        .Then
-            //        .MoveToErrorQueue();
-
-            //    endpoint.Runtime.Options.EnableAutomaticFailureAcks = false;
-            //}
         };
     }
 

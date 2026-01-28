@@ -3,7 +3,6 @@ using System.Globalization;
 using DotPulsar;
 using DotPulsar.Abstractions;
 using DotPulsar.Extensions;
-using DotPulsar.Internal;
 using Wolverine.Runtime;
 using Wolverine.Transports;
 
@@ -21,7 +20,7 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
     private readonly bool _unsubscribeOnClose;
     private readonly IReceiver _receiver;
     private readonly Task? _receivingRetryLoop;
-    private PulsarEndpoint _endpoint;
+    private readonly PulsarEndpoint _endpoint;
     private IProducer<ReadOnlySequence<byte>>? _retryLetterQueueProducer;
     private IProducer<ReadOnlySequence<byte>>? _dlqProducer;
 
@@ -56,11 +55,10 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
             .Topic(endpoint.PulsarTopic())
             .Create();
 
-        // TODO: check
-        NativeDeadLetterQueueEnabled = transport.DeadLetterTopic is not null &&
-                                       transport.DeadLetterTopic.Mode != DeadLetterTopicMode.WolverineStorage ||
-                                       endpoint.DeadLetterTopic is not null && endpoint.DeadLetterTopic.Mode !=
-                                       DeadLetterTopicMode.WolverineStorage;
+        NativeDeadLetterQueueEnabled = (transport.DeadLetterTopic is not null &&
+                                       transport.DeadLetterTopic.Mode != DeadLetterTopicMode.WolverineStorage) ||
+                                       (endpoint.DeadLetterTopic is not null && endpoint.DeadLetterTopic.Mode !=
+                                       DeadLetterTopicMode.WolverineStorage);
 
         NativeRetryLetterQueueEnabled = endpoint.RetryLetterTopic is not null &&
                                         RetryLetterTopic.SupportedSubscriptionTypes.Contains(endpoint.SubscriptionType);
@@ -69,20 +67,18 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
 
         _receivingLoop = Task.Run(async () =>
         {
-
             await foreach (var message in _consumer.Messages(combined.Token))
             {
                 var envelope = new PulsarEnvelope(message)
                 {
-                    Data = message.Data.ToArray()
+                    Data = message.Data.ToArray(),
+                    IsFromRetryConsumer = false
                 };
 
                 mapper.MapIncomingToEnvelope(envelope, message);
 
                 await receiver.ReceivedAsync(this, envelope);
             }
-
-
         }, combined.Token);
 
 
@@ -95,16 +91,14 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
                 {
                     var envelope = new PulsarEnvelope(message)
                     {
-                        Data = message.Data.ToArray()
+                        Data = message.Data.ToArray(),
+                        IsFromRetryConsumer = true
                     };
 
                     mapper.MapIncomingToEnvelope(envelope, message);
 
                     await receiver.ReceivedAsync(this, envelope);
-
-
                 }
-
             }, combined.Token);
         }
     }
@@ -118,19 +112,18 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
 
         if (endpoint.RetryLetterTopic is not null)
         {
-
             _retryLetterQueueProducer = transport.Client!.NewProducer()
                 .Topic(getRetryLetterTopicUri(endpoint)!.ToString())
                 .Create();
         }
 
-        _dlqProducer = transport.Client!.NewProducer()
-            .Topic(getDeadLetteredTopicUri(endpoint).ToString())
-            .Create();
-
+        if (NativeDeadLetterQueueEnabled)
+        {
+            _dlqProducer = transport.Client!.NewProducer()
+                .Topic(getDeadLetteredTopicUri(endpoint).ToString())
+                .Create();
+        }
     }
-
-
 
     private IConsumer<ReadOnlySequence<byte>> createRetryConsumer(PulsarEndpoint endpoint, PulsarTransport transport)
     {
@@ -145,7 +138,7 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
 
     private Uri? getRetryLetterTopicUri(PulsarEndpoint endpoint)
     {
-        return NativeDeadLetterQueueEnabled
+        return NativeRetryLetterQueueEnabled
             ? PulsarEndpoint.UriFor(endpoint.IsPersistent, endpoint.Tenant, endpoint.Namespace,
                 endpoint.RetryLetterTopic?.TopicName ?? $"{endpoint.TopicName}-RETRY")
             : null;
@@ -163,9 +156,11 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
     {
         if (envelope is PulsarEnvelope e)
         {
-            if (_consumer != null)
+            // Acknowledge on the appropriate consumer based on where the message came from
+            var consumer = e.IsFromRetryConsumer && _retryConsumer != null ? _retryConsumer : _consumer;
+            if (consumer != null)
             {
-                return _consumer.Acknowledge(e.MessageData, _cancellation);
+                return consumer.Acknowledge(e.MessageData, _cancellation);
             }
         }
 
@@ -178,14 +173,15 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
     {
         if (_enableRequeue && _sender is not null && envelope is PulsarEnvelope e)
         {
-            await _consumer!.Acknowledge(e.MessageData, _cancellation);
+            var consumer = e.IsFromRetryConsumer && _retryConsumer != null ? _retryConsumer : _consumer;
+            await consumer!.Acknowledge(e.MessageData, _cancellation);
             await _sender.SendAsync(envelope);
         }
     }
 
     public async ValueTask DisposeAsync()
     {
-        _localCancellation.Cancel();
+        await _localCancellation.CancelAsync();
 
         if (_consumer != null)
         {
@@ -212,7 +208,7 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
             await _sender.DisposeAsync();
         }
 
-        _receivingLoop!.Dispose();
+        _receivingLoop?.Dispose();
         _receivingRetryLoop?.Dispose();
     }
 
@@ -232,10 +228,12 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
 
         await _consumer.RedeliverUnacknowledgedMessages(_cancellation);
 
-
         if (_retryConsumer != null)
         {
-            await _retryConsumer.Unsubscribe(_cancellation);
+            if (_unsubscribeOnClose)
+            {
+                await _retryConsumer.Unsubscribe(_cancellation);
+            }
             await _retryConsumer.RedeliverUnacknowledgedMessages(_cancellation);
         }
     }
@@ -258,9 +256,10 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
 
     public bool NativeDeadLetterQueueEnabled { get; }
     public RetryLetterTopic? RetryLetterTopic => _endpoint.RetryLetterTopic;
+
     public async Task MoveToErrorsAsync(Envelope envelope, Exception exception)
     {
-        if (NativeDeadLetterQueueEnabled && envelope is PulsarEnvelope e)
+        if (NativeDeadLetterQueueEnabled && envelope is PulsarEnvelope)
         {
             await moveToQueueAsync(envelope, exception, true);
         }
@@ -270,43 +269,45 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
 
     public async Task MoveToScheduledUntilAsync(Envelope envelope, DateTimeOffset time)
     {
-        if (NativeRetryLetterQueueEnabled && envelope is PulsarEnvelope e)
+        if (NativeRetryLetterQueueEnabled && envelope is PulsarEnvelope)
         {
-            await moveToQueueAsync(e, e.Failure, false);
+            await moveToQueueAsync(envelope, envelope.Failure, false);
         }
     }
 
-
-    private async Task moveToQueueAsync(Envelope envelope, Exception exception, bool isDeadLettered = false)
+    private async Task moveToQueueAsync(Envelope envelope, Exception? exception, bool isDeadLettered = false)
     {
         if (envelope is PulsarEnvelope e)
         {
             var messageMetadata = BuildMessageMetadata(envelope, e, exception, isDeadLettered);
 
-            IConsumer<ReadOnlySequence<byte>>? associatedConsumer;
-            IProducer<ReadOnlySequence<byte>> associatedProducer;
+            IConsumer<ReadOnlySequence<byte>>? sourceConsumer;
+            IProducer<ReadOnlySequence<byte>> targetProducer;
 
-            if (NativeRetryLetterQueueEnabled && !isDeadLettered)
+            if (isDeadLettered)
             {
-                associatedConsumer = _retryConsumer!;
-                associatedProducer = _retryLetterQueueProducer!;
+                // For DLQ, acknowledge on whichever consumer the message came from
+                sourceConsumer = e.IsFromRetryConsumer && _retryConsumer != null ? _retryConsumer : _consumer;
+                targetProducer = _dlqProducer!;
             }
             else
             {
-                associatedConsumer = _consumer!;
-                associatedProducer = _dlqProducer!;
+                // For retry, message always comes from main consumer on first retry,
+                // then from retry consumer on subsequent retries
+                sourceConsumer = e.IsFromRetryConsumer && _retryConsumer != null ? _retryConsumer : _consumer;
+                targetProducer = _retryLetterQueueProducer!;
             }
 
-            await associatedConsumer.Acknowledge(e.MessageData,
-                _cancellation); // TODO: check: original message should be acked and copy is sent to retry/DLQ
-            // TODO: check: what to do with the original message on Wolverine side? I Guess it should be acked? or we could use some kind of RequeueContinuation in FailureRuleCollection. If I understand correctly, Wolverine is/should handle original Wolverine message and its copies across Pulsar's topics as same identity?
+            // Acknowledge the original message
+            await sourceConsumer!.Acknowledge(e.MessageData, _cancellation);
 
-            await associatedProducer.Send(messageMetadata, e.MessageData.Data, _cancellation)
+            // Send copy to retry/DLQ topic
+            await targetProducer.Send(messageMetadata, e.MessageData.Data, _cancellation)
                 .ConfigureAwait(false);
         }
     }
 
-    private MessageMetadata BuildMessageMetadata(Envelope envelope, PulsarEnvelope e, Exception exception,
+    private MessageMetadata BuildMessageMetadata(Envelope envelope, PulsarEnvelope e, Exception? exception,
         bool isDeadLettered)
     {
         var messageMetadata = new MessageMetadata();
@@ -316,15 +317,15 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
             messageMetadata[property.Key] = property.Value;
         }
 
-        //reconsumeTimesValue = GetReconsumeHeader(messageMetadata);
-
         if (!e.Headers.TryGetValue(PulsarEnvelopeConstants.RealTopicMetadataKey, out var originTopicNameStr))
         {
-            originTopicNameStr = envelope.Headers[EnvelopeConstants.ReplyUriKey];
-
+            e.Headers.TryGetValue(EnvelopeConstants.ReplyUriKey, out originTopicNameStr);
         }
 
-        messageMetadata[PulsarEnvelopeConstants.RealTopicMetadataKey] = originTopicNameStr;
+        if (originTopicNameStr != null)
+        {
+            messageMetadata[PulsarEnvelopeConstants.RealTopicMetadataKey] = originTopicNameStr;
+        }
 
         var eid = e.Headers.GetValueOrDefault(PulsarEnvelopeConstants.OriginMessageIdMetadataKey,
             e.MessageData.MessageId.ToString());
@@ -333,7 +334,6 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
         {
             messageMetadata[PulsarEnvelopeConstants.OriginMessageIdMetadataKey] = eid;
         }
-
 
         if (!isDeadLettered)
         {
@@ -345,12 +345,14 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
         }
         else
         {
-            //messageMetadata[PulsarEnvelopeConstants.DelayTimeMetadataKey] = null;
             messageMetadata.DeliverAtTimeAsDateTimeOffset = DateTimeOffset.UtcNow;
-            e.Headers[PulsarEnvelopeConstants.Exception] = exception.ToString();
+            if (exception != null)
+            {
+                var exceptionText = exception.ToString();
+                messageMetadata[PulsarEnvelopeConstants.Exception] = exceptionText;
+                e.Headers[PulsarEnvelopeConstants.Exception] = exceptionText;
+            }
         }
-
-
 
         return messageMetadata;
     }
@@ -359,9 +361,9 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
 
 public static class MessageExtensions
 {
-    public static bool TryGetMessageProperty(this DotPulsar.Abstractions.IMessage message, string key, out string val)
+    public static bool TryGetMessageProperty(this DotPulsar.Abstractions.IMessage message, string key, out string? val)
     {
-        return message.Properties.TryGetValue(key , out val);
+        return message.Properties.TryGetValue(key, out val);
     }
 }
 

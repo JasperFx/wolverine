@@ -68,6 +68,6 @@ public class RetryLetterTopic
 
     public override int GetHashCode()
     {
-        return _topicName.GetHashCode();
+        return _topicName?.GetHashCode() ?? 0;
     }
 }

@@ -5,9 +5,11 @@ namespace Wolverine.Pulsar.ErrorHandling;
 
 public class PulsarNativeContinuationSource : IContinuationSource
 {
-    public string Description { get; }
+    public string Description => "Pulsar native retry/DLQ handling";
 
-    public IContinuation Build(Exception ex, Envelope envelope)
+#pragma warning disable CS8766 // Nullability of return type matches interface, null is valid for "not handled"
+    public IContinuation? Build(Exception ex, Envelope envelope)
+#pragma warning restore CS8766
     {
         // Only handle Pulsar envelopes/listeners
         if (envelope.Listener is PulsarListener)

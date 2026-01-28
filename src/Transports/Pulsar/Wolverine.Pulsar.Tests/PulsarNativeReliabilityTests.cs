@@ -10,6 +10,7 @@ using Xunit;
 
 namespace Wolverine.Pulsar.Tests;
 
+[Collection("pulsar")]
 public class PulsarNativeReliabilityTests : /*TransportComplianceFixture,*/ IAsyncLifetime
 {
     public IHost WolverineHost;
@@ -27,7 +28,10 @@ public class PulsarNativeReliabilityTests : /*TransportComplianceFixture,*/ IAsy
                 var topic = Guid.NewGuid().ToString();
                 var topicPath = $"persistent://public/default/compliance{topic}";
 
-                opts.UsePulsar(b => { });
+                opts.UsePulsar(b =>
+                {
+                    b.ServiceUrl(new Uri("pulsar://127.0.0.1:6650"));
+                });
 
                 opts.IncludeType<SRMessageHandlers>();
 

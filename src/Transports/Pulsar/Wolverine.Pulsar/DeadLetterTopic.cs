@@ -1,5 +1,3 @@
-
-
 namespace Wolverine.Pulsar;
 
 public enum DeadLetterTopicMode
@@ -35,10 +33,10 @@ public class DeadLetterTopic
         Mode = mode;
     }
 
-    public string TopicName
+    public string? TopicName
     {
         get => _topicName;
-        set => _topicName = value?? throw new ArgumentNullException(nameof(TopicName));
+        set => _topicName = value ?? throw new ArgumentNullException(nameof(TopicName));
     }
 
     protected bool Equals(DeadLetterTopic other)
@@ -68,6 +66,6 @@ public class DeadLetterTopic
 
     public override int GetHashCode()
     {
-        return _topicName.GetHashCode();
+        return _topicName?.GetHashCode() ?? 0;
     }
 }
