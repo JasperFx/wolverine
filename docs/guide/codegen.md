@@ -203,7 +203,7 @@ As of Wolverine 5.0, you now have the ability to better control the usage of the
 code generation to potentially avoid unwanted usage:
 
 <!-- snippet: sample_configuring_ServiceLocationPolicy -->
-<a id='snippet-sample_configuring_servicelocationpolicy'></a>
+<a id='snippet-sample_configuring_ServiceLocationPolicy'></a>
 ```cs
 var builder = Host.CreateApplicationBuilder();
 builder.UseWolverine(opts =>
@@ -225,7 +225,7 @@ builder.UseWolverine(opts =>
     opts.ServiceLocationPolicy = ServiceLocationPolicy.NotAllowed;
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/ServiceLocationUsage.cs#L11-L33' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_servicelocationpolicy' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/ServiceLocationUsage.cs#L11-L33' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_ServiceLocationPolicy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: note
@@ -393,3 +393,62 @@ Which will use:
 
 1. `TypeLoadMode.Dynamic` when the .NET environment is "Development" and dynamically generate types on the first usage
 2. `TypeLoadMode.Static` for other .NET environments for optimized cold start times
+
+## Customizing the Generated Code Output Path
+
+By default, Wolverine writes generated code to `Internal/Generated` under your project's content root.
+For Console applications or non-standard project structures, you may need to customize this path.
+
+### Using CritterStackDefaults
+
+You can configure the output path globally for all Critter Stack tools:
+
+<!-- snippet: sample_configure_generated_code_output_path -->
+<a id='snippet-sample_configure_generated_code_output_path'></a>
+```cs
+var builder = Host.CreateApplicationBuilder();
+builder.Services.CritterStackDefaults(opts =>
+{
+    // Set a custom output path for generated code
+    opts.GeneratedCodeOutputPath = "/path/to/your/project/Internal/Generated";
+});
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CodegenUsage.cs#L89-L98' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configure_generated_code_output_path' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+### Auto-Resolving Project Root for Console Apps
+
+Console applications often have `ContentRootPath` pointing to the `bin` folder, which causes
+generated code to be written to the wrong location. Enable automatic project root resolution:
+
+<!-- snippet: sample_auto_resolve_project_root -->
+<a id='snippet-sample_auto_resolve_project_root'></a>
+```cs
+var builder = Host.CreateApplicationBuilder();
+builder.Services.CritterStackDefaults(opts =>
+{
+    // Automatically find the project root by looking for .csproj/.sln files
+    // Useful for Console apps where ContentRootPath defaults to bin folder
+    opts.AutoResolveProjectRoot = true;
+});
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CodegenUsage.cs#L103-L113' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_auto_resolve_project_root' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+### Direct Wolverine Configuration
+
+You can also configure the path directly on Wolverine:
+
+<!-- snippet: sample_direct_wolverine_output_path -->
+<a id='snippet-sample_direct_wolverine_output_path'></a>
+```cs
+var builder = Host.CreateApplicationBuilder();
+builder.UseWolverine(opts =>
+{
+    opts.CodeGeneration.GeneratedCodeOutputPath = "/path/to/output";
+});
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CodegenUsage.cs#L118-L126' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_direct_wolverine_output_path' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Note that explicit Wolverine configuration takes precedence over `CritterStackDefaults`.

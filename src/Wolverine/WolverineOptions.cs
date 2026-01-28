@@ -447,6 +447,12 @@ public sealed partial class WolverineOptions
         {
             _autoBuildMessageStorageOnStartup = jasperfx.ActiveProfile.ResourceAutoCreate;
         }
+
+        // Propagate GeneratedCodeOutputPath from JasperFxOptions if not explicitly set
+        if (CodeGeneration.GeneratedCodeOutputPath == "Internal/Generated" && jasperfx.GeneratedCodeOutputPath != null)
+        {
+            CodeGeneration.GeneratedCodeOutputPath = jasperfx.GeneratedCodeOutputPath;
+        }
     }
     
     public void RegisterMessageType(Type messageType, string messageAlias)
