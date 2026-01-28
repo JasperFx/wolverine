@@ -107,9 +107,12 @@ public class MqttEnvelopeMapper : IMqttEnvelopeMapper
         envelope.MessageType = _topic.MessageTypeName;
         envelope.TopicName = incoming.Topic;
 
-        foreach (var property in incoming.UserProperties)
+        if (incoming.UserProperties?.Count > 0)
         {
-            EnvelopeSerializer.ReadDataElement(envelope, property.Name, property.Value);
+            foreach (var property in incoming.UserProperties)
+            {
+                EnvelopeSerializer.ReadDataElement(envelope, property.Name, property.Value);
+            }
         }
     }
 }
