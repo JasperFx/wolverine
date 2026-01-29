@@ -31,7 +31,7 @@ public class CustomActionIndefinitelyIntegrationTests : IAsyncLifetime
                                 return;
                             }
 
-                            runtime.MessageTracking.Requeued(lifecycle.Envelope);
+                            // ReScheduleAsync already calls MessageTracking.Requeued internally
                             await lifecycle.ReScheduleAsync(DateTimeOffset.Now.AddMilliseconds(10));
                         }
                     }, "Handle SpecialExceptionForIntegration with conditional discard/requeue");
@@ -45,20 +45,24 @@ public class CustomActionIndefinitelyIntegrationTests : IAsyncLifetime
                             // Discard immediately if marked as fatal
                             if (conditionalEx.ErrorType is ErrorType.Fatal)
                             {
-                                runtime.MessageTracking.MovedToErrorQueue(lifecycle.Envelope, ex);
                                 await lifecycle.MoveToDeadLetterQueueAsync(ex);
+                                // MoveToDeadLetterQueueAsync doesn't track MovedToErrorQueue,
+                                // so we need to call it manually (similar to MoveToErrorQueue continuation)
+                                runtime.MessageTracking.MovedToErrorQueue(lifecycle.Envelope, ex);
                                 return;
                             }
 
                             // Otherwise requeue up to the specified max attempts
                             if (lifecycle.Envelope.Attempts >= 5)
                             {
-                                runtime.MessageTracking.MovedToErrorQueue(lifecycle.Envelope, ex);
                                 await lifecycle.MoveToDeadLetterQueueAsync(ex);
+                                // MoveToDeadLetterQueueAsync doesn't track MovedToErrorQueue,
+                                // so we need to call it manually (similar to MoveToErrorQueue continuation)
+                                runtime.MessageTracking.MovedToErrorQueue(lifecycle.Envelope, ex);
                                 return;
                             }
 
-                            runtime.MessageTracking.Requeued(lifecycle.Envelope);
+                            // ReScheduleAsync already calls MessageTracking.Requeued internally
                             await lifecycle.ReScheduleAsync(DateTimeOffset.Now.AddMilliseconds(10));
                         }
                     }, "Handle ConditionalException with dynamic retry logic");
@@ -78,24 +82,25 @@ public class CustomActionIndefinitelyIntegrationTests : IAsyncLifetime
     public async Task custom_action_indefinitely_handles_multiple_attempts_until_discarded()
     {
         var session = await _host!
-            .TrackActivity(TimeSpan.FromSeconds(4))
+            .TrackActivity(TimeSpan.FromSeconds(10))
             .DoNotAssertOnExceptionsDetected()
+            .WaitForCondition(new WaitForDiscardedMessage<TestMessageThatFails>())
             .PublishMessageAndWaitAsync(new TestMessageThatFails());
 
         // The message should have been attempted multiple times and then discarded
-
-
         session.Requeued.MessagesOf<TestMessageThatFails>().Count().ShouldBe(3);
         session.MessageFailed.MessagesOf<TestMessageThatFails>().Count().ShouldBe(0);
         session.ExecutionFinished.MessagesOf<TestMessageThatFails>().Count().ShouldBe(4);
+        session.Discarded.MessagesOf<TestMessageThatFails>().Count().ShouldBe(1);
     }
 
     [Fact]
     public async Task custom_action_indefinitely_handles_multiple_attempts_until_deadlettered()
     {
         var session = await _host!
-            .TrackActivity(TimeSpan.FromSeconds(4))
+            .TrackActivity(TimeSpan.FromSeconds(10))
             .DoNotAssertOnExceptionsDetected()
+            .WaitForCondition(new WaitForDeadLetteredMessage<ConditionalMessageThatFails>())
             .PublishMessageAndWaitAsync(new ConditionalMessageThatFails());
 
         session.Requeued.MessagesOf<ConditionalMessageThatFails>().Count().ShouldBe(4);
@@ -148,4 +153,40 @@ public class ConditionalMessageThatFailsHandler
 
         throw ConditionalException.Transient(DateTimeOffset.Now.AddMilliseconds(10 * e.Attempts));
     }
+}
+
+/// <summary>
+/// Waits for a message of type T to be discarded
+/// </summary>
+public class WaitForDiscardedMessage<T> : ITrackedCondition
+{
+    private bool _found;
+
+    public void Record(EnvelopeRecord record)
+    {
+        if (record.Envelope.Message is T && record.MessageEventType == MessageEventType.Discarded)
+        {
+            _found = true;
+        }
+    }
+
+    public bool IsCompleted() => _found;
+}
+
+/// <summary>
+/// Waits for a message of type T to be moved to the dead letter queue
+/// </summary>
+public class WaitForDeadLetteredMessage<T> : ITrackedCondition
+{
+    private bool _found;
+
+    public void Record(EnvelopeRecord record)
+    {
+        if (record.Envelope.Message is T && record.MessageEventType == MessageEventType.MovedToErrorQueue)
+        {
+            _found = true;
+        }
+    }
+
+    public bool IsCompleted() => _found;
 }

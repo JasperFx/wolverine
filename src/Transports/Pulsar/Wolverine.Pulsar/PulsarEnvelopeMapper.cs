@@ -32,11 +32,25 @@ public class PulsarEnvelopeMapper : EnvelopeMapper<IMessage<ReadOnlySequence<byt
     protected override bool tryReadIncomingHeader(IMessage<ReadOnlySequence<byte>> incoming, string key,
         out string? value)
     {
+        if (key == EnvelopeConstants.AttemptsKey && incoming.Properties.TryGetValue(PulsarEnvelopeConstants.ReconsumeTimes, out value))
+        {
+            return true;
+        }
         return incoming.Properties.TryGetValue(key, out value);
     }
 
     protected override void writeIncomingHeaders(IMessage<ReadOnlySequence<byte>> incoming, Envelope envelope)
     {
-        foreach (var pair in incoming.Properties) envelope.Headers[pair.Key] = pair.Value;
+        foreach (var pair in incoming.Properties)
+        {
+            envelope.Headers[pair.Key] = pair.Value;
+
+            // doesn't work, it gets overwritten in next step - fix in tryReadIncomingHeader
+            //if (pair.Key == PulsarEnvelopeConstants.ReconsumeTimes)
+            //{
+            //    envelope.Headers[EnvelopeConstants.AttemptsKey] = pair.Value;
+            //    envelope.Attempts = int.Parse(pair.Value);
+            //}
+        }
     }
 }

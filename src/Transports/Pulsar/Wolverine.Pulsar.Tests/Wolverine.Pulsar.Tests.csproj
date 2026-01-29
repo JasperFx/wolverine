@@ -10,6 +10,7 @@
         <PackageReference Include="GitHubActionsTestLogger" Version="2.4.1" PrivateAssets="All" />
         <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" PrivateAssets="All"/>
         <PackageReference Include="coverlet.collector" Version="6.0.4" PrivateAssets="All" />
+        <PackageReference Include="Microsoft.Extensions.ObjectPool" Version="10.0.0" />
     </ItemGroup>
 
     <ItemGroup>
