@@ -164,38 +164,63 @@ public class PulsarNativeReliabilityTests : /*TransportComplianceFixture,*/ IAsy
     [Fact]
     public async Task verify_retry_delay_intervals_are_respected()
     {
-        // This test ensures that custom retry intervals are properly configured
+        // custom retry intervals: [4s, 2s, 3s]
+        //
+        // IMPORTANT: The DELAY_TIME header in tracked envelopes reflects the delay from the PREVIOUS retry,
+        // not the current one being sent. This is because:
+        // BuildMessageMetadata adds DELAY_TIME to the outgoing MessageMetadata (Pulsar message properties)
+        // writeIncomingHeaders copies Pulsar properties into envelope.Headers when RECEIVING a message
+        // Wolverine tracking captures the envelope at requeue time, which has headers from the previous receive
+        //
+        // Flow with delays [4s, 2s, 3s]:
+        // - Requeue #1 (Attempts=1): No DELAY_TIME in headers (message came from main topic)
+        //                            => Sends with DELAY_TIME=4000ms
+        // - Requeue #2 (Attempts=2): DELAY_TIME=4000ms in headers (from previous retry queue receive)
+        //                            => Sends with DELAY_TIME=2000ms
+        // - Requeue #3 (Attempts=3): DELAY_TIME=2000ms in headers (from previous retry queue receive)
+        //                            => Sends with DELAY_TIME=3000ms
+        // - DLQ (Attempts=4):        DELAY_TIME=3000ms in headers (from previous retry queue receive)
+        //
+        // Therefore, we verify delays by checking:
+        // - Requeue envelopes [1] and [2] for the first two configured delays (4s, 2s)
+        // - DLQ envelope for the third configured delay (3s)
+
         var session = await WolverineHost.TrackActivity(TimeSpan.FromSeconds(100))
             .DoNotAssertOnExceptionsDetected()
             .IncludeExternalTransports()
             .WaitForCondition(new WaitForDeadLetteredMessage<SRMessage1>())
             .SendMessageAndWaitAsync(new SRMessage1());
 
-        // Verify the retry delays match configuration: [4s, 2s, 3s]
         var requeuedEnvelopes = session.Requeued.Envelopes().ToList();
         requeuedEnvelopes.Count.ShouldBe(3);
 
-        // First requeue happens immediately (no delay)
+        // First requeue: no DELAY_TIME header (message originated from main topic, not retry queue)
         requeuedEnvelopes[0].Headers.ContainsKey(PulsarEnvelopeConstants.DelayTimeMetadataKey).ShouldBeFalse();
 
-        // Second requeue should have 4 second delay
-        requeuedEnvelopes[1].Headers[PulsarEnvelopeConstants.DelayTimeMetadataKey].ShouldBe(TimeSpan.FromSeconds(4).TotalMilliseconds.ToString());
+        // Second requeue: DELAY_TIME reflects the FIRST configured delay (4s) from previous retry
+        requeuedEnvelopes[1].Headers[PulsarEnvelopeConstants.DelayTimeMetadataKey]
+            .ShouldBe(TimeSpan.FromSeconds(4).TotalMilliseconds.ToString());
 
-        // Third requeue should have 2 second delay
-        requeuedEnvelopes[2].Headers[PulsarEnvelopeConstants.DelayTimeMetadataKey].ShouldBe(TimeSpan.FromSeconds(2).TotalMilliseconds.ToString());
+        // Third requeue: DELAY_TIME reflects the SECOND configured delay (2s) from previous retry
+        requeuedEnvelopes[2].Headers[PulsarEnvelopeConstants.DelayTimeMetadataKey]
+            .ShouldBe(TimeSpan.FromSeconds(2).TotalMilliseconds.ToString());
+
+        // DLQ envelope: DELAY_TIME reflects the THIRD configured delay (3s) from previous retry
+        var dlqEnvelope = session.MovedToErrorQueue.Envelopes().First();
+        dlqEnvelope.Headers[PulsarEnvelopeConstants.DelayTimeMetadataKey]
+            .ShouldBe(TimeSpan.FromSeconds(3).TotalMilliseconds.ToString());
     }
 
     [Fact]
     public async Task verify_message_attempts_increment_correctly()
     {
-        // This test verifies that attempt counts are properly tracked
         var session = await WolverineHost.TrackActivity(TimeSpan.FromSeconds(100))
             .DoNotAssertOnExceptionsDetected()
             .IncludeExternalTransports()
             .WaitForCondition(new WaitForDeadLetteredMessage<SRMessage1>())
             .SendMessageAndWaitAsync(new SRMessage1());
 
-        // Should have 4 total receives: initial + 3 retries
+        // 4 total receives: initial + 3 retries
         session.Received.MessagesOf<SRMessage1>().Count().ShouldBe(4);
 
         var requeuedEnvelopes = session.Requeued.Envelopes().ToList();
@@ -252,7 +277,6 @@ public class WaitForDeadLetteredMessage<T> : ITrackedCondition
     public void Record(EnvelopeRecord record)
     {
         if (record.Envelope.Message is T && record.MessageEventType == MessageEventType.MovedToErrorQueue )
-           // && record.Envelope.Destination?.ToString().Contains(_dlqTopic) == true)
         {
             _found = true;
         }
