@@ -220,7 +220,7 @@ public class SagaChain : HandlerChain
 
             if (SagaIdMember != null)
             {
-                frames.Add(new SetSagaIdFromSagaFrame(sagaVariable, SagaIdMember));
+                frames.Add(new SetSagaIdFromSagaFrame(MessageType, SagaIdMember));
             }
 
             foreach (var frame in startingCall.Creates.SelectMany(x => x.ReturnAction(this).Frames()))
