@@ -164,9 +164,8 @@ public class SqlServerMessageStore_with_IdAndDestination_Identity : MessageStore
         var durabilitySettings = theHost.Services.GetRequiredService<DurabilitySettings>();
 
         var runtime = theHost.GetRuntime();
-        var theReceiver = new DurableReceiver(new LocalQueue("temp"), runtime, runtime.Pipeline);
         
-        await thePersistence.As<IMessageDatabase>().PollForScheduledMessagesAsync(theReceiver,
+        await thePersistence.As<IMessageDatabase>().PollForScheduledMessagesAsync(runtime,
             NullLogger.Instance,
             durabilitySettings,
             default);

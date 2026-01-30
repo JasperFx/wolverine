@@ -60,6 +60,10 @@ public class MockWolverineRuntime : IWolverineRuntime, IObserver<IWolverineEvent
     public MetricsAccumulator MetricsAccumulator { get; }
 
     public IStubHandlers Stubs { get; } = Substitute.For<IStubHandlers>();
+    public ValueTask EnqueueDirectlyAsync(IReadOnlyList<Envelope> envelopes)
+    {
+        throw new NotImplementedException();
+    }
 
     public IMessageTracker MessageTracking { get; } = Substitute.For<IMessageTracker>();
 
