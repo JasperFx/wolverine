@@ -70,7 +70,7 @@ public interface IMessageDatabase : IMessageStoreWithAgentSupport, ITenantDataba
 
     Task EnqueueAsync(IDatabaseOperation operation);
     void WriteLoadScheduledEnvelopeSql(DbCommandBuilder builder, DateTimeOffset utcNow);
-    Task PollForScheduledMessagesAsync(ILocalReceiver localQueue, ILogger runtimeLogger,
+    Task PollForScheduledMessagesAsync(IWolverineRuntime runtime, ILogger runtimeLogger,
         DurabilitySettings durabilitySettings,
         CancellationToken cancellationToken);
 

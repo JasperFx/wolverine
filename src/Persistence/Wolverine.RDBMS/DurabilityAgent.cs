@@ -18,7 +18,6 @@ namespace Wolverine.RDBMS;
 internal class DurabilityAgent : IAgent
 {
     private readonly IMessageDatabase _database;
-    private readonly ILocalQueue _localQueue;
     private readonly ILogger<DurabilityAgent> _logger;
     private readonly Block<IAgentCommand> _runningBlock;
 
@@ -32,11 +31,10 @@ internal class DurabilityAgent : IAgent
     private Timer? _recoveryTimer;
     private Timer? _scheduledJobTimer;
 
-    public DurabilityAgent(string databaseName, IWolverineRuntime runtime, IMessageDatabase database)
+    public DurabilityAgent(IWolverineRuntime runtime, IMessageDatabase database)
     {
         _runtime = runtime;
         _database = database;
-        _localQueue = (ILocalQueue)runtime.Endpoints.AgentForLocalQueue(TransportConstants.Scheduled);
         _settings = runtime.DurabilitySettings;
 
         Uri = database.Uri;
@@ -193,7 +191,7 @@ internal class DurabilityAgent : IAgent
     {
         _scheduledJobTimer =
             new Timer(
-                _ => { _runningBlock.Post(new RunScheduledMessagesOperation(_database, _settings, _localQueue)); },
+                _ => { _runningBlock.Post(new RunScheduledMessagesOperation(_database, _settings)); },
                 _settings, _settings.ScheduledJobFirstExecution, _settings.ScheduledJobPollingTime);
     }
 }

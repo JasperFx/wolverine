@@ -17,6 +17,7 @@ using Wolverine.Postgresql.Util;
 using Wolverine.RDBMS;
 using Wolverine.RDBMS.Sagas;
 using Wolverine.RDBMS.Transport;
+using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.WorkerQueues;
 using Wolverine.Transports;
@@ -291,7 +292,7 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
         builder.Append($" order by execution_time LIMIT {Durability.RecoveryBatchSize};");
     }
 
-    public override async Task PollForScheduledMessagesAsync(ILocalReceiver localQueue, ILogger logger,
+    public override async Task PollForScheduledMessagesAsync(IWolverineRuntime runtime, ILogger logger,
         DurabilitySettings durabilitySettings, CancellationToken cancellationToken)
     {
         IReadOnlyList<Envelope> envelopes;
@@ -328,12 +329,7 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
                 await tx.CommitAsync(cancellationToken);
 
                 // Judging that there's very little chance of errors here
-                foreach (var envelope in envelopes)
-                {
-                    logger.LogInformation("Locally enqueuing scheduled message {Id} of type {MessageType}", envelope.Id,
-                        envelope.MessageType);
-                    await localQueue.EnqueueAsync(envelope);
-                }
+                await runtime.EnqueueDirectlyAsync(envelopes);
             }
         }
         finally
