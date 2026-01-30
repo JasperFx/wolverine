@@ -43,6 +43,29 @@ public class PostgresqlMessageStore_with_IdAndDestination_Identity : MessageStor
     }
 
     [Fact]
+    public async Task exists_should_account_for_destination_too()
+    {
+        var envelope = ObjectMother.Envelope();
+        envelope.Status = EnvelopeStatus.Incoming;
+        envelope.SentAt = ((DateTimeOffset)DateTime.Today).ToUniversalTime();
+        
+        (await thePersistence.Inbox.ExistsAsync(envelope, CancellationToken.None)).ShouldBeFalse();
+        
+        await thePersistence.Inbox.StoreIncomingAsync(envelope);
+        
+        (await thePersistence.Inbox.ExistsAsync(envelope, CancellationToken.None)).ShouldBeTrue();
+
+        var envelope2 = ObjectMother.Envelope();
+        envelope2.Id = envelope.Id;
+        envelope2.Destination = new Uri("stub://different");
+        
+        (await thePersistence.Inbox.ExistsAsync(envelope2, CancellationToken.None)).ShouldBeFalse();
+        await thePersistence.Inbox.StoreIncomingAsync(envelope2);
+        (await thePersistence.Inbox.ExistsAsync(envelope2, CancellationToken.None)).ShouldBeTrue();
+        (await thePersistence.Inbox.ExistsAsync(envelope, CancellationToken.None)).ShouldBeTrue();
+    }
+
+    [Fact]
     public async Task should_have_receive_at_in_primary_keys()
     {
         using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);

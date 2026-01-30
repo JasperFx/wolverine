@@ -205,14 +205,29 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
     {
         if (HasDisposed) return false;
 
-        await using var conn = CreateConnection();
-        await conn.OpenAsync(cancellation);
-        var count = await conn
-            .CreateCommand($"select count(id) from {SchemaName}.{DatabaseConstants.IncomingTable} where id = @id")
-            .With("id", envelope.Id)
-            .ExecuteScalarAsync(cancellation);
+        if (Durability.MessageIdentity == MessageIdentity.IdOnly)
+        {
+            await using var conn = CreateConnection();
+            await conn.OpenAsync(cancellation);
+            var count = await conn
+                .CreateCommand($"select count(id) from {SchemaName}.{DatabaseConstants.IncomingTable} where id = @id")
+                .With("id", envelope.Id)
+                .ExecuteScalarAsync(cancellation);
 
-        return ((int)count) > 0;
+            return ((int)count) > 0;
+        }
+        else
+        {
+            await using var conn = CreateConnection();
+            await conn.OpenAsync(cancellation);
+            var count = await conn
+                .CreateCommand($"select count(id) from {SchemaName}.{DatabaseConstants.IncomingTable} where id = @id and {DatabaseConstants.ReceivedAt} = @destination")
+                .With("id", envelope.Id)
+                .With("destination", envelope.Destination.ToString())
+                .ExecuteScalarAsync(cancellation);
+
+            return ((int)count) > 0;
+        }
     }
 
     public override void WriteLoadScheduledEnvelopeSql(DbCommandBuilder builder, DateTimeOffset utcNow)
