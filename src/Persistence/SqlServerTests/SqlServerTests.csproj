@@ -29,5 +29,9 @@
         <ProjectReference Include="..\Wolverine.SqlServer\Wolverine.SqlServer.csproj"/>
     </ItemGroup>
 
+    <ItemGroup>
+      <Folder Include="Bugs\" />
+    </ItemGroup>
+
 
 </Project>
