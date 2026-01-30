@@ -176,5 +176,28 @@ public class SqlServerMessageStore_with_IdAndDestination_Identity : MessageStore
         stored.OwnerId.ShouldBe(durabilitySettings.AssignedNodeNumber);
         stored.Status.ShouldBe(EnvelopeStatus.Incoming);
     }
+    
+    [Fact]
+    public async Task exists_should_account_for_destination_too()
+    {
+        var envelope = ObjectMother.Envelope();
+        envelope.Status = EnvelopeStatus.Incoming;
+        envelope.SentAt = ((DateTimeOffset)DateTime.Today).ToUniversalTime();
+        
+        (await thePersistence.Inbox.ExistsAsync(envelope, CancellationToken.None)).ShouldBeFalse();
+        
+        await thePersistence.Inbox.StoreIncomingAsync(envelope);
+        
+        (await thePersistence.Inbox.ExistsAsync(envelope, CancellationToken.None)).ShouldBeTrue();
+
+        var envelope2 = ObjectMother.Envelope();
+        envelope2.Id = envelope.Id;
+        envelope2.Destination = new Uri("stub://different");
+        
+        (await thePersistence.Inbox.ExistsAsync(envelope2, CancellationToken.None)).ShouldBeFalse();
+        await thePersistence.Inbox.StoreIncomingAsync(envelope2);
+        (await thePersistence.Inbox.ExistsAsync(envelope2, CancellationToken.None)).ShouldBeTrue();
+        (await thePersistence.Inbox.ExistsAsync(envelope, CancellationToken.None)).ShouldBeTrue();
+    }
 
 }

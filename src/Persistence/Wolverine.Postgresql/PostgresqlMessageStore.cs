@@ -259,13 +259,27 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
     {
         if (HasDisposed) return false;
 
-        await using var conn = await NpgsqlDataSource.OpenConnectionAsync(cancellation);
-        var count = await conn
-            .CreateCommand($"select count(id) from {SchemaName}.{DatabaseConstants.IncomingTable} where id = :id")
-            .With("id", envelope.Id)
-            .ExecuteScalarAsync(cancellation);
+        if (Durability.MessageIdentity == MessageIdentity.IdOnly)
+        {
+            await using var conn = await NpgsqlDataSource.OpenConnectionAsync(cancellation);
+            var count = await conn
+                .CreateCommand($"select count(id) from {SchemaName}.{DatabaseConstants.IncomingTable} where id = :id")
+                .With("id", envelope.Id)
+                .ExecuteScalarAsync(cancellation);
 
-        return ((long)count) > 0;
+            return ((long)count) > 0;
+        }
+        else
+        {
+            await using var conn = await NpgsqlDataSource.OpenConnectionAsync(cancellation);
+            var count = await conn
+                .CreateCommand($"select count(id) from {SchemaName}.{DatabaseConstants.IncomingTable} where id = :id and {DatabaseConstants.ReceivedAt} = :destination")
+                .With("id", envelope.Id)
+                .With("destination", envelope.Destination.ToString())
+                .ExecuteScalarAsync(cancellation);
+
+            return ((long)count) > 0;
+        }
     }
 
     public override void WriteLoadScheduledEnvelopeSql(DbCommandBuilder builder, DateTimeOffset utcNow)
