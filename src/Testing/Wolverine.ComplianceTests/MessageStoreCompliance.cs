@@ -146,6 +146,7 @@ public abstract class MessageStoreCompliance : IAsyncLifetime
     public async Task store_a_single_incoming_envelope_that_is_a_duplicate()
     {
         var envelope = ObjectMother.Envelope();
+        envelope.Destination = new Uri("stub://incoming");
         envelope.Status = EnvelopeStatus.Incoming;
 
         await thePersistence.Inbox.StoreIncomingAsync(envelope);

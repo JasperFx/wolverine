@@ -7,6 +7,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using Shouldly;
 using Weasel.Core;
+using Weasel.SqlServer;
 using Wolverine;
 using Wolverine.ComplianceTests;
 using Wolverine.Persistence.Durability;
@@ -25,6 +26,11 @@ public class SqlServerMessageStore_with_IdAndDestination_Identity : MessageStore
 {
     public override async Task<IHost> BuildCleanHost()
     {
+        using var conn = new SqlConnection(Servers.SqlServerConnectionString);
+        await conn.OpenAsync();
+        await conn.DropSchemaAsync("receiver2");
+        await conn.CloseAsync();
+        
         #region sample_configuring_message_identity_to_use_id_and_destination
 
         var host = await Host.CreateDefaultBuilder()
