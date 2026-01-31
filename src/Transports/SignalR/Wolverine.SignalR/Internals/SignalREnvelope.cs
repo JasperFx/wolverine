@@ -4,9 +4,9 @@ namespace Wolverine.SignalR.Internals;
 
 public class SignalREnvelope : Envelope
 {
-    public IHubContext<WolverineHub> HubContext { get; }
+    public IHubContext<Hub> HubContext { get; }
 
-    public SignalREnvelope(HubCallerContext context, IHubContext<WolverineHub> hubContext)
+    public SignalREnvelope(HubCallerContext context, IHubContext<Hub> hubContext)
     {
         HubContext = hubContext;
         ConnectionId = context.ConnectionId;

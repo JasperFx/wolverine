@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Wolverine.Runtime;
@@ -14,7 +15,7 @@ namespace Wolverine.SignalR.Tests;
 public abstract class WebSocketTestContext : IAsyncLifetime
 {
     protected WebApplication theWebApp;
-    private readonly int Port = PortFinder.GetAvailablePort();
+    protected readonly int Port = PortFinder.GetAvailablePort();
     protected readonly Uri clientUri;
 
     private readonly List<IHost> _clientHosts = new();
@@ -34,12 +35,12 @@ public abstract class WebSocketTestContext : IAsyncLifetime
         });
 
         #endregion
-        
+
         builder.Services.AddSignalR();
         builder.Host.UseWolverine(opts =>
         {
             opts.ServiceName = "Server";
-            
+
             // Hooking up the SignalR messaging transport
             // in Wolverine
             opts.UseSignalR();
@@ -54,11 +55,11 @@ public abstract class WebSocketTestContext : IAsyncLifetime
         });
 
         var app = builder.Build();
-        
+
         // Syntactic sure, really just doing:
         // app.MapHub<WolverineHub>("/messages");
         app.MapWolverineSignalRHub();
-        
+
         await app.StartAsync();
 
         // Remember this, because I'm going to use it in test code
@@ -76,13 +77,13 @@ public abstract class WebSocketTestContext : IAsyncLifetime
             .UseWolverine(opts =>
             {
                 opts.ServiceName = serviceName;
-                
+
                 opts.UseClientToSignalR(Port);
-                
+
                 opts.PublishMessage<ToFirst>().ToSignalRWithClient(Port);
-                
+
                 opts.PublishMessage<RequiresResponse>().ToSignalRWithClient(Port);
-                
+
                 opts.Publish(x =>
                 {
                     x.MessagesImplementing<WebSocketMessage>();
@@ -91,7 +92,7 @@ public abstract class WebSocketTestContext : IAsyncLifetime
             }).StartAsync();
 
         #endregion
-        
+
         _clientHosts.Add(host);
 
         return host;
@@ -106,7 +107,96 @@ public abstract class WebSocketTestContext : IAsyncLifetime
             await clientHost.StopAsync();
         }
     }
-    
+
+}
+
+public abstract class WebSocketTestContextWithCustomHub<THub> : IAsyncLifetime where THub : WolverineHub
+{
+    protected WebApplication theWebApp;
+    protected readonly int Port = PortFinder.GetAvailablePort();
+    protected readonly Uri clientUri;
+
+    private readonly List<IHost> _clientHosts = new();
+
+    public WebSocketTestContextWithCustomHub()
+    {
+        clientUri = new Uri($"http://localhost:{Port}/messages");
+    }
+
+    public async Task InitializeAsync()
+    {
+        var builder = WebApplication.CreateBuilder();
+
+        builder.WebHost.ConfigureKestrel(opts =>
+        {
+            opts.ListenLocalhost(Port);
+        });
+
+        #region sample_custom_signalr_hub
+        builder.Services.AddSignalR();
+        builder.Host.UseWolverine(opts =>
+        {
+            opts.ServiceName = "Server";
+
+            // Hooking up the SignalR messaging transport
+            // in Wolverine using a custom hub
+            opts.UseSignalR<THub>();
+
+            // A message for testing
+            opts.PublishMessage<FromSecond>().ToSignalR();
+        });
+
+        var app = builder.Build();
+
+        // Syntactic sugar, really just doing:
+        // app.MapHub<THub>("/messages");
+        app.MapWolverineSignalRHub<THub>();
+        #endregion
+
+        await app.StartAsync();
+
+        // Remember this, because I'm going to use it in test code
+        // later
+        theWebApp = app;
+    }
+
+    // This starts up a new host to act as a client to the SignalR
+    // server for testing
+    public async Task<IHost> StartClientHost(string serviceName = "Client")
+    {
+        var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.ServiceName = serviceName;
+
+                opts.UseClientToSignalR(Port);
+
+                opts.PublishMessage<ToFirst>().ToSignalRWithClient(Port);
+
+                opts.PublishMessage<RequiresResponse>().ToSignalRWithClient(Port);
+
+                opts.Publish(x =>
+                {
+                    x.MessagesImplementing<WebSocketMessage>();
+                    x.ToSignalRWithClient(Port);
+                });
+            }).StartAsync();
+
+        _clientHosts.Add(host);
+
+        return host;
+    }
+
+    public virtual async Task DisposeAsync()
+    {
+        await theWebApp.StopAsync();
+
+        foreach (var clientHost in _clientHosts)
+        {
+            await clientHost.StopAsync();
+        }
+    }
+
 }
 
 public record ToFirst(string Name) : WebSocketMessage;

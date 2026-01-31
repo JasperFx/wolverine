@@ -107,6 +107,37 @@ return await app.RunJasperFxCommands(args);
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/WolverineChat/Program.cs#L63-L81' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_map_wolverine_signalrhub' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Custom hubs
+
+If the default `WolverineHub` isn't enough, you can provide a custom Hub that will be used for all received messages:
+
+<!-- snippet: sample_custom_signalr_hub -->
+<a id='snippet-sample_custom_signalr_hub'></a>
+```cs
+builder.Services.AddSignalR();
+builder.Host.UseWolverine(opts =>
+{
+    opts.ServiceName = "Server";
+
+    // Hooking up the SignalR messaging transport
+    // in Wolverine using a custom hub
+    opts.UseSignalR<THub>();
+
+    // A message for testing
+    opts.PublishMessage<FromSecond>().ToSignalR();
+});
+
+var app = builder.Build();
+
+// Syntactic sugar, really just doing:
+// app.MapHub<THub>("/messages");
+app.MapWolverineSignalRHub<THub>();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/SignalR/Wolverine.SignalR.Tests/WebSocketTestContext.cs#L135-L154' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_custom_signalr_hub' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Custom hubs must still inherit from `WolverineHub`. It's possible to override `ReceiveMessage`, but if you don't invoke the base functionality you're gonna have a bad time.
+
 ## Messages and Serialization
 
 For the message routing above, you'll notice that I utilized a marker interface just to facilitate message routing 
