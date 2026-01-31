@@ -1,5 +1,6 @@
 using System.Text.Json;
 using JasperFx.Core.Reflection;
+using Microsoft.AspNetCore.SignalR;
 using Wolverine.Configuration;
 
 namespace Wolverine.SignalR.Client;
@@ -38,9 +39,7 @@ public static class SignalRClientExtensions
     /// <param name="route">Default is messages. Route pattern where you have mapped the WolverineHub</param>
     /// <returns></returns>
     public static Uri UseClientToSignalR(this WolverineOptions options, int port, string route = "messages")
-    {
-        return options.UseClientToSignalR($"http://localhost:{port}/{route}");
-    }
+        => options.UseClientToSignalR($"http://localhost:{port}/{route}");
 
     /// <summary>
     /// Send a message via a SignalR Client for the given server Uri in the format "http://localhost:[port]/[hub url]"
@@ -79,7 +78,7 @@ public static class SignalRClientExtensions
         var url = $"http://localhost:{port}/{relativeUrl}";
         publishing.ToSignalRWithClient(url);
     }
-    
+
     /// <summary>
     /// Route messages via a SignalR Client pointed at the supplied absolute Url
     /// </summary>

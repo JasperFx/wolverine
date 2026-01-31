@@ -1,8 +1,8 @@
-using System.Diagnostics;
-using System.Text.Json;
 using JasperFx.Core;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.Logging;
+using System.Text.Json;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Interop;
@@ -23,8 +23,8 @@ public class SignalRClientEndpoint : Endpoint, IListener, ISender
     {
         return new Uri($"{SignalRClientTransport.ProtocolName}://{uri.Host}:{uri.Port}/{uri.Segments.Last()}");
     }
-    
-    public SignalRClientEndpoint(Uri uri, SignalRClientTransport parent) : base(TranslateToWolverineUri(uri),EndpointRole.Application)
+
+    public SignalRClientEndpoint(Uri uri, SignalRClientTransport parent) : base(TranslateToWolverineUri(uri), EndpointRole.Application)
     {
         _parent = parent;
         SignalRUri = uri;
@@ -49,7 +49,7 @@ public class SignalRClientEndpoint : Endpoint, IListener, ISender
         _mapper ??= BuildCloudEventsMapper(runtime, JsonOptions);
 
         Logger = runtime.LoggerFactory.CreateLogger<SignalRClientEndpoint>();
-        
+
         await _connection.StartAsync();
 
         _connection.On(SignalRTransport.DefaultOperation, [typeof(string)], (args =>
@@ -61,13 +61,13 @@ public class SignalRClientEndpoint : Endpoint, IListener, ISender
                 Logger.LogDebug("Received an empty message, ignoring");
                 return Task.CompletedTask;
             }
-            
+
             return ReceiveAsync(json);
         }));
 
         return this;
     }
-    
+
     internal async Task ReceiveAsync(string json)
     {
         if (Receiver == null || _mapper == null) return;
@@ -88,7 +88,7 @@ public class SignalRClientEndpoint : Endpoint, IListener, ISender
             Logger?.LogError(e, "Unable to receive a message from SignalR");
         }
     }
-    
+
     public IReceiver? Receiver { get; private set; }
 
     protected override ISender CreateSender(IWolverineRuntime runtime)
@@ -142,7 +142,7 @@ public class SignalRClientEndpoint : Endpoint, IListener, ISender
     {
         if (_mapper == null || _connection == null)
             throw new InvalidOperationException($"SignalR Client {Uri} is not initialized");
-        
+
         var json = _mapper.WriteToString(envelope);
 
         await _connection.InvokeAsync(nameof(WolverineHub.ReceiveMessage), json);

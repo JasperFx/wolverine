@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.SignalR;
 using System.Text.Json;
 using Wolverine.Configuration;
 
