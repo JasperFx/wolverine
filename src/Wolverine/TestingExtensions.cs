@@ -353,7 +353,7 @@ public static class TestingExtensions
         public bool HasReached()
         {
             Func<Uri, bool> filter = AgentScheme.IsEmpty()
-                ? x => !x.Scheme.StartsWith("wolverine")
+                ? x => !x.Scheme.StartsWith("wolverine") && !x.Scheme.EqualsIgnoreCase("simple")
                 : x => x.Scheme.EqualsIgnoreCase(AgentScheme);
 
             foreach (var pair in AgentCountByHost)
