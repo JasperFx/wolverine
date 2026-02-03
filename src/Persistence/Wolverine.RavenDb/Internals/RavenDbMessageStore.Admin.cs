@@ -32,13 +32,13 @@ public partial class RavenDbMessageStore : IMessageStoreAdmin
         using var session = _store.OpenAsyncSession();
         return new PersistedCounts
         {
-            DeadLetter = await session.Query<DeadLetterMessage>().CountAsync(),
+            DeadLetter = await session.Query<DeadLetterMessage>().Customize(x => x.WaitForNonStaleResults()).CountAsync(),
             Handled =
-                await session.Query<IncomingMessage>().Where(m => m.Status == EnvelopeStatus.Handled).CountAsync(),
-            Incoming = await session.Query<IncomingMessage>().Where(m => m.Status == EnvelopeStatus.Incoming)
+                await session.Query<IncomingMessage>().Customize(x => x.WaitForNonStaleResults()).Where(m => m.Status == EnvelopeStatus.Handled).CountAsync(),
+            Incoming = await session.Query<IncomingMessage>().Customize(x => x.WaitForNonStaleResults()).Where(m => m.Status == EnvelopeStatus.Incoming)
                 .CountAsync(),
-            Outgoing = await session.Query<OutgoingMessage>().CountAsync(),
-            Scheduled = await session.Query<IncomingMessage>().Where(m => m.Status == EnvelopeStatus.Scheduled)
+            Outgoing = await session.Query<OutgoingMessage>().Customize(x => x.WaitForNonStaleResults()).CountAsync(),
+            Scheduled = await session.Query<IncomingMessage>().Customize(x => x.WaitForNonStaleResults()).Where(m => m.Status == EnvelopeStatus.Scheduled)
                 .CountAsync(),
         };
     }

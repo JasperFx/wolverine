@@ -133,6 +133,17 @@ public partial class RavenDbMessageStore : INodeAgentPersistence
             .Customize(x => x.WaitForNonStaleResults())
             .ToListAsync(token: cancellationToken);
 
+        var assignments = await session
+            .Query<AgentAssignment>()
+            .Customize(x => x.WaitForNonStaleResults())
+            .ToListAsync(token: cancellationToken);
+
+        foreach (var node in nodes)
+        {
+            node.ActiveAgents.Clear();
+            node.ActiveAgents.AddRange(assignments.Where(x => x.NodeId == node.NodeId).Select(x => x.AgentUri));
+        }
+
         var restrictions = await session
             .Query<WolverineAgentRestriction>()
             .Customize(x => x.WaitForNonStaleResults())
@@ -214,7 +225,11 @@ public partial class RavenDbMessageStore : INodeAgentPersistence
     public async Task<IReadOnlyList<NodeRecord>> FetchRecentRecordsAsync(int count)
     {
         using var session = _store.OpenAsyncSession();
-        var list = await session.Query<NodeRecord>().OrderByDescending(x => x.Timestamp).Take(count).ToListAsync();
+        var list = await session.Query<NodeRecord>()
+            .Customize(x => x.WaitForNonStaleResults())
+            .OrderByDescending(x => x.Timestamp)
+            .Take(count)
+            .ToListAsync();
         list.Reverse();
         return list;
     }
