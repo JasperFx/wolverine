@@ -141,7 +141,7 @@ public static class RecordTeamHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/RavenDbTests/transactional_middleware.cs#L47-L59' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_ravendb_side_effects' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/RavenDbTests/transactional_middleware.cs#L50-L62' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_ravendb_side_effects' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## System Control Queues

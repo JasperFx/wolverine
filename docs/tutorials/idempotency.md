@@ -33,7 +33,7 @@ var host = await Host.CreateDefaultBuilder()
     })
     .StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqlServerTests/Persistence/SqlServerMessageStore_with_IdAndDestination_Identity.cs#L28-L40' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_message_identity_to_use_id_and_destination' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqlServerTests/Persistence/SqlServerMessageStore_with_IdAndDestination_Identity.cs#L34-L46' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_message_identity_to_use_id_and_destination' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Means that the uniqueness is the message id + the endpoint destination, which Wolverine stores as a `Uri` string in the 

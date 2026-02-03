@@ -191,7 +191,7 @@ The actual JSON serialization in the SignalR transport is isolated from the rest
 JsonOptions = new(JsonSerializerOptions.Web) { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 JsonOptions.Converters.Add(new JsonStringEnumConverter());
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/SignalR/Wolverine.SignalR/Internals/SignalRTransport.cs#L26-L31' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_signalr_default_json_configuration' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/SignalR/Wolverine.SignalR/Internals/SignalRTransport.cs#L27-L32' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_signalr_default_json_configuration' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 But of course, if you needed to override the JSON serialization for whatever reason, you can just push in a 

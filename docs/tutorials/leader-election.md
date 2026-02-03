@@ -385,7 +385,78 @@ To wrap this up, I’m trying to guess at the questions you might have and see i
 * **Can Wolverine switch over the leadership role?** Yes, and that should be relatively quick. Plus Wolverine would keep trying to start a leader election if none is found. But yet, it’s an imperfect world where things can go wrong and there will 100% be the ability to either kickstart or assign the leader role from the forthcoming CritterWatch user interface.
 * **How does the leadership election work?** Crudely and relatively effectively. All of the storage mechanics today have some kind of sequential node number assignment for all newly persisted nodes. In a kind of simplified “Bully Algorithm,” Wolverine will always try to send “try assume leadership” messages to the node with the lowest sequential node number which will always be the longest running node. When a node does try to take leadership, it uses whatever kind of global, advisory lock function the current persistence uses to get sole access to write the leader node assignment to itself, but will back out if the current node detects from storage that the leadership is already running on another active node.
 
+## Singular Agent <Badge type="tip" text="5.14" />
 
+::: info
+`SingularAgent` is trying to assign itself to the "first" node that is not the leader, but will
+choose the leader if there is only one node. `SingularAgent` will not reassign the itself to other 
+nodes as long as it is running anywhere. If you need more sophisticated assignment logic, you will need
+to write a custom `IAgentFamily` and register that in your DI container.
+:::
+
+What if all you really want is a single `IAgent` for some kind of background process, and that agent should only
+ever be running on one single node? Wolverine has the `SingularAgent` base class just for that scenario. See this
+sample from our tests:
+
+<!-- snippet: sample_SimpleSingularAgent -->
+<a id='snippet-sample_simplesingularagent'></a>
+```cs
+using JasperFx.Core;
+using Wolverine.Runtime.Agents;
+
+namespace Wolverine.ComplianceTests;
+
+public class SimpleSingularAgent : SingularAgent
+{
+    private CancellationTokenSource _cancellation = new();
+    private Timer _timer;
+
+    // The scheme argument is meant to be descriptive and
+    // your agent will have the Uri {scheme}:// in all diagnostics
+    // and node assignment storage
+    public SimpleSingularAgent() : base("simple")
+    {
+        
+    }
+
+    // This template method should be used to start up your background service
+    protected override Task startAsync(CancellationToken cancellationToken)
+    {
+        _cancellation = new();
+        _timer = new Timer(execute, null, 1.Seconds(), 5.Seconds());
+        return Task.CompletedTask;
+    }
+
+    private void execute(object? state)
+    {
+        // Do something...
+    }
+
+    // This template method should be used to cleanly stop up your background service
+    protected override Task stopAsync(CancellationToken cancellationToken)
+    {
+        _timer.SafeDispose();
+        return Task.CompletedTask;
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/Wolverine.ComplianceTests/SimpleSingularAgent.cs#L1-L42' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_simplesingularagent' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+To add that to your Wolverine system, we've added this convenience method:
+
+<!-- snippet: sample_register_singular_agent -->
+<a id='snippet-sample_register_singular_agent'></a>
+```cs
+// Little extension method helper on IServiceCollection to register your
+// SingularAgent
+opts.Services.AddSingularAgent<SimpleSingularAgent>();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/Wolverine.ComplianceTests/LeadershipElectionCompliance.cs#L80-L86' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_register_singular_agent' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+In the end, what you need is an `IAgentFamily` that can assign a singular `IAgent` to one and only
+one node within your system. `SingularAgent` just makes that a little bit simpler. 
 
 
 
