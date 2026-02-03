@@ -23,6 +23,7 @@ using Wolverine.Persistence;
 using Wolverine.Persistence.Durability;
 using Wolverine.Persistence.Sagas;
 using Wolverine.Runtime;
+using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.Handlers;
 
 namespace Wolverine;
@@ -372,6 +373,18 @@ public static class HostBuilderExtensions
     public static Task ApplyAsyncWolverineExtensions(this IServiceProvider services)
     {
         return services.GetRequiredService<IWolverineRuntime>().As<WolverineRuntime>().ApplyAsyncExtensions();
+    }
+
+    /// <summary>
+    /// Registers a SingularAgent type to this Wolverine system
+    /// </summary>
+    /// <param name="services"></param>
+    /// <typeparam name="T"></typeparam>
+    /// <returns></returns>
+    public static IServiceCollection AddSingularAgent<T>(this IServiceCollection services) where T : SingularAgent
+    {
+        services.AddSingleton<IAgentFamily, T>();
+        return services;
     }
 
     /// <summary>
