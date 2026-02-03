@@ -20,8 +20,6 @@
         <ProjectReference Include="..\Wolverine.MySql\Wolverine.MySql.csproj"/>
         <ProjectReference Include="..\..\..\Testing\Wolverine.ComplianceTests\Wolverine.ComplianceTests.csproj" />
         <!-- Using Weasel from source to override NuGet dependency until fixed package is published -->
-        <ProjectReference Include="..\..\..\..\..\weasel\src\Weasel.Core\Weasel.Core.csproj" />
-        <ProjectReference Include="..\..\..\..\..\weasel\src\Weasel.MySql\Weasel.MySql.csproj" />
     </ItemGroup>
 
     <ItemGroup>

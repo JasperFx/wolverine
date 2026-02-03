@@ -13,13 +13,12 @@
     <ItemGroup>
         <ProjectReference Include="..\..\Wolverine.RDBMS\Wolverine.RDBMS.csproj" />
         <!-- Using Weasel from source until a fixed NuGet package is published -->
-        <ProjectReference Include="..\..\..\..\..\weasel\src\Weasel.Core\Weasel.Core.csproj" />
-        <ProjectReference Include="..\..\..\..\..\weasel\src\Weasel.MySql\Weasel.MySql.csproj" />
     </ItemGroup>
 
     <ItemGroup>
       <!-- MySqlConnector is needed as direct reference when using Weasel from source -->
       <PackageReference Include="MySqlConnector" Version="2.4.0" />
+      <PackageReference Include="Weasel.MySql" Version="8.5.1" />
     </ItemGroup>
 
     <Import Project="../../../../Analysis.Build.props" />
