@@ -80,6 +80,40 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
         }
     }
 
+    /// <summary>
+    ///     Fetch a list of the existing tables in the database filtered by schemas
+    /// </summary>
+    /// <param name="ct"></param>
+    /// <returns></returns>
+    // TODO -- get this moved to Weasel. Shouldn't be here, but Claude brute forced it
+    public async Task<IReadOnlyList<DbObjectName>> SchemaTables(CancellationToken ct = default)
+    {
+        var schemaNames = AllSchemaNames();
+
+        await using var conn = CreateConnection();
+        await conn.OpenAsync(ct).ConfigureAwait(false);
+
+        var tables = new List<DbObjectName>();
+        foreach (var schemaName in schemaNames)
+        {
+            var sql = $"SELECT table_schema, table_name FROM information_schema.tables WHERE table_schema = @schema";
+            var cmd = conn.CreateCommand(sql).With("schema", schemaName);
+
+            await using var reader = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
+            while (await reader.ReadAsync(ct).ConfigureAwait(false))
+            {
+                var schema = reader.GetString(0);
+                var name = reader.GetString(1);
+                tables.Add(new DbObjectName(schema, name));
+            }
+
+            await reader.CloseAsync().ConfigureAwait(false);
+        }
+
+        await conn.CloseAsync().ConfigureAwait(false);
+        return tables;
+    }
+
     protected override INodeAgentPersistence? buildNodeStorage(DatabaseSettings databaseSettings,
         DbDataSource dataSource)
     {
