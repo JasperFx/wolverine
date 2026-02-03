@@ -292,10 +292,34 @@ public partial class Envelope : IHasTenantId
     /// </summary>
     public string? TenantId { get; set; }
 
+    private string?[] _acceptedContentTypes = ["application/json"];
+    private string? _acceptedContentTypesJoined;
+
     /// <summary>
     ///     Specifies the accepted content types for the requested reply
     /// </summary>
-    public string?[] AcceptedContentTypes { get; set; } = ["application/json"];
+    public string?[] AcceptedContentTypes
+    {
+        get => _acceptedContentTypes;
+        set
+        {
+            _acceptedContentTypes = value;
+            _acceptedContentTypesJoined = null; // Invalidate cache
+        }
+    }
+
+    /// <summary>
+    ///     Returns the AcceptedContentTypes as a comma-separated string.
+    ///     This value is cached to avoid repeated allocations during serialization.
+    /// </summary>
+    internal string? AcceptedContentTypesJoined
+    {
+        get
+        {
+            if (_acceptedContentTypes.Length == 0) return null;
+            return _acceptedContentTypesJoined ??= string.Join(",", _acceptedContentTypes);
+        }
+    }
 
     /// <summary>
     ///     Specific message id for this envelope
