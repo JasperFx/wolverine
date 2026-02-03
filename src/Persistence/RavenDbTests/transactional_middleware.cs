@@ -27,13 +27,16 @@ public class transactional_middleware
             .UseWolverine(opts =>
             {
                 opts.Durability.Mode = DurabilityMode.Solo;
-                
+
                 opts.Services.AddSingleton(store);
-                
+
                 opts.ListenAtPort(2345).UseDurableInbox();
-                
+
                 opts.UseRavenDbPersistence();
                 opts.Policies.AutoApplyTransactions();
+
+                // Include handlers from this test assembly
+                opts.Discovery.IncludeAssembly(typeof(transactional_middleware).Assembly);
             }).StartAsync();
 
         await host.InvokeAsync(new RecordTeam("Chiefs", 1960));

@@ -5,7 +5,8 @@ using Raven.Client.Documents;
 namespace Internal.Generated.WolverineHandlers
 {
     // START: WildcardStartHandler784149372
-    public class WildcardStartHandler784149372 : Wolverine.Runtime.Handlers.MessageHandler
+    [global::System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")]
+    public sealed class WildcardStartHandler784149372 : Wolverine.Runtime.Handlers.MessageHandler
     {
         private readonly Raven.Client.Documents.IDocumentStore _documentStore;
 
@@ -22,11 +23,14 @@ namespace Internal.Generated.WolverineHandlers
             // The actual message body
             var wildcardStart = (Wolverine.ComplianceTests.Sagas.WildcardStart)context.Envelope.Message;
 
+            // Application-specific Open Telemetry auditing
+            System.Diagnostics.Activity.Current?.SetTag("Id", wildcardStart.Id);
             var stringBasicWorkflow = new Wolverine.ComplianceTests.Sagas.StringBasicWorkflow();
             
             // The actual message execution
             stringBasicWorkflow.Starts(wildcardStart);
 
+            context.SetSagaId(wildcardStart.Id);
             if (!stringBasicWorkflow.IsCompleted())
             {
                 await asyncDocumentSession.StoreAsync(stringBasicWorkflow, cancellation).ConfigureAwait(false);
