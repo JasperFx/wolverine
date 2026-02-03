@@ -114,6 +114,7 @@ public abstract class TransportComplianceFixture : IDisposable, IAsyncDisposable
         Receiver = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Durability.Mode = DurabilityMode.Solo;
                 configure(opts);
                 configureReceiver(opts);
             }).StartAsync();
