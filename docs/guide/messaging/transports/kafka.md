@@ -13,6 +13,44 @@ To use [Kafka](https://www.confluent.io/what-is-apache-kafka/) as a messaging tr
 dotnet add WolverineFx.Kafka
 ```
 
+## At-Least-Once Delivery
+
+By default, Kafka's consumer offset is stored immediately when a message is consumed, which means if your application crashes during message processing, the message may be lost. To enable "at-least-once" delivery semantics where messages are only acknowledged after processing completes, use the `EnableAtLeastOnceDelivery()` option:
+
+```cs
+opts.ListenToKafkaTopic("important-events")
+    .ProcessInline()
+    .EnableAtLeastOnceDelivery();
+```
+
+When `EnableAtLeastOnceDelivery()` is enabled:
+- Kafka's `EnableAutoOffsetStore` is automatically set to `false`
+- The offset is stored only **after** `ReceivedAsync` completes
+- For `ProcessInline()` mode: the offset is stored after the message handler finishes
+- For `UseDurableInbox()` mode: the offset is stored after the message is persisted to the database inbox
+
+::: tip
+Note that `StoreOffset` only stores the offset in memory on the consumer. The actual commit to Kafka happens either automatically at the `EnableAutoCommit` interval (default 5 seconds when auto-commit is enabled), or after message processing completes when auto-commit is disabled. This means if your application crashes between storing the offset and the next commit, messages may be redelivered.
+:::
+
+::: warning
+`EnableAtLeastOnceDelivery()` does **not** provide at-least-once guarantees when using `BufferedInMemory()` mode, since messages are buffered in memory before processing and could be lost on crash.
+:::
+
+Combine with `ProcessInline()` for synchronous processing or `UseDurableInbox()` when you need durability with asynchronous processing:
+
+```cs
+// Option 1: Inline processing - message fully processed before offset stored
+opts.ListenToKafkaTopic("critical-events")
+    .ProcessInline()
+    .EnableAtLeastOnceDelivery();
+
+// Option 2: Durable inbox - message persisted to database before offset stored
+opts.ListenToKafkaTopic("critical-events")
+    .UseDurableInbox()
+    .EnableAtLeastOnceDelivery();
+```
+
 ```warning
 The configuration in `ConfigureConsumer()` for each topic completely overwrites any previous configuration
 ```

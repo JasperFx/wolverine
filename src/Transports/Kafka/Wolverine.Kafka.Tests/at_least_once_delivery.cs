@@ -71,16 +71,16 @@ public class at_least_once_delivery_configuration
             .UseWolverine(opts =>
             {
                 opts.ServiceName = "AtLeastOnceReceiver";
-                opts.UseKafka("localhost:9092").AutoProvision();
-
-                opts.ListenToKafkaTopic(receiverTopic)
-                    .ProcessInline()
-                    .EnableAtLeastOnceDelivery()
-                    .ConfigureConsumer(c =>
+                opts.UseKafka("localhost:9092").AutoProvision()
+                    .ConfigureConsumers(c =>
                     {
                         c.GroupId = "atleastonce-inline-receiver";
                         c.AutoOffsetReset = AutoOffsetReset.Earliest;
                     });
+
+                opts.ListenToKafkaTopic(receiverTopic)
+                    .ProcessInline()
+                    .EnableAtLeastOnceDelivery();
 
                 opts.Services.AddResourceSetupOnStartup();
             }).StartAsync();
