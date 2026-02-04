@@ -37,7 +37,7 @@ internal class PullSagaIdFromMessageFrame : SyncFrame
         if (_sagaIdType == typeof(string))
         {
             writer.Write(
-                $"{_sagaIdType.NameInCode()} {SagaChain.SagaIdVariableName} = {_envelope!.Usage}.{nameof(Envelope.SagaId)} ?? {_message!.Usage}.{_sagaIdMember.Name};");
+                $"{_sagaIdType.NameInCode()} {SagaChain.SagaIdVariableName} = {_message!.Usage}.{_sagaIdMember.Name} ?? {_envelope!.Usage}.{nameof(Envelope.SagaId)};");
             writer.Write(
                 $"if (string.{nameof(string.IsNullOrEmpty)}({SagaChain.SagaIdVariableName})) throw new {typeof(IndeterminateSagaStateIdException).FullName}({_envelope.Usage});");
         }
@@ -47,9 +47,9 @@ internal class PullSagaIdFromMessageFrame : SyncFrame
                 ? typeof(Guid).FullName
                 : _sagaIdType!.NameInCode();
 
-
+            writer.Write($"{typeNameInCode} {SagaChain.SagaIdVariableName} = {_message!.Usage}.{_sagaIdMember.Name};");
             writer.Write(
-                $"if (!{typeNameInCode}.TryParse({_envelope!.Usage}.{nameof(Envelope.SagaId)}, out {typeNameInCode} sagaId)) sagaId = {_message!.Usage}.{_sagaIdMember.Name};");
+                $"if ({SagaChain.SagaIdVariableName} == default && !{typeNameInCode}.TryParse({_envelope!.Usage}.{nameof(Envelope.SagaId)}, out sagaId)) sagaId = {_message!.Usage}.{_sagaIdMember.Name};");
 
             if (_sagaIdType == typeof(Guid))
             {
