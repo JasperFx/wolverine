@@ -50,6 +50,13 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
     /// </summary>
     public ProducerConfig? ProducerConfig { get; internal set; }
 
+    /// <summary>
+    /// When true, enables "at least once" delivery semantics by storing offsets
+    /// only after message processing completes. This automatically sets
+    /// EnableAutoOffsetStore=false on the consumer. Default is false for backward compatibility.
+    /// </summary>
+    public bool EnableAtLeastOnceDelivery { get; internal set; }
+
     public static string TopicNameForUri(Uri uri)
     {
         return uri.Segments.Last().Trim('/');
@@ -58,7 +65,7 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
     public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
     {
         EnvelopeMapper ??= BuildMapper(runtime);
-        
+
         var config = ConsumerConfig ?? Parent.ConsumerConfig;
         var listener = new KafkaListener(this, config,
             Parent.CreateConsumer(ConsumerConfig), receiver, runtime.LoggerFactory.CreateLogger<KafkaListener>());
@@ -68,7 +75,7 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
     protected override ISender CreateSender(IWolverineRuntime runtime)
     {
         EnvelopeMapper ??= BuildMapper(runtime);
-        
+
         return Mode == EndpointMode.Inline
             ? new InlineKafkaSender(this)
             : new BatchedSender(this, new KafkaSenderProtocol(this), runtime.Cancellation,
