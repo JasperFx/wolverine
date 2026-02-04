@@ -325,6 +325,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wolverine.MySql", "src\Pers
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MySqlTests", "src\Persistence\MySql\MySqlTests\MySqlTests.csproj", "{382BD656-89CD-4899-A30F-1589578B639F}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BackPressureTests", "src\Testing\BackPressureTests\BackPressureTests.csproj", "{02F5459A-A96B-42AB-9E4E-CF6B067238FB}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -1823,6 +1825,18 @@ Global
 		{382BD656-89CD-4899-A30F-1589578B639F}.Release|x64.Build.0 = Release|Any CPU
 		{382BD656-89CD-4899-A30F-1589578B639F}.Release|x86.ActiveCfg = Release|Any CPU
 		{382BD656-89CD-4899-A30F-1589578B639F}.Release|x86.Build.0 = Release|Any CPU
+		{02F5459A-A96B-42AB-9E4E-CF6B067238FB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{02F5459A-A96B-42AB-9E4E-CF6B067238FB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{02F5459A-A96B-42AB-9E4E-CF6B067238FB}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{02F5459A-A96B-42AB-9E4E-CF6B067238FB}.Debug|x64.Build.0 = Debug|Any CPU
+		{02F5459A-A96B-42AB-9E4E-CF6B067238FB}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{02F5459A-A96B-42AB-9E4E-CF6B067238FB}.Debug|x86.Build.0 = Debug|Any CPU
+		{02F5459A-A96B-42AB-9E4E-CF6B067238FB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{02F5459A-A96B-42AB-9E4E-CF6B067238FB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{02F5459A-A96B-42AB-9E4E-CF6B067238FB}.Release|x64.ActiveCfg = Release|Any CPU
+		{02F5459A-A96B-42AB-9E4E-CF6B067238FB}.Release|x64.Build.0 = Release|Any CPU
+		{02F5459A-A96B-42AB-9E4E-CF6B067238FB}.Release|x86.ActiveCfg = Release|Any CPU
+		{02F5459A-A96B-42AB-9E4E-CF6B067238FB}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -1973,6 +1987,7 @@ Global
 		{AC643465-CD1E-4E9E-9860-DDAAF956A3DC} = {96119B5E-B5F0-400A-9580-B342EBE26212}
 		{738DB46A-B1B5-4843-A536-A5918918DEB5} = {7A9E0EAE-9ABF-40F6-9DB9-8FB1243F4210}
 		{382BD656-89CD-4899-A30F-1589578B639F} = {7A9E0EAE-9ABF-40F6-9DB9-8FB1243F4210}
+		{02F5459A-A96B-42AB-9E4E-CF6B067238FB} = {96119B5E-B5F0-400A-9580-B342EBE26212}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {30422362-0D90-4DBE-8C97-DD2B5B962768}
