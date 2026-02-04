@@ -23,7 +23,7 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IAsy
     private ConnectionMonitor? _listenerConnection;
     private ConnectionMonitor? _sendingConnection;
 
-    public RabbitMqTransport(string protocol) : base(protocol, "Rabbit MQ")
+    public RabbitMqTransport(string protocol) : base(protocol, "Rabbit MQ", ["rabbitmq"])
     {
         Queues = new LightweightCache<string, RabbitMqQueue>(name => new RabbitMqQueue(name, this));
         Exchanges = new LightweightCache<string, RabbitMqExchange>(name => new RabbitMqExchange(name, this));
@@ -157,17 +157,26 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IAsy
                               new ConnectionFactory { HostName = "localhost" };
         
         configureDefaults(ConnectionFactory);
-        
-        if (_listenerConnection == null && !UseSenderConnectionOnly)
-        {
-            _listenerConnection = BuildConnection(ConnectionRole.Listening);
-            await _listenerConnection.ConnectAsync();
-        }
 
-        if (_sendingConnection == null && !UseListenerConnectionOnly)
+        try
         {
-            _sendingConnection = BuildConnection(ConnectionRole.Sending);
-            await _sendingConnection.ConnectAsync();
+            if (_listenerConnection == null && !UseSenderConnectionOnly)
+            {
+                _listenerConnection = BuildConnection(ConnectionRole.Listening);
+                await _listenerConnection.ConnectAsync();
+            }
+
+            if (_sendingConnection == null && !UseListenerConnectionOnly)
+            {
+                _sendingConnection = BuildConnection(ConnectionRole.Sending);
+                await _sendingConnection.ConnectAsync();
+            }
+        }
+        catch (Exception)
+        {
+            _listenerConnection = null;
+            _sendingConnection = null;
+            throw;
         }
 
         foreach (var tenant in Tenants)

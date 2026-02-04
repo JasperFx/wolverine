@@ -199,7 +199,7 @@ You can now do that with the option shown below as part of an [Alba](https://jas
 <!-- snippet: sample_bootstrap_with_no_persistence -->
 <a id='snippet-sample_bootstrap_with_no_persistence'></a>
 ```cs
-using var host = await AlbaHost.For<Program>(builder =>
+using var host = await AlbaHost.For<WolverineWebApi.Program>(builder =>
 {
     builder.ConfigureServices(services =>
     {

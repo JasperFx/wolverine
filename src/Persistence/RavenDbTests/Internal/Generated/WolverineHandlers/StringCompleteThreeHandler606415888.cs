@@ -5,7 +5,8 @@ using Raven.Client.Documents;
 namespace Internal.Generated.WolverineHandlers
 {
     // START: StringCompleteThreeHandler606415888
-    public class StringCompleteThreeHandler606415888 : Wolverine.Runtime.Handlers.MessageHandler
+    [global::System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")]
+    public sealed class StringCompleteThreeHandler606415888 : Wolverine.Runtime.Handlers.MessageHandler
     {
         private readonly Raven.Client.Documents.IDocumentStore _documentStore;
 
@@ -22,6 +23,8 @@ namespace Internal.Generated.WolverineHandlers
             // The actual message body
             var stringCompleteThree = (Wolverine.ComplianceTests.Sagas.StringCompleteThree)context.Envelope.Message;
 
+            // Application-specific Open Telemetry auditing
+            System.Diagnostics.Activity.Current?.SetTag("SagaId", stringCompleteThree.SagaId);
             string sagaId = context.Envelope.SagaId ?? stringCompleteThree.SagaId;
             if (string.IsNullOrEmpty(sagaId)) throw new Wolverine.Persistence.Sagas.IndeterminateSagaStateIdException(context.Envelope);
             
@@ -34,6 +37,7 @@ namespace Internal.Generated.WolverineHandlers
 
             else
             {
+                context.SetSagaId(sagaId);
                 
                 // The actual message execution
                 stringBasicWorkflow.Handle(stringCompleteThree);

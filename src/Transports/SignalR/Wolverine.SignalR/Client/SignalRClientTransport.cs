@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using JasperFx.Core;
 using Wolverine.Transports;
 
@@ -7,10 +6,10 @@ namespace Wolverine.SignalR.Client;
 public class SignalRClientTransport : TransportBase<SignalRClientEndpoint>
 {
     public static readonly string ProtocolName = "signalr-client";
-    
+
     public Cache<Uri, SignalRClientEndpoint> Clients { get; }
 
-    public SignalRClientTransport() : base(ProtocolName, "SignalR Client")
+    public SignalRClientTransport() : base(ProtocolName, "SignalR Client", ["signalr"])
     {
         Clients = new Cache<Uri, SignalRClientEndpoint>(uri => new SignalRClientEndpoint(uri, this));
     }

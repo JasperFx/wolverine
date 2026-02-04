@@ -37,14 +37,14 @@ allow *you* to just write plain old .NET code without any framework specific art
 Back to the handler code, at the point which you pass a new message into Wolverine like so:
 
 <!-- snippet: sample_publish_MyMessage -->
-<a id='snippet-sample_publish_MyMessage'></a>
+<a id='snippet-sample_publish_mymessage'></a>
 ```cs
 public static async Task publish_command(IMessageBus bus)
 {
     await bus.PublishAsync(new MyMessage());
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerExamples.cs#L105-L112' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_publish_MyMessage' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerExamples.cs#L105-L112' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_publish_mymessage' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Between the call to `IMessageBus.PublishAsync()` and `MyMessageHandler.Handle(MyMessage)` there's a couple things
@@ -58,7 +58,7 @@ going on:
 Before diving into the exact rules for message handlers, here are some valid handler methods:
 
 <!-- snippet: sample_ValidMessageHandlers -->
-<a id='snippet-sample_ValidMessageHandlers'></a>
+<a id='snippet-sample_validmessagehandlers'></a>
 ```cs
 [WolverineHandler]
 public class ValidMessageHandlers
@@ -111,7 +111,7 @@ public class ValidMessageHandlers
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerExamples.cs#L10-L63' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_ValidMessageHandlers' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerExamples.cs#L10-L63' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_validmessagehandlers' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 It's also valid to use class instances with constructor arguments for your handlers:
@@ -165,8 +165,9 @@ would use those values.
 Pay attention to this section if you are trying to utilize a "Modular Monolith" architecture.
 :::
 
-::: warning
-The `Separated` setting is ignored by `Saga` handlers
+::: info
+The `Separated` setting is useful even with `Saga` handlers as of Wolverine 5.10, but ignored
+in previous versions.
 :::
 
 Let's say that you want to take more than one action on a message type published in or to your
@@ -185,7 +186,7 @@ Now though, you can flip this switch in one place to ensure that Wolverine alway
 into completely separate Wolverine message handlers and message subscriptions:
 
 <!-- snippet: sample_using_MultipleHandlerBehavior -->
-<a id='snippet-sample_using_MultipleHandlerBehavior'></a>
+<a id='snippet-sample_using_multiplehandlerbehavior'></a>
 ```cs
 using var host = Host.CreateDefaultBuilder()
     .UseWolverine(opts =>
@@ -194,7 +195,7 @@ using var host = Host.CreateDefaultBuilder()
         opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/MessageRoutingTests/using_separate_handlers.cs#L13-L22' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_MultipleHandlerBehavior' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/MessageRoutingTests/using_separate_handlers.cs#L13-L22' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_multiplehandlerbehavior' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 This makes a couple changes. For example, let's say that you have these handlers for the same message type of `MyApp.Orders.OrderCreated`:
@@ -246,7 +247,7 @@ Some add ons or middleware add other possibilities as well.
 Handler methods can be instance methods on handler classes if it's desirable to scope the handler object to the message:
 
 <!-- snippet: sample_ExampleHandlerByInstance -->
-<a id='snippet-sample_ExampleHandlerByInstance'></a>
+<a id='snippet-sample_examplehandlerbyinstance'></a>
 ```cs
 public class ExampleHandler
 {
@@ -262,7 +263,7 @@ public class ExampleHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerExamples.cs#L117-L133' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_ExampleHandlerByInstance' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerExamples.cs#L117-L133' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_examplehandlerbyinstance' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 When using instance methods, the containing handler type will be scoped to a single message and be
@@ -270,7 +271,7 @@ disposed afterward. In the case of instance methods, it's perfectly legal to use
 to resolve IoC registered dependencies as shown below:
 
 <!-- snippet: sample_HandlerBuiltByConstructorInjection -->
-<a id='snippet-sample_HandlerBuiltByConstructorInjection'></a>
+<a id='snippet-sample_handlerbuiltbyconstructorinjection'></a>
 ```cs
 public class ServiceUsingHandler
 {
@@ -290,7 +291,7 @@ public class ServiceUsingHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerExamples.cs#L161-L181' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_HandlerBuiltByConstructorInjection' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerExamples.cs#L161-L181' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_handlerbuiltbyconstructorinjection' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: tip
@@ -301,7 +302,7 @@ improvement by avoiding the need to create and garbage collect new objects at ru
 As an alternative, you can also use static methods as message handlers:
 
 <!-- snippet: sample_ExampleHandlerByStaticMethods -->
-<a id='snippet-sample_ExampleHandlerByStaticMethods'></a>
+<a id='snippet-sample_examplehandlerbystaticmethods'></a>
 ```cs
 public static class ExampleHandler
 {
@@ -317,7 +318,7 @@ public static class ExampleHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerExamples.cs#L138-L154' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_ExampleHandlerByStaticMethods' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerExamples.cs#L138-L154' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_examplehandlerbystaticmethods' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The handler classes can be static classes as well. This technique gets much more useful when combined with Wolverine's
@@ -332,7 +333,7 @@ arguments that will be passed into your method by Wolverine when a new message i
 Below is an example action method that takes in a dependency on an `IDocumentSession` from [Marten](https://jasperfx.github.io/marten/):
 
 <!-- snippet: sample_HandlerUsingMethodInjection -->
-<a id='snippet-sample_HandlerUsingMethodInjection'></a>
+<a id='snippet-sample_handlerusingmethodinjection'></a>
 ```cs
 public static class MethodInjectionHandler
 {
@@ -345,7 +346,7 @@ public static class MethodInjectionHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerExamples.cs#L188-L201' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_HandlerUsingMethodInjection' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerExamples.cs#L188-L201' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_handlerusingmethodinjection' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 So, what can be injected as an argument to your message handler?
@@ -383,7 +384,7 @@ data for both the order itself and the customer information in order to figure o
 Using Wolverine's compound handler feature, that might look like this: 
 
 <!-- snippet: sample_ShipOrderHandler -->
-<a id='snippet-sample_ShipOrderHandler'></a>
+<a id='snippet-sample_shiporderhandler'></a>
 ```cs
 public static class ShipOrderHandler
 {
@@ -413,7 +414,7 @@ public static class ShipOrderHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CompoundHandlerSamples.cs#L28-L58' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_ShipOrderHandler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CompoundHandlerSamples.cs#L28-L58' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_shiporderhandler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: warning
@@ -452,7 +453,7 @@ To access the `Envelope` for the current message being handled in your message h
 argument like this:
 
 <!-- snippet: sample_HandlerUsingEnvelope -->
-<a id='snippet-sample_HandlerUsingEnvelope'></a>
+<a id='snippet-sample_handlerusingenvelope'></a>
 ```cs
 public class EnvelopeUsingHandler
 {
@@ -463,7 +464,7 @@ public class EnvelopeUsingHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerExamples.cs#L204-L215' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_HandlerUsingEnvelope' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerExamples.cs#L204-L215' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_handlerusingenvelope' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -474,7 +475,7 @@ or maybe to enqueue local commands within the current outbox scope, just take in
 like in this example:
 
 <!-- snippet: sample_PingHandler -->
-<a id='snippet-sample_PingHandler'></a>
+<a id='snippet-sample_pinghandler'></a>
 ```cs
 using Messages;
 using Microsoft.Extensions.Logging;
@@ -491,8 +492,8 @@ public class PingHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/PingPong/Ponger/PingHandler.cs#L1-L18' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_PingHandler' title='Start of snippet'>anchor</a></sup>
-<a id='snippet-sample_PingHandler-1'></a>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/PingPong/Ponger/PingHandler.cs#L1-L18' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pinghandler' title='Start of snippet'>anchor</a></sup>
+<a id='snippet-sample_pinghandler-1'></a>
 ```cs
 public static class PingHandler
 {
@@ -521,6 +522,6 @@ public static class PingHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/PingPongWithRabbitMq/Ponger/PingHandler.cs#L6-L35' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_PingHandler-1' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/PingPongWithRabbitMq/Ponger/PingHandler.cs#L6-L35' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pinghandler-1' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 

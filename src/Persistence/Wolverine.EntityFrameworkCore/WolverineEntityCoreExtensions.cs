@@ -82,7 +82,7 @@ public static class WolverineEntityCoreExtensions
                     $"Configured multi-tenanted usage of {typeof(T).FullNameInCode()} requires multi-tenanted Wolverine database storage");
             }
 
-            return new TenantedDbContextBuilderByConnectionString<T>(s, tenanted, dbContextConfiguration);
+            return new TenantedDbContextBuilderByConnectionString<T>(s, tenanted, dbContextConfiguration, s.GetServices<IDomainEventScraper>());
         });
 
         services.AddSingleton<IDbContextBuilder>(s => s.GetRequiredService<IDbContextBuilder<T>>());
@@ -91,10 +91,6 @@ public static class WolverineEntityCoreExtensions
         {
             services.AddSingleton<IResourceCreator, TenantedDbContextInitializer<T>>();
         }
-
-        // TODO -- need a multi-tenanted version of this
-        // services.TryAddScoped(typeof(IDbContextOutbox<>), typeof(DbContextOutbox<>));
-        // services.TryAddScoped<IDbContextOutbox, DbContextOutbox>();
 
         return services;
     }
@@ -140,7 +136,7 @@ public static class WolverineEntityCoreExtensions
                     $"Configured multi-tenanted usage of {typeof(T).FullNameInCode()} requires multi-tenanted Wolverine database storage");
             }
 
-            return new TenantedDbContextBuilderByDbDataSource<T>(s, tenanted, dbContextConfiguration);
+            return new TenantedDbContextBuilderByDbDataSource<T>(s, tenanted, dbContextConfiguration, s.GetServices<IDomainEventScraper>());
         });
 
         services.AddSingleton<IDbContextBuilder>(s => s.GetRequiredService<IDbContextBuilder<T>>());

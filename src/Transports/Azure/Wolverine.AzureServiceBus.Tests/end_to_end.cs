@@ -4,6 +4,7 @@ using Shouldly;
 using Wolverine.AzureServiceBus.Internal;
 using Wolverine.Configuration;
 using Wolverine.Tracking;
+using Wolverine.Transports;
 using Xunit;
 
 namespace Wolverine.AzureServiceBus.Tests;
@@ -40,6 +41,18 @@ public class end_to_end : IAsyncLifetime
                 opts.PublishMessage<AsbMessage3>().ToAzureServiceBusTopic("asb3").SendInline();
                 opts.ListenToAzureServiceBusSubscription("asb3")
                     .FromTopic("asb3")
+
+                    // Require sessions on this subscription
+                    .RequireSessions(1)
+
+                    .ProcessInline();
+
+                opts.PublishMessage<AsbMessage4>().ToAzureServiceBusTopic("asb4").BufferedInMemory();
+                opts.ListenToAzureServiceBusSubscription("asb4")
+                    .FromTopic("asb4", cfg =>
+                    {
+                        cfg.EnablePartitioning = true;
+                    })
 
                     // Require sessions on this subscription
                     .RequireSessions(1)
@@ -155,11 +168,39 @@ public class end_to_end : IAsyncLifetime
         session.Received.MessagesOf<AsbMessage3>().Select(x => x.Name)
             .ShouldBe(new string[]{"Red", "Green", "Refactor"});
     }
+
+    [Fact]
+    public async Task split_messages_with_different_sessionids_into_separate_batches()
+    {
+        Func<IMessageContext, Task> sendMany = async bus =>
+        {
+            await bus.SendAsync(new AsbMessage4("Dummy 1.1"), new DeliveryOptions { GroupId = "1" });
+            await bus.SendAsync(new AsbMessage4("Dummy 1.2"), new DeliveryOptions { GroupId = "1" });
+            await bus.SendAsync(new AsbMessage4("Dummy 2.1"), new DeliveryOptions { GroupId = "2" });
+            await bus.SendAsync(new AsbMessage4("Dummy 3.1"), new DeliveryOptions { GroupId = "3" });
+            await bus.SendAsync(new AsbMessage4("Dummy 4.1"), new DeliveryOptions { GroupId = "4" });
+            await bus.SendAsync(new AsbMessage4("Dummy 4.2"), new DeliveryOptions { GroupId = "4" });
+        };
+
+        var session = await _host.TrackActivity()
+            .IncludeExternalTransports()
+            .Timeout(30.Seconds())
+            .ExecuteAndWaitAsync(sendMany);
+
+        // Verify that all messages were received and processed in order inside the session
+        var names = session.Received.MessagesOf<AsbMessage4>().Select(x => x.Name).ToList();
+        names.Count.ShouldBe(6);
+        names.Where(x => x.StartsWith("Dummy 1")).ShouldBe(["Dummy 1.1", "Dummy 1.2"]);
+        names.Where(x => x.StartsWith("Dummy 2")).ShouldBe(["Dummy 2.1"]);
+        names.Where(x => x.StartsWith("Dummy 3")).ShouldBe(["Dummy 3.1"]);
+        names.Where(x => x.StartsWith("Dummy 4")).ShouldBe(["Dummy 4.1", "Dummy 4.2"]);
+    }
 }
 
 public record AsbMessage1(string Name);
 public record AsbMessage2(string Name);
 public record AsbMessage3(string Name);
+public record AsbMessage4(string Name);
 
 public static class AsbMessageHandler
 {
@@ -174,6 +215,11 @@ public static class AsbMessageHandler
     }
 
     public static void Handle(AsbMessage3 message)
+    {
+        // nothing
+    }
+
+    public static void Handle(AsbMessage4 message)
     {
         // nothing
     }

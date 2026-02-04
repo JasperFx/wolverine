@@ -71,7 +71,23 @@ internal record AggregateHandling(IDataRequirement Requirement)
 
     public void Store(IChain chain)
     {
-        chain.Tags[nameof(AggregateHandling)] = this;
+        if (chain.Tags.TryGetValue(nameof(AggregateHandling), out var raw))
+        {
+            if (raw is AggregateHandling handling)
+            {
+                if (ReferenceEquals(handling, this)) return;
+
+                chain.Tags[nameof(AggregateHandling)] = new List<AggregateHandling> { handling, this };
+            }
+            else if (raw is List<AggregateHandling> list)
+            {
+                list.Add(this);
+            }
+        }
+        else
+        {
+            chain.Tags[nameof(AggregateHandling)] = this;
+        }
     }
 
     public static bool TryLoad(IChain chain, out AggregateHandling handling)
@@ -82,6 +98,27 @@ internal record AggregateHandling(IDataRequirement Requirement)
             {
                 handling = h;
                 return true;
+            }
+        }
+
+        handling = default;
+        return false;
+    }
+    
+    public static bool TryLoad<T>(IChain chain, out AggregateHandling handling)
+    {
+        if (chain.Tags.TryGetValue(nameof(AggregateHandling), out var raw))
+        {
+            if (raw is AggregateHandling h && h.AggregateType == typeof(T))
+            {
+                handling = h;
+                return true;
+            }
+
+            if (raw is List<AggregateHandling> list)
+            {
+                handling = list.FirstOrDefault(x => x.AggregateType == typeof(T));
+                return handling != null;
             }
         }
 

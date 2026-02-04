@@ -15,6 +15,7 @@ using Wolverine.Persistence.Durability.DeadLetterManagement;
 using Wolverine.RDBMS;
 using Wolverine.RDBMS.Sagas;
 using Wolverine.RDBMS.Transport;
+using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.WorkerQueues;
 using Wolverine.SqlServer.Sagas;
@@ -77,6 +78,40 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
             
             builder.Append(")");
         }
+    }
+
+    /// <summary>
+    ///     Fetch a list of the existing tables in the database filtered by schemas
+    /// </summary>
+    /// <param name="ct"></param>
+    /// <returns></returns>
+    // TODO -- get this moved to Weasel. Shouldn't be here, but Claude brute forced it
+    public async Task<IReadOnlyList<DbObjectName>> SchemaTables(CancellationToken ct = default)
+    {
+        var schemaNames = AllSchemaNames();
+
+        await using var conn = CreateConnection();
+        await conn.OpenAsync(ct).ConfigureAwait(false);
+
+        var tables = new List<DbObjectName>();
+        foreach (var schemaName in schemaNames)
+        {
+            var sql = $"SELECT table_schema, table_name FROM information_schema.tables WHERE table_schema = @schema";
+            var cmd = conn.CreateCommand(sql).With("schema", schemaName);
+
+            await using var reader = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
+            while (await reader.ReadAsync(ct).ConfigureAwait(false))
+            {
+                var schema = reader.GetString(0);
+                var name = reader.GetString(1);
+                tables.Add(new DbObjectName(schema, name));
+            }
+
+            await reader.CloseAsync().ConfigureAwait(false);
+        }
+
+        await conn.CloseAsync().ConfigureAwait(false);
+        return tables;
     }
 
     protected override INodeAgentPersistence? buildNodeStorage(DatabaseSettings databaseSettings,
@@ -201,6 +236,35 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
         return new DbCommandBuilder(new SqlCommand());
     }
 
+    public override async Task<bool> ExistsAsync(Envelope envelope, CancellationToken cancellation)
+    {
+        if (HasDisposed) return false;
+
+        if (Durability.MessageIdentity == MessageIdentity.IdOnly)
+        {
+            await using var conn = CreateConnection();
+            await conn.OpenAsync(cancellation);
+            var count = await conn
+                .CreateCommand($"select count(id) from {SchemaName}.{DatabaseConstants.IncomingTable} where id = @id")
+                .With("id", envelope.Id)
+                .ExecuteScalarAsync(cancellation);
+
+            return ((int)count) > 0;
+        }
+        else
+        {
+            await using var conn = CreateConnection();
+            await conn.OpenAsync(cancellation);
+            var count = await conn
+                .CreateCommand($"select count(id) from {SchemaName}.{DatabaseConstants.IncomingTable} where id = @id and {DatabaseConstants.ReceivedAt} = @destination")
+                .With("id", envelope.Id)
+                .With("destination", envelope.Destination.ToString())
+                .ExecuteScalarAsync(cancellation);
+
+            return ((int)count) > 0;
+        }
+    }
+
     public override void WriteLoadScheduledEnvelopeSql(DbCommandBuilder builder, DateTimeOffset utcNow)
     {
         builder.Append( $"select TOP {Durability.RecoveryBatchSize} {DatabaseConstants.IncomingFields} from {SchemaName}.{DatabaseConstants.IncomingTable} where status = '{EnvelopeStatus.Scheduled}' and execution_time <= ");
@@ -292,7 +356,7 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
             .With("limit", maxRecords);
     }
 
-    public override async Task PollForScheduledMessagesAsync(ILocalReceiver localQueue,
+    public override async Task PollForScheduledMessagesAsync(IWolverineRuntime runtime,
         ILogger logger,
         DurabilitySettings durabilitySettings, CancellationToken cancellationToken)
     {
@@ -333,12 +397,7 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
                 await tx.CommitAsync(cancellationToken);
 
                 // Judging that there's very little chance of errors here
-                foreach (var envelope in envelopes)
-                {
-                    logger.LogInformation("Locally enqueuing scheduled message {Id} of type {MessageType}", envelope.Id,
-                        envelope.MessageType);
-                    await localQueue.EnqueueAsync(envelope);
-                }
+                await runtime.EnqueueDirectlyAsync(envelopes);
             }
         }
         finally

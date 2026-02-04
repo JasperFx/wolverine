@@ -83,4 +83,46 @@ public class CodegenUsage
 
         #endregion
     }
+
+    public async Task configure_generated_code_output_path()
+    {
+        #region sample_configure_generated_code_output_path
+
+        var builder = Host.CreateApplicationBuilder();
+        builder.Services.CritterStackDefaults(opts =>
+        {
+            // Set a custom output path for generated code
+            opts.GeneratedCodeOutputPath = "/path/to/your/project/Internal/Generated";
+        });
+
+        #endregion
+    }
+
+    public async Task auto_resolve_project_root()
+    {
+        #region sample_auto_resolve_project_root
+
+        var builder = Host.CreateApplicationBuilder();
+        builder.Services.CritterStackDefaults(opts =>
+        {
+            // Automatically find the project root by looking for .csproj/.sln files
+            // Useful for Console apps where ContentRootPath defaults to bin folder
+            opts.AutoResolveProjectRoot = true;
+        });
+
+        #endregion
+    }
+
+    public async Task direct_wolverine_output_path()
+    {
+        #region sample_direct_wolverine_output_path
+
+        var builder = Host.CreateApplicationBuilder();
+        builder.UseWolverine(opts =>
+        {
+            opts.CodeGeneration.GeneratedCodeOutputPath = "/path/to/output";
+        });
+
+        #endregion
+    }
 }

@@ -124,6 +124,8 @@ public class reacting_to_read_aggregate : IAsyncLifetime
 
 public static class LetterAggregateEndpointWithValidation
 {
+    public static void Before(Guid id) { }
+
     public static ProblemDetails Validate(LetterAggregate letters)
     {
         if (letters.ACount is 0)
@@ -142,6 +144,8 @@ public static class LetterAggregateEndpointWithValidation
 
 public static class LetterAggregateEndpoint
 {
+    public static void Load(Guid id) { }
+
     #region sample_read_aggregate_fine_grained_validation_control
 
     // Straight up 404 on missing

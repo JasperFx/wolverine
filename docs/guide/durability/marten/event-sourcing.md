@@ -31,7 +31,7 @@ And then lastly, you're going to want some resiliency and selective retry capabi
 Let's just right into an example order management system. I'm going to model the order workflow with this aggregate model:
 
 <!-- snippet: sample_Order_event_sourced_aggregate -->
-<a id='snippet-sample_Order_event_sourced_aggregate'></a>
+<a id='snippet-sample_order_event_sourced_aggregate'></a>
 ```cs
 public class Item
 {
@@ -75,19 +75,19 @@ public class Order
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/OrderEventSourcingSample/Order.cs#L22-L66' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_Order_event_sourced_aggregate' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/OrderEventSourcingSample/Order.cs#L22-L66' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_order_event_sourced_aggregate' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 At a minimum, we're going to want a command handler for this command message that marks an order item as ready to ship and then evaluates whether
 or not based on the current state of the `Order` aggregate whether or not the logical order is ready to be shipped out:
 
 <!-- snippet: sample_MarkItemReady -->
-<a id='snippet-sample_MarkItemReady'></a>
+<a id='snippet-sample_markitemready'></a>
 ```cs
 // OrderId refers to the identity of the Order aggregate
 public record MarkItemReady(Guid OrderId, string ItemName, int Version);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/OrderEventSourcingSample/Order.cs#L68-L73' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_MarkItemReady' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/OrderEventSourcingSample/Order.cs#L68-L73' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_markitemready' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In the code above, we're also utilizing Wolverine's [outbox messaging](/guide/durability/) support to both order and guarantee the delivery of a `ShipOrder` message when
@@ -96,7 +96,7 @@ the Marten transaction
 Before getting into Wolverine middleware strategies, let's first build out an MVC controller method for the command above:
 
 <!-- snippet: sample_MarkItemController -->
-<a id='snippet-sample_MarkItemController'></a>
+<a id='snippet-sample_markitemcontroller'></a>
 ```cs
 [HttpPost("/orders/itemready")]
 public async Task Post(
@@ -147,7 +147,7 @@ public async Task Post(
     await session.SaveChangesAsync();
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/OrderEventSourcingSample/Order.cs#L77-L128' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_MarkItemController' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/OrderEventSourcingSample/Order.cs#L77-L128' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_markitemcontroller' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Hopefully, that code is easy to understand, but there's some potentially repetitive code
@@ -160,7 +160,7 @@ pattern with Marten using the `[AggregateHandler]` middleware.
 Using that middleware, we get this slimmer code:
 
 <!-- snippet: sample_MarkItemReadyHandler -->
-<a id='snippet-sample_MarkItemReadyHandler'></a>
+<a id='snippet-sample_markitemreadyhandler'></a>
 ```cs
 [AggregateHandler]
 public static IEnumerable<object> Handle(MarkItemReady command, Order order)
@@ -187,7 +187,7 @@ public static IEnumerable<object> Handle(MarkItemReady command, Order order)
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/OrderEventSourcingSample/Order.cs#L254-L281' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_MarkItemReadyHandler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/OrderEventSourcingSample/Order.cs#L254-L281' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_markitemreadyhandler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In the case above, Wolverine is wrapping middleware around our basic command handler to
@@ -250,7 +250,7 @@ Alternatively, there is also the newer `[WriteAggregate]` usage, with this examp
 mark up:
 
 <!-- snippet: sample_MarkItemReadyHandler_with_WriteAggregate -->
-<a id='snippet-sample_MarkItemReadyHandler_with_WriteAggregate'></a>
+<a id='snippet-sample_markitemreadyhandler_with_writeaggregate'></a>
 ```cs
 public static IEnumerable<object> Handle(
     // The command
@@ -281,7 +281,7 @@ public static IEnumerable<object> Handle(
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/OrderEventSourcingSample/Order.cs#L286-L317' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_MarkItemReadyHandler_with_WriteAggregate' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/OrderEventSourcingSample/Order.cs#L286-L317' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_markitemreadyhandler_with_writeaggregate' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The `[WriteAggregate]` attribute also opts into the "aggregate handler workflow", but is placed at the parameter level
@@ -299,7 +299,7 @@ By default, the "aggregate handler workflow" does no validation on whether or no
 exists at runtime, and it's possible to receive a null for the aggregate in this example if the aggregate does not exist:
 
 <!-- snippet: sample_MarkItemReadyHandler_with_WriteAggregate -->
-<a id='snippet-sample_MarkItemReadyHandler_with_WriteAggregate'></a>
+<a id='snippet-sample_markitemreadyhandler_with_writeaggregate'></a>
 ```cs
 public static IEnumerable<object> Handle(
     // The command
@@ -330,7 +330,7 @@ public static IEnumerable<object> Handle(
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/OrderEventSourcingSample/Order.cs#L286-L317' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_MarkItemReadyHandler_with_WriteAggregate' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/OrderEventSourcingSample/Order.cs#L286-L317' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_markitemreadyhandler_with_writeaggregate' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 As long as you handle the case where the requested is null, you can even effectively start a new stream by emitting events
@@ -408,7 +408,7 @@ The Marten workflow command handler method signature needs to follow these rules
   in the Marten `IEventStream<T>` type (`IEventStream<Order>`). There is an example of that usage below:
 
 <!-- snippet: sample_MarkItemReadyHandler_with_explicit_stream -->
-<a id='snippet-sample_MarkItemReadyHandler_with_explicit_stream'></a>
+<a id='snippet-sample_markitemreadyhandler_with_explicit_stream'></a>
 ```cs
 [AggregateHandler]
 public static void Handle(OrderEventSourcingSample.MarkItemReady command, IEventStream<Order> stream)
@@ -437,7 +437,7 @@ public static void Handle(OrderEventSourcingSample.MarkItemReady command, IEvent
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/OrderEventSourcingSample/Alternatives/Signatures.cs#L26-L55' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_MarkItemReadyHandler_with_explicit_stream' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/OrderEventSourcingSample/Alternatives/Signatures.cs#L26-L55' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_markitemreadyhandler_with_explicit_stream' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Just as in other Wolverine [message handlers](/guide/handlers/), you can use
@@ -458,7 +458,7 @@ As for the return values from these handler methods, you can use:
 Here's an alternative to the `MarkItemReady` handler that uses `Events`:
 
 <!-- snippet: sample_using_events_and_messages_from_AggregateHandler -->
-<a id='snippet-sample_using_events_and_messages_from_AggregateHandler'></a>
+<a id='snippet-sample_using_events_and_messages_from_aggregatehandler'></a>
 ```cs
 [AggregateHandler]
 public static async Task<(Events, OutgoingMessages)> HandleAsync(MarkItemReady command, Order order, ISomeService service)
@@ -498,7 +498,7 @@ public static async Task<(Events, OutgoingMessages)> HandleAsync(MarkItemReady c
     return (events, messages);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/OrderEventSourcingSample/Order.cs#L329-L369' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_events_and_messages_from_AggregateHandler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/OrderEventSourcingSample/Order.cs#L329-L369' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_events_and_messages_from_aggregatehandler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -511,12 +511,12 @@ where the `OrderId` property is assumed to be the identity of the `Order` aggreg
 by appending "Id" to the aggregate type name (it's not case sensitive if you were wondering):
 
 <!-- snippet: sample_MarkItemReady -->
-<a id='snippet-sample_MarkItemReady'></a>
+<a id='snippet-sample_markitemready'></a>
 ```cs
 // OrderId refers to the identity of the Order aggregate
 public record MarkItemReady(Guid OrderId, string ItemName, int Version);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/OrderEventSourcingSample/Order.cs#L68-L73' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_MarkItemReady' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/OrderEventSourcingSample/Order.cs#L68-L73' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_markitemready' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Or if you want to use a different member, bypass the convention, or just don't like conventional
@@ -524,7 +524,7 @@ magic, you can decorate a public member
 on the command class with Marten's `[Identity]` attribute like so:
 
 <!-- snippet: sample_MarkItemReady_with_explicit_identity -->
-<a id='snippet-sample_MarkItemReady_with_explicit_identity'></a>
+<a id='snippet-sample_markitemready_with_explicit_identity'></a>
 ```cs
 public class MarkItemReady
 {
@@ -535,7 +535,7 @@ public class MarkItemReady
     public string ItemName { get; init; }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/OrderEventSourcingSample/Alternatives/Signatures.cs#L9-L20' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_MarkItemReady_with_explicit_identity' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/OrderEventSourcingSample/Alternatives/Signatures.cs#L9-L20' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_markitemready_with_explicit_identity' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Validation <Badge type="tip" text="4.8" />
@@ -561,7 +561,7 @@ public static string GetLetter2([ReadAggregate(Required = false)] LetterAggregat
 [WolverineGet("/letters3/{id}")]
 public static LetterAggregate GetLetter3([ReadAggregate(OnMissing = OnMissing.ProblemDetailsWith404)] LetterAggregate letters) => letters;
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/Marten/reacting_to_read_aggregate.cs#L145-L164' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_read_aggregate_fine_grained_validation_control' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/Marten/reacting_to_read_aggregate.cs#L149-L168' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_read_aggregate_fine_grained_validation_control' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Forwarding Events
@@ -606,7 +606,7 @@ taking the `MarkItemReady` command handler we've used earlier in this guide and 
 produces a response of the latest aggregate:
 
 <!-- snippet: sample_MarkItemReadyHandler_with_response_for_updated_aggregate -->
-<a id='snippet-sample_MarkItemReadyHandler_with_response_for_updated_aggregate'></a>
+<a id='snippet-sample_markitemreadyhandler_with_response_for_updated_aggregate'></a>
 ```cs
 [AggregateHandler]
 public static (
@@ -644,7 +644,7 @@ public static (
     return (new UpdatedAggregate(), events);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/OrderEventSourcingSample/Alternatives/Signatures.cs#L63-L101' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_MarkItemReadyHandler_with_response_for_updated_aggregate' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/OrderEventSourcingSample/Alternatives/Signatures.cs#L63-L101' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_markitemreadyhandler_with_response_for_updated_aggregate' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Note the usage of the `Wolverine.Marten.UpdatedAggregate` response in the handler. That type by itself is just a directive 
@@ -652,7 +652,7 @@ to Wolverine to generate the necessary code to call `FetchLatest` and respond wi
 us to use the command in a mediator usage like so:
 
 <!-- snippet: sample_using_UpdatedAggregate_with_invoke_async -->
-<a id='snippet-sample_using_UpdatedAggregate_with_invoke_async'></a>
+<a id='snippet-sample_using_updatedaggregate_with_invoke_async'></a>
 ```cs
 public static Task<Order> update_and_get_latest(IMessageBus bus, MarkItemReady command)
 {
@@ -662,7 +662,7 @@ public static Task<Order> update_and_get_latest(IMessageBus bus, MarkItemReady c
     return bus.InvokeAsync<Order>(command);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/OrderEventSourcingSample/Alternatives/Signatures.cs#L103-L113' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_UpdatedAggregate_with_invoke_async' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/OrderEventSourcingSample/Alternatives/Signatures.cs#L103-L113' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_updatedaggregate_with_invoke_async' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Likewise, you can use `UpdatedAggregate` as the response body of an HTTP endpoint with Wolverine.HTTP [as shown here](/guide/http/marten.html#responding-with-the-updated-aggregate~~~~).
@@ -716,7 +716,7 @@ If you want to inject the current state of an event sourced aggregate as a param
 a message handler method strictly for information and don't need the heavier "aggregate handler workflow," use the `[ReadAggregate]` attribute like this:
 
 <!-- snippet: sample_using_ReadAggregate_in_messsage_handlers -->
-<a id='snippet-sample_using_ReadAggregate_in_messsage_handlers'></a>
+<a id='snippet-sample_using_readaggregate_in_messsage_handlers'></a>
 ```cs
 public record FindAggregate(Guid Id);
 
@@ -741,7 +741,7 @@ public static class FindLettersHandler
     */
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/read_aggregate_attribute_usage.cs#L81-L106' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_ReadAggregate_in_messsage_handlers' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/read_aggregate_attribute_usage.cs#L81-L106' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_readaggregate_in_messsage_handlers' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 If the aggregate doesn't exist, the HTTP request will stop with a 404 status code.
@@ -772,7 +772,7 @@ public static string GetLetter2([ReadAggregate(Required = false)] LetterAggregat
 [WolverineGet("/letters3/{id}")]
 public static LetterAggregate GetLetter3([ReadAggregate(OnMissing = OnMissing.ProblemDetailsWith404)] LetterAggregate letters) => letters;
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/Marten/reacting_to_read_aggregate.cs#L145-L164' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_read_aggregate_fine_grained_validation_control' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/Marten/reacting_to_read_aggregate.cs#L149-L168' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_read_aggregate_fine_grained_validation_control' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 There is also an option with `OnMissing` to throw a `RequiredDataMissingException` exception if a required data element
@@ -819,18 +819,18 @@ public class Account
 And you need to handle a command like this:
 
 <!-- snippet: sample_TransferMoney_command -->
-<a id='snippet-sample_TransferMoney_command'></a>
+<a id='snippet-sample_transfermoney_command'></a>
 ```cs
 public record TransferMoney(Guid FromId, Guid ToId, double Amount);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Accounts/AccountCode.cs#L29-L33' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_TransferMoney_command' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Accounts/AccountCode.cs#L29-L33' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_transfermoney_command' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Using the `[WriteAggregate]` attribute to denote the event streams we need to work with,
 we could write this message handler + HTTP endpoint:
 
 <!-- snippet: sample_TransferMoneyEndpoint -->
-<a id='snippet-sample_TransferMoneyEndpoint'></a>
+<a id='snippet-sample_transfermoneyendpoint'></a>
 ```cs
 public static class TransferMoneyHandler    
 {
@@ -851,7 +851,7 @@ public static class TransferMoneyHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Accounts/AccountCode.cs#L35-L56' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_TransferMoneyEndpoint' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Accounts/AccountCode.cs#L35-L56' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_transfermoneyendpoint' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The `IEventStream<T>` abstraction comes from Marten’s `FetchForWriting()` API that is our

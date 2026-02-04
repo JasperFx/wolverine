@@ -10,12 +10,14 @@ public class HttpTransport : TransportBase<HttpEndpoint>
     private readonly LightweightCache<Uri, HttpEndpoint> _endpoints
         = new(uri => new HttpEndpoint(uri, EndpointRole.Application){OutboundUri = uri.ToString()});
 
-    public HttpTransport() : base("https", "HTTP Transport")
+    public HttpTransport() : base("https", "HTTP Transport", ["http"])
     {
     }
 
     public const string EnvelopeContentType = "binary/wolverine-envelope";
     public const string EnvelopeBatchContentType = "binary/wolverine-envelopes";
+    public const string CloudEventsContentType = "application/cloudevents+json";
+    public const string CloudEventsBatchContentType = "application/cloudevents-batch+json";
 
     protected override IEnumerable<HttpEndpoint> endpoints()
     {

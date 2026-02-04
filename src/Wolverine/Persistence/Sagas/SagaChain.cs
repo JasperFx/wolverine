@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using JasperFx;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
@@ -5,6 +6,7 @@ using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using System.Reflection;
+using Wolverine.Configuration;
 using Wolverine.Logging;
 using Wolverine.Runtime.Handlers;
 
@@ -51,6 +53,43 @@ public class SagaChain : HandlerChain
         }
     }
 
+    protected override void maybeAssignStickyHandlers(WolverineOptions options, IGrouping<Type, HandlerCall> grouping)
+    {
+        var notSaga = grouping.Where(x => !x.HandlerType.CanBeCastTo<Saga>());
+        foreach (var handlerCall in notSaga)
+        {
+            tryAssignStickyEndpoints(handlerCall, options);
+        }
+
+        // You just know *somebody* is going to try to handle the same message type
+        // by different sagas because our users hate me
+        var groupedSagas = grouping.Where(x => x.HandlerType.CanBeCastTo<Saga>())
+            .GroupBy(x => x.HandlerType).ToArray();
+
+        if (groupedSagas.Length > 1)
+            throw new NotSupportedException(
+                "Wolverine does not (yet) support having multiple Saga type respond to the same message.");
+
+        // TODO -- MORE HERE!!!!!
+    }
+
+    public SagaChain(HandlerCall handlerCall, HandlerGraph handlerGraph, Endpoint[] endpoints) : base(handlerCall, handlerGraph)
+    {
+        foreach (var endpoint in endpoints) RegisterEndpoint(endpoint);
+
+        var saga = handlerCall;
+        SagaType = saga.HandlerType;
+        SagaMethodInfo = saga.Method;
+
+        SagaIdMember = DetermineSagaIdMember(MessageType, SagaType, saga.Method);
+
+        // Automatically audit the saga id
+        if (SagaIdMember != null && AuditedMembers.All(x => x.Member != SagaIdMember))
+        {
+            AuditedMembers.Add(new AuditedMember(SagaIdMember, SagaIdMember.Name, SagaIdMember.Name));
+        }
+    }
+
     public override bool TryInferMessageIdentity(out PropertyInfo? property)
     {
         property = SagaIdMember as PropertyInfo;
@@ -60,11 +99,6 @@ public class SagaChain : HandlerChain
     protected override void validateAgainstInvalidSagaMethods(IGrouping<Type, HandlerCall> grouping)
     {
         // Nothing
-    }
-
-    protected override void tryAssignStickyEndpoints(HandlerCall handlerCall, WolverineOptions options)
-    {
-        // nope, don't do this with saga chains 
     }
 
     public Type SagaType { get; }
@@ -183,6 +217,12 @@ public class SagaChain : HandlerChain
         foreach (var startingCall in StartingCalls)
         {
             frames.Add(startingCall);
+
+            if (SagaIdMember != null)
+            {
+                frames.Add(new SetSagaIdFromSagaFrame(MessageType, SagaIdMember));
+            }
+
             foreach (var frame in startingCall.Creates.SelectMany(x => x.ReturnAction(this).Frames()))
                 frames.Add(frame);
         }
@@ -212,6 +252,8 @@ public class SagaChain : HandlerChain
         if (StartingCalls.Length != 0)
         {
             yield return new CreateMissingSagaFrame(saga);
+
+            yield return new SetSagaIdFrame(sagaId);
 
             foreach (var call in StartingCalls)
             {
@@ -251,6 +293,9 @@ public class SagaChain : HandlerChain
     internal IEnumerable<Frame> DetermineSagaExistsSteps(Variable sagaId, Variable saga,
         IPersistenceFrameProvider frameProvider, IServiceContainer container)
     {
+        // Set the saga ID on the context so cascading messages have the correct saga ID
+        yield return new SetSagaIdFrame(sagaId);
+
         foreach (var call in ExistingCalls)
         {
             yield return call;

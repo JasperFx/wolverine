@@ -31,8 +31,8 @@ public class RecoverIncomingMessagesCommand : IAgentCommand
         if (pageSize == 0)
         {
             _logger.LogInformation(
-                "Unable to recover inbox messages to destination {Destination}. Listener has status {Status} and queued count {QueuedCount}",
-                _count.Destination, _circuit.Status, _circuit.QueueCount);
+                "Unable to recover inbox messages to destination {Destination}. Listener has status {Status}, queued count {QueuedCount}, and BufferingLimits {BufferedLimits}",
+                _count.Destination, _circuit.Status, _circuit.QueueCount, _circuit.Endpoint.BufferingLimits);
             return AgentCommands.Empty;
         }
 

@@ -8,6 +8,7 @@ using Wolverine.RDBMS;
 using Wolverine.Runtime;
 using Wolverine.SqlServer.Persistence;
 using Wolverine.Transports;
+using MultiTenantedMessageStore = Wolverine.Persistence.Durability.MultiTenantedMessageStore;
 
 namespace Wolverine.SqlServer.Transport;
 
@@ -17,9 +18,10 @@ public class SqlServerTransport : BrokerTransport<SqlServerQueue>
 
     public SqlServerTransport(DatabaseSettings settings) : this(settings, settings.SchemaName)
     {
-        
     }
-    public SqlServerTransport(DatabaseSettings settings, string? transportSchemaName) : base(ProtocolName, "Sql Server Transport")
+
+    public SqlServerTransport(DatabaseSettings settings, string? transportSchemaName) : base(ProtocolName,
+        "Sql Server Transport", [ProtocolName])
     {
         Queues = new LightweightCache<string, SqlServerQueue>(name => new SqlServerQueue(name, this));
         Settings = settings;
@@ -28,21 +30,22 @@ public class SqlServerTransport : BrokerTransport<SqlServerQueue>
             TransportSchemaName = settings.SchemaName;
             MessageStorageSchemaName = settings.SchemaName;
         }
+
         if (transportSchemaName.IsNotEmpty())
         {
             TransportSchemaName = transportSchemaName;
         }
     }
-    
+
     public override Uri ResourceUri => new Uri("sqlserver-transport://");
 
     public LightweightCache<string, SqlServerQueue> Queues { get; }
 
-	/// <summary>
+    /// <summary>
     /// Schema name for the queue and scheduled message tables
     /// </summary>
     public string TransportSchemaName { get; private set; } = "dbo";
-    
+
     /// <summary>
     /// Schema name for the message storage tables
     /// </summary>
@@ -73,12 +76,22 @@ public class SqlServerTransport : BrokerTransport<SqlServerQueue>
     {
         AutoProvision = AutoProvision || runtime.Options.AutoBuildMessageStorageOnStartup != AutoCreate.None;
 
-        var storage = await runtime.TryFindMainMessageStore<SqlServerMessageStore>();
+        if (runtime.Storage is SqlServerMessageStore store)
+        {
+            Storage = store;
+        }
+        else if (runtime.Storage is MultiTenantedMessageStore mt && mt.Main is SqlServerMessageStore s)
+        {
+            Storage = s;
+            Databases = mt;
+        }
+        else
+        {
+            throw new InvalidOperationException(
+                "The Sql Server Transport can only be used if the message persistence is also Sql Server backed");
+        }
 
-        Storage = storage ?? throw new InvalidOperationException(
-            "The Sql Server Transport can only be used if the message persistence is also Sql Server backed");
-
-        Settings = storage.Settings;
+        Settings = Storage.Settings;
 
         // This is de facto a little environment test
         await using var conn = new SqlConnection(Settings.ConnectionString);
@@ -90,12 +103,13 @@ public class SqlServerTransport : BrokerTransport<SqlServerQueue>
 
     internal SqlServerMessageStore Storage { get; set; }
 
+    internal MultiTenantedMessageStore? Databases { get; set; }
+
     public override IEnumerable<PropertyColumn> DiagnosticColumns()
     {
         yield return new PropertyColumn("Name");
         yield return new PropertyColumn("Count", Justify.Right);
         yield return new PropertyColumn("Scheduled", Justify.Right);
-
     }
 
     public async Task<DateTimeOffset> SystemTimeAsync()

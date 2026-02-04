@@ -252,6 +252,8 @@ public class MessageBus : IMessageBus, IMessageContext
 
     internal async ValueTask PersistOrSendAsync(Envelope envelope)
     {
+        if (envelope is null) return; // Not sure how this would happen
+        
         if (envelope.Sender is null)
         {
             throw new InvalidOperationException("Envelope has not been routed");
@@ -310,7 +312,7 @@ public class MessageBus : IMessageBus, IMessageContext
             // the sender is currently latched
             var envelopes = outgoing.Where(isDurable).ToArray();
             foreach (var envelope in envelopes.Where(x =>
-                         x.Sender is { Latched: true } && x.Status == EnvelopeStatus.Outgoing))
+                         x is { Sender: { Latched: true }, Status: EnvelopeStatus.Outgoing }))
                 envelope.OwnerId = TransportConstants.AnyNode;
 
             await Transaction.PersistAsync(envelopes);

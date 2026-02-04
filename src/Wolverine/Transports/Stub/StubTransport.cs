@@ -2,6 +2,7 @@ using ImTools;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Wolverine.Configuration;
+using Wolverine.Configuration.Capabilities;
 using Wolverine.ErrorHandling;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
@@ -18,7 +19,7 @@ internal class StubTransport : TransportBase<StubEndpoint>, IStubHandlers, IMess
 
     public bool HasAny() => _stubs.Any();
 
-    public StubTransport() : base("stub", "Stub")
+    public StubTransport() : base("stub", "Stub", [])
     {
         Endpoints =
             new LightweightCache<string, StubEndpoint>(name => new StubEndpoint(name, this));
@@ -28,6 +29,12 @@ internal class StubTransport : TransportBase<StubEndpoint>, IStubHandlers, IMess
         var endpoint = Endpoints["system"];
         endpoint.Role = EndpointRole.System;
         endpoint.Mode = EndpointMode.Inline;
+    }
+
+    public override bool TryBuildBrokerUsage(out BrokerDescription description)
+    {
+        description = default!;
+        return false;
     }
 
     public new LightweightCache<string, StubEndpoint> Endpoints { get; }

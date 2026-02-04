@@ -18,6 +18,7 @@ using Wolverine.RavenDb;
 using Wolverine.RavenDb.Internals;
 using Wolverine.Transports.Tcp;
 using Wolverine.Util;
+using RavenDbTests;
 
 public class ravendb_durability_end_to_end : RavenTestDriver, IAsyncLifetime
 {
@@ -34,6 +35,7 @@ public class ravendb_durability_end_to_end : RavenTestDriver, IAsyncLifetime
     {
         _listener = new Uri($"tcp://localhost:{PortFinder.GetAvailablePort()}");
 
+        DatabaseFixture.EnsureServerConfigured();
         _receiverStore = GetDocumentStore();
         _senderStore = GetDocumentStore();
 
@@ -53,11 +55,11 @@ public class ravendb_durability_end_to_end : RavenTestDriver, IAsyncLifetime
 
                     // Leave it as a lambda so it doesn't get disposed
                     opts.Services.AddSingleton<IDocumentStore>(s => _receiverStore);
-                    
+
                     opts.ListenForMessagesFrom(_listener).UseDurableInbox();
 
                     opts.Services.AddResourceSetupOnStartup();
-                    
+
                     opts.UseTcpForControlEndpoint();
                 })
                 .Start();
@@ -75,10 +77,10 @@ public class ravendb_durability_end_to_end : RavenTestDriver, IAsyncLifetime
                         .UseDurableOutbox());
 
                     opts.UseTcpForControlEndpoint();
-                    
+
                     opts.CodeGeneration.InsertFirstPersistenceStrategy<RavenDbPersistenceFrameProvider>();
                     opts.Services.AddSingleton<IMessageStore>(s => new RavenDbMessageStore(_senderStore, s.GetRequiredService<WolverineOptions>()));
-                    
+
                     // Leave it as a lambda so it doesn't get disposed
                     opts.Services.AddSingleton<IDocumentStore>(s => _senderStore);
 
@@ -108,7 +110,7 @@ public class ravendb_durability_end_to_end : RavenTestDriver, IAsyncLifetime
         }
 
         _senders.Clear();
-        
+
         _receiverStore.Dispose();
         _senderStore.Dispose();
     }

@@ -11,16 +11,19 @@ namespace Wolverine.SignalR;
 
 public static class SignalRWolverineExtensions
 {
-    ///     Quick access to the Rabbit MQ Transport within this application.
-    ///     This is for advanced usage
+    /// <summary>
+    /// Quick access to the SignalR Transport within this application.
+    /// This is for advanced usage
     /// </summary>
     /// <param name="endpoints"></param>
     /// <returns></returns>
-    internal static SignalRTransport SignalRTransport(this WolverineOptions endpoints, BrokerName? name = null)
+    internal static SignalRTransport SignalRTransport<THub>(this WolverineOptions endpoints, BrokerName? name = null) where THub : WolverineHub
     {
         var transports = endpoints.As<WolverineOptions>().Transports;
 
-        return transports.GetOrCreate<SignalRTransport>(name);
+        var transport = transports.GetOrCreate<SignalRTransport>(name);
+        transport.HubType = typeof(THub);
+        return transport;
     }
     
     /// <summary>
@@ -50,6 +53,15 @@ public static class SignalRWolverineExtensions
     /// <param name="configure">Optionally configure the SignalR HubOptions for Wolverine</param>
     /// <returns></returns>
     public static SignalRListenerConfiguration UseSignalR(this WolverineOptions options, Action<HubOptions>? configure = null)
+        => options.UseSignalR<WolverineHub>(configure);
+
+    /// <summary>
+    /// Adds the WolverineHub to this application for SignalR message processing
+    /// </summary>
+    /// <param name="options"></param>
+    /// <param name="configure">Optionally configure the SignalR HubOptions for Wolverine</param>
+    /// <returns></returns>
+    public static SignalRListenerConfiguration UseSignalR<THub>(this WolverineOptions options, Action<HubOptions>? configure = null) where THub : WolverineHub
     {
         if (configure == null)
         {
@@ -61,7 +73,39 @@ public static class SignalRWolverineExtensions
         }
         
         
-        var transport = options.SignalRTransport();
+        var transport = options.SignalRTransport<THub>();
+
+        options.Services.AddSingleton<SignalRTransport>(s =>
+            s.GetRequiredService<IWolverineRuntime>().Options.Transports.GetOrCreate<SignalRTransport>());
+
+        return new SignalRListenerConfiguration(transport);
+    }
+
+    /// <summary>
+    /// Adds the WolverineHub to this application for Azure SignalR message processing
+    /// </summary>
+    /// <param name="options"></param>
+    /// <param name="configureHub">Optionally configure the SignalR HubOptions for Wolverine</param>
+    /// <param name="configureSignalR">Optionally configure the Azure SignalR options for Wolverine</param>
+    /// <returns></returns>
+    public static SignalRListenerConfiguration UseAzureSignalR(this WolverineOptions options, Action<HubOptions>? configureHub = null, Action<Microsoft.Azure.SignalR.ServiceOptions>? configureSignalR = null)
+        => options.UseAzureSignalR<WolverineHub>(configureHub, configureSignalR);
+
+    /// <summary>
+    /// Adds a custom Wolverine SignalR hub to this application for Azure SignalR message processing
+    /// </summary>
+    /// <param name="options"></param>
+    /// <param name="configureHub">Optionally configure the SignalR HubOptions for Wolverine</param>
+    /// <param name="configureSignalR">Optionally configure the Azure SignalR options for Wolverine</param>
+    /// <returns></returns>
+    public static SignalRListenerConfiguration UseAzureSignalR<THub>(this WolverineOptions options, Action<HubOptions>? configureHub = null, Action<Microsoft.Azure.SignalR.ServiceOptions>? configureSignalR = null) where THub : WolverineHub
+    {
+        configureHub ??= _ => { };
+        configureSignalR ??= _ => { };
+
+        options.Services.AddSignalR(configureHub).AddAzureSignalR(configureSignalR);
+
+        var transport = options.SignalRTransport<THub>();
 
         options.Services.AddSingleton<SignalRTransport>(s =>
             s.GetRequiredService<IWolverineRuntime>().Options.Transports.GetOrCreate<SignalRTransport>());
@@ -76,17 +120,25 @@ public static class SignalRWolverineExtensions
     /// <param name="endpoints"></param>
     /// <param name="route"></param>
     public static HubEndpointConventionBuilder MapWolverineSignalRHub(this IEndpointRouteBuilder endpoints, string route = "messages")
+        => endpoints.MapWolverineSignalRHub<WolverineHub>(route);
+
+    /// <summary>
+    /// Syntactical shortcut to register a custom Wolverine SignalR Hub for sending
+    /// messages to this server. Equivalent to MapHub<THub>(route).
+    /// </summary>
+    /// <param name="endpoints"></param>
+    /// <param name="route"></param>
+    public static HubEndpointConventionBuilder MapWolverineSignalRHub<THub>(this IEndpointRouteBuilder endpoints, string route = "messages") where THub : WolverineHub
     {
-        return endpoints.MapHub<WolverineHub>(route);
+        return endpoints.MapHub<THub>(route);
     }
 
     /// <summary>
-    /// Create a subscription rule that publishes matching messages to the SignalR Hub of type "T"
+    /// Create a subscription rule that publishes matching messages to the default Wolverine SignalR Hub
     /// </summary>
     /// <param name="publishing"></param>
-    /// <typeparam name="T"></typeparam>
     /// <returns></returns>
-    public static SignalRSubscriberConfiguration ToSignalR(this IPublishToExpression publishing) 
+    public static SignalRSubscriberConfiguration ToSignalR(this IPublishToExpression publishing)
     {
         var transports = publishing.As<PublishingExpression>().Parent.Transports;
         var transport = transports.GetOrCreate<SignalRTransport>();

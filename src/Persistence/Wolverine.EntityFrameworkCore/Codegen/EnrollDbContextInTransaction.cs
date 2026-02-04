@@ -37,25 +37,25 @@ internal class EnrollDbContextInTransaction : AsyncFrame
             "Enroll the DbContext & IMessagingContext in the outgoing Wolverine outbox transaction");
         writer.Write($"var {_envelopeTransaction.Usage} = new {typeof(EfCoreEnvelopeTransaction).FullNameInCode()}({_dbContext.Usage}, {_context.Usage}, {_scrapers.Usage});");
         writer.Write(
-            $"await {_context.Usage}.{nameof(MessageContext.EnlistInOutboxAsync)}({_envelopeTransaction.Usage});");
+            $"await {_context.Usage}.{nameof(MessageContext.EnlistInOutboxAsync)}({_envelopeTransaction.Usage}).ConfigureAwait(false);");
 
         
         writer.WriteComment("Start the actual database transaction");
-        writer.Write($"using var {Transaction.Usage} = await {_dbContext.Usage}.Database.BeginTransactionAsync({_cancellation.Usage});");
+        writer.Write($"using var {Transaction.Usage} = await {_dbContext.Usage}.Database.BeginTransactionAsync({_cancellation.Usage}).ConfigureAwait(false);");
         writer.Write("BLOCK:try");
 
         // EF Core can only do eager idempotent checks
         if (_idempotencyStyle == IdempotencyStyle.Eager || _idempotencyStyle == IdempotencyStyle.Optimistic)
         {
-            writer.Write($"await {_context.Usage}.{nameof(MessageContext.AssertEagerIdempotencyAsync)}({_cancellation.Usage});");
+            writer.Write($"await {_context.Usage}.{nameof(MessageContext.AssertEagerIdempotencyAsync)}({_cancellation.Usage}).ConfigureAwait(false);");
         }
         
         Next?.GenerateCode(method, writer);
         
-        writer.Write($"await {_envelopeTransaction.Usage}.CommitAsync({_cancellation.Usage});");
+        writer.Write($"await {_envelopeTransaction.Usage}.CommitAsync({_cancellation.Usage}).ConfigureAwait(false);");
         writer.FinishBlock();
         writer.Write($"BLOCK:catch ({typeof(Exception).FullNameInCode()})");
-        writer.Write($"await {_envelopeTransaction.Usage}.RollbackAsync();");
+        writer.Write($"await {_envelopeTransaction.Usage}.RollbackAsync().ConfigureAwait(false);");
         writer.Write("throw;");
         writer.FinishBlock();
     }

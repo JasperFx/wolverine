@@ -1,6 +1,7 @@
 using System.Data;
 using System.Data.Common;
 using JasperFx.Core;
+using JasperFx.Core.Reflection;
 using JasperFx.Descriptors;
 using Microsoft.Extensions.Logging;
 using Weasel.Core;
@@ -91,7 +92,7 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
 
     public IAgent BuildAgent(IWolverineRuntime runtime)
     {
-        return new DurabilityAgent(Name, runtime, this);
+        return new DurabilityAgent(runtime, this);
     }
 
     public Uri Uri { get; protected set; } = new Uri("null://null");
@@ -157,7 +158,7 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
         return _batcher.EnqueueAsync(operation);
     }
 
-    public abstract Task PollForScheduledMessagesAsync(ILocalReceiver localQueue, ILogger runtimeLogger,
+    public abstract Task PollForScheduledMessagesAsync(IWolverineRuntime runtime, ILogger runtimeLogger,
         DurabilitySettings durabilitySettings,
         CancellationToken cancellationToken);
 
@@ -222,6 +223,8 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
 
     public abstract DbCommandBuilder ToCommandBuilder();
 
+    public abstract Task<bool> ExistsAsync(Envelope envelope, CancellationToken cancellation);
+
     public async Task ReleaseIncomingAsync(int ownerId, Uri receivedAt)
     {
         if (HasDisposed) return;
@@ -257,7 +260,7 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
 
     public IAgent StartScheduledJobs(IWolverineRuntime runtime)
     {
-        var agent = new DurabilityAgent(TransportConstants.Default, runtime, this);
+        var agent = new DurabilityAgent(runtime, this);
         agent.StartScheduledJobPolling();
 
         return agent;

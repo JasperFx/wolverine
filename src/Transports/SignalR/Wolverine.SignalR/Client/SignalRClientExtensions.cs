@@ -1,5 +1,6 @@
 using System.Text.Json;
 using JasperFx.Core.Reflection;
+using Microsoft.AspNetCore.SignalR;
 using Wolverine.Configuration;
 
 namespace Wolverine.SignalR.Client;
@@ -14,9 +15,11 @@ public static class SignalRClientExtensions
     /// <param name="options"></param>
     /// <param name="url"></param>
     /// <param name="jsonOptions"></param>
+    /// <param name="accessTokenProvider">Optionally provide a token to use for authentication against the SignalR hub</param>
     /// <returns></returns>
     public static Uri UseClientToSignalR(this WolverineOptions options, string url,
-        JsonSerializerOptions? jsonOptions = null)
+        JsonSerializerOptions? jsonOptions = null,
+        Func<IServiceProvider, Func<Task<string?>>>? accessTokenProvider = null)
     {
         var transport = options.Transports.GetOrCreate<SignalRClientTransport>();
         
@@ -24,6 +27,10 @@ public static class SignalRClientExtensions
         if (jsonOptions != null)
         {
             endpoint.JsonOptions = jsonOptions;
+        }
+        if (accessTokenProvider != null)
+        {
+            endpoint.AccessTokenProvider = accessTokenProvider;
         }
 
         return endpoint.Uri;
@@ -36,11 +43,11 @@ public static class SignalRClientExtensions
     /// <param name="options"></param>
     /// <param name="port"></param>
     /// <param name="route">Default is messages. Route pattern where you have mapped the WolverineHub</param>
+    /// <param name="accessTokenProvider">Optionally provide a token to use for authentication against the SignalR hub</param>
     /// <returns></returns>
-    public static Uri UseClientToSignalR(this WolverineOptions options, int port, string route = "messages")
-    {
-        return options.UseClientToSignalR($"http://localhost:{port}/{route}");
-    }
+    public static Uri UseClientToSignalR(this WolverineOptions options, int port, string route = "messages",
+        Func<IServiceProvider, Func<Task<string?>>>? accessTokenProvider = null)
+        => options.UseClientToSignalR($"http://localhost:{port}/{route}", accessTokenProvider: accessTokenProvider);
 
     /// <summary>
     /// Send a message via a SignalR Client for the given server Uri in the format "http://localhost:[port]/[hub url]"
@@ -74,18 +81,20 @@ public static class SignalRClientExtensions
     /// <param name="publishing"></param>
     /// <param name="port"></param>
     /// <param name="relativeUrl"></param>
-    public static void ToSignalRWithClient(this IPublishToExpression publishing, int port, string relativeUrl = "messages")
+    /// <param name="accessTokenProvider">Optionally provide a token to use for authentication against the SignalR hub</param>
+    public static void ToSignalRWithClient(this IPublishToExpression publishing, int port, string relativeUrl = "messages", Func<IServiceProvider, Func<Task<string?>>>? accessTokenProvider = null)
     {
         var url = $"http://localhost:{port}/{relativeUrl}";
-        publishing.ToSignalRWithClient(url);
+        publishing.ToSignalRWithClient(url, accessTokenProvider);
     }
-    
+
     /// <summary>
     /// Route messages via a SignalR Client pointed at the supplied absolute Url
     /// </summary>
     /// <param name="publishing"></param>
     /// <param name="url"></param>
-    public static void ToSignalRWithClient(this IPublishToExpression publishing, string url)
+    /// <param name="accessTokenProvider">Optionally provide a token to use for authentication against the SignalR hub</param>
+    public static void ToSignalRWithClient(this IPublishToExpression publishing, string url, Func<IServiceProvider, Func<Task<string?>>>? accessTokenProvider = null)
     {
         var rawUri = new Uri(url);
         if (!rawUri.IsAbsoluteUri)
@@ -98,6 +107,11 @@ public static class SignalRClientExtensions
         var transport = transports.GetOrCreate<SignalRClientTransport>();
 
         var endpoint = transport.Clients[uri];
+        if (accessTokenProvider != null)
+        {
+            endpoint.AccessTokenProvider = accessTokenProvider;
+        }
+
         publishing.To(uri);
     }
     

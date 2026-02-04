@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
 using Shouldly;
 using Wolverine.RabbitMQ.Internal;
 using Xunit;
@@ -6,6 +8,29 @@ namespace Wolverine.RabbitMQ.Tests;
 
 public class channel_configuration
 {
+    public static async Task configure_sample()
+    {
+        #region sample_configuring_rabbit_mq_channel_creation
+
+        var builder = Host.CreateApplicationBuilder();
+        builder.UseWolverine(opts =>
+        {
+            opts
+                .UseRabbitMq(builder.Configuration.GetConnectionString("rabbitmq"))
+
+                // Fine tune how the underlying Rabbit MQ channels from
+                // this application will behave
+                .ConfigureChannelCreation(o =>
+                {
+                    o.PublisherConfirmationsEnabled = true;
+                    o.PublisherConfirmationTrackingEnabled = true;
+                    o.ConsumerDispatchConcurrency = 5;
+                });
+        });
+
+        #endregion
+    }
+    
     [Fact]
     public void can_customize_channel_creation()
     {

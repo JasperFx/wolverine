@@ -1,5 +1,6 @@
 using Wolverine.Configuration;
 using Wolverine.Runtime.Routing;
+using Wolverine.Transports;
 
 namespace Wolverine.Runtime.Agents;
 
@@ -19,6 +20,9 @@ public interface IWolverineObserver
     Task RuntimeIsFullyStarted();
     void EndpointAdded(Endpoint endpoint);
     void MessageRouted(Type messageType, IMessageRouter router);
+
+    Task BackPressureTriggered(Endpoint endpoint, IListeningAgent agent);
+    Task BackPressureLifted(Endpoint endpoint);
 }
 
 internal class PersistenceWolverineObserver : IWolverineObserver
@@ -28,6 +32,16 @@ internal class PersistenceWolverineObserver : IWolverineObserver
     public PersistenceWolverineObserver(IWolverineRuntime runtime)
     {
         _runtime = runtime;
+    }
+
+    public Task BackPressureTriggered(Endpoint endpoint, IListeningAgent agent)
+    {
+        return Task.CompletedTask;
+    }
+
+    public Task BackPressureLifted(Endpoint endpoint)
+    {
+        return Task.CompletedTask;
     }
 
     public async Task AssumedLeadership()

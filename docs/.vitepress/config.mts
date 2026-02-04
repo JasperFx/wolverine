@@ -185,6 +185,7 @@ const config: UserConfig<DefaultTheme.Config> = {
                                 {text: 'Apache Pulsar', link: '/guide/messaging/transports/pulsar'},
                                 {text: 'Sql Server', link: '/guide/messaging/transports/sqlserver'},
                                 {text: 'PostgreSQL', link: '/guide/messaging/transports/postgresql'},
+                                {text: 'MySQL', link: '/guide/messaging/transports/mysql'},
                                 {text: 'MQTT', link: '/guide/messaging/transports/mqtt'},
                                 {text: 'NATS', link: '/guide/messaging/transports/nats'},
                                 {text: 'Kafka', link: '/guide/messaging/transports/kafka'},
@@ -227,7 +228,8 @@ const config: UserConfig<DefaultTheme.Config> = {
                         {text: 'Validation', link: '/guide/http/validation'},
                         {text: 'Fluent Validation', link: '/guide/http/fluentvalidation'},
                         {text: 'Problem Details', link: '/guide/http/problemdetails'},
-                        {text: 'Caching', link: '/guide/http/caching'}
+                        {text: 'Caching', link: '/guide/http/caching'},
+                        {text: 'HTTP Messaging Transport', link: '/guide/http/transport'}
                     ]
                 },
                 {
@@ -252,13 +254,15 @@ const config: UserConfig<DefaultTheme.Config> = {
                             ]},
                         {text: 'Sql Server Integration', link: '/guide/durability/sqlserver'},
                         {text: 'PostgreSQL Integration', link: '/guide/durability/postgresql'},
+                        {text: 'MySQL Integration', link: '/guide/durability/mysql'},
                         {text: 'RavenDb Integration', link: '/guide/durability/ravendb'},
                         {text: 'Entity Framework Core Integration', collapsed: false, link: '/guide/durability/efcore', items: [
                                 {text: 'Transactional Middleware', link: '/guide/durability/efcore/transactional-middleware'},
                                 {text: 'Transactional Inbox and Outbox', link: '/guide/durability/efcore/outbox-and-inbox'},
                                 {text: 'Operation Side Effects', link: '/guide/durability/efcore/operations'},
                                 {text: 'Saga Storage', link: '/guide/durability/efcore/sagas'},
-                                {text: 'Multi-Tenancy', link: '/guide/durability/efcore/multi-tenancy'}
+                                {text: 'Multi-Tenancy', link: '/guide/durability/efcore/multi-tenancy'},
+                                {text: 'Domain Events', link: '/guide/durability/efcore/domain-events'}
                             
                             ]},
                         {text: 'Managing Message Storage', link: '/guide/durability/managing'},

@@ -16,7 +16,8 @@ public class IncomingMessage
         OwnerId = envelope.OwnerId;
         ExecutionTime = envelope.ScheduledTime?.ToUniversalTime();
         Attempts = envelope.Attempts;
-        Body = EnvelopeSerializer.Serialize(envelope);
+        // When storing as Handled, don't persist the body - it's just for idempotency checks
+        Body = envelope.Status == EnvelopeStatus.Handled ? [] : EnvelopeSerializer.Serialize(envelope);
         MessageType = envelope.MessageType!;
         ReceivedAt = envelope.Destination;
     }
@@ -35,14 +36,28 @@ public class IncomingMessage
 
     public Envelope Read()
     {
-        var envelope = EnvelopeSerializer.Deserialize(Body);
+        Envelope envelope;
+        if (Body == null || Body.Length == 0)
+        {
+            // For handled envelopes, body is not stored - create a minimal envelope
+            envelope = new Envelope
+            {
+                Id = EnvelopeId,
+                MessageType = MessageType,
+                Destination = ReceivedAt,
+                Data = []
+            };
+        }
+        else
+        {
+            envelope = EnvelopeSerializer.Deserialize(Body);
+        }
+
         envelope.Id = EnvelopeId;
         envelope.OwnerId = OwnerId;
         envelope.Status = Status;
         envelope.Attempts = Attempts;
         envelope.ScheduledTime = ExecutionTime;
         return envelope;
-        
-
     }
 }

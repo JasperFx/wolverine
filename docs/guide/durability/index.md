@@ -27,7 +27,7 @@ getting lost en route.
 Consider this sample message handler from Wolverine's [AppWithMiddleware sample project](https://github.com/JasperFx/wolverine/tree/main/src/Samples/Middleware):
 
 <!-- snippet: sample_DebitAccountHandler_that_uses_IMessageContext -->
-<a id='snippet-sample_DebitAccountHandler_that_uses_IMessageContext'></a>
+<a id='snippet-sample_debitaccounthandler_that_uses_imessagecontext'></a>
 ```cs
 [Transactional]
 public static async Task Handle(
@@ -62,7 +62,7 @@ public static async Task Handle(
         new DeliveryOptions { DeliverWithin = 5.Seconds() });
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Middleware/AppWithMiddleware/Account.cs#L126-L161' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_DebitAccountHandler_that_uses_IMessageContext' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Middleware/AppWithMiddleware/Account.cs#L126-L161' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_debitaccounthandler_that_uses_imessagecontext' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The handler code above is committing changes to an `Account` in the underlying database and potentially sending out additional messages based on the state of the `Account`. 
@@ -279,7 +279,44 @@ var host = await Host.CreateDefaultBuilder()
     })
     .StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqlServerTests/Persistence/SqlServerMessageStore_with_IdAndDestination_Identity.cs#L28-L40' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_message_identity_to_use_id_and_destination' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqlServerTests/Persistence/SqlServerMessageStore_with_IdAndDestination_Identity.cs#L34-L46' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_message_identity_to_use_id_and_destination' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 This might be an important setting for [modular monolith architectures](/tutorials/modular-monolith). 
+
+## Stale Inbox and Outbox Thresholds
+
+::: info
+This is more a "defense in depth" feature than a common problem with the inbox/outbox mechanics. These
+flags are "opt in" only because they require database schema changes.
+:::
+
+It should not ever be possible for messages to get "stuck" in the transactional inbox or outbox, but it's an 
+imperfect world and occasionally there are hiccups that might lead to that situation. To that end, you have
+these "opt in" settings to tell Wolverine to "bump" apparently stalled or stale messages back into play *just in case*:
+
+<!-- snippet: sample_using_inbox_outbox_stale_time -->
+<a id='snippet-sample_using_inbox_outbox_stale_time'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        // configure the actual message persistence...
+
+        // This directs Wolverine to "bump" any messages marked
+        // as being owned by a specific node but older than
+        // these thresholds as  being open to any node pulling 
+        // them in
+        
+        // TL;DR: make Wolverine go grab stale messages and make
+        // sure they are processed or sent to the messaging brokers
+        opts.Durability.InboxStaleTime = 5.Minutes();
+        opts.Durability.OutboxStaleTime = 5.Minutes();
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/InboxOutboxSettings.cs#L11-L29' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_inbox_outbox_stale_time' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+::: info
+These settings will be defaults in Wolverine 6.0.
+:::

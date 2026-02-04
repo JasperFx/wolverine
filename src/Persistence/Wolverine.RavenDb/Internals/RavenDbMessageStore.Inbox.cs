@@ -99,6 +99,13 @@ public partial class RavenDbMessageStore : IMessageInbox
         await session.SaveChangesAsync();
     }
 
+    public async Task<bool> ExistsAsync(Envelope envelope, CancellationToken cancellation)
+    {
+        using var session = _store.OpenAsyncSession();
+        var identity = IdentityFor(envelope);
+        return (await session.LoadAsync<IncomingMessage>(identity, cancellation)) != null;
+    }
+
     public Task RescheduleExistingEnvelopeForRetryAsync(Envelope envelope)
     {
         envelope.Status = EnvelopeStatus.Scheduled;

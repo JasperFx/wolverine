@@ -127,12 +127,21 @@ would be derived from either Wolverine's [message type name](/guide/messages.htm
 or by using the `[Topic("topic name")]` attribute as shown below:
 
 <!-- snippet: sample_using_Topic_attribute -->
-<a id='snippet-sample_using_Topic_attribute'></a>
+<a id='snippet-sample_using_topic_attribute'></a>
 ```cs
 [Topic("one")]
 public class TopicMessage1;
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/TopicRoutingTester.cs#L7-L12' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_Topic_attribute' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/TopicRoutingTester.cs#L7-L12' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_topic_attribute' title='Start of snippet'>anchor</a></sup>
+<a id='snippet-sample_using_topic_attribute-1'></a>
+```cs
+[Topic("color.blue")]
+public class FirstMessage
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/send_by_topics.cs#L445-L453' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_topic_attribute-1' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Publishing by Topic Rules
@@ -254,7 +263,7 @@ For more complex interoperability, you can implement the `IMqttEnvelopeMapper` i
 incoming and outgoing MQTT messages and the Wolverine `Envelope` structure. Here's an example:
 
 <!-- snippet: sample_MyMqttEnvelopeMapper -->
-<a id='snippet-sample_MyMqttEnvelopeMapper'></a>
+<a id='snippet-sample_mymqttenvelopemapper'></a>
 ```cs
 public class MyMqttEnvelopeMapper : IMqttEnvelopeMapper
 {
@@ -280,7 +289,7 @@ public class MyMqttEnvelopeMapper : IMqttEnvelopeMapper
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/MQTT/Wolverine.MQTT.Tests/Samples.cs#L208-L234' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_MyMqttEnvelopeMapper' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/MQTT/Wolverine.MQTT.Tests/Samples.cs#L208-L234' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_mymqttenvelopemapper' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And apply that to an MQTT topic like so:
@@ -348,6 +357,33 @@ public static ClearMqttTopic Handle(TriggerZero message)
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/MQTT/Wolverine.MQTT.Tests/ack_smoke_tests.cs#L84-L98' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_ack_mqtt_topic' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Authentication via OAuth2
+
+Wolverine supports MQTT v5 OAuth2/JWT authentication by supplying a token callback and refresh interval when you configure
+the transport. The callback returns raw token bytes (use UTF-8 encoding if your token is a string). When configured,
+Wolverine sets the MQTT authentication method to `OAUTH2-JWT`, sends the initial token with the connect packet, and
+re-authenticates on the configured refresh period while the client is connected.
+
+::: info
+You don't need to configure `AuthenticationMethod` and `AuthenticationData` by yourself. These are overriden when the `MqttJwtAuthenticationOptions` parameter is set.
+:::
+
+<!-- snippet: sample_mqtt_with_oauth-->
+<a id='snippet-sample_mqtt_with_oauth'></a>
+Minimal configuration example:
+```cs
+var builder = Host.CreateApplicationBuilder();
+
+builder.UseWolverine(opts =>
+{
+    opts.UseMqtt(
+        mqtt => mqtt.WithClientOptions(client => client.WithTcpServer("broker")),
+        new MqttJwtAuthenticationOptions(
+            async () => Encoding.UTF8.GetBytes(await GetJwtTokenAsync()),
+            30.Minutes()));
+});
+```
+
 ## Interoperability
 
 ::: tip
@@ -360,7 +396,7 @@ interface to map from Wolverine's `Envelope` structure and MQTT's `MqttApplicati
 Here's a simple example:
 
 <!-- snippet: sample_MyMqttEnvelopeMapper -->
-<a id='snippet-sample_MyMqttEnvelopeMapper'></a>
+<a id='snippet-sample_mymqttenvelopemapper'></a>
 ```cs
 public class MyMqttEnvelopeMapper : IMqttEnvelopeMapper
 {
@@ -386,7 +422,7 @@ public class MyMqttEnvelopeMapper : IMqttEnvelopeMapper
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/MQTT/Wolverine.MQTT.Tests/Samples.cs#L208-L234' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_MyMqttEnvelopeMapper' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/MQTT/Wolverine.MQTT.Tests/Samples.cs#L208-L234' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_mymqttenvelopemapper' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 You will need to apply that mapper to each endpoint like so:

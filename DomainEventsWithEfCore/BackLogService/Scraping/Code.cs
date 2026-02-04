@@ -8,6 +8,8 @@ using Wolverine.Persistence;
 
 namespace BackLogService.Scraping;
 
+#region sample_Entity_layer_super_type
+
 // Of course, if you're into DDD, you'll probably 
 // use many more marker interfaces than I do here, 
 // but you do you and I'll do me in throwaway sample code
@@ -20,6 +22,10 @@ public abstract class Entity
         Events.Add(@event);
     }
 }
+
+#endregion
+
+#region sample_BacklogItem
 
 public class BacklogItem : Entity
 {
@@ -36,6 +42,8 @@ public class BacklogItem : Entity
     }
 }
 
+#endregion
+
 public class ItemsDbContext : DbContext
 {
     public DbSet<BacklogItem> BacklogItems { get; set; } 
@@ -43,6 +51,8 @@ public class ItemsDbContext : DbContext
 }
 
 public record CommitToSprint(Guid BacklogItemId, Guid SprintId);
+
+#region sample_CommitToSprintHandler
 
 public static class CommitToSprintHandler
 {
@@ -54,7 +64,7 @@ public static class CommitToSprintHandler
         // from the incoming command
         [Entity] BacklogItem item,
         [Entity] Sprint sprint
-        )
+    )
     {
         // This method would cause an event to be published within
         // the BacklogItem object here that we need to gather up and
@@ -65,6 +75,8 @@ public static class CommitToSprintHandler
         // everything around SaveChangesAsync() and transactions
     }
 }
+
+#endregion
 
 public static class RelayEvents
 {

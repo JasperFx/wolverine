@@ -24,7 +24,7 @@ public abstract partial class MessageDatabase<T> : IAgentFamily
             throw new ArgumentOutOfRangeException(nameof(uri));
         }
 
-        var agent = new DurabilityAgent(TransportConstants.Default, runtime, this)
+        var agent = new DurabilityAgent(runtime, this)
         {
             Uri = uri,
             AutoStartScheduledJobPolling = true
