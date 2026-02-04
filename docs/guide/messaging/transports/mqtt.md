@@ -357,6 +357,33 @@ public static ClearMqttTopic Handle(TriggerZero message)
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/MQTT/Wolverine.MQTT.Tests/ack_smoke_tests.cs#L84-L98' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_ack_mqtt_topic' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Authentication via OAuth2
+
+Wolverine supports MQTT v5 OAuth2/JWT authentication by supplying a token callback and refresh interval when you configure
+the transport. The callback returns raw token bytes (use UTF-8 encoding if your token is a string). When configured,
+Wolverine sets the MQTT authentication method to `OAUTH2-JWT`, sends the initial token with the connect packet, and
+re-authenticates on the configured refresh period while the client is connected.
+
+::: info
+You don't need to configure `AuthenticationMethod` and `AuthenticationData` by yourself. These are overriden when the `MqttJwtAuthenticationOptions` parameter is set.
+:::
+
+<!-- snippet: sample_mqtt_with_oauth-->
+<a id='snippet-sample_mqtt_with_oauth'></a>
+Minimal configuration example:
+```cs
+var builder = Host.CreateApplicationBuilder();
+
+builder.UseWolverine(opts =>
+{
+    opts.UseMqtt(
+        mqtt => mqtt.WithClientOptions(client => client.WithTcpServer("broker")),
+        new MqttJwtAuthenticationOptions(
+            async () => Encoding.UTF8.GetBytes(await GetJwtTokenAsync()),
+            30.Minutes()));
+});
+```
+
 ## Interoperability
 
 ::: tip
