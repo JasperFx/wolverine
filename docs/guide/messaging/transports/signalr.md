@@ -594,6 +594,49 @@ public async Task receive_message_from_a_client()
 *Conveniently enough as I write this documentation today using existing test code, Hollywood Brown had a huge
 game last night. Go Chiefs!*
 
+### Authorization
+
+If you are connecting to a hub requiring authorization (for example using the `[Authorize]` attribute) you need to provide a token provider.
+
+<!-- snippet: sample_signalr_authentication -->
+<a id='snippet-sample_signalr_authentication'></a>
+```cs
+var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.ServiceName = serviceName;
+
+        // Configure a client with an access token provider. You get an instance of `IServiceProvider`
+        // if you need access to additional services, for example accessing `IConfiguration`
+        opts.UseClientToSignalR(Port, accessTokenProvider: (sp) => () => Task.FromResult<string?>(accessToken));
+
+        opts.Publish(x =>
+        {
+            x.MessagesImplementing<WebSocketMessage>();
+            x.ToSignalRWithClient(Port);
+        });
+
+        opts.Publish(x =>
+        {
+            x.MessagesImplementing<AuthenticatedWebSocketMessage>();
+
+            // You can also configure the access token provider when configuring
+            // the message publishing. Last configuration wins and applies to the
+            // client URL, *not* the message type
+            x.ToSignalRWithClient(Port, accessTokenProvider: (sp) => () =>
+            {
+                var configuration = sp.GetRequiredService<IConfiguration>();
+                var configuredToken = configuration.GetValue<string?>("SignalR:AccessToken")
+                    // Fall back to the token passed in when testing
+                    ?? accessToken;
+                return Task.FromResult<string?>(configuredToken);
+            });
+        });
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/SignalR/Wolverine.SignalR.Tests/WebSocketTestContext.cs#L183-L216' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_signalr_authentication' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
 ## Web Socket "Sagas"
 
 ::: info

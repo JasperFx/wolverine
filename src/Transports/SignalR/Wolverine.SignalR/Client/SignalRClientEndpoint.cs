@@ -39,18 +39,34 @@ public class SignalRClientEndpoint : Endpoint, IListener, ISender
 
     public JsonSerializerOptions JsonOptions { get; set; }
 
+    public Func<IServiceProvider, Func<Task<string?>>> AccessTokenProvider { get; set; }
+
     public Uri SignalRUri { get; }
 
     public override async ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
     {
         Receiver = receiver;
         Pipeline = runtime.Pipeline;
-        _connection ??= new HubConnectionBuilder().WithAutomaticReconnect().WithUrl(SignalRUri).Build();
+        _connection ??= new HubConnectionBuilder()
+            .WithAutomaticReconnect()
+            .WithUrl(SignalRUri, opts =>
+            {
+                opts.AccessTokenProvider = AccessTokenProvider?.Invoke(runtime.Services);
+            })
+            .Build();
         _mapper ??= BuildCloudEventsMapper(runtime, JsonOptions);
 
         Logger = runtime.LoggerFactory.CreateLogger<SignalRClientEndpoint>();
 
-        await _connection.StartAsync();
+        try
+        {
+            await _connection.StartAsync();
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+        {
+            Logger.LogError(ex, "Unable to connect to SignalR. Hub returned Unauthorized");
+            //throw; // FIXME: Should probably have better handling for this
+        }
 
         _connection.On(SignalRTransport.DefaultOperation, [typeof(string)], (args =>
         {
@@ -93,7 +109,12 @@ public class SignalRClientEndpoint : Endpoint, IListener, ISender
 
     protected override ISender CreateSender(IWolverineRuntime runtime)
     {
-        _connection ??= new HubConnectionBuilder().WithUrl(SignalRUri).Build();
+        _connection ??= new HubConnectionBuilder()
+            .WithUrl(SignalRUri, opts =>
+            {
+                opts.AccessTokenProvider = AccessTokenProvider?.Invoke(runtime.Services);
+            })
+            .Build();
         _mapper ??= BuildCloudEventsMapper(runtime, JsonOptions);
         return this;
     }
@@ -133,6 +154,7 @@ public class SignalRClientEndpoint : Endpoint, IListener, ISender
 
     bool ISender.SupportsNativeScheduledSend => false;
     Uri ISender.Destination => Uri;
+
     public Task<bool> PingAsync()
     {
         return Task.FromResult(true);
