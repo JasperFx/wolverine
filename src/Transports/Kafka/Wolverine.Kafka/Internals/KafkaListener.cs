@@ -33,11 +33,6 @@ public class KafkaListener : IListener, IDisposable
         _receiver = receiver;
 
         _enableAtLeastOnceDelivery = topic.EnableAtLeastOnceDelivery;
-        if (_enableAtLeastOnceDelivery)
-        {
-            // Force EnableAutoOffsetStore=false so we control when offsets are stored
-            Config.EnableAutoOffsetStore = false;
-        }
 
         _qualityOfService = Config.EnableAutoCommit.HasValue && !Config.EnableAutoCommit.Value
             ? QualityOfService.AtMostOnce
@@ -72,18 +67,11 @@ public class KafkaListener : IListener, IDisposable
 
                         var envelope = mapper.CreateEnvelope(result.Topic, message);
                         envelope.Offset = result.Offset.Value;
+                        envelope.Partition = result.Partition.Value;
                         envelope.MessageType ??= _messageTypeName;
                         envelope.GroupId = config.GroupId;
 
                         await receiver.ReceivedAsync(this, envelope);
-
-                        // When EnableAtLeastOnceDelivery is enabled, store offset AFTER processing
-                        // - Inline mode: message fully processed
-                        // - Durable mode: message persisted to database inbox
-                        if (_enableAtLeastOnceDelivery)
-                        {
-                            StoreOffsetSafely(result);
-                        }
                     }
                     catch (OperationCanceledException)
                     {
@@ -120,25 +108,26 @@ public class KafkaListener : IListener, IDisposable
 
     public IHandlerPipeline? Pipeline => _receiver.Pipeline;
 
-    private void StoreOffsetSafely(ConsumeResult<string, byte[]> result)
-    {
-        try
-        {
-            _consumer.StoreOffset(result);
-        }
-        catch (KafkaException e)
-        {
-            _logger.LogWarning(e, "Failed to store Kafka offset for message at offset {Offset}",
-                result.Offset.Value);
-        }
-    }
-
     public ValueTask CompleteAsync(Envelope envelope)
     {
-        // Skip manual commit if EnableAtLeastOnceDelivery is on with auto-commit enabled,
-        // since offset is already stored after processing and auto-commit handles the rest
-        if (_enableAtLeastOnceDelivery && (!Config.EnableAutoCommit.HasValue || Config.EnableAutoCommit.Value))
+        if (_enableAtLeastOnceDelivery)
         {
+            try
+            {
+                var tpo = new TopicPartitionOffset(envelope.TopicName, new Partition(envelope.Partition), new Offset(envelope.Offset));
+                _consumer.StoreOffset(tpo);
+
+                // If auto-commit is disabled, we need to manually commit after storing
+                if (Config.EnableAutoCommit.HasValue && !Config.EnableAutoCommit.Value)
+                {
+                    _consumer.Commit();
+                }
+            }
+            catch (KafkaException e)
+            {
+                _logger.LogWarning(e, "Failed to store Kafka offset for message at offset {Offset}", envelope.Offset);
+            }
+
             return ValueTask.CompletedTask;
         }
 
@@ -150,9 +139,9 @@ public class KafkaListener : IListener, IDisposable
             }
             catch (Exception)
             {
-
             }
         }
+
         return ValueTask.CompletedTask;
     }
 

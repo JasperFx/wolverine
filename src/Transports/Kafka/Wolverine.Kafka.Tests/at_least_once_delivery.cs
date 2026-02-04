@@ -64,7 +64,6 @@ public class at_least_once_delivery_configuration
     [Fact]
     public async Task at_least_once_delivery_with_inline_processing()
     {
-        var senderTopic = "atleastonce-inline-sender-" + Guid.NewGuid().ToString("N")[..8];
         var receiverTopic = "atleastonce-inline-receiver-" + Guid.NewGuid().ToString("N")[..8];
 
         using var receiver = await Host.CreateDefaultBuilder()

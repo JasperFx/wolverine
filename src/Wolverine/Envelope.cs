@@ -40,7 +40,7 @@ public partial class Envelope : IHasTenantId
             envelope.InBatch = true;
         }
     }
-    
+
     public Envelope()
     {
     }
@@ -50,7 +50,7 @@ public partial class Envelope : IHasTenantId
         Message = message ?? throw new ArgumentNullException(nameof(message));
         MessageType = message?.GetType().ToMessageTypeName();
     }
-    
+
     /// <summary>
     ///     Optional metadata about this message
     /// </summary>
@@ -132,7 +132,7 @@ public partial class Envelope : IHasTenantId
         }
         AssertMessage();
 
-        if(Serializer is IAsyncMessageSerializer asyncMessaeSerializer)
+        if (Serializer is IAsyncMessageSerializer asyncMessaeSerializer)
         {
             try
             {
@@ -351,7 +351,7 @@ public partial class Envelope : IHasTenantId
         ScheduledTime = DateTimeOffset.Now.Add(delay);
         return this;
     }
-    
+
     /// <summary>
     /// Used to "smuggle" contextual information to some
     /// messaging transports
@@ -449,7 +449,7 @@ public partial class Envelope : IHasTenantId
         // Doesn't matter, if it's been scheduled and persisted, it has 
         // to be scheduled
         if (Status == EnvelopeStatus.Scheduled) return true;
-        
+
         return ScheduledTime.HasValue && ScheduledTime.Value > utcNow;
     }
 
@@ -466,13 +466,18 @@ public partial class Envelope : IHasTenantId
     {
         return (Message?.GetType().Name ?? MessageType)!;
     }
-    
+
     /// <summary>
-    /// For stream based transports (Kafka/RedPanda, this will reflect the message offset. This is strictly informational
+    /// For stream based transports (Kafka/RedPanda), this will reflect the message offset. This is strictly informational
     /// </summary>
     public long Offset { get; set; }
-    
-    
+
+    /// <summary>
+    /// For stream based transports (Kafka/RedPanda), this will reflect the partition number
+    /// </summary>
+    public int Partition { get; set; }
+
+
     /// <summary>
     /// For some forms of modular monoliths, Wolverine needs to track what message store
     /// persisted this envelope for later tracking
@@ -493,7 +498,7 @@ public partial class Envelope : IHasTenantId
             KeepUntil = now.Add(settings.KeepAfterMessageHandling)
         };
     }
-    
+
     /// <summary>
     /// Marks the time stamp for how long this envelope should be retained as
     /// "Handled" in the inbox for idempotency protections

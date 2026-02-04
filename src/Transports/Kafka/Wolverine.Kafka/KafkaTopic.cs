@@ -67,8 +67,14 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
         EnvelopeMapper ??= BuildMapper(runtime);
 
         var config = ConsumerConfig ?? Parent.ConsumerConfig;
+
+        if (EnableAtLeastOnceDelivery)
+        {
+            config = new ConsumerConfig(config) { EnableAutoOffsetStore = false };
+        }
+
         var listener = new KafkaListener(this, config,
-            Parent.CreateConsumer(ConsumerConfig), receiver, runtime.LoggerFactory.CreateLogger<KafkaListener>());
+            Parent.CreateConsumer(config), receiver, runtime.LoggerFactory.CreateLogger<KafkaListener>());
         return ValueTask.FromResult((IListener)listener);
     }
 

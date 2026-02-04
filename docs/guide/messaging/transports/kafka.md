@@ -25,8 +25,8 @@ opts.ListenToKafkaTopic("important-events")
 
 When `EnableAtLeastOnceDelivery()` is enabled:
 - Kafka's `EnableAutoOffsetStore` is automatically set to `false`
-- The offset is stored only **after** `ReceivedAsync` completes
-- For `ProcessInline()` mode: the offset is stored after the message handler finishes
+- The offset is stored only when `CompleteAsync` is called by the receiver
+- For `ProcessInline()` mode: the offset is stored after the message handler completes successfully
 - For `UseDurableInbox()` mode: the offset is stored after the message is persisted to the database inbox
 
 ::: tip
