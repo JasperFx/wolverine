@@ -94,9 +94,15 @@ app.UseRouting();
 
 app.UseAuthorization();
 
+#if NET9_0_OR_GREATER
 app.MapStaticAssets();
 app.MapRazorPages()
     .WithStaticAssets();
+#endif
+#if NET8_0
+app.UseStaticFiles();
+app.MapRazorPages();
+#endif
 
 // This line puts the SignalR hub for Wolverine at the 
 // designated route for your clients
@@ -104,7 +110,7 @@ app.MapWolverineSignalRHub("/api/messages");
 
 return await app.RunJasperFxCommands(args);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/WolverineChat/Program.cs#L63-L81' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_map_wolverine_signalrhub' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/WolverineChat/Program.cs#L63-L88' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_map_wolverine_signalrhub' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Custom hubs
@@ -133,7 +139,7 @@ var app = builder.Build();
 // app.MapHub<THub>("/messages");
 app.MapWolverineSignalRHub<THub>();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/SignalR/Wolverine.SignalR.Tests/WebSocketTestContext.cs#L135-L154' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_custom_signalr_hub' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/SignalR/Wolverine.SignalR.Tests/WebSocketTestContext.cs#L151-L170' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_custom_signalr_hub' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Custom hubs must still inherit from `WolverineHub`. It's possible to override `ReceiveMessage`, but if you don't invoke the base functionality you're gonna have a bad time.
@@ -504,7 +510,7 @@ transport:
 public abstract class WebSocketTestContext : IAsyncLifetime
 {
     protected WebApplication theWebApp;
-    private readonly int Port = PortFinder.GetAvailablePort();
+    protected readonly int Port = PortFinder.GetAvailablePort();
     protected readonly Uri clientUri;
 
     private readonly List<IHost> _clientHosts = new();
@@ -523,7 +529,7 @@ public abstract class WebSocketTestContext : IAsyncLifetime
             opts.ListenLocalhost(Port);
         });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/SignalR/Wolverine.SignalR.Tests/WebSocketTestContext.cs#L12-L36' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_signalr_client_test_harness_setup' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/SignalR/Wolverine.SignalR.Tests/WebSocketTestContext.cs#L16-L40' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_signalr_client_test_harness_setup' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In the same test harness class, we bootstrap new `IHost` instances with the SignalR Client to mimic browser client
@@ -536,13 +542,13 @@ var host = await Host.CreateDefaultBuilder()
     .UseWolverine(opts =>
     {
         opts.ServiceName = serviceName;
-        
+
         opts.UseClientToSignalR(Port);
-        
+
         opts.PublishMessage<ToFirst>().ToSignalRWithClient(Port);
-        
+
         opts.PublishMessage<RequiresResponse>().ToSignalRWithClient(Port);
-        
+
         opts.Publish(x =>
         {
             x.MessagesImplementing<WebSocketMessage>();
@@ -550,7 +556,7 @@ var host = await Host.CreateDefaultBuilder()
         });
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/SignalR/Wolverine.SignalR.Tests/WebSocketTestContext.cs#L73-L93' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_signalr_client_in_test' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/SignalR/Wolverine.SignalR.Tests/WebSocketTestContext.cs#L77-L97' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_signalr_client_in_test' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The key point here is that we stood up the service using a port number for Kestrel, then stood up `IHost` instances for

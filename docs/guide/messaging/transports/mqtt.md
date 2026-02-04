@@ -18,8 +18,6 @@ In its most simplistic usage you enable the MQTT transport through calling the `
 and defining which MQTT topics you want to publish or subscribe to with the normal [subscriber rules](/guide/messaging/subscriptions) as 
 shown in this sample:
 
-<!-- snippet: sample_using_mqtt -->
-<a id='snippet-sample_using_mqtt'></a>
 ```cs
 var builder = Host.CreateApplicationBuilder();
 
@@ -54,8 +52,6 @@ builder.UseWolverine(opts =>
 using var host = builder.Build();
 await host.StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/MQTT/Wolverine.MQTT.Tests/Samples.cs#L14-L50' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_mqtt' title='Start of snippet'>anchor</a></sup>
-<!-- endSnippet -->
 
 ::: info
 The MQTT transport *at this time* only supports endpoints that are either `Buffered` or `Durable`. 
@@ -368,8 +364,6 @@ re-authenticates on the configured refresh period while the client is connected.
 You don't need to configure `AuthenticationMethod` and `AuthenticationData` by yourself. These are overriden when the `MqttJwtAuthenticationOptions` parameter is set.
 :::
 
-<!-- snippet: sample_mqtt_with_oauth-->
-<a id='snippet-sample_mqtt_with_oauth'></a>
 Minimal configuration example:
 ```cs
 var builder = Host.CreateApplicationBuilder();
