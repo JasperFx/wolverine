@@ -80,16 +80,13 @@ You can control this tracing behavior through the `DurabilitySettings`:
 <!-- snippet: sample_configuring_health_check_tracing -->
 <a id='snippet-sample_configuring_health_check_tracing'></a>
 ```cs
-var host = await Host.CreateDefaultBuilder()
-    .UseWolverine(opts =>
-    {
-        opts.Durability.NodeAssignmentHealthCheckTracingEnabled = false;
+// Disable the "wolverine_node_assignments" traces entirely
+opts.Durability.NodeAssignmentHealthCheckTracingEnabled = false;
 
-        // Or, sample those traces to only once every 10 minutes
-        // opts.Durability.NodeAssignmentHealthCheckTraceSamplingPeriod = TimeSpan.FromMinutes(10);
-    }).StartAsync();
+// Or, sample those traces to only once every 10 minutes
+// opts.Durability.NodeAssignmentHealthCheckTraceSamplingPeriod = TimeSpan.FromMinutes(10);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/OpenTelemetry/OtelWebApiWolverineMarten/Program.cs#L19' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_health_check_tracing' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/OpenTelemetry/OtelWebApiWolverineMarten/Program.cs#L18-L24' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_health_check_tracing' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Controlling Message Specific Logging and Tracing

@@ -15,11 +15,13 @@ builder.Host.UseWolverine(opts =>
     opts.Policies.AutoApplyTransactions();
     opts.CodeGeneration.TypeLoadMode = !builder.Environment.IsDevelopment() ? TypeLoadMode.Static : TypeLoadMode.Auto;
 
+#region sample_configuring_health_check_tracing
     // Disable the "wolverine_node_assignments" traces entirely
     opts.Durability.NodeAssignmentHealthCheckTracingEnabled = false;
 
     // Or, sample those traces to only once every 10 minutes
     // opts.Durability.NodeAssignmentHealthCheckTraceSamplingPeriod = TimeSpan.FromMinutes(10);
+#endregion
 });
 
 builder.Services.AddMarten(opts => { opts.Connection("host=localhost;Port=5433;Database=postgres;Username=postgres;password=postgres"); })
