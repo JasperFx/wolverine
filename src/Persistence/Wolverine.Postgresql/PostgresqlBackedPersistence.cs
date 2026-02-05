@@ -1,4 +1,4 @@
-﻿using System.Data.Common;
+using System.Data.Common;
 using JasperFx;
 using JasperFx.Core;
 using JasperFx.MultiTenancy;
