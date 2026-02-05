@@ -1,5 +1,6 @@
 using IntegrationTests;
 using JasperFx.Core;
+using JasperFx.Resources;
 using Shouldly;
 using Wolverine.ComplianceTests.Compliance;
 using Wolverine.Configuration;
@@ -70,6 +71,8 @@ public class PostgresqlTransportBufferedFixture : TransportComplianceFixture, IA
             opts.Durability.ScheduledJobPollingTime = 250.Milliseconds();
             opts.Durability.ScheduledJobFirstExecution = 0.Seconds();
 
+            opts.Services.AddResourceSetupOnStartup();
+
         });
 
         await ReceiverIs(opts =>
@@ -81,6 +84,8 @@ public class PostgresqlTransportBufferedFixture : TransportComplianceFixture, IA
             
             opts.Durability.ScheduledJobPollingTime = 250.Milliseconds();
             opts.Durability.ScheduledJobFirstExecution = 0.Seconds();
+            
+            opts.Services.AddResourceSetupOnStartup();
         });
     }
 
