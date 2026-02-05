@@ -105,6 +105,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".SolutionItems", ".Solution
 		README.md = README.md
 		CLAUDE.md = CLAUDE.md
 		.claude\docs\architectural_patterns.md = .claude\docs\architectural_patterns.md
+		.github\workflows\http.yml = .github\workflows\http.yml
 	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wolverine.MemoryPack", "src\Extensions\Wolverine.MemoryPack\Wolverine.MemoryPack.csproj", "{469A2C91-64B4-439B-9097-05499770FFB3}"
