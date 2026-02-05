@@ -122,7 +122,7 @@ public class KafkaListener : IListener, IDisposable
             // If auto-commit is disabled, we need to manually commit after storing
             if (Config.EnableAutoCommit.HasValue && !Config.EnableAutoCommit.Value)
             {
-                _consumer.Commit();
+                TryCommit();
             }
 
             return ValueTask.CompletedTask;
@@ -130,13 +130,7 @@ public class KafkaListener : IListener, IDisposable
 
         if (_qualityOfService == QualityOfService.AtLeastOnce)
         {
-            try
-            {
-                _consumer.Commit();
-            }
-            catch (Exception)
-            {
-            }
+            TryCommit();
         }
 
         return ValueTask.CompletedTask;
@@ -165,5 +159,16 @@ public class KafkaListener : IListener, IDisposable
     {
         _consumer.SafeDispose();
         _runner.Dispose();
+    }
+
+    private void TryCommit()
+    {
+        try
+        {
+            _consumer.Commit();
+        }
+        catch (KafkaException)
+        {
+        }
     }
 }
