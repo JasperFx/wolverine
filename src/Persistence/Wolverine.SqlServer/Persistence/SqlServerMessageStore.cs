@@ -1,4 +1,4 @@
-﻿using System.Data;
+using System.Data;
 using System.Data.Common;
 using ImTools;
 using JasperFx;
@@ -452,6 +452,11 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
         {
             yield return table;
         }
+
+        foreach (var table in _otherTables)
+        {
+            yield return table;
+        }
         
         if (Role == MessageStoreRole.Main)
         {
@@ -517,6 +522,13 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
         {
             yield return entry.Value.Table;
         }
+    }
+
+    private readonly List<Table> _otherTables = new();
+
+    public void AddTable(Table table)
+    {
+        _otherTables.Add(table);
     }
 
     public override IDatabaseSagaSchema<TId, TSaga> SagaSchemaFor<TSaga, TId>() 
