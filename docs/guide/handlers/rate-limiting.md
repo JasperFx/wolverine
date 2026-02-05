@@ -35,11 +35,19 @@ Endpoint limits take precedence over message type limits when both are configure
 
 ## Distributed Store
 
-Rate limiting relies on a shared store. By default, Wolverine registers an in-memory store for tests and local development. For production, register your own `IRateLimitStore` backed by Redis, PostgreSQL, or another shared system:
+Rate limiting relies on a shared store. By default, Wolverine registers an in-memory store for tests and local development. For production, register a shared store implementation.
+
+### SQL Server
 
 ```cs
-services.AddSingleton<IRateLimitStore, RedisRateLimitStore>();
+using Wolverine;
+using Wolverine.SqlServer;
+
+opts.PersistMessagesWithSqlServer(connectionString)
+    .UseSqlServerRateLimiting();
 ```
+
+This uses the Wolverine message storage schema by default (same schema as the inbox/outbox tables).
 
 ## Scheduling Requirements
 
