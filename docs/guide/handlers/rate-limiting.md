@@ -51,4 +51,9 @@ This uses the Wolverine message storage schema by default (same schema as the in
 
 ## Scheduling Requirements
 
-Rate limiting re-schedules messages through Wolverine's scheduling pipeline. Use durable inboxes or a transport with native scheduling support to ensure rescheduled messages are persisted correctly.
+Rate limiting re-schedules messages through Wolverine's scheduling pipeline. For external listeners, Wolverine requires durable inboxes to ensure rescheduled messages are persisted correctly.
+
+```cs
+opts.ListenToRabbitQueue("critical").UseDurableInbox();
+// or: opts.Policies.UseDurableInboxOnAllListeners();
+```
