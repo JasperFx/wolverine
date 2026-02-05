@@ -114,7 +114,11 @@ public class KafkaListener : IListener, IDisposable
         {
             try
             {
-                var tpo = new TopicPartitionOffset(envelope.TopicName, new Partition(envelope.Partition), new Offset(envelope.Offset));
+                var tpo = new TopicPartitionOffset(
+                    envelope.TopicName, 
+                    new Partition(envelope.Partition),
+                    new Offset(envelope.Offset + 1));
+                
                 _consumer.StoreOffset(tpo);
 
                 // If auto-commit is disabled, we need to manually commit after storing
