@@ -1,12 +1,16 @@
-﻿using JasperFx.Core;
+using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Weasel.Core.Migrations;
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
 using Wolverine.Persistence.Durability;
+using Wolverine.RateLimiting;
 using Wolverine.RDBMS;
+using Wolverine.SqlServer.RateLimiting;
+using Wolverine.SqlServer.Schema;
 using Wolverine.SqlServer.Transport;
 
 namespace Wolverine.SqlServer;
@@ -44,6 +48,29 @@ public static class SqlServerConfigurationExtensions
         extension.Configure(options);
 
         return extension;
+    }
+
+    /// <summary>
+    /// Register SQL Server backed rate limiting storage
+    /// </summary>
+    public static ISqlServerBackedPersistence UseSqlServerRateLimiting(this ISqlServerBackedPersistence persistence,
+        Action<SqlServerRateLimitOptions>? configure = null)
+    {
+        var options = new SqlServerRateLimitOptions();
+        configure?.Invoke(options);
+
+        var concrete = persistence.As<SqlServerBackedPersistence>();
+        var schemaName = options.SchemaName ?? concrete.EnvelopeStorageSchemaName;
+
+        concrete.AddStoreConfiguration(store =>
+        {
+            store.AddTable(new RateLimitTable(schemaName, options.TableName));
+        });
+
+        concrete.Options.Services.TryAddSingleton(options);
+        concrete.Options.Services.TryAddSingleton<IRateLimitStore, SqlServerRateLimitStore>();
+
+        return persistence;
     }
 
     /// <summary>

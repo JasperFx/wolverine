@@ -74,6 +74,7 @@ internal class SqlServerTenantedMessageStore : ITenantedMessageSource
 
         store = new SqlServerMessageStore(settings, _runtime.Options.Durability,
             _runtime.LoggerFactory.CreateLogger<SqlServerMessageStore>(), _sagaTables);
+        _persistence.ApplyStoreConfigurations(store);
         return store;
     }
 

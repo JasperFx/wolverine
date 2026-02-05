@@ -452,11 +452,6 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
         {
             yield return table;
         }
-
-        foreach (var table in _otherTables)
-        {
-            yield return table;
-        }
         
         if (Role == MessageStoreRole.Main)
         {
@@ -524,11 +519,9 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
         }
     }
 
-    private readonly List<Table> _otherTables = new();
-
     public void AddTable(Table table)
     {
-        _otherTables.Add(table);
+        _externalTables.Add(table);
     }
 
     public override IDatabaseSagaSchema<TId, TSaga> SagaSchemaFor<TSaga, TId>() 
