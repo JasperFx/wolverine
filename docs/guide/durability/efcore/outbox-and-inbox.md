@@ -52,33 +52,6 @@ public class SampleMappedDbContext : DbContext
 }
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests/SampleDbContext.cs#L31-L57' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_mapping_envelope_storage_to_dbcontext' title='Start of snippet'>anchor</a></sup>
-<a id='snippet-sample_mapping_envelope_storage_to_dbcontext-1'></a>
-```cs
-public class SampleMappedDbContext : DbContext
-{
-    public SampleMappedDbContext(DbContextOptions<SampleMappedDbContext> options) : base(options)
-    {
-    }
-
-    public DbSet<Item> Items { get; set; }
-
-    protected override void OnModelCreating(ModelBuilder modelBuilder)
-    {
-        // This enables your DbContext to map the incoming and
-        // outgoing messages as part of the outbox
-        modelBuilder.MapWolverineEnvelopeStorage();
-
-        // Your normal EF Core mapping
-        modelBuilder.Entity<Item>(map =>
-        {
-            map.ToTable("items");
-            map.HasKey(x => x.Id);
-            map.Property(x => x.Name);
-        });
-    }
-}
-```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/SampleDbContext.cs#L56-L82' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_mapping_envelope_storage_to_dbcontext-1' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Outbox Outside of Wolverine Handlers
