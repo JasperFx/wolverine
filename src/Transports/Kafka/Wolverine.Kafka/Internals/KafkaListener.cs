@@ -112,24 +112,17 @@ public class KafkaListener : IListener, IDisposable
     {
         if (_enableAtLeastOnceDelivery)
         {
-            try
-            {
-                var tpo = new TopicPartitionOffset(
-                    envelope.TopicName, 
-                    new Partition(envelope.Partition),
-                    new Offset(envelope.Offset + 1));
-                
-                _consumer.StoreOffset(tpo);
+            var tpo = new TopicPartitionOffset(
+                envelope.TopicName,
+                new Partition(envelope.Partition),
+                new Offset(envelope.Offset + 1));
 
-                // If auto-commit is disabled, we need to manually commit after storing
-                if (Config.EnableAutoCommit.HasValue && !Config.EnableAutoCommit.Value)
-                {
-                    _consumer.Commit();
-                }
-            }
-            catch (KafkaException e)
+            _consumer.StoreOffset(tpo);
+
+            // If auto-commit is disabled, we need to manually commit after storing
+            if (Config.EnableAutoCommit.HasValue && !Config.EnableAutoCommit.Value)
             {
-                _logger.LogWarning(e, "Failed to store Kafka offset for message at offset {Offset}", envelope.Offset);
+                _consumer.Commit();
             }
 
             return ValueTask.CompletedTask;
