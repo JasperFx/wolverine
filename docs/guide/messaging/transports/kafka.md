@@ -51,9 +51,9 @@ opts.ListenToKafkaTopic("critical-events")
     .EnableAtLeastOnceDelivery();
 ```
 
-```warning
+::: warning
 The configuration in `ConfigureConsumer()` for each topic completely overwrites any previous configuration
-```
+:::
 
 To connect to Kafka, use this syntax:
 
