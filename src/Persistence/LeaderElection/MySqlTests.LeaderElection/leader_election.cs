@@ -1,12 +1,11 @@
 using IntegrationTests;
-using Microsoft.Data.SqlClient;
-using Weasel.SqlServer;
+using MySqlConnector;
 using Wolverine;
 using Wolverine.ComplianceTests;
-using Wolverine.SqlServer;
+using Wolverine.MySql;
 using Xunit.Abstractions;
 
-namespace SqlServerTests.Agents;
+namespace MySqlTests.LeaderElection;
 
 public class leader_election : LeadershipElectionCompliance
 {
@@ -16,14 +15,16 @@ public class leader_election : LeadershipElectionCompliance
 
     protected override void configureNode(WolverineOptions opts)
     {
-        opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString, "registry");
+        opts.PersistMessagesWithMySql(Servers.MySqlConnectionString, "registry");
     }
 
     protected override async Task beforeBuildingHost()
     {
-        using var conn = new SqlConnection(Servers.SqlServerConnectionString);
+        await using var conn = new MySqlConnection(Servers.MySqlConnectionString);
         await conn.OpenAsync();
-        await conn.DropSchemaAsync("registry");
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = "DROP DATABASE IF EXISTS `registry`";
+        await cmd.ExecuteNonQueryAsync();
         await conn.CloseAsync();
     }
 }

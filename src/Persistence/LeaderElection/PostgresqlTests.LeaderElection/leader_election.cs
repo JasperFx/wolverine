@@ -1,12 +1,15 @@
 using IntegrationTests;
-using MySqlConnector;
+using Npgsql;
+using Weasel.Postgresql;
 using Wolverine;
 using Wolverine.ComplianceTests;
-using Wolverine.MySql;
+using Wolverine.Postgresql;
+using Xunit;
 using Xunit.Abstractions;
 
-namespace MySqlTests.Agents;
+namespace PostgresqlTests.LeaderElection;
 
+[Collection("marten")]
 public class leader_election : LeadershipElectionCompliance
 {
     public leader_election(ITestOutputHelper output) : base(output)
@@ -15,16 +18,14 @@ public class leader_election : LeadershipElectionCompliance
 
     protected override void configureNode(WolverineOptions opts)
     {
-        opts.PersistMessagesWithMySql(Servers.MySqlConnectionString, "registry");
+        opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, "registry");
     }
 
     protected override async Task beforeBuildingHost()
     {
-        await using var conn = new MySqlConnection(Servers.MySqlConnectionString);
+        await using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
         await conn.OpenAsync();
-        await using var cmd = conn.CreateCommand();
-        cmd.CommandText = "DROP DATABASE IF EXISTS `registry`";
-        await cmd.ExecuteNonQueryAsync();
+        await conn.DropSchemaAsync("registry");
         await conn.CloseAsync();
     }
 }
