@@ -26,18 +26,21 @@ public class publish_and_receive_raw_json : IAsyncLifetime
                 //opts.EnableAutomaticFailureAcks = false;
                 opts.UseKafka("localhost:9092").AutoProvision();
                 opts.ListenToKafkaTopic("json")
-                    
+
                     // You do have to tell Wolverine what the message type
-                    // is that you'll receive here so that it can deserialize the 
+                    // is that you'll receive here so that it can deserialize the
                     // incoming data
                     .ReceiveRawJson<ColorMessage>();
 
+                // Include test assembly for handler discovery
+                opts.Discovery.IncludeAssembly(GetType().Assembly);
+
                 opts.Services.AddResourceSetupOnStartup();
-                
+
                 opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, "kafka");
 
                 opts.Services.AddResourceSetupOnStartup();
-                
+
                 opts.Policies.UseDurableInboxOnAllListeners();
             }).StartAsync();
 

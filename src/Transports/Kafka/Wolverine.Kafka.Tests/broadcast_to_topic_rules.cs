@@ -32,13 +32,15 @@ public class broadcast_to_topic_rules : IAsyncLifetime
                 opts.ListenToKafkaTopic("red").ConfigureConsumer(c =>
                 {
                     c.GroupId = "crimson";
-                    c.BootstrapServers = "localhost:9092";
                 });
                 opts.ListenToKafkaTopic("green");
                 opts.ListenToKafkaTopic("blue");
                 opts.ListenToKafkaTopic("purple");
 
                 opts.ServiceName = "receiver";
+
+                // Include test assembly for handler discovery
+                opts.Discovery.IncludeAssembly(GetType().Assembly);
 
                 opts.Services.AddResourceSetupOnStartup();
                 opts.Services.AddSingleton<ILoggerProvider>(new OutputLoggerProvider(_output));

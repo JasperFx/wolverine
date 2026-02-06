@@ -12,8 +12,8 @@ public class InlineKafkaSender : ISender, IDisposable
     {
         _topic = topic;
         Destination = topic.Uri;
-        _producer = _topic.Parent.CreateProducer(topic.ProducerConfig);
-        Config = topic.ProducerConfig ?? _topic.Parent.ProducerConfig;
+        Config = topic.GetEffectiveProducerConfig();
+        _producer = _topic.Parent.CreateProducer(Config);
     }
 
     public ProducerConfig Config { get; }

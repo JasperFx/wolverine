@@ -44,6 +44,9 @@ public class when_publishing_and_receiving_by_partition_key : IAsyncLifetime
                 opts.ListenToKafkaTopic("colorswithkey")
                 .ProcessInline();
 
+                // Include test assembly for handler discovery
+                opts.Discovery.IncludeAssembly(GetType().Assembly);
+
                 opts.Services.AddResourceSetupOnStartup();
             }).StartAsync();
     }

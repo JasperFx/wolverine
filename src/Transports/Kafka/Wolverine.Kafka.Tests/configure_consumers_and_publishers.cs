@@ -25,7 +25,10 @@ public class configure_consumers_and_publishers : IAsyncLifetime
          _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.ServiceName = "Wolverine.Kafka.Tests";
+
                 opts.UseKafka("localhost:9092")
+                    .AutoProvision()
                     .ConfigureConsumers(consumer =>
                     {
                         // GroupId will be null
@@ -48,32 +51,38 @@ public class configure_consumers_and_publishers : IAsyncLifetime
                         t.Specification.NumPartitions = 4;
                         await c.CreateTopicsAsync([t.Specification]);
                     })
-                    
+
                     // Override the producer configuration for just this topic
                     .ConfigureProducer(config =>
                     {
                         config.BatchSize = 222;
                     }).SendInline();
 
+                // Publish RedMessage to the red topic for the test
+                opts.PublishMessage<RedMessage>()
+                    .ToKafkaTopic("red")
+                    .SendInline();
+
                 // Listen to topics
                 opts.ListenToKafkaTopic("red")
                     .ProcessInline()
-                    
-                    // Override the consumer configuration for only this 
+
+                    // Override the consumer configuration for only this
                     // topic
                     .ConfigureConsumer(config =>
                     {
                         // This will also set the Envelope.GroupId for any
                         // received messages at this topic
                         config.GroupId = "foo";
-                        config.BootstrapServers = "localhost:9092";
-                        
+
                         // Other configuration
                     }).Named("red");
 
                 opts.ListenToKafkaTopic("green")
                     .BufferedInMemory();
 
+                // Include test assembly for handler discovery
+                opts.Discovery.IncludeAssembly(GetType().Assembly);
 
                 // This will direct Wolverine to try to ensure that all
                 // referenced Kafka topics exist at application start up
@@ -90,9 +99,11 @@ public class configure_consumers_and_publishers : IAsyncLifetime
     [Fact]
     public async Task can_receive_the_group_id_for_the_consumer_on_the_envelope()
     {
-        Task Send(IMessageContext c) => c.EndpointFor("red").SendAsync(new RedMessage("one")).AsTask();
-        var session = await _host.TrackActivity().IncludeExternalTransports().ExecuteAndWaitAsync(Send);
-        
+        var session = await _host.TrackActivity()
+            .IncludeExternalTransports()
+            .WaitForMessageToBeReceivedAt<RedMessage>(_host)
+            .PublishMessageAndWaitAsync(new RedMessage("one"));
+
         session.Received.SingleEnvelope<RedMessage>()
             .GroupId.ShouldBe("foo");
     }
