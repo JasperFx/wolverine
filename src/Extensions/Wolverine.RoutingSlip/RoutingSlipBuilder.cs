@@ -1,4 +1,6 @@
-﻿namespace Wolverine.RoutingSlip;
+﻿using Wolverine.RoutingSlip.Internal;
+
+namespace Wolverine.RoutingSlip;
 
 /// <summary>
 ///     A builder for creating routing slips
@@ -28,6 +30,6 @@ public sealed class RoutingSlipBuilder
     public RoutingSlip Build()
     {
         return new RoutingSlip(Guid.NewGuid(), DateTime.UtcNow,
-            new Queue<RoutingSlipExecution>(_activities), []);
+            new Queue<RoutingSlipExecution>(_activities), new SerializableStack<RoutingSlipExecutionLog>());
     }
 }

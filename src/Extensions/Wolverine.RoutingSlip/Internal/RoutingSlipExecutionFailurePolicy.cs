@@ -34,7 +34,7 @@ internal sealed class RoutingSlipExecutionFailurePolicy(RoutingSlipOptions routi
                 .And(async (_, context, _) =>
                 {
                     if (context.Envelope?.Message is ExecutionContext exec &&
-                        exec.RoutingSlip.ExecutedActivities.TryPop(out var next))
+                        exec.RoutingSlip.TryGetExecutedActivity(out var next))
                     {
                         await context.SendAsync(
                             new CompensationContext(

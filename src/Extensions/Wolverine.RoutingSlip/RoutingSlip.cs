@@ -5,5 +5,5 @@ namespace Wolverine.RoutingSlip;
 /// <inheritdoc />
 public sealed record RoutingSlip(Guid TrackingNumber, DateTime CreateTimestamp, 
     Queue<RoutingSlipExecution> RemainingActivities, 
-    Stack<RoutingSlipExecutionLog> ExecutedActivities)
+    SerializableStack<RoutingSlipExecutionLog> ExecutedActivities)
     : IRoutingSlip;

@@ -14,8 +14,8 @@ internal static class RoutingSlipExtensions
         return routingSlip.RemainingActivities.TryDequeue(out execution);
     }
 
-    public static void AddExecutedActivity(this RoutingSlip routingSlip, RoutingSlipExecutionLog routingSlipExecutionLog)
+    public static void AddExecutedActivity(this RoutingSlip routingSlip, RoutingSlipExecutionLog executionLog)
     {
-        routingSlip.ExecutedActivities.Push(routingSlipExecutionLog);
+        routingSlip.ExecutedActivities.Push(executionLog);
     }
 }

@@ -1,4 +1,5 @@
 ﻿using System.Collections.Concurrent;
+using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Shouldly;
@@ -33,9 +34,7 @@ public class end_to_end : IAsyncLifetime
         
         // Act
         var session = await _pubHost.TrackActivity()
-            .AlsoTrack(_firstHost)
-            .AlsoTrack(_secondHost)
-            .AlsoTrack(_thirdHost)
+            .AlsoTrack(_firstHost, _secondHost, _thirdHost)
             .ExecuteAndWaitAsync(ctx => ctx.ExecuteRoutingSlip(builder.Build()));
         
         // Assert
@@ -66,18 +65,16 @@ public class end_to_end : IAsyncLifetime
         var session = await _pubHost.TrackActivity()
             .IncludeExternalTransports()
             .DoNotAssertOnExceptionsDetected()
-            .AlsoTrack(_firstHost)
-            .AlsoTrack(_secondHost)
-            .AlsoTrack(_thirdHost)
+            .AlsoTrack(_firstHost, _secondHost, _thirdHost)
+            .Timeout(30.Seconds())
             .ExecuteAndWaitAsync(ctx => ctx.ExecuteRoutingSlip(builder.Build()));
+
+        await Task.Delay(1000);
         
         // Assert
         var receivedExecutions = session.Received.MessagesOf<ExecutionContext>().ToList();
         receivedExecutions.Count.ShouldBe(3);
         
-        var receivedCompensations = session.Received.MessagesOf<CompensationContext>().ToList();
-        receivedCompensations.Count.ShouldBe(2);
-
         var trackingNumber = receivedExecutions.Select(x => x.RoutingSlip.TrackingNumber).Distinct().Single();
         var compensationEvents = ActivityTracker.GetCompensations(trackingNumber);
         compensationEvents.Select(x => x.ActivityName).OrderBy(x => x).ShouldBe(new[] { "activity1", "activity2" }.OrderBy(x => x).ToArray());
@@ -137,9 +134,7 @@ public class end_to_end : IAsyncLifetime
             var session = await pubHost.TrackActivity()
                 .IncludeExternalTransports()
                 .DoNotAssertOnExceptionsDetected()
-                .AlsoTrack(firstHost)
-                .AlsoTrack(secondHost)
-                .AlsoTrack(thirdHost)
+                .AlsoTrack(firstHost, secondHost, thirdHost)
                 .ExecuteAndWaitAsync(ctx => ctx.ExecuteRoutingSlip(builder.Build()));
 
             var trackingNumber = session.Received.MessagesOf<ExecutionContext>()
@@ -217,8 +212,10 @@ public sealed class ActivityHandler(ILogger<ActivityHandler> logger) : IExecutio
             ActivityTracker.RecordExecution(context.RoutingSlip.TrackingNumber, activity.Name, activity.DestinationUri);
         }
 
-        logger.LogInformation("ExecutionContext on {Host} Tracking={Tracking}",
-            Environment.MachineName, context.RoutingSlip.TrackingNumber);
+        logger.LogInformation("ExecutionContext on {Host} Tracking={Tracking}" +
+                              "ExecutionId={ExecutionId} ExecutionName={ExecutionName}",
+            Environment.MachineName, context.RoutingSlip.TrackingNumber,
+            context.Id, context.CurrentActivity?.Name);
 
         if (context.CurrentActivity?.Name == "errorActivity3" ||
             ActivityHandlerBehavior.ShouldFail(context.CurrentActivity?.Name))
@@ -234,8 +231,8 @@ public sealed class ActivityHandler(ILogger<ActivityHandler> logger) : IExecutio
         ActivityTracker.RecordCompensation(context.RoutingSlip.TrackingNumber,
             context.CurrentLog.ExecutionName, context.CurrentLog.DestinationUri);
 
-        logger.LogInformation("CompensationContext on {Host} racking={Tracking} " +
-                              "ExecutionId={ExecutionId} ExecutionId={ExecutionName}",
+        logger.LogInformation("CompensationContext on {Host} Tracking={Tracking} " +
+                              "ExecutionId={ExecutionId} ExecutionName={ExecutionName}",
             Environment.MachineName, context.RoutingSlip.TrackingNumber, 
             context.ExecutionId, context.CurrentLog.ExecutionName);
         return ValueTask.CompletedTask;

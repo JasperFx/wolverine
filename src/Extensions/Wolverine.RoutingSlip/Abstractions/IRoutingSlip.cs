@@ -1,4 +1,6 @@
-﻿namespace Wolverine.RoutingSlip.Abstractions;
+﻿using Wolverine.RoutingSlip.Internal;
+
+namespace Wolverine.RoutingSlip.Abstractions;
 
 /// <summary>
 ///     A routing slip is a collection of activities that are executed in order
@@ -24,5 +26,5 @@ public interface IRoutingSlip
     /// <summary>
     ///     The list of activities that have been executed
     /// </summary>
-    Stack<RoutingSlipExecutionLog> ExecutedActivities { get; }
+    SerializableStack<RoutingSlipExecutionLog> ExecutedActivities { get; }
 }
