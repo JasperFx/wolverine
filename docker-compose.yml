@@ -100,3 +100,11 @@ services:
       - "4222:4222"
       - "8222:8222"
     command: ["--jetstream", "-m", "8222"]
+
+  mysql:
+    image: "mysql:8.0"
+    ports:
+      - "3306:3306"
+    environment:
+      - "MYSQL_ROOT_PASSWORD=P@55w0rd"
+      - "MYSQL_DATABASE=wolverine"

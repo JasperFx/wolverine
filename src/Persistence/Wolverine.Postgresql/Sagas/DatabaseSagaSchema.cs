@@ -45,7 +45,7 @@ public class DatabaseSagaSchema<T, TId> : IDatabaseSagaSchema<TId, T> where T : 
 
     public bool HasChecked { get; private set; }
     
-    private async Task ensureStorageExistsAsync(CancellationToken cancellationToken)
+    public async Task EnsureStorageExistsAsync(CancellationToken cancellationToken)
     {
         if (HasChecked || _settings.AutoCreate == AutoCreate.None) return;
 
@@ -71,7 +71,7 @@ public class DatabaseSagaSchema<T, TId> : IDatabaseSagaSchema<TId, T> where T : 
         var id = IdSource(saga);
         if (id == null || id.Equals(default(TId))) throw new ArgumentOutOfRangeException(nameof(saga), "You must define the saga id when using the lightweight saga storage");
         
-        await ensureStorageExistsAsync(cancellationToken);
+        await EnsureStorageExistsAsync(cancellationToken);
         await transaction.CreateCommand(_insertSql).As<NpgsqlCommand>()
             .With("id", id)
             .With("body", JsonSerializer.SerializeToUtf8Bytes(saga), NpgsqlDbType.Jsonb)
@@ -82,7 +82,7 @@ public class DatabaseSagaSchema<T, TId> : IDatabaseSagaSchema<TId, T> where T : 
     
     public async Task UpdateAsync(T saga, DbTransaction transaction, CancellationToken cancellationToken)
     {
-        await ensureStorageExistsAsync(cancellationToken);
+        await EnsureStorageExistsAsync(cancellationToken);
 
         var id = IdSource(saga);
         var count = await transaction.CreateCommand(_updateSql).As<NpgsqlCommand>()
@@ -100,7 +100,7 @@ public class DatabaseSagaSchema<T, TId> : IDatabaseSagaSchema<TId, T> where T : 
 
     public async Task DeleteAsync(T saga, DbTransaction transaction, CancellationToken cancellationToken)
     {
-        await ensureStorageExistsAsync(cancellationToken);
+        await EnsureStorageExistsAsync(cancellationToken);
         await transaction
             .CreateCommand(_deleteSql)
             .With("id", IdSource(saga))
@@ -109,7 +109,7 @@ public class DatabaseSagaSchema<T, TId> : IDatabaseSagaSchema<TId, T> where T : 
 
     public async Task<T?> LoadAsync(TId id, DbTransaction tx, CancellationToken cancellationToken)
     {
-        await ensureStorageExistsAsync(cancellationToken);
+        await EnsureStorageExistsAsync(cancellationToken);
         await using var reader = await tx.CreateCommand(_loadSql)
             .With("id", id)
             .ExecuteReaderAsync(cancellationToken);

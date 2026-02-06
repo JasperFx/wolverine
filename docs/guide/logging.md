@@ -77,44 +77,16 @@ Wolverine's node agent controller performs health checks periodically (every 10 
 
 You can control this tracing behavior through the `DurabilitySettings`:
 
-<!-- snippet: sample_using_Wolverine_Logging_attribute -->
-<a id='snippet-sample_using_wolverine_logging_attribute'></a>
+<!-- snippet: sample_configuring_health_check_tracing -->
+<a id='snippet-sample_configuring_health_check_tracing'></a>
 ```cs
-public record QuietMessage;
+// Disable the "wolverine_node_assignments" traces entirely
+opts.Durability.NodeAssignmentHealthCheckTracingEnabled = false;
 
-public record VerboseMessage;
-
-public class QuietAndVerboseMessageHandler
-{
-    [WolverineLogging(
-        telemetryEnabled:false,
-        successLogLevel: LogLevel.None,
-        executionLogLevel:LogLevel.Trace)]
-    public void Handle(QuietMessage message)
-    {
-        Console.WriteLine("Hush!");
-    }
-    
-    [WolverineLogging(
-        // Enable Open Telemetry tracing
-        TelemetryEnabled = true, 
-        
-        // Log on successful completion of this message
-        SuccessLogLevel = LogLevel.Information, 
-        
-        // Log on execution being complete, but before Wolverine does its own book keeping
-        ExecutionLogLevel = LogLevel.Information, 
-        
-        // Throw in yet another contextual logging statement
-        // at the beginning of message execution
-        MessageStartingLevel = LogLevel.Debug)]
-    public void Handle(VerboseMessage message)
-    {
-        Console.WriteLine("Tell me about it!");
-    }
-}
+// Or, sample those traces to only once every 10 minutes
+// opts.Durability.NodeAssignmentHealthCheckTraceSamplingPeriod = TimeSpan.FromMinutes(10);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/logging_configuration.cs#L78-L114' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_wolverine_logging_attribute' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/OpenTelemetry/OtelWebApiWolverineMarten/Program.cs#L18-L24' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_health_check_tracing' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Controlling Message Specific Logging and Tracing

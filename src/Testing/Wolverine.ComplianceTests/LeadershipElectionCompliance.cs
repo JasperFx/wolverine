@@ -49,6 +49,13 @@ public abstract class LeadershipElectionCompliance : IAsyncLifetime
         }
     }
 
+    public IHost FindHostRunning(Uri agentUri)
+    {
+        if (_originalHost.RunningAgents().Contains(agentUri)) return _originalHost;
+
+        return _hosts.FirstOrDefault(x => x.RunningAgents().Contains(agentUri));
+    }
+
     public IHost OriginalHost => _originalHost;
 
     protected abstract void configureNode(WolverineOptions options);
@@ -69,6 +76,14 @@ public abstract class LeadershipElectionCompliance : IAsyncLifetime
                 opts.Services.AddSingleton<ILoggerProvider>(new OutputLoggerProvider(_output));
 
                 opts.Services.AddResourceSetupOnStartup();
+
+                #region sample_register_singular_agent
+
+                // Little extension method helper on IServiceCollection to register your
+                // SingularAgent
+                opts.Services.AddSingularAgent<SimpleSingularAgent>();
+
+                #endregion
             }).StartAsync();
 
         new XUnitEventObserver(host, _output);
@@ -114,6 +129,30 @@ public abstract class LeadershipElectionCompliance : IAsyncLifetime
 
     /***** NEW TESTS END HERE **********************************************/
 
+    [Fact]
+    public async Task singular_agent_is_only_running_on_one()
+    {
+        var host2 = await startHostAsync();
+        var host3 = await startHostAsync();
+        var host4 = await startHostAsync();
+        
+        await _originalHost.WaitUntilAssumesLeadershipAsync(5.Seconds());
+
+        await shutdownHostAsync(_originalHost);
+
+        var uri = new Uri("simple://");
+
+        var cancellation = new CancellationTokenSource();
+        cancellation.CancelAfter(15.Seconds());
+        while (!cancellation.IsCancellationRequested && !_hosts.Any(x => x.RunningAgents().Contains(uri)))
+        {
+            await Task.Delay(250.Milliseconds());
+        }
+        
+        _hosts.SelectMany(x => x.RunningAgents()).Where(x => x == uri)
+            .Count().ShouldBe(1);
+    }
+    
     [Fact]
     public async Task leader_switchover_between_nodes()
     {

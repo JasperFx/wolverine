@@ -8,8 +8,9 @@ using Wolverine.RavenDb;
 using Wolverine.Transports.Tcp;
 using Wolverine.Util;
 using Xunit.Abstractions;
+using RavenDbTests;
 
-namespace RavenDbTests;
+namespace RavenDbTests.LeaderElection;
 
 [Collection("raven")]
 public class leadership_election_compliance : LeadershipElectionCompliance
@@ -33,7 +34,7 @@ public class leadership_election_compliance : LeadershipElectionCompliance
         options.UseTcpForControlEndpoint();
 
         options.ServiceName = "raven";
-        
+
         options.Services.AddSingleton(_store);
         options.UseRavenDbPersistence();
     }

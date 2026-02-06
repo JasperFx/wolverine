@@ -36,6 +36,8 @@ public class modular_monolith_usage
                     m.Connection(Servers.PostgresConnectionString);
                     m.DatabaseSchemaName = "things";
                 }).IntegrateWithWolverine();
+
+                opts.Services.AddResourceSetupOnStartup();
             }).StartAsync();
 
         var runtime = host.GetRuntime();
@@ -68,6 +70,8 @@ public class modular_monolith_usage
                     m.Connection(Servers.PostgresConnectionString);
                     m.DatabaseSchemaName = "things";
                 }).IntegrateWithWolverine();
+                
+                opts.Services.AddResourceSetupOnStartup();
             }).StartAsync();
 
         var runtime = host.GetRuntime();
@@ -138,6 +142,8 @@ public class modular_monolith_usage
                     m.Connection(Servers.PostgresConnectionString);
                     m.DatabaseSchemaName = "things";
                 }).IntegrateWithWolverine();
+                
+                opts.Services.AddResourceSetupOnStartup();
             }).StartAsync();
 
         var runtime = host.GetRuntime();

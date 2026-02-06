@@ -31,10 +31,11 @@ public class HttpEndpoint : Endpoint
         return Mode == EndpointMode.Inline
             ? new InlineHttpSender(this, runtime, runtime.Services)
             : new BatchedSender(
-                this,
-                new HttpSenderProtocol(this, runtime.Services),
-                runtime.Cancellation,
-                runtime.LoggerFactory.CreateLogger<HttpSenderProtocol>());
+                    this,
+                    new HttpSenderProtocol(this, runtime.Services),
+                    runtime.Cancellation,
+                    runtime.LoggerFactory.CreateLogger<HttpSenderProtocol>())
+                { SupportsNativeScheduledSend = SupportsNativeScheduledSend };
     }
 
     public override IDictionary<string, object> DescribeProperties()

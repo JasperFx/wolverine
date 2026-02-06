@@ -5,7 +5,7 @@ using Wolverine.Transports.Sending;
 
 namespace Wolverine.Redis.Internal;
 
-public class RedisSenderProtocol : ISenderProtocol, IDisposable
+public class RedisSenderProtocol : ISenderProtocolWithNativeScheduling, IDisposable
 {
     private readonly RedisTransport _transport;
     private readonly RedisStreamEndpoint _endpoint;

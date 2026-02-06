@@ -5,7 +5,8 @@ using Raven.Client.Documents;
 namespace Internal.Generated.WolverineHandlers
 {
     // START: StringStartHandler2085759971
-    public class StringStartHandler2085759971 : Wolverine.Runtime.Handlers.MessageHandler
+    [global::System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")]
+    public sealed class StringStartHandler2085759971 : Wolverine.Runtime.Handlers.MessageHandler
     {
         private readonly Raven.Client.Documents.IDocumentStore _documentStore;
 
@@ -22,11 +23,14 @@ namespace Internal.Generated.WolverineHandlers
             // The actual message body
             var stringStart = (Wolverine.ComplianceTests.Sagas.StringStart)context.Envelope.Message;
 
+            // Application-specific Open Telemetry auditing
+            System.Diagnostics.Activity.Current?.SetTag("Id", stringStart.Id);
             var stringBasicWorkflow = new Wolverine.ComplianceTests.Sagas.StringBasicWorkflow();
             
             // The actual message execution
             stringBasicWorkflow.Start(stringStart);
 
+            context.SetSagaId(stringStart.Id);
             if (!stringBasicWorkflow.IsCompleted())
             {
                 await asyncDocumentSession.StoreAsync(stringBasicWorkflow, cancellation).ConfigureAwait(false);

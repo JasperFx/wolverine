@@ -61,9 +61,9 @@ public class SharedMemorySubscription : SharedMemoryEndpoint, IListener, ISender
         return _receiver.PostAsync(envelope);
     }
 
-    public async ValueTask DisposeAsync()
+    public ValueTask DisposeAsync()
     {
-        await _receiver.DisposeAsync();
+        return new ValueTask();
     }
 
     public Uri Address => Uri;

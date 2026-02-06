@@ -20,7 +20,7 @@ public class IncomingMessage_mapping
         theEnvelope.Id = Guid.NewGuid();
         theEnvelope.OwnerId = 3;
         theEnvelope.Attempts = 2;
-        theEnvelope.Status = EnvelopeStatus.Handled;
+        theEnvelope.Status = EnvelopeStatus.Incoming;
         
         var message = new IncomingMessage(theEnvelope, new RavenDbMessageStore(Substitute.For<IDocumentStore>(), new WolverineOptions()));
         theMappedEnvelope = message.Read();
@@ -35,7 +35,7 @@ public class IncomingMessage_mapping
     [Fact]
     public void map_the_status()
     {
-        theMappedEnvelope.Status.ShouldBe(EnvelopeStatus.Handled);
+        theMappedEnvelope.Status.ShouldBe(EnvelopeStatus.Incoming);
     }
 
     [Fact]

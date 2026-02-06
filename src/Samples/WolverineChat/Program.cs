@@ -68,9 +68,16 @@ app.UseRouting();
 
 app.UseAuthorization();
 
+#if NET9_0_OR_GREATER
 app.MapStaticAssets();
 app.MapRazorPages()
     .WithStaticAssets();
+#endif
+#if NET8_0
+app.UseStaticFiles();
+app.MapRazorPages();
+#endif
+
 
 // This line puts the SignalR hub for Wolverine at the 
 // designated route for your clients

@@ -101,14 +101,24 @@ public partial class WolverineOptions : IAsyncDisposable
     /// <returns></returns>
     public PublishingExpression PublishMessage<TMessageType>()
     {
-        RegisterMessageType(typeof(TMessageType));
-        
+        return PublishMessage(typeof(TMessageType));
+    }
+
+    /// <summary>
+    ///     Shorthand syntax to route a single message type
+    /// </summary>
+    /// <param name="messageType"></param>
+    /// <returns></returns>
+    public PublishingExpression PublishMessage(Type messageType)
+    {
+        RegisterMessageType(messageType);
+
         var expression = new PublishingExpression(this)
         {
             AutoAddSubscriptions = true
         };
 
-        expression.Message<TMessageType>();
+        expression.Message(messageType);
 
         return expression;
     }

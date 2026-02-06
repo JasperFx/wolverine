@@ -510,6 +510,9 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
     protected internal virtual ISendingAgent StartSending(IWolverineRuntime runtime,
         Uri? replyUri)
     {
+        // Compile must be called before CreateSender so that delayed configuration
+        // (like InteropWithCloudEvents) is applied before the sender calls BuildMapper()
+        Compile(runtime);
         var sender = runtime.Options.ExternalTransportsAreStubbed ? new NullSender(Uri) : CreateSender(runtime);
         return runtime.Endpoints.CreateSendingAgent(replyUri, sender, this);
     }

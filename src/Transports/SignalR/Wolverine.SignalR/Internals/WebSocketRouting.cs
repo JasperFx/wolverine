@@ -34,12 +34,12 @@ public class WebSocketRouting
     
     public interface ILocator
     {
-        IClientProxy Find<T>(IHubContext<T> context) where T : WolverineHub;
+        IClientProxy Find<T>(IHubContext<T> context) where T : Hub;
     }
 
     public record Connection(string ConnectionId) : ILocator
     {
-        public IClientProxy Find<T>(IHubContext<T> context) where T : WolverineHub
+        public IClientProxy Find<T>(IHubContext<T> context) where T : Hub
         {
             return context.Clients.Client(ConnectionId);
         }
@@ -52,7 +52,7 @@ public class WebSocketRouting
 
     public record All : ILocator
     {
-        public IClientProxy Find<T>(IHubContext<T> context) where T : WolverineHub
+        public IClientProxy Find<T>(IHubContext<T> context) where T : Hub
         {
             return context.Clients.All;
         }
@@ -60,7 +60,7 @@ public class WebSocketRouting
 
     public record Group(string GroupName) : ILocator
     {
-        public IClientProxy Find<T>(IHubContext<T> context) where T : WolverineHub
+        public IClientProxy Find<T>(IHubContext<T> context) where T : Hub
         {
             return context.Clients.Group(GroupName);
         }

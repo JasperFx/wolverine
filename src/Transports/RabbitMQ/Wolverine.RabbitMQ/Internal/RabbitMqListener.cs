@@ -102,7 +102,6 @@ internal class RabbitMqListener : RabbitMqChannelAgent, IListener, ISupportDeadL
 
     public override async ValueTask DisposeAsync()
     {
-        _receiver.Dispose();
         await base.DisposeAsync();
 
         if (_sender.IsValueCreated && _sender.Value is IAsyncDisposable ad)

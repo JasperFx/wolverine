@@ -18,8 +18,6 @@ In its most simplistic usage you enable the MQTT transport through calling the `
 and defining which MQTT topics you want to publish or subscribe to with the normal [subscriber rules](/guide/messaging/subscriptions) as 
 shown in this sample:
 
-<!-- snippet: sample_using_mqtt -->
-<a id='snippet-sample_using_mqtt'></a>
 ```cs
 var builder = Host.CreateApplicationBuilder();
 
@@ -54,8 +52,6 @@ builder.UseWolverine(opts =>
 using var host = builder.Build();
 await host.StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/MQTT/Wolverine.MQTT.Tests/Samples.cs#L14-L50' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_mqtt' title='Start of snippet'>anchor</a></sup>
-<!-- endSnippet -->
 
 ::: info
 The MQTT transport *at this time* only supports endpoints that are either `Buffered` or `Durable`. 
@@ -356,6 +352,31 @@ public static ClearMqttTopic Handle(TriggerZero message)
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/MQTT/Wolverine.MQTT.Tests/ack_smoke_tests.cs#L84-L98' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_ack_mqtt_topic' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+
+## Authentication via OAuth2
+
+Wolverine supports MQTT v5 OAuth2/JWT authentication by supplying a token callback and refresh interval when you configure
+the transport. The callback returns raw token bytes (use UTF-8 encoding if your token is a string). When configured,
+Wolverine sets the MQTT authentication method to `OAUTH2-JWT`, sends the initial token with the connect packet, and
+re-authenticates on the configured refresh period while the client is connected.
+
+::: info
+You don't need to configure `AuthenticationMethod` and `AuthenticationData` by yourself. These are overriden when the `MqttJwtAuthenticationOptions` parameter is set.
+:::
+
+Minimal configuration example:
+```cs
+var builder = Host.CreateApplicationBuilder();
+
+builder.UseWolverine(opts =>
+{
+    opts.UseMqtt(
+        mqtt => mqtt.WithClientOptions(client => client.WithTcpServer("broker")),
+        new MqttJwtAuthenticationOptions(
+            async () => Encoding.UTF8.GetBytes(await GetJwtTokenAsync()),
+            30.Minutes()));
+});
+```
 
 ## Interoperability
 

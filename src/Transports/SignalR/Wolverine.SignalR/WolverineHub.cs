@@ -4,7 +4,7 @@ using Wolverine.SignalR.Internals;
 namespace Wolverine.SignalR;
 
 /// <summary>
-///     Base class for Wolverine enabled SignalR Hubs
+/// Base class for Wolverine enabled SignalR Hubs
 /// </summary>
 public class WolverineHub : Hub
 {
@@ -16,7 +16,7 @@ public class WolverineHub : Hub
     }
 
     [HubMethodName("ReceiveMessage")]
-    public Task ReceiveMessage(string json)
+    public virtual Task ReceiveMessage(string json)
     {
         return _endpoint.ReceiveAsync(Context, json);
     }

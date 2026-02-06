@@ -321,6 +321,7 @@ class Build : NukeBuild
                 Solution.Persistence.Wolverine_Marten,
                 Solution.Persistence.Wolverine_RavenDb,
                 Solution.Persistence.Wolverine_SqlServer,
+                Solution.Persistence.Wolverine_MySql,
                 Solution.Extensions.Wolverine_FluentValidation,
                 Solution.Extensions.Wolverine_MemoryPack,
                 Solution.Extensions.Wolverine_MessagePack,

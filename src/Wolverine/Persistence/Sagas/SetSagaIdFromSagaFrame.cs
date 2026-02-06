@@ -13,27 +13,29 @@ namespace Wolverine.Persistence.Sagas;
 /// </summary>
 internal class SetSagaIdFromSagaFrame : SyncFrame
 {
-    private readonly Variable _saga;
+    private readonly Type _messageType;
     private readonly MemberInfo _sagaIdMember;
     private Variable? _context;
+    private Variable _message;
 
-    public SetSagaIdFromSagaFrame(Variable saga, MemberInfo sagaIdMember)
+    public SetSagaIdFromSagaFrame(Type messageType, MemberInfo sagaIdMember)
     {
-        _saga = saga;
+        _messageType = messageType;
         _sagaIdMember = sagaIdMember;
-        uses.Add(_saga);
     }
 
     public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
     {
+        _message = chain.FindVariable(_messageType);
+        yield return _message;
+        
         _context = chain.FindVariable(typeof(MessageContext));
         yield return _context;
     }
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
-        var idAccess = $"{_saga.Usage}.{_sagaIdMember.Name}";
-        writer.Write($"{_context!.Usage}.{nameof(MessageContext.SetSagaId)}({idAccess});");
+        writer.Write($"{_context!.Usage}.{nameof(MessageContext.SetSagaId)}({_message.Usage}.{_sagaIdMember.Name});");
         Next?.GenerateCode(method, writer);
     }
 }

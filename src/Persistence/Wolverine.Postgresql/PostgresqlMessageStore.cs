@@ -17,6 +17,7 @@ using Wolverine.Postgresql.Util;
 using Wolverine.RDBMS;
 using Wolverine.RDBMS.Sagas;
 using Wolverine.RDBMS.Transport;
+using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.WorkerQueues;
 using Wolverine.Transports;
@@ -259,13 +260,27 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
     {
         if (HasDisposed) return false;
 
-        await using var conn = await NpgsqlDataSource.OpenConnectionAsync(cancellation);
-        var count = await conn
-            .CreateCommand($"select count(id) from {SchemaName}.{DatabaseConstants.IncomingTable} where id = :id")
-            .With("id", envelope.Id)
-            .ExecuteScalarAsync(cancellation);
+        if (Durability.MessageIdentity == MessageIdentity.IdOnly)
+        {
+            await using var conn = await NpgsqlDataSource.OpenConnectionAsync(cancellation);
+            var count = await conn
+                .CreateCommand($"select count(id) from {SchemaName}.{DatabaseConstants.IncomingTable} where id = :id")
+                .With("id", envelope.Id)
+                .ExecuteScalarAsync(cancellation);
 
-        return ((long)count) > 0;
+            return ((long)count) > 0;
+        }
+        else
+        {
+            await using var conn = await NpgsqlDataSource.OpenConnectionAsync(cancellation);
+            var count = await conn
+                .CreateCommand($"select count(id) from {SchemaName}.{DatabaseConstants.IncomingTable} where id = :id and {DatabaseConstants.ReceivedAt} = :destination")
+                .With("id", envelope.Id)
+                .With("destination", envelope.Destination.ToString())
+                .ExecuteScalarAsync(cancellation);
+
+            return ((long)count) > 0;
+        }
     }
 
     public override void WriteLoadScheduledEnvelopeSql(DbCommandBuilder builder, DateTimeOffset utcNow)
@@ -277,7 +292,7 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
         builder.Append($" order by execution_time LIMIT {Durability.RecoveryBatchSize};");
     }
 
-    public override async Task PollForScheduledMessagesAsync(ILocalReceiver localQueue, ILogger logger,
+    public override async Task PollForScheduledMessagesAsync(IWolverineRuntime runtime, ILogger logger,
         DurabilitySettings durabilitySettings, CancellationToken cancellationToken)
     {
         IReadOnlyList<Envelope> envelopes;
@@ -314,12 +329,7 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
                 await tx.CommitAsync(cancellationToken);
 
                 // Judging that there's very little chance of errors here
-                foreach (var envelope in envelopes)
-                {
-                    logger.LogInformation("Locally enqueuing scheduled message {Id} of type {MessageType}", envelope.Id,
-                        envelope.MessageType);
-                    await localQueue.EnqueueAsync(envelope);
-                }
+                await runtime.EnqueueDirectlyAsync(envelopes);
             }
         }
         finally

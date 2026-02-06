@@ -94,9 +94,15 @@ app.UseRouting();
 
 app.UseAuthorization();
 
+#if NET9_0_OR_GREATER
 app.MapStaticAssets();
 app.MapRazorPages()
     .WithStaticAssets();
+#endif
+#if NET8_0
+app.UseStaticFiles();
+app.MapRazorPages();
+#endif
 
 // This line puts the SignalR hub for Wolverine at the 
 // designated route for your clients
@@ -104,8 +110,39 @@ app.MapWolverineSignalRHub("/api/messages");
 
 return await app.RunJasperFxCommands(args);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/WolverineChat/Program.cs#L63-L81' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_map_wolverine_signalrhub' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/WolverineChat/Program.cs#L63-L88' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_map_wolverine_signalrhub' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+
+## Custom hubs
+
+If the default `WolverineHub` isn't enough, you can provide a custom Hub that will be used for all received messages:
+
+<!-- snippet: sample_custom_signalr_hub -->
+<a id='snippet-sample_custom_signalr_hub'></a>
+```cs
+builder.Services.AddSignalR();
+builder.Host.UseWolverine(opts =>
+{
+    opts.ServiceName = "Server";
+
+    // Hooking up the SignalR messaging transport
+    // in Wolverine using a custom hub
+    opts.UseSignalR<THub>();
+
+    // A message for testing
+    opts.PublishMessage<FromSecond>().ToSignalR();
+});
+
+var app = builder.Build();
+
+// Syntactic sugar, really just doing:
+// app.MapHub<THub>("/messages");
+app.MapWolverineSignalRHub<THub>();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/SignalR/Wolverine.SignalR.Tests/WebSocketTestContext.cs#L151-L170' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_custom_signalr_hub' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Custom hubs must still inherit from `WolverineHub`. It's possible to override `ReceiveMessage`, but if you don't invoke the base functionality you're gonna have a bad time.
 
 ## Messages and Serialization
 
@@ -191,7 +228,7 @@ The actual JSON serialization in the SignalR transport is isolated from the rest
 JsonOptions = new(JsonSerializerOptions.Web) { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 JsonOptions.Converters.Add(new JsonStringEnumConverter());
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/SignalR/Wolverine.SignalR/Internals/SignalRTransport.cs#L26-L31' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_signalr_default_json_configuration' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/SignalR/Wolverine.SignalR/Internals/SignalRTransport.cs#L27-L32' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_signalr_default_json_configuration' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 But of course, if you needed to override the JSON serialization for whatever reason, you can just push in a 
@@ -473,7 +510,7 @@ transport:
 public abstract class WebSocketTestContext : IAsyncLifetime
 {
     protected WebApplication theWebApp;
-    private readonly int Port = PortFinder.GetAvailablePort();
+    protected readonly int Port = PortFinder.GetAvailablePort();
     protected readonly Uri clientUri;
 
     private readonly List<IHost> _clientHosts = new();
@@ -492,7 +529,7 @@ public abstract class WebSocketTestContext : IAsyncLifetime
             opts.ListenLocalhost(Port);
         });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/SignalR/Wolverine.SignalR.Tests/WebSocketTestContext.cs#L12-L36' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_signalr_client_test_harness_setup' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/SignalR/Wolverine.SignalR.Tests/WebSocketTestContext.cs#L16-L40' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_signalr_client_test_harness_setup' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In the same test harness class, we bootstrap new `IHost` instances with the SignalR Client to mimic browser client
@@ -505,13 +542,13 @@ var host = await Host.CreateDefaultBuilder()
     .UseWolverine(opts =>
     {
         opts.ServiceName = serviceName;
-        
+
         opts.UseClientToSignalR(Port);
-        
+
         opts.PublishMessage<ToFirst>().ToSignalRWithClient(Port);
-        
+
         opts.PublishMessage<RequiresResponse>().ToSignalRWithClient(Port);
-        
+
         opts.Publish(x =>
         {
             x.MessagesImplementing<WebSocketMessage>();
@@ -519,7 +556,7 @@ var host = await Host.CreateDefaultBuilder()
         });
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/SignalR/Wolverine.SignalR.Tests/WebSocketTestContext.cs#L73-L93' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_signalr_client_in_test' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/SignalR/Wolverine.SignalR.Tests/WebSocketTestContext.cs#L77-L97' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_signalr_client_in_test' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The key point here is that we stood up the service using a port number for Kestrel, then stood up `IHost` instances for
@@ -562,6 +599,49 @@ public async Task receive_message_from_a_client()
 
 *Conveniently enough as I write this documentation today using existing test code, Hollywood Brown had a huge
 game last night. Go Chiefs!*
+
+### Authorization
+
+If you are connecting to a hub requiring authorization (for example using the `[Authorize]` attribute) you need to provide a token provider.
+
+<!-- snippet: sample_signalr_authentication -->
+<a id='snippet-sample_signalr_authentication'></a>
+```cs
+var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.ServiceName = serviceName;
+
+        // Configure a client with an access token provider. You get an instance of `IServiceProvider`
+        // if you need access to additional services, for example accessing `IConfiguration`
+        opts.UseClientToSignalR(Port, accessTokenProvider: (sp) => () => Task.FromResult<string?>(accessToken));
+
+        opts.Publish(x =>
+        {
+            x.MessagesImplementing<WebSocketMessage>();
+            x.ToSignalRWithClient(Port);
+        });
+
+        opts.Publish(x =>
+        {
+            x.MessagesImplementing<AuthenticatedWebSocketMessage>();
+
+            // You can also configure the access token provider when configuring
+            // the message publishing. Last configuration wins and applies to the
+            // client URL, *not* the message type
+            x.ToSignalRWithClient(Port, accessTokenProvider: (sp) => () =>
+            {
+                var configuration = sp.GetRequiredService<IConfiguration>();
+                var configuredToken = configuration.GetValue<string?>("SignalR:AccessToken")
+                    // Fall back to the token passed in when testing
+                    ?? accessToken;
+                return Task.FromResult<string?>(configuredToken);
+            });
+        });
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/SignalR/Wolverine.SignalR.Tests/WebSocketTestContext.cs#L183-L216' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_signalr_authentication' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 ## Web Socket "Sagas"
 
