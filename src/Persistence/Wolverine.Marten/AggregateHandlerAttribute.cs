@@ -109,7 +109,7 @@ public class AggregateHandlerAttribute : ModifyChainAttribute, IDataRequirement,
             return property != null;
         }
         
-        var aggregateType = AggregateHandling.DetermineAggregateType(chain);
+        var aggregateType = AggregateType ?? AggregateHandling.DetermineAggregateType(chain);
         var idMember = AggregateHandling.DetermineAggregateIdMember(aggregateType, inputType);
         property = idMember as PropertyInfo;
         return property != null;
