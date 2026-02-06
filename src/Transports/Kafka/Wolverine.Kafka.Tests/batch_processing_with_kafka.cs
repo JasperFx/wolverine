@@ -1,6 +1,7 @@
 using Alba;
 using JasperFx;
 using JasperFx.CommandLine;
+using JasperFx.Core;
 using Shouldly;
 using Wolverine.Tracking;
 
@@ -25,6 +26,7 @@ public class batch_processing_with_kafka
         var tracked = await host
             .TrackActivity()
             .WaitForMessageToBeReceivedAt<TestMessage[]>(host)
+            .Timeout(30.Seconds())
             .ExecuteAndWaitAsync(execute);
 
         tracked.FindSingleTrackedMessageOfType<TestMessage[]>()
