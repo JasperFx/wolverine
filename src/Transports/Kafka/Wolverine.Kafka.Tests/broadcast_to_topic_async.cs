@@ -37,6 +37,9 @@ public class broadcast_to_topic_async : IAsyncLifetime
                 opts.UseKafka("localhost:9092").AutoProvision();
                 opts.ListenToKafkaTopic("incoming.one");
 
+                // Include test assembly for handler discovery
+                opts.Discovery.IncludeAssembly(GetType().Assembly);
+
                 opts.Services.AddResourceSetupOnStartup();
             }).StartAsync();
 
