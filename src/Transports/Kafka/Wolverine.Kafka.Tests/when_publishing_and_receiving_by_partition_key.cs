@@ -66,14 +66,22 @@ public class when_publishing_and_receiving_by_partition_key : IAsyncLifetime
     }
     
     [Fact]
-    public async Task received_message_with_key_and_offset()
+    public async Task  received_message_with_key_and_offset()
     {
+        await _sender.TrackActivity()
+            .AlsoTrack(_receiver)
+            .WaitForMessageToBeReceivedAt<ColorMessage>(_receiver)
+            .PublishMessageAndWaitAsync(new ColorMessage("hare"), new DeliveryOptions()
+            {
+                PartitionKey = "key1"
+            });
+        
         var session = await _sender.TrackActivity()
             .AlsoTrack(_receiver)
             .WaitForMessageToBeReceivedAt<ColorMessage>(_receiver)
             .PublishMessageAndWaitAsync(new ColorMessage("tortoise"), new DeliveryOptions()
             {
-                PartitionKey = "key1"
+                PartitionKey = "key1" 
             });
         var singleEnvelope = session.Received.SingleEnvelope<ColorMessage>();
         singleEnvelope.PartitionKey.ShouldBe("key1");

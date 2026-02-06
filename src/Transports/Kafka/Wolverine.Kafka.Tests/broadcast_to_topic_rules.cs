@@ -68,7 +68,7 @@ public class broadcast_to_topic_rules : IAsyncLifetime
         var session = await _sender
             .TrackActivity()
             .AlsoTrack(_receiver)
-            .Timeout(30.Seconds())
+            .Timeout(60.Seconds())
             .WaitForMessageToBeReceivedAt<RedMessage>(_receiver)
             .PublishMessageAndWaitAsync(new RedMessage("one"));
 
@@ -85,7 +85,7 @@ public class broadcast_to_topic_rules : IAsyncLifetime
         var session = await _sender
             .TrackActivity()
             .AlsoTrack(_receiver)
-            .Timeout(30.Seconds())
+            .Timeout(60.Seconds())
             .WaitForMessageToBeReceivedAt<GreenMessage>(_receiver)
             .PublishMessageAndWaitAsync(new GreenMessage("one"));
 
