@@ -30,9 +30,9 @@ public class PulsarTransportFixture : TransportComplianceFixture, IAsyncLifetime
         });
     }
 
-    public async Task DisposeAsync()
+    async Task IAsyncLifetime.DisposeAsync()
     {
-        await DisposeAsync();
+        await ((IAsyncDisposable)this).DisposeAsync();
     }
 
     public override void BeforeEach()
