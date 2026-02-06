@@ -1,5 +1,6 @@
 using DotPulsar;
 using JasperFx.Core;
+using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
 using Wolverine.Transports;
@@ -34,6 +35,18 @@ public class PulsarEndpoint : Endpoint<IPulsarEnvelopeMapper, PulsarEnvelopeMapp
     public SubscriptionType SubscriptionType { get; internal set; } = SubscriptionType.Exclusive;
     public bool EnableRequeue { get; internal set; } = true;
     public bool UnsubscribeOnClose { get; internal set; } = true;
+
+    /// <summary>
+    ///     Use to override the dead letter topic for this endpoint
+    /// </summary>
+    public DeadLetterTopic? DeadLetterTopic { get; set; }
+
+    /// <summary>
+    ///     Use to override the retry letter topic for this endpoint
+    /// </summary>
+    public RetryLetterTopic? RetryLetterTopic { get; set; }
+
+    public bool IsPersistent => Persistence.Equals(Persistent);
 
     public static Uri UriFor(bool persistent, string tenant, string @namespace, string topicName)
     {
@@ -95,5 +108,17 @@ public class PulsarEndpoint : Endpoint<IPulsarEnvelopeMapper, PulsarEnvelopeMapp
     protected override ISender CreateSender(IWolverineRuntime runtime)
     {
         return new PulsarSender(runtime, this, _parent, runtime.Cancellation);
+    }
+
+    public override bool TryBuildDeadLetterSender(IWolverineRuntime runtime, out ISender? deadLetterSender)
+    {
+        return base.TryBuildDeadLetterSender(runtime, out deadLetterSender);
+
+
+        // TODO: ?
+        //var queueName =  this.DeadLetterTopic?.TopicName ?? _parent.DeadLetterTopic.TopicName;
+        //var dlq = _parent[UriFor(queueName)];
+        //deadLetterSender = dlq.CreateSender(runtime);
+        //return true;
     }
 }

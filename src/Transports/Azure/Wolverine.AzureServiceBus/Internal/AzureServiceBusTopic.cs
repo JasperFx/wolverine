@@ -116,4 +116,6 @@ public class AzureServiceBusTopic : AzureServiceBusEndpoint
 
         return subscription;
     }
+
+    public override bool IsPartitioned { get => Options.EnablePartitioning; }
 }

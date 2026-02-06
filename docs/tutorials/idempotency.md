@@ -33,7 +33,7 @@ var host = await Host.CreateDefaultBuilder()
     })
     .StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqlServerTests/Persistence/SqlServerMessageStore_with_IdAndDestination_Identity.cs#L28-L40' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_message_identity_to_use_id_and_destination' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqlServerTests/Persistence/SqlServerMessageStore_with_IdAndDestination_Identity.cs#L34-L46' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_message_identity_to_use_id_and_destination' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Means that the uniqueness is the message id + the endpoint destination, which Wolverine stores as a `Uri` string in the 
@@ -113,7 +113,7 @@ public static void Handle(DoSomething msg)
     
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/configuring_idempotency_style.cs#L106-L114' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_explicit_idempotency_on_single_handler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/configuring_idempotency_style.cs#L110-L118' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_explicit_idempotency_on_single_handler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Or you can use an overload of the auto apply transactions policy:
@@ -136,6 +136,69 @@ The idempotency check and the process of marking an incoming envelope are themse
 to avoid Wolverine from making unnecessary database calls. ~~~~
 :::
 
+## Idempotency on Non Transactional Handlers
+
+::: tip
+Idempotency checks are automatic for any message handler that uses any kind of
+transactional middleware.
+:::
+
+::: warning
+This functionality does require some kind of message persistence to be configured for your application as it utilizes
+Wolverine's inbox functionality
+:::
+
+Every usage you've seen so far has featured utilizing Wolverine's transactional middleware support on handlers that
+use [EF Core](/guide/durability/efcore/transactional-middleware) or [Marten](/guide/durability/marten/transactional-middleware).
+
+But of course, you may have message handlers that don't need to touch your underlying storage at all. For example, a message
+handler might do nothing but call an external web service. You may want to make this message handler be idempotent to protect
+against duplicated calls to that web service. You're in luck, because Wolverine exposes this policy to do exactly that:
+
+<!-- snippet: sample_using_AutoApplyIdempotencyOnNonTransactionalHandlers -->
+<a id='snippet-sample_using_autoapplyidempotencyonnontransactionalhandlers'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.Durability.Mode = DurabilityMode.Solo;
+        
+        opts.Services.AddDbContextWithWolverineIntegration<CleanDbContext>(x =>
+            x.UseSqlServer(Servers.SqlServerConnectionString));
+        
+        opts.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
+        
+        opts.Policies.AutoApplyTransactions(IdempotencyStyle.Eager);
+
+        opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString, "idempotency");
+        opts.UseEntityFrameworkCoreTransactions();
+        
+        // THIS RIGHT HERE
+        opts.Policies.AutoApplyIdempotencyOnNonTransactionalHandlers();
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests/idempotency_with_inline_or_buffered_endpoints_end_to_end.cs#L161-L182' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_autoapplyidempotencyonnontransactionalhandlers' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Specifically, see the call to `WolverineOptions.Policies.AutoApplyIdempotencyOnNonTransactionalHandlers()` above. What that
+is doing is:
+
+1. Inserting a call to assert that the current message doesn't already exist in your applications default envelope storage by
+   the Wolverine message id. If the message is already marked as `Handled` in the inbox, Wolverine will reject and discard the current
+   message processing
+2. Assuming the message is all new, Wolverine will try to persist the `Handled` state in the default inbox storage. In the case
+   of failures to the database storage (stuff happens), Wolverine will attempt to retry out of band, but allow the message processing
+   to go through otherwise without triggering error policies so the message is not retried
+
+::: tip
+While we're talking about call outs to external web services, the Wolverine team recommends isolating the call to that web
+service in its own handler with isolated error handling and maybe even a circuit breaker for outages of that service. Or at
+least making that your default practice.
+:::
+
+You can also opt into this behavior on a message type by message type basis by decorating the
+message handler type or handler method with the Wolverine `[Idempotent]` attribute. 
+
 ## Handled Message Retention
 
 The way that the idempotency checks work is to keep track of messages that have already been processed in the persisted
@@ -144,7 +207,7 @@ system, so Wolverine has a background process to delete messages marked as `Hand
 with the setting shown below:
 
 <!-- snippet: sample_configuring_KeepAfterMessageHandling -->
-<a id='snippet-sample_configuring_KeepAfterMessageHandling'></a>
+<a id='snippet-sample_configuring_keepaftermessagehandling'></a>
 ```cs
 using var host = await Host.CreateDefaultBuilder()
     .UseWolverine(opts =>
@@ -155,7 +218,7 @@ using var host = await Host.CreateDefaultBuilder()
         opts.Durability.KeepAfterMessageHandling = 10.Minutes();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L195-L206' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_KeepAfterMessageHandling' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L195-L206' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_keepaftermessagehandling' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The default is to keep messages for at least 5 minutes. 

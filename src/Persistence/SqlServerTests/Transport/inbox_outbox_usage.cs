@@ -35,7 +35,7 @@ public class inbox_outbox_usage : IAsyncLifetime
     [Fact]
     public async Task cascaded_response_with_outbox()
     {
-        var tracked = await _host.TrackActivity().WaitForMessageToBeReceivedAt<SqlServerPong>(_host).InvokeMessageAndWaitAsync(new SqlServerPing("first"));
+        var tracked = await _host.TrackActivity().Timeout(15.Seconds()).WaitForMessageToBeReceivedAt<SqlServerPong>(_host).InvokeMessageAndWaitAsync(new SqlServerPing("first"));
 
         tracked.FindSingleTrackedMessageOfType<SqlServerPong>()
             .Name.ShouldBe("first");

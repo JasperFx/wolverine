@@ -1,6 +1,7 @@
 using DotPulsar;
 using DotPulsar.Abstractions;
 using JasperFx.Core;
+using Wolverine.Configuration;
 using Wolverine.Runtime;
 using Wolverine.Transports;
 
@@ -12,7 +13,7 @@ public class PulsarTransport : TransportBase<PulsarEndpoint>, IAsyncDisposable
 
     private readonly LightweightCache<Uri, PulsarEndpoint> _endpoints;
 
-    public PulsarTransport() : base(ProtocolName, "Pulsar")
+    public PulsarTransport() : base(ProtocolName, "Pulsar", ["pulsar"])
     {
         Builder = PulsarClient.Builder();
 
@@ -25,6 +26,41 @@ public class PulsarTransport : TransportBase<PulsarEndpoint>, IAsyncDisposable
     public IPulsarClientBuilder Builder { get; }
 
     internal IPulsarClient? Client { get; private set; }
+    public DeadLetterTopic? DeadLetterTopic { get; internal set; } // TODO: should we even have a default or just per endpoint based?
+    public RetryLetterTopic? RetryLetterTopic { get; internal set; } // TODO: should we even have a default or just per endpoint based?
+
+
+    //private IEnumerable<DeadLetterTopic> enabledDeadLetterTopics()
+    //{
+    //    if (DeadLetterTopic.Mode != DeadLetterTopicMode.WolverineStorage)
+    //    {
+    //        yield return DeadLetterTopic;
+    //    }
+
+    //    foreach (var queue in endpoints())
+    //    {
+    //        if (queue.IsPersistent && queue.Role == EndpointRole.Application && queue.DeadLetterTopic != null &&
+    //            queue.DeadLetterTopic.Mode != DeadLetterTopicMode.WolverineStorage)
+    //        {
+    //            yield return queue.DeadLetterTopic;
+    //        }
+    //    }
+    //}
+
+    //public IEnumerable<RetryLetterTopic> enabledRetryLetterTopics()
+    //{
+    //    if (RetryLetterTopic != null)
+    //    {
+    //        yield return RetryLetterTopic;
+    //    }
+    //    foreach (var queue in endpoints())
+    //    {
+    //        if (queue.IsPersistent && queue.Role == EndpointRole.Application && queue.RetryLetterTopic != null)
+    //        {
+    //            yield return queue.RetryLetterTopic;
+    //        }
+    //    }
+    //}
 
     public ValueTask DisposeAsync()
     {
@@ -51,6 +87,8 @@ public class PulsarTransport : TransportBase<PulsarEndpoint>, IAsyncDisposable
         Client = Builder.Build();
         return ValueTask.CompletedTask;
     }
+
+
 
     public PulsarEndpoint EndpointFor(string topicPath)
     {

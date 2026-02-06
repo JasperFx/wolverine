@@ -22,6 +22,8 @@ public class RedisTransport : BrokerTransport<RedisStreamEndpoint>, IAsyncDispos
     /// Enable/disable creation of system endpoints like reply streams
     /// </summary>
     public bool SystemQueuesEnabled { get; set; } = true;
+    
+    public bool DeleteStreamEntryOnAck { get; set; } = false;
 
     /// <summary>
     /// Database ID to use for the per-node reply stream endpoint. Defaults to 0.
@@ -42,7 +44,7 @@ public class RedisTransport : BrokerTransport<RedisStreamEndpoint>, IAsyncDispos
         // Default constructor for GetOrCreate<T>()
     }
     
-    public RedisTransport(string connectionString) : base(ProtocolName, "Redis Streams Transport")
+    public RedisTransport(string connectionString) : base(ProtocolName, "Redis Streams Transport", ["redis"])
     {
         _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
         _streams = new LightweightCache<string, RedisStreamEndpoint>(

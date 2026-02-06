@@ -26,15 +26,19 @@ public static class MqttTransportExtensions
     /// </summary>
     /// <param name="options"></param>
     /// <param name="configure"></param>
+    /// <param name="jwtAuthenticationOptions">Sets AuthenticationMethod to OAUTH-JWT and uses the callback to fetch a token.
+    /// When the configured period elapses, a new token is fetched and a ExtendedAuthenticationExchangeData with ReasonCode ReAuth is sent with the new token.
     /// <returns></returns>
     public static MqttTransportExpression UseMqtt(this WolverineOptions options,
-        Action<ManagedMqttClientOptionsBuilder> configure)
+        Action<ManagedMqttClientOptionsBuilder> configure,
+        MqttJwtAuthenticationOptions? jwtAuthenticationOptions = null)
     {
         var transport = options.MqttTransport();
         var builder = new ManagedMqttClientOptionsBuilder();
         configure(builder);
 
         transport.Options = builder.Build();
+        transport.JwtAuthenticationOptions = jwtAuthenticationOptions;
 
         return new MqttTransportExpression(transport, options);
     }
@@ -44,12 +48,16 @@ public static class MqttTransportExtensions
     /// </summary>
     /// <param name="options"></param>
     /// <param name="mqttOptions"></param>
+    /// <param name="jwtAuthenticationOptions">Sets AuthenticationMethod to OAUTH-JWT and uses the callback to fetch a token.
+    /// When the configured period elapses, a new token is fetched and a ExtendedAuthenticationExchangeData with ReasonCode ReAuth is sent with the new token.
     /// <returns></returns>
-    public static MqttTransportExpression UseMqtt(this WolverineOptions options, ManagedMqttClientOptions mqttOptions)
+    public static MqttTransportExpression UseMqtt(this WolverineOptions options, ManagedMqttClientOptions mqttOptions,
+        MqttJwtAuthenticationOptions? jwtAuthenticationOptions = null)
     {
         var transport = options.MqttTransport();
 
         transport.Options = mqttOptions;
+        transport.JwtAuthenticationOptions = jwtAuthenticationOptions;
 
         return new MqttTransportExpression(transport, options);
     }
@@ -65,10 +73,7 @@ public static class MqttTransportExtensions
     {
         return options.UseMqtt(builder =>
         {
-            builder.WithClientOptions(opts =>
-            {
-                opts.WithTcpServer("127.0.0.1", port);
-            });
+            builder.WithClientOptions(opts => { opts.WithTcpServer("127.0.0.1", port); });
         });
     }
 
@@ -138,7 +143,8 @@ public static class MqttTransportExtensions
     /// <param name="topicSource"></param>
     /// <typeparam name="T"></typeparam>
     /// <returns></returns>
-    public static MqttSubscriberConfiguration PublishMessagesToMqttTopic<T>(this WolverineOptions options, Func<T, string> topicSource)
+    public static MqttSubscriberConfiguration PublishMessagesToMqttTopic<T>(this WolverineOptions options,
+        Func<T, string> topicSource)
     {
         var transports = options.Transports;
         var transport = transports.GetOrCreate<MqttTransport>();

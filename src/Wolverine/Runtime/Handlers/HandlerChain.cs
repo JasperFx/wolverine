@@ -70,7 +70,7 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         applyAuditAttributes(messageType);
     }
 
-    private HandlerChain(MethodCall call, HandlerGraph parent) : this(call.Method.MessageType()!, parent)
+    protected HandlerChain(MethodCall call, HandlerGraph parent) : this(call.Method.MessageType()!, parent)
     {
         Handlers.Add(call);
     }
@@ -110,10 +110,24 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
 
         if (grouping.Count() > 1)
         {
-            foreach (var handlerCall in grouping)
-                // ReSharper disable once VirtualMemberCallInConstructor
-                tryAssignStickyEndpoints(handlerCall, options);
+            // ReSharper disable once VirtualMemberCallInConstructor
+            maybeAssignStickyHandlers(options, grouping);
         }
+    }
+
+    protected virtual void maybeAssignStickyHandlers(WolverineOptions options, IGrouping<Type, HandlerCall> grouping)
+    {
+        foreach (var handlerCall in grouping)
+        {
+            tryAssignStickyEndpoints(handlerCall, options);
+        }
+    }
+
+    internal void ApplyIdempotencyCheck()
+    {
+        Middleware.Insert(0, MethodCall.For<MessageContext>(x => x.AssertEagerIdempotencyAsync(CancellationToken.None)));
+            
+        Postprocessors.Add(MethodCall.For<MessageContext>(x => x.PersistHandledAsync()));
     }
 
     protected virtual void validateAgainstInvalidSagaMethods(IGrouping<Type, HandlerCall> grouping)
@@ -173,7 +187,7 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
     /// <summary>
     ///     Wolverine's string identification for this message type
     /// </summary>
-    public string TypeName { get; }
+    public string TypeName { get; internal set; }
 
     internal MessageHandler? Handler { get; private set; }
 
@@ -284,13 +298,15 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
     /// </summary>
     public FailureRuleCollection Failures { get; } = new();
 
-    protected virtual void tryAssignStickyEndpoints(HandlerCall handlerCall, WolverineOptions options)
+    protected void tryAssignStickyEndpoints(HandlerCall handlerCall, WolverineOptions options)
     {
         var endpoints = findStickyEndpoints(handlerCall, options).Distinct().ToArray();
         if (endpoints.Any())
         {
             foreach (var stub in endpoints.OfType<StubEndpoint>())
+            {
                 stub.Subscriptions.Add(Subscription.ForType(MessageType));
+            }
 
             var chain = new HandlerChain(handlerCall, options.HandlerGraph, endpoints);
 
@@ -528,9 +544,7 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         if (!_hasConfiguredFrames)
         {
             _hasConfiguredFrames = true;
-
-            applyAttributesAndConfigureMethods(rules, container);
-
+            
             foreach (var attribute in MessageType
                          .GetCustomAttributes(typeof(ModifyHandlerChainAttribute))
                          .OfType<ModifyHandlerChainAttribute>()) attribute.Modify(this, rules);
@@ -538,8 +552,13 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
             foreach (var attribute in MessageType.GetCustomAttributes(typeof(ModifyChainAttribute))
                          .OfType<ModifyChainAttribute>()) attribute.Modify(this, rules, container);
 
+            // THIS has to go before the baseline attributes and configure
             foreach (var handlerCall in HandlerCalls())
                 WolverineParameterAttribute.TryApply(handlerCall, container, rules, this);
+
+            applyAttributesAndConfigureMethods(rules, container);
+
+
         }
 
         ApplyImpliedMiddlewareFromHandlers(rules);

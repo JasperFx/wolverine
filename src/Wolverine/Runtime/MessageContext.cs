@@ -18,12 +18,12 @@ public enum MultiFlushMode
     /// The default mode, additional calls to FlushOutgoingMessages() are ignored
     /// </summary>
     OnlyOnce,
-    
+
     /// <summary>
     /// Allow for multiple calls to FlushOutgoingMessages()
     /// </summary>
     AllowMultiples,
-    
+
     /// <summary>
     /// Throw an exception on additional calls to FlushOutgoingMessages(). Use this to troubleshoot
     /// erroneous behavior
@@ -80,7 +80,16 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
     public async Task AssertEagerIdempotencyAsync(CancellationToken cancellation)
     {
         if (Envelope == null || Envelope.WasPersistedInInbox ) return;
-        if (Transaction == null) return;
+        if (Transaction == null || Transaction is MessageContext)
+        {
+            var exists = await Runtime.Storage.Inbox.ExistsAsync(Envelope, cancellation);
+            if (exists)
+            {
+                throw new DuplicateIncomingEnvelopeException(Envelope);
+            }
+
+            return;
+        }
 
         var check = await Transaction.TryMakeEagerIdempotencyCheckAsync(Envelope, Runtime.Options.Durability, cancellation);
         if (!check)
@@ -91,6 +100,22 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         Envelope.WasPersistedInInbox = true;
     }
 
+    public async Task PersistHandledAsync()
+    {
+        var handled = Envelope.ForPersistedHandled(Envelope, DateTimeOffset.UtcNow, Runtime.Options.Durability);
+        try
+        {
+            await Runtime.Storage.Inbox.StoreIncomingAsync(handled);
+        }
+        catch (Exception e)
+        {
+            Runtime.Logger.LogError(e, "Error trying to mark message {Id} as handled. Retrying later.", handled.Id);
+
+            // Retry this off to the side...
+            await new MessageBus(Runtime).PublishAsync(new PersistHandled(handled));
+        }
+    }
+
     public async Task FlushOutgoingMessagesAsync()
     {
         if (_hasFlushed)
@@ -99,18 +124,17 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
             {
                 case MultiFlushMode.OnlyOnce:
                     return;
-                
+
                 case MultiFlushMode.AllowMultiples:
-                    Runtime.Logger.LogWarning("Received multiple calls to FlushOutgoingMessagesAsync() to a single MessageContext");
+                    Runtime.Logger.LogDebug("Received multiple calls to FlushOutgoingMessagesAsync() to a single MessageContext");
                     break;
-                
+
                 case MultiFlushMode.AssertOnMultiples:
                     throw new InvalidOperationException(
                         $"This MessageContext does not allow multiple calls to {nameof(FlushOutgoingMessagesAsync)} because {nameof(MultiFlushMode)} = {MultiFlushMode}");
             }
         }
 
-        
         await AssertAnyRequiredResponseWasGenerated();
 
         if (!Outstanding.Any())
@@ -120,6 +144,9 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
 
         foreach (var envelope in Outstanding)
         {
+            // https://github.com/JasperFx/wolverine/issues/2006
+            if (envelope == null) continue;
+
             try
             {
                 if (envelope.IsScheduledForLater(DateTimeOffset.UtcNow))
@@ -240,8 +267,9 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
             throw new InvalidOperationException("No Envelope is active for this context");
         }
 
+        Runtime.MessageTracking.Requeued(Envelope);
         Envelope.ScheduledTime = scheduledTime;
-        if (_channel is ISupportNativeScheduling c)
+        if (tryGetRescheduler(_channel, Envelope) is ISupportNativeScheduling c)
         {
             await c.MoveToScheduledUntilAsync(Envelope, Envelope.ScheduledTime.Value);
         }
@@ -249,6 +277,36 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         {
             await Storage.Inbox.RescheduleExistingEnvelopeForRetryAsync(Envelope);
         }
+    }
+
+    private ISupportNativeScheduling? tryGetRescheduler(IChannelCallback? channel, Envelope e)
+    {
+        // TODO: is that ok, or should we modify Task ISupportNativeScheduling.MoveToScheduledUntilAsync(Envelope envelope, DateTimeOffset time) in DurableReceiver and BufferedReceiver?
+        if (e.Listener is ISupportNativeScheduling c2)
+        {
+            return c2;
+        }
+
+        if (channel is ISupportNativeScheduling c)
+        {
+            return c;
+        }
+
+        return default;
+    }
+    private ISupportDeadLetterQueue? tryGetDeadLetterQueue(IChannelCallback? channel, Envelope e)
+    {
+        if (_channel is ISupportDeadLetterQueue { NativeDeadLetterQueueEnabled: true } c)
+        {
+            return c;
+        }
+
+        if (e.Listener is ISupportDeadLetterQueue { NativeDeadLetterQueueEnabled: true } c2)
+        {
+            return c2;
+        }
+
+        return default;
     }
 
     public async Task MoveToDeadLetterQueueAsync(Exception exception)
@@ -261,18 +319,19 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
             throw new InvalidOperationException("No Envelope is active for this context");
         }
 
-        if (_channel is ISupportDeadLetterQueue { NativeDeadLetterQueueEnabled: true } c)
+        var deadLetterQueue = tryGetDeadLetterQueue(_channel, Envelope);
+        if (deadLetterQueue is not null)
         {
             if (Envelope.Batch != null)
             {
                 foreach (var envelope in Envelope.Batch)
                 {
-                    await c.MoveToErrorsAsync(envelope, exception);
+                    await deadLetterQueue.MoveToErrorsAsync(envelope, exception);
                 }
             }
             else
             {
-                await c.MoveToErrorsAsync(Envelope, exception);
+                await deadLetterQueue.MoveToErrorsAsync(Envelope, exception);
             }
 
             return;
@@ -499,7 +558,7 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
 
             if (Runtime.Options.Durability.Mode == DurabilityMode.MediatorOnly) return;
 
-            // This was done specifically for the HTTP transport's optimized 
+            // This was done specifically for the HTTP transport's optimized
             // request/reply mechanism
             if (Envelope.DoNotCascadeResponse)
             {
@@ -553,7 +612,7 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         }
 
         _hasFlushed = false;
-        
+
         _sent?.Clear();
         _outstanding.Clear();
         Scheduled.Clear();
@@ -561,6 +620,8 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         Transaction = null;
         _sagaId = null;
     }
+
+    public void SetSagaId(object sagaId) => _sagaId = sagaId;
 
     internal void ReadEnvelope(Envelope? originalEnvelope, IChannelCallback channel)
     {
@@ -591,11 +652,16 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         if (Storage is NullMessageStore)
         {
             foreach (var envelope in Scheduled)
+            {
                 Runtime.ScheduleLocalExecutionInMemory(envelope.ScheduledTime!.Value, envelope);
+            }
         }
         else
         {
-            foreach (var envelope in Scheduled) await Storage.Inbox.RescheduleExistingEnvelopeForRetryAsync(envelope);
+            foreach (var envelope in Scheduled)
+            {
+                await Storage.Inbox.RescheduleExistingEnvelopeForRetryAsync(envelope);
+            }
         }
 
         Scheduled.Clear();

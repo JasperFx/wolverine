@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
+using Wolverine.Configuration.Capabilities;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Interop;
 using Wolverine.Transports;
@@ -29,6 +30,12 @@ public class SignalRTransport : Endpoint, ITransport, IListener, ISender
         JsonOptions.Converters.Add(new JsonStringEnumConverter());
 
         #endregion
+    }
+    
+    public virtual bool TryBuildBrokerUsage(out BrokerDescription description)
+    {
+        description = new BrokerDescription(this);
+        return true;
     }
 
     protected override ISender CreateSender(IWolverineRuntime runtime)
@@ -56,12 +63,15 @@ public class SignalRTransport : Endpoint, ITransport, IListener, ISender
         
         _mapper ??= BuildCloudEventsMapper(runtime, JsonOptions);
         Logger ??= runtime.LoggerFactory.CreateLogger<SignalRTransport>();
-        HubContext ??= runtime.Services.GetRequiredService<IHubContext<WolverineHub>>();
+
+        var hubContextType = typeof(IHubContext<>).MakeGenericType(HubType);
+        HubContext ??= (IHubContext<Hub>)runtime.Services.GetRequiredService(hubContextType);
 
         return new ValueTask();
     }
 
-    public IHubContext<WolverineHub>? HubContext { get; private set; }
+    public IHubContext<Hub>? HubContext { get; private set; }
+    public Type HubType { get; internal set; } = typeof(WolverineHub);
 
     bool ITransport.TryBuildStatefulResource(IWolverineRuntime runtime, out IStatefulResource? resource)
     {
@@ -140,6 +150,7 @@ public class SignalRTransport : Endpoint, ITransport, IListener, ISender
     
     public bool SupportsNativeScheduledSend => false;
     public Uri Destination => Uri;
+
     public async Task<bool> PingAsync()
     {
         try

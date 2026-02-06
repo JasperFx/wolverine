@@ -201,5 +201,30 @@ using var host = await Host.CreateDefaultBuilder()
 
 Of course, doing so means that you will not be able to do request/reply through Rabbit MQ with your Wolverine application.
 
+## Configuring Channel Creation <Badge type="tip" text="5.10" />
 
+You now have the ability to fine tune how the [Rabbit MQ channels](https://www.rabbitmq.com/docs/channels~~~~) are created by Wolverine through
+this syntax:
+
+<!-- snippet: sample_configuring_rabbit_mq_channel_creation -->
+<a id='snippet-sample_configuring_rabbit_mq_channel_creation'></a>
+```cs
+var builder = Host.CreateApplicationBuilder();
+builder.UseWolverine(opts =>
+{
+    opts
+        .UseRabbitMq(builder.Configuration.GetConnectionString("rabbitmq"))
+
+        // Fine tune how the underlying Rabbit MQ channels from
+        // this application will behave
+        .ConfigureChannelCreation(o =>
+        {
+            o.PublisherConfirmationsEnabled = true;
+            o.PublisherConfirmationTrackingEnabled = true;
+            o.ConsumerDispatchConcurrency = 5;
+        });
+});
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/channel_configuration.cs#L13-L31' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_rabbit_mq_channel_creation' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 

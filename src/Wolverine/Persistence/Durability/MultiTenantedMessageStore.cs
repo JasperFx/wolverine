@@ -144,6 +144,12 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
         }
     }
 
+    public async Task<bool> ExistsAsync(Envelope envelope, CancellationToken cancellation)
+    {
+        var database = await GetDatabaseAsync(envelope.TenantId);
+        return await database.Inbox.ExistsAsync(envelope, cancellation);
+    }
+
     async Task IMessageInbox.RescheduleExistingEnvelopeForRetryAsync(Envelope envelope)
     {
         var database = await GetDatabaseAsync(envelope.TenantId);

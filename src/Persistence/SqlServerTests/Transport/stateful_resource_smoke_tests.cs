@@ -95,6 +95,11 @@ public class stateful_resource_smoke_tests : IAsyncLifetime
     [Fact]
     public async Task check_negative()
     {
+        using var conn = new SqlConnection(Servers.SqlServerConnectionString);
+        await conn.OpenAsync();
+        await conn.DropSchemaAsync("sqlserver");
+        await conn.CloseAsync();
+        
         var result = await ConfigureBuilder(false, 10)
             .RunJasperFxCommands(["resources", "check"]);
 

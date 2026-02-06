@@ -7,6 +7,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using Shouldly;
 using Weasel.Core;
+using Weasel.SqlServer;
 using Wolverine;
 using Wolverine.ComplianceTests;
 using Wolverine.Persistence.Durability;
@@ -25,6 +26,11 @@ public class SqlServerMessageStore_with_IdAndDestination_Identity : MessageStore
 {
     public override async Task<IHost> BuildCleanHost()
     {
+        using var conn = new SqlConnection(Servers.SqlServerConnectionString);
+        await conn.OpenAsync();
+        await conn.DropSchemaAsync("receiver2");
+        await conn.CloseAsync();
+        
         #region sample_configuring_message_identity_to_use_id_and_destination
 
         var host = await Host.CreateDefaultBuilder()
@@ -164,9 +170,8 @@ public class SqlServerMessageStore_with_IdAndDestination_Identity : MessageStore
         var durabilitySettings = theHost.Services.GetRequiredService<DurabilitySettings>();
 
         var runtime = theHost.GetRuntime();
-        var theReceiver = new DurableReceiver(new LocalQueue("temp"), runtime, runtime.Pipeline);
         
-        await thePersistence.As<IMessageDatabase>().PollForScheduledMessagesAsync(theReceiver,
+        await thePersistence.As<IMessageDatabase>().PollForScheduledMessagesAsync(runtime,
             NullLogger.Instance,
             durabilitySettings,
             default);
@@ -175,6 +180,29 @@ public class SqlServerMessageStore_with_IdAndDestination_Identity : MessageStore
 
         stored.OwnerId.ShouldBe(durabilitySettings.AssignedNodeNumber);
         stored.Status.ShouldBe(EnvelopeStatus.Incoming);
+    }
+    
+    [Fact]
+    public async Task exists_should_account_for_destination_too()
+    {
+        var envelope = ObjectMother.Envelope();
+        envelope.Status = EnvelopeStatus.Incoming;
+        envelope.SentAt = ((DateTimeOffset)DateTime.Today).ToUniversalTime();
+        
+        (await thePersistence.Inbox.ExistsAsync(envelope, CancellationToken.None)).ShouldBeFalse();
+        
+        await thePersistence.Inbox.StoreIncomingAsync(envelope);
+        
+        (await thePersistence.Inbox.ExistsAsync(envelope, CancellationToken.None)).ShouldBeTrue();
+
+        var envelope2 = ObjectMother.Envelope();
+        envelope2.Id = envelope.Id;
+        envelope2.Destination = new Uri("stub://different");
+        
+        (await thePersistence.Inbox.ExistsAsync(envelope2, CancellationToken.None)).ShouldBeFalse();
+        await thePersistence.Inbox.StoreIncomingAsync(envelope2);
+        (await thePersistence.Inbox.ExistsAsync(envelope2, CancellationToken.None)).ShouldBeTrue();
+        (await thePersistence.Inbox.ExistsAsync(envelope, CancellationToken.None)).ShouldBeTrue();
     }
 
 }

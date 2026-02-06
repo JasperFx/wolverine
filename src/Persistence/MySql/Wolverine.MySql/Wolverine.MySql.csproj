@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <Description>MySQL and MariaDB Saga, Message, and Outbox storage for Wolverine applications</Description>
+        <PackageId>WolverineFx.MySql</PackageId>
+        <GenerateAssemblyProductAttribute>false</GenerateAssemblyProductAttribute>
+        <GenerateAssemblyCopyrightAttribute>false</GenerateAssemblyCopyrightAttribute>
+        <GenerateAssemblyVersionAttribute>false</GenerateAssemblyVersionAttribute>
+        <GenerateAssemblyFileVersionAttribute>false</GenerateAssemblyFileVersionAttribute>
+        <GenerateAssemblyInformationalVersionAttribute>false</GenerateAssemblyInformationalVersionAttribute>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\Wolverine.RDBMS\Wolverine.RDBMS.csproj" />
+        <!-- Using Weasel from source until a fixed NuGet package is published -->
+    </ItemGroup>
+
+    <ItemGroup>
+      <!-- MySqlConnector is needed as direct reference when using Weasel from source -->
+      <PackageReference Include="MySqlConnector" Version="2.4.0" />
+      <PackageReference Include="Weasel.MySql" Version="8.5.1" />
+    </ItemGroup>
+
+    <Import Project="../../../../Analysis.Build.props" />
+</Project>

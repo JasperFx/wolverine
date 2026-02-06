@@ -166,8 +166,8 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
         
         bus.Runtime.RegisterMessageType(typeof(T));
 
-        timeout ??= 5.Seconds();
-        
+        timeout ??= bus.Runtime.Options.DefaultRemoteInvocationTimeout;
+
         var envelope = new Envelope(message, Sender)
         {
             TenantId = options?.TenantId ?? bus.TenantId,

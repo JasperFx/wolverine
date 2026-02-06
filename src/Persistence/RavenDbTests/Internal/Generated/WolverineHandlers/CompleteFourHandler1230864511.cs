@@ -5,7 +5,8 @@ using Raven.Client.Documents;
 namespace Internal.Generated.WolverineHandlers
 {
     // START: CompleteFourHandler1230864511
-    public class CompleteFourHandler1230864511 : Wolverine.Runtime.Handlers.MessageHandler
+    [global::System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")]
+    public sealed class CompleteFourHandler1230864511 : Wolverine.Runtime.Handlers.MessageHandler
     {
         private readonly Raven.Client.Documents.IDocumentStore _documentStore;
 
@@ -34,6 +35,7 @@ namespace Internal.Generated.WolverineHandlers
 
             else
             {
+                context.SetSagaId(sagaId);
                 
                 // The actual message execution
                 stringBasicWorkflow.Handle(completeFour);

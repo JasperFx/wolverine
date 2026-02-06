@@ -14,7 +14,7 @@ internal class InlineHttpSender(HttpEndpoint endpoint, IWolverineRuntime runtime
             using var scope = services.CreateScope();
             var client = scope.ServiceProvider.GetRequiredService<IWolverineHttpTransportClient>() ??
                          throw new InvalidOperationException("IWolverineHttpTransportClient is not registered in the service container");
-            await client.SendAsync(endpoint.OutboundUri, envelope);
+            await client.SendAsync(endpoint.OutboundUri, envelope, endpoint.SerializerOptions);
         }
         catch (Exception ex)
         {

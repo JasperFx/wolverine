@@ -8,6 +8,7 @@ using JasperFx.Resources;
 using Wolverine.ComplianceTests;
 using Wolverine.ComplianceTests.Fakes;
 using Wolverine.Configuration;
+using Wolverine.Configuration.Capabilities;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Routing;
 using Wolverine.Transports;
@@ -25,6 +26,12 @@ public class WolverineOptionsTests
     public void publish_agent_events_should_be_false_by_default()
     {
         new WolverineOptions().Policies.PublishAgentEvents.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void do_not_disable_external_listeners_by_default()
+    {
+        new WolverineOptions().DisableAllExternalListeners.ShouldBeFalse();
     }
 
     [Fact]
@@ -284,6 +291,12 @@ public class WolverineOptionsTests
 
         public FakeTransport() : this("fake")
         {
+        }
+        
+        public bool TryBuildBrokerUsage(out BrokerDescription usage)
+        {
+            usage = default;
+            return false;
         }
 
         public string Name => "Fake";

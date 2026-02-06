@@ -1,6 +1,7 @@
 using System.Linq.Expressions;
 using JasperFx.Core.Reflection;
 using Wolverine.Logging;
+using Wolverine.RateLimiting;
 
 namespace Wolverine;
 
@@ -50,5 +51,26 @@ public class MessageTypePolicies<T>
     public MessageTypePolicies<T> AddMiddleware<TMiddleware>()
     {
         return AddMiddleware(typeof(TMiddleware));
+    }
+
+    /// <summary>
+    /// Apply a rate limit schedule to messages assignable to type T
+    /// </summary>
+    public MessageTypePolicies<T> RateLimit(RateLimit defaultLimit, Action<RateLimitSchedule>? configure = null)
+    {
+        return RateLimit(null, defaultLimit, configure);
+    }
+
+    /// <summary>
+    /// Apply a rate limit schedule to messages assignable to type T using a shared key
+    /// </summary>
+    public MessageTypePolicies<T> RateLimit(string? key, RateLimit defaultLimit,
+        Action<RateLimitSchedule>? configure = null)
+    {
+        var schedule = new RateLimitSchedule(defaultLimit);
+        configure?.Invoke(schedule);
+        _parent.ConfigureRateLimit(typeof(T), schedule, key);
+
+        return this;
     }
 }

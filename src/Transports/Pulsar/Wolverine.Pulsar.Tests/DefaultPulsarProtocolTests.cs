@@ -3,6 +3,7 @@ using System.Reflection;
 using DotPulsar;
 using DotPulsar.Abstractions;
 using DotPulsar.Internal.PulsarApi;
+using Google.Protobuf.Collections;
 using JasperFx.Core;
 using NSubstitute;
 using Shouldly;
@@ -68,17 +69,17 @@ public class DefaultPulsarProtocolTests
 
             var internalMetadata = prop1.GetValue(metadata);
             var prop2 = internalMetadata.GetType().GetProperty("Properties");
-            var values = (List<KeyValue>)prop2.GetValue(internalMetadata);
+            var values = (RepeatedField<KeyValue>)prop2.GetValue(internalMetadata);
 
             var properties = new Dictionary<string, string>();
             foreach (var pair in values) properties[pair.Key] = pair.Value;
-
+            
             var message = new StubMessage { Properties = properties };
-
+            
             var envelope = new PulsarEnvelope(message);
-
+            
             mapper.MapIncomingToEnvelope(envelope, message);
-
+            
             return envelope;
         });
     }

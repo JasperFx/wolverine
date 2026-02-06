@@ -5,7 +5,8 @@ using Raven.Client.Documents;
 namespace Internal.Generated.WolverineHandlers
 {
     // START: StringDoThreeHandler1820069266
-    public class StringDoThreeHandler1820069266 : Wolverine.Runtime.Handlers.MessageHandler
+    [global::System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")]
+    public sealed class StringDoThreeHandler1820069266 : Wolverine.Runtime.Handlers.MessageHandler
     {
         private readonly Raven.Client.Documents.IDocumentStore _documentStore;
 
@@ -22,6 +23,8 @@ namespace Internal.Generated.WolverineHandlers
             // The actual message body
             var stringDoThree = (Wolverine.ComplianceTests.Sagas.StringDoThree)context.Envelope.Message;
 
+            // Application-specific Open Telemetry auditing
+            System.Diagnostics.Activity.Current?.SetTag("TheSagaId", stringDoThree.TheSagaId);
             string sagaId = context.Envelope.SagaId ?? stringDoThree.TheSagaId;
             if (string.IsNullOrEmpty(sagaId)) throw new Wolverine.Persistence.Sagas.IndeterminateSagaStateIdException(context.Envelope);
             
@@ -34,6 +37,7 @@ namespace Internal.Generated.WolverineHandlers
 
             else
             {
+                context.SetSagaId(sagaId);
                 
                 // The actual message execution
                 stringBasicWorkflow.Handles(stringDoThree);

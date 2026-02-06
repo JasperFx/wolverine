@@ -39,7 +39,7 @@ you don't want logging for that particular message type, but do for all other me
 level for only that specific message type like so:
 
 <!-- snippet: sample_customized_handler_using_Configure -->
-<a id='snippet-sample_customized_handler_using_Configure'></a>
+<a id='snippet-sample_customized_handler_using_configure'></a>
 ```cs
 public class CustomizedHandler
 {
@@ -60,7 +60,7 @@ public class CustomizedHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/can_customize_handler_chain_through_Configure_call_on_HandlerType.cs#L25-L46' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_customized_handler_using_Configure' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/can_customize_handler_chain_through_Configure_call_on_HandlerType.cs#L25-L46' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_customized_handler_using_configure' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Methods on message handler types with the signature:
@@ -77,44 +77,16 @@ Wolverine's node agent controller performs health checks periodically (every 10 
 
 You can control this tracing behavior through the `DurabilitySettings`:
 
-<!-- snippet: sample_using_Wolverine_Logging_attribute -->
-<a id='snippet-sample_using_Wolverine_Logging_attribute'></a>
+<!-- snippet: sample_configuring_health_check_tracing -->
+<a id='snippet-sample_configuring_health_check_tracing'></a>
 ```cs
-public record QuietMessage;
+// Disable the "wolverine_node_assignments" traces entirely
+opts.Durability.NodeAssignmentHealthCheckTracingEnabled = false;
 
-public record VerboseMessage;
-
-public class QuietAndVerboseMessageHandler
-{
-    [WolverineLogging(
-        telemetryEnabled:false,
-        successLogLevel: LogLevel.None,
-        executionLogLevel:LogLevel.Trace)]
-    public void Handle(QuietMessage message)
-    {
-        Console.WriteLine("Hush!");
-    }
-    
-    [WolverineLogging(
-        // Enable Open Telemetry tracing
-        TelemetryEnabled = true, 
-        
-        // Log on successful completion of this message
-        SuccessLogLevel = LogLevel.Information, 
-        
-        // Log on execution being complete, but before Wolverine does its own book keeping
-        ExecutionLogLevel = LogLevel.Information, 
-        
-        // Throw in yet another contextual logging statement
-        // at the beginning of message execution
-        MessageStartingLevel = LogLevel.Debug)]
-    public void Handle(VerboseMessage message)
-    {
-        Console.WriteLine("Tell me about it!");
-    }
-}
+// Or, sample those traces to only once every 10 minutes
+// opts.Durability.NodeAssignmentHealthCheckTraceSamplingPeriod = TimeSpan.FromMinutes(10);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/logging_configuration.cs#L78-L114' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_Wolverine_Logging_attribute' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/OpenTelemetry/OtelWebApiWolverineMarten/Program.cs#L18-L24' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_health_check_tracing' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Controlling Message Specific Logging and Tracing
@@ -126,7 +98,7 @@ way to do that is to use the `[WolverineLogging]` attribute on either the handle
 below:
 
 <!-- snippet: sample_using_Wolverine_Logging_attribute -->
-<a id='snippet-sample_using_Wolverine_Logging_attribute'></a>
+<a id='snippet-sample_using_wolverine_logging_attribute'></a>
 ```cs
 public record QuietMessage;
 
@@ -162,7 +134,7 @@ public class QuietAndVerboseMessageHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/logging_configuration.cs#L78-L114' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_Wolverine_Logging_attribute' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/logging_configuration.cs#L78-L114' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_wolverine_logging_attribute' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 

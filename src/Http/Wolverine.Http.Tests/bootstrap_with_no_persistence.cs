@@ -13,7 +13,7 @@ public class bootstrap_with_no_persistence
     {
         #region sample_bootstrap_with_no_persistence
 
-        using var host = await AlbaHost.For<Program>(builder =>
+        using var host = await AlbaHost.For<WolverineWebApi.Program>(builder =>
         {
             builder.ConfigureServices(services =>
             {

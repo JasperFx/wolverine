@@ -4,6 +4,7 @@ using JasperFx.Resources;
 using Microsoft.Extensions.Logging;
 using Weasel.Core;
 using Wolverine.Configuration;
+using Wolverine.Configuration.Capabilities;
 using Wolverine.Runtime;
 using Wolverine.Transports;
 
@@ -36,6 +37,12 @@ internal class DatabaseControlTransport : ITransport, IAsyncDisposable
         Options = options;
 
         TableName = new DbObjectName(database.SchemaName, DatabaseConstants.ControlQueueTableName);
+    }
+    
+    public bool TryBuildBrokerUsage(out BrokerDescription description)
+    {
+        description = default;
+        return false;
     }
 
     public DatabaseControlEndpoint ControlEndpoint { get; }

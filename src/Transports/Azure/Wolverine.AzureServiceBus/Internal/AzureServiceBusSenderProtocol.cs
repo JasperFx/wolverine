@@ -46,6 +46,14 @@ public class AzureServiceBusSenderProtocol : ISenderProtocolWithNativeScheduling
             }
         }
 
+        if (_endpoint.IsPartitioned)
+            await sendPartitionedBatches(callback, messages, batch);
+        else
+            await sendBatches(callback, messages, batch);
+    }
+
+    private async Task sendBatches(ISenderCallback callback, List<ServiceBusMessage> messages, OutgoingMessageBatch batch)
+    {
         try
         {
             var serviceBusMessageBatch = await _sender.CreateMessageBatchAsync();
@@ -55,7 +63,7 @@ public class AzureServiceBusSenderProtocol : ISenderProtocolWithNativeScheduling
                 if (!serviceBusMessageBatch.TryAddMessage(message))
                 {
                     _logger.LogInformation("Wolverine had to break up outgoing message batches at {Uri}, you may want to reduce the MaximumMessagesToReceive configuration. No messages were lost, this is strictly informative", _endpoint.Uri);
-                    
+
                     // Send the currently full batch
                     await _sender.SendMessagesAsync(serviceBusMessageBatch, _runtime.Cancellation);
                     serviceBusMessageBatch.Dispose();
@@ -68,6 +76,55 @@ public class AzureServiceBusSenderProtocol : ISenderProtocolWithNativeScheduling
 
             // Send the final batch
             await _sender.SendMessagesAsync(serviceBusMessageBatch, _runtime.Cancellation);
+            serviceBusMessageBatch.Dispose();
+
+            await callback.MarkSuccessfulAsync(batch);
+        }
+        catch (Exception e)
+        {
+            await callback.MarkProcessingFailureAsync(batch, e);
+        }
+    }
+
+    private async Task sendPartitionedBatches(ISenderCallback callback, List<ServiceBusMessage> messages, OutgoingMessageBatch batch)
+    {
+        try
+        {
+            var serviceBusMessageBatch = await _sender.CreateMessageBatchAsync();
+
+            var groupedMessages = messages
+                .GroupBy(x => x.SessionId)
+                .ToDictionary(x => x.Key, x => x.ToList());
+
+            foreach (var (sessionId, messageGroup) in groupedMessages)
+            {
+                _logger.LogDebug("Processing batch with session id '{SessionId}'", sessionId);
+
+                foreach (var message in messageGroup)
+                {
+                    if (!serviceBusMessageBatch.TryAddMessage(message))
+                    {
+                        _logger.LogInformation("Wolverine had to break up outgoing message batches at {Uri}, you may want to reduce the MaximumMessagesToReceive configuration. No messages were lost, this is strictly informative", _endpoint.Uri);
+
+                        // Send the currently full batch
+                        await _sender.SendMessagesAsync(serviceBusMessageBatch, _runtime.Cancellation);
+                        serviceBusMessageBatch.Dispose();
+
+                        // Create a new batch and add the message to it
+                        serviceBusMessageBatch = await _sender.CreateMessageBatchAsync();
+                        serviceBusMessageBatch.TryAddMessage(message);
+                    }
+                }
+
+                await _sender.SendMessagesAsync(serviceBusMessageBatch, _runtime.Cancellation);
+                serviceBusMessageBatch = await _sender.CreateMessageBatchAsync();
+            }
+
+            // Send the final batch
+            if (serviceBusMessageBatch.Count > 0)
+            {
+                await _sender.SendMessagesAsync(serviceBusMessageBatch, _runtime.Cancellation);
+            }
             serviceBusMessageBatch.Dispose();
 
             await callback.MarkSuccessfulAsync(batch);

@@ -16,7 +16,7 @@ public class PostgresqlTransport : BrokerTransport<PostgresqlQueue>, ITransportC
 {
     public const string ProtocolName = "postgresql";
 
-    public PostgresqlTransport() : base(ProtocolName, "PostgreSQL Transport")
+    public PostgresqlTransport() : base(ProtocolName, "PostgreSQL Transport", [ProtocolName])
     {
         Queues = new LightweightCache<string, PostgresqlQueue>(name => new PostgresqlQueue(name, this));
     }

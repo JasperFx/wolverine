@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Headers;
+using JasperFx.Core;
 using NSubstitute;
 using Shouldly;
 using Wolverine.Http.Transport;
@@ -29,6 +30,7 @@ public class WolverineHttpTransportClientTests
     {
         var uri = "https://localhost:5001/messages";
         _clientFactory.CreateClient(uri).Returns(_httpClient);
+        _httpClient.BaseAddress = new Uri("https://localhost:5001/messages");
 
         var envelope = new Envelope
         {

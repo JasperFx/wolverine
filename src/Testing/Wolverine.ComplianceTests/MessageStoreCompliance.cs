@@ -105,6 +105,20 @@ public abstract class MessageStoreCompliance : IAsyncLifetime
 
         stored.SentAt.ShouldBe(envelope.SentAt);
     }
+
+    [Fact]
+    public async Task incoming_exists()
+    {
+        var envelope = ObjectMother.Envelope();
+        envelope.Status = EnvelopeStatus.Incoming;
+        envelope.SentAt = ((DateTimeOffset)DateTime.Today).ToUniversalTime();
+        
+        (await thePersistence.Inbox.ExistsAsync(envelope, CancellationToken.None)).ShouldBeFalse();
+        
+        await thePersistence.Inbox.StoreIncomingAsync(envelope);
+        
+        (await thePersistence.Inbox.ExistsAsync(envelope, CancellationToken.None)).ShouldBeTrue();
+    }
     
     [Fact]
     public async Task store_a_single_incoming_envelope_that_is_handled()
@@ -132,6 +146,7 @@ public abstract class MessageStoreCompliance : IAsyncLifetime
     public async Task store_a_single_incoming_envelope_that_is_a_duplicate()
     {
         var envelope = ObjectMother.Envelope();
+        envelope.Destination = new Uri("stub://incoming");
         envelope.Status = EnvelopeStatus.Incoming;
 
         await thePersistence.Inbox.StoreIncomingAsync(envelope);

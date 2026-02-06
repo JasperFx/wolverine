@@ -356,6 +356,7 @@ public partial class Envelope : IHasTenantId
     /// Used to "smuggle" contextual information to some
     /// messaging transports
     /// </summary>
+    [JsonIgnore]
     public object? RoutingInformation { get; set; }
 
     /// <summary>
@@ -476,6 +477,7 @@ public partial class Envelope : IHasTenantId
     /// For some forms of modular monoliths, Wolverine needs to track what message store
     /// persisted this envelope for later tracking
     /// </summary>
+    [JsonIgnore]
     internal IMessageStore? Store { get; set; }
 
     public static Envelope ForPersistedHandled(Envelope original, DateTimeOffset now, DurabilitySettings settings)

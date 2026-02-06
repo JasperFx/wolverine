@@ -131,7 +131,9 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         if (isMultiTenanted(container, dbContextType))
         {
             var createContext = typeof(CreateTenantedDbContext<>).CloseAndBuildAs<Frame>(dbContextType);
+
             chain.Middleware.Insert(0, createContext);
+            chain.Middleware.Insert(0, new StartDatabaseTransactionForDbContext(dbContextType, chain.Idempotency));
         }
         else
         {
@@ -171,6 +173,7 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         {
             var createContext = typeof(CreateTenantedDbContext<>).CloseAndBuildAs<Frame>(dbType);
             chain.Middleware.Insert(0, createContext);
+            chain.Middleware.Insert(0, new StartDatabaseTransactionForDbContext(dbType, chain.Idempotency));
         }
         else
         {

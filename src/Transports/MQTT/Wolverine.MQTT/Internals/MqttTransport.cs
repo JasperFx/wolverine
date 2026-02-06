@@ -9,6 +9,7 @@ using Wolverine.Configuration;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Routing;
 using Wolverine.Transports;
+using Timer = System.Timers.Timer;
 
 namespace Wolverine.MQTT.Internals;
 
@@ -19,6 +20,7 @@ public class MqttTransport : TransportBase<MqttTopic>, IAsyncDisposable
     private ImHashMap<string, MqttListener> _topicListeners = ImHashMap<string, MqttListener>.Empty;
     private bool _subscribed;
     private ILogger<MqttTransport> _logger;
+    private Timer? _jwtTokenRefreshTimer;
 
     public static string TopicForUri(Uri uri)
     {
@@ -26,7 +28,7 @@ public class MqttTransport : TransportBase<MqttTopic>, IAsyncDisposable
         return uri.LocalPath.Trim('/');
     }
 
-    public MqttTransport() : base("mqtt", "MQTT Transport")
+    public MqttTransport() : base("mqtt", "MQTT Transport", ["mqtt"])
     {
         Topics.OnMissing = topicName => new MqttTopic(topicName, this, EndpointRole.Application);
     }
@@ -63,9 +65,15 @@ public class MqttTransport : TransportBase<MqttTopic>, IAsyncDisposable
         Client = mqttFactory.CreateManagedMqttClient(logger);
 
         Options.ClientOptions.ProtocolVersion = MqttProtocolVersion.V500;
+        if (JwtAuthenticationOptions is not null)
+        {
+            Options.ClientOptions.AuthenticationMethod = "OAUTH2-JWT";
+            Options.ClientOptions.AuthenticationData = await JwtAuthenticationOptions.GetTokenCallBack();
+        }
 
+        Client.ConnectedAsync += onClientConnected;
+        Client.DisconnectedAsync += onClientDisconnected;
         await Client.StartAsync(Options);
-
         foreach (var endpoint in Topics)
         {
             endpoint.Compile(runtime);
@@ -93,6 +101,44 @@ public class MqttTransport : TransportBase<MqttTopic>, IAsyncDisposable
             return Task.CompletedTask;
         }
     }
+    
+    private Task onClientConnected(MqttClientConnectedEventArgs arg)
+    {
+        if (arg.ConnectResult.ResultCode != MqttClientConnectResultCode.Success)
+        {
+            return Task.CompletedTask;
+        }
+
+        if (JwtAuthenticationOptions == null)
+        {
+            return Task.CompletedTask;
+        }
+
+        _jwtTokenRefreshTimer = new Timer(JwtAuthenticationOptions.RefreshPeriod);
+        _jwtTokenRefreshTimer.Elapsed += async (sender, args) => await RefreshToken(sender, args);
+        _jwtTokenRefreshTimer.Start();
+        return Task.CompletedTask;
+        
+        async Task RefreshToken(object? sender, System.Timers.ElapsedEventArgs e)
+        {
+            if (Client.IsConnected)
+            {
+                await Client.InternalClient.SendExtendedAuthenticationExchangeDataAsync(
+                    new MqttExtendedAuthenticationExchangeData()
+                    {
+                        AuthenticationData = await JwtAuthenticationOptions!.GetTokenCallBack(),
+                        ReasonCode = MQTTnet.Protocol.MqttAuthenticateReasonCode.ReAuthenticate
+                    });
+            }
+        }
+    }
+
+    private Task onClientDisconnected(MqttClientDisconnectedEventArgs arg)
+    {
+        _jwtTokenRefreshTimer?.Stop();
+        _jwtTokenRefreshTimer?.Dispose();
+        return Task.CompletedTask;
+    }
 
     internal bool tryFindListener(string topicName, out MqttListener listener)
     {
@@ -111,6 +157,7 @@ public class MqttTransport : TransportBase<MqttTopic>, IAsyncDisposable
     }
 
     internal IManagedMqttClient Client { get; private set; }
+    internal MqttJwtAuthenticationOptions? JwtAuthenticationOptions { get; set; }
 
     public ManagedMqttClientOptions Options { get; set; } = new ManagedMqttClientOptions
         { ClientOptions = new MqttClientOptions() };
@@ -127,6 +174,7 @@ public class MqttTransport : TransportBase<MqttTopic>, IAsyncDisposable
             // ReSharper disable once ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract
             if (Client is not null)
                 await Client.StopAsync();
+            _jwtTokenRefreshTimer?.Dispose();
         }
         catch (ObjectDisposedException)
         {

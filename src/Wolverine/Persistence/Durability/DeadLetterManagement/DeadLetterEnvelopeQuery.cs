@@ -31,4 +31,9 @@ public class DeadLetterEnvelopeQuery
     /// If set, this takes precedence over all other options
     /// </summary>
     public Guid[] MessageIds { get; set; } = [];
+
+    /// <summary>
+    /// Purely a marker for request/response scenarios
+    /// </summary>
+    public Guid QueryId { get; set; } = Guid.NewGuid();
 }

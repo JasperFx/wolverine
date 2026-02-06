@@ -17,9 +17,39 @@ namespace RavenDbTests;
 
 public class DatabaseFixture : RavenTestDriver
 {
+    private static bool _configured;
+
     public IDocumentStore StartRavenStore()
     {
+        EnsureServerConfigured();
         return GetDocumentStore();
+    }
+
+    internal static void EnsureServerConfigured()
+    {
+        if (_configured) return;
+        _configured = true;
+
+        // Configure the embedded RavenDB server.
+        // RavenDB.TestDriver 7.0.x requires .NET 8.0.15+ runtime.
+        // We try to use a brew-installed .NET 8 if available, otherwise fall back to system dotnet.
+        var options = new TestServerOptions
+        {
+            FrameworkVersion = null, // Use available runtime
+            Licensing = new ServerOptions.LicensingOptions
+            {
+                ThrowOnInvalidOrMissingLicense = false // Don't require license for tests
+            }
+        };
+
+        // Check for brew-installed .NET 8 which has newer runtime
+        var brewDotNetPath = "/opt/homebrew/opt/dotnet@8/bin/dotnet";
+        if (File.Exists(brewDotNetPath))
+        {
+            options.DotNetPath = brewDotNetPath;
+        }
+
+        ConfigureServer(options);
     }
 }
 
@@ -52,13 +82,13 @@ public class message_store_compliance : MessageStoreCompliance
             {
                 // TODO -- TEMP!
                 opts.Durability.Mode = DurabilityMode.Solo;
-                
+
                 opts.UseRavenDbPersistence();
                 opts.Services.AddSingleton<IDocumentStore>(store);
 
                 opts.ListenAtPort(2345).UseDurableInbox();
             }).StartAsync();
-        
+
         return host;
     }
 
@@ -74,7 +104,7 @@ public class message_store_compliance : MessageStoreCompliance
         var incoming = await session.LoadAsync<IncomingMessage>(envelope.Id.ToString());
         var metadata = session.Advanced.GetMetadataFor(incoming);
         metadata.TryGetValue("@expires", out var raw).ShouldBeTrue();
-        
+
         var value = metadata["@expires"];
         Debug.WriteLine(value);
 

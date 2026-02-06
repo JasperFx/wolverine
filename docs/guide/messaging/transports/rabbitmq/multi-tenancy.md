@@ -106,6 +106,12 @@ virtual hosts or brokers for the known tenants. When a message is received at an
 tenant specific operations (with Marten maybe?) and tracks the tenant id across any outgoing messages or responses as well.
 
 
+If you do not want to use the default virtual host, "/", you should use the UseRabbitMq with the detailed control, so that the initial host is set up as the one you wish to use:
 
-
+```cs
+opts.UseRabbitMq(rabbit =>
+    {
+        rabbit.HostName = builder.Configuration["rabbitmq_host"];
+        rabbit.VirtualHost = builder.Configuration["rabbitmq_virtual_host"];
+```
 

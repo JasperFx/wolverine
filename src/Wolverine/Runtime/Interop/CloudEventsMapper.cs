@@ -26,6 +26,7 @@ internal class CloudEventsEnvelope
     {
         if (envelope.Message is null) throw new ArgumentNullException(nameof(envelope), "Message is null");
         
+        TenantId = envelope.TenantId;
         Data = envelope.Message;
         
         // Doesn't always apply in Wolverine, so ¯\_(ツ)_/¯
@@ -45,6 +46,9 @@ internal class CloudEventsEnvelope
     
     [JsonPropertyName("topic")]
     public string Topic { get; set; }
+    
+    [JsonPropertyName("tenantid")]
+    public string TenantId { get; set; }
     
     [JsonPropertyName("traceid")]
     public string TraceId { get; set; }
@@ -121,6 +125,11 @@ public class CloudEventsMapper : IUnwrapsMetadataMessageSerializer
                 MapIncoming(envelope, node["Message"]);
                 return;
             }
+        }
+
+        if (node.TryGetValue<string>("tenantid", out var tenantid))
+        {
+            envelope.TenantId = tenantid;
         }
 
         if (node.TryGetValue<string>("traceid", out var traceId))

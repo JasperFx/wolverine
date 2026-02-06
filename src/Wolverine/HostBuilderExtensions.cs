@@ -1,5 +1,8 @@
+using System;
 using System.Diagnostics;
+using System.Linq;
 using System.Reflection;
+using System.Threading.Tasks;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Commands;
 using JasperFx.CodeGeneration.Model;
@@ -20,6 +23,7 @@ using Wolverine.Persistence;
 using Wolverine.Persistence.Durability;
 using Wolverine.Persistence.Sagas;
 using Wolverine.Runtime;
+using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.Handlers;
 
 namespace Wolverine;
@@ -122,22 +126,43 @@ public static class HostBuilderExtensions
             var environment = s.GetService<IHostEnvironment>();
             var directory = environment?.ContentRootPath ?? AppContext.BaseDirectory;
 
-#if DEBUG
-            if (directory.EndsWith("Debug", StringComparison.OrdinalIgnoreCase))
-            {
-                directory = directory.ParentDirectory()!.ParentDirectory();
-            }
-            else if (directory.ParentDirectory()!.EndsWith("Debug", StringComparison.OrdinalIgnoreCase))
-            {
-                directory = directory.ParentDirectory()!.ParentDirectory()!.ParentDirectory();
-            }
-#endif
-
-            // Don't correct for the path if it's already been set
+            // Don't correct for the path if it's already been set (from JasperFxOptions or user)
             if (options.CodeGeneration.GeneratedCodeOutputPath == "Internal/Generated")
             {
-                options.CodeGeneration.GeneratedCodeOutputPath =
-                    directory!.AppendPath("Internal", "Generated");
+#if DEBUG
+                // In DEBUG builds, try to resolve project root like JasperFx does during codegen
+                if (jasperfx.AutoResolveProjectRoot)
+                {
+                    var resolvedRoot = JasperFxOptions.ResolveProjectRoot(directory);
+                    if (resolvedRoot != null)
+                    {
+                        directory = resolvedRoot;
+                    }
+                }
+                else
+                {
+                    // Legacy behavior for backward compatibility when AutoResolveProjectRoot is false
+                    if (directory.EndsWith("Debug", StringComparison.OrdinalIgnoreCase))
+                    {
+                        directory = directory.ParentDirectory()!.ParentDirectory();
+                    }
+                    else if (directory.ParentDirectory()!.EndsWith("Debug", StringComparison.OrdinalIgnoreCase))
+                    {
+                        directory = directory.ParentDirectory()!.ParentDirectory()!.ParentDirectory();
+                    }
+                }
+#endif
+
+                // Use JasperFxOptions path if set, otherwise use the resolved directory
+                if (jasperfx.GeneratedCodeOutputPath != null)
+                {
+                    options.CodeGeneration.GeneratedCodeOutputPath = jasperfx.GeneratedCodeOutputPath;
+                }
+                else
+                {
+                    options.CodeGeneration.GeneratedCodeOutputPath =
+                        directory!.AppendPath("Internal", "Generated");
+                }
             }
 
             return options;
@@ -199,6 +224,11 @@ public static class HostBuilderExtensions
         }
 
         configure?.Invoke(options);
+
+        if (options.Discovery.IncludeHandlerModules)
+        {
+            options.HandlerGraph.Discovery.DiscoverHandlerModules();
+        }
 
         options.ApplyLazyConfiguration();
 
@@ -348,6 +378,18 @@ public static class HostBuilderExtensions
     public static Task ApplyAsyncWolverineExtensions(this IServiceProvider services)
     {
         return services.GetRequiredService<IWolverineRuntime>().As<WolverineRuntime>().ApplyAsyncExtensions();
+    }
+
+    /// <summary>
+    /// Registers a SingularAgent type to this Wolverine system
+    /// </summary>
+    /// <param name="services"></param>
+    /// <typeparam name="T"></typeparam>
+    /// <returns></returns>
+    public static IServiceCollection AddSingularAgent<T>(this IServiceCollection services) where T : SingularAgent
+    {
+        services.AddSingleton<IAgentFamily, T>();
+        return services;
     }
 
     /// <summary>

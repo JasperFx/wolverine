@@ -77,6 +77,16 @@ public interface IWolverineRuntime
     /// that may be sending replies back to your application
     /// </summary>
     IStubHandlers Stubs { get; }
+
+    /// <summary>
+    /// Immediately enqueue these envelopes for execution in the listening circuit
+    /// designated by the Envelope.Destination, or the default local queue if none exists
+    ///
+    /// This skips all inbox functions. Mainly for scheduled message execution
+    /// </summary>
+    /// <param name="envelopes"></param>
+    /// <returns></returns>
+    ValueTask EnqueueDirectlyAsync(IReadOnlyList<Envelope> envelopes);
 }
 
 public record NodeDestination(Guid NodeId, Uri ControlUri)

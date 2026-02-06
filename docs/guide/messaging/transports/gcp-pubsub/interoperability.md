@@ -54,7 +54,7 @@ public class CustomPubsubMapper : EnvelopeMapper<PubsubMessage, PubsubMessage>, 
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/DocumentationSamples.cs#L239-L282' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_custom_pubsub_mapper' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/DocumentationSamples.cs#L245-L288' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_custom_pubsub_mapper' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 To apply that mapper to specific endpoints, use this syntax on any type of GCP Pub/Sub endpoint:
@@ -71,5 +71,5 @@ using var host = await Host.CreateDefaultBuilder()
             .ConfigureSenders(s => s.UseInterop((e, _) => new CustomPubsubMapper(e)));
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/DocumentationSamples.cs#L224-L235' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_custom_envelope_mapper_for_pubsub' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/DocumentationSamples.cs#L230-L241' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_custom_envelope_mapper_for_pubsub' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
