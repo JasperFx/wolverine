@@ -36,8 +36,8 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
-      - name: Start Kafka
-        run: docker compose up -d kafka
+      - name: Start Kafka and PostgreSQL
+        run: docker compose up -d kafka postgresql
 
       - name: Wait for Kafka
         run: |
@@ -48,6 +48,18 @@ jobs:
               break
             fi
             echo "Attempt $i: Kafka not ready yet, waiting..."
+            sleep 2
+          done
+
+      - name: Wait for PostgreSQL
+        run: |
+          echo "Waiting for PostgreSQL to be ready..."
+          for i in {1..30}; do
+            if nc -z localhost 5433 > /dev/null 2>&1; then
+              echo "PostgreSQL is ready"
+              break
+            fi
+            echo "Attempt $i: PostgreSQL not ready yet, waiting..."
             sleep 2
           done
 
