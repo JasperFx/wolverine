@@ -7,6 +7,7 @@ using Shouldly;
 using Weasel.SqlServer;
 using JasperFx.Resources;
 using Wolverine;
+using Wolverine.ComplianceTests.RateLimiting;
 using Wolverine.Persistence.Durability;
 using Wolverine.RateLimiting;
 using Wolverine.RDBMS;
@@ -19,12 +20,12 @@ using Xunit;
 
 namespace SqlServerTests;
 
-public class rate_limiting_storage : IAsyncLifetime
+public class rate_limiting_storage : RateLimitStoreCompliance
 {
     private readonly string _schemaName = $"rate_limits_{Guid.NewGuid():N}";
     private IHost? _host;
 
-    public async Task InitializeAsync()
+    protected override async Task<IRateLimitStore> BuildStoreAsync()
     {
         await waitForSqlServerAsync();
         using var conn = new SqlConnection(Servers.SqlServerConnectionString);
@@ -39,9 +40,22 @@ public class rate_limiting_storage : IAsyncLifetime
                     .UseSqlServerRateLimiting();
                 opts.Services.AddResourceSetupOnStartup();
             }).StartAsync();
+
+        var settings = new DatabaseSettings
+        {
+            ConnectionString = Servers.SqlServerConnectionString,
+            SchemaName = _schemaName
+        };
+
+        var persistence = new SqlServerMessageStore(settings, new DurabilitySettings(),
+            NullLogger<SqlServerMessageStore>.Instance, Array.Empty<SagaTableDefinition>());
+        persistence.AddTable(new RateLimitTable(_schemaName, "wolverine_rate_limits"));
+        await persistence.RebuildAsync();
+
+        return new SqlServerRateLimitStore(settings, new SqlServerRateLimitOptions { SchemaName = _schemaName });
     }
 
-    public async Task DisposeAsync()
+    protected override async Task DisposeStoreAsync(IRateLimitStore store)
     {
         if (_host != null)
         {
@@ -93,37 +107,5 @@ public class rate_limiting_storage : IAsyncLifetime
         await conn.CloseAsync();
 
         found.ShouldBeTrue();
-    }
-
-    [Fact]
-    public async Task rate_limit_store_allows_then_denies_and_resets()
-    {
-        var settings = new DatabaseSettings
-        {
-            ConnectionString = Servers.SqlServerConnectionString,
-            SchemaName = _schemaName
-        };
-
-        var persistence = new SqlServerMessageStore(settings, new DurabilitySettings(),
-            NullLogger<SqlServerMessageStore>.Instance, Array.Empty<SagaTableDefinition>());
-        persistence.AddTable(new RateLimitTable(_schemaName, "wolverine_rate_limits"));
-        await persistence.RebuildAsync();
-
-        var store = new SqlServerRateLimitStore(settings, new SqlServerRateLimitOptions { SchemaName = _schemaName });
-        var now = new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero);
-        var limit = new RateLimit(2, 1.Minutes());
-        var bucket = RateLimitBucket.For(limit, now);
-
-        (await store.TryAcquireAsync(new RateLimitStoreRequest("key", bucket, 1, now), CancellationToken.None))
-            .Allowed.ShouldBeTrue();
-        (await store.TryAcquireAsync(new RateLimitStoreRequest("key", bucket, 1, now), CancellationToken.None))
-            .Allowed.ShouldBeTrue();
-        (await store.TryAcquireAsync(new RateLimitStoreRequest("key", bucket, 1, now), CancellationToken.None))
-            .Allowed.ShouldBeFalse();
-
-        var later = now.AddMinutes(1).AddSeconds(1);
-        var nextBucket = RateLimitBucket.For(limit, later);
-        (await store.TryAcquireAsync(new RateLimitStoreRequest("key", nextBucket, 1, later), CancellationToken.None))
-            .Allowed.ShouldBeTrue();
     }
 }
