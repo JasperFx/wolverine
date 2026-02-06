@@ -1,4 +1,3 @@
-using System.Buffers;
 using System.Globalization;
 using System.Xml;
 
@@ -6,36 +5,6 @@ namespace Wolverine.Runtime.Serialization;
 
 public static class EnvelopeSerializer
 {
-    // Initial buffer size - will grow as needed
-    private const int InitialBufferSize = 4096;
-
-    // Thread-local buffer to avoid repeated rentals in tight loops
-    [ThreadStatic]
-    private static byte[]? t_buffer;
-
-    private static byte[] RentBuffer(int minimumSize)
-    {
-        var buffer = t_buffer;
-        if (buffer != null && buffer.Length >= minimumSize)
-        {
-            t_buffer = null;
-            return buffer;
-        }
-        return ArrayPool<byte>.Shared.Rent(Math.Max(minimumSize, InitialBufferSize));
-    }
-
-    private static void ReturnBuffer(byte[] buffer)
-    {
-        if (buffer.Length <= InitialBufferSize * 4)
-        {
-            t_buffer = buffer;
-        }
-        else
-        {
-            ArrayPool<byte>.Shared.Return(buffer);
-        }
-    }
-
     public static void ReadDataElement(Envelope env, string key, string value)
     {
         try
@@ -234,89 +203,42 @@ public static class EnvelopeSerializer
 
     public static byte[] Serialize(IList<Envelope> messages)
     {
-        // Estimate size: 4 bytes for count + ~500 bytes per message average
-        var estimatedSize = 4 + (messages.Count * 500);
-        var buffer = RentBuffer(estimatedSize);
-        try
-        {
-            using var stream = new MemoryStream(buffer, 0, buffer.Length, writable: true, publiclyVisible: true);
-            using var writer = new BinaryWriter(stream);
-            writer.Write(messages.Count);
-            foreach (var message in messages) writeSingle(writer, message);
-            writer.Flush();
-
-            var length = (int)stream.Position;
-            var result = new byte[length];
-            Buffer.BlockCopy(buffer, 0, result, 0, length);
-            return result;
-        }
-        catch (NotSupportedException)
-        {
-            // Buffer was too small, fall back to expandable stream
-            ReturnBuffer(buffer);
-            using var stream = new MemoryStream();
-            using var writer = new BinaryWriter(stream);
-            writer.Write(messages.Count);
-            foreach (var message in messages) writeSingle(writer, message);
-            writer.Flush();
-            return stream.ToArray();
-        }
-        finally
-        {
-            ReturnBuffer(buffer);
-        }
+        using var stream = new MemoryStream();
+        using var writer = new BinaryWriter(stream);
+        writer.Write(messages.Count);
+        foreach (var message in messages) writeSingle(writer, message);
+        writer.Flush();
+        return stream.ToArray();
     }
 
     public static byte[] Serialize(Envelope env)
     {
-        // Estimate size based on data length + headers (~200 bytes overhead)
-        var dataLength = env.Data?.Length ?? 0;
-        var estimatedSize = dataLength + 512;
-        var buffer = RentBuffer(estimatedSize);
-        try
-        {
-            using var stream = new MemoryStream(buffer, 0, buffer.Length, writable: true, publiclyVisible: true);
-            using var writer = new BinaryWriter(stream);
-            writeSingle(writer, env);
-            writer.Flush();
-
-            var length = (int)stream.Position;
-            var result = new byte[length];
-            Buffer.BlockCopy(buffer, 0, result, 0, length);
-            return result;
-        }
-        catch (NotSupportedException)
-        {
-            // Buffer was too small, fall back to expandable stream
-            ReturnBuffer(buffer);
-            using var stream = new MemoryStream();
-            using var writer = new BinaryWriter(stream);
-            writeSingle(writer, env);
-            writer.Flush();
-            return stream.ToArray();
-        }
-        finally
-        {
-            ReturnBuffer(buffer);
-        }
+        using var stream = new MemoryStream();
+        using var writer = new BinaryWriter(stream);
+        writeSingle(writer, env);
+        writer.Flush();
+        return stream.ToArray();
     }
 
     private static void writeSingle(BinaryWriter writer, Envelope env)
     {
         writer.Write(env.SentAt.UtcDateTime.ToBinary());
 
-        // Write placeholder for header count, remember position
-        var countPosition = writer.BaseStream.Position;
-        writer.Write(0); // placeholder
+        writer.Flush();
 
-        // Write headers directly to the stream
-        var count = writeHeaders(writer, env);
+        using (var headerData = new MemoryStream())
+        {
+            using (var headerWriter = new BinaryWriter(headerData))
+            {
+                var count = writeHeaders(headerWriter, env);
+                headerWriter.Flush();
 
-        // Go back and write the actual count
-        var currentPosition = writer.BaseStream.Position;
-        writer.BaseStream.Position = countPosition;
-        writer.Write(count);
-        writer.BaseStream.Position = currentPosition;
+                writer.Write(count);
+
+                headerData.Position = 0;
+                headerData.CopyTo(writer.BaseStream);
+            }
+        }
 
         writer.Write(env.Data!.Length);
         writer.Write(env.Data);
@@ -339,8 +261,11 @@ public static class EnvelopeSerializer
         writer.WriteProp(ref count, EnvelopeConstants.TopicNameKey, env.TopicName);
         
 
-        // Use cached joined string to avoid allocation on every serialization
-        writer.WriteProp(ref count, EnvelopeConstants.AcceptedContentTypesKey, env.AcceptedContentTypesJoined);
+        if (env.AcceptedContentTypes.Length != 0)
+        {
+            writer.WriteProp(ref count, EnvelopeConstants.AcceptedContentTypesKey,
+                string.Join(",", env.AcceptedContentTypes));
+        }
 
         writer.WriteProp(ref count, EnvelopeConstants.IdKey, env.Id);
         writer.WriteProp(ref count, EnvelopeConstants.ReplyRequestedKey, env.ReplyRequested);
