@@ -52,7 +52,7 @@ services:
       - "MSSQL_PID=Developer"
 
   pulsar:
-    image: "apachepulsar/pulsar:4.0"
+    image: "apachepulsar/pulsar:latest"
     ports:
       - "6650:6650"
       - "8080:8080"
