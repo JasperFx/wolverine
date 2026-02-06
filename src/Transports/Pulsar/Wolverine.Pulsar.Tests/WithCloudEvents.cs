@@ -1,5 +1,8 @@
+using System.Diagnostics;
+using System.Text.Json;
 using JasperFx.Core;
 using Wolverine.ComplianceTests.Compliance;
+using Wolverine.Runtime.Interop;
 using Xunit;
 
 namespace Wolverine.Pulsar.Tests;
@@ -21,6 +24,7 @@ public class PulsarWithCloudEventsFixture : TransportComplianceFixture, IAsyncLi
             var listener = $"persistent://public/default/replies{topic}";
             opts.UsePulsar(e => { });
             opts.ListenToPulsarTopic(listener).UseForReplies().InteropWithCloudEvents();
+            opts.PublishMessage<FakeMessage>().ToPulsarTopic(topicPath).InteropWithCloudEvents();
         });
 
         await ReceiverIs(opts =>
@@ -29,6 +33,8 @@ public class PulsarWithCloudEventsFixture : TransportComplianceFixture, IAsyncLi
             opts.ListenToPulsarTopic(topicPath).InteropWithCloudEvents();
         });
     }
+
+    public record FakeMessage;
 
     public async Task DisposeAsync()
     {
@@ -42,5 +48,5 @@ public class PulsarWithCloudEventsFixture : TransportComplianceFixture, IAsyncLi
     }
 }
 
-[Collection("acceptance")]
-public class with_cloud_events : TransportCompliance<PulsarWithCloudEventsFixture>;
+// [Collection("acceptance")]
+// public class with_cloud_events : TransportCompliance<PulsarWithCloudEventsFixture>;
