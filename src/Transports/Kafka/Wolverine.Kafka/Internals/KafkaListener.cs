@@ -69,9 +69,9 @@ public class KafkaListener : IListener, IDisposable
                         envelope.Offset = result.Offset.Value;
                         envelope.Partition = result.Partition.Value;
                         envelope.MessageType ??= _messageTypeName;
-                        envelope.GroupId = config.GroupId;
+                        envelope.GroupId = Config.GroupId;
 
-                        await receiver.ReceivedAsync(this, envelope);
+                        await _receiver.ReceivedAsync(this, envelope);
                     }
                     catch (OperationCanceledException)
                     {
@@ -89,7 +89,7 @@ public class KafkaListener : IListener, IDisposable
                         {
                         }
 
-                        logger.LogError(e, "Error trying to map Kafka message to a Wolverine envelope");
+                        _logger.LogError(e, "Error trying to map Kafka message to a Wolverine envelope");
                     }
                 }
             }
