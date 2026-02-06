@@ -43,7 +43,7 @@ jobs:
         run: |
           echo "Waiting for Kafka to be ready..."
           for i in {1..60}; do
-            if nc -z localhost 9092 > /dev/null 2>&1; then
+            if curl -s http://localhost:8082/v3/clusters > /dev/null 2>&1; then
               echo "Kafka is ready"
               break
             fi
