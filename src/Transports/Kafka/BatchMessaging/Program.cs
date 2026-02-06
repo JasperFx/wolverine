@@ -10,7 +10,13 @@ builder.Services.AddSwaggerGen();
 
 builder.Host.UseWolverine(opts =>
 {
-    opts.UseKafka("localhost:9092").AutoProvision().AutoPurgeOnStartup();
+    opts.UseKafka("localhost:9092")
+        .AutoProvision()
+        .AutoPurgeOnStartup()
+        .ConfigureConsumers(consumer =>
+        {
+            consumer.AutoOffsetReset = AutoOffsetReset.Earliest;
+        });
 
     opts.PublishAllMessages().ToKafkaTopic("topic_0");
 
