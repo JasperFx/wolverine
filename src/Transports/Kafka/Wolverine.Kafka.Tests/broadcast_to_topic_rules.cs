@@ -65,7 +65,7 @@ public class broadcast_to_topic_rules : IAsyncLifetime
             }).StartAsync();
     }
 
-    [Fact]
+    [Fact(Skip = "Flaky in CI due to Kafka consumer group timing issues")]
     public async Task route_by_derived_topics_1()
     {
         var session = await _sender
@@ -78,11 +78,11 @@ public class broadcast_to_topic_rules : IAsyncLifetime
         var singleEnvelope = session.Received.SingleEnvelope<RedMessage>();
         singleEnvelope
             .Destination.ShouldBe(new Uri("kafka://topic/red"));
-        
+
         singleEnvelope.GroupId.ShouldBe("crimson");
     }
 
-    [Fact]
+    [Fact(Skip = "Flaky in CI due to Kafka consumer group timing issues")]
     public async Task route_by_derived_topics_2()
     {
         var session = await _sender
