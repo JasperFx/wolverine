@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Confluent.Kafka;
 using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
 using JasperFx.Resources;
@@ -28,7 +29,9 @@ public class broadcast_to_topic_rules : IAsyncLifetime
         _receiver = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.UseKafka("localhost:9092").AutoProvision();
+                opts.UseKafka("localhost:9092")
+                    .AutoProvision()
+                    .ConfigureConsumers(c => c.AutoOffsetReset = AutoOffsetReset.Earliest);
                 opts.ListenToKafkaTopic("red").ConfigureConsumer(c =>
                 {
                     c.GroupId = "crimson";
