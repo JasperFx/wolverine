@@ -23,14 +23,16 @@ public class PulsarWithCloudEventsFixture : TransportComplianceFixture, IAsyncLi
         {
             var listener = $"persistent://public/default/replies{topic}";
             opts.UsePulsar(e => { });
-            opts.ListenToPulsarTopic(listener).UseForReplies().InteropWithCloudEvents();
-            opts.PublishMessage<FakeMessage>().ToPulsarTopic(topicPath).InteropWithCloudEvents();
+            opts.Policies.UsePulsarWithCloudEvents();
+            opts.ListenToPulsarTopic(listener).UseForReplies();
+            opts.PublishMessage<FakeMessage>().ToPulsarTopic(topicPath);
         });
 
         await ReceiverIs(opts =>
         {
             opts.UsePulsar();
-            opts.ListenToPulsarTopic(topicPath).InteropWithCloudEvents();
+            opts.Policies.UsePulsarWithCloudEvents();
+            opts.ListenToPulsarTopic(topicPath);
         });
     }
 
@@ -48,5 +50,5 @@ public class PulsarWithCloudEventsFixture : TransportComplianceFixture, IAsyncLi
     }
 }
 
-// [Collection("acceptance")]
-// public class with_cloud_events : TransportCompliance<PulsarWithCloudEventsFixture>;
+[Collection("acceptance")]
+public class with_cloud_events : TransportCompliance<PulsarWithCloudEventsFixture>;

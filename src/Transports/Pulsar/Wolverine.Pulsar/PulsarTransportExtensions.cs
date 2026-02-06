@@ -1,3 +1,4 @@
+using System.Text.Json;
 using DotPulsar;
 using DotPulsar.Abstractions;
 using JasperFx.Core.Reflection;
@@ -94,6 +95,19 @@ public static class PulsarTransportExtensions
     public static IPolicies DisablePulsarRequeue(this IPolicies policies)
     {
         policies.Add(new PulsarEnableRequeuePolicy(PulsarRequeue.Disabled));
+        return policies;
+    }
+
+    /// <summary>
+    ///     Apply CloudEvents interop to all Pulsar endpoints. This configures both
+    ///     listening and sending endpoints to use the CloudEvents message format.
+    /// </summary>
+    /// <param name="policies"></param>
+    /// <param name="jsonSerializerOptions">Optional JSON serializer options for CloudEvents serialization</param>
+    /// <returns></returns>
+    public static IPolicies UsePulsarWithCloudEvents(this IPolicies policies, JsonSerializerOptions? jsonSerializerOptions = null)
+    {
+        policies.Add(new PulsarCloudEventsPolicy(jsonSerializerOptions));
         return policies;
     }
 }
