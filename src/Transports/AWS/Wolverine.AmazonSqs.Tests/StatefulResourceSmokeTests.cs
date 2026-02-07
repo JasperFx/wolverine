@@ -89,7 +89,7 @@ public class StatefulResourceSmokeTests
     [Fact]
     public async Task teardown()
     {
-        (await ConfigureBuilder(false, 30)
+        (await ConfigureBuilder(true, 30)
             .RunJasperFxCommands(["resources", "setup"])).ShouldBe(0);
 
         (await ConfigureBuilder(false, 30)
