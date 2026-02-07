@@ -48,7 +48,7 @@ public class concurrency_resilient_sharded_processing
         await Task.WhenAll(tasks);
     }
     
-    [Fact(Skip = "Requires deeper investigation into partition-by-GroupId serialization with Marten event sourcing")]
+    [Fact]
     public async Task hammer_it_with_lots_of_messages_against_buffered()
     {
         using var host = await Host.CreateDefaultBuilder()
