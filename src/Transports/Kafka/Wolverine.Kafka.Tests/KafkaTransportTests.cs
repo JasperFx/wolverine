@@ -39,5 +39,20 @@ public class KafkaTransportTests
         new KafkaTransport().Usage.ShouldBe(KafkaUsage.ProduceAndConsume);
     }
 
-    
+    [Fact]
+    public void enable_at_least_once_delivery_sets_property_on_topic()
+    {
+        var transport = new KafkaTransport();
+        var topic = new KafkaTopic(transport, "test-topic", EndpointRole.Application);
+
+        topic.EnableAtLeastOnceDelivery.ShouldBeFalse();
+
+        var config = new KafkaListenerConfiguration(topic);
+        config.EnableAtLeastOnceDelivery();
+
+        // Apply the delayed configuration
+        ((IDelayedEndpointConfiguration)config).Apply();
+
+        topic.EnableAtLeastOnceDelivery.ShouldBeTrue();
+    }
 }
