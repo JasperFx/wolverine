@@ -16,7 +16,7 @@ namespace Wolverine.AmazonSqs.Tests.RawJson
 
         public async Task InitializeAsync()
         {
-            theQueueName = "receive_native_json_buffered";
+            theQueueName = "buffered_" + Guid.NewGuid().ToString("N")[..8];
             _host = await Host.CreateDefaultBuilder()
                 .UseWolverine(opts =>
                 {
