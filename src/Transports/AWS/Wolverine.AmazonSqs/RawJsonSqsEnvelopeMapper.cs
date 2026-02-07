@@ -34,6 +34,7 @@ internal class RawJsonSqsEnvelopeMapper : ISqsEnvelopeMapper
     {
         // assuming json serialized message
         envelope.MessageType = _defaultMessageType.ToMessageTypeName();
+        envelope.ContentType = EnvelopeConstants.JsonContentType;
         envelope.Message = JsonSerializer.Deserialize(
             messageBody,
             _defaultMessageType,
