@@ -241,9 +241,12 @@ public class AmazonSnsTopic : Endpoint, IBrokerQueue
     private async Task createTopicSubscriptionsAsync(IAmazonSimpleNotificationService client)
     {
         var sqsClient = Parent.SqsClient!;
-                
+
         foreach (var subscription in TopicSubscriptions)
         {
+            // Skip subscriptions that are already provisioned
+            if (subscription.SubscriptionArn.IsNotEmpty()) continue;
+
             string endpoint;
 
             switch (subscription.Type)
@@ -251,7 +254,7 @@ public class AmazonSnsTopic : Endpoint, IBrokerQueue
                 case AmazonSnsSubscriptionType.Sqs:
                     var getQueueResponse = await sqsClient.GetQueueUrlAsync(subscription.Endpoint);
                     endpoint = await getSqsSubscriptionEndpointAsync(sqsClient, getQueueResponse.QueueUrl);
-                    
+
                     await setQueuePolicyForTopic(sqsClient, new (getQueueResponse.QueueUrl, endpoint,  TopicArn));
                     break;
                 default:
@@ -268,15 +271,33 @@ public class AmazonSnsTopic : Endpoint, IBrokerQueue
                 subscribeRequest.Attributes[nameof(AmazonSnsSubscriptionAttributes.FilterPolicy)] =
                     subscription.Attributes.FilterPolicy;
             }
-            
+
             if (subscription.Attributes.RedrivePolicy.IsNotEmpty())
             {
                 subscribeRequest.Attributes[nameof(AmazonSnsSubscriptionAttributes.RedrivePolicy)] =
                     subscription.Attributes.RedrivePolicy;
             }
-            
-            var subscribeResponse = await client.SubscribeAsync(subscribeRequest);
-            subscription.SubscriptionArn = subscribeResponse.SubscriptionArn;
+
+            try
+            {
+                var subscribeResponse = await client.SubscribeAsync(subscribeRequest);
+                subscription.SubscriptionArn = subscribeResponse.SubscriptionArn;
+            }
+            catch (InvalidParameterException)
+            {
+                // Subscription already exists with different attributes.
+                // Find the existing subscription and use its ARN.
+                var existingSubs = await client.ListSubscriptionsByTopicAsync(TopicArn);
+                var existing = existingSubs.Subscriptions?.FirstOrDefault(s => s.Endpoint == endpoint);
+                if (existing != null)
+                {
+                    subscription.SubscriptionArn = existing.SubscriptionArn;
+                }
+                else
+                {
+                    throw;
+                }
+            }
         }
     }
 

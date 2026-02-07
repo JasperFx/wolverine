@@ -27,7 +27,7 @@ public class BatchedSender : ISender, ISenderRequiresCallback
         var transforming =
             sender.PushUpstream<Envelope[]>(envelopes => new OutgoingMessageBatch(Destination, envelopes));
 
-        var batching = transforming.BatchUpstream(250.Milliseconds());
+        var batching = transforming.BatchUpstream(250.Milliseconds(), batchSize:destination.MessageBatchSize);
         _serializing = batching.PushUpstream<Envelope>(Environment.ProcessorCount, e =>
         {
             try
