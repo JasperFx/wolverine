@@ -1,13 +1,15 @@
 using IntegrationTests;
-using Microsoft.Data.SqlClient;
-using Weasel.SqlServer;
+using Npgsql;
+using Weasel.Postgresql;
 using Wolverine;
 using Wolverine.ComplianceTests;
-using Wolverine.SqlServer;
+using Wolverine.Postgresql;
+using Xunit;
 using Xunit.Abstractions;
 
-namespace SqlServerTests.Agents;
+namespace PostgresqlTests.LeaderElection;
 
+[Collection("marten")]
 public class leader_election : LeadershipElectionCompliance
 {
     public leader_election(ITestOutputHelper output) : base(output)
@@ -16,12 +18,12 @@ public class leader_election : LeadershipElectionCompliance
 
     protected override void configureNode(WolverineOptions opts)
     {
-        opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString, "registry");
+        opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, "registry");
     }
 
     protected override async Task beforeBuildingHost()
     {
-        using var conn = new SqlConnection(Servers.SqlServerConnectionString);
+        await using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
         await conn.OpenAsync();
         await conn.DropSchemaAsync("registry");
         await conn.CloseAsync();

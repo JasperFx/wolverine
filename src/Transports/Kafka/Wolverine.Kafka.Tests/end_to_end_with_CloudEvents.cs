@@ -28,9 +28,12 @@ public class end_to_end_with_CloudEvents : IAsyncLifetime
                 opts.ListenToKafkaTopic("cloudevents")
 
                     // You do have to tell Wolverine what the message type
-                    // is that you'll receive here so that it can deserialize the 
+                    // is that you'll receive here so that it can deserialize the
                     // incoming data
                     .InteropWithCloudEvents();
+
+                // Include test assembly for handler discovery
+                opts.Discovery.IncludeAssembly(GetType().Assembly);
 
                 opts.Services.AddResourceSetupOnStartup();
 

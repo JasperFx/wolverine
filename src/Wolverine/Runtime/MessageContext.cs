@@ -267,8 +267,9 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
             throw new InvalidOperationException("No Envelope is active for this context");
         }
 
+        Runtime.MessageTracking.Requeued(Envelope);
         Envelope.ScheduledTime = scheduledTime;
-        if (_channel is ISupportNativeScheduling c)
+        if (tryGetRescheduler(_channel, Envelope) is ISupportNativeScheduling c)
         {
             await c.MoveToScheduledUntilAsync(Envelope, Envelope.ScheduledTime.Value);
         }
@@ -276,6 +277,36 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         {
             await Storage.Inbox.RescheduleExistingEnvelopeForRetryAsync(Envelope);
         }
+    }
+
+    private ISupportNativeScheduling? tryGetRescheduler(IChannelCallback? channel, Envelope e)
+    {
+        // TODO: is that ok, or should we modify Task ISupportNativeScheduling.MoveToScheduledUntilAsync(Envelope envelope, DateTimeOffset time) in DurableReceiver and BufferedReceiver?
+        if (e.Listener is ISupportNativeScheduling c2)
+        {
+            return c2;
+        }
+
+        if (channel is ISupportNativeScheduling c)
+        {
+            return c;
+        }
+
+        return default;
+    }
+    private ISupportDeadLetterQueue? tryGetDeadLetterQueue(IChannelCallback? channel, Envelope e)
+    {
+        if (_channel is ISupportDeadLetterQueue { NativeDeadLetterQueueEnabled: true } c)
+        {
+            return c;
+        }
+
+        if (e.Listener is ISupportDeadLetterQueue { NativeDeadLetterQueueEnabled: true } c2)
+        {
+            return c2;
+        }
+
+        return default;
     }
 
     public async Task MoveToDeadLetterQueueAsync(Exception exception)
@@ -288,18 +319,19 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
             throw new InvalidOperationException("No Envelope is active for this context");
         }
 
-        if (_channel is ISupportDeadLetterQueue { NativeDeadLetterQueueEnabled: true } c)
+        var deadLetterQueue = tryGetDeadLetterQueue(_channel, Envelope);
+        if (deadLetterQueue is not null)
         {
             if (Envelope.Batch != null)
             {
                 foreach (var envelope in Envelope.Batch)
                 {
-                    await c.MoveToErrorsAsync(envelope, exception);
+                    await deadLetterQueue.MoveToErrorsAsync(envelope, exception);
                 }
             }
             else
             {
-                await c.MoveToErrorsAsync(Envelope, exception);
+                await deadLetterQueue.MoveToErrorsAsync(Envelope, exception);
             }
 
             return;

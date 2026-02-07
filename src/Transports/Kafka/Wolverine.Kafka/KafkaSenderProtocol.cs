@@ -12,7 +12,7 @@ public class KafkaSenderProtocol : ISenderProtocol, IDisposable
     public KafkaSenderProtocol(KafkaTopic topic)
     {
         _topic = topic;
-        _producer = _topic.Parent.CreateProducer(_topic.ProducerConfig);
+        _producer = _topic.Parent.CreateProducer(_topic.GetEffectiveProducerConfig());
     }
 
     public async Task SendBatchAsync(ISenderCallback callback, OutgoingMessageBatch batch)

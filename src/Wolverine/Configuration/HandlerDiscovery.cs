@@ -105,6 +105,11 @@ public sealed partial class HandlerDiscovery
     }
 
     /// <summary>
+    /// 
+    /// </summary>
+    public bool IncludeHandlerModules { get; set; } = false;
+    
+    /// <summary>
     ///  Customize the conventional filtering on the handler type discovery. This is *additive* to the
     /// built in conventional handler discovery. Disabling conventional discovery will negate anything
     /// done with this method
@@ -180,6 +185,22 @@ public sealed partial class HandlerDiscovery
             .Concat(_explicitTypes)
             .Distinct()
             .SelectMany(actionsFromType).ToArray();
+    }
+    
+    /// <summary>
+    /// Discovers and includes all assemblies marked with [WolverineHandlerModule] attribute.
+    /// </summary>
+    internal HandlerDiscovery DiscoverHandlerModules()
+    {
+        var handlerModuleAssemblies = AssemblyFinder
+            .FindAssemblies(a => a.HasAttribute<WolverineHandlerModuleAttribute>())
+            .Concat(AppDomain.CurrentDomain.GetAssemblies())
+            .Distinct()
+            .Where(a => a.HasAttribute<WolverineHandlerModuleAttribute>())
+            .ToArray();
+        
+        Assemblies.AddRange(handlerModuleAssemblies);
+        return this;
     }
 
     private IEnumerable<(Type, MethodInfo)> actionsFromType(Type type)

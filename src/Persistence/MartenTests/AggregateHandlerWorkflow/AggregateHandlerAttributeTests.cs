@@ -32,7 +32,7 @@ public class AggregateHandlerAttributeTests
     [Fact]
     public void throw_if_aggregate_type_is_indeterminate()
     {
-        var chain = HandlerChain.For<InvoiceHandler>(x => x.Handle(default), new HandlerGraph());
+        var chain = HandlerChain.For<InvoiceHandler>(x => x.Handle(default(ApproveInvoice)), new HandlerGraph());
         Should.Throw<InvalidOperationException>(() =>
         {
             AggregateHandling.DetermineAggregateType(chain);
@@ -59,6 +59,15 @@ public class AggregateHandlerAttributeTests
         });
     }
 
+    [Fact]
+    public void determine_aggregate_id_from_command_type_in_aggregate_handler_attribute()
+    {
+        var chain = HandlerChain.For<InvoiceHandler>(x => x.Handle(default(CreateInvoice)), new HandlerGraph());
+        new AggregateHandlerAttribute {AggregateType = typeof(Invoice) }.TryInferMessageIdentity(chain, out var property)
+            .ShouldBe(true);
+        property.Name.ShouldBe(nameof(CreateInvoice.Id));
+    }
+    
     [Fact]
     public void determine_aggregate_id_from_command_type()
     {
@@ -104,10 +113,19 @@ public record InvoiceApproved;
 
 public record ApproveInvoice(Guid InvoiceId);
 
+public record CreateInvoice(Guid Id);
+
+public record InvoiceCreated;
+
 public record RejectInvoice([property: Identity] Guid Something);
 
 public class InvoiceHandler
 {
+    public InvoiceCreated Handle(CreateInvoice command)
+    {
+        return new InvoiceCreated();
+    }
+    
     public InvoiceApproved Handle(ApproveInvoice command, Invoice invoice)
     {
         return new InvoiceApproved();

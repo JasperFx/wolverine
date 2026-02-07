@@ -16,6 +16,7 @@
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
             <PrivateAssets>all</PrivateAssets>
         </PackageReference>
+        <PackageReference Include="GitHubActionsTestLogger" Version="2.4.1" PrivateAssets="All" />
     </ItemGroup>
 
     <ItemGroup>

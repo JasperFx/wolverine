@@ -225,6 +225,11 @@ public static class HostBuilderExtensions
 
         configure?.Invoke(options);
 
+        if (options.Discovery.IncludeHandlerModules)
+        {
+            options.HandlerGraph.Discovery.DiscoverHandlerModules();
+        }
+
         options.ApplyLazyConfiguration();
 
         return services;

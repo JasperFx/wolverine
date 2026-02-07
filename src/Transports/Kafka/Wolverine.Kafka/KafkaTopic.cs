@@ -62,9 +62,15 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
         return uri.Segments.Last().Trim('/');
     }
 
-    public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
+    /// <summary>
+    /// Gets the effective ConsumerConfig for this topic, ensuring BootstrapServers is inherited from parent if not set
+    /// </summary>
+    internal ConsumerConfig GetEffectiveConsumerConfig()
     {
-        EnvelopeMapper ??= BuildMapper(runtime);
+        if (ConsumerConfig != null && string.IsNullOrEmpty(ConsumerConfig.BootstrapServers))
+        {
+            ConsumerConfig.BootstrapServers = Parent.ConsumerConfig.BootstrapServers;
+        }
 
         var config = ConsumerConfig ?? Parent.ConsumerConfig;
 
@@ -73,6 +79,27 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
             config = new ConsumerConfig(config) { EnableAutoOffsetStore = false };
         }
 
+        return config;
+    }
+
+    /// <summary>
+    /// Gets the effective ProducerConfig for this topic, ensuring BootstrapServers is inherited from parent if not set
+    /// </summary>
+    internal ProducerConfig GetEffectiveProducerConfig()
+    {
+        if (ProducerConfig != null && string.IsNullOrEmpty(ProducerConfig.BootstrapServers))
+        {
+            ProducerConfig.BootstrapServers = Parent.ProducerConfig.BootstrapServers;
+        }
+
+        return ProducerConfig ?? Parent.ProducerConfig;
+    }
+
+    public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
+    {
+        EnvelopeMapper ??= BuildMapper(runtime);
+
+        var config = GetEffectiveConsumerConfig();
         var listener = new KafkaListener(this, config,
             Parent.CreateConsumer(config), receiver, runtime.LoggerFactory.CreateLogger<KafkaListener>());
         return ValueTask.FromResult((IListener)listener);
@@ -96,7 +123,7 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
         if (TopicName == WolverineTopicsName) return true; // don't care, this is just a marker
         try
         {
-            using var client = Parent.CreateProducer(ProducerConfig);
+            using var client = Parent.CreateProducer(GetEffectiveProducerConfig());
             await client.ProduceAsync(TopicName, new Message<string, byte[]>
             {
                 Key = "ping",

@@ -354,7 +354,7 @@ public class using_aggregate_handler_workflow(AppFixture fixture) : IntegrationC
     }
     
     [Fact]
-    public async Task aggregate_id_variable_is_fetchable_from_http_chain_for_handler_marked_with_AggregateHandler()
+    public async Task aggregate_id_variable_is_fetchable_from_chain_for_handler_marked_with_AggregateHandler()
     {
         // Guaranteeing that it's warmed up
         var result1 = await Scenario(x =>
@@ -377,6 +377,30 @@ public class using_aggregate_handler_workflow(AppFixture fixture) : IntegrationC
         
         aggregateIdVariable.VariableType.FullName.ShouldBe(typeof(Guid).FullName);
         aggregateIdVariable.Usage.ShouldBe("order_Id");
+    }
+
+    [Fact]
+    public async Task aggregate_type_is_fetchable_from_chain_for_handler_marked_with_AggregateHandler()
+    {
+        var result1 = await Scenario(x =>
+        {
+            x.Post.Json(new StartOrder(["Socks", "Shoes", "Shirt"])).ToUrl("/orders/create");
+        });
+        
+        var status1 = result1.ReadAsJson<OrderStatus>();
+        
+        await Scenario(x =>
+        {
+            x.Post.Json(new MarkItemReady(status1.OrderId, "Socks", 1)).ToUrl("/orders/itemready");
+        });
+
+        var chain = Host.Services.GetRequiredService<WolverineHttpOptions>().Endpoints!.ChainFor("POST", "/orders/itemready");
+        chain.ShouldNotBeNull();
+
+        var aggregateType = chain.GetAggregateType();
+        aggregateType.ShouldNotBeNull();
+        
+        aggregateType.FullName.ShouldBe(typeof(Order).FullName);
     }
 
 }

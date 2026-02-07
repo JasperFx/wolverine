@@ -113,6 +113,7 @@ const config: UserConfig<DefaultTheme.Config> = {
                             text: 'Message Handlers', link: '/guide/handlers/', items: [
                                 {text: 'Discovery', link: '/guide/handlers/discovery'},
                                 {text: 'Error Handling', link: '/guide/handlers/error-handling'},
+                                {text: 'Rate Limiting', link: '/guide/handlers/rate-limiting'},
                                 {text: 'Return Values', link: '/guide/handlers/return-values'},
                                 {text: 'Cascading Messages', link: '/guide/handlers/cascading'},
                                 {text: 'Side Effects', link: '/guide/handlers/side-effects'},

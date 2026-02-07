@@ -176,6 +176,20 @@ public class customized_finding : IntegrationContext
         chainFor<Module2Message3>().ShouldNotBeNull();
         chainFor<Module2Message4>().ShouldNotBeNull();
     }
+
+    [Fact]
+    public void find_handlers_from_handler_module_assemblies()
+    {
+        with(opts =>
+        {
+            opts.Discovery.IncludeHandlerModules = true;
+        });
+
+        chainFor<Module2Message1>().ShouldNotBeNull();
+        chainFor<Module2Message2>().ShouldNotBeNull();
+        chainFor<Module2Message3>().ShouldNotBeNull();
+        chainFor<Module2Message4>().ShouldNotBeNull();
+    }
 }
 
 public interface IMovieSink
