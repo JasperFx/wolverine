@@ -1,0 +1,62 @@
+name: mqtt
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  config: Release
+  disable_test_parallelization: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v1
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Setup .NET 9
+        uses: actions/setup-dotnet@v1
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v1
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Start PostgreSQL
+        run: docker compose up -d postgresql
+
+      - name: Wait for PostgreSQL
+        run: |
+          echo "Waiting for PostgreSQL to be ready..."
+          for i in {1..30}; do
+            if nc -z localhost 5433 > /dev/null 2>&1; then
+              echo "PostgreSQL is ready"
+              break
+            fi
+            echo "Attempt $i: PostgreSQL not ready yet, waiting..."
+            sleep 2
+          done
+
+      - name: Build
+        run: dotnet build src/Transports/MQTT/Wolverine.MQTT.Tests/Wolverine.MQTT.Tests.csproj --configuration ${{ env.config }} --framework net10.0
+
+      - name: Test
+        run: dotnet test src/Transports/MQTT/Wolverine.MQTT.Tests/Wolverine.MQTT.Tests.csproj --configuration ${{ env.config }} --framework net10.0 --no-build --logger "GitHubActions;summary.includePassedTests=true;summary.includeSkippedTests=true"
+
+      - name: Stop containers
+        if: always()
+        run: docker compose down
