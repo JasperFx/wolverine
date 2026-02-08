@@ -269,7 +269,7 @@ builder.Services.AddOpenTelemetry()
     .WithMetrics(metrics => { metrics.AddMeter("Wolverine"); })
     .UseOtlpExporter();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/OpenTelemetry/OtelWebApiWolverineMarten/Program.cs#L34-L41' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_enabling_open_telemetry-1' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/OpenTelemetry/OtelWebApiWolverineMarten/Program.cs#L36-L43' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_enabling_open_telemetry-1' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: tip

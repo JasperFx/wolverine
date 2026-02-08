@@ -304,7 +304,7 @@ public class BlockbusterHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/find_handlers_with_the_default_handler_discovery.cs#L223-L271' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverineignoreattribute' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/find_handlers_with_the_default_handler_discovery.cs#L237-L285' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverineignoreattribute' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 

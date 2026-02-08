@@ -44,9 +44,16 @@ builder.UseWolverine(opts =>
         
         // And all the normal Wolverine options...
         .Sequential();
+
+    // Listen for incoming messages from a Pulsar topic with a shared subscription and using RETRY and DLQ queues
+    opts.ListenToPulsarTopic("persistent://public/default/three")
+        .WithSharedSubscriptionType()
+        .DeadLetterQueueing(new DeadLetterTopic(DeadLetterTopicMode.Native))
+        .RetryLetterQueueing(new RetryLetterTopic([TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(5)]))
+        .Sequential();
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Pulsar/Wolverine.Pulsar.Tests/DocumentationSamples.cs#L12-L42' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_pulsar' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Pulsar/Wolverine.Pulsar.Tests/DocumentationSamples.cs#L12-L50' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_pulsar' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The topic name format is set by Pulsar itself, and you can learn more about its format in [Pulsar Topics](https://pulsar.apache.org/docs/next/concepts-messaging/#topics). 
@@ -89,7 +96,7 @@ builder.UseWolverine(opts =>
     opts.DisablePulsarRequeue();
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Pulsar/Wolverine.Pulsar.Tests/DocumentationSamples.cs#L47-L73' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disable_requeue_for_pulsar' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Pulsar/Wolverine.Pulsar.Tests/DocumentationSamples.cs#L55-L81' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disable_requeue_for_pulsar' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 If you have an application that has receive only access to a subscription but not permissions to publish to Pulsar,
@@ -116,7 +123,7 @@ builder.UseWolverine(opts =>
     opts.UnsubscribePulsarOnClose(PulsarUnsubscribeOnClose.Disabled);
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Pulsar/Wolverine.Pulsar.Tests/DocumentationSamples.cs#L78-L93' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pulsar_unsubscribe_on_close' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Pulsar/Wolverine.Pulsar.Tests/DocumentationSamples.cs#L86-L101' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pulsar_unsubscribe_on_close' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Interoperability

@@ -172,18 +172,21 @@ _receiver = await Host.CreateDefaultBuilder()
         //opts.EnableAutomaticFailureAcks = false;
         opts.UseKafka("localhost:9092").AutoProvision();
         opts.ListenToKafkaTopic("json")
-            
+
             // You do have to tell Wolverine what the message type
-            // is that you'll receive here so that it can deserialize the 
+            // is that you'll receive here so that it can deserialize the
             // incoming data
             .ReceiveRawJson<ColorMessage>();
 
+        // Include test assembly for handler discovery
+        opts.Discovery.IncludeAssembly(GetType().Assembly);
+
         opts.Services.AddResourceSetupOnStartup();
-        
+
         opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, "kafka");
 
         opts.Services.AddResourceSetupOnStartup();
-        
+
         opts.Policies.UseDurableInboxOnAllListeners();
     }).StartAsync();
 
@@ -202,7 +205,7 @@ _sender = await Host.CreateDefaultBuilder()
             .PublishRawJson(new JsonSerializerOptions());
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/publish_and_receive_raw_json.cs#L21-L59' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_raw_json_sending_and_receiving_with_kafka' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/publish_and_receive_raw_json.cs#L21-L62' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_raw_json_sending_and_receiving_with_kafka' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Instrumentation & Diagnostics <Badge type="tip" text="3.13" />
