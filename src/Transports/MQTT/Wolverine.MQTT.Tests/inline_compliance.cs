@@ -52,11 +52,10 @@ public class InlineComplianceFixture : TransportComplianceFixture, IAsyncLifetim
 
     public LocalMqttBroker Broker { get; private set; }
 
-    public async Task DisposeAsync()
+    public new async Task DisposeAsync()
     {
         await Broker.StopAsync();
         await Broker.DisposeAsync();
-        await DisposeAsync();
     }
 }
 
