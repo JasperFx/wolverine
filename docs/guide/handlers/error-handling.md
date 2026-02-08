@@ -229,7 +229,7 @@ public class MyErrorCausingHandler
 To specify global error handling rules, use the fluent interface directly on `WolverineOptions.Handlers` as shown below:
 
 <!-- snippet: sample_GlobalErrorHandlingConfiguration -->
-<a id='snippet-sample_globalerrorhandlingconfiguration'></a>
+<a id='snippet-sample_GlobalErrorHandlingConfiguration'></a>
 ```cs
 using var host = await Host.CreateDefaultBuilder()
     .UseWolverine(opts =>
@@ -244,7 +244,7 @@ using var host = await Host.CreateDefaultBuilder()
             .ScheduleRetry(5.Seconds());
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Runtime/Samples/error_handling.cs#L31-L46' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_globalerrorhandlingconfiguration' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Runtime/Samples/error_handling.cs#L31-L46' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_GlobalErrorHandlingConfiguration' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 TODO -- link to chain policies, after that exists:)
@@ -253,7 +253,7 @@ Lastly, you can use chain policies to add error handling policies to a selected 
 a sample policy that applies an error handling policy based on `SqlException` errors for all message types from a certain namespace:
 
 <!-- snippet: sample_ErrorHandlingPolicy -->
-<a id='snippet-sample_errorhandlingpolicy'></a>
+<a id='snippet-sample_ErrorHandlingPolicy'></a>
 ```cs
 // This error policy will apply to all message types in the namespace
 // 'MyApp.Messages', and add a "requeue on SqlException" to all of these
@@ -269,7 +269,7 @@ public class ErrorHandlingPolicy : IHandlerPolicy
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Runtime/Samples/error_handling.cs#L201-L217' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_errorhandlingpolicy' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Runtime/Samples/error_handling.cs#L201-L217' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_ErrorHandlingPolicy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Exception Filtering
@@ -326,7 +326,7 @@ Optionally, you can implement a new type to handle this same custom logic by
 subclassing the `Wolverine.ErrorHandling.UserDefinedContinuation` type like so:
 
 <!-- snippet: sample_ShippingOrderFailurePolicy -->
-<a id='snippet-sample_shippingorderfailurepolicy'></a>
+<a id='snippet-sample_ShippingOrderFailurePolicy'></a>
 ```cs
 public class ShippingOrderFailurePolicy : UserDefinedContinuation
 {
@@ -346,7 +346,7 @@ public class ShippingOrderFailurePolicy : UserDefinedContinuation
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/ErrorHandling/custom_error_action_raises_new_message.cs#L75-L95' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_shippingorderfailurepolicy' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/ErrorHandling/custom_error_action_raises_new_message.cs#L75-L95' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_ShippingOrderFailurePolicy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 and register that secondary action like this:

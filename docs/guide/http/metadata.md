@@ -68,7 +68,7 @@ for finer grained control. Here's a sample from the Wolverine testing code that 
 determine the OpenAPI operation id:
 
 <!-- snippet: sample_WolverineOperationFilter -->
-<a id='snippet-sample_wolverineoperationfilter'></a>
+<a id='snippet-sample_WolverineOperationFilter'></a>
 ```cs
 // This class is NOT distributed in any kind of Nuget today, but feel very free
 // to copy this code into your own as it is at least tested through Wolverine's
@@ -84,7 +84,7 @@ public class WolverineOperationFilter : IOperationFilter // IOperationFilter is 
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/WolverineOperationFilter.cs#L7-L23' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverineoperationfilter' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/WolverineOperationFilter.cs#L7-L23' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_WolverineOperationFilter' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And that would be registered with Swashbuckle inside of your `Program.Main()` method like so:
@@ -132,7 +132,7 @@ an HTTP endpoint, you can have your response type implement the `IHttpAware` int
 consider the `CreationResponse` type in Wolverine:
 
 <!-- snippet: sample_CreationResponse -->
-<a id='snippet-sample_creationresponse'></a>
+<a id='snippet-sample_CreationResponse'></a>
 ```cs
 /// <summary>
 /// Base class for resource types that denote some kind of resource being created
@@ -158,7 +158,7 @@ public record CreationResponse([StringSyntax("Route")]string Url) : IHttpAware
     public static CreationResponse<T> For<T>(T value, string url) => new CreationResponse<T>(url, value);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http/IHttpAware.cs#L82-L108' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_creationresponse' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http/IHttpAware.cs#L82-L108' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_CreationResponse' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Any endpoint that returns `CreationResponse` or a sub class will automatically expose a status code of `201` for successful
