@@ -102,7 +102,7 @@ name ends with "Command" to use the Marten transaction middleware. You could acc
 with a handler policy like this:
 
 <!-- snippet: sample_CommandsAreTransactional -->
-<a id='snippet-sample_commandsaretransactional'></a>
+<a id='snippet-sample_CommandsAreTransactional'></a>
 ```cs
 public class CommandsAreTransactional : IHandlerPolicy
 {
@@ -116,13 +116,13 @@ public class CommandsAreTransactional : IHandlerPolicy
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/transactional_frame_end_to_end.cs#L136-L150' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_commandsaretransactional' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/transactional_frame_end_to_end.cs#L136-L150' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_CommandsAreTransactional' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Then add the policy to your application like this:
 
 <!-- snippet: sample_Using_CommandsAreTransactional -->
-<a id='snippet-sample_using_commandsaretransactional'></a>
+<a id='snippet-sample_Using_CommandsAreTransactional'></a>
 ```cs
 using var host = await Host.CreateDefaultBuilder()
     .UseWolverine(opts =>
@@ -131,7 +131,7 @@ using var host = await Host.CreateDefaultBuilder()
         opts.Policies.Add<CommandsAreTransactional>();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/transactional_frame_end_to_end.cs#L66-L75' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_commandsaretransactional' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/transactional_frame_end_to_end.cs#L66-L75' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_Using_CommandsAreTransactional' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Using IDocumentOperations <Badge type="tip" text="3.14" />
@@ -145,7 +145,7 @@ the ability to commit the ongoing unit of work with a `SaveChangesAsync` API.
 Here's an example:
 
 <!-- snippet: sample_using_IDocumentOperations -->
-<a id='snippet-sample_using_idocumentoperations'></a>
+<a id='snippet-sample_using_IDocumentOperations'></a>
 ```cs
 public class CreateDocCommand2Handler
 {
@@ -163,6 +163,6 @@ public class CreateDocCommand2Handler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/transactional_frame_end_to_end.cs#L91-L109' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_idocumentoperations' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/transactional_frame_end_to_end.cs#L91-L109' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_IDocumentOperations' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
