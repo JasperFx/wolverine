@@ -22,6 +22,12 @@ public static class FormEndpoints{
         return value ?? "";
     }
 
+    [WolverinePost("/form/kebab-name")]
+    public static string KebabFormName([FromForm(Name = "form-custom-kebab")] string value)
+    {
+        return value ?? "";
+    }
+
     [WolverinePost("/form/enum/nullable")]
     public static string UsingNullableEnumQuerystring([FromForm]Direction? direction)
     {
