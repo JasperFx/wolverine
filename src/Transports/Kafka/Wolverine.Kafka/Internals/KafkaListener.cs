@@ -16,7 +16,7 @@ public class KafkaListener : IListener, IDisposable
     private readonly string? _messageTypeName;
     private readonly ILogger<KafkaListener> _logger;
     private readonly QualityOfService _qualityOfService;
-    private readonly bool _enableAtLeastOnceDelivery;
+    private readonly QualityOfService? _requestedQualityOfService;
 
     public KafkaListener(KafkaTopic topic, ConsumerConfig config,
         IConsumer<string, byte[]> consumer, IReceiver receiver,
@@ -32,11 +32,12 @@ public class KafkaListener : IListener, IDisposable
         Config = config;
         _receiver = receiver;
 
-        _enableAtLeastOnceDelivery = topic.EnableAtLeastOnceDelivery;
+        _requestedQualityOfService = topic.QualityOfService;
 
-        _qualityOfService = Config.EnableAutoCommit.HasValue && !Config.EnableAutoCommit.Value
+        _qualityOfService = _requestedQualityOfService
+            ?? (Config.EnableAutoCommit.HasValue && !Config.EnableAutoCommit.Value
             ? QualityOfService.AtMostOnce
-            : QualityOfService.AtLeastOnce;
+                : QualityOfService.AtLeastOnce);
 
         _runner = Task.Run(async () =>
         {
@@ -110,7 +111,7 @@ public class KafkaListener : IListener, IDisposable
 
     public ValueTask CompleteAsync(Envelope envelope)
     {
-        if (_enableAtLeastOnceDelivery)
+        if (_requestedQualityOfService == QualityOfService.AtLeastOnce)
         {
             var tpo = new TopicPartitionOffset(
                 envelope.TopicName,

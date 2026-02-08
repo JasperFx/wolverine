@@ -51,11 +51,12 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
     public ProducerConfig? ProducerConfig { get; internal set; }
 
     /// <summary>
-    /// When true, enables "at least once" delivery semantics by storing offsets
-    /// only after message processing completes. This automatically sets
-    /// EnableAutoOffsetStore=false on the consumer. Default is false for backward compatibility.
+    /// Optional explicit quality of service override for this topic.
+    /// When set to <see cref="Kafka.QualityOfService.AtLeastOnce"/>, offsets are stored only after
+    /// message processing completes and EnableAutoOffsetStore is automatically set to false.
+    /// When null, the quality of service is derived from the consumer configuration.
     /// </summary>
-    public bool EnableAtLeastOnceDelivery { get; internal set; }
+    public QualityOfService? QualityOfService { get; internal set; }
 
     public static string TopicNameForUri(Uri uri)
     {
@@ -74,7 +75,7 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
 
         var config = ConsumerConfig ?? Parent.ConsumerConfig;
 
-        if (EnableAtLeastOnceDelivery)
+        if (QualityOfService == Kafka.QualityOfService.AtLeastOnce)
         {
             config = new ConsumerConfig(config) { EnableAutoOffsetStore = false };
         }
@@ -175,12 +176,14 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
 public enum QualityOfService
 {
     /// <summary>
-    /// "At least once" delivery guarantee by auto-ack'ing incoming messages
+    /// "At least once" delivery guarantee. Offsets are stored only after message processing
+    /// completes, ensuring messages are redelivered if the consumer crashes during processing.
     /// </summary>
     AtLeastOnce,
 
     /// <summary>
-    /// "At most once" delivery guarantee by trying to ack received messages before processing
+    /// "At most once" delivery guarantee. Offsets are committed before processing,
+    /// so messages may be lost if the consumer crashes during processing.
     /// </summary>
     AtMostOnce
 }

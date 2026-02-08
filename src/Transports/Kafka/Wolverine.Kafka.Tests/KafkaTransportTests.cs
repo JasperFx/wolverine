@@ -45,7 +45,7 @@ public class KafkaTransportTests
         var transport = new KafkaTransport();
         var topic = new KafkaTopic(transport, "test-topic", EndpointRole.Application);
 
-        topic.EnableAtLeastOnceDelivery.ShouldBeFalse();
+        topic.QualityOfService.ShouldBeNull();
 
         var config = new KafkaListenerConfiguration(topic);
         config.EnableAtLeastOnceDelivery();
@@ -53,6 +53,6 @@ public class KafkaTransportTests
         // Apply the delayed configuration
         ((IDelayedEndpointConfiguration)config).Apply();
 
-        topic.EnableAtLeastOnceDelivery.ShouldBeTrue();
+        topic.QualityOfService.ShouldBe(Kafka.QualityOfService.AtLeastOnce);
     }
 }

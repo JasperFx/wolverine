@@ -113,7 +113,7 @@ public class KafkaListenerConfiguration : InteroperableListenerConfiguration<Kaf
     {
         add(topic =>
         {
-            topic.EnableAtLeastOnceDelivery = true;
+            topic.QualityOfService = Kafka.QualityOfService.AtLeastOnce;
         });
         return this;
     }
