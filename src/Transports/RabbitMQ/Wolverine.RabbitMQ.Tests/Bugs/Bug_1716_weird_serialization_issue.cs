@@ -25,7 +25,7 @@ public class Bug_1716_weird_serialization_issue
     [Fact]
     public void try_to_deserialize_date_string()
     {
-        var time = DateTimeOffset.Parse("2025-10-11 21:58:51:345464 Z");
+        var time = DateTimeOffset.Parse("2025-10-11 21:58:51.345464 Z");
         //var time = XmlConvert.ToDateTime("2025-10-11 21:58:51:345464 Z", XmlDateTimeSerializationMode.Utc);
     }
 

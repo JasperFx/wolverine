@@ -54,7 +54,7 @@ public class rate_limiting_end_to_end
             await receiver.ResetResourceState();
             await alignToWindowStart(window);
 
-            var bus = publisher.Services.GetRequiredService<IMessageBus>();
+            var bus = publisher.MessageBus();
             await bus.PublishAsync(new RateLimitedMessage());
             await bus.PublishAsync(new RateLimitedMessage());
 
