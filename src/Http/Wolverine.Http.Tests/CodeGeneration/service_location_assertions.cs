@@ -94,6 +94,7 @@ public class service_location_assertions
 
         return await AlbaHost.For(builder, app =>
         {
+            app.UseDeveloperExceptionPage();
             app.MapWolverineEndpoints(opts =>
             {
                 opts.ServiceProviderSource = providerSource;
