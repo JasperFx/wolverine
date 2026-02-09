@@ -7,7 +7,7 @@ off, explicit validation for certain endpoints.
 Consider this contrived sample endpoint with explicit validation being done in a "Before" middleware method:
 
 <!-- snippet: sample_ProblemDetailsUsageEndpoint -->
-<a id='snippet-sample_problemdetailsusageendpoint'></a>
+<a id='snippet-sample_ProblemDetailsUsageEndpoint'></a>
 ```cs
 public class ProblemDetailsUsageEndpoint
 {
@@ -35,7 +35,7 @@ public class ProblemDetailsUsageEndpoint
 
 public record NumberMessage(int Number);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/ProblemDetailsUsage.cs#L8-L36' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_problemdetailsusageendpoint' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/ProblemDetailsUsage.cs#L8-L36' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_ProblemDetailsUsageEndpoint' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Wolverine.Http now (as of 1.2.0) has a convention that sees a return value of `ProblemDetails` and looks at that as a

@@ -7,6 +7,7 @@ using Xunit.Abstractions;
 
 namespace Wolverine.MQTT.Tests;
 
+[Collection("acceptance")]
 public class broadcast_to_topic_by_user_logic: IAsyncLifetime
 {
     private readonly ITestOutputHelper _output;
@@ -86,6 +87,7 @@ public class broadcast_to_topic_by_user_logic: IAsyncLifetime
     public async Task DisposeAsync()
     {
         await Broker.StopAsync();
+        await Broker.DisposeAsync();
         await _sender.StopAsync();
         await _receiver.StopAsync();
     }

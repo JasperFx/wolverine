@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
@@ -10,13 +9,13 @@ using Xunit.Abstractions;
 namespace Wolverine.MQTT.Tests;
 
 [Collection("acceptance")]
-public class broadcast_to_topic_async : IAsyncLifetime
+public class listen_with_emqx_shared_group_topic : IAsyncLifetime
 {
     private readonly ITestOutputHelper _output;
     private IHost _sender;
     private IHost _receiver;
 
-    public broadcast_to_topic_async(ITestOutputHelper output)
+    public listen_with_emqx_shared_group_topic(ITestOutputHelper output)
     {
         _output = output;
     }
@@ -24,6 +23,7 @@ public class broadcast_to_topic_async : IAsyncLifetime
     public async Task InitializeAsync()
     {
         var port = PortFinder.GetAvailablePort();
+
 
         Broker = new LocalMqttBroker(port)
         {
@@ -39,25 +39,30 @@ public class broadcast_to_topic_async : IAsyncLifetime
                 opts.Policies.DisableConventionalLocalRouting();
             }).StartAsync();
 
+        #region sample_listen_to_mqtt_topic_filter
+
         _receiver = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
                 opts.UseMqttWithLocalBroker(port);
-                opts.ListenToMqttTopic("incoming/one").RetainMessages();
+                opts.ListenToMqttTopic("incoming/one", "group1").RetainMessages();
             }).StartAsync();
 
+        #endregion
     }
 
     [Fact]
-    public async Task broadcast()
+    public async Task send_to_shared_topic_and_receive()
     {
-        var session = await _sender.TrackActivity()
+        var tracked = await _sender.TrackActivity()
             .AlsoTrack(_receiver)
             .Timeout(30.Seconds())
-            .ExecuteAndWaitAsync(m => m.BroadcastToTopicAsync("incoming/one", new ColorMessage("blue")));
+            // The message is published to the topic *without* the $share prefix
+            .ExecuteAndWaitAsync(m => m.BroadcastToTopicAsync("incoming/one", new ColorMessage("green")));
 
-        var received = session.Received.SingleMessage<ColorMessage>();
-        received.Color.ShouldBe("blue");
+        // The receiver listening on "$share/group1/incoming/one" should receive the message
+        var received = tracked.Received.SingleMessage<ColorMessage>();
+        received.Color.ShouldBe("green");
     }
 
     public LocalMqttBroker Broker { get; set; }
@@ -68,34 +73,5 @@ public class broadcast_to_topic_async : IAsyncLifetime
         await Broker.DisposeAsync();
         await _sender.StopAsync();
         await _receiver.StopAsync();
-    }
-}
-
-public class ColorMessage
-{
-    public ColorMessage()
-    {
-    }
-
-    public ColorMessage(string color)
-    {
-        Color = color;
-    }
-
-    public string Color { get; set; }
-}
-
-public class SpecialColorMessage : ColorMessage;
-
-public static class ColorMessageHandler
-{
-    public static void Handle(ColorMessage message)
-    {
-        Debug.WriteLine("Got " + message.Color);
-    }
-
-    public static void Handle(SpecialColorMessage message)
-    {
-        Debug.WriteLine("Got " + message.Color);
     }
 }

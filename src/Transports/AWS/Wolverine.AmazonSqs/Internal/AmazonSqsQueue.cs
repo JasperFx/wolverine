@@ -43,6 +43,8 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue, IMassTransitInteropEndpoin
 
     public string QueueName { get; }
 
+    internal bool IsFifoQueue => QueueName.EndsWith(".fifo", StringComparison.OrdinalIgnoreCase);
+
     // Set by the AmazonSqsTransport parent
     internal string? QueueUrl { get; private set; }
 
@@ -207,14 +209,17 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue, IMassTransitInteropEndpoin
 
         var body = Mapper!.BuildMessageBody(envelope);
         var request = new SendMessageRequest(QueueUrl, body);
-        if (envelope.GroupId.IsNotEmpty())
+        if (IsFifoQueue)
         {
-            request.MessageGroupId = envelope.GroupId;
-        }
+            if (envelope.GroupId.IsNotEmpty())
+            {
+                request.MessageGroupId = envelope.GroupId;
+            }
 
-        if (envelope.DeduplicationId.IsNotEmpty())
-        {
-            request.MessageDeduplicationId = envelope.DeduplicationId;
+            if (envelope.DeduplicationId.IsNotEmpty())
+            {
+                request.MessageDeduplicationId = envelope.DeduplicationId;
+            }
         }
 
         foreach (var attribute in Mapper.ToAttributes(envelope))

@@ -172,7 +172,7 @@ To teach Wolverine how to batch up our `SubTaskCompleted` messages into our cust
 type:
 
 <!-- snippet: sample_IMessageBatcher -->
-<a id='snippet-sample_imessagebatcher'></a>
+<a id='snippet-sample_IMessageBatcher'></a>
 ```cs
 /// <summary>
 /// Plugin strategy for creating custom grouping of messages
@@ -193,13 +193,13 @@ public interface IMessageBatcher
     Type BatchMessageType { get; }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/Batching/IMessageBatcher.cs#L5-L26' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_imessagebatcher' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/Batching/IMessageBatcher.cs#L5-L26' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_IMessageBatcher' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 A custom implementation of that interface in this case would look like this:
 
 <!-- snippet: sample_SubTaskCompletedBatcher -->
-<a id='snippet-sample_subtaskcompletedbatcher'></a>
+<a id='snippet-sample_SubTaskCompletedBatcher'></a>
 ```cs
 public class SubTaskCompletedBatcher : IMessageBatcher
 {
@@ -231,13 +231,13 @@ public class SubTaskCompletedBatcher : IMessageBatcher
     public Type BatchMessageType => typeof(SubTaskCompletedBatch);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/batch_processing.cs#L194-L226' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_subtaskcompletedbatcher' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/batch_processing.cs#L194-L226' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_SubTaskCompletedBatcher' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And of course, this doesn't work without a matching message handler for our custom message type:
 
 <!-- snippet: sample_SubTaskCompletedBatchHandler -->
-<a id='snippet-sample_subtaskcompletedbatchhandler'></a>
+<a id='snippet-sample_SubTaskCompletedBatchHandler'></a>
 ```cs
 public static class SubTaskCompletedBatchHandler
 {
@@ -254,7 +254,7 @@ public static class SubTaskCompletedBatchHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/batch_processing.cs#L241-L258' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_subtaskcompletedbatchhandler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/batch_processing.cs#L241-L258' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_SubTaskCompletedBatchHandler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And finally, we need to tell Wolverine about the batching and the strategy for batching the `SubTaskCompleted`

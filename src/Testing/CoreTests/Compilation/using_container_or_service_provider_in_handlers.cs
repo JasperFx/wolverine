@@ -53,10 +53,38 @@ public class using_container_or_service_provider_in_handlers : CompilationContex
 
             opts.Services.AddSingleton(new ColorContext("Red"));
         });
-        
+
         await Execute(new CSP5());
 
         CSP5User.Flag.ShouldBeOfType<RedFlag>();
+    }
+
+    [Fact]
+    public async Task service_location_flag_does_not_leak_to_subsequent_handlers()
+    {
+        IfWolverineIsConfiguredAs(opts =>
+        {
+            opts.IncludeType(typeof(CSP5User));
+            opts.IncludeType(typeof(CSP6User));
+            opts.CodeGeneration.AlwaysUseServiceLocationFor<IFlag>();
+
+            opts.Services.AddScoped<IGateway, Gateway>();
+            opts.Services.AddScoped<IFlag>(x =>
+            {
+                var context = x.GetRequiredService<ColorContext>();
+                return context.Color.EqualsIgnoreCase("red") ? new RedFlag() : new GreenFlag();
+            });
+
+            opts.Services.AddSingleton(new ColorContext("Red"));
+        });
+
+        // Execute first handler
+        await Execute(new CSP5());
+        CSP5User.Flag.ShouldBeOfType<RedFlag>();
+
+        // Execute second handler - should still work with constructor injection
+        await Execute(new CSP6());
+        CSP6User.Gateway.ShouldNotBeNull();
     }
 }
 
@@ -118,3 +146,22 @@ public record GreenFlag : IFlag;
 
 public interface IGateway;
 public class Gateway : IGateway;
+
+public record CSP6;
+
+[WolverineIgnore]
+public class CSP6User
+{
+    private readonly IGateway _gateway;
+    public static IGateway? Gateway { get; set; }
+
+    public CSP6User(IGateway gateway)
+    {
+        _gateway = gateway;
+    }
+
+    public void Handle(CSP6 message)
+    {
+        Gateway = _gateway;
+    }
+}

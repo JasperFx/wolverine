@@ -95,6 +95,28 @@ public static class MqttTransportExtensions
 
         return new MqttListenerConfiguration(endpoint);
     }
+    
+    /// <summary>
+    /// Listen for incoming messages at the designated MQTT topic name as part of a shared subscription group.
+    /// This will configure the subscription topic in the format "$share/{sharedGroupName}/{topicName}".
+    /// </summary>
+    /// <param name="endpoints">The Wolverine application configuration.</param>
+    /// <param name="topicName">The base topic name to listen to (e.g., "incoming/messages").</param>
+    /// <param name="sharedGroupName">The name of the shared subscription group (e.g., "my-consumers").</param>
+    /// <returns></returns>
+    public static MqttListenerConfiguration ListenToMqttTopic(this WolverineOptions endpoints, string topicName, string sharedGroupName)
+    {
+        var transport = endpoints.MqttTransport();
+        
+        // Construct the full shared topic name
+        var fullSharedTopicName = $"$share/{sharedGroupName}/{topicName}";
+
+        var endpoint = transport.Topics[fullSharedTopicName];
+        endpoint.EndpointName = fullSharedTopicName;
+        endpoint.IsListener = true;
+
+        return new MqttListenerConfiguration(endpoint);
+    }
 
     /// <summary>
     /// Publish messages to an MQTT topic

@@ -46,7 +46,9 @@ public class Bug_189_fails_if_there_are_many_messages_in_queue_on_startup
 
         var waiter = Bug189Handler.WaitForCompletion(500, 120000);
 
-        using var receiver = Host.CreateDefaultBuilder()
+        // Fire-and-forget the host startup so it doesn't block while processing
+        // queued messages inline during startup
+        var receiverTask = Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
                 opts.UseRabbitMq();
@@ -55,7 +57,17 @@ public class Bug_189_fails_if_there_are_many_messages_in_queue_on_startup
                 opts.ListenToRabbitQueue(queueName).ProcessInline().ListenerCount(5);
             }).StartAsync();
 
-        await waiter;
+        try
+        {
+            await waiter;
+        }
+        finally
+        {
+            if (receiverTask.IsCompletedSuccessfully)
+            {
+                await receiverTask.Result.StopAsync();
+            }
+        }
     }
 
     public record Bug189(Guid Id);

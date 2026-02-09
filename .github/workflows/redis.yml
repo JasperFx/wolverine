@@ -1,0 +1,74 @@
+name: redis
+
+on:
+  push:
+    branches: [ '**' ]
+  pull_request:
+    branches: [ '**' ]
+
+env:
+  config: Release
+  disable_test_parallelization: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v1
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Setup .NET 9
+        uses: actions/setup-dotnet@v1
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v1
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Start Redis and PostgreSQL
+        run: docker compose up -d redis-server postgresql
+
+      - name: Build
+        run: dotnet build src/Transports/Redis/Wolverine.Redis.Tests/Wolverine.Redis.Tests.csproj --configuration ${{ env.config }} --framework net10.0
+
+      - name: Wait for Redis
+        run: |
+          echo "Waiting for Redis to be ready..."
+          for i in {1..30}; do
+            if docker compose exec -T redis-server redis-cli ping | grep -q PONG; then
+              echo "Redis is ready"
+              break
+            fi
+            echo "Attempt $i: Redis not ready yet, waiting..."
+            sleep 2
+          done
+
+      - name: Wait for PostgreSQL
+        run: |
+          echo "Waiting for PostgreSQL to be ready..."
+          for i in {1..30}; do
+            if docker compose exec -T postgresql pg_isready -U postgres; then
+              echo "PostgreSQL is ready"
+              break
+            fi
+            echo "Attempt $i: PostgreSQL not ready yet, waiting..."
+            sleep 2
+          done
+
+      - name: Test
+        run: dotnet test src/Transports/Redis/Wolverine.Redis.Tests/Wolverine.Redis.Tests.csproj --configuration ${{ env.config }} --framework net10.0 --no-build --logger "GitHubActions;summary.includePassedTests=true;summary.includeSkippedTests=true"
+
+      - name: Stop containers
+        if: always()
+        run: docker compose down

@@ -269,6 +269,7 @@ public class subscriptions_end_to_end
 
         var tracked = await host
             .TrackActivity()
+            // TODO -- add a custom waiter here, might be a race condition
             .ExecuteAndWaitAsync(writeEvents);
 
         tracked.Executed.MessagesOf<IEvent<AEvent>>().Count().ShouldBe(6);

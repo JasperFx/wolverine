@@ -22,6 +22,19 @@ public class MqttTopic : Endpoint, ISender, ITopicEndpoint
     {
         TopicName = topicName.Trim('/');
         Parent = parent;
+        
+        if (TopicName.StartsWith("$share/"))
+        {
+            var parts = TopicName.Split('/');
+            // Even if the shared topic format is technically invalid here,
+            // we will still attempt to extract the listening topic.
+            // Invalid formats should be caught by the broker or other validation.
+            ListeningTopic = parts.Length >= 3 ? string.Join("/", parts.Skip(2)) : TopicName;
+        }
+        else
+        {
+            ListeningTopic = TopicName;
+        }
 
         EndpointName = topicName;
 
@@ -30,6 +43,13 @@ public class MqttTopic : Endpoint, ISender, ITopicEndpoint
     }
 
     public MqttTransport Parent { get; }
+    
+    /// <summary>
+    /// The topic string that is used to match against incoming messages.
+    /// For a shared subscription like "$share/group/topic", this will be "topic".
+    /// Otherwise, it is the same as TopicName.
+    /// </summary>
+    public string ListeningTopic { get; }
 
     /// <summary>
     /// When set, overrides the built in envelope mapping with a custom

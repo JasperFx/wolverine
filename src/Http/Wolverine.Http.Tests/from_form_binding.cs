@@ -120,6 +120,18 @@ public class from_form_binding : IntegrationContext
     }
 
     [Fact]
+    public async Task from_form_respects_custom_kebab_name()
+    {
+        var result = await Host.Scenario(x => x
+            .Post.FormData(new Dictionary<string, string>
+            {
+                { "form-custom-kebab", "hello" }
+            })
+            .ToUrl("/form/kebab-name"));
+        result.ReadAsText().ShouldBe("hello");
+    }
+
+    [Fact]
     public async Task value_with_alias()
     {
         (await forForm([new("name", "Jones"), new("number", "95")])).ValueWithAlias.ShouldBeNull();
