@@ -66,7 +66,8 @@ const config: UserConfig<DefaultTheme.Config> = {
                         {text: 'Getting Started', link: '/introduction/getting-started'},
                         {text: 'Support Policy', link: '/introduction/support-policy'},
                         {text: 'Wolverine for MediatR Users', link: '/introduction/from-mediatr'},
-                        {text: 'Best Practices', link: '/introduction/best-practices'}, 
+                        {text: 'Best Practices', link: '/introduction/best-practices'},
+                        {text: 'Migrating to Wolverine', link: '/guide/migrating-to-wolverine'},
                     ]
                 },
                 {
@@ -172,7 +173,8 @@ const config: UserConfig<DefaultTheme.Config> = {
                                         {text: 'Configuring Queues', link:'/guide/messaging/transports/sqs/queues'},
                                         {text: 'Conventional Routing', link:'/guide/messaging/transports/sqs/conventional-routing'},
                                         {text: 'Interoperability', link:'/guide/messaging/transports/sqs/interoperability'},
-                                        {text: 'MessageAttributes', link:'/guide/messaging/transports/sqs/message-attributes'}
+                                        {text: 'MessageAttributes', link:'/guide/messaging/transports/sqs/message-attributes'},
+                                        {text: 'FIFO Queues', link:'/guide/messaging/transports/sqs/fifo-queues'}
                                     ]},
                                 {text: 'Amazon SNS', link: '/guide/messaging/transports/sns'},
                                 {text: 'TCP', link: '/guide/messaging/transports/tcp'},

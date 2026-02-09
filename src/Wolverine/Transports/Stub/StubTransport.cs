@@ -129,27 +129,36 @@ internal class StubTransport : TransportBase<StubEndpoint>, IStubHandlers, IMess
     bool IMessageRouteSource.IsAdditive => false;
     
 
+    private (FailureRuleCollection rules, TimeSpan timeout) failureRulesFor(Type messageType)
+    {
+        var chain = _runtime.Handlers.ChainFor(messageType);
+        var rules = chain?.Failures.CombineRules(_runtime.Handlers.Failures)
+                    ?? _runtime.Handlers.Failures;
+        var timeout = chain?.DetermineMessageTimeout(_runtime.Options) ?? 10.Seconds();
+
+        return (rules, timeout);
+    }
+
     IExecutor IExecutorFactory.BuildFor(Type messageType)
     {
-
         if (_stubs.TryGetValue(messageType, out var handler))
         {
+            var (rules, timeout) = failureRulesFor(messageType);
             return new Executor(_runtime.ExecutionPool, _runtime.Logger, handler, _runtime.MessageTracking,
-                new FailureRuleCollection(), 10.Seconds());
+                rules, timeout);
         }
 
         throw new ArgumentOutOfRangeException(nameof(messageType),
             "No registered stub for message type " + messageType.FullNameInCode());
-
-
     }
 
     IExecutor IExecutorFactory.BuildFor(Type messageType, Endpoint endpoint)
     {
         if (_stubs.TryGetValue(messageType, out var handler))
         {
+            var (rules, timeout) = failureRulesFor(messageType);
             return new Executor(_runtime.ExecutionPool, _runtime.Logger, handler, _runtime.MessageTracking,
-                new FailureRuleCollection(), 10.Seconds());
+                rules, timeout);
         }
 
         throw new ArgumentOutOfRangeException(nameof(messageType),

@@ -72,7 +72,7 @@ public class ConsumerOne : IWolverineHandler
     }
 }
 
-[StickyHandler(nameof(ConsumerOne))]
+[StickyHandler(nameof(ConsumerTwo))]
 public class ConsumerTwo : IWolverineHandler
 {
     public void Consume(Msg message)

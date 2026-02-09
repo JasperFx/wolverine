@@ -16,7 +16,7 @@ public class receive_raw_json_as_inline : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-        theQueueName = "receive_native_json_inline";
+        theQueueName = "inline_" + Guid.NewGuid().ToString("N")[..8];
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {

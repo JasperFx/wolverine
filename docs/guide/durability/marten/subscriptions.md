@@ -201,7 +201,7 @@ example usage where I'm using [event carried state transfer](https://martinfowle
 publish batches of reference data about customers being activated or deactivated within our system:
 
 <!-- snippet: sample_CompanyTransferSubscriptions -->
-<a id='snippet-sample_companytransfersubscriptions'></a>
+<a id='snippet-sample_CompanyTransferSubscriptions'></a>
 ```cs
 public record CompanyActivated(string Name);
 
@@ -269,7 +269,7 @@ public class CompanyTransferSubscription : BatchSubscription
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MartenSubscriptionSamples.cs#L199-L267' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_companytransfersubscriptions' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MartenSubscriptionSamples.cs#L199-L267' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_CompanyTransferSubscriptions' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And the related code to register this subscription:

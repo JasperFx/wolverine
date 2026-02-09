@@ -7,6 +7,7 @@ using Xunit.Abstractions;
 
 namespace Wolverine.MQTT.Tests;
 
+[Collection("acceptance")]
 public class ack_smoke_tests : IAsyncLifetime
 {
     private readonly ITestOutputHelper _output;
@@ -72,6 +73,8 @@ public class ack_smoke_tests : IAsyncLifetime
     {
         await _sender.StopAsync();
         await _receiver.StopAsync();
+        await Broker.StopAsync();
+        await Broker.DisposeAsync();
     }
 }
 

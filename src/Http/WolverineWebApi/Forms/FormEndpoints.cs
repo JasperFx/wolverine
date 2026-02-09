@@ -22,6 +22,12 @@ public static class FormEndpoints{
         return value ?? "";
     }
 
+    [WolverinePost("/form/kebab-name")]
+    public static string KebabFormName([FromForm(Name = "form-custom-kebab")] string value)
+    {
+        return value ?? "";
+    }
+
     [WolverinePost("/form/enum/nullable")]
     public static string UsingNullableEnumQuerystring([FromForm]Direction? direction)
     {
@@ -93,6 +99,30 @@ public static class FromFormEndpoints{
     [WolverinePost("/api/fromformbigquery")]
     public static BigQuery Post([FromForm] BigQuery query) => query;
     #endregion
+
+    [WolverinePost("/api/fromform-file")]
+    public static string PostWithFile([FromForm] FormWithFile form)
+    {
+        return $"{form.Name}|{form.File?.FileName}|{form.File?.Length}";
+    }
+
+    [WolverinePost("/api/fromform-files")]
+    public static string PostWithFiles([FromForm] FormWithFiles form)
+    {
+        return $"{form.Name}|{form.Files?.Count}";
+    }
+}
+
+public class FormWithFile
+{
+    public string Name { get; set; }
+    public IFormFile? File { get; set; }
+}
+
+public class FormWithFiles
+{
+    public string Name { get; set; }
+    public IFormFileCollection? Files { get; set; }
 }
 
 #region sample_using_as_parameters_binding

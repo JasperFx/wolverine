@@ -89,6 +89,11 @@ public abstract class HttpHandler
         return context.Request.Form.Files.SingleOrDefault();
     }
 
+    public static IFormFile? ReadFormFileByName(HttpContext context, string name)
+    {
+        return context.Request.Form.Files.GetFile(name);
+    }
+
     public static IFormFileCollection? ReadManyFormFileValues(HttpContext context)
     {
         return context.Request.Form.Files;
