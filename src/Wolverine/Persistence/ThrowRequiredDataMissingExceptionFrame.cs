@@ -30,6 +30,10 @@ internal class ThrowRequiredDataMissingExceptionFrame : SyncFrame
         {
             writer.Write($"throw new {typeof(RequiredDataMissingException).FullNameInCode()}(string.Format(\"{Message}\", {Identity.Usage}));");
         }
+        else if (Message.Contains("{Id}"))
+        {
+            writer.Write($"throw new {typeof(RequiredDataMissingException).FullNameInCode()}(\"{Message}\".Replace(\"{{Id}}\", {Identity.Usage}?.ToString() ?? \"\"));");
+        }
         else
         {
             var constant = Constant.For(Message);

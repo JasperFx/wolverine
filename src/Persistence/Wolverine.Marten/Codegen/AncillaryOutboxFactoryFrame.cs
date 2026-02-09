@@ -30,7 +30,6 @@ internal class AncillaryOutboxFactoryFrame : SyncFrame
     public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
     {
         _outerFactory = chain.FindVariable(_factoryType);
-        _outerFactory.OverrideName("_outboxedSessionFactory");
         yield return _outerFactory;
 
         Factory = new CastVariable(_outerFactory, typeof(OutboxedSessionFactory));
