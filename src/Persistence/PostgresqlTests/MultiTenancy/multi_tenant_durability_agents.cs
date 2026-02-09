@@ -107,7 +107,7 @@ public class multi_tenant_durability_agents : PostgresqlContext, IAsyncLifetime
         var messageId = Guid.NewGuid();
 
         // Schedule a message for the "red" tenant with a short delay
-        var bus = theHost.Services.GetRequiredService<IMessageBus>();
+        var bus = theHost.MessageBus();
         await bus.ScheduleAsync(new TenantScheduledMessage(messageId), 2.Seconds(),
             new DeliveryOptions { TenantId = "red" });
 
@@ -139,7 +139,7 @@ public class multi_tenant_durability_agents : PostgresqlContext, IAsyncLifetime
         var blueId = Guid.NewGuid();
         var mainId = Guid.NewGuid();
 
-        var bus = theHost.Services.GetRequiredService<IMessageBus>();
+        var bus = theHost.MessageBus();
 
         // Schedule messages for each tenant and the main database
         await bus.ScheduleAsync(new TenantScheduledMessage(redId), 2.Seconds(),
