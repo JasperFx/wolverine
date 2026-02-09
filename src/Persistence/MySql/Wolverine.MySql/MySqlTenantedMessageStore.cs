@@ -95,7 +95,17 @@ internal class MySqlTenantedMessageStore : ITenantedMessageSource
         return store;
     }
 
-    public async Task RefreshAsync()
+    public Task RefreshAsync()
+    {
+        return RefreshAsync(true);
+    }
+
+    public Task RefreshLiteAsync()
+    {
+        return RefreshAsync(false);
+    }
+
+    public async Task RefreshAsync(bool withMigration)
     {
         if (_persistence.ConnectionStringTenancy != null)
         {
@@ -108,7 +118,7 @@ internal class MySqlTenantedMessageStore : ITenantedMessageSource
                     var store = buildTenantStoreForConnectionString(assignment.Value);
                     store.TenantIds.Fill(assignment.TenantId);
 
-                    if (_runtime.Options.AutoBuildMessageStorageOnStartup != AutoCreate.None)
+                    if (withMigration && _runtime.Options.AutoBuildMessageStorageOnStartup != AutoCreate.None)
                     {
                         await store.Admin.MigrateAsync();
                     }

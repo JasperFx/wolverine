@@ -6,6 +6,7 @@ using SharedPersistenceModels;
 using SharedPersistenceModels.Items;
 using SharedPersistenceModels.Orders;
 using Wolverine;
+using Wolverine.EntityFrameworkCore;
 using Wolverine.Http;
 
 namespace MultiTenantedEfCoreWithPostgreSQL;
@@ -28,6 +29,8 @@ public class Program
             opts.Policies.UseDurableLocalQueues();
     
             TestingOverrides.Extension?.Configure(opts);
+            
+            opts.UseEntityFrameworkCoreWolverineManagedMigrations();
         });
 
         builder.Services.AddWolverineHttp();

@@ -110,7 +110,17 @@ internal class MartenMessageDatabaseSource : ITenantedMessageSource
         return store;
     }
 
-    public async Task RefreshAsync()
+    public Task RefreshAsync()
+    {
+        return RefreshAsync(true);
+    }
+
+    public Task RefreshLiteAsync()
+    {
+        return RefreshAsync(false);
+    }
+
+    public async Task RefreshAsync(bool withMigration)
     {
         var martenDatabases = await _store.Storage.AllDatabases();
         foreach (var martenDatabase in martenDatabases)
@@ -118,7 +128,7 @@ internal class MartenMessageDatabaseSource : ITenantedMessageSource
             if (!_databases.Contains(martenDatabase.Identifier))
             {
                 var wolverineStore = createTenantWolverineStore(martenDatabase);
-                if (_runtime.Options.AutoBuildMessageStorageOnStartup != AutoCreate.None)
+                if (withMigration && _runtime.Options.AutoBuildMessageStorageOnStartup != AutoCreate.None)
                 {
                     await wolverineStore.Admin.MigrateAsync();
                 }

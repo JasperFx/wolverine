@@ -27,6 +27,8 @@ using Wolverine.Attributes;
 [assembly: InternalsVisibleTo("MySqlTests")]
 [assembly: InternalsVisibleTo("ScheduledJobTests")]
 [assembly: InternalsVisibleTo("Wolverine.RDBMS")]
+[assembly: InternalsVisibleTo("Wolverine.SqlServer")]
+[assembly: InternalsVisibleTo("Wolverine.Postgresql")]
 [assembly: InternalsVisibleTo("Wolverine.Marten")]
 [assembly: InternalsVisibleTo("Wolverine.EntityFrameworkCore")]
 [assembly: InternalsVisibleTo("Wolverine.Pulsar")]

@@ -45,15 +45,11 @@ public class EFCorePersistenceContext : BaseContext
                     .CustomizeQueues((_, q) => q.UseDurableInbox());
                 
                 options.Policies.AutoApplyTransactions();
+                
+                options.UseEntityFrameworkCoreWolverineManagedMigrations();
             });
-
-        ItemsTable = new Table(new DbObjectName("mt_items", "items"));
-        ItemsTable.AddColumn<Guid>("Id").AsPrimaryKey();
-        ItemsTable.AddColumn<string>("Name");
-        ItemsTable.AddColumn<bool>("Approved");
     }
 
-    public Table ItemsTable { get; }
 }
 
 [Collection("sqlserver")]
@@ -62,10 +58,7 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
     public end_to_end_efcore_persistence(EFCorePersistenceContext context)
     {
         Host = context.theHost;
-        ItemsTable = context.ItemsTable;
     }
-
-    public Table ItemsTable { get; }
 
     public IHost Host { get; }
     
@@ -73,8 +66,6 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
     [Fact]
     public async Task using_dbcontext_in_middleware()
     {
-        await withItemsTable();
-        
         var item = new Item { Id = Guid.NewGuid(), Name = "Hey"};
         await saveItem(item);
 
@@ -87,8 +78,6 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
     [Fact]
     public async Task ef_core_middleware_is_marking_the_envelope_as_handled()
     {
-        await withItemsTable();
-        
         var item = new Item { Id = Guid.NewGuid(), Name = "Hey"};
         await saveItem(item);
 
@@ -206,8 +195,6 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
             ContentType = EnvelopeConstants.JsonContentType
         };
 
-        await withItemsTable();
-
         using (var nested = Host.Services.CreateScope())
         {
             var messaging = nested.ServiceProvider.GetRequiredService<IDbContextOutbox<ItemsDbContext>>()
@@ -253,8 +240,6 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
 
         var container = Host.Services.GetRequiredService<IServiceContainer>();
 
-        await withItemsTable();
-
         using (var nested = Host.Services.CreateScope())
         {
             var messaging = nested.ServiceProvider.GetRequiredService<IDbContextOutbox<SampleMappedDbContext>>()
@@ -283,31 +268,12 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
         loadedEnvelope.OwnerId.ShouldBe(envelope.OwnerId);
     }
 
-    private async Task withItemsTable()
-    {
-        await using (var conn = new SqlConnection(Servers.SqlServerConnectionString))
-        {
-            await conn.OpenAsync();
-            var migration = await SchemaMigration.DetermineAsync(conn, ItemsTable);
-            if (migration.Difference != SchemaPatchDifference.None)
-            {
-                var sqlServerMigrator = new SqlServerMigrator();
-                
-                await sqlServerMigrator.ApplyAllAsync(conn, migration, AutoCreate.CreateOrUpdate);
-            }
-
-            await conn.CloseAsync();
-        }
-    }
-
     [Fact]
     public async Task use_non_generic_outbox_raw()
     {
         var id = Guid.NewGuid();
 
         var container = Host.Services.GetRequiredService<IServiceContainer>();
-
-        await withItemsTable();
 
         var waiter = OutboxedMessageHandler.WaitForNextMessage();
 
@@ -341,8 +307,6 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
 
         var container = Host.Services.GetRequiredService<IServiceContainer>();
 
-        await withItemsTable();
-
         var waiter = OutboxedMessageHandler.WaitForNextMessage();
 
         using (var nested = Host.Services.CreateScope())
@@ -375,8 +339,6 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
 
         var container = Host.Services.GetRequiredService<IServiceContainer>();
 
-        await withItemsTable();
-
         var waiter = OutboxedMessageHandler.WaitForNextMessage();
 
         using (var nested = Host.Services.CreateScope())
@@ -405,8 +367,6 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
         var id = Guid.NewGuid();
 
         var container = Host.Services.GetRequiredService<IServiceContainer>();
-
-        await withItemsTable();
 
         var waiter = OutboxedMessageHandler.WaitForNextMessage();
 
@@ -449,8 +409,6 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
         };
 
         var container = Host.Services.GetRequiredService<IServiceContainer>();
-
-        await withItemsTable();
 
         using (var nested = Host.Services.CreateScope())
         {
@@ -496,8 +454,6 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
         };
 
         var container = Host.Services.GetRequiredService<IServiceContainer>();
-
-        await withItemsTable();
 
         using (var nested = Host.Services.CreateScope())
         {

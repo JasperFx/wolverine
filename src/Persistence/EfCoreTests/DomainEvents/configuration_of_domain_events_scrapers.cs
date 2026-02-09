@@ -60,29 +60,14 @@ public class configuration_of_domain_events_scrapers : IAsyncDisposable
                 opts.Services.AddScoped<IEventPublisher, EventPublisher>();
 
                 configure(opts);
+                
+                opts.UseEntityFrameworkCoreWolverineManagedMigrations();
+                opts.Services.AddResourceSetupOnStartup();
+
                 //opts.PublishDomainEventsFromEntityFrameworkCore();
             }).StartAsync();
 
         await theHost.RebuildAllEnvelopeStorageAsync();
-
-        await withItemsTable();
-    }
-
-    private async Task withItemsTable()
-    {
-        await using (var conn = new SqlConnection(Servers.SqlServerConnectionString))
-        {
-            await conn.OpenAsync();
-            var migration = await SchemaMigration.DetermineAsync(conn, ItemsTable);
-            if (migration.Difference != SchemaPatchDifference.None)
-            {
-                var sqlServerMigrator = new SqlServerMigrator();
-
-                await sqlServerMigrator.ApplyAllAsync(conn, migration, AutoCreate.CreateOrUpdate);
-            }
-
-            await conn.CloseAsync();
-        }
     }
 
     [Fact]
