@@ -376,7 +376,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
         if (HasRequestType)
         {
             if(IsFormData){
-                Metadata.Accepts(RequestType, true, "application/x-www-form-urlencoded");
+                Metadata.Accepts(RequestType, true, "application/x-www-form-urlencoded", "multipart/form-data");
             }else{
                 Metadata.Accepts(RequestType, false, "application/json");
             }

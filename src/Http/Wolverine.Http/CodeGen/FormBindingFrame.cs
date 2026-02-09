@@ -5,6 +5,7 @@ using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Wolverine.Http;
 using Wolverine.Http.CodeGen;
@@ -81,6 +82,20 @@ internal class FormBindingFrame : SyncFrame
         _constructor = constructors.Single();
         foreach (var parameter in _constructor.GetParameters())
         {
+            if (parameter.ParameterType == typeof(IFormFile))
+            {
+                var fileFrame = new FormFilePropertyFrame(parameter.Name!);
+                _parameters.Add(fileFrame.Variable);
+                continue;
+            }
+
+            if (parameter.ParameterType == typeof(IFormFileCollection))
+            {
+                var filesFrame = new FormFileCollectionPropertyFrame();
+                _parameters.Add(filesFrame.Variable);
+                continue;
+            }
+
             var formValueVariable = chain.TryFindOrCreateFormValue(parameter);
             _parameters.Add(formValueVariable);
         }
@@ -90,14 +105,31 @@ internal class FormBindingFrame : SyncFrame
             foreach (var propertyInfo in queryType.GetProperties().Where(x => x.CanWrite))
             {
                 var formName = propertyInfo.Name;
-                if (propertyInfo.TryGetAttribute<FromFormAttribute>(out var att))
+                if (propertyInfo.TryGetAttribute<FromFormAttribute>(out var att) && att.Name.IsNotEmpty())
                 {
                     formName = att.Name;
                 }
+
+                if (propertyInfo.PropertyType == typeof(IFormFile))
+                {
+                    var fileFrame = new FormFilePropertyFrame(formName);
+                    fileFrame.AssignToProperty($"{Variable.Usage}.{propertyInfo.Name}");
+                    _props.Add(fileFrame);
+                    continue;
+                }
+
+                if (propertyInfo.PropertyType == typeof(IFormFileCollection))
+                {
+                    var filesFrame = new FormFileCollectionPropertyFrame();
+                    filesFrame.AssignToProperty($"{Variable.Usage}.{propertyInfo.Name}");
+                    _props.Add(filesFrame);
+                    continue;
+                }
+
                 var formValueVariable =
                     chain.TryFindOrCreateFormValue(propertyInfo.PropertyType, propertyInfo.Name, formName);
 
-                if (formValueVariable.Creator is IReadHttpFrame frame)
+                if (formValueVariable?.Creator is IReadHttpFrame frame)
                 {
                     frame.AssignToProperty($"{Variable.Usage}.{propertyInfo.Name}");
                     _props.Add(frame);
