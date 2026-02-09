@@ -1,4 +1,4 @@
-using System.Data.Common;
+﻿using System.Data.Common;
 using JasperFx;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
@@ -7,7 +7,9 @@ using JasperFx.MultiTenancy;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Weasel.Core;
 using Weasel.Core.Migrations;
+using Weasel.SqlServer;
 using Wolverine.Persistence.Durability;
 using Wolverine.Persistence.Sagas;
 using Wolverine.RDBMS;
@@ -174,6 +176,8 @@ internal class SqlServerBackedPersistence : IWolverineExtension, ISqlServerBacke
         options.CodeGeneration.Sources.Add(new DatabaseBackedPersistenceMarker());
         options.CodeGeneration.Sources.Add(new SagaStorageVariableSource());
 
+        options.Services.AddSingleton<Migrator, SqlServerMigrator>();
+        
         options.Services.AddSingleton<IMessageStore>(s => BuildMessageStore(s.GetRequiredService<IWolverineRuntime>()));
 
         options.Services.AddSingleton<IDatabaseSource, MessageDatabaseDiscovery>();

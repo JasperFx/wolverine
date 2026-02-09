@@ -4,11 +4,12 @@ using ImTools;
 using JasperFx;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
+using JasperFx.Descriptors;
 using JasperFx.MultiTenancy;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
-using Microsoft.EntityFrameworkCore.Migrations;
-using Microsoft.Extensions.DependencyInjection;
+using Weasel.EntityFrameworkCore;
+using Wolverine.EntityFrameworkCore.Internals.Migrations;
 using Wolverine.Persistence.Durability;
 using Wolverine.RDBMS;
 using Wolverine.Runtime;
@@ -84,7 +85,7 @@ public class TenantedDbContextBuilderByConnectionString<T> : IDbContextBuilder<T
         var list = new List<T>();
         list.Add((T)BuildForMain());
         
-        await _store.Source.RefreshAsync();
+        await _store.Source.RefreshLiteAsync();
         foreach (var assignment in _store.Source.AllActiveByTenant())
         {
             var dbContext = await BuildAsync(assignment.TenantId, CancellationToken.None);
@@ -121,8 +122,11 @@ public class TenantedDbContextBuilderByConnectionString<T> : IDbContextBuilder<T
 
         foreach (var context in contexts)
         {
-            var migrator = context.Database.GetInfrastructure().GetRequiredService<IMigrator>();
-            await migrator.MigrateAsync();
+            await context.Database.EnsureCreatedAsync();
+            await using var migration = await _serviceProvider.CreateMigrationAsync(context, CancellationToken.None);
+            
+            // TODO -- add some logging here!
+            await migration.ExecuteAsync(AutoCreate.CreateOrUpdate, CancellationToken.None);
         }
     }
 
@@ -133,7 +137,7 @@ public class TenantedDbContextBuilderByConnectionString<T> : IDbContextBuilder<T
         foreach (var context in contexts)
         {
             // TODO -- let's put some debug logging here!!!!
-            await context.Database.MigrateAsync();
+            await context.Database.EnsureCreatedAsync();
         }
     }
 
@@ -192,5 +196,12 @@ public class TenantedDbContextBuilderByConnectionString<T> : IDbContextBuilder<T
     }
 
     public Type DbContextType => typeof(T);
-    
+
+    public async Task<IReadOnlyList<DbContext>> FindAllAsync()
+    {
+        var all = await BuildAllAsync();
+        return all;
+    }
+
+    public DatabaseCardinality Cardinality => _store.Source.Cardinality;
 }

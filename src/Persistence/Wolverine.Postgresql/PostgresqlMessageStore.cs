@@ -21,6 +21,7 @@ using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.WorkerQueues;
 using Wolverine.Transports;
+using CascadeAction = Weasel.Postgresql.CascadeAction;
 using DbCommandBuilder = Weasel.Core.DbCommandBuilder;
 using Table = Weasel.Postgresql.Tables.Table;
 

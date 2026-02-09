@@ -5,7 +5,9 @@ using JasperFx.MultiTenancy;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using MySqlConnector;
+using Weasel.Core;
 using Weasel.Core.Migrations;
+using Weasel.MySql;
 using Wolverine.ErrorHandling;
 using Wolverine.MySql.Transport;
 using Wolverine.Persistence.Durability;
@@ -178,6 +180,8 @@ internal class MySqlBackedPersistence : IMySqlBackedPersistence, IWolverineExten
         options.Services.AddSingleton<IMessageStore>(s => BuildMessageStore(s.GetRequiredService<IWolverineRuntime>()));
 
         options.Services.AddSingleton<IDatabaseSource, MessageDatabaseDiscovery>();
+        
+        options.Services.AddSingleton<Migrator, MySqlMigrator>();
     }
 
     public IMessageStore BuildMessageStore(IWolverineRuntime runtime)

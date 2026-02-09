@@ -317,7 +317,6 @@ class Build : NukeBuild
                 Solution.Transports.GCP.Wolverine_Pubsub,
                 Solution.Persistence.Wolverine_RDBMS,
                 Solution.Persistence.Wolverine_Postgresql,
-                Solution.Persistence.Wolverine_EntityFrameworkCore,
                 Solution.Persistence.Wolverine_Marten,
                 Solution.Persistence.Wolverine_RavenDb,
                 Solution.Persistence.Wolverine_SqlServer,
