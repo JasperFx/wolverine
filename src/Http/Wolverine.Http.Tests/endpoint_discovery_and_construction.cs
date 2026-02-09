@@ -23,6 +23,20 @@ public class endpoint_discovery_and_construction : IntegrationContext
     }
 
     [Fact]
+    public void discover_fsharp_bool_endpoint()
+    {
+        var chain = HttpChains.ChainFor("GET", "/fsharp/is-authenticated");
+        chain.ShouldNotBeNull();
+    }
+
+    [Fact]
+    public void discover_csharp_static_bool_endpoint()
+    {
+        var chain = HttpChains.ChainFor("GET", "/simple/bool");
+        chain.ShouldNotBeNull();
+    }
+
+    [Fact]
     public void read_order_from_attribute()
     {
         var chain = HttpChains.ChainFor("GET", "/fake/hello");
