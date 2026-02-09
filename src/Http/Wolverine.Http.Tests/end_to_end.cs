@@ -36,6 +36,32 @@ public class end_to_end : IntegrationContext
     }
 
     [Fact]
+    public async Task get_fsharp_bool_endpoint()
+    {
+        var body = await Scenario(x =>
+        {
+            x.Get.Url("/fsharp/is-authenticated");
+            x.StatusCodeShouldBeOk();
+        });
+
+        var result = body.ReadAsJson<bool>();
+        result.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task get_csharp_static_bool_endpoint()
+    {
+        var body = await Scenario(x =>
+        {
+            x.Get.Url("/simple/bool");
+            x.StatusCodeShouldBeOk();
+        });
+
+        var result = body.ReadAsJson<bool>();
+        result.ShouldBeTrue();
+    }
+
+    [Fact]
     public async Task retrieve_json_data()
     {
         var body = await Scenario(x =>

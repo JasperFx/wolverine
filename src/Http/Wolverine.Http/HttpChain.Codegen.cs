@@ -84,15 +84,11 @@ public partial class HttpChain
         string containingNamespace)
     {
         Debug.WriteLine(_generatedType?.SourceCode);
-        
-        _handlerType = assembly.ExportedTypes.FirstOrDefault(x => x.Name == _fileName);
 
-        if (_handlerType == null)
-        {
-            return false;
-        }
+        _handlerType = assembly.ExportedTypes.FirstOrDefault(x => x.Name == _fileName)
+            ?? assembly.GetTypes().FirstOrDefault(x => x.Name == _fileName);
 
-        return true;
+        return _handlerType != null;
     }
 
     string ICodeFile.FileName => _fileName!;
