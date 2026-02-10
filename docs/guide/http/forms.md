@@ -82,7 +82,7 @@ You can also use the FromForm attribute on a complex type, Wolverine will then a
 [WolverinePost("/api/fromformbigquery")]
 public static BigQuery Post([FromForm] BigQuery query) => query;
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Forms/FormEndpoints.cs#L92-L95' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_[fromform]_binding' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Forms/FormEndpoints.cs#L98-L101' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_[fromform]_binding' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Individual properties on the class can be aliased using ``[FromForm(Name = "aliased")]``

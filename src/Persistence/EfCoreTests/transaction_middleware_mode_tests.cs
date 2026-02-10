@@ -47,6 +47,8 @@ public class transaction_middleware_mode_tests
     [Fact]
     public async Task lightweight_mode_should_not_add_transaction_frame()
     {
+        #region sample_using_lightweight_ef_core_transactions
+
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -56,12 +58,18 @@ public class transaction_middleware_mode_tests
                     x.UseSqlServer(Servers.SqlServerConnectionString));
 
                 opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString, "txmode");
+                
+                // ONLY use SaveChangesAsync() for transaction boundaries
+                // Treat the DbContext as a unit of work, assume there are no
+                // bulk operations
                 opts.UseEntityFrameworkCoreTransactions(TransactionMiddlewareMode.Lightweight);
                 opts.Policies.AutoApplyTransactions();
 
                 opts.Discovery.DisableConventionalDiscovery()
                     .IncludeType<LightweightModeHandler>();
             }).StartAsync();
+
+        #endregion
 
         var chain = host.GetRuntime().Handlers.ChainFor<LightweightModeMessage>();
 
@@ -196,6 +204,8 @@ public class LightweightModeHandler
 
 public record LightweightAttributeMessage;
 
+#region sample_explicit_usage_of_transaction_middleware_mode
+
 public class LightweightAttributeHandler
 {
     [Transactional(Mode = TransactionMiddlewareMode.Lightweight)]
@@ -203,6 +213,8 @@ public class LightweightAttributeHandler
     {
     }
 }
+
+#endregion
 
 public record EagerAttributeMessage;
 

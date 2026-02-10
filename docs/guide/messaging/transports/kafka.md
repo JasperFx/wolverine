@@ -214,7 +214,7 @@ When receiving messages through Kafka and Wolverine, there are some useful eleme
 on the Wolverine `Envelope` you can use for instrumentation or diagnostics as shown in this sample middleware:
 
 <!-- snippet: sample_KafkaInstrumentation_middleware -->
-<a id='snippet-sample_KafkaInstrumentation_middleware'></a>
+<a id='snippet-sample_kafkainstrumentation_middleware'></a>
 ```cs
 public static class KafkaInstrumentation
 {
@@ -227,7 +227,7 @@ public static class KafkaInstrumentation
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/DocumentationSamples.cs#L178-L191' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_KafkaInstrumentation_middleware' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/DocumentationSamples.cs#L178-L191' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_kafkainstrumentation_middleware' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Connecting to Multiple Brokers <Badge type="tip" text="4.7" />

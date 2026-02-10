@@ -71,6 +71,57 @@ public static ItemCreated Handle(
 When using the transactional middleware around a message handler, the `DbContext` is used to persist
 the outgoing messages as part of Wolverine's outbox support.
 
+## Eager vs Lightweight Transactions <Badge type="tip" text="5.15" />
+
+By default, the EF Core middleware will run in `Eager` mode meaning that Wolverine
+will call `DbContext.Database.BeginTransactionAsync()` before your message handler or HTTP
+endpoint handler. We do this so that bulk operations can succeed. If all you need to do is
+persist entities such that `DbContext.SaveChangesAsync()` gives you all the transactional integrity
+you need, you can opt into lightweight transaction code generation instead:
+
+<!-- snippet: sample_using_lightweight_ef_core_transactions -->
+<a id='snippet-sample_using_lightweight_ef_core_transactions'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.Durability.Mode = DurabilityMode.Solo;
+
+        opts.Services.AddDbContextWithWolverineIntegration<CleanDbContext>(x =>
+            x.UseSqlServer(Servers.SqlServerConnectionString));
+
+        opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString, "txmode");
+        
+        // ONLY use SaveChangesAsync() for transaction boundaries
+        // Treat the DbContext as a unit of work, assume there are no
+        // bulk operations
+        opts.UseEntityFrameworkCoreTransactions(TransactionMiddlewareMode.Lightweight);
+        opts.Policies.AutoApplyTransactions();
+
+        opts.Discovery.DisableConventionalDiscovery()
+            .IncludeType<LightweightModeHandler>();
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests/transaction_middleware_mode_tests.cs#L50-L72' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_lightweight_ef_core_transactions' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+You can also selectively configure the transaction middleware mode on singular message handlers or HTTP endpoints
+with the `[Transactional]` attribute like this:
+
+<!-- snippet: sample_explicit_usage_of_transaction_middleware_mode -->
+<a id='snippet-sample_explicit_usage_of_transaction_middleware_mode'></a>
+```cs
+public class LightweightAttributeHandler
+{
+    [Transactional(Mode = TransactionMiddlewareMode.Lightweight)]
+    public static void Handle(LightweightAttributeMessage message, CleanDbContext db)
+    {
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests/transaction_middleware_mode_tests.cs#L207-L217' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_explicit_usage_of_transaction_middleware_mode' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
 ## Auto Apply Transactional Middleware
 
 You can opt into automatically applying the transactional middleware to any handler that depends on a `DbContext` type
