@@ -12,7 +12,7 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\..\..\..\weasel\src\Weasel.EntityFrameworkCore\Weasel.EntityFrameworkCore.csproj" />
+        <PackageReference Include="Weasel.EntityFrameworkCore" Version="8.6.0" />
         <ProjectReference Include="..\Wolverine.RDBMS\Wolverine.RDBMS.csproj"/>
     </ItemGroup>
 
