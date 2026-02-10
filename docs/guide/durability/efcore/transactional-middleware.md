@@ -101,3 +101,52 @@ await host.StartAsync();
 
 With this option, you will no longer need to decorate handler methods with the `[Transactional]` attribute.
 
+## Transaction Middleware Mode
+
+By default, the EF Core transactional middleware uses `TransactionMiddlewareMode.Eager`, which eagerly opens an
+explicit database transaction via `Database.BeginTransactionAsync()` before the handler executes. This is appropriate
+when you need explicit transaction control, such as when using EF Core bulk operations.
+
+If you prefer to rely solely on `DbContext.SaveChangesAsync()` as your transactional boundary without opening an
+explicit database transaction, you can use `TransactionMiddlewareMode.Lightweight`:
+
+```cs
+builder.Host.UseWolverine(opts =>
+{
+    opts.PersistMessagesWithSqlServer(connectionString, "wolverine");
+
+    // Use Lightweight mode — no explicit transaction, relies on SaveChangesAsync()
+    opts.UseEntityFrameworkCoreTransactions(TransactionMiddlewareMode.Lightweight);
+
+    opts.Policies.UseDurableLocalQueues();
+});
+```
+
+::: tip
+`TransactionMiddlewareMode.Lightweight` is **not** supported or necessary for Marten or RavenDb, which have their own
+unit of work implementations.
+:::
+
+### Per-Handler Override
+
+You can override the global `TransactionMiddlewareMode` for individual handlers using the `[Transactional]` attribute's
+`Mode` property:
+
+```cs
+// This handler will use an explicit transaction even if the global mode is Lightweight
+[Transactional(Mode = TransactionMiddlewareMode.Eager)]
+public static ItemCreated Handle(CreateItemCommand command, ItemsDbContext db)
+{
+    var item = new Item { Name = command.Name };
+    db.Items.Add(item);
+    return new ItemCreated { Id = item.Id };
+}
+
+// This handler skips the explicit transaction even if the global mode is Eager
+[Transactional(Mode = TransactionMiddlewareMode.Lightweight)]
+public static void Handle(UpdateItemCommand command, ItemsDbContext db)
+{
+    // Just uses SaveChangesAsync() without an explicit transaction
+}
+```
+
