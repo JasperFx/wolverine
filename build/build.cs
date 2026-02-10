@@ -61,7 +61,7 @@ class Build : NukeBuild
         .DependsOn(CoreTests, TestExtensions, Commands, PolicyTests, HttpTests);
 
     Target Full => _ => _
-        .DependsOn(Test, PersistenceTests, RabbitmqTests, PulsarTests);
+        .DependsOn(Test, PersistenceTests, SqliteTests, RabbitmqTests, PulsarTests);
 
     Target CoreTests => _ => _
         .DependsOn(Compile)
@@ -206,8 +206,21 @@ class Build : NukeBuild
                 .AddApplicationArguments("preview"));
         });
     
+    Target SqliteTests => _ => _
+        .DependsOn(Compile)
+        .ProceedAfterFailure()
+        .Executes(() =>
+        {
+            DotNetTest(c => c
+                .SetProjectFile(Solution.Persistence.SqliteTests)
+                .SetConfiguration(Configuration)
+                .EnableNoBuild()
+                .EnableNoRestore()
+                .SetFramework(Framework));
+        });
+
     Target PersistenceTests => _ => _
-        .DependsOn(Compile, DockerUp)    
+        .DependsOn(Compile, DockerUp)
         .ProceedAfterFailure()
         .Executes(() =>
         {
@@ -321,6 +334,7 @@ class Build : NukeBuild
                 Solution.Persistence.Wolverine_RavenDb,
                 Solution.Persistence.Wolverine_SqlServer,
                 Solution.Persistence.Wolverine_MySql,
+                Solution.Persistence.Wolverine_Sqlite,
                 Solution.Extensions.Wolverine_FluentValidation,
                 Solution.Extensions.Wolverine_MemoryPack,
                 Solution.Extensions.Wolverine_MessagePack,
