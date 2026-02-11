@@ -52,7 +52,7 @@ In that case, there's absolutely no value in retrying the message, so we should 
 move that message off immediately like one of these:
 
 <!-- snippet: sample_showing_concurrency_exception_moving_directly_to_DLQ -->
-<a id='snippet-sample_showing_concurrency_exception_moving_directly_to_dlq'></a>
+<a id='snippet-sample_showing_concurrency_exception_moving_directly_to_DLQ'></a>
 ```cs
 public static class MarkItemReadyHandler
 {
@@ -85,7 +85,7 @@ public static class MarkItemReadyHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L382-L415' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_showing_concurrency_exception_moving_directly_to_dlq' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L382-L415' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_showing_concurrency_exception_moving_directly_to_DLQ' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Exclusive Locks or Serializable Transactions

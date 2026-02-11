@@ -41,6 +41,8 @@ public class end_to_end_with_named_broker
             opts.ListenToKafkaTopicOnNamedBroker(theName, topicName).ProcessInline().Named(topicName);
             opts.Services.AddSingleton<ColorHistory>();
 
+            // Include test assembly for handler discovery
+            opts.Discovery.IncludeAssembly(typeof(end_to_end_with_named_broker).Assembly);
         });
 
         ColorHandler.Received = new();

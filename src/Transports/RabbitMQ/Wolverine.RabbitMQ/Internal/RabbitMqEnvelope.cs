@@ -29,9 +29,18 @@ internal class RabbitMqEnvelope : Envelope
         Acknowledged = true;
     }
 
-    internal ValueTask DeferAsync()
+    internal async ValueTask DeferAsync()
     {
-        Acknowledged = true;
-        return RabbitMqListener.RequeueAsync(this);
+        // ACK the original delivery to release the prefetch slot,
+        // then send a new copy to the queue for later processing.
+        // Without ACKing first, the original message stays "in-flight" in RabbitMQ
+        // and consumes a prefetch slot (blocking PreFetchCount(1) entirely).
+        if (!Acknowledged)
+        {
+            await RabbitMqListener.CompleteAsync(DeliveryTag);
+            Acknowledged = true;
+        }
+
+        await RabbitMqListener.RequeueAsync(this);
     }
 }

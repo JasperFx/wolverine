@@ -10,6 +10,7 @@ using Xunit.Abstractions;
 
 namespace Wolverine.MQTT.Tests;
 
+[Collection("acceptance")]
 public class connectivity
 {
     private readonly ITestOutputHelper _output;
@@ -55,7 +56,7 @@ public class connectivity
         await managedClient.EnqueueAsync(topic: "Step", payload: "3");
 
 
-        await Task.Delay(1.Minutes());
+        await Task.Delay(3.Seconds());
 
         // var transport = new MqttTransport();
         // transport.Configuration = builder =>

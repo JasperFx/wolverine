@@ -27,13 +27,18 @@ internal class SqsSenderProtocol :ISenderProtocol
     {
         await _queue.InitializeAsync(_logger);
 
-        var sqsBatch = new OutgoingSqsBatch(_queue, _logger, batch.Messages);
+        // SQS has a hard limit of 10 messages per batch request
+        var chunks = batch.Messages.Chunk(10);
 
         try
         {
-            var response = await _sqs.SendMessageBatchAsync(sqsBatch.Request);
+            foreach (var chunk in chunks)
+            {
+                var sqsBatch = new OutgoingSqsBatch(_queue, _logger, chunk);
+                await _sqs.SendMessageBatchAsync(sqsBatch.Request);
+            }
 
-            await sqsBatch.ProcessSuccessAsync(callback, response, batch);
+            await callback.MarkSuccessfulAsync(batch);
         }
         catch (Exception e)
         {
@@ -45,7 +50,6 @@ internal class SqsSenderProtocol :ISenderProtocol
 internal class OutgoingSqsBatch
 {
     private readonly Dictionary<string, Envelope> _envelopes = new();
-    private readonly List<Envelope> _mappingFailures = new();
 
     public OutgoingSqsBatch(AmazonSqsQueue queue, ILogger logger, IEnumerable<Envelope> envelopes)
     {
@@ -55,13 +59,22 @@ internal class OutgoingSqsBatch
             try
             {
                 var entry = new SendMessageBatchRequestEntry(envelope.Id.ToString(), queue.Mapper.BuildMessageBody(envelope));
-                if (envelope.GroupId.IsNotEmpty())
+                if (queue.IsFifoQueue)
                 {
-                    entry.MessageGroupId = envelope.GroupId;
+                    if (envelope.GroupId.IsNotEmpty())
+                    {
+                        entry.MessageGroupId = envelope.GroupId;
+                    }
+                    if (envelope.DeduplicationId.IsNotEmpty())
+                    {
+                        entry.MessageDeduplicationId = envelope.DeduplicationId;
+                    }
                 }
-                if (envelope.DeduplicationId.IsNotEmpty())
+
+                foreach (var attribute in queue.Mapper.ToAttributes(envelope))
                 {
-                    entry.MessageDeduplicationId = envelope.DeduplicationId;
+                    entry.MessageAttributes ??= new Dictionary<string, MessageAttributeValue>();
+                    entry.MessageAttributes.Add(attribute.Key, attribute.Value);
                 }
 
                 entries.Add(entry);
@@ -71,7 +84,6 @@ internal class OutgoingSqsBatch
             {
                 logger.LogError(e, "Error while mapping envelope {Envelope} to an SQS SendMessageBatchRequestEntry",
                     envelope);
-                _mappingFailures.Add(envelope);
             }
         }
 
@@ -80,40 +92,8 @@ internal class OutgoingSqsBatch
 
     public SendMessageBatchRequest Request { get; }
 
-    public async Task ProcessSuccessAsync(ISenderCallback callback, SendMessageBatchResponse response,
-        OutgoingMessageBatch batch)
+    public bool TryGetEnvelope(string id, out Envelope envelope)
     {
-        if (response.Failed == null || !response.Failed.Any())
-        {
-            await callback.MarkSuccessfulAsync(batch);
-        }
-        else
-        {
-            var fails = new List<Envelope>();
-            foreach (var fail in response?.Failed ?? [])
-            {
-                if (_envelopes.TryGetValue(fail.Id, out var env))
-                {
-                    fails.Add(env);
-                }
-            }
-
-            var successes = new List<Envelope>();
-            foreach (var success in response?.Successful ?? [])
-            {
-                if (_envelopes.TryGetValue(success.Id, out var env))
-                {
-                    successes.Add(env);
-                }
-            }
-
-            await callback.MarkSuccessfulAsync(new OutgoingMessageBatch(batch.Destination,
-                successes.Concat(_mappingFailures).ToList()));
-
-            if (fails.Any())
-            {
-                await callback.MarkProcessingFailureAsync(new OutgoingMessageBatch(batch.Destination, fails));
-            }
-        }
+        return _envelopes.TryGetValue(id, out envelope);
     }
 }

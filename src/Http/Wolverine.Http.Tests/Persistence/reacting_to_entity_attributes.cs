@@ -42,6 +42,7 @@ public class reacting_to_entity_attributes : IAsyncLifetime
         // This is using Alba, which uses WebApplicationFactory under the covers
         theHost = await AlbaHost.For(builder, app =>
         {
+            app.UseDeveloperExceptionPage();
             app.MapWolverineEndpoints();
         });
     }

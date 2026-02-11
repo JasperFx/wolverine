@@ -223,14 +223,13 @@ public class SagaChain : HandlerChain
                 frames.Add(new SetSagaIdFromSagaFrame(MessageType, SagaIdMember));
             }
 
-            foreach (var frame in startingCall.Creates.SelectMany(x => x.ReturnAction(this).Frames()))
+            // Emit return action frames for non-saga created variables (e.g., cascading messages).
+            // Skip the saga variable — its persistence is handled by the conditional insert below
+            // which respects IsCompleted(). See GH-2073.
+            foreach (var frame in startingCall.Creates
+                         .Where(x => x.VariableType != SagaType)
+                         .SelectMany(x => x.ReturnAction(this).Frames()))
                 frames.Add(frame);
-        }
-
-        if (sagaVariable.ReturnAction(this).Frames().OfType<ISagaOperation>()
-            .Any(x => x.Saga == sagaVariable && x.Operation == SagaOperationType.InsertAsync))
-        {
-            return;
         }
 
         var ifNotCompleted = buildFrameForConditionalInsert(sagaVariable, frameProvider, container);
@@ -258,7 +257,9 @@ public class SagaChain : HandlerChain
             foreach (var call in StartingCalls)
             {
                 yield return call;
-                foreach (var create in call.Creates)
+                // Skip saga-type creates — persistence is handled by the conditional insert below.
+                // See GH-2073.
+                foreach (var create in call.Creates.Where(x => x.VariableType != SagaType))
                 {
                     foreach (var frame in create.ReturnAction(this).Frames()) yield return frame;
                 }

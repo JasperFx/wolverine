@@ -376,7 +376,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
         if (HasRequestType)
         {
             if(IsFormData){
-                Metadata.Accepts(RequestType, true, "application/x-www-form-urlencoded");
+                Metadata.Accepts(RequestType, true, "application/x-www-form-urlencoded", "multipart/form-data");
             }else{
                 Metadata.Accepts(RequestType, false, "application/json");
             }
@@ -409,11 +409,13 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
             if (parameterType == typeof(string))
             {
                 variable = new ReadHttpFrame(BindingSource.Form, parameterType,key).Variable;
+                variable.Name = key;
                 _formValueVariables.Add(variable);
             }
             if (parameterType == typeof(string[]))
             {
                 variable = new ParsedArrayFormValue(parameterType, parameterName).Variable;
+                variable.Name = key;
                 _formValueVariables.Add(variable);
             }
 

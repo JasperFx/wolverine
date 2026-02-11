@@ -135,7 +135,7 @@ that they are utilizing the transactional inbox and outbox. The PostgreSQL queue
 ```cs
 opts.ListenToPostgresqlQueue("sender").BufferedInMemory();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PostgresqlTests/Transport/compliance_tests.cs#L64-L68' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setting_postgres_queue_to_buffered' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PostgresqlTests/Transport/compliance_tests.cs#L65-L69' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setting_postgres_queue_to_buffered' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Using this option just means that the PostgreSQL queues can be used for both sending or receiving with no integration
@@ -221,7 +221,7 @@ Aspire will register `NpgsqlDataSource` services as `Singleton` scoped in your I
 that utilizes the IoC container to register Wolverine like so:
 
 <!-- snippet: sample_OurFancyPostgreSQLMultiTenancy -->
-<a id='snippet-sample_ourfancypostgresqlmultitenancy'></a>
+<a id='snippet-sample_OurFancyPostgreSQLMultiTenancy'></a>
 ```cs
 public class OurFancyPostgreSQLMultiTenancy : IWolverineExtension
 {
@@ -244,7 +244,7 @@ public class OurFancyPostgreSQLMultiTenancy : IWolverineExtension
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests/MultiTenancy/MultiTenancyDocumentationSamples.cs#L165-L188' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_ourfancypostgresqlmultitenancy' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests/MultiTenancy/MultiTenancyDocumentationSamples.cs#L165-L188' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_OurFancyPostgreSQLMultiTenancy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And add that to the greater application like so:

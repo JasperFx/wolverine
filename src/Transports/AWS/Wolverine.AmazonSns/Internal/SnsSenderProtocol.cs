@@ -69,6 +69,12 @@ internal class OutgoingSnsBatch
                     entry.MessageDeduplicationId = envelope.DeduplicationId;
                 }
 
+                foreach (var attribute in topic.Mapper.ToAttributes(envelope))
+                {
+                    entry.MessageAttributes ??= new();
+                    entry.MessageAttributes.Add(attribute.Key, attribute.Value);
+                }
+
                 entries.Add(entry);
                 _envelopes.Add(entry.Id, envelope);
             }
@@ -78,13 +84,13 @@ internal class OutgoingSnsBatch
                     envelope);
                 _mappingFailures.Add(envelope);
             }
-            
-            Request = new PublishBatchRequest
-            {
-                TopicArn = topic.TopicArn,
-                PublishBatchRequestEntries = entries
-            };
         }
+
+        Request = new PublishBatchRequest
+        {
+            TopicArn = topic.TopicArn,
+            PublishBatchRequestEntries = entries
+        };
     }
     
     public async Task ProcessSuccessAsync(ISenderCallback callback, PublishBatchResponse response,

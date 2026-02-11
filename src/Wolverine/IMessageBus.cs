@@ -104,7 +104,7 @@ public interface IMessageBus : ICommandBus
 {
     string? TenantId { get; set; }
 
-
+    ///<summary>
     ///     Execute the message handling for this message *right now* against the specified tenant id and wait for the completion.
     ///     If the message is handled locally, this delegates immediately
     ///     If the message is handled remotely, the message is sent and the method waits for the response
