@@ -12,13 +12,11 @@
 
     <ItemGroup>
         <ProjectReference Include="..\..\Wolverine.RDBMS\Wolverine.RDBMS.csproj" />
-        <ProjectReference Include="..\..\..\..\..\..\code\weasel\src\Weasel.Oracle\Weasel.Oracle.csproj" />
-        <ProjectReference Include="..\..\..\..\..\..\code\weasel\src\Weasel.Core\Weasel.Core.csproj" />
     </ItemGroup>
 
     <ItemGroup>
         <PackageReference Include="Oracle.ManagedDataAccess.Core" Version="23.7.0" />
-        <PackageReference Include="Weasel.Core" Version="8.6.0" ExcludeAssets="all" />
+        <PackageReference Include="Weasel.Oracle" Version="8.6.1" />
     </ItemGroup>
 
     <Import Project="../../../../Analysis.Build.props" />
