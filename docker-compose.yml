@@ -108,3 +108,14 @@ services:
     environment:
       - "MYSQL_ROOT_PASSWORD=P@55w0rd"
       - "MYSQL_DATABASE=wolverine"
+
+  oracle:
+    image: "gvenzl/oracle-free:23-slim"
+    ports:
+      - "1521:1521"
+    environment:
+      - "ORACLE_PASSWORD=P@55w0rd"
+      - "APP_USER=wolverine"
+      - "APP_USER_PASSWORD=wolverine"
+    volumes:
+      - ./docker/oracle:/container-entrypoint-initdb.d
