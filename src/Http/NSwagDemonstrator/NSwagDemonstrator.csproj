@@ -19,11 +19,11 @@
             To use OpenApiGenerateDocumentsOnBuild with Wolverine, upgrade Microsoft.Extensions.ApiDescription.Server (transitive NSwag dependency).
             See also: https://github.com/RicoSuter/NSwag/issues/3403 
         -->
-        <!-- <PackageReference Include="Microsoft.Extensions.ApiDescription.Server" Version="8.0.1"> -->
+        <!-- <PackageReference Include="Microsoft.Extensions.ApiDescription.Server"> -->
         <!-- 	<PrivateAssets>all</PrivateAssets> -->
         <!-- 	<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets> -->
         <!-- </PackageReference> -->
-        <PackageReference Include="NSwag.AspNetCore" Version="14.0.0"/>
+        <PackageReference Include="NSwag.AspNetCore"/>
     </ItemGroup>
 
 </Project>

@@ -13,7 +13,7 @@
     <ItemGroup>
         <ProjectReference Include="..\..\Persistence\Wolverine.Marten\Wolverine.Marten.csproj" />
         <ProjectReference Include="..\Wolverine.Http\Wolverine.Http.csproj" />
-        <PackageReference Include="Marten.AspNetCore" Version="8.19.0" />
+        <PackageReference Include="Marten.AspNetCore" />
     </ItemGroup>
 
 </Project>

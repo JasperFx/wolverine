@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
         <Description>Compliance test harnesses for adding persistence and transport options to Wolverine</Description>
@@ -7,10 +7,10 @@
 
     <ItemGroup>
         <ProjectReference Include="..\..\Wolverine\Wolverine.csproj"/>
-        <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
-        <PackageReference Include="NSubstitute" Version="5.3.0" />
-        <PackageReference Include="Shouldly" Version="4.3.0" />
-        <PackageReference Include="xunit" Version="2.9.0" />
+        <PackageReference Include="Microsoft.NET.Test.Sdk" />
+        <PackageReference Include="NSubstitute" />
+        <PackageReference Include="Shouldly" />
+        <PackageReference Include="xunit" />
     </ItemGroup>
 
 </Project>

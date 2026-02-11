@@ -1,12 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
     <ItemGroup>
-        <PackageReference Include="Swashbuckle.AspNetCore" Version="6.5.0" />
-        <PackageReference Include="OpenTelemetry" Version="1.8.0" />
-        <PackageReference Include="OpenTelemetry.Api" Version="1.8.0" />
-        <PackageReference Include="OpenTelemetry.Exporter.Jaeger" Version="1.8.0" />
-        <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.0.0-rc8" />
-        <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.0.0-rc8" />
+        <PackageReference Include="Swashbuckle.AspNetCore" />
+        <PackageReference Include="OpenTelemetry" />
+        <PackageReference Include="OpenTelemetry.Api" />
+        <PackageReference Include="OpenTelemetry.Exporter.Jaeger" />
+        <PackageReference Include="OpenTelemetry.Extensions.Hosting" />
+        <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" />
     </ItemGroup>
 
     <ItemGroup>
