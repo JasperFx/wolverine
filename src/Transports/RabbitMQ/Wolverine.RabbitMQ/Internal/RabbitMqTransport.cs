@@ -16,7 +16,7 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IAsy
 {
     public const string ProtocolName = "rabbitmq";
     public const string ResponseEndpointName = "RabbitMqResponses";
-    public const string DeadLetterQueueName = "wolverine-dead-letter-queue";
+    public const string DeadLetterQueueName = DeadLetterQueueConstants.DefaultQueueName;
     public const string DeadLetterQueueHeader = "x-dead-letter-exchange";
     public const string QueueTypeHeader = "x-queue-type";
 

@@ -154,10 +154,10 @@ public class KafkaListener : IListener, IDisposable, ISupportDeadLetterQueue
             var message = await _endpoint.EnvelopeMapper!.CreateMessage(envelope);
 
             message.Headers ??= new Headers();
-            message.Headers.Add("exception-type", Encoding.UTF8.GetBytes(exception.GetType().FullName ?? "Unknown"));
-            message.Headers.Add("exception-message", Encoding.UTF8.GetBytes(exception.Message));
-            message.Headers.Add("exception-stack", Encoding.UTF8.GetBytes(exception.StackTrace ?? ""));
-            message.Headers.Add("failed-at", Encoding.UTF8.GetBytes(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString()));
+            message.Headers.Add(DeadLetterQueueConstants.ExceptionTypeHeader, Encoding.UTF8.GetBytes(exception.GetType().FullName ?? "Unknown"));
+            message.Headers.Add(DeadLetterQueueConstants.ExceptionMessageHeader, Encoding.UTF8.GetBytes(exception.Message));
+            message.Headers.Add(DeadLetterQueueConstants.ExceptionStackHeader, Encoding.UTF8.GetBytes(exception.StackTrace ?? ""));
+            message.Headers.Add(DeadLetterQueueConstants.FailedAtHeader, Encoding.UTF8.GetBytes(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString()));
 
             using var producer = transport.CreateProducer(_endpoint.GetEffectiveProducerConfig());
             await producer.ProduceAsync(dlqTopicName, message);
