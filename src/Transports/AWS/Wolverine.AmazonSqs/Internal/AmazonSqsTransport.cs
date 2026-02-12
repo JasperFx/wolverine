@@ -11,7 +11,7 @@ namespace Wolverine.AmazonSqs.Internal;
 
 public class AmazonSqsTransport : BrokerTransport<AmazonSqsQueue>
 {
-    public const string DeadLetterQueueName = "wolverine-dead-letter-queue";
+    public const string DeadLetterQueueName = DeadLetterQueueConstants.DefaultQueueName;
 
     public const char Separator = '-';
 

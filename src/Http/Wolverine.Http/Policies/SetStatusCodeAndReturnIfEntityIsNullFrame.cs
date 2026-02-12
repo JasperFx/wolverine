@@ -3,6 +3,7 @@ using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 
 namespace Wolverine.Http.Policies;
 
@@ -25,17 +26,19 @@ internal class SetStatusCodeAndReturnIfEntityIsNullFrame : SyncFrame
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
+        ValueTypeReturnVariable.TupleVariable? problemDetailsVariable = null;
+        if (_entity?.Creator is MethodCall { ReturnVariable: ValueTypeReturnVariable vrv })
+            problemDetailsVariable = vrv.Inners.FirstOrDefault(v => v.Inner.VariableType == typeof(ProblemDetails));
         writer.WriteComment("404 if this required object is null");
-        writer.Write($"BLOCK:if ({_entity.Usage} == null)");
+        if (problemDetailsVariable != null)
+            writer.WriteComment($"Take no action if {problemDetailsVariable.Inner.Usage}.Status == 404");
+        writer.Write(
+            $"BLOCK:if ({_entity.Usage} == null{(problemDetailsVariable == null ? "" : $" && {problemDetailsVariable.Inner.Usage}.Status != 404")})");
         writer.Write($"{_httpResponse.Usage}.{nameof(HttpResponse.StatusCode)} = 404;");
         if (method.AsyncMode == AsyncMode.ReturnCompletedTask)
-        {
             writer.Write($"return {typeof(Task).FullNameInCode()}.{nameof(Task.CompletedTask)};");
-        }
         else
-        {
             writer.Write("return;");
-        }
 
         writer.FinishBlock();
 

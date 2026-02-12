@@ -37,6 +37,12 @@ public class KafkaTransport : BrokerTransport<KafkaTopic>
         Topics = new Cache<string, KafkaTopic>(topicName => new KafkaTopic(this, topicName, EndpointRole.Application));
     }
 
+    /// <summary>
+    /// The Kafka topic name used for native dead letter queue messages.
+    /// Default is "wolverine-dead-letter-queue".
+    /// </summary>
+    public string DeadLetterQueueTopicName { get; set; } = DeadLetterQueueConstants.DefaultQueueName;
+
     public KafkaUsage Usage { get; set; } = KafkaUsage.ProduceAndConsume;
 
     public override Uri ResourceUri
@@ -80,7 +86,19 @@ public class KafkaTransport : BrokerTransport<KafkaTopic>
 
     public override ValueTask ConnectAsync(IWolverineRuntime runtime)
     {
-        foreach (var endpoint in Topics) endpoint.Compile(runtime);
+        var needsDlqTopic = false;
+        foreach (var endpoint in Topics)
+        {
+            endpoint.Compile(runtime);
+            if (endpoint.NativeDeadLetterQueueEnabled) needsDlqTopic = true;
+        }
+
+        // Ensure the DLQ topic is registered and compiled so it gets auto-provisioned
+        if (needsDlqTopic)
+        {
+            var dlqTopic = Topics[DeadLetterQueueTopicName];
+            dlqTopic.Compile(runtime);
+        }
 
         return ValueTask.CompletedTask;
     }

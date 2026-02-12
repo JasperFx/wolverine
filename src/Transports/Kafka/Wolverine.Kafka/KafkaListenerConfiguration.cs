@@ -80,6 +80,31 @@ public class KafkaListenerConfiguration : InteroperableListenerConfiguration<Kaf
     }
 
     /// <summary>
+    /// Enable native dead letter queue support for this Kafka listener.
+    /// Failed messages will be produced to the DLQ Kafka topic
+    /// (default: "wolverine-dead-letter-queue") with exception details
+    /// in Kafka headers.
+    /// </summary>
+    /// <returns></returns>
+    public KafkaListenerConfiguration EnableNativeDeadLetterQueue()
+    {
+        add(topic => topic.NativeDeadLetterQueueEnabled = true);
+        return this;
+    }
+
+    /// <summary>
+    /// Disable native dead letter queue support for this Kafka listener.
+    /// Failed messages will use Wolverine's default dead letter handling
+    /// (database persistence).
+    /// </summary>
+    /// <returns></returns>
+    public KafkaListenerConfiguration DisableNativeDeadLetterQueue()
+    {
+        add(topic => topic.NativeDeadLetterQueueEnabled = false);
+        return this;
+    }
+
+    /// <summary>
     /// Configure the consumer config for only this topic. This overrides the default
     /// settings at the transport level. This is not combinatorial with the parent configuration
     /// and overwrites all ConsumerConfig from the parent

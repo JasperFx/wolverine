@@ -178,7 +178,7 @@ are largely not impacted otherwise.
 Here are your options for configuring one or many queues as opting into being a "Quorum Queue" or a "Stream":
 
 <!-- snippet: sample_configuring_quorum_or_streams_in_rabbit_MQ -->
-<a id='snippet-sample_configuring_quorum_or_streams_in_rabbit_MQ'></a>
+<a id='snippet-sample_configuring_quorum_or_streams_in_rabbit_mq'></a>
 ```cs
 var builder = Host.CreateApplicationBuilder();
 builder.UseWolverine(opts =>
@@ -205,7 +205,7 @@ builder.UseWolverine(opts =>
     
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L566-L593' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_quorum_or_streams_in_rabbit_MQ' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L566-L593' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_quorum_or_streams_in_rabbit_mq' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 There are just a few things to know:
@@ -220,7 +220,7 @@ you can quickly access and make additions to the Rabbit MQ integration with your
 like so:
 
 <!-- snippet: sample_RabbitMQ_configuration_in_wolverine_extension -->
-<a id='snippet-sample_RabbitMQ_configuration_in_wolverine_extension'></a>
+<a id='snippet-sample_rabbitmq_configuration_in_wolverine_extension'></a>
 ```cs
 public class MyModuleExtension : IWolverineExtension
 {
@@ -235,6 +235,35 @@ public class MyModuleExtension : IWolverineExtension
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L640-L655' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_RabbitMQ_configuration_in_wolverine_extension' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L640-L655' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_rabbitmq_configuration_in_wolverine_extension' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+
+## Identifier Prefixing for Shared Brokers
+
+Because Rabbit MQ is a centralized broker model, you may need to share a single broker between multiple developers or development environments. To isolate the broker objects (queues, exchanges, bindings) created by each environment, you can use the `PrefixIdentifiers()` method to automatically prepend a prefix to every queue and exchange name created by Wolverine:
+
+```csharp
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.UseRabbitMq()
+            .AutoProvision()
+
+            // Prefix all queue and exchange names with "dev-john-"
+            .PrefixIdentifiers("dev-john");
+
+        // A queue named "orders" becomes "dev-john-orders"
+        opts.ListenToRabbitQueue("orders");
+    }).StartAsync();
+```
+
+You can also use `PrefixIdentifiersWithMachineName()` as a convenience to use the current machine name as the prefix, which is often a good default for local development:
+
+```csharp
+opts.UseRabbitMq()
+    .AutoProvision()
+    .PrefixIdentifiersWithMachineName();
+```
+
+The default delimiter between the prefix and the original name is `-` for Rabbit MQ (e.g., `dev-john-orders`).
 

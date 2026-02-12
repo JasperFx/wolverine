@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <Description>Oracle Saga, Message, and Outbox storage for Wolverine applications</Description>
+        <PackageId>WolverineFx.Oracle</PackageId>
+        <GenerateAssemblyProductAttribute>false</GenerateAssemblyProductAttribute>
+        <GenerateAssemblyCopyrightAttribute>false</GenerateAssemblyCopyrightAttribute>
+        <GenerateAssemblyVersionAttribute>false</GenerateAssemblyVersionAttribute>
+        <GenerateAssemblyFileVersionAttribute>false</GenerateAssemblyFileVersionAttribute>
+        <GenerateAssemblyInformationalVersionAttribute>false</GenerateAssemblyInformationalVersionAttribute>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\Wolverine.RDBMS\Wolverine.RDBMS.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Oracle.ManagedDataAccess.Core" />
+        <PackageReference Include="Weasel.Oracle" />
+    </ItemGroup>
+
+    <Import Project="../../../../Analysis.Build.props" />
+</Project>

@@ -5,21 +5,21 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-		<PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
-		<PackageReference Include="Shouldly" Version="4.3.0" />
-		<PackageReference Include="xunit" Version="2.9.0" />
-		<PackageReference Include="xunit.runner.visualstudio" Version="2.8.0">
+		<PackageReference Include="Microsoft.NET.Test.Sdk" />
+		<PackageReference Include="Shouldly" />
+		<PackageReference Include="xunit" />
+		<PackageReference Include="xunit.runner.visualstudio">
 			<PrivateAssets>all</PrivateAssets>
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
-		<PackageReference Include="GitHubActionsTestLogger" Version="2.4.1" PrivateAssets="All" />
-		<PackageReference Include="Google.Protobuf" Version="3.31.1" />
-		<PackageReference Include="Grpc.Core" Version="2.46.6" />
-		<PackageReference Include="Grpc.Tools" Version="2.72.0">
+		<PackageReference Include="GitHubActionsTestLogger" PrivateAssets="All" />
+		<PackageReference Include="Google.Protobuf" />
+		<PackageReference Include="Grpc.Core" />
+		<PackageReference Include="Grpc.Tools">
 			<PrivateAssets>all</PrivateAssets>
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
-		<PackageReference Include="protobuf-net.BuildTools" Version="3.2.52">
+		<PackageReference Include="protobuf-net.BuildTools">
 			<PrivateAssets>all</PrivateAssets>
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>

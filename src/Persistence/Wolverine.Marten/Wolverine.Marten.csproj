@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
         <Description>Marten-backed Persistence for Wolverine Applications</Description>
         <PackageId>WolverineFx.Marten</PackageId>
@@ -12,7 +12,7 @@
         <ProjectReference Include="..\Wolverine.Postgresql\Wolverine.Postgresql.csproj" />
     </ItemGroup>
     <ItemGroup>
-      <PackageReference Include="Marten" Version="8.19.0" />
+      <PackageReference Include="Marten" />
     </ItemGroup>
     <Import Project="../../../Analysis.Build.props" />
 </Project>

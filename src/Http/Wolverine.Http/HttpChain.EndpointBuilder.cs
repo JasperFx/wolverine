@@ -46,43 +46,42 @@ public partial class HttpChain : IEndpointConventionBuilder
         return false;
     }
 
+    private HttpHandler buildHandler()
+    {
+        this.InitializeSynchronously(_parent.Rules, _parent, _parent.Container.Services);
+
+        if (_handlerType == null)
+        {
+            throw new InvalidOperationException(
+                $"Failed to resolve the generated handler type for endpoint {_fileName} " +
+                $"({string.Join(", ", _httpMethods)} {RoutePattern?.RawText}) " +
+                $"on handler type {Method.HandlerType.FullNameInCode()}. " +
+                $"The generated source code was:\n{_generatedType?.SourceCode}");
+        }
+
+        return (HttpHandler)_parent.Container.QuickBuild(_handlerType);
+    }
+
     public RouteEndpoint BuildEndpoint(RouteWarmup warmup)
     {
         if (Endpoint != null) return Endpoint;
-        
+
         RequestDelegate? requestDelegate = null;
         if (_parent.Rules.TypeLoadMode == TypeLoadMode.Static && !DynamicCodeBuilder.WithinCodegenCommand)
         {
-            this.InitializeSynchronously(_parent.Rules, _parent, _parent.Container.Services);
-            var handler = (HttpHandler)_parent.Container.QuickBuild(_handlerType);
+            var handler = buildHandler();
             requestDelegate = handler.Handle;
         }
         else
         {
             if (warmup == RouteWarmup.Eager && !DynamicCodeBuilder.WithinCodegenCommand)
             {
-                this.InitializeSynchronously(_parent.Rules, _parent, _parent.Container.Services);
-                var handler = (HttpHandler)_parent.Container.QuickBuild(_handlerType);
+                var handler = buildHandler();
                 requestDelegate = c => handler.Handle(c);
             }
             else
             {
-                var handler = new Lazy<HttpHandler>(() =>
-                {
-                    this.InitializeSynchronously(_parent.Rules, _parent, _parent.Container.Services);
-
-                    try
-                    {
-                        return (HttpHandler)_parent.Container.QuickBuild(_handlerType);
-                    }
-                    catch (Exception e)
-                    {
-                        throw new InvalidOperationException(
-                            "Wolverine may be having trouble with concurrent access to the same route at startup. Set the WolverineHttpOptions.Warmup = Eager to work around this problem",
-                            e);
-                    }
-                });
-
+                var handler = new Lazy<HttpHandler>(buildHandler);
                 requestDelegate = c => handler.Value.Handle(c);
             }
         }

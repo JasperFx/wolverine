@@ -76,4 +76,10 @@ public class FakeEndpoint
     }
 }
 
+public static class NoDependencyEndpoints
+{
+    [WolverineGet("/simple/bool")]
+    public static bool GetBool() => true;
+}
+
 public class BigResponse;

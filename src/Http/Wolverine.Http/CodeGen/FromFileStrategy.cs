@@ -107,3 +107,77 @@ internal class FromFileValues : SyncFrame
         Next?.GenerateCode(method, writer);
     }
 }
+
+internal class FormFilePropertyFrame : SyncFrame, IReadHttpFrame
+{
+    private string? _property;
+    private readonly string _formName;
+
+    public FormFilePropertyFrame(string formName)
+    {
+        _formName = formName;
+        Variable = new HttpElementVariable(typeof(IFormFile), formName.SanitizeFormNameForVariable(), this);
+    }
+
+    public HttpElementVariable Variable { get; }
+
+    public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        if (Mode == AssignMode.WriteToProperty && _property != null)
+        {
+            writer.Write(
+                $"{_property} = {nameof(HttpHandler.ReadFormFileByName)}(httpContext, \"{_formName}\");");
+        }
+        else
+        {
+            writer.Write(
+                $"var {Variable.Usage} = {nameof(HttpHandler.ReadFormFileByName)}(httpContext, \"{_formName}\");");
+        }
+
+        Next?.GenerateCode(method, writer);
+    }
+
+    public void AssignToProperty(string usage)
+    {
+        _property = usage;
+        Mode = AssignMode.WriteToProperty;
+    }
+
+    public AssignMode Mode { get; private set; } = AssignMode.WriteToVariable;
+}
+
+internal class FormFileCollectionPropertyFrame : SyncFrame, IReadHttpFrame
+{
+    private string? _property;
+
+    public FormFileCollectionPropertyFrame()
+    {
+        Variable = new HttpElementVariable(typeof(IFormFileCollection), "files", this);
+    }
+
+    public HttpElementVariable Variable { get; }
+
+    public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        if (Mode == AssignMode.WriteToProperty && _property != null)
+        {
+            writer.Write(
+                $"{_property} = {nameof(HttpHandler.ReadManyFormFileValues)}(httpContext);");
+        }
+        else
+        {
+            writer.Write(
+                $"var {Variable.Usage} = {nameof(HttpHandler.ReadManyFormFileValues)}(httpContext);");
+        }
+
+        Next?.GenerateCode(method, writer);
+    }
+
+    public void AssignToProperty(string usage)
+    {
+        _property = usage;
+        Mode = AssignMode.WriteToProperty;
+    }
+
+    public AssignMode Mode { get; private set; } = AssignMode.WriteToVariable;
+}

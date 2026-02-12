@@ -1,4 +1,4 @@
-using System.Data;
+﻿using System.Data;
 using System.Data.Common;
 using ImTools;
 using JasperFx;
@@ -22,6 +22,7 @@ using Wolverine.SqlServer.Sagas;
 using Wolverine.SqlServer.Schema;
 using Wolverine.SqlServer.Util;
 using Wolverine.Transports;
+using CascadeAction = Weasel.SqlServer.CascadeAction;
 using DbCommandBuilder = Weasel.Core.DbCommandBuilder;
 using Table = Weasel.SqlServer.Tables.Table;
 

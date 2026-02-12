@@ -21,7 +21,10 @@ namespace Wolverine.EntityFrameworkCore.Codegen;
 internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
 {
     public const string UsingEfCoreTransaction = "uses_efcore_transaction";
+    public const string TransactionModeKey = "TransactionMiddlewareMode";
     private ImHashMap<Type, Type?> _dbContextTypes = ImHashMap<Type, Type?>.Empty;
+
+    public TransactionMiddlewareMode DefaultMode { get; set; } = TransactionMiddlewareMode.Eager;
 
     public bool CanPersist(Type entityType, IServiceContainer container, out Type persistenceService)
     {
@@ -121,23 +124,32 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         chain.Tags.Add(UsingEfCoreTransaction, true);
 
         var dbContextType = DetermineDbContextType(chain, container);
+
+        // Resolve effective mode: per-chain override from [Transactional] attribute, or default
+        var mode = chain.Tags.TryGetValue(TransactionModeKey, out var modeObj)
+            ? (TransactionMiddlewareMode)modeObj
+            : DefaultMode;
+
         var runtime = container.Services.GetRequiredService<IWolverineRuntime>();
         if (runtime.Stores.HasAncillaryStoreFor(dbContextType))
         {
             var frame = typeof(ApplyAncillaryStoreFrame<>).CloseAndBuildAs<Frame>(dbContextType);
             chain.Middleware.Insert(0, frame);
         }
-        
-        if (isMultiTenanted(container, dbContextType))
-        {
-            var createContext = typeof(CreateTenantedDbContext<>).CloseAndBuildAs<Frame>(dbContextType);
 
-            chain.Middleware.Insert(0, createContext);
-            chain.Middleware.Insert(0, new StartDatabaseTransactionForDbContext(dbContextType, chain.Idempotency));
-        }
-        else
+        if (mode == TransactionMiddlewareMode.Eager)
         {
-            chain.Middleware.Insert(0, new EnrollDbContextInTransaction(dbContextType, chain.Idempotency));
+            if (isMultiTenanted(container, dbContextType))
+            {
+                var createContext = typeof(CreateTenantedDbContext<>).CloseAndBuildAs<Frame>(dbContextType);
+
+                chain.Middleware.Insert(0, createContext);
+                chain.Middleware.Insert(0, new StartDatabaseTransactionForDbContext(dbContextType, chain.Idempotency));
+            }
+            else
+            {
+                chain.Middleware.Insert(0, new EnrollDbContextInTransaction(dbContextType, chain.Idempotency));
+            }
         }
 
         var saveChangesAsync =
@@ -169,17 +181,26 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         chain.Tags.Add(UsingEfCoreTransaction, true);
 
         var dbType = DetermineDbContextType(entityType, container);
-        if (isMultiTenanted(container, dbType))
+
+        // Resolve effective mode: per-chain override from [Transactional] attribute, or default
+        var mode = chain.Tags.TryGetValue(TransactionModeKey, out var modeObj)
+            ? (TransactionMiddlewareMode)modeObj
+            : DefaultMode;
+
+        if (mode == TransactionMiddlewareMode.Eager)
         {
-            var createContext = typeof(CreateTenantedDbContext<>).CloseAndBuildAs<Frame>(dbType);
-            chain.Middleware.Insert(0, createContext);
-            chain.Middleware.Insert(0, new StartDatabaseTransactionForDbContext(dbType, chain.Idempotency));
+            if (isMultiTenanted(container, dbType))
+            {
+                var createContext = typeof(CreateTenantedDbContext<>).CloseAndBuildAs<Frame>(dbType);
+                chain.Middleware.Insert(0, createContext);
+                chain.Middleware.Insert(0, new StartDatabaseTransactionForDbContext(dbType, chain.Idempotency));
+            }
+            else
+            {
+                chain.Middleware.Insert(0, new EnrollDbContextInTransaction(dbType, chain.Idempotency));
+            }
         }
-        else
-        {
-            chain.Middleware.Insert(0, new EnrollDbContextInTransaction(dbType, chain.Idempotency));
-        }
-        
+
         var saveChangesAsync =
             dbType.GetMethod(nameof(DbContext.SaveChangesAsync), [typeof(CancellationToken)]);
 

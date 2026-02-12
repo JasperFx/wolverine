@@ -1,3 +1,4 @@
+using System.Text;
 using Confluent.Kafka;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
@@ -7,21 +8,24 @@ using Wolverine.Util;
 
 namespace Wolverine.Kafka.Internals;
 
-public class KafkaListener : IListener, IDisposable
+public class KafkaListener : IListener, IDisposable, ISupportDeadLetterQueue
 {
+    private readonly KafkaTopic _endpoint;
     private readonly IConsumer<string, byte[]> _consumer;
     private CancellationTokenSource _cancellation = new();
     private readonly Task _runner;
     private readonly IReceiver _receiver;
     private readonly string? _messageTypeName;
-    private readonly ILogger<KafkaListener> _logger;
     private readonly QualityOfService _qualityOfService;
     private readonly QualityOfService? _requestedQualityOfService;
+    private readonly ILogger _logger;
 
     public KafkaListener(KafkaTopic topic, ConsumerConfig config,
         IConsumer<string, byte[]> consumer, IReceiver receiver,
         ILogger<KafkaListener> logger)
     {
+        _endpoint = topic;
+        _logger = logger;
         Address = topic.Uri;
         _consumer = consumer;
         _logger = logger;
@@ -154,6 +158,51 @@ public class KafkaListener : IListener, IDisposable
     {
         _cancellation.Cancel();
         await _runner;
+    }
+
+    public bool NativeDeadLetterQueueEnabled => _endpoint.NativeDeadLetterQueueEnabled;
+
+    public async Task MoveToErrorsAsync(Envelope envelope, Exception exception)
+    {
+        var transport = _endpoint.Parent;
+        var dlqTopicName = transport.DeadLetterQueueTopicName;
+
+        try
+        {
+            var message = await _endpoint.EnvelopeMapper!.CreateMessage(envelope);
+
+            message.Headers ??= new Headers();
+            message.Headers.Add(DeadLetterQueueConstants.ExceptionTypeHeader, Encoding.UTF8.GetBytes(exception.GetType().FullName ?? "Unknown"));
+            message.Headers.Add(DeadLetterQueueConstants.ExceptionMessageHeader, Encoding.UTF8.GetBytes(exception.Message));
+            message.Headers.Add(DeadLetterQueueConstants.ExceptionStackHeader, Encoding.UTF8.GetBytes(exception.StackTrace ?? ""));
+            message.Headers.Add(DeadLetterQueueConstants.FailedAtHeader, Encoding.UTF8.GetBytes(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString()));
+
+            using var producer = transport.CreateProducer(_endpoint.GetEffectiveProducerConfig());
+            await producer.ProduceAsync(dlqTopicName, message);
+            producer.Flush();
+
+            _logger.LogInformation(
+                "Moved envelope {EnvelopeId} to dead letter queue topic {DlqTopic}. Exception: {ExceptionType}: {ExceptionMessage}",
+                envelope.Id, dlqTopicName, exception.GetType().Name, exception.Message);
+
+            try
+            {
+                _consumer.Commit();
+            }
+            catch (Exception commitEx)
+            {
+                _logger.LogWarning(commitEx,
+                    "Error committing offset after moving envelope {EnvelopeId} to dead letter queue",
+                    envelope.Id);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,
+                "Failed to move envelope {EnvelopeId} to dead letter queue topic {DlqTopic}",
+                envelope.Id, dlqTopicName);
+            throw;
+        }
     }
 
     public void Dispose()

@@ -106,6 +106,18 @@ public class KafkaTransportExpression : BrokerExpression<KafkaTransport, KafkaTo
         return this;
     }
 
+    /// <summary>
+    /// Configure the Kafka topic name used for native dead letter queue messages.
+    /// Default is "wolverine-dead-letter-queue".
+    /// </summary>
+    /// <param name="topicName">The Kafka topic name for the dead letter queue</param>
+    /// <returns></returns>
+    public KafkaTransportExpression DeadLetterQueueTopicName(string topicName)
+    {
+        _transport.DeadLetterQueueTopicName = topicName;
+        return this;
+    }
+
     protected override KafkaListenerConfiguration createListenerExpression(KafkaTopic listenerEndpoint)
     {
         return new KafkaListenerConfiguration(listenerEndpoint);

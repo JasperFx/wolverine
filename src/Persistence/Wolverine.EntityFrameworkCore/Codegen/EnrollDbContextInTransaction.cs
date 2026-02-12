@@ -2,7 +2,6 @@ using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
-using Microsoft.EntityFrameworkCore.Storage;
 using Wolverine.EntityFrameworkCore.Internals;
 using Wolverine.Persistence;
 using Wolverine.Runtime;
@@ -24,11 +23,8 @@ internal class EnrollDbContextInTransaction : AsyncFrame
         _dbContextType = dbContextType;
         _idempotencyStyle = idempotencyStyle;
 
-        Transaction = new Variable(typeof(IDbContextTransaction), $"tx_{_dbContextType.NameInCode().Sanitize()}", this);
         _envelopeTransaction = new Variable(typeof(EfCoreEnvelopeTransaction), this);
     }
-
-    public Variable Transaction { get; }
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
@@ -39,9 +35,11 @@ internal class EnrollDbContextInTransaction : AsyncFrame
         writer.Write(
             $"await {_context.Usage}.{nameof(MessageContext.EnlistInOutboxAsync)}({_envelopeTransaction.Usage}).ConfigureAwait(false);");
 
-        
-        writer.WriteComment("Start the actual database transaction");
-        writer.Write($"using var {Transaction.Usage} = await {_dbContext.Usage}.Database.BeginTransactionAsync({_cancellation.Usage}).ConfigureAwait(false);");
+
+        writer.WriteComment("Start the actual database transaction if one does not already exist");
+        writer.Write($"BLOCK:if ({_dbContext.Usage}.Database.CurrentTransaction == null)");
+        writer.Write($"await {_dbContext.Usage}.Database.BeginTransactionAsync({_cancellation.Usage}).ConfigureAwait(false);");
+        writer.FinishBlock();
         writer.Write("BLOCK:try");
 
         // EF Core can only do eager idempotent checks

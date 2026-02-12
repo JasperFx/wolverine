@@ -1,5 +1,6 @@
 using System.Data.Common;
 using JasperFx;
+using JasperFx.CommandLine.Descriptions;
 using JasperFx.Core.Reflection;
 using JasperFx.MultiTenancy;
 using JasperFx.Resources;
@@ -7,8 +8,12 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Wolverine.EntityFrameworkCore.Codegen;
 using Wolverine.EntityFrameworkCore.Internals;
+using Wolverine.EntityFrameworkCore.Internals.Migrations;
+using Wolverine.Persistence;
 using Wolverine.Persistence.Durability;
+using Wolverine.Persistence.Sagas;
 using Wolverine.RDBMS;
 using Wolverine.Runtime;
 
@@ -170,10 +175,24 @@ public static class WolverineEntityCoreExtensions
 
     /// <summary>
     ///     Uses Entity Framework Core for Saga persistence and transactional
-    ///     middleware
+    ///     middleware using <see cref="TransactionMiddlewareMode.Eager"/> mode by default.
     /// </summary>
     /// <param name="options"></param>
     public static void UseEntityFrameworkCoreTransactions(this WolverineOptions options)
+    {
+        options.UseEntityFrameworkCoreTransactions(TransactionMiddlewareMode.Eager);
+    }
+
+    /// <summary>
+    ///     Uses Entity Framework Core for Saga persistence and transactional
+    ///     middleware with the specified <see cref="TransactionMiddlewareMode"/>.
+    ///     <see cref="TransactionMiddlewareMode.Eager"/> opens an explicit database transaction immediately.
+    ///     <see cref="TransactionMiddlewareMode.Lightweight"/> only relies on <c>DbContext.SaveChangesAsync()</c>
+    ///     without opening an explicit transaction.
+    /// </summary>
+    /// <param name="options"></param>
+    /// <param name="mode">The transaction middleware mode to use</param>
+    public static void UseEntityFrameworkCoreTransactions(this WolverineOptions options, TransactionMiddlewareMode mode)
     {
         try
         {
@@ -189,8 +208,28 @@ public static class WolverineEntityCoreExtensions
                 throw;
             }
         }
-        
+
         options.Include<EntityFrameworkCoreBackedPersistence>();
+
+        var providers = options.CodeGeneration.PersistenceProviders();
+        var efProvider = providers.OfType<EFCorePersistenceFrameProvider>().FirstOrDefault();
+        if (efProvider != null)
+        {
+            efProvider.DefaultMode = mode;
+        }
+    }
+
+    /// <summary>
+    /// Adds "It just works" support for Wolverine stateful resource support for your EF Core registrations
+    /// to build out the table structure implied by your DbContext model at development time.
+    ///
+    /// This ties in to IServiceCollection.AddResourceSetupAtStartup() and can be enabled or disabled by setting the
+    /// JasperFxOptions.Production.ResourceAutoCreate
+    /// </summary>
+    /// <param name="options"></param>
+    public static void UseEntityFrameworkCoreWolverineManagedMigrations(this WolverineOptions options)
+    {
+        options.Services.AddSingleton<ISystemPart, EntityFrameworkCoreSystemPart>();
     }
 
     internal static bool IsWolverineEnabled(this DbContext dbContext)
@@ -223,7 +262,7 @@ public static class WolverineEntityCoreExtensions
             eb.Property(x => x.Status).HasColumnName(DatabaseConstants.Status).IsRequired();
             eb.Property(x => x.OwnerId).HasColumnName(DatabaseConstants.OwnerId).IsRequired();
             eb.Property(x => x.ExecutionTime).HasColumnName(DatabaseConstants.ExecutionTime).HasDefaultValue(null);
-            eb.Property(x => x.Attempts).HasColumnName(DatabaseConstants.Attempts).HasDefaultValue(0);
+            eb.Property(x => x.Attempts).HasColumnName(DatabaseConstants.Attempts);
             eb.Property(x => x.Body).HasColumnName(DatabaseConstants.Body).IsRequired();
             eb.Property(x => x.MessageType).HasColumnName(DatabaseConstants.MessageType).IsRequired();
             eb.Property(x => x.ReceivedAt).HasColumnName(DatabaseConstants.ReceivedAt);
@@ -241,7 +280,7 @@ public static class WolverineEntityCoreExtensions
             eb.Property(x => x.DeliverBy).HasColumnName(DatabaseConstants.DeliverBy);
 
             eb.Property(x => x.Body).HasColumnName(DatabaseConstants.Body).IsRequired();
-            eb.Property(x => x.Attempts).HasColumnName(DatabaseConstants.Attempts).HasDefaultValue(0);
+            eb.Property(x => x.Attempts).HasColumnName(DatabaseConstants.Attempts);
 
             eb.Property(x => x.MessageType).HasColumnName(DatabaseConstants.MessageType).IsRequired();
         });
