@@ -41,7 +41,7 @@ public class KafkaTransport : BrokerTransport<KafkaTopic>
     /// The Kafka topic name used for native dead letter queue messages.
     /// Default is "wolverine-dead-letter-queue".
     /// </summary>
-    public string DeadLetterQueueTopicName { get; set; } = "wolverine-dead-letter-queue";
+    public string DeadLetterQueueTopicName { get; set; } = DeadLetterQueueConstants.DefaultQueueName;
 
     public KafkaUsage Usage { get; set; } = KafkaUsage.ProduceAndConsume;
 
