@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations.Schema;
+
 namespace SharedPersistenceModels.Items;
 
 public class Item : Entity
@@ -6,6 +8,9 @@ public class Item : Entity
     public string Name { get; set; }
     
     public bool Approved { get; set; }
+    
+    [NotMapped]
+    public bool AutoApproveInInterceptor { get; set; }
 
     public void Approve()
     {
