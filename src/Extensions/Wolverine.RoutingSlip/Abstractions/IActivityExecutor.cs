@@ -1,6 +1,4 @@
-﻿using Wolverine.Runtime;
-
-namespace Wolverine.RoutingSlip.Abstractions;
+﻿namespace Wolverine.RoutingSlip.Abstractions;
 
 /// <summary>
 ///     Executes the next activity in a routing slip

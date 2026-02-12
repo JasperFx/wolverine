@@ -6,6 +6,8 @@ internal static class ActivityTracker
 {
     private static readonly ConcurrentDictionary<Guid, List<ActivityExecutionRecord>> Executions = new();
     private static readonly ConcurrentDictionary<Guid, List<ActivityCompensationRecord>> Compensations = new();
+    private static readonly ConcurrentDictionary<Guid, List<ExceptionInfo>> ActivityFaults = new();
+    private static readonly ConcurrentDictionary<Guid, List<ExceptionInfo>> CompensationFailures = new();
 
     public static void RecordExecution(Guid trackingNumber, string activityName, Uri destination)
     {
@@ -40,10 +42,44 @@ internal static class ActivityTracker
             : Array.Empty<ActivityCompensationRecord>();
     }
 
+    public static void RecordActivityFault(Guid trackingNumber, ExceptionInfo exceptionInfo)
+    {
+        var records = ActivityFaults.GetOrAdd(trackingNumber, _ => []);
+        lock (records)
+        {
+            records.Add(exceptionInfo);
+        }
+    }
+
+    public static void RecordCompensationFailure(Guid trackingNumber, ExceptionInfo exceptionInfo)
+    {
+        var records = CompensationFailures.GetOrAdd(trackingNumber, _ => []);
+        lock (records)
+        {
+            records.Add(exceptionInfo);
+        }
+    }
+
+    public static IReadOnlyList<ExceptionInfo> GetActivityFaults(Guid trackingNumber)
+    {
+        return ActivityFaults.TryGetValue(trackingNumber, out var records)
+            ? records.ToList()
+            : Array.Empty<ExceptionInfo>();
+    }
+
+    public static IReadOnlyList<ExceptionInfo> GetCompensationFailures(Guid trackingNumber)
+    {
+        return CompensationFailures.TryGetValue(trackingNumber, out var records)
+            ? records.ToList()
+            : Array.Empty<ExceptionInfo>();
+    }
+
     public static void Reset()
     {
         Executions.Clear();
         Compensations.Clear();
+        ActivityFaults.Clear();
+        CompensationFailures.Clear();
     }
 }
 

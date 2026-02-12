@@ -20,7 +20,7 @@ public sealed class RoutingSlipCompensationMiddleware
     {
         if (msg.RoutingSlip.TryGetExecutedActivity(out var activity))
         {
-                await executor.CompensateAsync(context, msg.RoutingSlip, activity);
+            await executor.CompensateAsync(context, msg.RoutingSlip, activity);
         }
         else
         {

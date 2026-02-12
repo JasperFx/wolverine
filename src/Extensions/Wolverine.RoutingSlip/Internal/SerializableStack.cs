@@ -6,7 +6,7 @@
 /// Works with JSON, XML, binary, protobuf, MessagePack — no configuration needed.
 /// </summary>
 /// <typeparam name="T">Element type</typeparam>
-public class SerializableStack<T>
+public sealed class SerializableStack<T>
 {
     /// <summary>
     /// Elements stored bottom-to-top. Serialized as-is by ANY serializer.

@@ -3,7 +3,7 @@
 namespace Wolverine.RoutingSlip.Internal;
 
 /// <inheritdoc />
-public class ActivityExecutor() : IActivityExecutor
+public sealed class ActivityExecutor() : IActivityExecutor
 {
     /// <inheritdoc />
     public async ValueTask ExecuteAsync(IMessageContext context, RoutingSlip slip, RoutingSlipExecution next)

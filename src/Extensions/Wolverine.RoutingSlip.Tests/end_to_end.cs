@@ -74,12 +74,42 @@ public class end_to_end : IAsyncLifetime
         // Assert
         var receivedExecutions = session.Received.MessagesOf<ExecutionContext>().ToList();
         receivedExecutions.Count.ShouldBe(3);
-        
+
         var trackingNumber = receivedExecutions.Select(x => x.RoutingSlip.TrackingNumber).Distinct().Single();
+        ActivityTracker.GetActivityFaults(trackingNumber).Count.ShouldBe(1);
         var compensationEvents = ActivityTracker.GetCompensations(trackingNumber);
         compensationEvents.Select(x => x.ActivityName).OrderBy(x => x).ShouldBe(new[] { "activity1", "activity2" }.OrderBy(x => x).ToArray());
         compensationEvents.Select(x => x.Destination.Port).OrderBy(x => x).ShouldBe(new[] {_secondHostPort, _firstHostPort}.OrderBy(x => x).ToArray());
         ActivityTracker.GetExecutions(trackingNumber).Any(x => x.ActivityName == "errorActivity3").ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task publishes_compensation_failed_when_compensation_handler_faults()
+    {
+        ResetActivityState();
+
+        var builder = new RoutingSlipBuilder();
+        builder.AddActivity("activity1", new Uri($"tcp://localhost:{_firstHostPort}"));
+        builder.AddActivity("activity2", new Uri($"tcp://localhost:{_secondHostPort}"));
+        builder.AddActivity("errorActivity3", new Uri($"tcp://localhost:{_thirdHostPort}"));
+
+        ActivityHandlerBehavior.FailNextCompensation("activity2");
+
+        var session = await _pubHost.TrackActivity()
+            .IncludeExternalTransports()
+            .DoNotAssertOnExceptionsDetected()
+            .AlsoTrack(_firstHost, _secondHost, _thirdHost)
+            .Timeout(30.Seconds())
+            .ExecuteAndWaitAsync(ctx => ctx.ExecuteRoutingSlip(builder.Build()));
+
+        await Task.Delay(1000);
+
+        var executions = session.Received.MessagesOf<ExecutionContext>().ToList();
+        executions.Count.ShouldBe(3);
+        var trackingNumber = executions.Select(x => x.RoutingSlip.TrackingNumber).Distinct().Single();
+
+        ActivityTracker.GetActivityFaults(trackingNumber).Count.ShouldBe(1);
+        ActivityTracker.GetCompensationFailures(trackingNumber).Count.ShouldBe(1);
     }
 
     [Fact]
@@ -228,6 +258,11 @@ public sealed class ActivityHandler(ILogger<ActivityHandler> logger) : IExecutio
     
     public ValueTask HandleAsync(CompensationContext context,  CancellationToken ct)
     {
+        if (ActivityHandlerBehavior.ShouldFailCompensation(context.CurrentLog.ExecutionName))
+        {
+            throw new Exception("Compensation failed");
+        }
+
         ActivityTracker.RecordCompensation(context.RoutingSlip.TrackingNumber,
             context.CurrentLog.ExecutionName, context.CurrentLog.DestinationUri);
 
@@ -237,11 +272,25 @@ public sealed class ActivityHandler(ILogger<ActivityHandler> logger) : IExecutio
             context.ExecutionId, context.CurrentLog.ExecutionName);
         return ValueTask.CompletedTask;
     }
+
+    public ValueTask HandleAsync(RoutingSlipActivityFaulted message, CancellationToken ct)
+    {
+        ActivityTracker.RecordActivityFault(message.TrackingNumber, message.ExceptionInfo);
+        return ValueTask.CompletedTask;
+    }
+
+    public ValueTask HandleAsync(RoutingSlipCompensationFailed message, CancellationToken ct)
+    {
+        ActivityTracker.RecordCompensationFailure(message.TrackingNumber, message.ExceptionInfo);
+        return ValueTask.CompletedTask;
+    }
 }
 
 internal static class ActivityHandlerBehavior
 {
     private static readonly ConcurrentDictionary<string, int> Failures =
+        new(StringComparer.OrdinalIgnoreCase);
+    private static readonly ConcurrentDictionary<string, int> CompensationFailures =
         new(StringComparer.OrdinalIgnoreCase);
 
     public static void FailNextExecution(string activityName, int attempts = 1)
@@ -270,5 +319,35 @@ internal static class ActivityHandlerBehavior
         }
     }
 
-    public static void Reset() => Failures.Clear();
+    public static void FailNextCompensation(string activityName, int attempts = 1)
+    {
+        CompensationFailures[activityName] = attempts;
+    }
+
+    public static bool ShouldFailCompensation(string? activityName)
+    {
+        if (string.IsNullOrEmpty(activityName))
+        {
+            return false;
+        }
+
+        while (true)
+        {
+            if (!CompensationFailures.TryGetValue(activityName, out var remaining) || remaining == 0)
+            {
+                return false;
+            }
+
+            if (CompensationFailures.TryUpdate(activityName, remaining - 1, remaining))
+            {
+                return true;
+            }
+        }
+    }
+
+    public static void Reset()
+    {
+        Failures.Clear();
+        CompensationFailures.Clear();
+    }
 }
