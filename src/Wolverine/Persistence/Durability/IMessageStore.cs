@@ -159,4 +159,5 @@ public class AncillaryMessageStore
 
 public interface ITenantedMessageSource : ITenantedSource<IMessageStore>
 {
+    Task RefreshLiteAsync();
 }

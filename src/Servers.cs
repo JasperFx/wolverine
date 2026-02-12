@@ -10,4 +10,7 @@ public class Servers
 
     public static readonly string MySqlConnectionString =
         "Server=localhost;Port=3306;Database=wolverine;User=root;Password=P@55w0rd;";
+
+    public static readonly string OracleConnectionString =
+        "User Id=wolverine;Password=wolverine;Data Source=localhost:1521/FREEPDB1";
 }

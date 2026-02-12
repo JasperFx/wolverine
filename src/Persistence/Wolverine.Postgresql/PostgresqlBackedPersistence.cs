@@ -1,4 +1,4 @@
-using System.Data.Common;
+﻿using System.Data.Common;
 using JasperFx;
 using JasperFx.Core;
 using JasperFx.MultiTenancy;
@@ -6,7 +6,9 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Npgsql;
+using Weasel.Core;
 using Weasel.Core.Migrations;
+using Weasel.Postgresql;
 using Wolverine.ErrorHandling;
 using Wolverine.Persistence.Durability;
 using Wolverine.Persistence.Sagas;
@@ -201,6 +203,8 @@ internal class PostgresqlBackedPersistence : IPostgresqlBackedPersistence, IWolv
                 transportConfiguration(expression);
             }
         }
+
+        options.Services.AddSingleton<Migrator, PostgresqlMigrator>();
     }
 
     public IMessageStore BuildMessageStore(IWolverineRuntime runtime)

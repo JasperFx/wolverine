@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
         <Description>Sql Server-backed Persistence for Wolverine Applications</Description>
         <PackageId>WolverineFx.SqlServer</PackageId>
@@ -13,7 +13,7 @@
         <EmbeddedResource Include="Schema/*.sql" />
     </ItemGroup>
     <ItemGroup>
-      <PackageReference Include="Weasel.SqlServer" Version="8.5.0" />
+      <PackageReference Include="Weasel.SqlServer" />
     </ItemGroup>
 
     <Import Project="../../../Analysis.Build.props" />

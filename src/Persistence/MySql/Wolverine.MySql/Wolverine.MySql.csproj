@@ -17,8 +17,8 @@
 
     <ItemGroup>
       <!-- MySqlConnector is needed as direct reference when using Weasel from source -->
-      <PackageReference Include="MySqlConnector" Version="2.4.0" />
-      <PackageReference Include="Weasel.MySql" Version="8.5.1" />
+      <PackageReference Include="MySqlConnector" />
+      <PackageReference Include="Weasel.MySql" />
     </ItemGroup>
 
     <Import Project="../../../../Analysis.Build.props" />

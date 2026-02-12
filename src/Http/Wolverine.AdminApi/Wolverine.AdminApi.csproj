@@ -10,7 +10,7 @@
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="HtmlTags" Version="9.0.0"/>
+        <PackageReference Include="HtmlTags"/>
     </ItemGroup>
 
 </Project>

@@ -3,14 +3,12 @@
         <TargetFrameworks>net9.0</TargetFrameworks>
     </PropertyGroup>
     <ItemGroup>
-        <PackageReference Include="FSharp.Core" Version="9.0.303" />
-        <PackageReference Include="FSharp.Core" Version="9.0.202" />
-        <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="7.0.2" />
-        <PackageReference Include="Microsoft.AspNetCore.SignalR" Version="1.1.0" />
-        <PackageReference Include="Shouldly" Version="4.3.0" />
-        <PackageReference Include="StronglyTypedId" Version="1.0.0-beta08" />
-        <PackageReference Include="Swashbuckle.AspNetCore" Version="6.5.0" />
-        <PackageReference Include="StronglyTypedId" Version="1.0.0-beta08" />
+        <PackageReference Include="FSharp.Core" />
+        <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+        <PackageReference Include="Microsoft.AspNetCore.SignalR" />
+        <PackageReference Include="Shouldly" />
+        <PackageReference Include="StronglyTypedId" />
+        <PackageReference Include="Swashbuckle.AspNetCore" />
     </ItemGroup>
 
     <ItemGroup>
@@ -24,14 +22,9 @@
         <ProjectReference Include="..\Wolverine.Http\Wolverine.Http.csproj" />
     </ItemGroup>
 
-    <ItemGroup Condition="'$(targetframework)' == 'net8.0'">
-        <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.11" />
-        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.11" />
-    </ItemGroup>
-
-    <ItemGroup Condition="'$(targetframework)' == 'net9.0'">
-        <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.5" />
-        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.11" />
+    <ItemGroup>
+        <PackageReference Include="Microsoft.EntityFrameworkCore" />
+        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" VersionOverride="8.0.11" />
     </ItemGroup>
 
     <ItemGroup>

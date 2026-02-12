@@ -27,7 +27,7 @@ getting lost en route.
 Consider this sample message handler from Wolverine's [AppWithMiddleware sample project](https://github.com/JasperFx/wolverine/tree/main/src/Samples/Middleware):
 
 <!-- snippet: sample_DebitAccountHandler_that_uses_IMessageContext -->
-<a id='snippet-sample_DebitAccountHandler_that_uses_IMessageContext'></a>
+<a id='snippet-sample_debitaccounthandler_that_uses_imessagecontext'></a>
 ```cs
 [Transactional]
 public static async Task Handle(
@@ -62,7 +62,7 @@ public static async Task Handle(
         new DeliveryOptions { DeliverWithin = 5.Seconds() });
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Middleware/AppWithMiddleware/Account.cs#L126-L161' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_DebitAccountHandler_that_uses_IMessageContext' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Middleware/AppWithMiddleware/Account.cs#L126-L161' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_debitaccounthandler_that_uses_imessagecontext' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The handler code above is committing changes to an `Account` in the underlying database and potentially sending out additional messages based on the state of the `Account`. 
@@ -143,6 +143,15 @@ using var host = await Host.CreateDefaultBuilder()
 <!-- endSnippet -->
 
 ### Bumping out Stale Inbox/Outbox Messages <Badge type="tip" text="5.2" />
+
+::: warning
+Do **not** make the inbox timeout too low are you could accidentally make Wolverine try to replay messages that are happily floating
+around in retries or just plain slow. Make the `InboxStaleTime` be at least longer than your longest expected message execution time
+with a couple retries for good measure. Ask us how we know this is a potential problem...
+
+Idempotency protections will help keep your system from having inconsistent state from accidentally having a message attempted to be handled multiple
+times, but it's always best to not make your system work so hard.
+:::
 
 It should *not* be possible for there to be any path where a message gets "stuck" in the outbox tables without eventually
 being sent by the originating node or recovered by a different node if the original node goes down first. However, it's 

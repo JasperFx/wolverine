@@ -13,8 +13,8 @@
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="DotPulsar" Version="5.1.2" />
-        <PackageReference Include="Microsoft.Extensions.ObjectPool" Version="10.0.2" />
+        <PackageReference Include="DotPulsar" />
+        <PackageReference Include="Microsoft.Extensions.ObjectPool" />
     </ItemGroup>
 
     <Import Project="../../../../Analysis.Build.props" />

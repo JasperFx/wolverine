@@ -189,6 +189,7 @@ const config: UserConfig<DefaultTheme.Config> = {
                                 {text: 'Sql Server', link: '/guide/messaging/transports/sqlserver'},
                                 {text: 'PostgreSQL', link: '/guide/messaging/transports/postgresql'},
                                 {text: 'MySQL', link: '/guide/messaging/transports/mysql'},
+                                {text: 'SQLite', link: '/guide/messaging/transports/sqlite'},
                                 {text: 'MQTT', link: '/guide/messaging/transports/mqtt'},
                                 {text: 'NATS', link: '/guide/messaging/transports/nats'},
                                 {text: 'Kafka', link: '/guide/messaging/transports/kafka'},
@@ -258,6 +259,7 @@ const config: UserConfig<DefaultTheme.Config> = {
                         {text: 'Sql Server Integration', link: '/guide/durability/sqlserver'},
                         {text: 'PostgreSQL Integration', link: '/guide/durability/postgresql'},
                         {text: 'MySQL Integration', link: '/guide/durability/mysql'},
+                        {text: 'SQLite Integration', link: '/guide/durability/sqlite'},
                         {text: 'RavenDb Integration', link: '/guide/durability/ravendb'},
                         {text: 'Entity Framework Core Integration', collapsed: false, link: '/guide/durability/efcore', items: [
                                 {text: 'Transactional Middleware', link: '/guide/durability/efcore/transactional-middleware'},

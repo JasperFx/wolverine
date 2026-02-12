@@ -1,0 +1,120 @@
+using JasperFx;
+using JasperFx.Resources;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
+using Wolverine;
+using Wolverine.Sqlite;
+
+namespace SqliteTests;
+
+public class DocumentationSamples
+{
+    public static async Task<int> SetupSqliteStorage(string[] args)
+    {
+        #region sample_setup_sqlite_storage
+
+        var builder = WebApplication.CreateBuilder(args);
+        var connectionString = builder.Configuration.GetConnectionString("sqlite");
+
+        builder.Host.UseWolverine(opts =>
+        {
+            // Setting up SQLite-backed message storage
+            // This requires a reference to Wolverine.Sqlite
+            opts.PersistMessagesWithSqlite(connectionString);
+
+            // Other Wolverine configuration
+        });
+
+        // This is rebuilding the persistent storage database schema on startup
+        // and also clearing any persisted envelope state
+        builder.Host.UseResourceSetupOnStartup();
+
+        var app = builder.Build();
+
+        // Other ASP.Net Core configuration...
+
+        // Using JasperFx opens up command line utilities for managing
+        // the message storage
+        return await app.RunJasperFxCommands(args);
+
+        #endregion
+    }
+
+    public static void SqliteConnectionStringExamples()
+    {
+        using var host = Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                #region sample_sqlite_connection_string_examples
+
+                // File-based database (recommended for production)
+                opts.PersistMessagesWithSqlite("Data Source=wolverine.db");
+
+                // Shared in-memory database (useful for testing)
+                opts.PersistMessagesWithSqlite("Data Source=wolverine;Mode=Memory;Cache=Shared");
+
+                #endregion
+            }).Build();
+    }
+
+    public static async Task UsingSqliteTransport()
+    {
+        #region sample_using_sqlite_transport
+
+        var builder = Host.CreateApplicationBuilder();
+        builder.UseWolverine(opts =>
+        {
+            var connectionString = builder.Configuration.GetConnectionString("sqlite");
+            opts.UseSqlitePersistenceAndTransport(
+                    connectionString,
+
+                    // This argument is the database schema name for the envelope storage.
+                    // In SQLite, the default is 'main' which refers to the primary database.
+                    "main",
+
+                    // This schema name is for the actual SQLite queue tables.
+                    // Default is 'wolverine_queues'
+                    transportSchema:"wolverine_queues")
+
+                // Tell Wolverine to build out all necessary queue or scheduled message
+                // tables on demand as needed
+                .AutoProvision()
+
+                // Optional that may be helpful in testing, but probably bad
+                // in production!
+                .AutoPurgeOnStartup();
+
+            // Use this extension method to create subscriber rules
+            opts.PublishAllMessages().ToSqliteQueue("outbound");
+
+            // Use this to set up queue listeners
+            opts.ListenToSqliteQueue("inbound")
+
+                // Optionally specify how many messages to
+                // fetch into the listener at any one time
+                .MaximumMessagesToReceive(50);
+        });
+
+        using var host = builder.Build();
+        await host.StartAsync();
+
+        #endregion
+    }
+
+    public static void SetSqliteQueueToBuffered()
+    {
+        using var host = Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.UseSqlitePersistenceAndTransport("Data Source=wolverine;Mode=Memory;Cache=Shared")
+                    .AutoProvision().AutoPurgeOnStartup().DisableInboxAndOutboxOnAll();
+
+                #region sample_setting_sqlite_queue_to_buffered
+
+                opts.ListenToSqliteQueue("sender").BufferedInMemory();
+
+                #endregion
+            }).Build();
+    }
+}

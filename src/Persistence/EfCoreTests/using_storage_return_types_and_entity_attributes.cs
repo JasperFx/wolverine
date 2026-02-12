@@ -1,4 +1,5 @@
 using IntegrationTests;
+using JasperFx.Resources;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -22,18 +23,9 @@ public class using_storage_return_types_and_entity_attributes : StorageActionCom
         }, "wolverine");
         
         opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString);
-    }
-
-    protected override async Task initialize()
-    {
-        var table = new Table(new DbObjectName("todo_app", "todos"));
-        table.AddColumn<string>("id").AsPrimaryKey();
-        table.AddColumn<string>("name");
-        table.AddColumn<bool>("is_complete");
-
-        using var conn = new SqlConnection(Servers.SqlServerConnectionString);
-        await conn.OpenAsync();
-        await table.MigrateAsync(conn);
+        
+        opts.UseEntityFrameworkCoreWolverineManagedMigrations();
+        opts.Services.AddResourceSetupOnStartup();
     }
 
     public override async Task<Todo?> Load(string id)

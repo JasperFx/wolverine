@@ -16,12 +16,29 @@ public abstract class UserDefinedContinuation : IContinuationSource, IContinuati
         Description = description;
     }
 
+    /// <summary>
+    /// Execute the continuation using the current envelope lifecycle and runtime context.
+    /// </summary>
+    /// <param name="lifecycle">The envelope lifecycle for the failed message.</param>
+    /// <param name="runtime">The active Wolverine runtime.</param>
+    /// <param name="now">The current timestamp.</param>
+    /// <param name="activity">The current tracing activity, if any.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
     public abstract ValueTask ExecuteAsync(IEnvelopeLifecycle lifecycle, IWolverineRuntime runtime, DateTimeOffset now,
         Activity? activity);
 
+    /// <summary>
+    /// A descriptive label for this continuation, used for diagnostics.
+    /// </summary>
     public string Description { get; }
 
-    public IContinuation Build(Exception ex, Envelope envelope)
+    /// <summary>
+    /// Build the continuation instance to execute for the specified exception and envelope.
+    /// </summary>
+    /// <param name="ex">The exception that was thrown.</param>
+    /// <param name="envelope">The envelope being processed.</param>
+    /// <returns>The continuation to execute.</returns>
+    public virtual IContinuation Build(Exception ex, Envelope envelope)
     {
         return this;
     }

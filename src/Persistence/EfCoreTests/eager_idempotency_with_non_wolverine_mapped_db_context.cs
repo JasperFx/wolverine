@@ -22,10 +22,7 @@ public class eager_idempotency_with_non_wolverine_mapped_db_context : IClassFixt
     public eager_idempotency_with_non_wolverine_mapped_db_context(EFCorePersistenceContext context)
     {
         Host = context.theHost;
-        ItemsTable = context.ItemsTable;
     }
-    
-    public Table ItemsTable { get; }
 
     public IHost Host { get; }
     

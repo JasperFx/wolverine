@@ -173,7 +173,7 @@ Then you can _still_ use those EF Core `DbContext` services with Wolverine messa
 this sample code:
 
 <!-- snippet: sample_using_IDbContextOutboxFactory -->
-<a id='snippet-sample_using_IDbContextOutboxFactory'></a>
+<a id='snippet-sample_using_idbcontextoutboxfactory'></a>
 ```cs
 public class MyMessageHandler
 {
@@ -203,7 +203,7 @@ public class MyMessageHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests/MultiTenancy/MultiTenancyDocumentationSamples.cs#L190-L220' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_IDbContextOutboxFactory' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests/MultiTenancy/MultiTenancyDocumentationSamples.cs#L190-L220' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_idbcontextoutboxfactory' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The important thing to note above is just that this pattern and service will work with any .NET code and not just within Wolverine

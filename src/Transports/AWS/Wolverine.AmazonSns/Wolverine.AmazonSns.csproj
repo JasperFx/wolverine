@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
         <PackageId>WolverineFx.AmazonSns</PackageId>
@@ -10,8 +10,8 @@
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="AWSSDK.SimpleNotificationService" Version="4.0.2.14" />
-        <PackageReference Include="AWSSDK.SQS" Version="4.0.2.14" />
+        <PackageReference Include="AWSSDK.SimpleNotificationService" />
+        <PackageReference Include="AWSSDK.SQS" />
     </ItemGroup>
 
 </Project>

@@ -1,4 +1,5 @@
 ﻿using IntegrationTests;
+using JasperFx.Core;
 using Marten;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -39,7 +40,10 @@ public class saga_cannot_access_stream_just_persisted_in_immediate_timeout : Pos
 
         var id = Guid.NewGuid();
 
-        await host.InvokeMessageAndWaitAsync(new SomeCommand(id));
+        await host.TrackActivity()
+            .Timeout(30.Seconds())
+            .WaitForMessageToBeReceivedAt<SomeTimeout>(host)
+            .InvokeMessageAndWaitAsync(new SomeCommand(id));
 
         using var session = host.Services.GetRequiredService<IDocumentStore>().LightweightSession();
 

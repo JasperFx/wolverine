@@ -66,10 +66,10 @@ public class RedisStreamListener : IListener, ISupportDeadLetterQueue
             var fields = new List<NameValueEntry>
             {
                 new("envelope", serializedEnvelope),
-                new("exception-type", exception.GetType().FullName ?? "Unknown"),
-                new("exception-message", exception.Message ?? ""),
-                new("exception-stack", exception.StackTrace ?? ""),
-                new("failed-at", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString()),
+                new(DeadLetterQueueConstants.ExceptionTypeHeader, exception.GetType().FullName ?? "Unknown"),
+                new(DeadLetterQueueConstants.ExceptionMessageHeader, exception.Message ?? ""),
+                new(DeadLetterQueueConstants.ExceptionStackHeader, exception.StackTrace ?? ""),
+                new(DeadLetterQueueConstants.FailedAtHeader, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString()),
                 new("message-type", envelope.MessageType ?? "Unknown"),
                 new("envelope-id", envelope.Id.ToString()),
                 new("attempts", envelope.Attempts.ToString())

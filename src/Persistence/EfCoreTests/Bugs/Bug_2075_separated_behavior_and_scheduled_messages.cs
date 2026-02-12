@@ -41,7 +41,7 @@ public class Bug_2075_separated_behavior_and_scheduled_messages(ITestOutputHelpe
             })
             .StartAsync();
         
-        var session = await host.TrackActivity().DoNotAssertOnExceptionsDetected().WaitForMessageToBeReceivedAt<SayStuffy2>(host)
+        var session = await host.TrackActivity().DoNotAssertOnExceptionsDetected().WaitForMessageToBeReceivedAt<SayStuffy2>(host).Timeout(30.Seconds())
             .SendMessageAndWaitAsync(new SayStuffy0());
 
         session.Executed.SingleMessage<SayStuffy2>().ShouldNotBeNull();

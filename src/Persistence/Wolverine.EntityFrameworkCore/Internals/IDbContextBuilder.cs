@@ -2,6 +2,7 @@ using System.Reflection;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
+using JasperFx.Descriptors;
 using Microsoft.EntityFrameworkCore;
 using Wolverine.Runtime;
 
@@ -20,6 +21,10 @@ public interface IDbContextBuilder
     Task ApplyAllChangesToDatabasesAsync();
     
     Task EnsureAllDatabasesAreCreatedAsync();
+
+    Task<IReadOnlyList<DbContext>> FindAllAsync();
+    
+    DatabaseCardinality Cardinality { get; }
 }
 
 public interface IDbContextBuilder<T> : IDbContextBuilder where T : DbContext

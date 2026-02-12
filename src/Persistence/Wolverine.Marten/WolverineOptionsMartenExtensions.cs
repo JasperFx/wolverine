@@ -11,6 +11,7 @@ using Marten.Storage;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Npgsql;
+using Weasel.Core;
 using Weasel.Core.Migrations;
 using Weasel.Postgresql;
 using Wolverine.Marten.Distribution;
@@ -78,6 +79,8 @@ public static class WolverineOptionsMartenExtensions
         {
             configure?.Invoke(integration);
         }
+
+        expression.Services.AddSingleton<Migrator, PostgresqlMigrator>();
 
         expression.Services.AddSingleton<IWolverineExtension, MapEventTypeMessages>();
 

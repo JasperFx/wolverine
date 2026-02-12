@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
         <Description>RavenDb Saga, Message, and Outbox storage for Wolverine applications</Description>
@@ -15,7 +15,7 @@
     </ItemGroup>
 
     <ItemGroup>
-      <PackageReference Include="RavenDB.Client" Version="7.0.2" />
+      <PackageReference Include="RavenDB.Client" />
     </ItemGroup>
 
 </Project>

@@ -75,7 +75,7 @@ The Wolverine outbox is also usable from within ASP.Net Core (really any code) c
 handling code would be:
 
 <!-- snippet: sample_CreateOrderController -->
-<a id='snippet-sample_CreateOrderController'></a>
+<a id='snippet-sample_createordercontroller'></a>
 ```cs
 public class CreateOrderController : ControllerBase
 {
@@ -102,7 +102,7 @@ public class CreateOrderController : ControllerBase
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/WebApiWithMarten/Order.cs#L20-L47' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_CreateOrderController' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/WebApiWithMarten/Order.cs#L20-L47' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_createordercontroller' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 From a Minimal API, that could be this:

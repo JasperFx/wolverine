@@ -4,11 +4,13 @@ using FastExpressionCompiler;
 using ImTools;
 using JasperFx;
 using JasperFx.Core.Reflection;
+using JasperFx.Descriptors;
 using JasperFx.MultiTenancy;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.DependencyInjection;
+using Weasel.EntityFrameworkCore;
 using Wolverine.Persistence.Durability;
 using Wolverine.RDBMS;
 using Wolverine.Runtime;
@@ -98,14 +100,36 @@ public class TenantedDbContextBuilderByDbDataSource<T> : IDbContextBuilder<T> wh
 
     public async Task EnsureAllDatabasesAreCreatedAsync()
     {
-        var contexts = await BuildAllAsync();
+        var list = new List<T>();
+        list.Add((T)BuildForMain());
+
+        await _store.Source.RefreshLiteAsync();
+        
+        foreach (var assignment in _store.Source.AllActiveByTenant())
+        {
+            var dbContext = await BuildAsync(assignment.TenantId, CancellationToken.None);
+            list.Add(dbContext);
+        }
+
+        // Filter out duplicates when multiple tenants address the same database
+        var contexts = list.GroupBy(x => x.Database.GetConnectionString()).Select(x => x.First()).ToList();
 
         foreach (var context in contexts)
         {
+            await context.Database.EnsureCreatedAsync();
+            await using var migration = await _serviceProvider.CreateMigrationAsync(context, CancellationToken.None);
+            await migration.ExecuteAsync(AutoCreate.CreateOrUpdate, CancellationToken.None);
             // TODO -- let's put some debug logging here!!!!
-            await context.Database.MigrateAsync();
         }
     }
+
+    public async Task<IReadOnlyList<DbContext>> FindAllAsync()
+    {
+        var all = await BuildAllAsync();
+        return all;
+    }
+
+    public DatabaseCardinality Cardinality => _store.Source.Cardinality;
 
     public async ValueTask<T> BuildAsync(string tenantId, CancellationToken cancellationToken)
     {

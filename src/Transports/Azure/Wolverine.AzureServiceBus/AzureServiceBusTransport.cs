@@ -22,7 +22,7 @@ public partial class AzureServiceBusTransport : BrokerTransport<AzureServiceBusE
 
     public readonly List<AzureServiceBusSubscription> Subscriptions = new();
     private string _hostName;
-    public const string DeadLetterQueueName = "wolverine-dead-letter-queue";
+    public const string DeadLetterQueueName = DeadLetterQueueConstants.DefaultQueueName;
 
     public AzureServiceBusTransport() : this(ProtocolName)
     {
