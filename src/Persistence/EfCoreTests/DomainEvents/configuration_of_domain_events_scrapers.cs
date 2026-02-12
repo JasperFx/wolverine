@@ -207,12 +207,15 @@ public class configuration_of_domain_events_scrapers : IAsyncDisposable
         {
             var tracked = await theHost.ExecuteAndWaitAsync(async _ =>
             {
-                var dbContext = scope.ServiceProvider.GetRequiredService<CleanDbContext>();
-            
+                //var dbContext = scope.ServiceProvider.GetRequiredService<CleanDbContext>();
+                var outbox = scope.ServiceProvider.GetRequiredService<IDbContextOutbox<CleanDbContext>>();
+                var dbContext = outbox.DbContext;
+                
                 var item = new Item { Id = itemId, Name = "Smoothie"};
                 item.Approve();
                 dbContext.Items.Add(item);
-                await dbContext.SaveChangesAsync();
+                //await dbContext.SaveChangesAsync();
+                await outbox.SaveChangesAndFlushMessagesAsync();
             });
             
             tracked.MessageSucceeded.SingleMessage<ItemApproved>().Id.ShouldBe(itemId);
@@ -255,12 +258,15 @@ public class configuration_of_domain_events_scrapers : IAsyncDisposable
         {
             var tracked = await theHost.ExecuteAndWaitAsync(async _ =>
             {
-                var dbContext = scope.ServiceProvider.GetRequiredService<CleanDbContext>();
+                var outbox = scope.ServiceProvider.GetRequiredService<IDbContextOutbox<CleanDbContext>>();
+                var dbContext = outbox.DbContext;
+                //var dbContext = scope.ServiceProvider.GetRequiredService<CleanDbContext>();
             
                 var item = new Item { Id = itemId, Name = "Smoothie"};
                 item.Approve();
                 dbContext.Items.Add(item);
-                await dbContext.SaveChangesAsync();
+                //await dbContext.SaveChangesAsync();
+                await outbox.SaveChangesAndFlushMessagesAsync();
             });
             
             tracked.MessageSucceeded.SingleMessage<ItemApproved>().Id.ShouldBe(itemId);
