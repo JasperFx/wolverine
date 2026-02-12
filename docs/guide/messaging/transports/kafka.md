@@ -264,6 +264,53 @@ using var host = await Host.CreateDefaultBuilder()
 Note that the `Uri` scheme within Wolverine for any endpoints from a "named" Kafka broker is the name that you supply
 for the broker. So in the example above, you might see `Uri` values for `emea://colors` or `americas://red`.
 
+## Native Dead Letter Queue
+
+Wolverine supports routing failed Kafka messages to a designated dead letter queue (DLQ) Kafka topic instead of relying on database-backed dead letter storage. This is opt-in on a per-listener basis.
+
+### Enabling the Dead Letter Queue
+
+To enable the native DLQ for a Kafka listener, use the `EnableNativeDeadLetterQueue()` method:
+
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.UseKafka("localhost:9092").AutoProvision();
+
+        opts.ListenToKafkaTopic("incoming")
+            .ProcessInline()
+            .EnableNativeDeadLetterQueue();
+    }).StartAsync();
+```
+
+When a message fails all retry attempts, it will be produced to the DLQ Kafka topic (default: `wolverine-dead-letter-queue`) with the original message body and Wolverine envelope headers intact. The following exception metadata headers are added:
+
+- `exception-type` - The full type name of the exception
+- `exception-message` - The exception message
+- `exception-stack` - The exception stack trace
+- `failed-at` - Unix timestamp in milliseconds when the failure occurred
+
+### Configuring the DLQ Topic Name
+
+The default DLQ topic name is `wolverine-dead-letter-queue`. You can customize this at the transport level:
+
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.UseKafka("localhost:9092")
+            .AutoProvision()
+            .DeadLetterQueueTopicName("my-app-dead-letters");
+
+        opts.ListenToKafkaTopic("incoming")
+            .ProcessInline()
+            .EnableNativeDeadLetterQueue();
+    }).StartAsync();
+```
+
+The DLQ topic is shared across all listeners on the same Kafka transport that have native DLQ enabled. When `AutoProvision` is enabled, the DLQ topic will be automatically created.
+
 ## Disabling all Sending
 
 Hey, you might have an application that only consumes Kafka messages, but there are a *few* diagnostics in Wolverine that
