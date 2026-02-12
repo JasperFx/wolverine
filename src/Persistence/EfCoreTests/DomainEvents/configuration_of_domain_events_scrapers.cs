@@ -4,6 +4,7 @@ using JasperFx;
 using JasperFx.Resources;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using SharedPersistenceModels.Items;
@@ -48,7 +49,8 @@ public class configuration_of_domain_events_scrapers : IAsyncDisposable
             .UseWolverine(opts =>
             {
                 opts.Services.AddDbContextWithWolverineIntegration<CleanDbContext>(x =>
-                    x.UseSqlServer(Servers.SqlServerConnectionString));
+                    x.UseSqlServer(Servers.SqlServerConnectionString)
+                        .AddInterceptors(new ApproveItemInterceptor()));
                 opts.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
 
                 opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString, "idempotency");
@@ -192,6 +194,108 @@ public class configuration_of_domain_events_scrapers : IAsyncDisposable
         var tracked = await theHost.InvokeMessageAndWaitAsync(new ApproveItem(itemId));
         tracked.MessageSucceeded.SingleMessage<ItemApproved>().Id.ShouldBe(itemId);
     }
+    
+    [Fact]
+    public async Task publish_through_db_context_scraping3()
+    {
+        await startHostAsync(opts => opts.PublishDomainEventsFromEntityFrameworkCore<Entity>(x => x.Events));
+
+        var itemId = Guid.CreateVersion7();
+        
+        // Create an Item
+        using (var scope = theHost.Services.CreateScope())
+        {
+            var tracked = await theHost.ExecuteAndWaitAsync(async _ =>
+            {
+                var dbContext = scope.ServiceProvider.GetRequiredService<CleanDbContext>();
+            
+                var item = new Item { Id = itemId, Name = "Smoothie"};
+                item.Approve();
+                dbContext.Items.Add(item);
+                await dbContext.SaveChangesAsync();
+            });
+            
+            tracked.MessageSucceeded.SingleMessage<ItemApproved>().Id.ShouldBe(itemId);
+        }
+    }
+    
+    [Fact]
+    public async Task publish_through_db_context_scraping4()
+    {
+        await startHostAsync(opts => opts.PublishDomainEventsFromEntityFrameworkCore<Entity>(x => x.Events));
+
+        var itemId = Guid.CreateVersion7();
+        
+        // Create an Item
+        using (var scope = theHost.Services.CreateScope())
+        {
+            var tracked = await theHost.ExecuteAndWaitAsync(async _ =>
+            {
+                var dbContextOutbox = scope.ServiceProvider.GetRequiredService<IDbContextOutbox<CleanDbContext>>();
+            
+                var item = new Item { Id = itemId, Name = "Smoothie"};
+                item.Approve();
+                dbContextOutbox.DbContext.Items.Add(item);
+                await dbContextOutbox.SaveChangesAndFlushMessagesAsync();
+            });
+            
+            tracked.MessageSucceeded.SingleMessage<ItemApproved>().Id.ShouldBe(itemId);
+        }
+    }
+    
+    [Fact]
+    public async Task publish_through_db_context_scraping_with_event_from_efcore_interceptor()
+    {
+        await startHostAsync(opts => opts.PublishDomainEventsFromEntityFrameworkCore<Entity>(x => x.Events));
+
+        var itemId = Guid.CreateVersion7();
+        
+        // Create an Item
+        using (var scope = theHost.Services.CreateScope())
+        {
+            var tracked = await theHost.ExecuteAndWaitAsync(async _ =>
+            {
+                var dbContext = scope.ServiceProvider.GetRequiredService<CleanDbContext>();
+            
+                var item = new Item
+                {
+                    Id = itemId, Name = "Smoothie",
+                    AutoApproveInInterceptor = true
+                };
+                dbContext.Items.Add(item);
+                await dbContext.SaveChangesAsync();
+            });
+            
+            tracked.MessageSucceeded.SingleMessage<ItemApproved>().Id.ShouldBe(itemId);
+        }
+    }
+    
+    [Fact]
+    public async Task publish_through_db_context_scraping_with_event_from_efcore_interceptor2()
+    {
+        await startHostAsync(opts => opts.PublishDomainEventsFromEntityFrameworkCore<Entity>(x => x.Events));
+
+        var itemId = Guid.CreateVersion7();
+        
+        // Create an Item
+        using (var scope = theHost.Services.CreateScope())
+        {
+            var tracked = await theHost.ExecuteAndWaitAsync(async _ =>
+            {
+                var dbContextOutbox = scope.ServiceProvider.GetRequiredService<IDbContextOutbox<CleanDbContext>>();
+            
+                var item = new Item
+                {
+                    Id = itemId, Name = "Smoothie",
+                    AutoApproveInInterceptor = true
+                };
+                dbContextOutbox.DbContext.Items.Add(item);
+                await dbContextOutbox.SaveChangesAndFlushMessagesAsync();
+            });
+            
+            tracked.MessageSucceeded.SingleMessage<ItemApproved>().Id.ShouldBe(itemId);
+        }
+    }
 }
 
 public record PublishEvents(object[] Events);
@@ -251,4 +355,25 @@ public static class ApproveItemHandler
     }
 
     public static void Handle(ItemApproved e) => Debug.WriteLine($"Got item approved for {e.Id}");
+}
+public sealed class ApproveItemInterceptor : SaveChangesInterceptor
+{
+    public override async ValueTask<InterceptionResult<int>> SavingChangesAsync(
+        DbContextEventData eventData,
+        InterceptionResult<int> result,
+        CancellationToken cancellationToken = default)
+    {
+        if (!(eventData.Context is CleanDbContext context))
+            throw new InvalidOperationException($"DbContext of type '{eventData.Context?.GetType().Name ?? "null"}' is not a CleanDbContext.");
+
+        foreach (var entityEntry in context.ChangeTracker.Entries<Item>())
+        {
+            if (entityEntry.Entity.AutoApproveInInterceptor)
+            {
+                entityEntry.Entity.Approve();
+            }
+        }
+        
+        return await base.SavingChangesAsync(eventData, result, cancellationToken);
+    }
 }
