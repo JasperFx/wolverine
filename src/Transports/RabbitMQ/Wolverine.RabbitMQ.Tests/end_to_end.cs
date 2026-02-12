@@ -81,12 +81,6 @@ public class end_to_end
     [Fact]
     public async Task find_endpoints_through_conventions_as_part_of_find_resources()
     {
-        if (DateTimeOffset.UtcNow > new DateTime(2025, 12, 25))
-        {
-            // Uncomment code in WolverineSystemPart
-            throw new Exception("Jeremy, you need to go try to fix this again!");
-        }
-        
         using var host = Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
