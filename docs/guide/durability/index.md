@@ -144,6 +144,15 @@ using var host = await Host.CreateDefaultBuilder()
 
 ### Bumping out Stale Inbox/Outbox Messages <Badge type="tip" text="5.2" />
 
+::: warning
+Do **not** make the inbox timeout too low are you could accidentally make Wolverine try to replay messages that are happily floating
+around in retries or just plain slow. Make the `InboxStaleTime` be at least longer than your longest expected message execution time
+with a couple retries for good measure. Ask us how we know this is a potential problem...
+
+Idempotency protections will help keep your system from having inconsistent state from accidentally having a message attempted to be handled multiple
+times, but it's always best to not make your system work so hard.
+:::
+
 It should *not* be possible for there to be any path where a message gets "stuck" in the outbox tables without eventually
 being sent by the originating node or recovered by a different node if the original node goes down first. However, it's 
 an imperfect world. If you are using one of the relational backed message stores for Wolverine (SQL Server or PostgreSQL at this point),
