@@ -50,6 +50,14 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
     /// </summary>
     public ProducerConfig? ProducerConfig { get; internal set; }
 
+    /// <summary>
+    /// Enable native dead letter queue support for this endpoint.
+    /// When enabled, failed messages will be produced to the Kafka DLQ topic
+    /// instead of being moved to database-backed dead letter storage.
+    /// Default is false (opt-in).
+    /// </summary>
+    public bool NativeDeadLetterQueueEnabled { get; set; }
+
     public static string TopicNameForUri(Uri uri)
     {
         return uri.Segments.Last().Trim('/');
@@ -99,6 +107,20 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
             ? new InlineKafkaSender(this)
             : new BatchedSender(this, new KafkaSenderProtocol(this), runtime.Cancellation,
                 runtime.LoggerFactory.CreateLogger<KafkaSenderProtocol>());
+    }
+
+    public override bool TryBuildDeadLetterSender(IWolverineRuntime runtime, out ISender? deadLetterSender)
+    {
+        if (NativeDeadLetterQueueEnabled)
+        {
+            var dlqTopic = Parent.Topics[Parent.DeadLetterQueueTopicName];
+            dlqTopic.EnvelopeMapper ??= dlqTopic.BuildMapper(runtime);
+            deadLetterSender = new InlineKafkaSender(dlqTopic);
+            return true;
+        }
+
+        deadLetterSender = default;
+        return false;
     }
 
     public async ValueTask<bool> CheckAsync()
