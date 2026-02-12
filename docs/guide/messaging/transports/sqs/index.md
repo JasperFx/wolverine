@@ -152,3 +152,32 @@ using var host = await Host.CreateDefaultBuilder()
 
 Note that the `Uri` scheme within Wolverine for any endpoints from a "named" Amazon SQS broker is the name that you supply
 for the broker. So in the example above, you might see `Uri` values for `emea://colors` or `americas://red`.
+
+## Identifier Prefixing for Shared Brokers
+
+When sharing a single AWS account or SQS namespace between multiple developers or development environments, you can use `PrefixIdentifiers()` to automatically prepend a prefix to every queue name created by Wolverine. This helps isolate cloud resources for each developer or environment:
+
+```csharp
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.UseAmazonSqsTransport()
+            .AutoProvision()
+
+            // Prefix all queue names with "dev-john-"
+            .PrefixIdentifiers("dev-john");
+
+        // A queue named "orders" becomes "dev-john-orders"
+        opts.ListenToSqsQueue("orders");
+    }).StartAsync();
+```
+
+You can also use `PrefixIdentifiersWithMachineName()` as a convenience to use the current machine name as the prefix:
+
+```csharp
+opts.UseAmazonSqsTransport()
+    .AutoProvision()
+    .PrefixIdentifiersWithMachineName();
+```
+
+The default delimiter between the prefix and the original name is `-` for Amazon SQS (e.g., `dev-john-orders`).
