@@ -210,18 +210,26 @@ internal class WolverineSystemPart : SystemPartBase
                         list.Add(resource!);
                     }
                 }
-            
-                // TODO -- this did not work. Try again by the end of 2025
-                
+
                 // Force Wolverine to find all message types...
-                // var messageTypes = _runtime.Options.Discovery.FindAllMessages(_runtime.Options.HandlerGraph);
-                //
-                // // ...and force Wolverine to *also* execute the routing, which
-                // // may discover new endpoints
-                // foreach (var messageType in messageTypes.Where(x => x.Assembly != GetType().Assembly))
-                // {
-                //     _runtime.RoutingFor(messageType);
-                // }
+                var messageTypes = _runtime.Options.Discovery.FindAllMessages(_runtime.Options.HandlerGraph);
+
+                // ...and force Wolverine to *also* execute the routing, which
+                // may discover new endpoints
+                foreach (var messageType in messageTypes.Where(x => x.Assembly != GetType().Assembly))
+                {
+                    _runtime.RoutingFor(messageType);
+                }
+
+                // Clear the cached routes created above so they'll be properly
+                // rebuilt with active sending agents when the host actually starts.
+                // Routes created during FindResources() have null Sender because
+                // WithinDescription=true allows that, but those cached routes would
+                // cause NullReferenceExceptions if reused for actual message sending.
+                foreach (var messageType in messageTypes.Where(x => x.Assembly != GetType().Assembly))
+                {
+                    _runtime.ClearRoutingFor(messageType);
+                }
             }
 
             var stores = await _runtime.Stores.FindAllAsync();
