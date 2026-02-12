@@ -362,13 +362,20 @@ opts.Services.AddResourceSetupOnStartup();
 
 ## Subject Prefix
 
-Add a prefix to all NATS subjects:
+When sharing a NATS server between multiple developers or development environments, you can add a prefix to all NATS subjects to isolate each environment's messaging. Use `WithSubjectPrefix()` or the generic `PrefixIdentifiers()` method:
 
 ```csharp
 opts.UseNats("nats://localhost:4222")
     .WithSubjectPrefix("myapp");
 
 // Subject "orders" becomes "myapp.orders"
+```
+
+You can also use `PrefixIdentifiersWithMachineName()` as a convenience to use the current machine name as the prefix:
+
+```csharp
+opts.UseNats("nats://localhost:4222")
+    .PrefixIdentifiersWithMachineName();
 ```
 
 ## Complete Example
