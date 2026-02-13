@@ -46,7 +46,7 @@ internal class InvalidTenantSender : ISender
     }
 }
 
-public class TenantedSender : ISender, IAsyncDisposable
+public class TenantedSender : ISender, ISenderRequiresCallback, IAsyncDisposable
 {
     public TenantedIdBehavior TenantedIdBehavior { get; }
     private readonly ISender _defaultSender;
@@ -68,6 +68,22 @@ public class TenantedSender : ISender, IAsyncDisposable
     public void RegisterSender(string tenantId, ISender sender)
     {
         _senders = _senders.AddOrUpdate(tenantId, sender);
+    }
+
+    public void RegisterCallback(ISenderCallback senderCallback)
+    {
+        if (_defaultSender is ISenderRequiresCallback defaultCallback)
+        {
+            defaultCallback.RegisterCallback(senderCallback);
+        }
+
+        foreach (var entry in _senders.Enumerate())
+        {
+            if (entry.Value is ISenderRequiresCallback tenantCallback)
+            {
+                tenantCallback.RegisterCallback(senderCallback);
+            }
+        }
     }
 
     public bool SupportsNativeScheduledSend => _defaultSender.SupportsNativeScheduledSend;
@@ -123,6 +139,22 @@ public class TenantedSender : ISender, IAsyncDisposable
         }
 
         return _defaultSender;
+    }
+
+    public void Dispose()
+    {
+        if (_defaultSender is ISenderRequiresCallback defaultDisposable)
+        {
+            defaultDisposable.Dispose();
+        }
+
+        foreach (var entry in _senders.Enumerate())
+        {
+            if (entry.Value is ISenderRequiresCallback tenantDisposable)
+            {
+                tenantDisposable.Dispose();
+            }
+        }
     }
 
     public async ValueTask DisposeAsync()

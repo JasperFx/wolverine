@@ -6,8 +6,12 @@ using Xunit;
 
 namespace Wolverine.AzureServiceBus.Tests;
 
-public class using_native_scheduling
+public class using_native_scheduling : IAsyncLifetime
 {
+    public Task InitializeAsync() => Task.CompletedTask;
+
+    public Task DisposeAsync() => AzureServiceBusTesting.DeleteAllEmulatorObjectsAsync();
+
     [Fact]
     public async Task with_inline_endpoint()
     {
@@ -115,31 +119,30 @@ public class using_native_scheduling
 
         await host.StopAsync();
     }
+}
 
-    public record AsbTriggerCascadedTimeout(TimeSpan Delay);
-    public record AsbCascadedTimeout(string Id, TimeSpan delay) : TimeoutMessage(delay);
+public record AsbTriggerCascadedTimeout(TimeSpan Delay);
+public record AsbCascadedTimeout(string Id, TimeSpan delay) : TimeoutMessage(delay);
 
-    public record AsbTriggerExplicitScheduled(TimeSpan Delay);
-    public record AsbExplicitScheduled(string Id);
+public record AsbTriggerExplicitScheduled(TimeSpan Delay);
+public record AsbExplicitScheduled(string Id);
 
-
-    public class ScheduledMessageHandler
+public class AsbScheduledMessageHandler
+{
+    public AsbCascadedTimeout Handle(AsbTriggerCascadedTimeout trigger)
     {
-        public AsbCascadedTimeout Handle(AsbTriggerCascadedTimeout trigger)
-        {
-            return new AsbCascadedTimeout("test-timeout", trigger.Delay);
-        }
-        public static void Handle(AsbCascadedTimeout timeout)
-        {
-        }
+        return new AsbCascadedTimeout("test-timeout", trigger.Delay);
+    }
+    public static void Handle(AsbCascadedTimeout timeout)
+    {
+    }
 
-        public async Task Handle(AsbTriggerExplicitScheduled trigger, IMessageContext context)
-        {
-            await context.ScheduleAsync(new AsbExplicitScheduled("test"), trigger.Delay);
-        }
+    public async Task Handle(AsbTriggerExplicitScheduled trigger, IMessageContext context)
+    {
+        await context.ScheduleAsync(new AsbExplicitScheduled("test"), trigger.Delay);
+    }
 
-        public static void Handle(AsbExplicitScheduled scheduled)
-        {
-        }
+    public static void Handle(AsbExplicitScheduled scheduled)
+    {
     }
 }

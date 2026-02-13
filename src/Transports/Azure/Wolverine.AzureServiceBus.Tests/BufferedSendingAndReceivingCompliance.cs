@@ -34,9 +34,14 @@ public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifet
         });
     }
 
-    public async Task DisposeAsync()
+    public Task DisposeAsync()
     {
-        await DisposeAsync();
+        return Task.CompletedTask;
+    }
+
+    protected override Task AfterDisposeAsync()
+    {
+        return AzureServiceBusTesting.DeleteAllEmulatorObjectsAsync();
     }
 }
 

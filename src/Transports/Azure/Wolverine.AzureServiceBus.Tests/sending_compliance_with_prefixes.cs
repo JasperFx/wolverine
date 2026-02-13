@@ -41,6 +41,11 @@ public class PrefixedComplianceFixture : TransportComplianceFixture, IAsyncLifet
     {
         return Task.CompletedTask;
     }
+
+    protected override Task AfterDisposeAsync()
+    {
+        return AzureServiceBusTesting.DeleteAllEmulatorObjectsAsync();
+    }
 }
 
 public class PrefixedSendingAndReceivingCompliance : TransportCompliance<PrefixedComplianceFixture>

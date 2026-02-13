@@ -4,10 +4,11 @@ using Shouldly;
 using Wolverine.ComplianceTests;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Routing;
+using Xunit;
 
 namespace Wolverine.AzureServiceBus.Tests.ConventionalRouting;
 
-public abstract class ConventionalRoutingContext : IDisposable
+public abstract class ConventionalRoutingContext : IAsyncLifetime
 {
     private IHost _host;
 
@@ -22,9 +23,16 @@ public abstract class ConventionalRoutingContext : IDisposable
         }
     }
 
-    public void Dispose()
+    public Task InitializeAsync()
     {
+        return Task.CompletedTask;
+    }
+
+    public async Task DisposeAsync()
+    {
+        if (_host != null) await _host.StopAsync();
         _host?.Dispose();
+        await AzureServiceBusTesting.DeleteAllEmulatorObjectsAsync();
     }
 
     internal void ConfigureConventions(Action<AzureServiceBusMessageRoutingConvention> configure)

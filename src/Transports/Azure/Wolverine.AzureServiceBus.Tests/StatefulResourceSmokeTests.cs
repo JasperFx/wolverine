@@ -6,8 +6,12 @@ using Xunit;
 
 namespace Wolverine.AzureServiceBus.Tests;
 
-public class StatefulResourceSmokeTests
+public class StatefulResourceSmokeTests : IAsyncLifetime
 {
+    public Task InitializeAsync() => Task.CompletedTask;
+
+    public Task DisposeAsync() => AzureServiceBusTesting.DeleteAllEmulatorObjectsAsync();
+
     private IHostBuilder ConfigureBuilder(bool autoProvision, int starting = 1)
     {
         return Host.CreateDefaultBuilder()

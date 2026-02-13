@@ -30,6 +30,11 @@ public class TopicsComplianceFixture : TransportComplianceFixture, IAsyncLifetim
     {
         return Task.CompletedTask;
     }
+
+    protected override Task AfterDisposeAsync()
+    {
+        return AzureServiceBusTesting.DeleteAllEmulatorObjectsAsync();
+    }
 }
 
 public class TopicAndSubscriptionSendingAndReceivingCompliance : TransportCompliance<TopicsComplianceFixture>;

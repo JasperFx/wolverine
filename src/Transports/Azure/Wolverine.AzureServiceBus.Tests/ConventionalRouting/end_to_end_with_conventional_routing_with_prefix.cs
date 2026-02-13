@@ -7,12 +7,12 @@ using Xunit;
 
 namespace Wolverine.AzureServiceBus.Tests.ConventionalRouting;
 
-public class end_to_end_with_conventional_routing_with_prefix : IDisposable
+public class end_to_end_with_conventional_routing_with_prefix : IAsyncLifetime
 {
-    private readonly IHost _receiver;
-    private readonly IHost _sender;
+    private IHost _receiver;
+    private IHost _sender;
 
-    public end_to_end_with_conventional_routing_with_prefix()
+    public Task InitializeAsync()
     {
         _sender = WolverineHost.For(opts =>
         {
@@ -30,12 +30,17 @@ public class end_to_end_with_conventional_routing_with_prefix : IDisposable
                 .UseConventionalRouting().AutoProvision().AutoPurgeOnStartup();
             opts.ServiceName = "Receiver";
         });
+
+        return Task.CompletedTask;
     }
 
-    public void Dispose()
+    public async Task DisposeAsync()
     {
+        if (_sender != null) await _sender.StopAsync();
+        if (_receiver != null) await _receiver.StopAsync();
         _sender?.Dispose();
         _receiver?.Dispose();
+        await AzureServiceBusTesting.DeleteAllEmulatorObjectsAsync();
     }
 
     [Fact]

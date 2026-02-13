@@ -1,0 +1,12 @@
+{
+  "UserConfig": {
+    "Namespaces": [
+      {
+        "Name": "sbemulatorns"
+      }
+    ],
+    "Logging": {
+      "Type": "File"
+    }
+  }
+}

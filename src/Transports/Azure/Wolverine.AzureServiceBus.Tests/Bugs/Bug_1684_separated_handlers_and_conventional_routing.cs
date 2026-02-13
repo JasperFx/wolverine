@@ -10,8 +10,12 @@ using Xunit.Abstractions;
 
 namespace Wolverine.AzureServiceBus.Tests.Bugs;
 
-public class Bug_1684_separated_handlers_and_conventional_routing(ITestOutputHelper Output)
+public class Bug_1684_separated_handlers_and_conventional_routing(ITestOutputHelper Output) : IAsyncLifetime
 {
+    public Task InitializeAsync() => Task.CompletedTask;
+
+    public Task DisposeAsync() => AzureServiceBusTesting.DeleteAllEmulatorObjectsAsync();
+
     [Fact]
     public async Task try_it_and_send_to_multiple_topic_subscriptions()
     {
