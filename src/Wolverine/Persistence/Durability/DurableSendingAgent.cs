@@ -82,8 +82,13 @@ internal class DurableSendingAgent : SendingAgent
             var (expiredInQueue, notExpiredInQueue) = SplitByExpiration(_queued);
             var (expiredInBatch, notExpiredInBatch) = SplitByExpiration(batch.Messages);
 
-            var expired = expiredInBatch.Concat(expiredInQueue).ToArray();
-            var all = notExpiredInBatch.Concat(notExpiredInQueue).ToList();
+            var expired = new Envelope[expiredInBatch.Length + expiredInQueue.Length];
+            expiredInBatch.CopyTo(expired, 0);
+            expiredInQueue.CopyTo(expired, expiredInBatch.Length);
+
+            var all = new List<Envelope>(notExpiredInBatch.Length + notExpiredInQueue.Length);
+            all.AddRange(notExpiredInBatch);
+            all.AddRange(notExpiredInQueue);
 
             var (retained, reassigned) = TrimToMaxCapacity(all, Endpoint.MaximumEnvelopeRetryStorage);
 
@@ -102,16 +107,33 @@ internal class DurableSendingAgent : SendingAgent
 
         static (Envelope[] expired, Envelope[] notExpired) SplitByExpiration(IEnumerable<Envelope> messages)
         {
-            var lookup = messages.ToLookup(x => x.IsExpired());
-            return (lookup[true].ToArray(), lookup[false].ToArray());
+            var expiredList = new List<Envelope>();
+            var notExpiredList = new List<Envelope>();
+            foreach (var msg in messages)
+            {
+                if (msg.IsExpired())
+                    expiredList.Add(msg);
+                else
+                    notExpiredList.Add(msg);
+            }
+
+            return (expiredList.ToArray(), notExpiredList.ToArray());
         }
 
         static (List<Envelope> retained, Envelope[] reassigned) TrimToMaxCapacity(
             List<Envelope> messages, int maxCapacity)
         {
-            return messages.Count <= maxCapacity
-                ? (messages, Array.Empty<Envelope>())
-                : (messages.Take(maxCapacity).ToList(), messages.Skip(maxCapacity).ToArray());
+            if (messages.Count <= maxCapacity)
+                return (messages, Array.Empty<Envelope>());
+
+            var reassigned = new Envelope[messages.Count - maxCapacity];
+            for (var i = 0; i < reassigned.Length; i++)
+            {
+                reassigned[i] = messages[maxCapacity + i];
+            }
+
+            messages.RemoveRange(maxCapacity, reassigned.Length);
+            return (messages, reassigned);
         }
     }
 
@@ -121,9 +143,18 @@ internal class DurableSendingAgent : SendingAgent
         await _queueLock.WaitAsync();
         try
         {
-            var lookup = _queued.ToLookup(x => x.IsExpired());
-            var expired = lookup[true].ToArray();
-            toRetry = lookup[false].ToArray();
+            var expiredList = new List<Envelope>();
+            var retryList = new List<Envelope>();
+            foreach (var msg in _queued)
+            {
+                if (msg.IsExpired())
+                    expiredList.Add(msg);
+                else
+                    retryList.Add(msg);
+            }
+
+            var expired = expiredList.ToArray();
+            toRetry = retryList.ToArray();
 
             if (expired.Length != 0)
             {

@@ -80,7 +80,10 @@ internal class DatabaseOperationBatch : IAgentCommand
         try
         {
             var commands = new AgentCommands();
-            commands.AddRange(_operations.SelectMany(x => x.PostProcessingCommands()));
+            foreach (var operation in _operations)
+            {
+                commands.AddRange(operation.PostProcessingCommands());
+            }
             return commands;
         }
         finally
@@ -100,7 +103,7 @@ internal class DatabaseOperationBatch : IAgentCommand
         IList<Exception> exceptions,
         CancellationToken token)
     {
-        var first = operations.First();
+        var first = operations[0];
 
         if (!(first is IDoNotReturnData))
         {
@@ -121,8 +124,9 @@ internal class DatabaseOperationBatch : IAgentCommand
             }
         }
 
-        foreach (var operation in operations.Skip(1))
+        for (var i = 1; i < operations.Count; i++)
         {
+            var operation = operations[i];
             if (operation is IDoNotReturnData)
             {
                 continue;
