@@ -1,4 +1,3 @@
-using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -27,7 +26,6 @@ public class SystemTextJsonSerializer : IMessageSerializer
 
     public object ReadFromData(Type messageType, Envelope envelope)
     {
-        var raw = Encoding.UTF8.GetString(envelope.Data);
         return JsonSerializer.Deserialize(envelope.Data, messageType, _options)!;
     }
 

@@ -224,21 +224,17 @@ public static class EnvelopeSerializer
     {
         writer.Write(env.SentAt.UtcDateTime.ToBinary());
 
-        writer.Flush();
+        // Write a placeholder for the header count, then seek back to fill it in
+        // after writing headers. This avoids allocating a second MemoryStream + BinaryWriter.
+        var countPosition = writer.BaseStream.Position;
+        writer.Write(0);
 
-        using (var headerData = new MemoryStream())
-        {
-            using (var headerWriter = new BinaryWriter(headerData))
-            {
-                var count = writeHeaders(headerWriter, env);
-                headerWriter.Flush();
+        var count = writeHeaders(writer, env);
 
-                writer.Write(count);
-
-                headerData.Position = 0;
-                headerData.CopyTo(writer.BaseStream);
-            }
-        }
+        var endPosition = writer.BaseStream.Position;
+        writer.BaseStream.Position = countPosition;
+        writer.Write(count);
+        writer.BaseStream.Position = endPosition;
 
         writer.Write(env.Data!.Length);
         writer.Write(env.Data);
