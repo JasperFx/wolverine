@@ -337,7 +337,6 @@ public partial class Envelope
         activity.SetTag(WolverineTracing.MessageType, MessageType); // Wolverine specific
         activity.MaybeSetTag(WolverineTracing.PayloadSizeBytes, MessagePayloadSize);
         activity.MaybeSetTag(MetricsConstants.TenantIdKey, TenantId);
-        activity.MaybeSetTag(WolverineTracing.MessagingConversationId, ConversationId);
     }
 
     internal ValueTask PersistAsync(IEnvelopeTransaction transaction)

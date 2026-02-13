@@ -27,29 +27,32 @@ public class MetricsAccumulator : IAsyncDisposable
 
     public MessageTypeMetricsAccumulator FindAccumulator(string messageTypeName, Uri endpointUri)
     {
-        var accumulator =
-            _accumulators.FirstOrDefault(x => x.MessageType == messageTypeName && x.Destination == endpointUri);
-
-        if (accumulator != null)
+        var snapshot = _accumulators;
+        for (var i = 0; i < snapshot.Length; i++)
         {
-            return accumulator;
+            var acc = snapshot[i];
+            if (acc.MessageType == messageTypeName && acc.Destination == endpointUri)
+            {
+                return acc;
+            }
         }
 
         lock (_syncLock)
         {
-            accumulator =
-                _accumulators.FirstOrDefault(x => x.MessageType == messageTypeName && x.Destination == endpointUri);
-
-            if (accumulator != null)
+            snapshot = _accumulators;
+            for (var i = 0; i < snapshot.Length; i++)
             {
-                return accumulator;
+                var acc = snapshot[i];
+                if (acc.MessageType == messageTypeName && acc.Destination == endpointUri)
+                {
+                    return acc;
+                }
             }
 
-            accumulator = new MessageTypeMetricsAccumulator(messageTypeName, endpointUri);
+            var accumulator = new MessageTypeMetricsAccumulator(messageTypeName, endpointUri);
             _accumulators = _accumulators.Add(accumulator);
+            return accumulator;
         }
-        
-        return accumulator;
     }
 
     public async ValueTask DrainAsync()

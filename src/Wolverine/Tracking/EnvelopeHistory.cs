@@ -153,8 +153,11 @@ internal class EnvelopeHistory
             case MessageEventType.Discarded:
             case MessageEventType.MessageSucceeded:
                 // The message is complete
-                foreach (var envelopeRecord in _records.ToArray().Where(x => x.UniqueNodeId == record.UniqueNodeId))
-                    envelopeRecord.IsComplete = true;
+                for (var i = 0; i < _records.Count; i++)
+                {
+                    if (_records[i].UniqueNodeId == record.UniqueNodeId)
+                        _records[i].IsComplete = true;
+                }
 
                 record.IsComplete = true;
 
@@ -186,12 +189,22 @@ internal class EnvelopeHistory
 
     public bool IsComplete()
     {
-        return _records.ToArray().All(x => x.IsComplete);
+        for (var i = 0; i < _records.Count; i++)
+        {
+            if (!_records[i].IsComplete) return false;
+        }
+
+        return true;
     }
 
     public bool Has(MessageEventType eventType)
     {
-        return _records.ToArray().Any(x => x.MessageEventType == eventType);
+        for (var i = 0; i < _records.Count; i++)
+        {
+            if (_records[i].MessageEventType == eventType) return true;
+        }
+
+        return false;
     }
 
     public object? MessageFor(MessageEventType eventType)
