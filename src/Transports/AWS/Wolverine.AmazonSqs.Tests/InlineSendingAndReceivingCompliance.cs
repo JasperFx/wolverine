@@ -25,7 +25,8 @@ public class InlineComplianceFixture : TransportComplianceFixture, IAsyncLifetim
         {
             opts.UseAmazonSqsTransportLocally()
                 .AutoProvision()
-                .AutoPurgeOnStartup();
+                .AutoPurgeOnStartup()
+                .EnableSystemQueues();
 
             opts.ListenToSqsQueue("sender-" + number);
 
@@ -36,7 +37,8 @@ public class InlineComplianceFixture : TransportComplianceFixture, IAsyncLifetim
         {
             opts.UseAmazonSqsTransportLocally()
                 .AutoProvision()
-                .AutoPurgeOnStartup();
+                .AutoPurgeOnStartup()
+                .EnableSystemQueues();
 
             opts.ListenToSqsQueue("receiver-" + number).Named("receiver").ProcessInline();
         });
