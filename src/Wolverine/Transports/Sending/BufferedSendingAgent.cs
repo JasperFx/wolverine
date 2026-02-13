@@ -24,7 +24,7 @@ internal class BufferedSendingAgent : SendingAgent
         if (_queued.Count > Endpoint.MaximumEnvelopeRetryStorage)
         {
             var toRemove = _queued.Count - Endpoint.MaximumEnvelopeRetryStorage;
-            _queued = _queued.Skip(toRemove).ToList();
+            _queued.RemoveRange(0, toRemove);
         }
 
         return Task.CompletedTask;

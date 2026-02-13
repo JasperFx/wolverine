@@ -262,27 +262,33 @@ public abstract class SendingAgent : ISendingAgent, ISenderCallback, ISenderCirc
             return;
         }
 
-        await _failureCountLock.WaitAsync();
-        try
-        {
-            _failureCount++;
+        var count = Interlocked.Increment(ref _failureCount);
 
-            if (_failureCount >= Endpoint.FailuresBeforeCircuitBreaks)
+        if (count >= Endpoint.FailuresBeforeCircuitBreaks)
+        {
+            // Only take the lock for the circuit breaker state transition
+            await _failureCountLock.WaitAsync();
+            try
             {
-                using var activity = WolverineTracing.ActivitySource.StartActivity(WolverineTracing.SendingPaused);
-                activity?.SetTag(WolverineTracing.StopReason, WolverineTracing.TooManySenderFailures);
-                activity?.SetTag(WolverineTracing.EndpointAddress, Endpoint.Uri);
+                if (!Latched)
+                {
+                    using var activity =
+                        WolverineTracing.ActivitySource.StartActivity(WolverineTracing.SendingPaused);
+                    activity?.SetTag(WolverineTracing.StopReason, WolverineTracing.TooManySenderFailures);
+                    activity?.SetTag(WolverineTracing.EndpointAddress, Endpoint.Uri);
 
-                await LatchAndDrainAsync();
-                await EnqueueForRetryAsync(batch);
+                    await LatchAndDrainAsync();
 
-                _circuitWatcher ??= new CircuitWatcher(this, _settings.Cancellation);
-                return;
+                    _circuitWatcher ??= new CircuitWatcher(this, _settings.Cancellation);
+                }
             }
-        }
-        finally
-        {
-            _failureCountLock.Release();
+            finally
+            {
+                _failureCountLock.Release();
+            }
+
+            await EnqueueForRetryAsync(batch);
+            return;
         }
 
         foreach (var envelope in batch.Messages) await _sending.PostAsync(envelope);
@@ -292,17 +298,22 @@ public abstract class SendingAgent : ISendingAgent, ISenderCallback, ISenderCirc
 
     public async Task MarkSuccessAsync()
     {
-        await _failureCountLock.WaitAsync();
-        try
+        Interlocked.Exchange(ref _failureCount, 0);
+
+        // Only take the lock if there's circuit breaker state to clean up
+        if (Latched || _circuitWatcher != null)
         {
-            _failureCount = 0;
-            Unlatch();
-            _circuitWatcher?.SafeDispose();
-            _circuitWatcher = null;
-        }
-        finally
-        {
-            _failureCountLock.Release();
+            await _failureCountLock.WaitAsync();
+            try
+            {
+                Unlatch();
+                _circuitWatcher?.SafeDispose();
+                _circuitWatcher = null;
+            }
+            finally
+            {
+                _failureCountLock.Release();
+            }
         }
     }
 
