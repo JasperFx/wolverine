@@ -75,6 +75,7 @@
         <PackageVersion Include="Swashbuckle.AspNetCore.SwaggerGen" Version="9.0.1" />
         <PackageVersion Include="Swashbuckle.AspNetCore.SwaggerUI" Version="9.0.1" />
         <PackageVersion Include="System.ComponentModel" Version="4.3.0" />
+        <PackageVersion Include="Testcontainers.ServiceBus" Version="4.10.0" />
         <PackageVersion Include="System.Diagnostics.DiagnosticSource" Version="9.0.5" />
         <PackageVersion Include="System.Net.NameResolution" Version="4.3.0" />
         <PackageVersion Include="System.Threading.Tasks.Dataflow" Version="9.0.5" />
