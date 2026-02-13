@@ -40,6 +40,11 @@ public class InlineComplianceFixture : TransportComplianceFixture, IAsyncLifetim
     {
         return Task.CompletedTask;
     }
+
+    protected override Task AfterDisposeAsync()
+    {
+        return AzureServiceBusTesting.DeleteAllEmulatorObjectsAsync();
+    }
 }
 
 public class InlineSendingAndReceivingCompliance : TransportCompliance<InlineComplianceFixture>;

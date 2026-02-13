@@ -13,4 +13,10 @@ public class Servers
 
     public static readonly string OracleConnectionString =
         "User Id=wolverine;Password=wolverine;Data Source=localhost:1521/FREEPDB1";
+
+    public static readonly string AzureServiceBusConnectionString =
+        "Endpoint=sb://localhost:5673;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;";
+
+    public static readonly string AzureServiceBusManagementConnectionString =
+        "Endpoint=sb://localhost:5300;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;";
 }

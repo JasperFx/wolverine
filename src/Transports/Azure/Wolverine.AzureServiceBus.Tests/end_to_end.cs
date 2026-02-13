@@ -49,10 +49,7 @@ public class end_to_end : IAsyncLifetime
 
                 opts.PublishMessage<AsbMessage4>().ToAzureServiceBusTopic("asb4").BufferedInMemory();
                 opts.ListenToAzureServiceBusSubscription("asb4")
-                    .FromTopic("asb4", cfg =>
-                    {
-                        cfg.EnablePartitioning = true;
-                    })
+                    .FromTopic("asb4")
 
                     // Require sessions on this subscription
                     .RequireSessions(1)
@@ -63,9 +60,10 @@ public class end_to_end : IAsyncLifetime
         #endregion
     }
 
-    public Task DisposeAsync()
+    public async Task DisposeAsync()
     {
-        return _host.StopAsync();
+        await _host.StopAsync();
+        await AzureServiceBusTesting.DeleteAllEmulatorObjectsAsync();
     }
 
     [Fact]

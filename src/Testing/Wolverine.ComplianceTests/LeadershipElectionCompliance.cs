@@ -47,6 +47,16 @@ public abstract class LeadershipElectionCompliance : IAsyncLifetime
         {
             await shutdownHostAsync(host);
         }
+
+        await AfterDisposeAsync();
+    }
+
+    /// <summary>
+    /// Template method for transport-specific cleanup after hosts are disposed.
+    /// </summary>
+    protected virtual Task AfterDisposeAsync()
+    {
+        return Task.CompletedTask;
     }
 
     public IHost FindHostRunning(Uri agentUri)

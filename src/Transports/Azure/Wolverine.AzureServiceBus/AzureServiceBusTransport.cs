@@ -89,6 +89,13 @@ public partial class AzureServiceBusTransport : BrokerTransport<AzureServiceBusE
 
     public string? ConnectionString { get; set; }
 
+    /// <summary>
+    /// Optional separate connection string for the ServiceBusAdministrationClient.
+    /// When set, the management client uses this instead of ConnectionString.
+    /// Useful for the Azure Service Bus Emulator which exposes management on a different port.
+    /// </summary>
+    public string? ManagementConnectionString { get; set; }
+
     public string? FullyQualifiedNamespace { get; set; }
     public TokenCredential? TokenCredential { get; set; }
     public AzureNamedKeyCredential? NamedKeyCredential { get; set; }
@@ -304,7 +311,7 @@ public partial class AzureServiceBusTransport : BrokerTransport<AzureServiceBusE
             return new ServiceBusAdministrationClient(FullyQualifiedNamespace, SasCredential);
         }
 
-        return new ServiceBusAdministrationClient(ConnectionString);
+        return new ServiceBusAdministrationClient(ManagementConnectionString ?? ConnectionString);
     }
 
 
