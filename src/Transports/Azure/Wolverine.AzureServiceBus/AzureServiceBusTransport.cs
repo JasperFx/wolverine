@@ -115,20 +115,38 @@ public partial class AzureServiceBusTransport : BrokerTransport<AzureServiceBusE
             tenant.Transport.NamedKeyCredential ??= NamedKeyCredential;
             tenant.Transport.SasCredential ??= SasCredential;
             tenant.Transport.TokenCredential ??= TokenCredential;
-            await tenant.Transport.WithManagementClientAsync(action);
+
+            try
+            {
+                await tenant.Transport.WithManagementClientAsync(action);
+            }
+            catch (Exception)
+            {
+                // Tenant management failures should not block the default namespace.
+                // Tenant resources will be provisioned on demand or by their own hosts.
+            }
         }
     }
 
     public async Task WithServiceBusClientAsync(Func<ServiceBusClient, Task> action)
     {
         await action(BusClient);
-        
+
         foreach (var tenant in Tenants)
         {
             tenant.Transport.NamedKeyCredential ??= NamedKeyCredential;
             tenant.Transport.SasCredential ??= SasCredential;
             tenant.Transport.TokenCredential ??= TokenCredential;
-            await tenant.Transport.WithServiceBusClientAsync(action);
+
+            try
+            {
+                await tenant.Transport.WithServiceBusClientAsync(action);
+            }
+            catch (Exception)
+            {
+                // Tenant management failures should not block the default namespace.
+                // Tenant resources will be provisioned on demand or by their own hosts.
+            }
         }
     }
     
