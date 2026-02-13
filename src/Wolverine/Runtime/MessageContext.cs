@@ -69,7 +69,21 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
 
     private bool isMissingRequestedReply()
     {
-        return Outstanding.Concat(_sent ?? []).All(x => x.MessageType != Envelope!.ReplyRequested);
+        var replyRequested = Envelope!.ReplyRequested;
+        foreach (var envelope in Outstanding)
+        {
+            if (envelope.MessageType == replyRequested) return false;
+        }
+
+        if (_sent != null)
+        {
+            foreach (var envelope in _sent)
+            {
+                if (envelope.MessageType == replyRequested) return false;
+            }
+        }
+
+        return true;
     }
 
     /// <summary>

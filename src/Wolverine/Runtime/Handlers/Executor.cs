@@ -191,7 +191,7 @@ internal class Executor : IExecutor
 
             _tracker.ExecutionFinished(envelope);
 
-            return new MessageSucceededContinuation(_tracker);
+            return MessageSucceededContinuation.Instance;
         }
         catch (Exception e)
         {
