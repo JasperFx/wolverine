@@ -8,10 +8,16 @@ namespace Wolverine;
 /// </summary>
 public class DeliveryOptions
 {
+    private Dictionary<string, string?>? _headers;
+
     /// <summary>
     ///     Optional metadata about this message
     /// </summary>
-    public Dictionary<string, string?> Headers { get; internal set; } = new();
+    public Dictionary<string, string?> Headers
+    {
+        get => _headers ??= new();
+        internal set => _headers = value;
+    }
 
     /// <summary>
     ///     Instruct Wolverine to throw away this message if it is not successfully sent and processed
@@ -77,7 +83,10 @@ public class DeliveryOptions
 
     internal void Override(Envelope envelope)
     {
-        foreach (var header in Headers) envelope.Headers[header.Key] = header.Value;
+        if (_headers is { Count: > 0 })
+        {
+            foreach (var header in _headers) envelope.Headers[header.Key] = header.Value;
+        }
 
         // The status should be a state machine set by the deliver by or scheduled time setters
         if (DeliverBy.HasValue)
