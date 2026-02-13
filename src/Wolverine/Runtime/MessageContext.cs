@@ -60,7 +60,7 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
     /// </summary>
     public MultiFlushMode MultiFlushMode { get; set; } = MultiFlushMode.OnlyOnce;
 
-    internal IList<Envelope> Scheduled { get; } = new List<Envelope>();
+    internal List<Envelope> Scheduled { get; } = new();
 
     private bool hasRequestedReply()
     {
@@ -151,7 +151,7 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
 
         await AssertAnyRequiredResponseWasGenerated();
 
-        if (!Outstanding.Any())
+        if (_outstanding.Count == 0)
         {
             return;
         }
@@ -230,10 +230,16 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
             if (isMissingRequestedReply())
             {
                 var failureDescription = $"No response was created for expected response '{Envelope.ReplyRequested}' back to reply-uri {Envelope.ReplyUri}. ";
-                if (_outstanding.Any())
+                if (_outstanding.Count > 0)
                 {
-                    failureDescription += "Actual cascading messages were " +
-                                          _outstanding.Concat(_sent ?? []).Select(x => x.MessageType).Join(", ");
+                    var types = new List<string>(_outstanding.Count + (_sent?.Count ?? 0));
+                    foreach (var e in _outstanding) types.Add(e.MessageType!);
+                    if (_sent != null)
+                    {
+                        foreach (var e in _sent) types.Add(e.MessageType!);
+                    }
+
+                    failureDescription += "Actual cascading messages were " + string.Join(", ", types);
                 }
                 else
                 {
