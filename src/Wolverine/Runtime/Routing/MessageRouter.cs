@@ -11,9 +11,12 @@ public class MessageRouter<T> : MessageRouterBase<T>
         Routes = routes.ToArray();
 
         // ReSharper disable once VirtualMemberCallInConstructor
-        foreach (var route in Routes.OfType<MessageRoute>().Where(x => x.Sender?.Endpoint is LocalQueue))
+        foreach (var route in Routes)
         {
-            route.Rules.Fill(HandlerRules);
+            if (route is MessageRoute { Sender.Endpoint: LocalQueue } messageRoute)
+            {
+                messageRoute.Rules.Fill(HandlerRules);
+            }
         }
     }
 
@@ -49,7 +52,7 @@ public class MessageRouter<T> : MessageRouterBase<T>
     {
         if (Routes.Length == 1)
         {
-            return Routes.Single();
+            return Routes[0];
         }
 
         throw new MultipleSubscribersException(typeof(T), Routes);

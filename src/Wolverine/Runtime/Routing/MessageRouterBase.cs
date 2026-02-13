@@ -22,15 +22,30 @@ public abstract class MessageRouterBase<T> : IMessageRouter
         var chain = runtime.Handlers.ChainFor(typeof(T));
         if (chain != null)
         {
-            var handlerRules = chain.Handlers.Concat(chain.ByEndpoint.SelectMany(x => x.Handlers))
-                .SelectMany(x => x.Method.GetAllAttributes<ModifyEnvelopeAttribute>())
-                .OfType<IEnvelopeRule>();
-            HandlerRules.AddRange(handlerRules);
+            foreach (var handler in chain.Handlers)
+            {
+                foreach (var attribute in handler.Method.GetAllAttributes<ModifyEnvelopeAttribute>())
+                {
+                    if (attribute is IEnvelopeRule rule) HandlerRules.Add(rule);
+                }
+            }
+
+            foreach (var byEndpoint in chain.ByEndpoint)
+            {
+                foreach (var handler in byEndpoint.Handlers)
+                {
+                    foreach (var attribute in handler.Method.GetAllAttributes<ModifyEnvelopeAttribute>())
+                    {
+                        if (attribute is IEnvelopeRule rule) HandlerRules.Add(rule);
+                    }
+                }
+            }
         }
-        
-        var messageRules = typeof(T).GetAllAttributes<ModifyEnvelopeAttribute>()
-            .OfType<IEnvelopeRule>();
-        HandlerRules.AddRange(messageRules);
+
+        foreach (var attribute in typeof(T).GetAllAttributes<ModifyEnvelopeAttribute>())
+        {
+            if (attribute is IEnvelopeRule rule) HandlerRules.Add(rule);
+        }
 
         _topicRoutes = runtime.Options.Transports.AllEndpoints().Where(x => x.RoutingType == RoutingMode.ByTopic)
             .Select(endpoint => new MessageRoute(typeof(T), endpoint, runtime)).ToArray();
