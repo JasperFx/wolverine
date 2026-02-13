@@ -1,9 +1,5 @@
 # Using Amazon SQS
 
-::: warning
-At this moment, Wolverine cannot support request/reply mechanics (`IMessageBus.InvokeAsync<T>()`) with Amazon SQS.
-:::
-
 Wolverine supports [Amazon SQS](https://aws.amazon.com/sqs/) as a messaging transport through the WolverineFx.AmazonSqs package.
 
 ## Connecting to the Broker
@@ -181,3 +177,64 @@ opts.UseAmazonSqsTransport()
 ```
 
 The default delimiter between the prefix and the original name is `-` for Amazon SQS (e.g., `dev-john-orders`).
+
+## Request/Reply <Badge type="tip" text="5.14" />
+
+[Request/reply](https://www.enterpriseintegrationpatterns.com/patterns/messaging/RequestReply.html) mechanics (`IMessageBus.InvokeAsync<T>()`) are supported with the Amazon SQS transport when system queues are enabled. Wolverine creates a dedicated per-node response queue named like `wolverine-response-[service name]-[node id]` that is used to receive replies.
+
+To enable request/reply support, call `EnableSystemQueues()` on the SQS transport configuration:
+
+```csharp
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.UseAmazonSqsTransport()
+            .AutoProvision()
+
+            // Enable system queues for request/reply support
+            .EnableSystemQueues();
+    }).StartAsync();
+```
+
+::: tip
+Unlike Azure Service Bus and RabbitMQ where system queues are enabled by default, SQS system queues require explicit opt-in via `EnableSystemQueues()`. This is because creating SQS queues requires IAM permissions that your application may not have.
+:::
+
+System queues are automatically cleaned up when your application shuts down. Wolverine also tags each system queue with a `wolverine:last-active` timestamp and runs a background keep-alive timer. On startup, Wolverine scans for orphaned system queues (from crashed nodes) with the `wolverine-response-` or `wolverine-control-` prefix and deletes any that have been inactive for more than 5 minutes.
+
+## Wolverine Control Queues <Badge type="tip" text="5.14" />
+
+You can opt into using SQS queues for intra-node communication that Wolverine needs for leader election and background worker distribution. Using SQS for this feature is more efficient than the built-in database control queues that Wolverine uses otherwise, and is necessary for message storage options like RavenDb that do not have a built-in control queue mechanism.
+
+```csharp
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.UseAmazonSqsTransport()
+            .AutoProvision()
+
+            // This enables Wolverine to use SQS queues
+            // created at runtime for communication between
+            // Wolverine nodes
+            .EnableWolverineControlQueues();
+    }).StartAsync();
+```
+
+Calling `EnableWolverineControlQueues()` implicitly enables system queues and request/reply support as well.
+
+## Disabling System Queues <Badge type="tip" text="5.14" />
+
+If your application does not have IAM permissions to create or delete queues, you can explicitly disable system queues:
+
+```csharp
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.UseAmazonSqsTransport()
+            .AutoProvision()
+            .SystemQueuesAreEnabled(false);
+
+        opts.ListenToSqsQueue("send-and-receive");
+        opts.PublishAllMessages().ToSqsQueue("send-and-receive");
+    }).StartAsync();
+```
