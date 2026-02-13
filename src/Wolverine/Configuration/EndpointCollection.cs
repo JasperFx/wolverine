@@ -222,7 +222,7 @@ public class EndpointCollection : IEndpointCollection
 
     public Endpoint? EndpointByName(string endpointName)
     {
-        return _options.Transports.AllEndpoints().ToArray().FirstOrDefault(x => x.EndpointName == endpointName);
+        return _options.Transports.AllEndpoints().FirstOrDefault(x => x.EndpointName == endpointName);
     }
 
     public IListeningAgent? FindListeningAgent(Uri uri)

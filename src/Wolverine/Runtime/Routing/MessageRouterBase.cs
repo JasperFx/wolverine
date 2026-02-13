@@ -47,8 +47,16 @@ public abstract class MessageRouterBase<T> : IMessageRouter
             if (attribute is IEnvelopeRule rule) HandlerRules.Add(rule);
         }
 
-        _topicRoutes = runtime.Options.Transports.AllEndpoints().Where(x => x.RoutingType == RoutingMode.ByTopic)
-            .Select(endpoint => new MessageRoute(typeof(T), endpoint, runtime)).ToArray();
+        var topicRouteList = new List<MessageRoute>();
+        foreach (var endpoint in runtime.Options.Transports.AllEndpoints())
+        {
+            if (endpoint.RoutingType == RoutingMode.ByTopic)
+            {
+                topicRouteList.Add(new MessageRoute(typeof(T), endpoint, runtime));
+            }
+        }
+
+        _topicRoutes = topicRouteList.ToArray();
 
         Runtime = runtime;
     }

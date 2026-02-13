@@ -76,9 +76,9 @@ public class TenantedSender : ISender, IAsyncDisposable
     {
         var pinged = true;
         pinged = pinged && await _defaultSender.PingAsync();
-        foreach (var sender in _senders.Enumerate().Select(x => x.Value))
+        foreach (var entry in _senders.Enumerate())
         {
-            pinged = pinged && await sender.PingAsync();
+            pinged = pinged && await entry.Value.PingAsync();
         }
 
         return pinged;
@@ -132,9 +132,12 @@ public class TenantedSender : ISender, IAsyncDisposable
             await ad.DisposeAsync();
         }
 
-        foreach (var sender in _senders.Enumerate().Select(x => x.Value).OfType<IAsyncDisposable>())
+        foreach (var entry in _senders.Enumerate())
         {
-            await sender.DisposeAsync();
+            if (entry.Value is IAsyncDisposable ad2)
+            {
+                await ad2.DisposeAsync();
+            }
         }
     }
 }
