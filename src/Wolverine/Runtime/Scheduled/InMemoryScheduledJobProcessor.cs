@@ -27,8 +27,14 @@ public class InMemoryScheduledJobProcessor : IScheduledJobProcessor
 
     public void Play(DateTime executionTime)
     {
-        var outstanding = _outstandingJobs.Where(x => x.ExecutionTime <= executionTime).ToArray();
-        foreach (var job in outstanding) job.Enqueue();
+        var outstanding = _outstandingJobs.ToArray();
+        foreach (var job in outstanding)
+        {
+            if (job.ExecutionTime <= executionTime)
+            {
+                job.Enqueue();
+            }
+        }
     }
 
     public Task EmptyAllAsync()
@@ -46,7 +52,14 @@ public class InMemoryScheduledJobProcessor : IScheduledJobProcessor
 
     ScheduledJob[] IScheduledJobProcessor.QueuedJobs()
     {
-        return _outstandingJobs.ToArray().Select(x => x.ToReport()).ToArray();
+        var jobs = _outstandingJobs.ToArray();
+        var result = new ScheduledJob[jobs.Length];
+        for (var i = 0; i < jobs.Length; i++)
+        {
+            result[i] = jobs[i].ToReport();
+        }
+
+        return result;
     }
 
     public void Dispose()
