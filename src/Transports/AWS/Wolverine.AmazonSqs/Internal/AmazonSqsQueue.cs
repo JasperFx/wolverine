@@ -282,6 +282,18 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue, IMassTransitInteropEndpoin
             var response = await client.CreateQueueAsync(Configuration);
 
             QueueUrl = response.QueueUrl;
+
+            if (Role == EndpointRole.System)
+            {
+                await client.TagQueueAsync(new TagQueueRequest
+                {
+                    QueueUrl = QueueUrl,
+                    Tags = new Dictionary<string, string>
+                    {
+                        ["wolverine:last-active"] = DateTime.UtcNow.ToString("o")
+                    }
+                });
+            }
         }
         catch (Exception e)
         {

@@ -1,4 +1,5 @@
 using Amazon.Runtime;
+using Wolverine.Configuration;
 using Wolverine.Runtime;
 using Wolverine.Transports;
 
@@ -81,6 +82,60 @@ public class AmazonSqsTransportConfiguration : BrokerExpression<AmazonSqsTranspo
     public AmazonSqsTransportConfiguration DisableAllNativeDeadLetterQueues()
     {
         Transport.DisableDeadLetterQueues = true;
+        return this;
+    }
+
+    /// <summary>
+    /// Enable Wolverine system queues for request/reply support.
+    /// Creates a per-node response queue that is automatically cleaned up.
+    /// </summary>
+    /// <returns></returns>
+    public AmazonSqsTransportConfiguration EnableSystemQueues()
+    {
+        Transport.SystemQueuesEnabled = true;
+        return this;
+    }
+
+    /// <summary>
+    /// Control whether Wolverine creates system queues for responses and retries.
+    /// Should be set to false if the application lacks permissions to create queues.
+    /// </summary>
+    /// <param name="enabled"></param>
+    /// <returns></returns>
+    public AmazonSqsTransportConfiguration SystemQueuesAreEnabled(bool enabled)
+    {
+        Transport.SystemQueuesEnabled = enabled;
+        return this;
+    }
+
+    /// <summary>
+    /// Enable Wolverine control queues for inter-node communication
+    /// (leader election, node coordination).
+    /// </summary>
+    /// <returns></returns>
+    public AmazonSqsTransportConfiguration EnableWolverineControlQueues()
+    {
+        Transport.SystemQueuesEnabled = true;
+
+        // Lowercase to match URI normalization (see tryBuildSystemEndpoints comment)
+        var queueName = AmazonSqsTransport.SanitizeSqsName(
+            "wolverine.control." + Options.Durability.AssignedNodeNumber)
+            .ToLowerInvariant();
+
+        var queue = Transport.Queues[queueName];
+        queue.Mode = EndpointMode.BufferedInMemory;
+        queue.IsListener = true;
+        queue.EndpointName = "Control";
+        queue.IsUsedForReplies = true;
+        queue.Role = EndpointRole.System;
+        queue.DeadLetterQueueName = null;
+        queue.Configuration.Attributes ??= new Dictionary<string, string>();
+        queue.Configuration.Attributes["MessageRetentionPeriod"] = "300";
+
+        Options.Transports.NodeControlEndpoint = queue;
+
+        Transport.SystemQueues.Add(queue);
+
         return this;
     }
 }
