@@ -1,6 +1,7 @@
 using JasperFx.Blocks;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
+using Wolverine.ErrorHandling;
 using Wolverine.Logging;
 using Wolverine.Runtime;
 using Wolverine.Transports;
@@ -22,7 +23,14 @@ internal class DurableSendingAgent : SendingAgent
 
     public DurableSendingAgent(ISender sender, DurabilitySettings settings, ILogger logger,
         IMessageTracker messageLogger,
-        IMessageOutbox outbox, Endpoint endpoint) : base(logger, messageLogger, sender, settings, endpoint)
+        IMessageOutbox outbox, Endpoint endpoint) : this(sender, settings, logger, messageLogger, outbox, endpoint, null, null)
+    {
+    }
+
+    public DurableSendingAgent(ISender sender, DurabilitySettings settings, ILogger logger,
+        IMessageTracker messageLogger,
+        IMessageOutbox outbox, Endpoint endpoint, IWolverineRuntime? runtime,
+        SendingFailurePolicies? sendingFailurePolicies) : base(logger, messageLogger, sender, settings, endpoint, runtime, sendingFailurePolicies)
     {
         _logger = logger;
 
@@ -46,6 +54,8 @@ internal class DurableSendingAgent : SendingAgent
     }
 
     public override bool IsDurable => true;
+
+    protected override IMessageOutbox? resolveOutbox() => _outbox;
 
     protected override async Task drainOtherAsync()
     {

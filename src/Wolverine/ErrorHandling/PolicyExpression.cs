@@ -82,6 +82,12 @@ public interface IAdditionalActions
     /// <param name="pauseTime"></param>
     IAdditionalActions AndPauseProcessing(TimeSpan pauseTime);
 
+    /// <summary>
+    /// Latch (pause) the sending agent in addition to the primary action.
+    /// Only applicable when used with sending failure policies.
+    /// </summary>
+    IAdditionalActions AndLatchSender();
+
 
     /// <summary>
     ///     Perform a user defined action as well as the initial action
@@ -148,6 +154,15 @@ internal class FailureActions : IAdditionalActions, IFailureActions
         }
 
         return this;
+    }
+
+    /// <summary>
+    /// Latch (pause) the sending agent in addition to the primary action.
+    /// Only applicable when used with sending failure policies.
+    /// </summary>
+    public IAdditionalActions AndLatchSender()
+    {
+        return And(LatchSenderContinuation.Instance);
     }
 
     /// <summary>
@@ -255,6 +270,13 @@ internal class FailureActions : IAdditionalActions, IFailureActions
     public IAdditionalActions Discard()
     {
         var slot = _rule.AddSlot(DiscardEnvelope.Instance);
+        _slots.Add(slot);
+        return this;
+    }
+
+    public IAdditionalActions LatchSender()
+    {
+        var slot = _rule.AddSlot(LatchSenderContinuation.Instance);
         _slots.Add(slot);
         return this;
     }
@@ -496,6 +518,11 @@ public interface IFailureActions
     /// <returns></returns>
     IAdditionalActions CustomActionIndefinitely(Func<IWolverineRuntime, IEnvelopeLifecycle, Exception, ValueTask> action,
         string description, InvokeResult? invokeUsage = null);
+
+    /// <summary>
+    /// Latch (pause) the sending agent. Only applicable when used with sending failure policies.
+    /// </summary>
+    IAdditionalActions LatchSender();
 }
 
 public class PolicyExpression : IFailureActions
@@ -550,6 +577,14 @@ public class PolicyExpression : IFailureActions
     public IAdditionalActions Discard()
     {
         return new FailureActions(_match, _parent).Discard();
+    }
+
+    /// <summary>
+    /// Latch (pause) the sending agent. Only applicable when used with sending failure policies.
+    /// </summary>
+    public IAdditionalActions LatchSender()
+    {
+        return new FailureActions(_match, _parent).LatchSender();
     }
 
     /// <summary>

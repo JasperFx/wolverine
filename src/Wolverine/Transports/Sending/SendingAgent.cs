@@ -3,7 +3,9 @@ using JasperFx.Blocks;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
+using Wolverine.ErrorHandling;
 using Wolverine.Logging;
+using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
 
 namespace Wolverine.Transports.Sending;
@@ -20,15 +22,24 @@ public abstract class SendingAgent : ISendingAgent, ISenderCallback, ISenderCirc
     private CircuitWatcher? _circuitWatcher;
     private int _failureCount;
 
+    private readonly IWolverineRuntime? _runtime;
+    private readonly SendingFailurePolicies? _sendingFailurePolicies;
 
     public SendingAgent(ILogger logger, IMessageTracker messageLogger, ISender sender, DurabilitySettings settings,
-        Endpoint endpoint)
+        Endpoint endpoint) : this(logger, messageLogger, sender, settings, endpoint, null, null)
+    {
+    }
+
+    public SendingAgent(ILogger logger, IMessageTracker messageLogger, ISender sender, DurabilitySettings settings,
+        Endpoint endpoint, IWolverineRuntime? runtime, SendingFailurePolicies? sendingFailurePolicies)
     {
         _logger = logger;
         _messageLogger = messageLogger;
         _sender = sender;
         _settings = settings;
         Endpoint = endpoint;
+        _runtime = runtime;
+        _sendingFailurePolicies = sendingFailurePolicies;
 
         Func<Envelope, CancellationToken, Task> senderDelegate = _sender is ISenderRequiresCallback
             ? sendWithCallbackHandlingAsync
@@ -91,7 +102,7 @@ public abstract class SendingAgent : ISendingAgent, ISenderCallback, ISenderCirc
         _logger.LogError(exception,
             "Failure trying to send a message batch to {Destination}", outgoing.Destination);
         _logger.OutgoingBatchFailed(outgoing, exception);
-        return markFailedAsync(outgoing);
+        return markFailedAsync(outgoing, exception);
     }
 
     Task ISenderCallback.MarkSenderIsLatchedAsync(OutgoingMessageBatch outgoing)
@@ -253,8 +264,61 @@ public abstract class SendingAgent : ISendingAgent, ISenderCallback, ISenderCirc
         }
     }
 
-    private async Task markFailedAsync(OutgoingMessageBatch batch)
+    /// <summary>
+    /// Try to apply sending failure policies to each envelope in the batch.
+    /// Returns true if all envelopes were handled by policies; false if any were not.
+    /// </summary>
+    private async Task<bool> tryApplySendingFailurePoliciesAsync(OutgoingMessageBatch batch, Exception? exception)
     {
+        if (_sendingFailurePolicies == null || !_sendingFailurePolicies.HasAnyRules || _runtime == null || exception == null)
+        {
+            return false;
+        }
+
+        var allHandled = true;
+
+        foreach (var envelope in batch.Messages)
+        {
+            envelope.SendAttempts++;
+
+            var continuation = _sendingFailurePolicies.DetermineAction(exception, envelope);
+            if (continuation != null)
+            {
+                try
+                {
+                    var outbox = resolveOutbox();
+                    var lifecycle = new SendingEnvelopeLifecycle(envelope, _runtime, this, outbox);
+                    await continuation.ExecuteAsync(lifecycle, _runtime, DateTimeOffset.UtcNow, null);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error executing sending failure policy for envelope {EnvelopeId}", envelope.Id);
+                    allHandled = false;
+                }
+            }
+            else
+            {
+                allHandled = false;
+            }
+        }
+
+        return allHandled;
+    }
+
+    /// <summary>
+    /// Resolve the outbox for creating SendingEnvelopeLifecycle instances.
+    /// Overridden in DurableSendingAgent to provide the actual outbox.
+    /// </summary>
+    protected virtual IMessageOutbox? resolveOutbox() => null;
+
+    private async Task markFailedAsync(OutgoingMessageBatch batch, Exception? exception = null)
+    {
+        // Try sending failure policies first
+        if (exception != null && await tryApplySendingFailurePoliciesAsync(batch, exception))
+        {
+            return;
+        }
+
         // If it's already latched, just enqueue again
         if (Latched)
         {
@@ -326,6 +390,6 @@ public abstract class SendingAgent : ISendingAgent, ISenderCallback, ISenderCirc
 
         var batch = new OutgoingMessageBatch(outgoing.Destination, new[] { outgoing });
         _logger.OutgoingBatchFailed(batch, exception);
-        return markFailedAsync(batch);
+        return markFailedAsync(batch, exception);
     }
 }

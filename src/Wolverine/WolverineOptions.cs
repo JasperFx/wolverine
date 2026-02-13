@@ -146,6 +146,13 @@ public sealed partial class WolverineOptions
     public MetricsOptions Metrics { get; } = new();
 
     /// <summary>
+    /// Global failure handling policies for outgoing message send failures.
+    /// Use this to configure how Wolverine handles exceptions that occur when
+    /// trying to send messages to external transports.
+    /// </summary>
+    public SendingFailurePolicies SendingFailure { get; } = new();
+
+    /// <summary>
     /// What is the policy within this application for whether or not it is valid to allow Service Location within
     /// the generated code for message handlers or HTTP endpoints. Default is AllowedByWarn. Just keep in mind that
     /// Wolverine really does not want you to use service location if you don't have to!

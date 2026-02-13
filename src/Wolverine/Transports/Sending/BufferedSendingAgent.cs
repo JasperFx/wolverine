@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
+using Wolverine.ErrorHandling;
 using Wolverine.Logging;
 using Wolverine.Runtime;
 
@@ -11,6 +12,12 @@ internal class BufferedSendingAgent : SendingAgent
 
     public BufferedSendingAgent(ILogger logger, IMessageTracker messageLogger, ISender sender,
         DurabilitySettings settings, Endpoint endpoint) : base(logger, messageLogger, sender, settings, endpoint)
+    {
+    }
+
+    public BufferedSendingAgent(ILogger logger, IMessageTracker messageLogger, ISender sender,
+        DurabilitySettings settings, Endpoint endpoint, IWolverineRuntime? runtime,
+        SendingFailurePolicies? sendingFailurePolicies) : base(logger, messageLogger, sender, settings, endpoint, runtime, sendingFailurePolicies)
     {
     }
 
