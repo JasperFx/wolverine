@@ -1,6 +1,7 @@
 using ImTools;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
+using Wolverine.ErrorHandling;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Routing;
@@ -312,29 +313,55 @@ public class EndpointCollection : IEndpointCollection
             return a;
         }
 
+        // Resolve combined sending failure policies (endpoint-specific takes priority over global)
+        var sendingPolicies = resolveSendingFailurePolicies(endpoint);
+
         switch (endpoint.Mode)
         {
             case EndpointMode.Durable:
                 var outbox = _runtime.Stores.HasAnyAncillaryStores()
                     ? new DelegatingMessageOutbox(_runtime.Storage.Outbox, _runtime.Stores)
                     : _runtime.Storage.Outbox;
-                
+
                 return new DurableSendingAgent(sender, _options.Durability,
                     _runtime.LoggerFactory.CreateLogger<DurableSendingAgent>(), _runtime.MessageTracking,
-                    outbox, endpoint);
+                    outbox, endpoint, _runtime, sendingPolicies);
 
             case EndpointMode.BufferedInMemory:
                 return new BufferedSendingAgent(_runtime.LoggerFactory.CreateLogger<BufferedSendingAgent>(),
                     _runtime.MessageTracking, sender, _runtime.DurabilitySettings,
-                    endpoint);
+                    endpoint, _runtime, sendingPolicies);
 
             case EndpointMode.Inline:
                 return new InlineSendingAgent(_runtime.LoggerFactory.CreateLogger<InlineSendingAgent>(), sender,
                     endpoint, _runtime.MessageTracking,
-                    _runtime.DurabilitySettings);
+                    _runtime.DurabilitySettings, _runtime, sendingPolicies);
         }
 
         throw new InvalidOperationException();
+    }
+
+    private SendingFailurePolicies? resolveSendingFailurePolicies(Endpoint endpoint)
+    {
+        var globalPolicies = _options.SendingFailure;
+        var endpointPolicies = endpoint.SendingFailure;
+
+        if (endpointPolicies != null && globalPolicies.HasAnyRules)
+        {
+            return endpointPolicies.CombineWith(globalPolicies);
+        }
+
+        if (endpointPolicies != null)
+        {
+            return endpointPolicies;
+        }
+
+        if (globalPolicies.HasAnyRules)
+        {
+            return globalPolicies;
+        }
+
+        return null;
     }
 
     private ISendingAgent buildSendingAgent(Uri uri, Action<Endpoint>? configureNewEndpoint)

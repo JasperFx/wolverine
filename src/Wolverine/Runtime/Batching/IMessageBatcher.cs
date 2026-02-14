@@ -29,14 +29,16 @@ internal class DefaultMessageBatcher<T> : IMessageBatcher
 {
     public IEnumerable<Envelope> Group(IReadOnlyList<Envelope> envelopes)
     {
-        // Group by tenant id
-        var groups = new Dictionary<string?, List<Envelope>>();
+        // Group by tenant id. Use empty string as sentinel for null TenantId
+        // since Dictionary<string, ...> does not allow null keys
+        var groups = new Dictionary<string, List<Envelope>>();
         foreach (var envelope in envelopes)
         {
-            if (!groups.TryGetValue(envelope.TenantId, out var list))
+            var key = envelope.TenantId ?? string.Empty;
+            if (!groups.TryGetValue(key, out var list))
             {
                 list = new List<Envelope>();
-                groups[envelope.TenantId] = list;
+                groups[key] = list;
             }
 
             list.Add(envelope);
@@ -55,7 +57,7 @@ internal class DefaultMessageBatcher<T> : IMessageBatcher
 
             yield return new Envelope(messages.ToArray(), group.Value)
             {
-                TenantId = group.Key
+                TenantId = group.Key.Length == 0 ? null : group.Key
             };
         }
     }

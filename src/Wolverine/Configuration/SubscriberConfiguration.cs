@@ -1,6 +1,7 @@
 using System.Text.Json;
 using JasperFx.Core.Reflection;
 using Newtonsoft.Json;
+using Wolverine.ErrorHandling;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Interop;
 using Wolverine.Runtime.Serialization;
@@ -215,6 +216,16 @@ public class SubscriberConfiguration<T, TEndpoint> : DelayedEndpointConfiguratio
     public T AddOutgoingRule(IEnvelopeRule rule)
     {
         add(e => e.OutgoingRules.Add(rule));
+        return this.As<T>();
+    }
+
+    public T ConfigureSending(Action<SendingFailurePolicies> configure)
+    {
+        add(e =>
+        {
+            e.SendingFailure ??= new SendingFailurePolicies();
+            configure(e.SendingFailure);
+        });
         return this.As<T>();
     }
 }

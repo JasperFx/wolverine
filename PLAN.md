@@ -101,9 +101,9 @@ For batch failures (via `ISenderCallback`), the exception needs to be passed thr
 
 Add `IWolverineRuntime` to the `SendingAgent` constructor (needed for `SendingEnvelopeLifecycle`).
 
-### Step 7: Create `LatchSenderContinuation`
+### Step 7: Create `PauseSendingContinuation`
 
-**New file**: `src/Wolverine/ErrorHandling/LatchSenderContinuation.cs`
+**New file**: `src/Wolverine/ErrorHandling/PauseSendingContinuation.cs`
 
 Create a continuation that latches (pauses) the sender, similar to `PauseListenerContinuation`:
 - `ExecuteAsync()` calls `agent.LatchAndDrainAsync()` on the sending agent
@@ -112,7 +112,7 @@ Create a continuation that latches (pauses) the sender, similar to `PauseListene
 ### Step 8: Add sending-specific actions to the fluent interface
 
 Extend the sending failure fluent API to include:
-- **`LatchSender()`** / **`AndLatchSender()`** — standalone and composable latch action
+- **`PauseSending()`** / **`AndPauseSending()`** — standalone and composable latch action
 - The existing actions (`Discard()`, `MoveToErrorQueue()`, `RetryNow()`, `ScheduleRetry()`, `CustomAction()`) work as-is through `IFailureActions`/`PolicyExpression` reuse
 
 ### Step 9: Integrate into `InlineSendingAgent`
@@ -156,7 +156,7 @@ When building sending agents, resolve the combined `SendingFailurePolicies` (glo
 |------|---------|
 | `src/Wolverine/ErrorHandling/SendingFailurePolicies.cs` | Policy collection + `IWithFailurePolicies` for sending |
 | `src/Wolverine/Transports/Sending/SendingEnvelopeLifecycle.cs` | `IEnvelopeLifecycle` adapter for outgoing envelopes |
-| `src/Wolverine/ErrorHandling/LatchSenderContinuation.cs` | Continuation to pause/latch a sender |
+| `src/Wolverine/ErrorHandling/PauseSendingContinuation.cs` | Continuation to pause/latch a sender |
 | `src/Wolverine/Transports/MessageTooLargeException.cs` | Exception for oversized messages |
 
 ## Files to Modify

@@ -1,3 +1,5 @@
+using Wolverine.ErrorHandling;
+
 namespace Wolverine.Configuration;
 
 public interface ISubscriberConfiguration<T> : IEndpointConfiguration<T> where T : ISubscriberConfiguration<T>
@@ -70,6 +72,14 @@ public interface ISubscriberConfiguration<T> : IEndpointConfiguration<T> where T
     /// </summary>
     /// <returns></returns>
     public T GlobalSender();
+
+    /// <summary>
+    /// Configure failure handling policies for outgoing message send failures
+    /// on this specific endpoint. These rules take priority over global policies.
+    /// </summary>
+    /// <param name="configure">Action to configure the sending failure policies</param>
+    /// <returns></returns>
+    T ConfigureSending(Action<SendingFailurePolicies> configure);
 
     public Endpoint Endpoint { get; }
 }
