@@ -17,6 +17,7 @@ public class KafkaListener : IListener, IDisposable, ISupportDeadLetterQueue
     private readonly IReceiver _receiver;
     private readonly string? _messageTypeName;
     private readonly QualityOfService _qualityOfService;
+    private readonly QualityOfService? _requestedQualityOfService;
     private readonly ILogger _logger;
 
     public KafkaListener(KafkaTopic topic, ConsumerConfig config,
@@ -27,6 +28,7 @@ public class KafkaListener : IListener, IDisposable, ISupportDeadLetterQueue
         _logger = logger;
         Address = topic.Uri;
         _consumer = consumer;
+        _logger = logger;
         var mapper = topic.EnvelopeMapper;
 
         _messageTypeName = topic.MessageType?.ToMessageTypeName();
@@ -34,9 +36,12 @@ public class KafkaListener : IListener, IDisposable, ISupportDeadLetterQueue
         Config = config;
         _receiver = receiver;
 
-        _qualityOfService = Config.EnableAutoCommit.HasValue && !Config.EnableAutoCommit.Value
+        _requestedQualityOfService = topic.QualityOfService;
+
+        _qualityOfService = _requestedQualityOfService
+            ?? (Config.EnableAutoCommit.HasValue && !Config.EnableAutoCommit.Value
             ? QualityOfService.AtMostOnce
-            : QualityOfService.AtLeastOnce;
+                : QualityOfService.AtLeastOnce);
 
         _runner = Task.Run(async () =>
         {
@@ -67,10 +72,11 @@ public class KafkaListener : IListener, IDisposable, ISupportDeadLetterQueue
 
                         var envelope = mapper.CreateEnvelope(result.Topic, message);
                         envelope.Offset = result.Offset.Value;
+                        envelope.Partition = result.Partition.Value;
                         envelope.MessageType ??= _messageTypeName;
-                        envelope.GroupId = config.GroupId;
+                        envelope.GroupId = Config.GroupId;
 
-                        await receiver.ReceivedAsync(this, envelope);
+                        await _receiver.ReceivedAsync(this, envelope);
                     }
                     catch (OperationCanceledException)
                     {
@@ -87,8 +93,8 @@ public class KafkaListener : IListener, IDisposable, ISupportDeadLetterQueue
                         catch (Exception)
                         {
                         }
-                        
-                        logger.LogError(e, "Error trying to map Kafka message to a Wolverine envelope");
+
+                        _logger.LogError(e, "Error trying to map Kafka message to a Wolverine envelope");
                     }
                 }
             }
@@ -109,17 +115,29 @@ public class KafkaListener : IListener, IDisposable, ISupportDeadLetterQueue
 
     public ValueTask CompleteAsync(Envelope envelope)
     {
+        if (_requestedQualityOfService == QualityOfService.AtLeastOnce)
+        {
+            var tpo = new TopicPartitionOffset(
+                envelope.TopicName,
+                new Partition(envelope.Partition),
+                new Offset(envelope.Offset + 1));
+
+            _consumer.StoreOffset(tpo);
+
+            // If auto-commit is disabled, we need to manually commit after storing
+            if (Config.EnableAutoCommit.HasValue && !Config.EnableAutoCommit.Value)
+            {
+                TryCommit();
+            }
+
+            return ValueTask.CompletedTask;
+        }
+
         if (_qualityOfService == QualityOfService.AtLeastOnce)
         {
-            try
-            {
-                _consumer.Commit();
-            }
-            catch (Exception)
-            {
-
-            }
+            TryCommit();
         }
+
         return ValueTask.CompletedTask;
     }
 
@@ -191,5 +209,16 @@ public class KafkaListener : IListener, IDisposable, ISupportDeadLetterQueue
     {
         _consumer.SafeDispose();
         _runner.Dispose();
+    }
+
+    private void TryCommit()
+    {
+        try
+        {
+            _consumer.Commit();
+        }
+        catch (KafkaException)
+        {
+        }
     }
 }

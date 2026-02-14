@@ -51,6 +51,13 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
     public ProducerConfig? ProducerConfig { get; internal set; }
 
     /// <summary>
+    /// Optional explicit quality of service override for this topic.
+    /// When set to <see cref="Kafka.QualityOfService.AtLeastOnce"/>, offsets are stored only after
+    /// message processing completes and EnableAutoOffsetStore is automatically set to false.
+    /// When null, the quality of service is derived from the consumer configuration.
+    /// </summary>
+    public QualityOfService? QualityOfService { get; internal set; }
+    
     /// Enable native dead letter queue support for this endpoint.
     /// When enabled, failed messages will be produced to the Kafka DLQ topic
     /// instead of being moved to database-backed dead letter storage.
@@ -73,7 +80,14 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
             ConsumerConfig.BootstrapServers = Parent.ConsumerConfig.BootstrapServers;
         }
 
-        return ConsumerConfig ?? Parent.ConsumerConfig;
+        var config = ConsumerConfig ?? Parent.ConsumerConfig;
+
+        if (QualityOfService == Kafka.QualityOfService.AtLeastOnce)
+        {
+            config = new ConsumerConfig(config) { EnableAutoOffsetStore = false };
+        }
+
+        return config;
     }
 
     /// <summary>
@@ -102,7 +116,7 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
     protected override ISender CreateSender(IWolverineRuntime runtime)
     {
         EnvelopeMapper ??= BuildMapper(runtime);
-        
+
         return Mode == EndpointMode.Inline
             ? new InlineKafkaSender(this)
             : new BatchedSender(this, new KafkaSenderProtocol(this), runtime.Cancellation,
@@ -183,12 +197,14 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
 public enum QualityOfService
 {
     /// <summary>
-    /// "At least once" delivery guarantee by auto-ack'ing incoming messages
+    /// "At least once" delivery guarantee. Offsets are stored only after message processing
+    /// completes, ensuring messages are redelivered if the consumer crashes during processing.
     /// </summary>
     AtLeastOnce,
 
     /// <summary>
-    /// "At most once" delivery guarantee by trying to ack received messages before processing
+    /// "At most once" delivery guarantee. Offsets are committed before processing,
+    /// so messages may be lost if the consumer crashes during processing.
     /// </summary>
     AtMostOnce
 }

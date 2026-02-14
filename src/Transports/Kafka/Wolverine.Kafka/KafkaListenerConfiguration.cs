@@ -15,7 +15,7 @@ public class KafkaListenerConfiguration : InteroperableListenerConfiguration<Kaf
     public KafkaListenerConfiguration(Func<KafkaTopic> source) : base(source)
     {
     }
-    
+
     /// <summary>
     /// Fine tune the TopicSpecification for this Kafka Topic if it is being created by Wolverine
     /// </summary>
@@ -51,7 +51,7 @@ public class KafkaListenerConfiguration : InteroperableListenerConfiguration<Kaf
         add(topic => topic.CreateTopicFunc = creation);
         return this;
     }
-    
+
     /// <summary>
     /// Configure this endpoint to receive messages of type T from
     /// JSON message bodies. This option maybe be necessary to receive
@@ -78,7 +78,7 @@ public class KafkaListenerConfiguration : InteroperableListenerConfiguration<Kaf
         DefaultIncomingMessage(messageType);
         return UseInterop((e, _) => new JsonOnlyMapper(e, options ?? new()));
     }
-    
+
     /// <summary>
     /// Enable native dead letter queue support for this Kafka listener.
     /// Failed messages will be produced to the DLQ Kafka topic
@@ -119,6 +119,26 @@ public class KafkaListenerConfiguration : InteroperableListenerConfiguration<Kaf
             configuration(config);
 
             topic.ConsumerConfig = config;
+        });
+        return this;
+    }
+
+    /// <summary>
+    /// Enable "at least once" delivery semantics for this topic. When enabled,
+    /// Kafka offsets are stored only after message processing completes (for Inline mode)
+    /// or after the message is persisted to the database inbox (for Durable mode).
+    /// 
+    /// This setting automatically sets EnableAutoOffsetStore=false on the consumer config.
+    /// For best results, use with ProcessInline() or UseDurableInbox().
+    /// 
+    /// Note: BufferedInMemory mode does NOT provide at-least-once guarantees even with this setting.
+    /// </summary>
+    /// <returns></returns>
+    public KafkaListenerConfiguration EnableAtLeastOnceDelivery()
+    {
+        add(topic =>
+        {
+            topic.QualityOfService = Kafka.QualityOfService.AtLeastOnce;
         });
         return this;
     }
