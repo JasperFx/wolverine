@@ -11,7 +11,7 @@ Without sending failure policies, all send failures follow the same path: retry 
 * **Oversized messages**: If a message is too large for the transport's batch size, retrying will never succeed. You want to discard or dead-letter it immediately.
 * **Permanent failures**: Some exceptions indicate the message can never be delivered (e.g., invalid routing, serialization issues). Retrying wastes resources.
 * **Custom notification**: You may want to publish a compensating event when a send fails.
-* **Selective circuit breaking**: You may want to latch (pause) the sender only for certain exception types.
+* **Selective pausing**: You may want to pause sending only for certain exception types, then automatically resume after a cooldown period.
 
 ## Configuring Global Sending Failure Policies
 
@@ -75,7 +75,7 @@ Sending failure policies support the same actions as handler error handling:
 | Schedule Retry       | Schedule the message to be retried at a certain time                                             |
 | Discard              | Log and discard the message without further send attempts                                        |
 | Move to Error Queue  | Move the message to dead letter storage                                                          |
-| Latch Sender         | Pause the sending agent (similar to pausing a listener)                                          |
+| Pause Sending        | Pause the sending agent for a duration, then automatically resume                                |
 | Custom Action        | Execute arbitrary logic, including publishing compensating messages                               |
 
 ## Oversized Message Detection
@@ -95,25 +95,27 @@ using var host = await Host.CreateDefaultBuilder()
 
 This is currently supported for the Azure Service Bus transport, and will be extended to other transports over time.
 
-## Latching the Sender
+## Pausing the Sender
 
-Similar to pausing a listener, you can latch (pause) the sending agent when a certain failure condition is detected:
+Similar to pausing a listener, you can pause the sending agent when a certain failure condition is detected. Unlike a permanent latch, pausing automatically resumes sending after the specified duration:
 
 ```csharp
 using var host = await Host.CreateDefaultBuilder()
     .UseWolverine(opts =>
     {
-        // On a catastrophic broker failure, latch the sender
+        // On a catastrophic broker failure, pause sending for 30 seconds
         opts.SendingFailure
             .OnException<BrokerUnreachableException>()
-            .LatchSender();
+            .PauseSending(30.Seconds());
 
-        // Or combine with another action
+        // Or combine with another action: dead letter the message, then pause
         opts.SendingFailure
             .OnException<BrokerUnreachableException>()
-            .MoveToErrorQueue().AndLatchSender();
+            .MoveToErrorQueue().AndPauseSending(1.Minutes());
     }).StartAsync();
 ```
+
+When paused, the sending agent drains any in-flight messages and stops accepting new ones. After the specified duration elapses, Wolverine automatically attempts to resume the sender. If the resume attempt fails (e.g., the broker is still unreachable), Wolverine falls back to its built-in circuit watcher which will keep retrying periodically.
 
 ## Custom Actions
 

@@ -83,10 +83,11 @@ public interface IAdditionalActions
     IAdditionalActions AndPauseProcessing(TimeSpan pauseTime);
 
     /// <summary>
-    /// Latch (pause) the sending agent in addition to the primary action.
+    /// Pause the sending agent for the specified duration, then automatically resume.
     /// Only applicable when used with sending failure policies.
     /// </summary>
-    IAdditionalActions AndLatchSender();
+    /// <param name="pauseTime">How long to pause sending before automatically resuming</param>
+    IAdditionalActions AndPauseSending(TimeSpan pauseTime);
 
 
     /// <summary>
@@ -157,12 +158,12 @@ internal class FailureActions : IAdditionalActions, IFailureActions
     }
 
     /// <summary>
-    /// Latch (pause) the sending agent in addition to the primary action.
+    /// Pause the sending agent for the specified duration, then automatically resume.
     /// Only applicable when used with sending failure policies.
     /// </summary>
-    public IAdditionalActions AndLatchSender()
+    public IAdditionalActions AndPauseSending(TimeSpan pauseTime)
     {
-        return And(LatchSenderContinuation.Instance);
+        return And(new PauseSendingContinuation(pauseTime));
     }
 
     /// <summary>
@@ -274,9 +275,9 @@ internal class FailureActions : IAdditionalActions, IFailureActions
         return this;
     }
 
-    public IAdditionalActions LatchSender()
+    public IAdditionalActions PauseSending(TimeSpan pauseTime)
     {
-        var slot = _rule.AddSlot(LatchSenderContinuation.Instance);
+        var slot = _rule.AddSlot(new PauseSendingContinuation(pauseTime));
         _slots.Add(slot);
         return this;
     }
@@ -520,9 +521,11 @@ public interface IFailureActions
         string description, InvokeResult? invokeUsage = null);
 
     /// <summary>
-    /// Latch (pause) the sending agent. Only applicable when used with sending failure policies.
+    /// Pause the sending agent for the specified duration, then automatically resume.
+    /// Only applicable when used with sending failure policies.
     /// </summary>
-    IAdditionalActions LatchSender();
+    /// <param name="pauseTime">How long to pause sending before automatically resuming</param>
+    IAdditionalActions PauseSending(TimeSpan pauseTime);
 }
 
 public class PolicyExpression : IFailureActions
@@ -580,11 +583,12 @@ public class PolicyExpression : IFailureActions
     }
 
     /// <summary>
-    /// Latch (pause) the sending agent. Only applicable when used with sending failure policies.
+    /// Pause the sending agent for the specified duration, then automatically resume.
+    /// Only applicable when used with sending failure policies.
     /// </summary>
-    public IAdditionalActions LatchSender()
+    public IAdditionalActions PauseSending(TimeSpan pauseTime)
     {
-        return new FailureActions(_match, _parent).LatchSender();
+        return new FailureActions(_match, _parent).PauseSending(pauseTime);
     }
 
     /// <summary>

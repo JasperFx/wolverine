@@ -205,6 +205,34 @@ public abstract class SendingAgent : ISendingAgent, ISenderCallback, ISenderCirc
         _logger.CircuitBroken(Destination);
     }
 
+    /// <summary>
+    /// Pause sending for the specified duration, then automatically resume.
+    /// </summary>
+    public async Task PauseAsync(TimeSpan pauseTime)
+    {
+        await LatchAndDrainAsync();
+
+        _logger.LogInformation("Pausing sending to {Destination} for {PauseTime}", Destination, pauseTime);
+
+        _ = Task.Delay(pauseTime, _settings.Cancellation).ContinueWith(async _ =>
+        {
+            if (_settings.Cancellation.IsCancellationRequested) return;
+
+            try
+            {
+                _logger.LogInformation("Resuming sending to {Destination} after pause", Destination);
+                await (this as ISenderCircuit).ResumeAsync(_settings.Cancellation);
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, "Error trying to resume sending to {Destination} after pause", Destination);
+
+                // Fall back to the circuit watcher to keep trying
+                _circuitWatcher ??= new CircuitWatcher(this, _settings.Cancellation);
+            }
+        }, TaskScheduler.Default);
+    }
+
     protected virtual Task drainOtherAsync()
     {
         return Task.CompletedTask;
