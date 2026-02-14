@@ -9,15 +9,8 @@ public class MessageSucceededContinuation : IContinuation
 {
     public static readonly MessageSucceededContinuation Instance = new();
 
-    private IMessageTracker? _tracker;
-
     private MessageSucceededContinuation()
     {
-    }
-
-    public MessageSucceededContinuation(IMessageTracker tracker)
-    {
-        _tracker = tracker;
     }
 
     public async ValueTask ExecuteAsync(IEnvelopeLifecycle lifecycle,
@@ -30,7 +23,7 @@ public class MessageSucceededContinuation : IContinuation
 
             await lifecycle.CompleteAsync();
 
-            (_tracker ?? runtime.MessageTracking).MessageSucceeded(lifecycle.Envelope!);
+            runtime.MessageTracking.MessageSucceeded(lifecycle.Envelope!);
         }
         catch (Exception ex)
         {

@@ -46,7 +46,7 @@ internal class InvalidTenantSender : ISender
     }
 }
 
-public class TenantedSender : ISender, IAsyncDisposable
+public class TenantedSender : ISender, ISenderRequiresCallback, IAsyncDisposable
 {
     public TenantedIdBehavior TenantedIdBehavior { get; }
     private readonly ISender _defaultSender;
@@ -70,15 +70,31 @@ public class TenantedSender : ISender, IAsyncDisposable
         _senders = _senders.AddOrUpdate(tenantId, sender);
     }
 
+    public void RegisterCallback(ISenderCallback senderCallback)
+    {
+        if (_defaultSender is ISenderRequiresCallback defaultCallback)
+        {
+            defaultCallback.RegisterCallback(senderCallback);
+        }
+
+        foreach (var entry in _senders.Enumerate())
+        {
+            if (entry.Value is ISenderRequiresCallback tenantCallback)
+            {
+                tenantCallback.RegisterCallback(senderCallback);
+            }
+        }
+    }
+
     public bool SupportsNativeScheduledSend => _defaultSender.SupportsNativeScheduledSend;
     public Uri Destination { get; }
     public async Task<bool> PingAsync()
     {
         var pinged = true;
         pinged = pinged && await _defaultSender.PingAsync();
-        foreach (var sender in _senders.Enumerate().Select(x => x.Value))
+        foreach (var entry in _senders.Enumerate())
         {
-            pinged = pinged && await sender.PingAsync();
+            pinged = pinged && await entry.Value.PingAsync();
         }
 
         return pinged;
@@ -125,6 +141,22 @@ public class TenantedSender : ISender, IAsyncDisposable
         return _defaultSender;
     }
 
+    public void Dispose()
+    {
+        if (_defaultSender is ISenderRequiresCallback defaultDisposable)
+        {
+            defaultDisposable.Dispose();
+        }
+
+        foreach (var entry in _senders.Enumerate())
+        {
+            if (entry.Value is ISenderRequiresCallback tenantDisposable)
+            {
+                tenantDisposable.Dispose();
+            }
+        }
+    }
+
     public async ValueTask DisposeAsync()
     {
         if (_defaultSender is IAsyncDisposable ad)
@@ -132,9 +164,12 @@ public class TenantedSender : ISender, IAsyncDisposable
             await ad.DisposeAsync();
         }
 
-        foreach (var sender in _senders.Enumerate().Select(x => x.Value).OfType<IAsyncDisposable>())
+        foreach (var entry in _senders.Enumerate())
         {
-            await sender.DisposeAsync();
+            if (entry.Value is IAsyncDisposable ad2)
+            {
+                await ad2.DisposeAsync();
+            }
         }
     }
 }

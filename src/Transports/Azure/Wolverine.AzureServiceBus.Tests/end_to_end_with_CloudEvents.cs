@@ -48,9 +48,10 @@ public class end_to_end_with_CloudEvents : IAsyncLifetime
             }).StartAsync();
     }
 
-    public Task DisposeAsync()
+    public async Task DisposeAsync()
     {
-        return _host.StopAsync();
+        await _host.StopAsync();
+        await AzureServiceBusTesting.DeleteAllEmulatorObjectsAsync();
     }
 
     [Fact]

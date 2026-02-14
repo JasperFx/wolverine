@@ -32,9 +32,18 @@ public class FailureSlot
 
     public IContinuation Build(Exception ex, Envelope envelope)
     {
-        return _sources.Count == 1
-            ? _sources.Single().Build(ex, envelope)
-            : new CompositeContinuation(_sources.Select(x => x.Build(ex, envelope)).ToArray());
+        if (_sources.Count == 1)
+        {
+            return _sources[0].Build(ex, envelope);
+        }
+
+        var continuations = new IContinuation[_sources.Count];
+        for (var i = 0; i < _sources.Count; i++)
+        {
+            continuations[i] = _sources[i].Build(ex, envelope);
+        }
+
+        return new CompositeContinuation(continuations);
     }
 
     public string Describe()

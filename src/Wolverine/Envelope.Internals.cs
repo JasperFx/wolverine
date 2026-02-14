@@ -28,7 +28,8 @@ public partial class Envelope
     private bool _enqueued;
 
     private List<KeyValuePair<string, object?>>? _metricHeaders;
-    private Stopwatch? _timer;
+    private long _startTimestamp;
+    private long _elapsedMs;
 
     internal Envelope(object message, ISendingAgent agent)
     {
@@ -113,26 +114,25 @@ public partial class Envelope
 
     internal void StartTiming()
     {
-        _timer = new Stopwatch();
-        _timer.Start();
+        _startTimestamp = Stopwatch.GetTimestamp();
     }
 
     internal long StopTiming()
     {
-        if (_timer == null)
+        if (_startTimestamp == 0)
         {
             return 0;
         }
 
-        _timer.Stop();
-        return _timer.ElapsedMilliseconds;
+        _elapsedMs = (long)Stopwatch.GetElapsedTime(_startTimestamp).TotalMilliseconds;
+        return _elapsedMs;
     }
 
     /// <summary>
     /// How long did the current execution take?
     /// </summary>
     [JsonIgnore]
-    internal long ExecutionTime => _timer.ElapsedMilliseconds;
+    internal long ExecutionTime => _elapsedMs;
 
     /// <summary>
     /// </summary>
@@ -202,13 +202,11 @@ public partial class Envelope
         var child = new Envelope
         {
             Message = message,
-            CorrelationId = Id.ToString(),
+            CorrelationId = CorrelationId,
             ConversationId = Id,
             SagaId = SagaId,
             TenantId = TenantId
         };
-        child.CorrelationId = CorrelationId;
-        child.ConversationId = Id;
 
         if (message.GetType().ToMessageTypeName() == ReplyRequested)
         {
@@ -339,7 +337,6 @@ public partial class Envelope
         activity.SetTag(WolverineTracing.MessageType, MessageType); // Wolverine specific
         activity.MaybeSetTag(WolverineTracing.PayloadSizeBytes, MessagePayloadSize);
         activity.MaybeSetTag(MetricsConstants.TenantIdKey, TenantId);
-        activity.MaybeSetTag(WolverineTracing.MessagingConversationId, ConversationId);
     }
 
     internal ValueTask PersistAsync(IEnvelopeTransaction transaction)

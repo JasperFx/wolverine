@@ -26,4 +26,9 @@ public class leader_election : LeadershipElectionCompliance
         opts.UseAzureServiceBusTesting().EnableWolverineControlQueues();
         opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, "registry");
     }
+
+    protected override Task AfterDisposeAsync()
+    {
+        return AzureServiceBusTesting.DeleteAllEmulatorObjectsAsync();
+    }
 }

@@ -362,8 +362,19 @@ class Build : NukeBuild
     Target DockerUp => _ => _
         .Executes(() =>
         {
+            bool IsToolAvailable(string toolName)
+            {
+                try
+                { ToolPathResolver.GetPathExecutable(toolName);
+                  return true; }
+                catch (ArgumentException)
+                { return false; }
+            }
+
+            string toolName = new List<string> { "docker", "podman" }
+                                  .FirstOrDefault(IsToolAvailable) ?? "docker";
             ProcessTasks
-                .StartProcess("docker", "compose up -d", logOutput: false)
+                .StartProcess(toolName, "compose up -d", logOutput: false)
                 .AssertWaitForExit()
                 .AssertZeroExitCode();
             WaitForDatabaseToBeReady();

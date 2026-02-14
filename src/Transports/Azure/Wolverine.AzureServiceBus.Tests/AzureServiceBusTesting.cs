@@ -1,25 +1,40 @@
-using JasperFx.Core;
-using Shouldly;
+using Azure.Messaging.ServiceBus.Administration;
+using IntegrationTests;
 
 namespace Wolverine.AzureServiceBus.Tests;
 
 public static class AzureServiceBusTesting
 {
+    private static bool _cleaned;
+
     public static AzureServiceBusConfiguration UseAzureServiceBusTesting(this WolverineOptions options)
     {
-        var connectionString = GetConnectionString();
+        if (!_cleaned)
+        {
+            _cleaned = true;
+            DeleteAllEmulatorObjectsAsync().GetAwaiter().GetResult();
+        }
 
-        return options.UseAzureServiceBus(connectionString).AutoProvision();
+        var config = options.UseAzureServiceBus(Servers.AzureServiceBusConnectionString);
+
+        var transport = options.Transports.GetOrCreate<AzureServiceBusTransport>();
+        transport.ManagementConnectionString = Servers.AzureServiceBusManagementConnectionString;
+
+        return config.AutoProvision();
     }
 
-    public static string GetConnectionString()
+    public static async Task DeleteAllEmulatorObjectsAsync()
     {
-        var path = "../../../connection.txt".ToFullPath();
-        File.Exists(path)
-            .ShouldBeTrue(
-                $"There needs to be a text file at '{path}' with the connection string to Azure Service Bus in order for these tests to be executed");
+        var client = new ServiceBusAdministrationClient(Servers.AzureServiceBusManagementConnectionString);
 
-        var connectionString = File.ReadAllText(path).Trim();
-        return connectionString;
+        await foreach (var topic in client.GetTopicsAsync())
+        {
+            await client.DeleteTopicAsync(topic.Name);
+        }
+
+        await foreach (var queue in client.GetQueuesAsync())
+        {
+            await client.DeleteQueueAsync(queue.Name);
+        }
     }
 }

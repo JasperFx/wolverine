@@ -24,7 +24,7 @@ internal class BufferedSendingAgent : SendingAgent
         if (_queued.Count > Endpoint.MaximumEnvelopeRetryStorage)
         {
             var toRemove = _queued.Count - Endpoint.MaximumEnvelopeRetryStorage;
-            _queued = _queued.Skip(toRemove).ToList();
+            _queued.RemoveRange(0, toRemove);
         }
 
         return Task.CompletedTask;
@@ -32,10 +32,17 @@ internal class BufferedSendingAgent : SendingAgent
 
     protected override async Task afterRestartingAsync(ISender sender)
     {
-        var toRetry = _queued.Where(x => !x.IsExpired()).ToArray();
-        _queued.Clear();
+        var queued = _queued;
+        _queued = new();
 
-        foreach (var envelope in toRetry) await _sending.PostAsync(envelope);
+        for (var i = 0; i < queued.Count; i++)
+        {
+            var envelope = queued[i];
+            if (!envelope.IsExpired())
+            {
+                await _sending.PostAsync(envelope);
+            }
+        }
     }
 
     public override Task MarkSuccessfulAsync(OutgoingMessageBatch outgoing)

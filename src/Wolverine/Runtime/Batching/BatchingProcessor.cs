@@ -41,7 +41,7 @@ public class BatchingProcessor<T> : MessageHandler, IAsyncDisposable
 
     private async Task processEnvelopes(Envelope[] envelopes, CancellationToken _)
     {
-        foreach (var grouped in Batcher.Group(envelopes).ToArray())
+        foreach (var grouped in Batcher.Group(envelopes))
         {
             grouped.Destination = Queue.Uri;
             grouped.MessageType = Chain!.TypeName;

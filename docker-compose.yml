@@ -3,6 +3,8 @@ version: '3'
 networks:
   app-tier:
     driver: bridge
+  sb-emulator:
+  sb-emulator-2:
 
 services:
   postgresql:
@@ -119,3 +121,53 @@ services:
       - "APP_USER_PASSWORD=wolverine"
     volumes:
       - ./docker/oracle:/container-entrypoint-initdb.d
+
+  asb-sql:
+    image: "mcr.microsoft.com/azure-sql-edge"
+    environment:
+      - "ACCEPT_EULA=Y"
+      - "MSSQL_SA_PASSWORD=Strong_Passw0rd#2025"
+    networks:
+      sb-emulator:
+
+  asb-emulator:
+    image: "mcr.microsoft.com/azure-messaging/servicebus-emulator:latest"
+    volumes:
+      - ./docker/asb/Config.json:/ServiceBus_Emulator/ConfigFiles/Config.json
+    ports:
+      - "5673:5672"
+      - "5300:5300"
+    environment:
+      SQL_SERVER: asb-sql
+      MSSQL_SA_PASSWORD: "Strong_Passw0rd#2025"
+      ACCEPT_EULA: "Y"
+      EMULATOR_HTTP_PORT: 5300
+    depends_on:
+      - asb-sql
+    networks:
+      sb-emulator:
+
+  asb-sql-2:
+    image: "mcr.microsoft.com/azure-sql-edge"
+    environment:
+      - "ACCEPT_EULA=Y"
+      - "MSSQL_SA_PASSWORD=Strong_Passw0rd#2025"
+    networks:
+      sb-emulator-2:
+
+  asb-emulator-2:
+    image: "mcr.microsoft.com/azure-messaging/servicebus-emulator:latest"
+    volumes:
+      - ./docker/asb/Config.json:/ServiceBus_Emulator/ConfigFiles/Config.json
+    ports:
+      - "5674:5672"
+      - "5301:5300"
+    environment:
+      SQL_SERVER: asb-sql-2
+      MSSQL_SA_PASSWORD: "Strong_Passw0rd#2025"
+      ACCEPT_EULA: "Y"
+      EMULATOR_HTTP_PORT: 5300
+    depends_on:
+      - asb-sql-2
+    networks:
+      sb-emulator-2:

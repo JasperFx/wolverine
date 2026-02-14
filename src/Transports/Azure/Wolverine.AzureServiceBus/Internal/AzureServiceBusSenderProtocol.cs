@@ -28,7 +28,7 @@ public class AzureServiceBusSenderProtocol : ISenderProtocolWithNativeScheduling
     {
         await _endpoint.InitializeAsync(_logger);
 
-        var messages = new List<ServiceBusMessage>(batch.Messages.Count);
+        var messages = new List<(Envelope Envelope, ServiceBusMessage Message)>(batch.Messages.Count);
 
         foreach (var envelope in batch.Messages)
         {
@@ -36,7 +36,7 @@ public class AzureServiceBusSenderProtocol : ISenderProtocolWithNativeScheduling
             {
                 var message = new ServiceBusMessage();
                 _mapper.MapEnvelopeToOutgoing(envelope, message);
-                messages.Add(message);
+                messages.Add((envelope, message));
             }
             catch (Exception e)
             {
@@ -52,13 +52,16 @@ public class AzureServiceBusSenderProtocol : ISenderProtocolWithNativeScheduling
             await sendBatches(callback, messages, batch);
     }
 
-    private async Task sendBatches(ISenderCallback callback, List<ServiceBusMessage> messages, OutgoingMessageBatch batch)
+    private async Task sendBatches(ISenderCallback callback, List<(Envelope Envelope, ServiceBusMessage Message)> messages, OutgoingMessageBatch batch)
     {
+        var sentEnvelopes = new List<Envelope>();
+        var pendingEnvelopes = new List<Envelope>();
+
         try
         {
             var serviceBusMessageBatch = await _sender.CreateMessageBatchAsync();
 
-            foreach (var message in messages)
+            foreach (var (envelope, message) in messages)
             {
                 if (!serviceBusMessageBatch.TryAddMessage(message))
                 {
@@ -66,41 +69,60 @@ public class AzureServiceBusSenderProtocol : ISenderProtocolWithNativeScheduling
 
                     // Send the currently full batch
                     await _sender.SendMessagesAsync(serviceBusMessageBatch, _runtime.Cancellation);
+
+                    // All pending envelopes for this sub-batch are now sent
+                    sentEnvelopes.AddRange(pendingEnvelopes);
+                    pendingEnvelopes.Clear();
+
                     serviceBusMessageBatch.Dispose();
 
                     // Create a new batch and add the message to it
                     serviceBusMessageBatch = await _sender.CreateMessageBatchAsync();
                     serviceBusMessageBatch.TryAddMessage(message);
                 }
+
+                pendingEnvelopes.Add(envelope);
             }
 
             // Send the final batch
             await _sender.SendMessagesAsync(serviceBusMessageBatch, _runtime.Cancellation);
+            sentEnvelopes.AddRange(pendingEnvelopes);
             serviceBusMessageBatch.Dispose();
 
             await callback.MarkSuccessfulAsync(batch);
         }
         catch (Exception e)
         {
-            await callback.MarkProcessingFailureAsync(batch, e);
+            if (sentEnvelopes.Count > 0)
+            {
+                await callback.MarkSuccessfulAsync(new OutgoingMessageBatch(batch.Destination, sentEnvelopes));
+            }
+
+            var failedEnvelopes = batch.Messages.Where(env => !sentEnvelopes.Contains(env)).ToList();
+            await callback.MarkProcessingFailureAsync(new OutgoingMessageBatch(batch.Destination, failedEnvelopes), e);
         }
     }
 
-    private async Task sendPartitionedBatches(ISenderCallback callback, List<ServiceBusMessage> messages, OutgoingMessageBatch batch)
+    private async Task sendPartitionedBatches(ISenderCallback callback, List<(Envelope Envelope, ServiceBusMessage Message)> messages, OutgoingMessageBatch batch)
     {
-        try
+        var sentEnvelopes = new List<Envelope>();
+        Exception? lastException = null;
+
+        var groupedMessages = messages
+            .GroupBy(x => x.Message.SessionId)
+            .ToList();
+
+        foreach (var group in groupedMessages)
         {
-            var serviceBusMessageBatch = await _sender.CreateMessageBatchAsync();
+            var groupEnvelopes = group.Select(x => x.Envelope).ToList();
 
-            var groupedMessages = messages
-                .GroupBy(x => x.SessionId)
-                .ToDictionary(x => x.Key, x => x.ToList());
-
-            foreach (var (sessionId, messageGroup) in groupedMessages)
+            try
             {
-                _logger.LogDebug("Processing batch with session id '{SessionId}'", sessionId);
+                var serviceBusMessageBatch = await _sender.CreateMessageBatchAsync();
 
-                foreach (var message in messageGroup)
+                _logger.LogDebug("Processing batch with session id '{SessionId}'", group.Key);
+
+                foreach (var (_, message) in group)
                 {
                     if (!serviceBusMessageBatch.TryAddMessage(message))
                     {
@@ -116,22 +138,35 @@ public class AzureServiceBusSenderProtocol : ISenderProtocolWithNativeScheduling
                     }
                 }
 
-                await _sender.SendMessagesAsync(serviceBusMessageBatch, _runtime.Cancellation);
-                serviceBusMessageBatch = await _sender.CreateMessageBatchAsync();
-            }
+                // Send the final batch for this session group
+                if (serviceBusMessageBatch.Count > 0)
+                {
+                    await _sender.SendMessagesAsync(serviceBusMessageBatch, _runtime.Cancellation);
+                }
+                serviceBusMessageBatch.Dispose();
 
-            // Send the final batch
-            if (serviceBusMessageBatch.Count > 0)
+                sentEnvelopes.AddRange(groupEnvelopes);
+            }
+            catch (Exception e)
             {
-                await _sender.SendMessagesAsync(serviceBusMessageBatch, _runtime.Cancellation);
+                lastException = e;
+                break;
             }
-            serviceBusMessageBatch.Dispose();
-
-            await callback.MarkSuccessfulAsync(batch);
         }
-        catch (Exception e)
+
+        if (lastException != null)
         {
-            await callback.MarkProcessingFailureAsync(batch, e);
+            if (sentEnvelopes.Count > 0)
+            {
+                await callback.MarkSuccessfulAsync(new OutgoingMessageBatch(batch.Destination, sentEnvelopes));
+            }
+
+            var failedEnvelopes = batch.Messages.Where(env => !sentEnvelopes.Contains(env)).ToList();
+            await callback.MarkProcessingFailureAsync(new OutgoingMessageBatch(batch.Destination, failedEnvelopes), lastException);
+        }
+        else
+        {
+            await callback.MarkSuccessfulAsync(batch);
         }
     }
 }

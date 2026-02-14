@@ -50,11 +50,17 @@ public partial class Envelope : IHasTenantId
         Message = message ?? throw new ArgumentNullException(nameof(message));
         MessageType = message?.GetType().ToMessageTypeName();
     }
+    
+    private Dictionary<string, string?>? _headers;
 
     /// <summary>
     ///     Optional metadata about this message
     /// </summary>
-    public Dictionary<string, string?> Headers { get; internal set; } = new();
+    public Dictionary<string, string?> Headers
+    {
+        get => _headers ??= new();
+        internal set => _headers = value;
+    }
 
     #region sample_envelope_deliver_by_property
 
@@ -295,7 +301,9 @@ public partial class Envelope : IHasTenantId
     /// <summary>
     ///     Specifies the accepted content types for the requested reply
     /// </summary>
-    public string?[] AcceptedContentTypes { get; set; } = ["application/json"];
+    internal static readonly string?[] DefaultAcceptedContentTypes = ["application/json"];
+
+    public string?[] AcceptedContentTypes { get; set; } = DefaultAcceptedContentTypes;
 
     /// <summary>
     ///     Specific message id for this envelope

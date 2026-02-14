@@ -15,6 +15,11 @@ internal class OrMatch : IExceptionMatch
 
     public bool Matches(Exception ex)
     {
-        return Inners.Any(x => x.Matches(ex));
+        foreach (var inner in Inners)
+        {
+            if (inner.Matches(ex)) return true;
+        }
+
+        return false;
     }
 }

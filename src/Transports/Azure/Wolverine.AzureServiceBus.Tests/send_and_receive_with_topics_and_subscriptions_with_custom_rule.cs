@@ -36,6 +36,11 @@ public class TopicsWithCustomRuleComplianceFixture()
     {
         return Task.CompletedTask;
     }
+
+    protected override Task AfterDisposeAsync()
+    {
+        return AzureServiceBusTesting.DeleteAllEmulatorObjectsAsync();
+    }
 }
 
 public class TopicAndSubscriptionWithCustomRuleSendingAndReceivingCompliance : TransportCompliance<TopicsWithCustomRuleComplianceFixture>
