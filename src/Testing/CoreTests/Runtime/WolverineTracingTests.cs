@@ -61,7 +61,7 @@ public class when_creating_an_execution_activity
     public void should_set_the_otel_conversation_id_to_correlation_id()
     {
         theActivity.GetTagItem(WolverineTracing.MessagingConversationId)
-            .ShouldBe(theEnvelope.ConversationId);
+            .ShouldBe(theEnvelope.CorrelationId);
     }
 
     [Fact]
@@ -103,6 +103,6 @@ public class when_creating_an_execution_activity
     public void trace_the_conversation_id()
     {
         theActivity.GetTagItem(WolverineTracing.MessagingConversationId)
-            .ShouldBe(theEnvelope.ConversationId);
+            .ShouldBe(theEnvelope.CorrelationId);
     }
 }
