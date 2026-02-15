@@ -228,3 +228,8 @@ builder.UseWolverine(opts =>
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/channel_configuration.cs#L13-L31' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_rabbit_mq_channel_creation' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Compatibility Note
+
+::: info
+Wolverine with the `WolverineFX.RabbitMQ` transport has also been verified to work against [LavinMQ](https://lavinmq.com/), a modern RabbitMQ-protocol compatible message broker, using the RabbitMQ transport with 100% protocol compatibility when configured through the standard RabbitMQ integration shown above.
+:::
