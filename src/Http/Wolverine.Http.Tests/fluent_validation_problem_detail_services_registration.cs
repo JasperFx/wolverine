@@ -1,12 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using Wolverine.FluentValidation;
 using Wolverine.Http.FluentValidation;
-using Microsoft.Extensions.Hosting;
 using Shouldly;
-using Wolverine.FluentValidation.Internals;
-using Wolverine.Http.FluentValidation.Internals;
-using Wolverine.Runtime;
 
 namespace Wolverine.Http.Tests;
 

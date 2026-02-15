@@ -6,7 +6,7 @@ using Wolverine.Http.FluentValidation.Internals;
 
 namespace Wolverine.Http.FluentValidation;
 
-public static class UseFluentValidationProblemDetailExtension
+public static class WolverineOptionsExtensions
 {
     public static WolverineOptions UseFluentValidationProblemDetail(this WolverineOptions options)
     {
