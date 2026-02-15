@@ -54,7 +54,11 @@ public class Program
 
         #region sample_register_custom_swashbuckle_filter
 
-        builder.Services.AddSwaggerGen(x => { x.OperationFilter<WolverineOperationFilter>(); });
+        builder.Services.AddSwaggerGen(x =>
+        {
+            x.OperationFilter<WolverineOperationFilter>();
+            x.ResolveConflictingActions(apiDescriptions => apiDescriptions.First());
+        });
 
         #endregion
 
