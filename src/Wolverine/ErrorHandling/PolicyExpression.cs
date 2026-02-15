@@ -82,6 +82,13 @@ public interface IAdditionalActions
     /// <param name="pauseTime"></param>
     IAdditionalActions AndPauseProcessing(TimeSpan pauseTime);
 
+    /// <summary>
+    /// Pause the sending agent for the specified duration, then automatically resume.
+    /// Only applicable when used with sending failure policies.
+    /// </summary>
+    /// <param name="pauseTime">How long to pause sending before automatically resuming</param>
+    IAdditionalActions AndPauseSending(TimeSpan pauseTime);
+
 
     /// <summary>
     ///     Perform a user defined action as well as the initial action
@@ -148,6 +155,15 @@ internal class FailureActions : IAdditionalActions, IFailureActions
         }
 
         return this;
+    }
+
+    /// <summary>
+    /// Pause the sending agent for the specified duration, then automatically resume.
+    /// Only applicable when used with sending failure policies.
+    /// </summary>
+    public IAdditionalActions AndPauseSending(TimeSpan pauseTime)
+    {
+        return And(new PauseSendingContinuation(pauseTime));
     }
 
     /// <summary>
@@ -255,6 +271,13 @@ internal class FailureActions : IAdditionalActions, IFailureActions
     public IAdditionalActions Discard()
     {
         var slot = _rule.AddSlot(DiscardEnvelope.Instance);
+        _slots.Add(slot);
+        return this;
+    }
+
+    public IAdditionalActions PauseSending(TimeSpan pauseTime)
+    {
+        var slot = _rule.AddSlot(new PauseSendingContinuation(pauseTime));
         _slots.Add(slot);
         return this;
     }
@@ -496,6 +519,13 @@ public interface IFailureActions
     /// <returns></returns>
     IAdditionalActions CustomActionIndefinitely(Func<IWolverineRuntime, IEnvelopeLifecycle, Exception, ValueTask> action,
         string description, InvokeResult? invokeUsage = null);
+
+    /// <summary>
+    /// Pause the sending agent for the specified duration, then automatically resume.
+    /// Only applicable when used with sending failure policies.
+    /// </summary>
+    /// <param name="pauseTime">How long to pause sending before automatically resuming</param>
+    IAdditionalActions PauseSending(TimeSpan pauseTime);
 }
 
 public class PolicyExpression : IFailureActions
@@ -550,6 +580,15 @@ public class PolicyExpression : IFailureActions
     public IAdditionalActions Discard()
     {
         return new FailureActions(_match, _parent).Discard();
+    }
+
+    /// <summary>
+    /// Pause the sending agent for the specified duration, then automatically resume.
+    /// Only applicable when used with sending failure policies.
+    /// </summary>
+    public IAdditionalActions PauseSending(TimeSpan pauseTime)
+    {
+        return new FailureActions(_match, _parent).PauseSending(pauseTime);
     }
 
     /// <summary>

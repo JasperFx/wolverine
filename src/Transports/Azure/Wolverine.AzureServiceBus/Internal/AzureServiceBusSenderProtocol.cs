@@ -65,6 +65,13 @@ public class AzureServiceBusSenderProtocol : ISenderProtocolWithNativeScheduling
             {
                 if (!serviceBusMessageBatch.TryAddMessage(message))
                 {
+                    // If the batch is empty and the message still doesn't fit, it's too large for any batch
+                    if (serviceBusMessageBatch.Count == 0)
+                    {
+                        serviceBusMessageBatch.Dispose();
+                        throw new MessageTooLargeException(envelope, serviceBusMessageBatch.MaxSizeInBytes);
+                    }
+
                     _logger.LogInformation("Wolverine had to break up outgoing message batches at {Uri}, you may want to reduce the MaximumMessagesToReceive configuration. No messages were lost, this is strictly informative", _endpoint.Uri);
 
                     // Send the currently full batch
@@ -122,10 +129,17 @@ public class AzureServiceBusSenderProtocol : ISenderProtocolWithNativeScheduling
 
                 _logger.LogDebug("Processing batch with session id '{SessionId}'", group.Key);
 
-                foreach (var (_, message) in group)
+                foreach (var (envelope, message) in group)
                 {
                     if (!serviceBusMessageBatch.TryAddMessage(message))
                     {
+                        // If the batch is empty and the message still doesn't fit, it's too large for any batch
+                        if (serviceBusMessageBatch.Count == 0)
+                        {
+                            serviceBusMessageBatch.Dispose();
+                            throw new MessageTooLargeException(envelope, serviceBusMessageBatch.MaxSizeInBytes);
+                        }
+
                         _logger.LogInformation("Wolverine had to break up outgoing message batches at {Uri}, you may want to reduce the MaximumMessagesToReceive configuration. No messages were lost, this is strictly informative", _endpoint.Uri);
 
                         // Send the currently full batch
