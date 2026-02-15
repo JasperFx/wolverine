@@ -387,6 +387,10 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
                 Metadata.Accepts(RequestType, false, "application/json");
             }
         }
+        else if (FileParameters.Any())
+        {
+            Metadata.Accepts(typeof(IFormFile), true, "application/x-www-form-urlencoded", "multipart/form-data");
+        }
 
         foreach (var attribute in Method.HandlerType.GetCustomAttributes()) Metadata.WithMetadata(attribute);
         foreach (var attribute in Method.Method.GetCustomAttributes()) Metadata.WithMetadata(attribute);
