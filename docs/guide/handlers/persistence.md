@@ -140,6 +140,48 @@ public enum ValueSource
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Attributes/ModifyChainAttribute.cs#L18-L43' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_valuesource' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Global Entity Defaults <Badge type="tip" text="5.16" />
+
+If you want consistent entity-missing behavior across your entire application without having to set `OnMissing` or
+`MaybeSoftDeleted` on every single `[Entity]`, `[Document]`, `[Aggregate]`, `[ReadAggregate]`, or `[WriteAggregate]`
+attribute, you can configure global defaults through `WolverineOptions.EntityDefaults`:
+
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        // Set global defaults for all entity-loading attributes
+        opts.EntityDefaults.OnMissing = OnMissing.ProblemDetailsWith404;
+        opts.EntityDefaults.MaybeSoftDeleted = false;
+    }).StartAsync();
+```
+
+With the configuration above, every `[Entity]` parameter that does not explicitly set `OnMissing` will use
+`ProblemDetailsWith404` instead of the built-in `Simple404` default. Likewise, every `[Entity]` parameter that
+does not explicitly set `MaybeSoftDeleted` will treat soft-deleted entities as missing.
+
+You can still override the global default on any individual attribute:
+
+```cs
+public static class MyHandler
+{
+    // This handler uses the global default for OnMissing
+    public static MyResult Handle(MyCommand command, [Entity] MyEntity entity)
+    {
+        // ...
+    }
+
+    // This handler explicitly overrides to ThrowException regardless of the global default
+    public static MyResult Handle(MyOtherCommand command,
+        [Entity(OnMissing = OnMissing.ThrowException)] MyEntity entity)
+    {
+        // ...
+    }
+}
+```
+
+The resolution order is: **Explicit attribute value > Global default > Built-in default** (`Simple404` / `true`).
+
 Some other facts to know about `[Entity]` usage:
 
 * Supported by the Marten, EF Core, and RavenDb integration

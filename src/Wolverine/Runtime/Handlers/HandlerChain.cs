@@ -407,7 +407,6 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
 
     public override Frame[] AddStopConditionIfNull(Variable data, Variable? identity, IDataRequirement requirement)
     {
-        // TODO -- want to use WolverineOptions here for a default
         switch (requirement.OnMissing)
         {
             case OnMissing.Simple404:

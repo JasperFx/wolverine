@@ -22,6 +22,8 @@ namespace Wolverine.Marten;
 /// </summary>
 public class ReadAggregateAttribute : WolverineParameterAttribute, IDataRequirement
 {
+    private OnMissing? _onMissing;
+
     public ReadAggregateAttribute()
     {
         ValueSource = ValueSource.Anything;
@@ -31,18 +33,24 @@ public class ReadAggregateAttribute : WolverineParameterAttribute, IDataRequirem
     {
         ValueSource = ValueSource.Anything;
     }
-    
+
     /// <summary>
     /// Is the existence of this aggregate required for the rest of the handler action or HTTP endpoint
-    /// execution to continue? Default is true. 
+    /// execution to continue? Default is true.
     /// </summary>
     public bool Required { get; set; } = true;
 
     public string MissingMessage { get; set; }
-    public OnMissing OnMissing { get; set; }
+
+    public OnMissing OnMissing
+    {
+        get => _onMissing ?? OnMissing.Simple404;
+        set => _onMissing = value;
+    }
 
     public override Variable Modify(IChain chain, ParameterInfo parameter, IServiceContainer container, GenerationRules rules)
     {
+        _onMissing ??= container.GetInstance<WolverineOptions>().EntityDefaults.OnMissing;
         // I know it's goofy that this refers to the saga, but it should work fine here too
         var idType = new MartenPersistenceFrameProvider().DetermineSagaIdType(parameter.ParameterType, container);
 

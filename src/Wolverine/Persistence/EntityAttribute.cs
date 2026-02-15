@@ -87,6 +87,9 @@ public class LoadEntityFrameBlock : Frame
 /// </summary>
 public class EntityAttribute : WolverineParameterAttribute, IDataRequirement
 {
+    private OnMissing? _onMissing;
+    private bool? _maybeSoftDeleted;
+
     public EntityAttribute()
     {
         ValueSource = ValueSource.Anything;
@@ -99,28 +102,42 @@ public class EntityAttribute : WolverineParameterAttribute, IDataRequirement
 
     /// <summary>
     /// Is the existence of this entity required for the rest of the handler action or HTTP endpoint
-    /// execution to continue? Default is true. 
+    /// execution to continue? Default is true.
     /// </summary>
     public bool Required { get; set; } = true;
 
     public string MissingMessage { get; set; }
-    public OnMissing OnMissing { get; set; } = OnMissing.Simple404;
-    
+
+    public OnMissing OnMissing
+    {
+        get => _onMissing ?? OnMissing.Simple404;
+        set => _onMissing = value;
+    }
+
     /// <summary>
     /// Should Wolverine consider soft-deleted entities to be missing if deleted. I.e., if an entity
     /// can be found, but is marked as deleted, is this considered a "good" entity and the message handling
     /// or HTTP execution should continue?
-    /// 
+    ///
     ///     If the document is soft-deleted, whether the endpoint should receive the document (<c>true</c>) or NULL (
     ///     <c>false</c>).
     ///     Set it to <c>false</c> and combine it with <see cref="Required" /> so a 404 will be returned for soft-deleted
     ///     documents.
     /// </summary>
-    public bool MaybeSoftDeleted { get; set; } = true;
+    public bool MaybeSoftDeleted
+    {
+        get => _maybeSoftDeleted ?? true;
+        set => _maybeSoftDeleted = value;
+    }
 
     public override Variable Modify(IChain chain, ParameterInfo parameter, IServiceContainer container,
         GenerationRules rules)
     {
+        // Resolve unset properties from global defaults
+        var entityDefaults = container.GetInstance<WolverineOptions>().EntityDefaults;
+        _onMissing ??= entityDefaults.OnMissing;
+        _maybeSoftDeleted ??= entityDefaults.MaybeSoftDeleted;
+
         if (!rules.TryFindPersistenceFrameProvider(container, parameter.ParameterType, out var provider))
         {
             throw new InvalidOperationException("Could not determine a matching persistence service for entity " +
@@ -130,7 +147,7 @@ public class EntityAttribute : WolverineParameterAttribute, IDataRequirement
 
         // I know it's goofy that this refers to the saga, but it should work fine here too
         var idType = provider.DetermineSagaIdType(parameter.ParameterType, container);
-        
+
         if (!tryFindIdentityVariable(chain, parameter, idType, out var identity))
         {
             throw new InvalidEntityLoadUsageException(this, parameter);
@@ -142,19 +159,19 @@ public class EntityAttribute : WolverineParameterAttribute, IDataRequirement
         }
 
         var frame = provider.DetermineLoadFrame(container, parameter.ParameterType, identity);
-        
+
         var entity = frame.Creates.First(x => x.VariableType == parameter.ParameterType);
-        
+
         if (MaybeSoftDeleted is false)
         {
             var softDeleteFrames = provider.DetermineFrameToNullOutMaybeSoftDeleted(entity);
             chain.Middleware.AddRange(softDeleteFrames);
         }
-        
+
         if (Required)
         {
             var otherFrames = chain.AddStopConditionIfNull(entity, identity, this);
-            
+
             var block = new LoadEntityFrameBlock(entity, otherFrames);
             chain.Middleware.Add(block);
 
