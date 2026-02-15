@@ -311,7 +311,6 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
     {
         var message = requirement.MissingMessage ?? $"Unknown {data.VariableType.NameInCode()} with identity {{Id}}";
         
-        // TODO -- want to use WolverineOptions here for a default
         switch (requirement.OnMissing)
         {
             case OnMissing.Simple404:

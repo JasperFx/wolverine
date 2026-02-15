@@ -54,6 +54,8 @@ public class AggregateHandlerAttribute : ModifyChainAttribute, IDataRequirement,
 
     public override void Modify(IChain chain, GenerationRules rules, IServiceContainer container)
     {
+        _onMissing ??= container.GetInstance<WolverineOptions>().EntityDefaults.OnMissing;
+
         // ReSharper disable once CanSimplifyDictionaryLookupWithTryAdd
         if (chain.Tags.ContainsKey(nameof(AggregateHandlerAttribute)))
         {
@@ -115,9 +117,16 @@ public class AggregateHandlerAttribute : ModifyChainAttribute, IDataRequirement,
         return property != null;
     }
 
+    private OnMissing? _onMissing;
+
     public bool Required { get; set; }
     public string MissingMessage { get; set; }
-    public OnMissing OnMissing { get; set; }
+
+    public OnMissing OnMissing
+    {
+        get => _onMissing ?? OnMissing.Simple404;
+        set => _onMissing = value;
+    }
 }
 
 internal class ApplyEventsFromAsyncEnumerableFrame<T> : AsyncFrame, IReturnVariableAction

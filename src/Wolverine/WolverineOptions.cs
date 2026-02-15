@@ -146,6 +146,13 @@ public sealed partial class WolverineOptions
     public MetricsOptions Metrics { get; } = new();
 
     /// <summary>
+    /// Global default settings for entity loading behavior with [Entity], [Document],
+    /// [Aggregate], [ReadAggregate], and [WriteAggregate] attributes.
+    /// Per-attribute settings always take precedence over these defaults.
+    /// </summary>
+    public EntityDefaults EntityDefaults { get; } = new();
+
+    /// <summary>
     /// Global failure handling policies for outgoing message send failures.
     /// Use this to configure how Wolverine handles exceptions that occur when
     /// trying to send messages to external transports.
