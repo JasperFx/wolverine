@@ -18,19 +18,24 @@ public class FromFileStrategy : IParameterStrategy
     {
         if (parameter.ParameterType == typeof(IFormFile))
         {
-            var existing = chain.ChainVariables.FirstOrDefault(x => x.VariableType == typeof(IFormFile));
+            // Match by both type and parameter name so multiple IFormFile parameters
+            // each get their own variable, while middleware+handler sharing still works
+            var existing = chain.ChainVariables.FirstOrDefault(x =>
+                x.VariableType == typeof(IFormFile) && x.Usage == parameter.Name);
             if (existing != null)
             {
                 variable = existing;
                 return true;
             }
+
             chain.FileParameters.Add(parameter);
+            chain.IsFormData = true;
 
             var frame = new FromFileValue(parameter);
             chain.Middleware.Add(frame);
             variable = frame.Variable;
             chain.ChainVariables.Add(variable);
-                
+
             return true;
         }
 
@@ -42,14 +47,22 @@ public class FromFileStrategy : IParameterStrategy
                 variable = existing;
                 return true;
             }
- 
+
             chain.FileParameters.Add(parameter);
+            chain.IsFormData = true;
 
             var frame = new FromFileValues(parameter);
             chain.Middleware.Add(frame);
             variable = frame.Variable;
             chain.ChainVariables.Add(variable);
-            
+
+            return true;
+        }
+
+        if (parameter.ParameterType == typeof(IFormCollection))
+        {
+            chain.IsFormData = true;
+            variable = new Variable(typeof(IFormCollection), "httpContext.Request.Form");
             return true;
         }
 
@@ -61,8 +74,11 @@ public class FromFileStrategy : IParameterStrategy
 internal class FromFileValue : SyncFrame
 {
     private Variable? _httpContext;
+    private readonly string _parameterName;
+
     public FromFileValue(ParameterInfo parameter)
     {
+        _parameterName = parameter.Name!;
         Variable = new Variable(parameter.ParameterType, parameter.Name!, this);
     }
 
@@ -76,9 +92,9 @@ internal class FromFileValue : SyncFrame
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
-        writer.WriteComment("Retrieve header value from the request");
+        writer.WriteComment("Retrieve the named file from the request");
         writer.Write(
-            $"var {Variable.Usage} = {nameof(HttpHandler.ReadSingleFormFileValue)}({_httpContext!.Usage});");
+            $"var {Variable.Usage} = {nameof(HttpHandler.ReadFormFileByName)}({_httpContext!.Usage}, \"{_parameterName}\");");
         Next?.GenerateCode(method, writer);
     }
 }
@@ -101,7 +117,7 @@ internal class FromFileValues : SyncFrame
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
-        writer.WriteComment("Retrieve header value from the request");
+        writer.WriteComment("Retrieve files from the request");
         writer.Write(
             $"var {Variable.Usage} = {nameof(HttpHandler.ReadManyFormFileValues)}({_httpContext!.Usage});");
         Next?.GenerateCode(method, writer);

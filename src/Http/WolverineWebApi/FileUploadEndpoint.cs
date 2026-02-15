@@ -1,3 +1,5 @@
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Wolverine;
 using Wolverine.Attributes;
 using Wolverine.Http;
@@ -67,5 +69,30 @@ public class SomeSideEffect : ISideEffect
     public void Execute()
     {
         WasExecuted = true;
+    }
+}
+
+public record UploadMetadata(string Title, string Description);
+
+public static class MultipartUploadEndpoints
+{
+    [WolverinePost("/upload/named-files")]
+    public static string UploadNamedFiles(IFormFile document, IFormFile thumbnail)
+    {
+        return $"{document?.FileName}|{document?.Length}|{thumbnail?.FileName}|{thumbnail?.Length}";
+    }
+
+    [WolverinePost("/upload/mixed")]
+    public static string UploadMixed([FromForm] UploadMetadata metadata, IFormFile file)
+    {
+        return $"{metadata.Title}|{metadata.Description}|{file?.FileName}|{file?.Length}";
+    }
+
+    [WolverinePost("/upload/form-collection")]
+    public static string UploadFormCollection(IFormCollection form)
+    {
+        var keys = string.Join(",", form.Keys.OrderBy(k => k));
+        var fileCount = form.Files.Count;
+        return $"keys:{keys}|files:{fileCount}";
     }
 }
