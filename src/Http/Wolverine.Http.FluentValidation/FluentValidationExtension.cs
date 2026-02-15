@@ -1,9 +1,5 @@
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using Wolverine.Attributes;
-using Wolverine.FluentValidation;
-using Wolverine.FluentValidation.Internals;
 using Wolverine.Http.FluentValidation;
-using Wolverine.Http.FluentValidation.Internals;
 
 [assembly: WolverineModule<FluentValidationExtension>]
 
@@ -13,8 +9,6 @@ internal class FluentValidationExtension : IWolverineExtension
 {
     public void Configure(WolverineOptions options)
     {
-        options.Services.TryAddSingleton(typeof(IFailureAction<>), typeof(FailureAction<>));
-
-        options.Services.TryAddSingleton(typeof(IProblemDetailSource<>), typeof(ProblemDetailSource<>));
+        options.UseFluentValidationProblemDetail();
     }
 }
