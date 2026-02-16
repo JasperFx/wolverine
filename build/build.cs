@@ -336,6 +336,7 @@ class Build : NukeBuild
                 Solution.Persistence.Wolverine_MySql,
                 Solution.Persistence.Wolverine_Oracle,
                 Solution.Persistence.Wolverine_Sqlite,
+                Solution.Persistence.CosmosDb.Wolverine_CosmosDb,
                 Solution.Extensions.Wolverine_FluentValidation,
                 Solution.Extensions.Wolverine_MemoryPack,
                 Solution.Extensions.Wolverine_MessagePack,

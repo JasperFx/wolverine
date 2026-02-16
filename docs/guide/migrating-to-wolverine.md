@@ -231,20 +231,20 @@ handlers. No runtime conditional checks, no wasted allocations, and much cleaner
 
 ### Comparison Table
 
-| Aspect | MassTransit | NServiceBus | MediatR | Rebus | Brighter | Wolverine |
-|--------|------------|-------------|---------|-------|----------|-----------|
-| Handler contract | `IConsumer<T>` | `IHandleMessages<T>` | `IRequestHandler<T>` | `IHandleMessages<T>` | `RequestHandler<T>` base class | None (convention) |
-| Static handlers | No | No | No | No | No | Yes |
-| Method injection | No | No | No | No | No | Yes |
-| Pure function style | Difficult | Difficult | Difficult | Difficult | Difficult | First-class |
-| Return values as messages | No | No | Response only | No | Pipeline chain | Cascading messages |
-| Middleware model | Runtime filters | Runtime behaviors | Runtime pipeline | Runtime steps | Attribute decorators | Compile-time codegen |
+| Aspect | MassTransit             | NServiceBus | MediatR | Rebus | Brighter | Wolverine |
+|--------|-------------------------|-------------|---------|-------|----------|-----------|
+| Handler contract | `IConsumer<T>`          | `IHandleMessages<T>` | `IRequestHandler<T>` | `IHandleMessages<T>` | `RequestHandler<T>` base class | None (convention) |
+| Static handlers | No                      | No | No | No | No | Yes |
+| Method injection | No                      | No | No | No | No | Yes |
+| Pure function style | Difficult               | Difficult | Difficult | Difficult | Difficult | First-class |
+| Return values as messages | No                      | No | Response only | No | Pipeline chain | Cascading messages |
+| Middleware model | Runtime filters         | Runtime behaviors | Runtime pipeline | Runtime steps | Attribute decorators | Compile-time codegen |
 | Per-message-type middleware | Via consumer definition | Via pipeline stage | No (all handlers) | No (global) | Yes (per-handler attributes) | Yes (policy filters) |
-| In-process mediator | No (use MediatR) | No | Yes | No | Yes | Yes (`InvokeAsync`) |
-| Async messaging | Yes | Yes | No | Yes | Yes (with Darker) | Yes |
-| Transactional outbox | Yes (w/ EF Core) | Yes | No | No | Yes | Yes (built-in) |
-| Railway programming | No | No | No | No | No | Yes (compound handlers) |
-| License | Apache 2.0 | Commercial | Apache 2.0 | MIT | MIT | MIT |
+| In-process mediator | Yes                     | No | Yes | No | Yes | Yes (`InvokeAsync`) |
+| Async messaging | Yes                     | Yes | No | Yes | Yes (with Darker) | Yes |
+| Transactional outbox | Yes (w/ EF Core)        | Yes | No | No | Yes | Yes (built-in) |
+| Railway programming | No                      | No | No | No | No | Yes (compound handlers) |
+| License | Apache 2.0              | Commercial | Apache 2.0 | MIT | MIT | MIT |
 
 ## From MassTransit
 
