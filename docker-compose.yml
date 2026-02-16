@@ -147,6 +147,14 @@ services:
     networks:
       sb-emulator:
 
+  cosmosdb:
+    image: "mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator:vnext-preview"
+    ports:
+      - "8081:8081"
+      - "1234:1234"
+    environment:
+      - "PROTOCOL=https"
+
   asb-sql-2:
     image: "mcr.microsoft.com/azure-sql-edge"
     environment:
