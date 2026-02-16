@@ -45,7 +45,7 @@ internal class RabbitMqInteropFriendlyCallback : IChannelCallback, ISupportDeadL
     public bool NativeDeadLetterQueueEnabled => true;
 }
 
-internal class RabbitMqListener : RabbitMqChannelAgent, IListener, ISupportDeadLetterQueue, ISupportMultipleConsumers, ISupportConsumerPause
+internal class RabbitMqListener : RabbitMqChannelAgent, IListener, ISupportDeadLetterQueue, ISupportMultipleConsumers
 {
     private readonly IChannelCallback _callback;
     private readonly CancellationToken _cancellation = CancellationToken.None;
@@ -56,7 +56,6 @@ internal class RabbitMqListener : RabbitMqChannelAgent, IListener, ISupportDeadL
     private readonly RabbitMqTransport _transport;
     private WorkerQueueMessageConsumer? _consumer;
     private string? _consumerId;
-    internal volatile bool Paused;
 
     public RabbitMqListener(IWolverineRuntime runtime,
         RabbitMqQueue queue, RabbitMqTransport transport, IReceiver receiver) : base(
@@ -142,16 +141,6 @@ internal class RabbitMqListener : RabbitMqChannelAgent, IListener, ISupportDeadL
     }
 
     public bool NativeDeadLetterQueueEnabled { get; }
-
-    public void PauseConsuming()
-    {
-        Paused = true;
-    }
-
-    public void ResumeConsuming()
-    {
-        Paused = false;
-    }
 
     public string? ConsumerId
     {

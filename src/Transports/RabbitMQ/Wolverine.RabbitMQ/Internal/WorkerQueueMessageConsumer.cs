@@ -42,11 +42,6 @@ internal class WorkerQueueMessageConsumer : AsyncDefaultBasicConsumer, IDisposab
             return;
         }
 
-        while (_listener.Paused && !_cancellation.IsCancellationRequested)
-        {
-            await Task.Delay(250, _cancellation);
-        }
-
         var envelope = new RabbitMqEnvelope(_listener, deliveryTag);
 
         try

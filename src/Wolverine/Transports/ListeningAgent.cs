@@ -36,7 +36,7 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
     private readonly HandlerPipeline _pipeline;
     private readonly IWolverineRuntime _runtime;
     private IReceiver? _receiver;
-    private Restarter? _restarter;
+    private IDisposable? _restarter;
 
     public ListeningAgent(Endpoint endpoint, WolverineRuntime runtime)
     {
@@ -229,6 +229,33 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
 
     private readonly SemaphoreSlim _semaphore = new(1, 1);
 
+    public async ValueTask PauseForInboxRecoveryAsync()
+    {
+        if (Status != ListeningStatus.Accepting || Listener == null) return;
+
+        await _semaphore.WaitAsync();
+        if (Status != ListeningStatus.Accepting || Listener == null)
+        {
+            _semaphore.Release();
+            return;
+        }
+
+        try
+        {
+            await StopAndDrainAsync();
+            _circuitBreaker?.Reset();
+            _logger.LogWarning("Paused listener at {Uri} — inbox database unavailable", Uri);
+            _runtime.Tracker.Publish(new ListenerState(Uri, Endpoint.EndpointName, ListeningStatus.Stopped));
+
+            _restarter?.SafeDispose();
+            _restarter = new InboxHealthRestarter(this, _runtime, _logger);
+        }
+        finally
+        {
+            _semaphore.Release();
+        }
+    }
+
     public async ValueTask MarkAsTooBusyAndStopReceivingAsync()
     {
         if (Status != ListeningStatus.Accepting || Listener == null)
@@ -311,6 +338,51 @@ internal class Restarter : IDisposable
 
                 await parent.StartAsync();
             }, TaskScheduler.Default);
+    }
+
+    public void Dispose()
+    {
+        _cancellation.Cancel();
+        _task.SafeDispose();
+    }
+}
+
+internal class InboxHealthRestarter : IDisposable
+{
+    private readonly CancellationTokenSource _cancellation = new();
+    private readonly Task _task;
+
+    public InboxHealthRestarter(IListenerCircuit parent, IWolverineRuntime runtime, ILogger logger)
+    {
+        _task = Task.Run(() => ProbeLoopAsync(parent, runtime, logger, _cancellation.Token));
+    }
+
+    private static async Task ProbeLoopAsync(
+        IListenerCircuit parent, IWolverineRuntime runtime, ILogger logger, CancellationToken ct)
+    {
+        var delay = TimeSpan.FromSeconds(2);
+        var maxDelay = TimeSpan.FromSeconds(30);
+
+        while (!ct.IsCancellationRequested)
+        {
+            try { await Task.Delay(delay, ct); }
+            catch (OperationCanceledException) { return; }
+
+            try
+            {
+                // Lightweight probe — releases 0 rows but exercises DB connection
+                await runtime.Storage.Inbox.ReleaseIncomingAsync(0, new Uri("wolverine://inbox-health-probe"));
+
+                logger.LogInformation("Inbox available again for {Uri}. Restarting listener.", parent.Endpoint.Uri);
+                await parent.StartAsync();
+                return;
+            }
+            catch (Exception e)
+            {
+                logger.LogWarning(e, "Inbox still unavailable for {Uri}. Retrying in {Delay}.", parent.Endpoint.Uri, delay);
+                delay = TimeSpan.FromMilliseconds(Math.Min(delay.TotalMilliseconds * 1.5, maxDelay.TotalMilliseconds));
+            }
+        }
     }
 
     public void Dispose()
