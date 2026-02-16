@@ -10,7 +10,7 @@ using Wolverine.Transports;
 
 namespace Wolverine.Redis.Internal;
 
-public class RedisStreamListener : IListener, ISupportDeadLetterQueue
+public class RedisStreamListener : IListener, ISupportDeadLetterQueue, ISupportConsumerPause
 {
     private readonly RedisTransport _transport;
     private readonly RedisStreamEndpoint _endpoint;
@@ -24,6 +24,7 @@ public class RedisStreamListener : IListener, ISupportDeadLetterQueue
     private Task? _scheduledTask;
     private ListeningStatus _status = ListeningStatus.Stopped;
     private string _consumerName;
+    private volatile bool _paused;
 
 
 
@@ -47,6 +48,16 @@ public class RedisStreamListener : IListener, ISupportDeadLetterQueue
     public Uri Address { get; }
     public ListeningStatus Status => _status;
     public IHandlerPipeline? Pipeline => _receiver.Pipeline;
+
+    public void PauseConsuming()
+    {
+        _paused = true;
+    }
+
+    public void ResumeConsuming()
+    {
+        _paused = false;
+    }
 
     internal bool DeleteOnAck => _transport.DeleteStreamEntryOnAck;
     
@@ -325,6 +336,11 @@ public class RedisStreamListener : IListener, ISupportDeadLetterQueue
         {
             while (!_cancellation.Token.IsCancellationRequested && _status == ListeningStatus.Accepting)
             {
+                while (_paused && !_cancellation.Token.IsCancellationRequested)
+                {
+                    await Task.Delay(250, _cancellation.Token);
+                }
+
                 try
                 {
                     // Determine if it's time to use AutoClaim instead of regular read
