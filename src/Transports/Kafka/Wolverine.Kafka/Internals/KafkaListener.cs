@@ -16,9 +16,7 @@ public class KafkaListener : IListener, IDisposable, ISupportDeadLetterQueue
     private readonly Task _runner;
     private readonly IReceiver _receiver;
     private readonly string? _messageTypeName;
-    private readonly QualityOfService _qualityOfService;
     private readonly ILogger _logger;
-
     public KafkaListener(KafkaTopic topic, ConsumerConfig config,
         IConsumer<string, byte[]> consumer, IReceiver receiver,
         ILogger<KafkaListener> logger)
@@ -34,10 +32,6 @@ public class KafkaListener : IListener, IDisposable, ISupportDeadLetterQueue
         Config = config;
         _receiver = receiver;
 
-        _qualityOfService = Config.EnableAutoCommit.HasValue && !Config.EnableAutoCommit.Value
-            ? QualityOfService.AtMostOnce
-            : QualityOfService.AtLeastOnce;
-
         _runner = Task.Run(async () =>
         {
             _consumer.Subscribe(topic.TopicName);
@@ -45,21 +39,6 @@ public class KafkaListener : IListener, IDisposable, ISupportDeadLetterQueue
             {
                 while (!_cancellation.IsCancellationRequested)
                 {
-                    if (_qualityOfService == QualityOfService.AtMostOnce)
-                    {
-                        try
-                        {
-                            _consumer.Commit();
-                        }
-                        catch (KafkaException e)
-                        {
-                            if (!e.Message.Contains("No offset stored"))
-                            {
-                                throw;
-                            }
-                        }
-                    }
-
                     try
                     {
                         var result = _consumer.Consume(_cancellation.Token);
@@ -87,7 +66,7 @@ public class KafkaListener : IListener, IDisposable, ISupportDeadLetterQueue
                         catch (Exception)
                         {
                         }
-                        
+
                         logger.LogError(e, "Error trying to map Kafka message to a Wolverine envelope");
                     }
                 }
@@ -109,16 +88,13 @@ public class KafkaListener : IListener, IDisposable, ISupportDeadLetterQueue
 
     public ValueTask CompleteAsync(Envelope envelope)
     {
-        if (_qualityOfService == QualityOfService.AtLeastOnce)
+        try
         {
-            try
-            {
-                _consumer.Commit();
-            }
-            catch (Exception)
-            {
+            _consumer.Commit();
+        }
+        catch (Exception)
+        {
 
-            }
         }
         return ValueTask.CompletedTask;
     }

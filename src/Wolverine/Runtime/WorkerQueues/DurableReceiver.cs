@@ -29,15 +29,18 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
     private readonly RetryBlock<Envelope> _moveToErrors;
     private readonly IBlock<Envelope> _receiver;
     private readonly RetryBlock<Envelope> _receivingOne;
+    private readonly IWolverineRuntime _runtime;
     private readonly RetryBlock<Envelope> _scheduleExecution;
     private readonly DurabilitySettings _settings;
 
     // These members are for draining
     private bool _latched;
+    private int _inboxUnavailableSignaled;
 
     public DurableReceiver(Endpoint endpoint, IWolverineRuntime runtime, IHandlerPipeline pipeline)
     {
         _endpoint = endpoint;
+        _runtime = runtime;
         _settings = runtime.DurabilitySettings;
         
         // the check for Stores being null is honestly just because of some tests that use a little too much mocking
@@ -321,6 +324,31 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
         return _scheduleExecution.PostAsync(envelope);
     }
 
+    internal void SignalInboxUnavailable()
+    {
+        if (Interlocked.CompareExchange(ref _inboxUnavailableSignaled, 1, 0) != 0) return;
+
+        _logger.LogWarning("Inbox database unavailable for {Uri}. Signaling listener to pause.", Uri);
+
+        // Fire-and-forget via Task.Run to avoid deadlock:
+        // We're on a RetryBlock thread; PauseForInboxRecoveryAsync drains that same RetryBlock.
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                var agent = _runtime.Endpoints.FindListeningAgent(Uri);
+                if (agent is ListeningAgent la)
+                {
+                    await la.PauseForInboxRecoveryAsync();
+                }
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, "Error signaling listener pause for inbox recovery at {Uri}", Uri);
+            }
+        });
+    }
+
     private async Task receiveOneAsync(Envelope envelope)
     {
         if (_latched)
@@ -389,6 +417,11 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
                 await handleDuplicateIncomingEnvelope(envelope, e);
 
                 return;
+            }
+            catch (Exception)
+            {
+                SignalInboxUnavailable();
+                throw;
             }
         }
 
@@ -468,6 +501,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
             catch (Exception e)
             {
                 _logger.LogError(e, "Error trying to persist incoming envelopes at {Uri}", Uri);
+                SignalInboxUnavailable();
 
                 // Use finer grained retries on one envelope at a time, and this will also deal with
                 // duplicate detection

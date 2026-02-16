@@ -24,9 +24,6 @@ public class RedisStreamListener : IListener, ISupportDeadLetterQueue
     private Task? _scheduledTask;
     private ListeningStatus _status = ListeningStatus.Stopped;
     private string _consumerName;
-
-
-
     public RedisStreamListener(RedisTransport transport, RedisStreamEndpoint endpoint,
         IWolverineRuntime runtime, IReceiver receiver)
     {
