@@ -26,7 +26,8 @@ const config: UserConfig<DefaultTheme.Config> = {
                 text: 'Discord | Join Chat',
                 link: 'https://discord.gg/WMxrvegf8H'
             },
-            {text: 'Support Plans', link: 'https://www.jasperfx.net/support-plans/'}
+            {text: 'Support Plans', link: 'https://www.jasperfx.net/support-plans/'},
+            {text: 'LLM Friendly Docs', link: 'https://www.wolverinefx.io/llms-full.txt'}
         ],
 
         // algolia: {
