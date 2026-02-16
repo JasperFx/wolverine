@@ -39,7 +39,7 @@ public static class WolverineFluentValidationExtensions
             return options;
         }
 
-        options.Services.AddSingleton(typeof(IFailureAction<>), typeof(FailureAction<>));
+        options.Services.TryAddSingleton(typeof(IFailureAction<>), typeof(FailureAction<>));
 
         options.ConfigureLazily(o =>
         {
