@@ -62,12 +62,17 @@ public class multiple_sagas_for_same_message : IAsyncLifetime
     {
         var id = Guid.NewGuid();
 
+        await using var session = _host.DocumentStore().QuerySession();
+        
         await _host.SendMessageAndWaitAsync(new OrderPlaced(id, "Gadget"));
+        (await session.LoadAsync<ShippingSaga>(id)).ShouldNotBeNull();
+        (await session.LoadAsync<BillingSaga>(id)).ShouldNotBeNull();
+        
 
         // Complete only the shipping saga
         await _host.SendMessageAndWaitAsync(new OrderShipped(id));
 
-        await using var session = _host.DocumentStore().QuerySession();
+        
 
         // Shipping saga should be deleted (completed)
         var shipping = await session.LoadAsync<ShippingSaga>(id);
