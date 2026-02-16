@@ -30,6 +30,7 @@ public class Bug_2182_unresolved_IProblemDetailSource
   {
     _builder.Services.AddWolverine(ExtensionDiscovery.ManualOnly, opts =>
     {
+      opts.Discovery.IncludeAssembly(typeof(Bug_2182_Endpoint.Request).Assembly); 
       opts.UseFluentValidation(); // from Wolverine.FluentValidation
       // ExtensionDiscovery.ManualMode and Wolverine.Http.FluentValidation services are not registered
     });
@@ -42,14 +43,17 @@ public class Bug_2182_unresolved_IProblemDetailSource
       });
     });
 
-    var exception = await host
-      .Scenario(x => x.Post.Json(new Bug_2182_Endpoint.Request("valid")).ToUrl("/Bug_2182"))
-      .ShouldThrowAsync<JasperFx.CodeGeneration.UnResolvableVariableException>();
+    var result = await host.Scenario(x =>
+    {
+      x.Post.Json(new Bug_2182_Endpoint.Request("valid")).ToUrl("/Bug_2182");
+      x.StatusCodeShouldBe(500);
+    });
 
-    exception.Message.ShouldBe(
-      "JasperFx was unable to resolve a variable of type " +
-      "Wolverine.Http.FluentValidation.IProblemDetailSource<Wolverine.Http.Tests.Bugs.Bug_2182_Endpoint.Request> " +
-      "as part of the method POST_Bug_2182.Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)");
+    result.ReadAsText()
+          .ShouldContain(
+                         "JasperFx was unable to resolve a variable of type " +
+                         "Wolverine.Http.FluentValidation.IProblemDetailSource<Wolverine.Http.Tests.Bugs.Bug_2182_Endpoint.Request> " +
+                         "as part of the method POST_Bug_2182.Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)");
   }
 
   [Fact]
@@ -57,6 +61,7 @@ public class Bug_2182_unresolved_IProblemDetailSource
   {
     _builder.Services.AddWolverine(ExtensionDiscovery.ManualOnly, opts =>
     {
+      opts.Discovery.IncludeAssembly(typeof(Bug_2182_Endpoint.Request).Assembly);
       opts.UseFluentValidation(); // from Wolverine.FluentValidation
       opts.UseFluentValidationProblemDetail(); // from Wolverine.Http.FluentValidation
     });
@@ -83,6 +88,7 @@ public class Bug_2182_unresolved_IProblemDetailSource
   {
     _builder.Services.AddWolverine(opts =>
     {
+      opts.Discovery.IncludeAssembly(typeof(Bug_2182_Endpoint.Request).Assembly);
       opts.UseFluentValidation();
       if (useFluentValidationProblemDetail)
         opts.UseFluentValidationProblemDetail();
@@ -112,6 +118,7 @@ public class Bug_2182_unresolved_IProblemDetailSource
   {
     _builder.Services.AddWolverine(extensionDiscovery, opts =>
     {
+      opts.Discovery.IncludeAssembly(typeof(Bug_2182_Endpoint.Request).Assembly);
       opts.UseFluentValidation();
       if (useFluentValidationProblemDetail)
         opts.UseFluentValidationProblemDetail();
