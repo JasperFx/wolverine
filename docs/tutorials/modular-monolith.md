@@ -128,6 +128,13 @@ you also get:
 * The ability to mix and match [durable vs lighter weight "fire and forget"](/guide/runtime.html#endpoint-types) (`Buffered` in Wolverine parlance) semantics for different handlers
 * Granular tracing and logging on the handlers
 
+::: tip
+When using `MultipleHandlerBehavior.Separated`, Wolverine automatically fans out messages arriving from external
+broker endpoints (RabbitMQ, Azure Service Bus, Kafka, etc.) to all the separated local handler queues. This means you
+don't need any special routing configuration -- a single message received from an external queue will be forwarded to
+each local handler queue automatically, so every separated handler processes its own copy of the message independently.
+:::
+
 
 ## Splitting Your System into Separate Assemblies
 
