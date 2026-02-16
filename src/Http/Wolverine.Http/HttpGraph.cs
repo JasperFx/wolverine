@@ -91,7 +91,7 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollectionWithServ
         var logger = Container.GetInstance<ILogger<HttpGraph>>();
 
         var calls = source.FindActions();
-        logger.LogInformation("Found {Count} Wolverine HTTP endpoints in assemblys {Assemblies}", calls.Length,
+        logger.LogInformation("Found {Count} Wolverine HTTP endpoints in assemblies {Assemblies}", calls.Length,
             _options.Assemblies.Select(x => x.GetName().Name).Join(", "));
         if (calls.Length == 0)
         {
