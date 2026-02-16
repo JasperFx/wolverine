@@ -622,3 +622,78 @@ using var host = await Host.CreateDefaultBuilder()
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/SagaChainPolicies.cs#L15-L23' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_chain_policy_on_sagas' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+
+## Multiple Sagas Handling the Same Message Type
+
+By default, Wolverine does not allow multiple saga types to handle the same message type and will throw an `InvalidSagaException` at startup if this is detected. However, there are valid architectural reasons to have multiple, independent saga workflows react to the same event — for example, an `OrderPlaced` event might start both a `ShippingSaga` and a `BillingSaga`.
+
+To enable this, set `MultipleHandlerBehavior` to `Separated`:
+
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
+
+        // Your persistence configuration here (Marten, EF Core, etc.)
+    }).StartAsync();
+```
+
+When `Separated` mode is active, Wolverine creates an independent handler chain for each saga type, routed to its own local queue. Each saga independently manages its own lifecycle — loading, creating, updating, and deleting state — without interfering with the other.
+
+Here is an example with two sagas that both start from an `OrderPlaced` message but complete independently:
+
+```cs
+// Shared message that both sagas react to
+public record OrderPlaced(Guid OrderPlacedId, string ProductName);
+
+// Messages specific to each saga
+public record OrderShipped(Guid ShippingSagaId);
+public record PaymentReceived(Guid BillingSagaId);
+
+public class ShippingSaga : Saga
+{
+    public Guid Id { get; set; }
+    public string ProductName { get; set; } = string.Empty;
+
+    public static ShippingSaga Start(OrderPlaced message)
+    {
+        return new ShippingSaga
+        {
+            Id = message.OrderPlacedId,
+            ProductName = message.ProductName
+        };
+    }
+
+    public void Handle(OrderShipped message)
+    {
+        MarkCompleted();
+    }
+}
+
+public class BillingSaga : Saga
+{
+    public Guid Id { get; set; }
+    public string ProductName { get; set; } = string.Empty;
+
+    public static BillingSaga Start(OrderPlaced message)
+    {
+        return new BillingSaga
+        {
+            Id = message.OrderPlacedId,
+            ProductName = message.ProductName
+        };
+    }
+
+    public void Handle(PaymentReceived message)
+    {
+        MarkCompleted();
+    }
+}
+```
+
+When an `OrderPlaced` message is published, both sagas will be started independently. Completing one saga (e.g., by sending `OrderShipped`) does not affect the other.
+
+::: warning
+In `Separated` mode, messages routed to multiple sagas must be **published** (via `SendAsync` or `PublishAsync`), not **invoked** (via `InvokeAsync`). `InvokeAsync` bypasses message routing and will not reach the separated saga endpoints.
+:::
