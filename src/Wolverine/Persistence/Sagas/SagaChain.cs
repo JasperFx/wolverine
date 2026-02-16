@@ -9,6 +9,7 @@ using System.Reflection;
 using Wolverine.Configuration;
 using Wolverine.Logging;
 using Wolverine.Runtime.Handlers;
+using Wolverine.Transports.Local;
 
 namespace Wolverine.Persistence.Sagas;
 
@@ -28,9 +29,22 @@ public class SagaChain : HandlerChain
 
     public SagaChain(WolverineOptions options, IGrouping<Type, HandlerCall> grouping, HandlerGraph parent) : base(options, grouping, parent)
     {
+        // After base constructor, saga handlers may have been moved to ByEndpoint (Separated mode).
+        // Check what's left in Handlers (not the original grouping).
+        var remainingSagaCalls = Handlers.Where(x => x.HandlerType.CanBeCastTo<Saga>())
+            .DistinctBy(x => x.HandlerType).ToArray();
+
+        if (remainingSagaCalls.Length == 0)
+        {
+            // All sagas were separated into ByEndpoint chains — this parent is routing-only.
+            var anySaga = grouping.First(x => x.HandlerType.CanBeCastTo<Saga>());
+            SagaType = anySaga.HandlerType;
+            return;
+        }
+
         try
         {
-            var saga = grouping.Where(x => x.HandlerType.CanBeCastTo<Saga>()).DistinctBy(x => x.HandlerType).Single();
+            var saga = remainingSagaCalls.Single();
             SagaType = saga.HandlerType;
             SagaMethodInfo = saga.Method;
 
@@ -44,7 +58,7 @@ public class SagaChain : HandlerChain
         }
         catch (Exception e)
         {
-            var handlerTypes = grouping.Where(x => x.HandlerType.CanBeCastTo<Saga>())
+            var handlerTypes = remainingSagaCalls
                 .Select(x => x.HandlerType).Select(x => x.FullNameInCode()).Join(", ");
 
             throw new InvalidSagaException(
@@ -61,16 +75,38 @@ public class SagaChain : HandlerChain
             tryAssignStickyEndpoints(handlerCall, options);
         }
 
-        // You just know *somebody* is going to try to handle the same message type
-        // by different sagas because our users hate me
         var groupedSagas = grouping.Where(x => x.HandlerType.CanBeCastTo<Saga>())
             .GroupBy(x => x.HandlerType).ToArray();
 
         if (groupedSagas.Length > 1)
-            throw new NotSupportedException(
-                "Wolverine does not (yet) support having multiple Saga type respond to the same message.");
+        {
+            if (options.MultipleHandlerBehavior != MultipleHandlerBehavior.Separated)
+            {
+                var sagaTypes = groupedSagas.Select(x => x.Key.FullNameInCode()).Join(", ");
+                throw new InvalidSagaException(
+                    $"Multiple saga types ({sagaTypes}) handle message {MessageType.FullNameInCode()}. " +
+                    $"Set MultipleHandlerBehavior to Separated to allow this.");
+            }
 
-        // TODO -- MORE HERE!!!!!
+            // In Separated mode, create a separate SagaChain per saga type
+            foreach (var sagaGroup in groupedSagas)
+            {
+                var sagaCalls = sagaGroup.ToArray();
+                var sagaType = sagaGroup.Key;
+
+                var endpoint = options.Transports.GetOrCreate<LocalTransport>()
+                    .QueueFor(sagaType.FullNameInCode().ToLowerInvariant());
+
+                var chain = new SagaChain(sagaCalls, options.HandlerGraph, [endpoint]);
+
+                foreach (var call in sagaCalls)
+                {
+                    Handlers.Remove(call);
+                }
+
+                _byEndpoint.Add(chain);
+            }
+        }
     }
 
     public SagaChain(HandlerCall handlerCall, HandlerGraph handlerGraph, Endpoint[] endpoints) : base(handlerCall, handlerGraph)
@@ -88,6 +124,26 @@ public class SagaChain : HandlerChain
         {
             AuditedMembers.Add(new AuditedMember(SagaIdMember, SagaIdMember.Name, SagaIdMember.Name));
         }
+    }
+
+    internal SagaChain(HandlerCall[] sagaCalls, HandlerGraph handlerGraph, Endpoint[] endpoints)
+        : base(sagaCalls[0].Method.MessageType()!, handlerGraph)
+    {
+        foreach (var endpoint in endpoints) RegisterEndpoint(endpoint);
+        foreach (var call in sagaCalls) Handlers.Add(call);
+
+        var saga = sagaCalls.First();
+        SagaType = saga.HandlerType;
+        SagaMethodInfo = saga.Method;
+
+        SagaIdMember = DetermineSagaIdMember(MessageType, SagaType, saga.Method);
+
+        if (SagaIdMember != null && AuditedMembers.All(x => x.Member != SagaIdMember))
+        {
+            AuditedMembers.Add(new AuditedMember(SagaIdMember, SagaIdMember.Name, SagaIdMember.Name));
+        }
+
+        TypeName = saga.HandlerType.ToSuffixedTypeName(HandlerSuffix).Replace("[]", "Array");
     }
 
     public override bool TryInferMessageIdentity(out PropertyInfo? property)
@@ -236,8 +292,7 @@ public class SagaChain : HandlerChain
         frames.Add(ifNotCompleted);
     }
 
-    // Always true!
-    internal override bool HasDefaultNonStickyHandlers() => true;
+    internal override bool HasDefaultNonStickyHandlers() => Handlers.Any();
 
     internal IEnumerable<Frame> DetermineSagaDoesNotExistSteps(Variable sagaId, Variable saga,
         IPersistenceFrameProvider frameProvider, IServiceContainer container)

@@ -46,7 +46,7 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
     public const string Consume = "Consume";
     public const string Consumes = "Consumes";
 
-    private readonly List<HandlerChain> _byEndpoint = [];
+    protected readonly List<HandlerChain> _byEndpoint = [];
 
     private readonly List<Endpoint> _endpoints = [];
 
