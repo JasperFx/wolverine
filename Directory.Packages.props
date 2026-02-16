@@ -27,6 +27,7 @@
         <PackageVersion Include="JasperFx.RuntimeCompiler" Version="4.3.2" />
         <PackageVersion Include="Lamar.Microsoft.DependencyInjection" Version="15.0.1" />
         <PackageVersion Include="Marten" Version="8.21.0" />
+        <PackageVersion Include="Microsoft.Azure.Cosmos" Version="3.46.1" />
         <PackageVersion Include="Marten.AspNetCore" Version="8.19.0" />
         <PackageVersion Include="MemoryPack" Version="1.21.3" />
         <PackageVersion Include="MessagePack" Version="3.1.3" />
