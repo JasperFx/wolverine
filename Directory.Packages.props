@@ -22,9 +22,9 @@
         <PackageVersion Include="Grpc.Core" Version="2.46.6" />
         <PackageVersion Include="Grpc.Tools" Version="2.72.0" />
         <PackageVersion Include="HtmlTags" Version="9.0.0" />
-        <PackageVersion Include="JasperFx" Version="1.17.2" />
+        <PackageVersion Include="JasperFx" Version="1.18.0" />
         <PackageVersion Include="JasperFx.Events" Version="1.19.1" />
-        <PackageVersion Include="JasperFx.RuntimeCompiler" Version="4.3.2" />
+        <PackageVersion Include="JasperFx.RuntimeCompiler" Version="4.4.0" />
         <PackageVersion Include="Lamar.Microsoft.DependencyInjection" Version="15.0.1" />
         <PackageVersion Include="Marten" Version="8.21.0" />
         <PackageVersion Include="Microsoft.Azure.Cosmos" Version="3.46.1" />
