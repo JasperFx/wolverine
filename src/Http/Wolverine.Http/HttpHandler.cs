@@ -125,6 +125,12 @@ public abstract class HttpHandler
             return true;
         }
 
+        // Support custom MIME types with +json suffix per RFC 6839 (e.g. "application/vnd.myapp.v1+json")
+        if (contentType.Contains("+json"))
+        {
+            return true;
+        }
+
         return false;
     }
 
@@ -191,11 +197,9 @@ public abstract class HttpHandler
         }
 
         return headers.Accept
-            .Any(x => x.MediaType is
-            {
-                HasValue: true,
-                Value: "application/json" or "application/problem+json" or "*/*" or "text/json"
-            });
+            .Any(x => x.MediaType is { HasValue: true } &&
+                (x.MediaType.Value is "application/json" or "application/problem+json" or "*/*" or "text/json"
+                 || x.MediaType.Value!.Contains("+json")));
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

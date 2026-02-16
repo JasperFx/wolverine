@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ApiExplorer;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.AspNetCore.Routing.Matching;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Wolverine.Configuration;
@@ -162,12 +163,13 @@ public static class WolverineHttpEndpointRouteBuilderExtensions
         services.AddSingleton<HttpTransportExecutor>();
         
         services.AddSingleton(typeof(IProblemDetailSource<>), typeof(ProblemDetailSource<>));
+        services.AddSingleton<MatcherPolicy, ContentTypeEndpointSelectorPolicy>();
 
         services.ConfigureWolverine(opts =>
         {
             opts.CodeGeneration.Sources.Add(new NullableHttpContextSource());
         });
-        
+
         return services;
     }
 

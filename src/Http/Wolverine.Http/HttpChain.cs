@@ -311,7 +311,6 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
     {
         var message = requirement.MissingMessage ?? $"Unknown {data.VariableType.NameInCode()} with identity {{Id}}";
         
-        // TODO -- want to use WolverineOptions here for a default
         switch (requirement.OnMissing)
         {
             case OnMissing.Simple404:
@@ -375,11 +374,22 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
 
         if (HasRequestType)
         {
-            if(IsFormData){
+            if (IsFormData)
+            {
                 Metadata.Accepts(RequestType, true, "application/x-www-form-urlencoded", "multipart/form-data");
-            }else{
+            }
+            else if (Method.Method.TryGetAttribute<AcceptsContentTypeAttribute>(out var acceptsAtt))
+            {
+                Metadata.Accepts(RequestType, false, acceptsAtt.ContentTypes[0], acceptsAtt.ContentTypes[1..]);
+            }
+            else
+            {
                 Metadata.Accepts(RequestType, false, "application/json");
             }
+        }
+        else if (FileParameters.Any())
+        {
+            Metadata.Accepts(typeof(IFormFile), true, "application/x-www-form-urlencoded", "multipart/form-data");
         }
 
         foreach (var attribute in Method.HandlerType.GetCustomAttributes()) Metadata.WithMetadata(attribute);

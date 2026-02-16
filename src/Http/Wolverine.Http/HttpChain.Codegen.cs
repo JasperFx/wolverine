@@ -191,6 +191,14 @@ public partial class HttpChain
         char[] invalidPathChars = Path.GetInvalidPathChars();
         var fileName = _httpMethods.Select(x => x.ToUpper()).Concat(parts).Join("_").Replace('-', '_').Replace("__", "_");
 
+        // Append content type suffix to make endpoint names unique when using [AcceptsContentType]
+        if (Method.Method.TryGetAttribute<AcceptsContentTypeAttribute>(out var acceptsAtt))
+        {
+            var suffix = acceptsAtt.ContentTypes[0]
+                .Replace("/", "_").Replace("+", "_").Replace(".", "_");
+            fileName = $"{fileName}_{suffix}";
+        }
+
         var characters = fileName.ToCharArray();
         for (int i = 0; i < characters.Length; i++)
         {
@@ -199,7 +207,7 @@ public partial class HttpChain
                 characters[i] = '_';
             }
         }
-        
+
         return new string(characters);
     }
 }

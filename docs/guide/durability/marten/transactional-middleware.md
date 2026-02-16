@@ -33,6 +33,66 @@ With this enabled, Wolverine will automatically use the Marten
 transactional middleware for handlers that have a dependency on `IDocumentSession` (meaning the method takes in `IDocumentSession` or has
 some dependency that itself depends on `IDocumentSession`) as long as the `IntegrateWithWolverine()` call was used in application bootstrapping.
 
+### Opting Out with [NonTransactional]
+
+When using `AutoApplyTransactions()`, there may be specific handlers or HTTP endpoints where you want to explicitly opt out of
+transactional middleware even though they use `IDocumentSession`. You can do this with the `[NonTransactional]` attribute:
+
+```cs
+using Wolverine.Attributes;
+
+public static class MySpecialHandler
+{
+    // This handler will NOT have transactional middleware applied
+    // even when AutoApplyTransactions() is enabled
+    [NonTransactional]
+    public static void Handle(MyCommand command, IDocumentSession session)
+    {
+        // You're managing the session yourself here
+    }
+}
+```
+
+The `[NonTransactional]` attribute can be placed on individual handler methods or on the handler class itself to opt out all methods:
+
+```cs
+using Wolverine.Attributes;
+
+// No methods in this handler class will have
+// transactional middleware applied
+[NonTransactional]
+public static class NonTransactionalHandlers
+{
+    public static void Handle(CommandA command, IDocumentSession session)
+    {
+        // ...
+    }
+
+    public static void Handle(CommandB command, IDocumentSession session)
+    {
+        // ...
+    }
+}
+```
+
+This also works for Wolverine HTTP endpoints:
+
+```cs
+using Wolverine.Attributes;
+using Wolverine.Http;
+
+public static class MyEndpoints
+{
+    // This endpoint will NOT use transactional middleware
+    [NonTransactional]
+    [WolverinePost("/my-non-transactional-endpoint")]
+    public static string Post(IDocumentSession session)
+    {
+        return "not transactional";
+    }
+}
+```
+
 In the previous section we saw an example of incorporating Wolverine's outbox with Marten transactions. We also wrote a fair amount of code to do so that could easily feel
 repetitive over time. Using Wolverine's transactional middleware support for Marten, the long hand handler above can become this equivalent:
 

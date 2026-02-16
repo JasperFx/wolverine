@@ -223,6 +223,13 @@ public partial class Envelope : IHasTenantId
     /// </summary>
     public int Attempts { get; set; }
 
+    /// <summary>
+    ///     Number of times that Wolverine has tried to send this message.
+    ///     This is tracked separately from handler Attempts and is used
+    ///     by sending failure policies.
+    /// </summary>
+    public int SendAttempts { get; set; }
+
     public DateTimeOffset SentAt { get; set; } = DateTimeOffset.UtcNow;
 
     /// <summary>
