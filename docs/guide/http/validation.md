@@ -137,7 +137,7 @@ with your own metadata if you need to use a different status code like this:
     [ProducesResponseType(typeof(ProblemDetails), 418)]
 ```
 
-### Using ProblemDetails with Marten aggregates
+### Using ProblemDetails with Marten Aggregates
 
 Of course, if you are using [Marten's aggregates within your Wolverine http handlers](./marten), you also want to be able to validation using the aggregate's details in your middleware and this is perfectly possible like this:
 
@@ -315,6 +315,21 @@ public static string Post2([FromQuery] CreateAccount customer)
 If you need to use IoC services in a Fluent Validation `IValidator` that might force Wolverine to use a service locator
 pattern in the generated code (basically from `AddScoped<T>(s => build it at runtime)`), we recommend instead using a
 more explicit `Validate` or `ValidateAsync()` method directly in your HTTP endpoint class for the data input.
+:::
+
+::: warning
+If you are using `ExtensionDiscovery.ManualOnly`, you must explicitly call `opts.UseFluentValidationProblemDetail()` in
+your Wolverine configuration in addition to `opts.UseFluentValidation()`. Without this, the `IProblemDetailSource<T>`
+service will not be registered and the middleware will fail at runtime. With the default `ExtensionDiscovery.Automatic`
+mode, these services are registered automatically by the `WolverineFx.Http.FluentValidation` extension.
+
+```csharp
+services.AddWolverine(ExtensionDiscovery.ManualOnly, opts =>
+{
+    opts.UseFluentValidation();
+    opts.UseFluentValidationProblemDetail(); // Required in manual discovery mode!
+});
+```
 :::
 
 Wolverine.Http has a separate package called `WolverineFx.Http.FluentValidation` that provides a simple middleware
