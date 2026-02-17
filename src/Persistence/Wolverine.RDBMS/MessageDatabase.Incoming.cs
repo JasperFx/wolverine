@@ -16,6 +16,9 @@ public abstract partial class MessageDatabase<T>
 
     public Task ReassignIncomingAsync(int ownerId, IReadOnlyList<Envelope> incoming)
     {
+        if (incoming.Count == 0)
+            return Task.CompletedTask;
+
         var builder = ToCommandBuilder();
         foreach (var envelope in incoming)
         {
