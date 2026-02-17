@@ -309,6 +309,35 @@ public class RabbitMqTransportExpression : BrokerExpression<RabbitMqTransport, R
 
             return _parent;
         }
+
+        /// <summary>
+        ///     Bind the named exchange to a destination exchange. The binding key will be
+        ///     [source exchange name]_[destination exchange name]
+        /// </summary>
+        /// <param name="destinationExchangeName"></param>
+        /// <param name="configure">Optional configuration of the destination Rabbit MQ exchange</param>
+        public RabbitMqTransportExpression ToExchange(string destinationExchangeName,
+            Action<IRabbitMqExchange>? configure = null)
+        {
+            return ToExchange(destinationExchangeName, $"{_exchangeName}_{destinationExchangeName}", configure);
+        }
+
+        /// <summary>
+        ///     Bind the named exchange to a destination exchange with a user supplied binding key
+        /// </summary>
+        /// <param name="destinationExchangeName"></param>
+        /// <param name="bindingKey"></param>
+        /// <param name="configure">Optional configuration of the destination Rabbit MQ exchange</param>
+        /// <param name="arguments">Optional configuration for arguments to the Rabbit MQ binding</param>
+        public RabbitMqTransportExpression ToExchange(string destinationExchangeName, string bindingKey,
+            Action<IRabbitMqExchange>? configure = null, Dictionary<string, object>? arguments = null)
+        {
+            _parent.DeclareExchange(destinationExchangeName, configure);
+            var destinationExchange = _parent.Transport.Exchanges[destinationExchangeName];
+            destinationExchange.BindExchange(_exchangeName, bindingKey, arguments);
+
+            return _parent;
+        }
     }
 
     /// <summary>

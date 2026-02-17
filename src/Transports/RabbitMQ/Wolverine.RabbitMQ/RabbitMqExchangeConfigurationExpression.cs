@@ -41,4 +41,9 @@ public sealed class RabbitMqExchangeConfigurationExpression : IRabbitMqBindableE
         var queue = _transport.Queues[queueName];
         return queue.BindExchange(Name, bindingKey);
     }
+
+    public RabbitMqExchangeBinding BindExchange(string sourceExchangeName, string? bindingKey = null)
+    {
+        return _exchange.BindExchange(sourceExchangeName, bindingKey);
+    }
 }

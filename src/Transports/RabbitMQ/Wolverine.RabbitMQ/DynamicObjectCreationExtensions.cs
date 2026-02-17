@@ -44,6 +44,19 @@ public static class DynamicObjectCreationExtensions
         var transport = runtime.Options.Transports.GetOrCreate<RabbitMqTransport>();
         await transport.WithAdminChannelAsync(model => model.QueueUnbindAsync(queueName, exchangeName, routingKey));
     }
+
+    /// <summary>
+    /// Will un-bind an exchange-to-exchange binding
+    /// </summary>
+    /// <param name="runtime"></param>
+    /// <param name="destinationExchangeName">The destination exchange name</param>
+    /// <param name="sourceExchangeName">The source exchange name</param>
+    /// <param name="routingKey">Binding key name</param>
+    public static async Task UnBindRabbitMqExchange(this IWolverineRuntime runtime, string destinationExchangeName, string sourceExchangeName, string routingKey)
+    {
+        var transport = runtime.Options.Transports.GetOrCreate<RabbitMqTransport>();
+        await transport.WithAdminChannelAsync(model => model.ExchangeUnbindAsync(destinationExchangeName, sourceExchangeName, routingKey));
+    }
 }
 
 public class RabbitMqObjects
@@ -101,7 +114,7 @@ public class RabbitMqObjects
             foreach (var queue in _queues)
             {
                 await queue.DeclareAsync(model, _logger);
-            
+
                 foreach (var binding in queue.Bindings())
                 {
                     await binding.DeclareAsync(model, _logger);
