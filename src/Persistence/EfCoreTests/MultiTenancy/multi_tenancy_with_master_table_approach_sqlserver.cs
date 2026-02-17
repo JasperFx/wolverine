@@ -40,6 +40,5 @@ public class multi_tenancy_with_master_table_approach_sqlserver : MultiTenancyCo
                 b => b.MigrationsAssembly("MultiTenantedEfCoreWithSqlServer"));
         }, AutoCreate.CreateOrUpdate);
 
-        opts.Services.AddResourceSetupOnStartup();
     }
 }

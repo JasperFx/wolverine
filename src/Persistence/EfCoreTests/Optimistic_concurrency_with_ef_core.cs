@@ -62,11 +62,10 @@ public class Optimistic_concurrency_with_ef_core
         var migration = await SchemaMigration.DetermineAsync(conn, table);
         await new SqlServerMigrator().ApplyAllAsync(conn, migration, AutoCreate.All);
 
+        await conn.CloseAsync();
+
         using var scope = host.Services.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<OptConcurrencyDbContext>();
-        await dbContext.Database.EnsureCreatedAsync();
-
-        await conn.CloseAsync();
 
         await dbContext.ConcurrencyTestSagas.AddAsync(new()
         {
