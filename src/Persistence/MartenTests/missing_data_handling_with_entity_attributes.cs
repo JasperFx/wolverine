@@ -82,8 +82,44 @@ public class missing_data_handling_with_entity_attributes : IAsyncLifetime
         {
             await _host.InvokeAsync(new UseThing5(Guid.NewGuid().ToString()));
         });
-        
+
         ex.Message.ShouldContain("You stink!");
+    }
+
+    // GH-2207: [Entity] with OnMissing.ThrowException on Guid identity should compile
+    [Fact]
+    public async Task throw_exception_with_guid_identity()
+    {
+        var id = Guid.NewGuid();
+        var ex = await Should.ThrowAsync<RequiredDataMissingException>(async () =>
+        {
+            await _host.InvokeAsync(new UseGuidThing1(id));
+        });
+
+        ex.Message.ShouldContain(id.ToString());
+    }
+
+    [Fact]
+    public async Task throw_exception_with_guid_identity_and_custom_message()
+    {
+        var ex = await Should.ThrowAsync<RequiredDataMissingException>(async () =>
+        {
+            await _host.InvokeAsync(new UseGuidThing2(Guid.NewGuid()));
+        });
+
+        ex.Message.ShouldContain("GuidThing not found");
+    }
+
+    [Fact]
+    public async Task end_to_end_with_guid_identity_entity()
+    {
+        var guidThing = new GuidThing();
+        await _host.DocumentStore().BulkInsertDocumentsAsync([guidThing]);
+
+        var tracked = await _host.InvokeMessageAndWaitAsync(new UseGuidThing1(guidThing.Id));
+
+        tracked.Sent.SingleMessage<UsedGuidThing>()
+            .Id.ShouldBe(guidThing.Id);
     }
 }
 
@@ -135,5 +171,37 @@ public static class ThingHandler
     public static void Handle(UsedThing msg)
     {
         Debug.WriteLine("Used thing " + msg.Id);
+    }
+}
+
+// GH-2207: Entity with Guid identity for testing OnMissing.ThrowException
+public class GuidThing
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+}
+
+public record UseGuidThing1(Guid Id);
+
+public record UseGuidThing2(Guid Id);
+
+public record UsedGuidThing(Guid Id);
+
+public static class GuidThingHandler
+{
+    public static UsedGuidThing Handle(UseGuidThing1 command,
+        [Entity(OnMissing = OnMissing.ThrowException)] GuidThing thing)
+    {
+        return new UsedGuidThing(thing.Id);
+    }
+
+    public static UsedGuidThing Handle(UseGuidThing2 command,
+        [Entity(OnMissing = OnMissing.ThrowException, MissingMessage = "GuidThing not found")] GuidThing thing)
+    {
+        return new UsedGuidThing(thing.Id);
+    }
+
+    public static void Handle(UsedGuidThing msg)
+    {
+        Debug.WriteLine("Used guid thing " + msg.Id);
     }
 }
