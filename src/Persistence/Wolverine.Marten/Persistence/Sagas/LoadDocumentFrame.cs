@@ -66,6 +66,8 @@ internal class LoadDocumentFrame : AsyncFrame, IBatchableFrame
 
     public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
     {
+        yield return _sagaId;
+
         _session = chain.FindVariable(typeof(IDocumentSession));
         yield return _session;
 
