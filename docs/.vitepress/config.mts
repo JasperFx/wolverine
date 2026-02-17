@@ -269,8 +269,9 @@ const config: UserConfig<DefaultTheme.Config> = {
                                 {text: 'Operation Side Effects', link: '/guide/durability/efcore/operations'},
                                 {text: 'Saga Storage', link: '/guide/durability/efcore/sagas'},
                                 {text: 'Multi-Tenancy', link: '/guide/durability/efcore/multi-tenancy'},
-                                {text: 'Domain Events', link: '/guide/durability/efcore/domain-events'}
-                            
+                                {text: 'Domain Events', link: '/guide/durability/efcore/domain-events'},
+                                {text: 'Database Migrations', link: '/guide/durability/efcore/migrations'}
+
                             ]},
                         {text: 'Managing Message Storage', link: '/guide/durability/managing'},
                         {text: 'Dead Letter Storage', link: '/guide/durability/dead-letter-storage'},

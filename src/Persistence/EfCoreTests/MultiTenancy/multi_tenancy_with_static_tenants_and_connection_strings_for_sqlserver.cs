@@ -44,9 +44,6 @@ public class multi_tenancy_with_static_tenants_and_connection_strings_for_sqlser
             builder.UseSqlServer(connectionString.Value, b => b.MigrationsAssembly("MultiTenantedEfCoreWithSqlServer"));
         }, AutoCreate.CreateOrUpdate);
 
-        opts.Services.AddResourceSetupOnStartup();
-
-        
     }
     
     [Fact]

@@ -38,6 +38,5 @@ public class multi_tenancy_with_master_table_approach_postgresql : MultiTenancyC
             builder.UseNpgsql(connectionString.Value, b => b.MigrationsAssembly("MultiTenantedEfCoreWithPostgreSQL"));
         }, AutoCreate.CreateOrUpdate);
 
-        opts.Services.AddResourceSetupOnStartup();
     }
 }
