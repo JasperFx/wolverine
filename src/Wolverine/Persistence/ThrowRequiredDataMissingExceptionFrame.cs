@@ -32,7 +32,11 @@ internal class ThrowRequiredDataMissingExceptionFrame : SyncFrame
         }
         else if (Message.Contains("{Id}"))
         {
-            writer.Write($"throw new {typeof(RequiredDataMissingException).FullNameInCode()}(\"{Message}\".Replace(\"{{Id}}\", {Identity.Usage}?.ToString() ?? \"\"));");
+            var toStringExpression = Identity.VariableType.IsValueType
+                ? $"{Identity.Usage}.ToString()"
+                : $"{Identity.Usage}?.ToString() ?? \"\"";
+
+            writer.Write($"throw new {typeof(RequiredDataMissingException).FullNameInCode()}(\"{Message}\".Replace(\"{{Id}}\", {toStringExpression}));");
         }
         else
         {
