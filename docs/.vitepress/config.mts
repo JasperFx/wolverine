@@ -262,7 +262,9 @@ const config: UserConfig<DefaultTheme.Config> = {
                         {text: 'PostgreSQL Integration', link: '/guide/durability/postgresql'},
                         {text: 'MySQL Integration', link: '/guide/durability/mysql'},
                         {text: 'SQLite Integration', link: '/guide/durability/sqlite'},
+                        {text: 'Oracle Integration', link: '/guide/durability/oracle'},
                         {text: 'RavenDb Integration', link: '/guide/durability/ravendb'},
+                        {text: 'CosmosDB Integration', link: '/guide/durability/cosmosdb'},
                         {text: 'Entity Framework Core Integration', collapsed: false, link: '/guide/durability/efcore', items: [
                                 {text: 'Transactional Middleware', link: '/guide/durability/efcore/transactional-middleware'},
                                 {text: 'Transactional Inbox and Outbox', link: '/guide/durability/efcore/outbox-and-inbox'},
