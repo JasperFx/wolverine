@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Wolverine.Runtime.Handlers;
 
 namespace Wolverine.Runtime.Scheduled;
@@ -17,6 +18,9 @@ internal class ScheduledSendEnvelopeHandler : MessageHandler
         }
 
         var scheduled = (Envelope)context.Envelope!.Message!;
+
+        context.Runtime.Logger.LogDebug("Forwarding previously scheduled envelope {EnvelopeId} ({MessageType}) for execution to {Destination}", scheduled.Id, scheduled.MessageType, scheduled.Destination);
+
         scheduled.Source = context.Runtime.Options.ServiceName;
         scheduled.ScheduledTime = null;
         scheduled.Status = EnvelopeStatus.Outgoing;

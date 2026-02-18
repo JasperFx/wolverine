@@ -236,7 +236,7 @@ public partial class WolverineRuntime
     private void startInMemoryScheduledJobs()
     {
         ScheduledJobs =
-            new InMemoryScheduledJobProcessor((ILocalQueue)Endpoints.AgentForLocalQueue(TransportConstants.Replies));
+            new InMemoryScheduledJobProcessor((ILocalQueue)Endpoints.AgentForLocalQueue(TransportConstants.Replies), Logger);
 
         // Bit of a hack, but it's necessary. Came up in compliance tests
         if (Storage is NullMessageStore p)

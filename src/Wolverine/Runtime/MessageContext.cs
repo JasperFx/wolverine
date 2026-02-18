@@ -169,12 +169,18 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
                     {
                         if (envelope.Sender!.SupportsNativeScheduledSend)
                         {
+                            Runtime.Logger.LogDebug("Sending scheduled envelope {EnvelopeId} ({MessageType}) via native scheduled send to {Destination}", envelope.Id, envelope.MessageType, envelope.Destination);
                             await sendEnvelopeAsync(envelope);
                         }
                         else
                         {
+                            Runtime.Logger.LogDebug("Scheduling envelope {EnvelopeId} ({MessageType}) for in-memory execution (non-durable, no native scheduling) to {Destination}", envelope.Id, envelope.MessageType, envelope.Destination);
                             Runtime.ScheduleLocalExecutionInMemory(envelope.ScheduledTime!.Value, envelope);
                         }
+                    }
+                    else
+                    {
+                        Runtime.Logger.LogDebug("Envelope {EnvelopeId} ({MessageType}) is scheduled with durable sender to {Destination}, relying on durable inbox scheduling", envelope.Id, envelope.MessageType, envelope.Destination);
                     }
 
                     // If NullMessageStore, then we're calling a different Send method that is marking the message
@@ -291,10 +297,12 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         Envelope.ScheduledTime = scheduledTime;
         if (tryGetRescheduler(_channel, Envelope) is ISupportNativeScheduling c)
         {
+            Runtime.Logger.LogDebug("Rescheduling envelope {EnvelopeId} ({MessageType}) via native scheduling to {ScheduledTime}", Envelope.Id, Envelope.MessageType, scheduledTime);
             await c.MoveToScheduledUntilAsync(Envelope, Envelope.ScheduledTime.Value);
         }
         else
         {
+            Runtime.Logger.LogDebug("Rescheduling envelope {EnvelopeId} ({MessageType}) via durable inbox to {ScheduledTime}", Envelope.Id, Envelope.MessageType, scheduledTime);
             await Storage.Inbox.RescheduleExistingEnvelopeForRetryAsync(Envelope);
         }
     }
@@ -673,6 +681,7 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         {
             foreach (var envelope in Scheduled)
             {
+                Runtime.Logger.LogDebug("Flushing scheduled envelope {EnvelopeId} ({MessageType}) to in-memory execution (NullMessageStore)", envelope.Id, envelope.MessageType);
                 Runtime.ScheduleLocalExecutionInMemory(envelope.ScheduledTime!.Value, envelope);
             }
         }
@@ -680,6 +689,7 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         {
             foreach (var envelope in Scheduled)
             {
+                Runtime.Logger.LogDebug("Flushing scheduled envelope {EnvelopeId} ({MessageType}) to durable inbox for retry scheduling", envelope.Id, envelope.MessageType);
                 await Storage.Inbox.RescheduleExistingEnvelopeForRetryAsync(envelope);
             }
         }

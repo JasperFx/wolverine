@@ -317,6 +317,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
 
     public Task MoveToScheduledUntilAsync(Envelope envelope, DateTimeOffset time)
     {
+        _logger.LogDebug("Moving envelope {EnvelopeId} ({MessageType}) to scheduled status until {ScheduledTime} in durable receiver", envelope.Id, envelope.MessageType, time);
         envelope.OwnerId = TransportConstants.AnyNode;
         envelope.ScheduledTime = time;
         envelope.Status = EnvelopeStatus.Scheduled;
