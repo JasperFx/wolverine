@@ -161,6 +161,7 @@ public class EntityAttribute : WolverineParameterAttribute, IDataRequirement
         var frame = provider.DetermineLoadFrame(container, parameter.ParameterType, identity);
 
         var entity = frame.Creates.First(x => x.VariableType == parameter.ParameterType);
+        entity.OverrideName(parameter.Name);
 
         if (MaybeSoftDeleted is false)
         {
@@ -168,6 +169,7 @@ public class EntityAttribute : WolverineParameterAttribute, IDataRequirement
             chain.Middleware.AddRange(softDeleteFrames);
         }
 
+        Variable returnVariable;
         if (Required)
         {
             var otherFrames = chain.AddStopConditionIfNull(entity, identity, this);
@@ -175,10 +177,28 @@ public class EntityAttribute : WolverineParameterAttribute, IDataRequirement
             var block = new LoadEntityFrameBlock(entity, otherFrames);
             chain.Middleware.Add(block);
 
-            return block.Mirror;
+            returnVariable = block.Mirror;
+        }
+        else
+        {
+            chain.Middleware.Add(frame);
+            returnVariable = entity;
         }
 
-        chain.Middleware.Add(frame);
-        return entity;
+        // Store deferred assignment for middleware methods added later (Before/After)
+        StoreDeferredMiddlewareVariable(chain, parameter.Name, returnVariable);
+
+        return returnVariable;
+    }
+
+    internal static void StoreDeferredMiddlewareVariable(IChain chain, string parameterName, Variable variable)
+    {
+        const string key = "DeferredMiddlewareVariables";
+        if (!chain.Tags.TryGetValue(key, out var raw))
+        {
+            raw = new List<(string Name, Variable Variable)>();
+            chain.Tags[key] = raw;
+        }
+        ((List<(string Name, Variable Variable)>)raw).Add((parameterName, variable));
     }
 }
