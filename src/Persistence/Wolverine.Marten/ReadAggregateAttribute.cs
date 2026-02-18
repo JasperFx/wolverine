@@ -65,20 +65,28 @@ public class ReadAggregateAttribute : WolverineParameterAttribute, IDataRequirem
         }
 
         var frame = new FetchLatestAggregateFrame(parameter.ParameterType, identity);
-        
+        frame.Aggregate.OverrideName(parameter.Name);
+
+        Variable returnVariable;
         if (Required)
         {
             var otherFrames = chain.AddStopConditionIfNull(frame.Aggregate, identity, this);
-            
+
             var block = new LoadEntityFrameBlock(frame.Aggregate, otherFrames);
             chain.Middleware.Add(block);
 
-            return block.Mirror;
+            returnVariable = block.Mirror;
         }
-        
-        chain.Middleware.Add(frame);
+        else
+        {
+            chain.Middleware.Add(frame);
+            returnVariable = frame.Aggregate;
+        }
 
-        return frame.Aggregate;
+        // Store deferred assignment for middleware methods added later (Before/After)
+        AggregateHandling.StoreDeferredMiddlewareVariable(chain, parameter.Name, returnVariable);
+
+        return returnVariable;
     }
 }
 

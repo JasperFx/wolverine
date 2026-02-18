@@ -100,6 +100,64 @@ public class working_against_multiple_streams : IntegrationContext
         (await fetchAmount(from)).ShouldBe(850);
         (await fetchAmount(to)).ShouldBe(250);
     }
+    
+    [Fact]
+    public async Task happy_path_found_both_accounts_and_able_to_use_each_in_Before_method()
+    {
+        var from = await createAccount(1000);
+        var to = await createAccount(100);
+
+        await Scenario(x =>
+        {
+            x.Post.Json(new TransferMoney(from, to, 150)).ToUrl("/accounts/transfer4");
+            x.StatusCodeShouldBe(204);
+        });
+        
+        (await fetchAmount(from)).ShouldBe(850);
+        (await fetchAmount(to)).ShouldBe(250);
+        
+        TransferMoneyEndpointWithBefore.From.Id.ShouldBe(from);
+        TransferMoneyEndpointWithBefore.To.Id.ShouldBe(to);
+    }
+
+    [Fact]
+    public async Task happy_path_with_aggregate_attribute_and_before_method()
+    {
+        var from = await createAccount(1000);
+        var to = await createAccount(100);
+
+        await Scenario(x =>
+        {
+            x.Post.Json(new TransferMoney(from, to, 150)).ToUrl("/accounts/transfer5");
+            x.StatusCodeShouldBe(204);
+        });
+
+        (await fetchAmount(from)).ShouldBe(850);
+        (await fetchAmount(to)).ShouldBe(250);
+
+        TransferMoneyEndpointWithBeforeAggregate.From.Id.ShouldBe(from);
+        TransferMoneyEndpointWithBeforeAggregate.To.Id.ShouldBe(to);
+    }
+
+    [Fact]
+    public async Task happy_path_with_mixed_write_and_read_aggregate_and_before_method()
+    {
+        var from = await createAccount(1000);
+        var to = await createAccount(100);
+
+        await Scenario(x =>
+        {
+            x.Post.Json(new TransferMoney(from, to, 150)).ToUrl("/accounts/transfer6");
+            x.StatusCodeShouldBe(204);
+        });
+
+        (await fetchAmount(from)).ShouldBe(850);
+        // toAccount is read-only, so amount should not change
+        (await fetchAmount(to)).ShouldBe(100);
+
+        TransferMoneyEndpointWithBeforeMixed.From.Id.ShouldBe(from);
+        TransferMoneyEndpointWithBeforeMixed.To.Id.ShouldBe(to);
+    }
 }
 
 #region sample_when_transfering_money

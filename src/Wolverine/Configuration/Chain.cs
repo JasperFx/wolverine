@@ -279,7 +279,7 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
     {
         if (_appliedImpliedMiddleware) return;
         _appliedImpliedMiddleware = true;
-        
+
         var handlerTypes = HandlerCalls().Select(x => x.HandlerType).Distinct();
         foreach (var handlerType in handlerTypes)
         {
@@ -301,6 +301,26 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
                 {
                     var frame = new MethodCall(handlerType, afters[i]);
                     Postprocessors.Insert(i, frame);
+                }
+            }
+        }
+
+        applyDeferredMiddlewareVariables();
+    }
+
+    private void applyDeferredMiddlewareVariables()
+    {
+        const string key = "DeferredMiddlewareVariables";
+        if (!Tags.TryGetValue(key, out var raw)) return;
+        if (raw is not List<(string Name, Variable Variable)> assignments) return;
+
+        foreach (var (name, variable) in assignments)
+        {
+            foreach (var methodCall in Middleware.OfType<MethodCall>())
+            {
+                if (!methodCall.TrySetArgument(name, variable))
+                {
+                    methodCall.TrySetArgument(variable);
                 }
             }
         }

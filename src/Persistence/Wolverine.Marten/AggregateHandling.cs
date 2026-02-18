@@ -241,21 +241,42 @@ internal record AggregateHandling(IDataRequirement Requirement)
             // If the handle method is on the aggregate itself
             firstCall.Target = aggregateVariable;
         }
+        else if (Parameter != null && Parameter.ParameterType.Closes(typeof(IEventStream<>)))
+        {
+            // When the handler parameter is IEventStream<T>, set the stream directly by name
+            var index = firstCall.Method.GetParameters().IndexOf(x => x.Name == Parameter.Name);
+            firstCall.Arguments[index] = eventStream;
+        }
+        else if (Parameter != null)
+        {
+            // Use name-based matching to avoid accidentally setting the wrong same-type parameter
+            firstCall.TrySetArgument(Parameter.Name, aggregateVariable);
+        }
         else
         {
-            if (!firstCall.TrySetArgument(aggregateVariable))
-            {
-                if (Parameter != null && Parameter.ParameterType.Closes(typeof(IEventStream<>)))
-                {
-                    var index = firstCall.Method.GetParameters().IndexOf(x => x.Name == Parameter.Name);
-                    firstCall.Arguments[index] = eventStream;
-                }
-            };
+            firstCall.TrySetArgument(aggregateVariable);
         }
 
+        // Store deferred assignment for middleware methods added later (Before/After)
+        if (Parameter != null)
+        {
+            StoreDeferredMiddlewareVariable(chain, Parameter.Name, aggregateVariable);
+        }
+
+        // Also do immediate relay for any middleware already present
         foreach (var methodCall in chain.Middleware.OfType<MethodCall>())
         {
-            methodCall.TrySetArgument(aggregateVariable);
+            if (Parameter != null)
+            {
+                if (!methodCall.TrySetArgument(Parameter.Name, aggregateVariable))
+                {
+                    methodCall.TrySetArgument(aggregateVariable);
+                }
+            }
+            else
+            {
+                methodCall.TrySetArgument(aggregateVariable);
+            }
         }
 
         return aggregateVariable;
@@ -294,5 +315,16 @@ internal record AggregateHandling(IDataRequirement Requirement)
         var versioning =
             _versioningBaseType.CloseAndBuildAs<IAggregateVersioning>(AggregationScope.SingleStream, aggregateType);
         return versioning.VersionMember;
+    }
+
+    internal static void StoreDeferredMiddlewareVariable(IChain chain, string parameterName, Variable variable)
+    {
+        const string key = "DeferredMiddlewareVariables";
+        if (!chain.Tags.TryGetValue(key, out var raw))
+        {
+            raw = new List<(string Name, Variable Variable)>();
+            chain.Tags[key] = raw;
+        }
+        ((List<(string Name, Variable Variable)>)raw).Add((parameterName, variable));
     }
 }
