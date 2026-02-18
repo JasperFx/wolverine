@@ -2,6 +2,7 @@ using System.Diagnostics;
 using ImTools;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
+using Microsoft.Extensions.Logging;
 using Wolverine.Attributes;
 using Wolverine.Configuration;
 using Wolverine.Runtime.Partitioning;
@@ -120,10 +121,16 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
             {
                 envelope.Status = EnvelopeStatus.Scheduled;
                 envelope.OwnerId = TransportConstants.AnyNode;
+                runtime.Logger.LogDebug("Envelope {EnvelopeId} ({MessageType}) marked as Scheduled for local execution at {Destination}", envelope.Id, envelope.MessageType, envelope.Destination);
             }
             else if (!Sender.SupportsNativeScheduledSend)
             {
+                runtime.Logger.LogDebug("Envelope {EnvelopeId} ({MessageType}) wrapped for durable scheduled send to {Destination} (transport does not support native scheduling)", envelope.Id, envelope.MessageType, envelope.Destination);
                 return envelope.ForScheduledSend(localDurableQueue);
+            }
+            else
+            {
+                runtime.Logger.LogDebug("Envelope {EnvelopeId} ({MessageType}) scheduled via native transport scheduling to {Destination}", envelope.Id, envelope.MessageType, envelope.Destination);
             }
         }
         else

@@ -197,6 +197,7 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
             throw new InvalidOperationException(
                 $"This action is invalid when {nameof(WolverineOptions)}.{nameof(WolverineOptions.Durability)}.{nameof(DurabilitySettings.Mode)} = {Options.Durability.Mode}");
 
+        Logger.LogDebug("Scheduling envelope {EnvelopeId} ({MessageType}) for in-memory execution at {ExecutionTime}", envelope.Id, envelope.MessageType, executionTime);
         MessageTracking.Sent(envelope);
         ScheduledJobs.Enqueue(executionTime, envelope);
     }

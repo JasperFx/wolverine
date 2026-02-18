@@ -1,4 +1,6 @@
 using JasperFx.Core;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Wolverine.Runtime.WorkerQueues;
 
 namespace Wolverine.Runtime.Scheduled;
@@ -8,14 +10,17 @@ public class InMemoryScheduledJobProcessor : IScheduledJobProcessor
     private readonly Cache<Guid, InMemoryScheduledJob> _outstandingJobs = new();
 
     private readonly ILocalQueue _queue;
+    private readonly ILogger _logger;
 
-    public InMemoryScheduledJobProcessor(ILocalQueue queue)
+    public InMemoryScheduledJobProcessor(ILocalQueue queue, ILogger? logger = null)
     {
         _queue = queue;
+        _logger = logger ?? NullLogger.Instance;
     }
 
     public void Enqueue(DateTimeOffset executionTime, Envelope envelope)
     {
+        _logger.LogDebug("Enqueuing envelope {EnvelopeId} ({MessageType}) for in-memory scheduled execution at {ExecutionTime}", envelope.Id, envelope.MessageType, executionTime);
         _outstandingJobs[envelope.Id] = new InMemoryScheduledJob(this, envelope, executionTime);
     }
 
@@ -90,10 +95,12 @@ public class InMemoryScheduledJobProcessor : IScheduledJobProcessor
             var delayTime = ExecutionTime.Subtract(DateTimeOffset.UtcNow);
             if (delayTime <= TimeSpan.Zero)
             {
+                _parent._logger.LogDebug("Scheduled envelope {EnvelopeId} ({MessageType}) firing immediately (execution time already passed)", envelope.Id, envelope.MessageType);
                 _task = Task.Run(() => publish());
             }
             else
             {
+                _parent._logger.LogDebug("Scheduled envelope {EnvelopeId} ({MessageType}) will fire after delay of {DelayTime}", envelope.Id, envelope.MessageType, delayTime);
                 _task = Task.Delay(delayTime, _cancellation.Token).ContinueWith(_ => publish(), TaskScheduler.Default);
             }
 
@@ -137,6 +144,7 @@ public class InMemoryScheduledJobProcessor : IScheduledJobProcessor
 
         public void Enqueue()
         {
+            _parent._logger.LogDebug("In-memory scheduled job firing, enqueuing envelope {EnvelopeId} ({MessageType}) to local queue", Envelope.Id, Envelope.MessageType);
             _parent._queue.Enqueue(Envelope);
             Cancel();
         }

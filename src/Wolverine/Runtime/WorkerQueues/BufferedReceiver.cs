@@ -35,7 +35,7 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
         _settings = runtime.DurabilitySettings;
         Pipeline = pipeline;
 
-        _scheduler = new InMemoryScheduledJobProcessor(this);
+        _scheduler = new InMemoryScheduledJobProcessor(this, _logger);
 
         _deferBlock = new RetryBlock<Envelope>((env, _) => env.Listener!.DeferAsync(env).AsTask(), runtime.Logger,
             runtime.Cancellation);
@@ -226,6 +226,7 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
 
     Task ISupportNativeScheduling.MoveToScheduledUntilAsync(Envelope envelope, DateTimeOffset time)
     {
+        _logger.LogDebug("Moving envelope {EnvelopeId} ({MessageType}) to scheduled status in buffered receiver until {ScheduledTime}", envelope.Id, envelope.MessageType, time);
         envelope.ScheduledTime = time;
         ScheduleExecution(envelope);
 
@@ -240,6 +241,7 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
                 $"There is no {nameof(Envelope.ScheduledTime)} value");
         }
 
+        _logger.LogDebug("Scheduling envelope {EnvelopeId} ({MessageType}) execution via in-memory scheduler at {ExecutionTime}", envelope.Id, envelope.MessageType, envelope.ScheduledTime.Value);
         _scheduler.Enqueue(envelope.ScheduledTime.Value, envelope);
     }
 }
