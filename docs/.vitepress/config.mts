@@ -165,7 +165,8 @@ const config: UserConfig<DefaultTheme.Config> = {
                                         {text: 'Interoperability', link:'/guide/messaging/transports/azureservicebus/interoperability'},
                                         {text: 'Session Identifiers and FIFO Queues', link: '/guide/messaging/transports/azureservicebus/session-identifiers'},
                                         {text: 'Scheduled Delivery', link: '/guide/messaging/transports/azureservicebus/scheduled'},
-                                        {text: 'Multi-Tenancy', link: '/guide/messaging/transports/azureservicebus/multi-tenancy'}
+                                        {text: 'Multi-Tenancy', link: '/guide/messaging/transports/azureservicebus/multi-tenancy'},
+                                        {text: 'Using the Emulator', link: '/guide/messaging/transports/azureservicebus/emulator'}
                                     ]},
                                 {text: 'Amazon SQS', link: '/guide/messaging/transports/sqs/', items:[
                                         {text: 'Publishing', link:'/guide/messaging/transports/sqs/publishing'},
