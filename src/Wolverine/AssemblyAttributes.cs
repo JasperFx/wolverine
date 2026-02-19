@@ -4,6 +4,7 @@ using JasperFx.CommandLine;
 using Wolverine.Attributes;
 
 [assembly: JasperFx.Core.TypeScanning.IgnoreAssembly]
+[assembly: ExcludeFromServiceCapabilities]
 [assembly: JasperFxAssembly]
 [assembly: WolverineFeature]
 
