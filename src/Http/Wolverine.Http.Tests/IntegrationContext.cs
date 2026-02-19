@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using Alba;
 using Marten;
 using Microsoft.AspNetCore.Http;
@@ -10,12 +9,13 @@ using Shouldly;
 using Swashbuckle.AspNetCore.Swagger;
 using Wolverine.Tracking;
 using WolverineWebApi.TestSupport;
+using JasperFx;
 
 namespace Wolverine.Http.Tests;
 
 public class AppFixture : IAsyncLifetime
 {
-    public IAlbaHost Host { get; private set; }
+    public IAlbaHost? Host { get; private set; }
 
     public async Task InitializeAsync()
     {
@@ -23,6 +23,10 @@ public class AppFixture : IAsyncLifetime
         // use JasperFx for command line processing and want to
         // use WebApplicationFactory and/or Alba for integration testing
         JasperFxEnvironment.AutoStartHost = true;
+
+        // For "integration" test collection (based on this fixture) ApplicationAssembly is WolverineWebApi.
+        // If not set explicitly here other tests may set it to the test assembly causing issues with endpoints discovery.
+        JasperFxOptions.RememberedApplicationAssembly = typeof(WolverineWebApi.Program).Assembly;
 
         #region sample_using_run_wolverine_in_solo_mode_with_extension
 
@@ -47,69 +51,13 @@ public class AppFixture : IAsyncLifetime
         #endregion
     }
 
-    public Task DisposeAsync()
+    public async Task DisposeAsync()
     {
-        if (Host != null)
-        {
-            return Host.DisposeAsync().AsTask();
-        }
-
-        return Task.CompletedTask;
-    }
-
-    private async Task bootstrap(int delay)
-    {
-        if (Host != null)
-        {
-            try
-            {
-                var endpoints = Host.Services.GetRequiredService<EndpointDataSource>().Endpoints;
-                if (endpoints.Count < 5)
-                {
-                    throw new Exception($"Only got {endpoints.Count} endpoints, something is missing!");
-                }
-
-                await Host.GetAsText("/trace");
-                await Task.Delay(delay);
-                return;
-            }
-            catch (Exception e)
-            {
-                await Host.StopAsync();
-                Host.Dispose();
-                Host = null;
-            }
-        }
-    }
-
-    public async Task ResetHost()
-    {
-        var delay = 0;
-        while (true)
-        {
-            if (delay > 1000)
-            {
-                throw new Exception("Will not start up, don't know why!");
-            }
-
-            try
-            {
-                await bootstrap(delay);
-                break;
-            }
-            catch (Exception e)
-            {
-                delay += 100;
-                await Task.Delay(delay);
-
-                if (Host != null)
-                {
-                    await Host.GetAsText("/trace");
-                }
-
-                break;
-            }
-        }
+        if (Host is null)
+            return;
+        await Host.StopAsync();
+        await Host.DisposeAsync();
+        Host = null;
     }
 }
 
@@ -130,21 +78,9 @@ public abstract class IntegrationContext : IAsyncLifetime, IOpenApiSource
 
     public HttpGraph HttpChains => Host.Services.GetRequiredService<WolverineHttpOptions>().Endpoints!;
 
-    public IAlbaHost Host => _fixture.Host;
+    public IAlbaHost Host => _fixture.Host!;
 
-    public IDocumentStore Store
-    {
-        get
-        {
-            var store = _fixture.Host.Services.GetRequiredService<IDocumentStore>();
-            if (store == null)
-            {
-                _fixture.ResetHost().GetAwaiter().GetResult();
-            }
-
-            return _fixture.Host.Services.GetRequiredService<IDocumentStore>();
-        }
-    }
+    public IDocumentStore Store => Host.Services.GetRequiredService<IDocumentStore>();
 
     async Task IAsyncLifetime.InitializeAsync()
     {
@@ -163,20 +99,7 @@ public abstract class IntegrationContext : IAsyncLifetime, IOpenApiSource
 
     public async Task<IScenarioResult> Scenario(Action<Scenario> configure)
     {
-        try
-        {
-            return await Host.Scenario(configure);
-        }
-        catch (Exception e)
-        {
-            if (e.Message.Contains("but was 404"))
-            {
-                await _fixture.ResetHost();
-                return await Host.Scenario(configure);
-            }
-
-            throw;
-        }
+        return await Host.Scenario(configure);
     }
 
     // This method allows us to make HTTP calls into our system
