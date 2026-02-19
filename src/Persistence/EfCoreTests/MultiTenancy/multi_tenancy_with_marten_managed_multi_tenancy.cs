@@ -48,6 +48,5 @@ public class multi_tenancy_with_marten_managed_multi_tenancy : MultiTenancyCompl
         opts.Services.RemoveAll(typeof(OrdersDbContext));
         opts.AddSagaType<Order>();
 
-        opts.Services.AddResourceSetupOnStartup();
     }
 }

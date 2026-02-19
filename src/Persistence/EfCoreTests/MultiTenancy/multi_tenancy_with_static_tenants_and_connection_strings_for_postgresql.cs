@@ -46,9 +46,8 @@ public class multi_tenancy_with_static_tenants_and_connection_strings_for_postgr
             builder.UseNpgsql(connectionString.Value, b => b.MigrationsAssembly("MultiTenantedEfCoreWithPostgreSQL"));
         }, AutoCreate.CreateOrUpdate);
 
-        opts.Services.AddResourceSetupOnStartup();
     }
-    
+
     [Fact]
     public async Task opens_the_db_context_to_the_correct_database_1()
     {

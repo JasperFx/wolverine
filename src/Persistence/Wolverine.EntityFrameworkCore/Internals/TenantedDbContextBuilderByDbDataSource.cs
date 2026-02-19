@@ -8,8 +8,8 @@ using JasperFx.Descriptors;
 using JasperFx.MultiTenancy;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
-using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.DependencyInjection;
+using Weasel.Core;
 using Weasel.EntityFrameworkCore;
 using Wolverine.Persistence.Durability;
 using Wolverine.RDBMS;
@@ -84,42 +84,69 @@ public class TenantedDbContextBuilderByDbDataSource<T> : IDbContextBuilder<T> wh
 
     public async Task ApplyAllChangesToDatabasesAsync()
     {
+        // For data source connections, ensure all tenant databases exist FIRST before
+        // building DbContexts. NpgsqlDataSource strips credentials from its ConnectionString
+        // property, so Weasel's EnsureDatabaseExistsAsync cannot create admin connections.
+        // We use the admin data source directly instead.
+        await ensureAllTenantDatabasesExistAsync();
+
         var contexts = await BuildAllAsync();
 
         foreach (var context in contexts)
         {
-            var pending = (await context.Database.GetPendingMigrationsAsync()).ToArray();
-            var applied = (await context.Database.GetAppliedMigrationsAsync()).ToArray();
-
-            if (pending.All(x => applied.Contains(x))) return;
-
-            var migrator = context.Database.GetInfrastructure().GetRequiredService<IMigrator>();
-            await migrator.MigrateAsync();
+            await using var migration = await _serviceProvider.CreateMigrationAsync(context, CancellationToken.None);
+            await migration.ExecuteAsync(AutoCreate.CreateOrUpdate, CancellationToken.None);
         }
     }
 
     public async Task EnsureAllDatabasesAreCreatedAsync()
     {
-        var list = new List<T>();
-        list.Add((T)BuildForMain());
+        // For data source connections, ensure all tenant databases exist FIRST before
+        // building DbContexts. NpgsqlDataSource strips credentials from its ConnectionString
+        // property, so Weasel's EnsureDatabaseExistsAsync cannot create admin connections.
+        await ensureAllTenantDatabasesExistAsync();
+    }
+
+    private async Task ensureAllTenantDatabasesExistAsync()
+    {
+        var adminDataSource = _store.Main.As<IMessageDatabase>().Settings.DataSource;
+        if (adminDataSource == null) return;
 
         await _store.Source.RefreshLiteAsync();
-        
+
+        var databaseNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var assignment in _store.Source.AllActiveByTenant())
         {
-            var dbContext = await BuildAsync(assignment.TenantId, CancellationToken.None);
-            list.Add(dbContext);
+            var settings = assignment.Value.As<IMessageDatabase>().Settings;
+            var connStr = settings.ConnectionString ?? settings.DataSource?.ConnectionString;
+            if (string.IsNullOrEmpty(connStr)) continue;
+
+            var builder = new DbConnectionStringBuilder { ConnectionString = connStr };
+            if (builder.TryGetValue("Database", out var dbObj) && dbObj is string dbName && !string.IsNullOrEmpty(dbName))
+            {
+                databaseNames.Add(dbName);
+            }
         }
 
-        // Filter out duplicates when multiple tenants address the same database
-        var contexts = list.GroupBy(x => x.Database.GetConnectionString()).Select(x => x.First()).ToList();
+        if (databaseNames.Count == 0) return;
 
-        foreach (var context in contexts)
+        await using var adminConn = adminDataSource.CreateConnection();
+        await adminConn.OpenAsync();
+
+        foreach (var dbName in databaseNames)
         {
-            await context.Database.EnsureCreatedAsync();
-            await using var migration = await _serviceProvider.CreateMigrationAsync(context, CancellationToken.None);
-            await migration.ExecuteAsync(AutoCreate.CreateOrUpdate, CancellationToken.None);
-            // TODO -- let's put some debug logging here!!!!
+            await using var checkCmd = adminConn.CreateCommand();
+            checkCmd.CommandText = "SELECT 1 FROM pg_database WHERE datname = @dbname";
+            var param = checkCmd.CreateParameter();
+            param.ParameterName = "dbname";
+            param.Value = dbName;
+            checkCmd.Parameters.Add(param);
+
+            if (await checkCmd.ExecuteScalarAsync() != null) continue;
+
+            await using var createCmd = adminConn.CreateCommand();
+            createCmd.CommandText = $"CREATE DATABASE \"{dbName}\"";
+            await createCmd.ExecuteNonQueryAsync();
         }
     }
 
@@ -195,7 +222,9 @@ public class TenantedDbContextBuilderByDbDataSource<T> : IDbContextBuilder<T> wh
         foreach (var assignment in _store.Source.AllActiveByTenant())
         {
             var dbContext = await BuildAsync(assignment.TenantId, CancellationToken.None);
-            await dbContext.Database.EnsureCreatedAsync();
+            await _serviceProvider.EnsureDatabaseExistsAsync(dbContext);
+            await using var migration = await _serviceProvider.CreateMigrationAsync(dbContext, CancellationToken.None);
+            await migration.ExecuteAsync(AutoCreate.CreateOrUpdate, CancellationToken.None);
         }
     }
 
