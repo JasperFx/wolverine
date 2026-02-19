@@ -24,8 +24,11 @@ public class ServiceCapabilities : OptionsDescription
     }
 
     public DateTimeOffset Evaluated { get; set; } = DateTimeOffset.UtcNow;
+
+    [JsonConverter(typeof(VersionJsonConverter))]
     public Version Version { get; set; }
 
+    [JsonConverter(typeof(VersionJsonConverter))]
     public Version? WolverineVersion { get; set; }
 
     public List<EventStoreUsage> EventStores { get; set; } = [];
