@@ -20,7 +20,7 @@ public class open_api_generation : IntegrationContext
         fixture.InitializeAsync().GetAwaiter().GetResult();
 
         var chains = fixture
-            .Host
+            .Host!
             .Services
             .GetRequiredService<WolverineHttpOptions>()
             .Endpoints!
