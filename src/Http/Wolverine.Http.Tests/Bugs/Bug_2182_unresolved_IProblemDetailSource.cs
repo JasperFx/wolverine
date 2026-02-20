@@ -39,18 +39,28 @@ public class Bug_2182_unresolved_IProblemDetailSource
         await using var host = await AlbaHost.For(_builder, app =>
         {
             app.MapWolverineEndpoints(opts =>
-            {
-                opts.UseFluentValidationProblemDetailMiddleware();
-            });
+                opts.UseFluentValidationProblemDetailMiddleware());
         });
 
-        var exception = await host.Scenario(x =>
+        // UnResolvableVariableException can be returned in 2 ways:
+        // either as a failed scenario result or thrown explicitly.
+        // The actual way is not important here, but the error itself is.
+        var errorMessage = string.Empty;
+        try
         {
-            x.Post.Json(new Bug_2182_Endpoint.Request("valid")).ToUrl("/Bug_2182");
-            x.StatusCodeShouldBe(500);
-        }).ShouldThrowAsync<UnResolvableVariableException>();
+            var result = await host.Scenario(x =>
+            {
+                x.Post.Json(new Bug_2182_Endpoint.Request("valid")).ToUrl("/Bug_2182");
+                x.StatusCodeShouldBe(500);
+            });
+            errorMessage = await result.ReadAsTextAsync();
+        }
+        catch (UnResolvableVariableException ex)
+        {
+            errorMessage = ex.Message;
+        }
 
-        exception.Message.ShouldContain(
+        errorMessage.ShouldContain(
             "JasperFx was unable to resolve a variable of type " +
             "Wolverine.Http.FluentValidation.IProblemDetailSource<Wolverine.Http.Tests.Bugs.Bug_2182_Endpoint.Request> " +
             "as part of the method POST_Bug_2182.Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)");
@@ -69,9 +79,7 @@ public class Bug_2182_unresolved_IProblemDetailSource
         await using var host = await AlbaHost.For(_builder, app =>
         {
             app.MapWolverineEndpoints(opts =>
-        {
-            opts.UseFluentValidationProblemDetailMiddleware();
-        });
+                opts.UseFluentValidationProblemDetailMiddleware());
         });
 
         await host.Scenario(x =>
