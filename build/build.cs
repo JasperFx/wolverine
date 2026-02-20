@@ -90,8 +90,8 @@ class Build : NukeBuild
         });
 
     Target TestExtensions => _ => _
-        .DependsOn(FluentValidationTests, DataAnnotationsValidationTests, MemoryPackTests, MessagePackTests);
-    
+        .DependsOn(FluentValidationTests, DataAnnotationsValidationTests, MemoryPackTests, MessagePackTests, MediatRMigrationTests);
+
     Target FluentValidationTests => _ => _
         .DependsOn(Compile)    
         .ProceedAfterFailure()
@@ -138,6 +138,19 @@ class Build : NukeBuild
         {
             DotNetTest(c => c
                 .SetProjectFile(Solution.Extensions.Wolverine_MessagePack_Tests)
+                .SetConfiguration(Configuration)
+                .EnableNoBuild()
+                .EnableNoRestore()
+                .SetFramework(Framework));
+        });
+
+    Target MediatRMigrationTests => _ => _
+        .DependsOn(Compile)
+        .ProceedAfterFailure()
+        .Executes(() =>
+        {
+            DotNetTest(c => c
+                .SetProjectFile(Solution.Extensions.Wolverine_Migrations_MediatR_Tests)
                 .SetConfiguration(Configuration)
                 .EnableNoBuild()
                 .EnableNoRestore()

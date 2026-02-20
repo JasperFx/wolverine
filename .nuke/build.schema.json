@@ -46,6 +46,7 @@
         "Init",
         "InstallMdSnippets",
         "ItemServiceSampleTests",
+        "MediatRMigrationTests",
         "MemoryPackTests",
         "MessagePackTests",
         "NpmInstall",
