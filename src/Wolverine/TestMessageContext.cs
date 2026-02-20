@@ -211,10 +211,8 @@ public class TestMessageContext : IMessageContext
     Task<T> ICommandBus.InvokeAsync<T>(object message, DeliveryOptions options, CancellationToken cancellation,
         TimeSpan? timeout)
     {
-        var envelope = new Envelope(message)
-        {
-
-        };
+        var envelope = new Envelope(message);
+        options.Override(envelope);
 
         _invoked.Add(envelope);
 
@@ -329,6 +327,16 @@ public class TestMessageContext : IMessageContext
             return Task.FromResult(new Acknowledgement());
         }
 
+        public Task<Acknowledgement> InvokeAsync(object message, DeliveryOptions options, CancellationToken cancellation = default,
+            TimeSpan? timeout = null)
+        {
+            var envelope = new Envelope { Message = message, Destination = _destination, EndpointName = _endpointName };
+            options.Override(envelope);
+
+            _parent._sent.Add(envelope);
+            return Task.FromResult(new Acknowledgement());
+        }
+
         public Task<T> InvokeAsync<T>(object message, CancellationToken cancellation = default,
             TimeSpan? timeout = null) where T : class
         {
@@ -337,6 +345,22 @@ public class TestMessageContext : IMessageContext
                 EndpointName = _endpointName,
                 Destination = _destination
             };
+
+            _parent._invoked.Add(envelope);
+
+            var response = _parent.findResponse<T>(message, _destination, _endpointName);
+            return Task.FromResult(response);
+        }
+
+        public Task<T> InvokeAsync<T>(object message, DeliveryOptions options, CancellationToken cancellation = default,
+            TimeSpan? timeout = null) where T : class
+        {
+            var envelope = new Envelope(message)
+            {
+                EndpointName = _endpointName,
+                Destination = _destination
+            };
+            options.Override(envelope);
 
             _parent._invoked.Add(envelope);
 
