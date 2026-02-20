@@ -3,7 +3,6 @@ using JasperFx.CodeGeneration;
 using JasperFx.Core;
 using JasperFx.Events.Projections;
 using Marten;
-using Marten.Events.Projections;
 using Marten.Storage;
 using MartenTests.Distribution.TripDomain;
 using Microsoft.Extensions.DependencyInjection;
@@ -22,7 +21,7 @@ using Xunit.Abstractions;
 
 namespace MartenTests.Distribution.Support;
 
-public class MultiTenantContext : IAsyncLifetime
+public abstract class MultiTenantContext : IAsyncLifetime
 {
     private readonly List<IHost> _hosts = new();
     private readonly ITestOutputHelper _output;
@@ -37,7 +36,7 @@ public class MultiTenantContext : IAsyncLifetime
     protected IHost theOriginalHost;
     internal EventSubscriptionAgentFamily theDistributor;
 
-    public MultiTenantContext(ITestOutputHelper output)
+    protected MultiTenantContext(ITestOutputHelper output)
     {
         _output = output;
     }
@@ -118,9 +117,7 @@ public class MultiTenantContext : IAsyncLifetime
                         m.MultiTenantedDatabasesWithMasterDatabaseTable(Servers.PostgresConnectionString, "tenants");
                         m.DatabaseSchemaName = "csp";
 
-                        m.Projections.Add<TripProjection>(ProjectionLifecycle.Async);
-                        m.Projections.Add<DayProjection>(ProjectionLifecycle.Async);
-                        m.Projections.Add<DistanceProjection>(ProjectionLifecycle.Async);
+                        SetupProjections(m);
                     })
                     .IntegrateWithWolverine(m =>
                     {
@@ -139,6 +136,8 @@ public class MultiTenantContext : IAsyncLifetime
 
         return host;
     }
+
+    protected abstract void SetupProjections(StoreOptions storeOptions);
 
     protected async Task<IHost> startGreenHostAsync()
     {
