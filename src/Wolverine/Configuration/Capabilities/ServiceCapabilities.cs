@@ -73,6 +73,7 @@ public class ServiceCapabilities : OptionsDescription
     {
         foreach (var endpoint in runtime.Options.Transports.AllEndpoints().OrderBy(x => x.Uri.ToString()))
         {
+            if (endpoint.Role == EndpointRole.System) continue;
             capabilities.MessagingEndpoints.Add(new EndpointDescriptor(endpoint));
         }
     }
