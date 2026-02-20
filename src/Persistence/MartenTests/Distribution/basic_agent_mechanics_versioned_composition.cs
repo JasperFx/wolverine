@@ -8,7 +8,7 @@ using Xunit.Abstractions;
 
 namespace MartenTests.Distribution;
 
-public class basic_agent_mechanics_multiple_tenants(ITestOutputHelper output) : MultiTenantContext(output)
+public class basic_agent_mechanics_versioned_composition(ITestOutputHelper output) : MultiTenantContext(output)
 {
     [Fact]
     public async Task start_with_multiple_databases_on_one_single_node()
@@ -62,8 +62,12 @@ public class basic_agent_mechanics_multiple_tenants(ITestOutputHelper output) : 
 
     protected override void SetupProjections(StoreOptions storeOptions)
     {
-        storeOptions.Projections.Add<TripProjection>(ProjectionLifecycle.Async);
-        storeOptions.Projections.Add<DayProjection>(ProjectionLifecycle.Async);
-        storeOptions.Projections.Add<DistanceProjection>(ProjectionLifecycle.Async);
+        storeOptions.Projections.CompositeProjectionFor("Trips", x =>
+        {
+            x.Version = 2;
+            x.Add<TripProjection>();
+            x.Add<DayProjection>();
+            x.Add<DistanceProjection>();
+        });
     }
 }
