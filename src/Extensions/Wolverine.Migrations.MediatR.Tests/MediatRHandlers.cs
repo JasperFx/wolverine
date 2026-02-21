@@ -3,7 +3,6 @@ using Wolverine.Attributes;
 
 namespace Wolverine.Migrations.MediatR.Tests;
 
-[WolverineHandler]
 public class RequestWithResponseHandlerWithMediatR : IRequestHandler<RequestWithResponse, Response>
 {
     public Task<Response> Handle(RequestWithResponse request, CancellationToken cancellationToken)
@@ -12,7 +11,6 @@ public class RequestWithResponseHandlerWithMediatR : IRequestHandler<RequestWith
     }
 }
 
-[WolverineHandler]
 public class RequestWithoutResponseHandler : IRequestHandler<RequestWithoutResponse>
 {
     public Task Handle(RequestWithoutResponse request, CancellationToken cancellationToken)
@@ -22,8 +20,6 @@ public class RequestWithoutResponseHandler : IRequestHandler<RequestWithoutRespo
     }
 }
 
-
-[WolverineHandler]
 public class RequestCascadeHandler : IRequestHandler<RequestCascade, CascadingMessage>
 {
     public async Task<CascadingMessage> Handle(RequestCascade request, CancellationToken cancellationToken)
@@ -32,7 +28,6 @@ public class RequestCascadeHandler : IRequestHandler<RequestCascade, CascadingMe
     }
 }
 
-[WolverineHandler]
 public class RequestAdditionHandler(IAdditionService service) : IRequestHandler<RequestAdditionFromService, int>
 {
     public async Task<int> Handle(RequestAdditionFromService request, CancellationToken cancellationToken)
