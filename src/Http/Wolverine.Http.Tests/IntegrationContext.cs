@@ -55,7 +55,10 @@ public class AppFixture : IAsyncLifetime
     {
         if (Host is null)
             return;
+
+        await Host.GetRuntime().StopAsync(default);
         await Host.StopAsync();
+
         await Host.DisposeAsync();
         Host = null;
     }
