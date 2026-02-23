@@ -3,6 +3,7 @@ using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Wolverine.Logging;
 using Wolverine.Persistence.Durability;
+using Wolverine.Runtime;
 
 namespace Wolverine.Persistence;
 
@@ -15,10 +16,11 @@ public class PersistenceMetrics : IDisposable
     private CancellationTokenSource _cancellation;
     private Task _task;
 
-    public PersistenceMetrics(Meter meter, DurabilitySettings settings, string? databaseName)
+    public PersistenceMetrics(IWolverineRuntime runtime, DurabilitySettings settings, string? databaseName)
     {
         _settings = settings;
         _cancellation = CancellationTokenSource.CreateLinkedTokenSource(settings.Cancellation);
+        var meter = runtime.Meter;
 
         if (databaseName.IsEmpty())
         {
