@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using Wolverine.Logging;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
+using Wolverine.Runtime.Agents;
 
 namespace Wolverine.Persistence;
 
@@ -15,11 +16,13 @@ public class PersistenceMetrics : IDisposable
     private readonly ObservableGauge<int> _scheduled;
     private CancellationTokenSource _cancellation;
     private Task _task;
+    private readonly IWolverineObserver _observer;
 
     public PersistenceMetrics(IWolverineRuntime runtime, DurabilitySettings settings, string? databaseName)
     {
         _settings = settings;
         _cancellation = CancellationTokenSource.CreateLinkedTokenSource(settings.Cancellation);
+        _observer = runtime.Observer;
         var meter = runtime.Meter;
 
         if (databaseName.IsEmpty())
@@ -55,6 +58,7 @@ public class PersistenceMetrics : IDisposable
                 try
                 {
                     Counts = await store.Admin.FetchCountsAsync();
+                    _observer.PersistedCounts(store.Uri, Counts);
                 }
                 catch (TaskCanceledException)
                 {
