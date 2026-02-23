@@ -74,17 +74,13 @@ public class MetricsAccumulator : IAsyncDisposable
                     await Task.Delay(_runtime.Options.Metrics.SamplingPeriod);
                     try
                     {
-                        // TODO -- add something in Wolverine that can give you a shortcut sender
-                        // for a particular message type
-                        var bus = new MessageBus(_runtime);
-
-                        foreach (var accumulator in _accumulators) 
+                        foreach (var accumulator in _accumulators)
                         {
                             var metrics = accumulator.TriggerExport(_runtime.DurabilitySettings.AssignedNodeNumber);
-                            
+
                             if (metrics.PerTenant.Length > 0)
                             {
-                                await bus.PublishAsync(metrics);
+                                _runtime.Observer.MessageHandlingMetricsExported(metrics);
                             }
                         }
                     }

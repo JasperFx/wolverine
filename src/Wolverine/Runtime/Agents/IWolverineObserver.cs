@@ -1,5 +1,6 @@
 using Wolverine.Configuration;
 using Wolverine.Logging;
+using Wolverine.Runtime.Metrics;
 using Wolverine.Runtime.Routing;
 using Wolverine.Transports;
 
@@ -25,6 +26,7 @@ public interface IWolverineObserver
     Task BackPressureTriggered(Endpoint endpoint, IListeningAgent agent);
     Task BackPressureLifted(Endpoint endpoint);
     void PersistedCounts(Uri storeUri, PersistedCounts counts);
+    void MessageHandlingMetricsExported(MessageHandlingMetrics metrics);
 }
 
 internal class PersistenceWolverineObserver : IWolverineObserver
@@ -47,6 +49,11 @@ internal class PersistenceWolverineObserver : IWolverineObserver
     }
 
     public void PersistedCounts(Uri storeUri, PersistedCounts counts)
+    {
+        // Nothing
+    }
+
+    public void MessageHandlingMetricsExported(MessageHandlingMetrics metrics)
     {
         // Nothing
     }
