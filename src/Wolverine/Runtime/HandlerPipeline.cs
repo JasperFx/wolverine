@@ -109,6 +109,8 @@ public class HandlerPipeline : IHandlerPipeline
 
     public async ValueTask<IContinuation> TryDeserializeEnvelope(Envelope envelope)
     {
+        if (envelope.Message != null) return NullContinuation.Instance;
+        
         // Try to deserialize
         try
         {
