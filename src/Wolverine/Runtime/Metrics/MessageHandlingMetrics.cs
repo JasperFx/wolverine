@@ -3,17 +3,23 @@ using JasperFx.Core;
 namespace Wolverine.Runtime.Metrics;
 
 public record MessageHandlingMetrics(
-    int NodeNumber,
     string MessageType,
     Uri Destination,
     TimeRange Range,
-    PerTenantMetrics[] PerTenant)
+    PerTenantMetrics[] PerTenant // TODO -- we can remove this
+)
 {
+    /// <summary>
+    /// Used to group metrics down the line
+    /// </summary>
+    /// <returns></returns>
+    public string Key() => $"{MessageType}@{Destination}";
+    
     public static MessageHandlingMetrics Sum(string messageType, Uri destination, IReadOnlyList<MessageHandlingMetrics> metrics)
     {
         if (metrics.Count == 0)
         {
-            return new MessageHandlingMetrics(0, messageType, destination, TimeRange.AllTime(), []);
+            return new MessageHandlingMetrics(messageType, destination, TimeRange.AllTime(), []);
         }
 
         var from = metrics.Where(m => m.Range.From.HasValue).Select(m => m.Range.From!.Value).DefaultIfEmpty().Min();
@@ -28,7 +34,39 @@ public record MessageHandlingMetrics(
             .Select(PerTenantMetrics.Sum)
             .ToArray();
 
-        return new MessageHandlingMetrics(0, messageType, destination, range, perTenant);
+        return new MessageHandlingMetrics(messageType, destination, range, perTenant);
+    }
+
+    public static MessageHandlingMetrics Sum(MessageHandlingMetrics[] metrics)
+    {
+        return Sum(metrics[0].MessageType, metrics[0].Destination, metrics);
+    }
+
+    public static MessageHandlingMetrics[] SumByDestination(MessageHandlingMetrics[] metrics)
+    {
+        return metrics
+            .GroupBy(m => m.Destination)
+            .Select(g => Sum("*", g.Key, g.ToList()))
+            .ToArray();
+    }
+
+    public static MessageHandlingMetrics[] SumByMessageType(MessageHandlingMetrics[] metrics)
+    {
+        var allDestination = new Uri("all://");
+        return metrics
+            .GroupBy(m => m.MessageType)
+            .Select(g => Sum(g.Key, allDestination, g.ToList()))
+            .ToArray();
+    }
+
+    public MessageHandlingMetrics Weight(int weight)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(weight);
+
+        if (weight == 1) return this;
+
+        return new MessageHandlingMetrics(MessageType, Destination, Range,
+            PerTenant.Select(t => t.Weight(weight)).ToArray());
     }
 }
 
@@ -51,11 +89,25 @@ public record PerTenantMetrics(string TenantId, Executions Executions, Effective
 
         return new PerTenantMetrics(tenantId, executions, effectiveTime, exceptions);
     }
+
+    public PerTenantMetrics Weight(int weight)
+    {
+        return new PerTenantMetrics(TenantId,
+            Executions.Weight(weight),
+            EffectiveTime.Weight(weight),
+            Exceptions.Select(e => e.Weight(weight)).ToArray());
+    }
 }
 
-public record Executions(int Count, long TotalTime);
+public record Executions(int Count, long TotalTime)
+{
+    public Executions Weight(int weight) => new(Count * weight, TotalTime * weight);
+}
 
-public record EffectiveTime(int Count, double TotalTime);
+public record EffectiveTime(int Count, double TotalTime)
+{
+    public EffectiveTime Weight(int weight) => new(Count * weight, TotalTime * weight);
+}
 
 public record ExceptionCounts(string ExceptionType, int Failures, int DeadLetters)
 {
@@ -66,4 +118,6 @@ public record ExceptionCounts(string ExceptionType, int Failures, int DeadLetter
             group.Sum(e => e.Failures),
             group.Sum(e => e.DeadLetters));
     }
+
+    public ExceptionCounts Weight(int weight) => new(ExceptionType, Failures * weight, DeadLetters * weight);
 }

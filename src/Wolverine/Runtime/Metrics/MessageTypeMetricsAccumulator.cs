@@ -51,9 +51,7 @@ public class MessageTypeMetricsAccumulator
         {
             var time = DateTimeOffset.UtcNow;
             
-            var metrics = new MessageHandlingMetrics(
-                nodeNumber,
-                MessageType, 
+            var metrics = new MessageHandlingMetrics(MessageType, 
                 Destination,
                 new TimeRange(Starting, time),
                 Counts.PerTenant.OrderBy(x => x.TenantId).Select(x => x.CompileAndReset()).ToArray());
