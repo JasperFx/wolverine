@@ -89,6 +89,19 @@ class Build : NukeBuild
                 .SetFramework(Framework));
         });
 
+    Target ShimsTests => _ => _
+        .DependsOn(Compile)
+        .ProceedAfterFailure()
+        .Executes(() =>
+        {
+            DotNetTest(c => c
+                .SetProjectFile(Solution.Testing.ShimsTests)
+                .SetConfiguration(Configuration)
+                .EnableNoBuild()
+                .EnableNoRestore()
+                .SetFramework(Framework));
+        });
+
     Target TestExtensions => _ => _
         .DependsOn(FluentValidationTests, DataAnnotationsValidationTests, MemoryPackTests, MessagePackTests);
     
