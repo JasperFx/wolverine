@@ -130,6 +130,14 @@ public partial class Envelope : IHasTenantId
         get => _scheduleDelay;
     }
 
+    /// <summary>
+    ///     Transport-specific scheduling token returned after scheduling.
+    ///     For Azure Service Bus, this is the sequence number (long).
+    ///     For database queue senders, this is the envelope Id (Guid).
+    /// </summary>
+    [JsonIgnore]
+    public object? SchedulingToken { get; set; }
+
     public async ValueTask<byte[]?> GetDataAsync()
     {
         if (_data != null)

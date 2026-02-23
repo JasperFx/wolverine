@@ -354,4 +354,35 @@ public class MessageBus : IMessageBus, IMessageContext
     {
         return envelope.Sender?.IsDurable ?? Runtime.Endpoints.GetOrBuildSendingAgent(envelope.Destination!).IsDurable;
     }
+
+    internal async ValueTask<ScheduleResult> ScheduleWithResultAsync(object message, DeliveryOptions options)
+    {
+        if (Transaction is not null)
+        {
+            throw new InvalidOperationException(
+                "ScheduleWithResultAsync is not supported when an outbox transaction is active. " +
+                "The scheduling token cannot be populated until the message is sent to the transport. " +
+                "Use ScheduleAsync instead.");
+        }
+
+        Runtime.AssertHasStarted();
+        assertNotMediatorOnly();
+
+        var outgoing = Runtime.RoutingFor(message.GetType()).RouteForPublish(message, options);
+
+        trackEnvelopeCorrelation(Activity.Current, outgoing);
+
+        if (outgoing.Length == 0)
+        {
+            Runtime.MessageTracking.NoRoutesFor(new Envelope(message));
+            return new ScheduleResult(Array.Empty<Envelope>());
+        }
+
+        foreach (var envelope in outgoing)
+        {
+            await envelope.StoreAndForwardAsync();
+        }
+
+        return new ScheduleResult(outgoing);
+    }
 }

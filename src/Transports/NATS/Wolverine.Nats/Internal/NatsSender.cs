@@ -49,6 +49,7 @@ public class NatsSender : ISender
     }
 
     public bool SupportsNativeScheduledSend => _supportsNativeScheduledSend;
+    public bool SupportsNativeScheduledCancellation => false;
     public Uri Destination { get; }
 
     public async Task<bool> PingAsync()

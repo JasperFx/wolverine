@@ -25,6 +25,7 @@ internal class MultiTenantedQueueSender : ISqlServerQueueSender, IAsyncDisposabl
     }
 
     public bool SupportsNativeScheduledSend => true;
+    public bool SupportsNativeScheduledCancellation => false;
     public Uri Destination { get; }
 
     public Task<bool> PingAsync()
@@ -86,6 +87,13 @@ internal class MultiTenantedQueueSender : ISqlServerQueueSender, IAsyncDisposabl
         }
 
         return sender;
+    }
+
+    public Task CancelScheduledMessageAsync(object schedulingToken, CancellationToken cancellation = default)
+    {
+        throw new NotSupportedException(
+            "Cancelling scheduled messages is not supported for multi-tenanted database queue endpoints. " +
+            "Use a single-tenant endpoint or wait for future multi-tenant cancellation support.");
     }
 
     public ValueTask DisposeAsync()

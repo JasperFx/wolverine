@@ -44,22 +44,22 @@ public class MessagePump : IAsyncDisposable
                 {
                     await bus.PublishAsync(new M1(Guid.CreateVersion7()));
                 }
-                
+
                 for (int j = 0; j < Random.Shared.Next(1, 5); j++)
                 {
                     await bus.PublishAsync(new M2(Guid.CreateVersion7()));
                 }
-                
+
                 for (int j = 0; j < Random.Shared.Next(1, 5); j++)
                 {
                     await bus.PublishAsync(new M3(Guid.CreateVersion7(), Random.Shared.Next(0, 10)));
                 }
-                
+
                 for (int j = 0; j < Random.Shared.Next(1, 5); j++)
                 {
                     await bus.PublishAsync(new M4(Guid.CreateVersion7(), Random.Shared.Next(0, 10)));
                 }
-                
+
                 for (int j = 0; j < Random.Shared.Next(1, 5); j++)
                 {
                     await bus.PublishAsync(new M5(Guid.CreateVersion7()));

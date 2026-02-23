@@ -156,6 +156,8 @@ public abstract class SendingAgent : ISendingAgent, ISenderCallback, ISenderCirc
 
     public bool SupportsNativeScheduledSend => _sender.SupportsNativeScheduledSend;
 
+    public bool SupportsNativeScheduledCancellation => _sender.SupportsNativeScheduledCancellation;
+
     protected async Task executeWithRetriesAsync(Func<Task> action)
     {
         var i = 0;

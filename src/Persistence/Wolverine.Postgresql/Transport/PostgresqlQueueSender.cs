@@ -9,7 +9,7 @@ using Wolverine.Transports.Sending;
 
 namespace Wolverine.Postgresql.Transport;
 
-internal interface IPostgresqlQueueSender : ISender
+internal interface IPostgresqlQueueSender : ISenderWithScheduledCancellation
 {
     Task ScheduleRetryAsync(Envelope envelope, CancellationToken cancellationToken);
 }
@@ -71,6 +71,7 @@ DO UPDATE SET {DatabaseConstants.Body} = :body, {DatabaseConstants.MessageType} 
     }
 
     public bool SupportsNativeScheduledSend => true;
+    public bool SupportsNativeScheduledCancellation => true;
     public Uri Destination { get; private set; }
 
     public async Task<bool> PingAsync()
@@ -243,5 +244,29 @@ DO UPDATE SET {DatabaseConstants.Body} = :body, {DatabaseConstants.MessageType} 
             .With("expires", envelope.DeliverBy)
             .With("time", envelope.ScheduledTime)
             .ExecuteNonQueryAsync(cancellationToken);
+
+        envelope.SchedulingToken = envelope.Id;
+    }
+
+    public async Task CancelScheduledMessageAsync(object schedulingToken, CancellationToken cancellation = default)
+    {
+        if (schedulingToken is not Guid envelopeId)
+        {
+            throw new ArgumentException(
+                $"Expected scheduling token of type Guid for PostgreSQL queue sender, got {schedulingToken?.GetType().Name ?? "null"}",
+                nameof(schedulingToken));
+        }
+
+        await using var conn = await _dataSource.OpenConnectionAsync(cancellation);
+        try
+        {
+            await conn.CreateCommand($"DELETE FROM {_queue.ScheduledTable.Identifier} WHERE id = :id")
+                .With("id", envelopeId)
+                .ExecuteNonQueryAsync(cancellation);
+        }
+        finally
+        {
+            await conn.CloseAsync();
+        }
     }
 }

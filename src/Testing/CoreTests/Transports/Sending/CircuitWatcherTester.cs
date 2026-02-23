@@ -42,6 +42,8 @@ public class StubCircuit : ISenderCircuit
 
     public bool SupportsNativeScheduledSend => true;
 
+    public bool SupportsNativeScheduledCancellation => false;
+
     public Task<bool> TryToResumeAsync(CancellationToken cancellationToken)
     {
         _count++;

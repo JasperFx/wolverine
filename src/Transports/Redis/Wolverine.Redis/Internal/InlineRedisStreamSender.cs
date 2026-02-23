@@ -24,7 +24,8 @@ public class InlineRedisStreamSender : ISender
     public Uri Destination => _endpoint.Uri;
     
     public bool SupportsNativeScheduledSend => true;
-    
+    public bool SupportsNativeScheduledCancellation => false;
+
     public async Task<bool> PingAsync()
     {
         try

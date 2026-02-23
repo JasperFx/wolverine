@@ -8,6 +8,7 @@ namespace Wolverine.Nats.Internal;
 internal class NullSender : ISender
 {
     public bool SupportsNativeScheduledSend => false;
+    public bool SupportsNativeScheduledCancellation => false;
     public Uri Destination => new Uri("nats://null");
 
     public Task<bool> PingAsync() => Task.FromResult(true);

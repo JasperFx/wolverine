@@ -12,6 +12,8 @@ public interface ISendingAgent
 
     bool SupportsNativeScheduledSend { get; }
 
+    bool SupportsNativeScheduledCancellation { get; }
+
     Endpoint Endpoint { get; }
 
     /// <summary>

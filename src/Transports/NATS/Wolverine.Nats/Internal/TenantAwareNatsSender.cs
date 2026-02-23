@@ -22,6 +22,8 @@ internal class TenantAwareNatsSender : ISender
 
     public bool SupportsNativeScheduledSend => _innerSender.SupportsNativeScheduledSend;
 
+    public bool SupportsNativeScheduledCancellation => false;
+
     public Task<bool> PingAsync() => _innerSender.PingAsync();
 
     public async ValueTask SendAsync(Envelope envelope)

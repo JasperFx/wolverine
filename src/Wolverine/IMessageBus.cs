@@ -1,3 +1,5 @@
+using Wolverine.Runtime;
+
 namespace Wolverine;
 
 public static class MessageBusExtensions
@@ -41,6 +43,70 @@ public static class MessageBusExtensions
         options ??= new DeliveryOptions();
         options.ScheduleDelay = delay;
         return bus.PublishAsync(message, options);
+    }
+
+    /// <summary>
+    ///     Schedule the publishing of a message until a later time and return the result
+    ///     including any transport-populated scheduling tokens (e.g., Azure Service Bus sequence numbers).
+    ///     This method is not supported when an outbox transaction is active.
+    /// </summary>
+    /// <param name="bus"></param>
+    /// <param name="message"></param>
+    /// <param name="time"></param>
+    /// <param name="options"></param>
+    /// <typeparam name="T"></typeparam>
+    /// <returns>A <see cref="ScheduleResult"/> containing the envelopes with their scheduling tokens.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when an outbox transaction is active.</exception>
+    public static ValueTask<ScheduleResult> ScheduleWithResultAsync<T>(this IMessageBus bus, T message,
+        DateTimeOffset time, DeliveryOptions? options = null)
+    {
+        if (message == null)
+        {
+            throw new ArgumentNullException(nameof(message));
+        }
+
+        options ??= new DeliveryOptions();
+        options.ScheduledTime = time;
+
+        return scheduleWithResultInternalAsync(bus, message, options);
+    }
+
+    /// <summary>
+    ///     Schedule the publishing of a message until a later time and return the result
+    ///     including any transport-populated scheduling tokens (e.g., Azure Service Bus sequence numbers).
+    ///     This method is not supported when an outbox transaction is active.
+    /// </summary>
+    /// <param name="bus"></param>
+    /// <param name="message"></param>
+    /// <param name="delay"></param>
+    /// <param name="options"></param>
+    /// <typeparam name="T"></typeparam>
+    /// <returns>A <see cref="ScheduleResult"/> containing the envelopes with their scheduling tokens.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when an outbox transaction is active.</exception>
+    public static ValueTask<ScheduleResult> ScheduleWithResultAsync<T>(this IMessageBus bus, T message,
+        TimeSpan delay, DeliveryOptions? options = null)
+    {
+        if (message == null)
+        {
+            throw new ArgumentNullException(nameof(message));
+        }
+
+        options ??= new DeliveryOptions();
+        options.ScheduleDelay = delay;
+
+        return scheduleWithResultInternalAsync(bus, message, options);
+    }
+
+    private static async ValueTask<ScheduleResult> scheduleWithResultInternalAsync<T>(IMessageBus bus, T message,
+        DeliveryOptions options)
+    {
+        if (bus is not MessageBus messageBus)
+        {
+            throw new InvalidOperationException(
+                "ScheduleWithResultAsync requires the IMessageBus to be a Wolverine MessageBus instance.");
+        }
+
+        return await messageBus.ScheduleWithResultAsync(message!, options);
     }
 }
 

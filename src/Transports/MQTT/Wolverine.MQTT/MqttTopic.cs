@@ -87,6 +87,7 @@ public class MqttTopic : Endpoint, ISender, ITopicEndpoint
     }
 
     bool ISender.SupportsNativeScheduledSend => false;
+    bool ISender.SupportsNativeScheduledCancellation => false;
     Uri ISender.Destination => Uri;
     public async Task<bool> PingAsync()
     {

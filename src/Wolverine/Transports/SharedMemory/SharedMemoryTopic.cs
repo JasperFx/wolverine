@@ -47,6 +47,7 @@ public class SharedMemoryTopic : SharedMemoryEndpoint, ISender
     }
 
     bool ISender.SupportsNativeScheduledSend => false;
+    bool ISender.SupportsNativeScheduledCancellation => false;
     Uri ISender.Destination => Uri;
 
     Task<bool> ISender.PingAsync()

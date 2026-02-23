@@ -35,6 +35,7 @@ internal class InvalidTenantSender : ISender
     }
 
     public bool SupportsNativeScheduledSend => false;
+    public bool SupportsNativeScheduledCancellation => false;
     public Task<bool> PingAsync()
     {
         return Task.FromResult(true);
@@ -46,7 +47,7 @@ internal class InvalidTenantSender : ISender
     }
 }
 
-public class TenantedSender : ISender, ISenderRequiresCallback, IAsyncDisposable
+public class TenantedSender : ISender, ISenderRequiresCallback, ISenderWithScheduledCancellation, IAsyncDisposable
 {
     public TenantedIdBehavior TenantedIdBehavior { get; }
     private readonly ISender _defaultSender;
@@ -87,6 +88,7 @@ public class TenantedSender : ISender, ISenderRequiresCallback, IAsyncDisposable
     }
 
     public bool SupportsNativeScheduledSend => _defaultSender.SupportsNativeScheduledSend;
+    public bool SupportsNativeScheduledCancellation => _defaultSender?.SupportsNativeScheduledCancellation ?? false;
     public Uri Destination { get; }
     public async Task<bool> PingAsync()
     {
@@ -104,6 +106,8 @@ public class TenantedSender : ISender, ISenderRequiresCallback, IAsyncDisposable
     {
         return senderForTenantId(envelope.TenantId).SendAsync(envelope);
     }
+
+    public ISender SenderForTenantId(string? tenantId) => senderForTenantId(tenantId!);
 
     private ISender senderForTenantId(string tenantId)
     {
@@ -139,6 +143,21 @@ public class TenantedSender : ISender, ISenderRequiresCallback, IAsyncDisposable
         }
 
         return _defaultSender;
+    }
+
+    public async Task CancelScheduledMessageAsync(object schedulingToken, CancellationToken cancellation = default)
+    {
+        // This fallback path is used when the caller doesn't go through DestinationEndpoint,
+        // or when tenant context isn't available. Falls back to default sender.
+        if (_defaultSender is ISenderWithScheduledCancellation cancelSender)
+        {
+            await cancelSender.CancelScheduledMessageAsync(schedulingToken, cancellation);
+        }
+        else
+        {
+            throw new NotSupportedException(
+                "The default sender for this tenanted endpoint does not support cancellation.");
+        }
     }
 
     public void Dispose()

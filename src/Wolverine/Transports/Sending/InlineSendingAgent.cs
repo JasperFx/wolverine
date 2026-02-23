@@ -54,6 +54,7 @@ public class InlineSendingAgent : ISendingAgent, IDisposable
     public bool Latched => false;
     public bool IsDurable => false;
     public bool SupportsNativeScheduledSend => Sender.SupportsNativeScheduledSend;
+    public bool SupportsNativeScheduledCancellation => Sender.SupportsNativeScheduledCancellation;
 
     public ValueTask EnqueueOutgoingAsync(Envelope envelope)
     {

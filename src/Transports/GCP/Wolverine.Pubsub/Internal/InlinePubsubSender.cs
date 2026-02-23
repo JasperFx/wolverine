@@ -19,6 +19,7 @@ public class InlinePubsubSender : ISender
     }
 
     public bool SupportsNativeScheduledSend => false;
+    public bool SupportsNativeScheduledCancellation => false;
     public Uri Destination => _endpoint.Uri;
 
     public async Task<bool> PingAsync()

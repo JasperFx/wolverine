@@ -75,6 +75,7 @@ public class SharedMemorySubscription : SharedMemoryEndpoint, IListener, ISender
     }
 
     public bool SupportsNativeScheduledSend => false;
+    public bool SupportsNativeScheduledCancellation => false;
     public Uri Destination => Uri;
     public Task<bool> PingAsync()
     {

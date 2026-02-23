@@ -17,6 +17,7 @@ internal class InlineSnsSender : ISender
     }
 
     public bool SupportsNativeScheduledSend => false;
+    public bool SupportsNativeScheduledCancellation => false;
     public Uri Destination => _topic.Uri;
 
     public async Task<bool> PingAsync()

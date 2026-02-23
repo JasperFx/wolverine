@@ -106,6 +106,8 @@ internal class StubEndpoint : Endpoint, ISendingAgent, ISender, IListener
 
     public bool SupportsNativeScheduledSend => true;
 
+    public bool SupportsNativeScheduledCancellation => false;
+
     public void Dispose()
     {
     }

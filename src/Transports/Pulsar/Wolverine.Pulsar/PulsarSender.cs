@@ -31,6 +31,7 @@ public class PulsarSender : ISender, IAsyncDisposable
     }
 
     public bool SupportsNativeScheduledSend => true;
+    public bool SupportsNativeScheduledCancellation => false;
     public Uri Destination { get; }
 
     public async Task<bool> PingAsync()

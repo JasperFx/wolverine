@@ -4,7 +4,7 @@
         <PackageId>WolverineFx</PackageId>
     </PropertyGroup>
     <ItemGroup>
-        <PackageReference Include="JasperFx" />
+		<PackageReference Include="JasperFx" />
         <PackageReference Include="JasperFx.Events" />
         <PackageReference Include="JasperFx.RuntimeCompiler" />
         <PackageReference Include="Microsoft.Extensions.Caching.Memory" />

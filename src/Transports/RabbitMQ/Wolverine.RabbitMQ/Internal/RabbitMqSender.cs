@@ -62,6 +62,7 @@ internal class RabbitMqSender : RabbitMqChannelAgent, ISender
 
 
     public bool SupportsNativeScheduledSend => false;
+    public bool SupportsNativeScheduledCancellation => false;
     public Uri Destination { get; }
 
     public async ValueTask SendAsync(Envelope envelope)

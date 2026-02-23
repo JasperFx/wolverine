@@ -51,4 +51,16 @@ public interface IDestinationEndpoint
     /// <param name="configure"></param>
     /// <returns></returns>
     ValueTask SendRawMessageAsync(byte[] data, Type? messageType = null, Action<Envelope>? configure = null);
+
+    /// <summary>
+    ///     Cancel a previously scheduled message using the transport-specific scheduling token.
+    ///     Not all transports support this — throws <see cref="NotSupportedException"/> if unsupported.
+    /// </summary>
+    /// <param name="schedulingToken">The transport-specific token returned via <see cref="Envelope.SchedulingToken"/></param>
+    /// <param name="cancellation"></param>
+    /// <returns></returns>
+    Task CancelScheduledAsync(object schedulingToken, CancellationToken cancellation = default)
+        => throw new NotSupportedException(
+            "This endpoint does not support cancelling scheduled messages. " +
+            "Override CancelScheduledAsync or use a transport that supports scheduled message cancellation.");
 }

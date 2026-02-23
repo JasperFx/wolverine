@@ -153,6 +153,7 @@ public class SignalRClientEndpoint : Endpoint, IListener, ISender
     }
 
     bool ISender.SupportsNativeScheduledSend => false;
+    bool ISender.SupportsNativeScheduledCancellation => false;
     Uri ISender.Destination => Uri;
 
     public Task<bool> PingAsync()

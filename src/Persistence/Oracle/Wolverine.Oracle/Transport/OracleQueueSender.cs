@@ -42,6 +42,7 @@ internal class OracleQueueSender : IOracleQueueSender
     }
 
     public bool SupportsNativeScheduledSend => true;
+    public bool SupportsNativeScheduledCancellation => true;
     public Uri Destination { get; private set; }
 
     public async Task<bool> PingAsync()
@@ -268,5 +269,29 @@ internal class OracleQueueSender : IOracleQueueSender
         cmd.Parameters.Add(new OracleParameter("expires", OracleDbType.TimeStampTZ) { Value = (object?)envelope.DeliverBy ?? DBNull.Value });
         cmd.Parameters.Add(new OracleParameter("time", OracleDbType.TimeStampTZ) { Value = (object?)envelope.ScheduledTime ?? DBNull.Value });
         await cmd.ExecuteNonQueryAsync(cancellationToken);
+
+        envelope.SchedulingToken = envelope.Id;
+    }
+
+    public async Task CancelScheduledMessageAsync(object schedulingToken, CancellationToken cancellation = default)
+    {
+        if (schedulingToken is not Guid envelopeId)
+        {
+            throw new ArgumentException(
+                $"Expected scheduling token of type Guid for Oracle queue sender, got {schedulingToken?.GetType().Name ?? "null"}",
+                nameof(schedulingToken));
+        }
+
+        await using var conn = await _dataSource.OpenConnectionAsync(cancellation);
+        try
+        {
+            await conn.CreateCommand($"DELETE FROM {_queue.ScheduledTable.Identifier} WHERE id = :id")
+                .With("id", envelopeId)
+                .ExecuteNonQueryAsync(cancellation);
+        }
+        finally
+        {
+            await conn.CloseAsync();
+        }
     }
 }

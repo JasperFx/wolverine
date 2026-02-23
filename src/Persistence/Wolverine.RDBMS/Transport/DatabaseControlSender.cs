@@ -30,6 +30,7 @@ internal class DatabaseControlSender : ISender, IAsyncDisposable
     }
 
     public bool SupportsNativeScheduledSend => false;
+    public bool SupportsNativeScheduledCancellation => false;
     public Uri Destination { get; }
 
     public async Task<bool> PingAsync()

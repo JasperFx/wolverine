@@ -8,6 +8,7 @@ internal class NullSender : ISender
     }
 
     public bool SupportsNativeScheduledSend => false;
+    public bool SupportsNativeScheduledCancellation => false;
     public Uri Destination { get; }
 
     public ValueTask SendAsync(Envelope envelope)

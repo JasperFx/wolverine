@@ -149,6 +149,7 @@ public class SignalRTransport : Endpoint, ITransport, IListener, ISender
     public override bool ShouldEnforceBackPressure() => false;
     
     public bool SupportsNativeScheduledSend => false;
+    public bool SupportsNativeScheduledCancellation => false;
     public Uri Destination => Uri;
 
     public async Task<bool> PingAsync()

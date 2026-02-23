@@ -5,7 +5,7 @@ using Wolverine.Transports.Sending;
 
 namespace Wolverine.AzureServiceBus.Internal;
 
-public class InlineAzureServiceBusSender : ISender
+public class InlineAzureServiceBusSender : ISenderWithScheduledCancellation
 {
     private readonly AzureServiceBusEndpoint _endpoint;
     private readonly IOutgoingMapper<ServiceBusMessage> _mapper;
@@ -23,15 +23,16 @@ public class InlineAzureServiceBusSender : ISender
     }
 
     public bool SupportsNativeScheduledSend => true;
+    public bool SupportsNativeScheduledCancellation => true;
     public Uri Destination => _endpoint.Uri;
     public async Task<bool> PingAsync()
     {
         var envelope = Envelope.ForPing(Destination);
-        
+
         // For GH-1230, and according to Azure Service Bus docs, it does not harm
         // to send a session identifier to a non-FIFO queue, so just do this by default
         envelope.GroupId = Guid.NewGuid().ToString();
-        
+
         try
         {
             await SendAsync(envelope);
@@ -48,6 +49,33 @@ public class InlineAzureServiceBusSender : ISender
         await _endpoint.InitializeAsync(_logger);
         var message = new ServiceBusMessage();
         _mapper.MapEnvelopeToOutgoing(envelope, message);
-        await _sender.SendMessageAsync(message, _cancellationToken);
+
+        if (envelope.ScheduledTime.HasValue)
+        {
+            // Note: The mapper already sets message.ScheduledEnqueueTime above.
+            // ScheduleMessageAsync's scheduledEnqueueTime parameter takes precedence
+            // over the message property per the ASB SDK docs. We pass the same value
+            // for consistency.
+            var sequenceNumber = await _sender.ScheduleMessageAsync(
+                message, message.ScheduledEnqueueTime, _cancellationToken);
+            envelope.SchedulingToken = sequenceNumber;
+        }
+        else
+        {
+            await _sender.SendMessageAsync(message, _cancellationToken);
+        }
+    }
+
+    public async Task CancelScheduledMessageAsync(object schedulingToken, CancellationToken cancellation = default)
+    {
+        if (schedulingToken is not long sequenceNumber)
+        {
+            throw new ArgumentException(
+                $"Expected scheduling token of type long for Azure Service Bus, got {schedulingToken?.GetType().Name ?? "null"}",
+                nameof(schedulingToken));
+        }
+
+        await _endpoint.InitializeAsync(_logger);
+        await _sender.CancelScheduledMessageAsync(sequenceNumber, cancellation);
     }
 }

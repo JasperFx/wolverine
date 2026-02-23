@@ -71,6 +71,8 @@ public class BatchedSender : ISender, ISenderRequiresCallback
 
     public bool SupportsNativeScheduledSend { get; set; }
 
+    public bool SupportsNativeScheduledCancellation => false;
+
     public ValueTask SendAsync(Envelope message)
     {
         if (_serializing == null)

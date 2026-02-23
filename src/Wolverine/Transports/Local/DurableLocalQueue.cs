@@ -200,6 +200,8 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
 
     public bool SupportsNativeScheduledSend => true;
 
+    public bool SupportsNativeScheduledCancellation => false;
+
     private async Task storeAndEnqueueAsync(Envelope envelope)
     {
         try

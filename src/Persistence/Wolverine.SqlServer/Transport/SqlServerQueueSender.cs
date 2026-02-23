@@ -66,6 +66,7 @@ WHEN NOT MATCHED THEN INSERT  ({DatabaseConstants.Id}, {DatabaseConstants.Body},
     }
 
     public bool SupportsNativeScheduledSend => true;
+    public bool SupportsNativeScheduledCancellation => true;
     public Uri Destination { get; }
 
     public async Task<bool> PingAsync()
@@ -228,5 +229,30 @@ WHEN NOT MATCHED THEN INSERT  ({DatabaseConstants.Id}, {DatabaseConstants.Body},
             .With("expires", envelope.DeliverBy)
             .With("time", envelope.ScheduledTime)
             .ExecuteNonQueryAsync(cancellationToken);
+
+        envelope.SchedulingToken = envelope.Id;
+    }
+
+    public async Task CancelScheduledMessageAsync(object schedulingToken, CancellationToken cancellation = default)
+    {
+        if (schedulingToken is not Guid envelopeId)
+        {
+            throw new ArgumentException(
+                $"Expected scheduling token of type Guid for SQL Server queue sender, got {schedulingToken?.GetType().Name ?? "null"}",
+                nameof(schedulingToken));
+        }
+
+        await using var conn = new SqlConnection(_connectionString);
+        await conn.OpenAsync(cancellation);
+        try
+        {
+            await conn.CreateCommand($"DELETE FROM {_queue.ScheduledTable.Identifier} WHERE id = @id")
+                .With("id", envelopeId)
+                .ExecuteNonQueryAsync(cancellation);
+        }
+        finally
+        {
+            await conn.CloseAsync();
+        }
     }
 }

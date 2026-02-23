@@ -19,6 +19,7 @@ public class InlineKafkaSender : ISender, IDisposable
     public ProducerConfig Config { get; }
 
     public bool SupportsNativeScheduledSend => false;
+    public bool SupportsNativeScheduledCancellation => false;
     public Uri Destination { get; }
     public async Task<bool> PingAsync()
     {

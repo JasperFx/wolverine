@@ -59,6 +59,7 @@ ON DUPLICATE KEY UPDATE {DatabaseConstants.Body} = @body, {DatabaseConstants.Mes
     }
 
     public bool SupportsNativeScheduledSend => true;
+    public bool SupportsNativeScheduledCancellation => true;
     public Uri Destination { get; private set; }
 
     public async Task<bool> PingAsync()
@@ -227,5 +228,29 @@ ON DUPLICATE KEY UPDATE {DatabaseConstants.Body} = @body, {DatabaseConstants.Mes
             .With("expires", envelope.DeliverBy)
             .With("time", envelope.ScheduledTime)
             .ExecuteNonQueryAsync(cancellationToken);
+
+        envelope.SchedulingToken = envelope.Id;
+    }
+
+    public async Task CancelScheduledMessageAsync(object schedulingToken, CancellationToken cancellation = default)
+    {
+        if (schedulingToken is not Guid envelopeId)
+        {
+            throw new ArgumentException(
+                $"Expected scheduling token of type Guid for MySQL queue sender, got {schedulingToken?.GetType().Name ?? "null"}",
+                nameof(schedulingToken));
+        }
+
+        await using var conn = await _dataSource.OpenConnectionAsync(cancellation);
+        try
+        {
+            await conn.CreateCommand($"DELETE FROM {_queue.ScheduledTable.Identifier} WHERE id = @id")
+                .With("id", envelopeId)
+                .ExecuteNonQueryAsync(cancellation);
+        }
+        finally
+        {
+            await conn.CloseAsync();
+        }
     }
 }

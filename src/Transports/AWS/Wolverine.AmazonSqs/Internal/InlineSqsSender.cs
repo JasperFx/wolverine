@@ -16,6 +16,7 @@ internal class InlineSqsSender : ISender
     }
 
     public bool SupportsNativeScheduledSend => false;
+    public bool SupportsNativeScheduledCancellation => false;
     public Uri Destination => _queue.Uri;
 
     public async Task<bool> PingAsync()

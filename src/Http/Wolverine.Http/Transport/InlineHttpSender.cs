@@ -28,6 +28,7 @@ internal class InlineHttpSender(HttpEndpoint endpoint, IWolverineRuntime runtime
     }
 
     public bool SupportsNativeScheduledSend => endpoint.SupportsNativeScheduledSend;
+    public bool SupportsNativeScheduledCancellation => false;
     public Uri Destination => endpoint.Uri;
     public Task<bool> PingAsync() => Task.FromResult(true);
 

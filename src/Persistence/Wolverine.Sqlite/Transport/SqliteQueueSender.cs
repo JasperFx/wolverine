@@ -8,7 +8,7 @@ using Wolverine.Transports.Sending;
 
 namespace Wolverine.Sqlite.Transport;
 
-internal interface ISqliteQueueSender : ISender
+internal interface ISqliteQueueSender : ISenderWithScheduledCancellation
 {
     Task ScheduleRetryAsync(Envelope envelope, CancellationToken cancellationToken);
 }
@@ -66,6 +66,7 @@ values (@id, @body, @type, @time)
     }
 
     public bool SupportsNativeScheduledSend => true;
+    public bool SupportsNativeScheduledCancellation => true;
     public Uri Destination { get; private set; }
 
     public async Task<bool> PingAsync()
@@ -97,6 +98,8 @@ values (@id, @body, @type, @time)
             .With("type", envelope.MessageType)
             .With("time", scheduledTime.UtcDateTime.ToString(SqliteDateTimeFormat))
             .ExecuteNonQueryAsync(cancellationToken);
+
+        envelope.SchedulingToken = envelope.Id;
     }
 
     public ValueTask SendAsync(Envelope envelope)
@@ -133,5 +136,20 @@ values (@id, @body, @type, @time)
         await using var conn = await _dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
 
         await writeToScheduledTableAsync(envelope, cancellationToken, conn);
+    }
+
+    public async Task CancelScheduledMessageAsync(object schedulingToken, CancellationToken cancellation = default)
+    {
+        if (schedulingToken is not Guid envelopeId)
+        {
+            throw new ArgumentException(
+                $"Expected scheduling token of type Guid for SQLite queue sender, got {schedulingToken?.GetType().Name ?? "null"}",
+                nameof(schedulingToken));
+        }
+
+        await using var conn = await _dataSource.OpenConnectionAsync(cancellation).ConfigureAwait(false);
+        await conn.CreateCommand($"DELETE FROM {_queue.ScheduledTable.Identifier} WHERE id = @id")
+            .With("id", envelopeId.ToString())
+            .ExecuteNonQueryAsync(cancellation);
     }
 }

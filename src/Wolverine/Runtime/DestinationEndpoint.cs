@@ -4,6 +4,7 @@ using Wolverine.Configuration;
 using Wolverine.Runtime.RemoteInvocation;
 using Wolverine.Runtime.Scheduled;
 using Wolverine.Transports;
+using Wolverine.Transports.Sending;
 
 namespace Wolverine.Runtime;
 
@@ -124,5 +125,46 @@ internal class DestinationEndpoint : IDestinationEndpoint
 
         var route = _endpoint.RouteFor(message.GetType(), _parent.Runtime);
         return route.InvokeAsync<T>(message, _parent, cancellation, timeout);
+    }
+
+    public async Task CancelScheduledAsync(object schedulingToken, CancellationToken cancellation = default)
+    {
+        var agent = _endpoint.Agent;
+        if (agent == null)
+        {
+            throw new InvalidOperationException($"No sending agent is configured for endpoint {_endpoint.Uri}");
+        }
+
+        var cancelSender = resolveCancelSender(agent);
+        if (cancelSender == null)
+        {
+            throw new NotSupportedException(
+                $"The transport at {_endpoint.Uri} does not support cancelling scheduled messages.");
+        }
+
+        await cancelSender.CancelScheduledMessageAsync(schedulingToken, cancellation);
+    }
+
+    private ISenderWithScheduledCancellation? resolveCancelSender(ISendingAgent agent)
+    {
+        // The agent itself may implement it (e.g., StubEndpoint)
+        if (agent is ISenderWithScheduledCancellation directCancel)
+        {
+            return directCancel;
+        }
+
+        // InlineSendingAgent exposes Sender publicly
+        if (agent is InlineSendingAgent inlineAgent)
+        {
+            if (inlineAgent.Sender is TenantedSender tenantedSender)
+            {
+                var innerSender = tenantedSender.SenderForTenantId(_parent.TenantId);
+                return innerSender as ISenderWithScheduledCancellation;
+            }
+
+            return inlineAgent.Sender as ISenderWithScheduledCancellation;
+        }
+
+        return null;
     }
 }
