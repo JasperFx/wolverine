@@ -1,3 +1,5 @@
+using JasperFx.Core;
+
 namespace Wolverine.Persistence.Durability.DeadLetterManagement;
 
 public class DeadLetterEnvelopeQuery
