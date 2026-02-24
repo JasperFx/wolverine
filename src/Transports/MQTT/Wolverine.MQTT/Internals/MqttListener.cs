@@ -27,7 +27,7 @@ internal class MqttListener : IListener
         _receiver = receiver;
         Address = topic.Uri;
 
-        TopicName = topic.TopicName;
+        TopicName = topic.ListeningTopic;
 
         _complete = new RetryBlock<MqttEnvelope>(
             async (e, _) => { await e.Args.AcknowledgeAsync(_cancellation.Token); }, _logger, _cancellation.Token);
