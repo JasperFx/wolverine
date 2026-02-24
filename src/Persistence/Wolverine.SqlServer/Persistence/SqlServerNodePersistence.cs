@@ -1,4 +1,3 @@
-using System.Data;
 using System.Data.Common;
 using JasperFx.Core;
 using Microsoft.Data.SqlClient;
@@ -119,36 +118,33 @@ internal class SqlServerNodePersistence : DatabaseConstants, INodeAgentPersisten
     public async Task PersistAgentRestrictionsAsync(IReadOnlyList<AgentRestriction> restrictions,
         CancellationToken cancellationToken)
     {
-        var builder = new CommandBuilder();
+        var builder = new BatchBuilder();
         foreach (var restriction in restrictions)
         {
-            builder.Append($"delete from {_restrictionTable} where id = ");
-            builder.AppendParameter(restriction.Id);
-            builder.Append(";");
-            if (restriction.Type != AgentRestrictionType.None)
+            builder.StartNewCommand();
+
+            if (restriction.Type == AgentRestrictionType.None)
             {
+                builder.Append($"delete from {_restrictionTable} where id = ");
+                builder.AppendParameter(restriction.Id);
+            }
+            else
+            {
+                builder.Append($"delete from {_restrictionTable} where id = ");
+                builder.AppendParameter(restriction.Id);
+                builder.StartNewCommand();
                 builder.Append(
                     $"insert into {_restrictionTable} (id, uri, type, node) values (");
-                var parameters = builder.AppendWithParameters("?, ?, ?, ?");
-                parameters[0].Value = restriction.Id;
-                parameters[0].SqlDbType = SqlDbType.UniqueIdentifier;
-                parameters[1].Value = restriction.AgentUri.ToString();
-                parameters[1].SqlDbType = SqlDbType.VarChar;
-                parameters[2].Value = restriction.Type.ToString();
-                parameters[2].SqlDbType = SqlDbType.VarChar;
-                parameters[3].Value = restriction.NodeNumber;
-                parameters[3].SqlDbType = SqlDbType.Int;
-            
-                builder.Append(");");
+                builder.AppendParameters(restriction.Id, restriction.AgentUri.ToString(), restriction.Type.ToString(), restriction.NodeNumber);
+                builder.Append(")");
             }
-
         }
 
-        var cmd = builder.Compile();
+        var batch = builder.Compile();
         await using var conn = new SqlConnection(_settings.ConnectionString);
         await conn.OpenAsync(cancellationToken);
-        cmd.Connection = conn;
-        await cmd.ExecuteNonQueryAsync(cancellationToken);
+        batch.Connection = conn;
+        await batch.ExecuteNonQueryAsync(cancellationToken);
         await conn.CloseAsync();
     }
 
@@ -292,19 +288,22 @@ internal class SqlServerNodePersistence : DatabaseConstants, INodeAgentPersisten
         await using var conn = new SqlConnection(_settings.ConnectionString);
         await conn.OpenAsync(cancellationToken);
 
-        var builder = new CommandBuilder();
-        var nodeParameter = builder.AddNamedParameter("node", nodeId, SqlDbType.UniqueIdentifier);
+        var builder = new BatchBuilder();
 
         foreach (var agent in agents)
         {
-            var parameter = builder.AddParameter(agent.ToString());
-            builder.Append($"delete from {_assignmentTable} where id = @{parameter.ParameterName};insert into {_assignmentTable} (id, node_id) values (@{parameter.ParameterName}, @{nodeParameter.ParameterName});");
+            builder.StartNewCommand();
+            builder.Append($"delete from {_assignmentTable} where id = ");
+            builder.AppendParameter(agent.ToString());
+            builder.StartNewCommand();
+            builder.Append($"insert into {_assignmentTable} (id, node_id) values (");
+            builder.AppendParameters(agent.ToString(), nodeId);
+            builder.Append(")");
         }
 
-        var command = builder.Compile();
-        command.Connection = conn;
-        await command.ExecuteNonQueryAsync(cancellationToken);
-
+        var batch = builder.Compile();
+        batch.Connection = conn;
+        await batch.ExecuteNonQueryAsync(cancellationToken);
 
         await conn.CloseAsync();
     }
