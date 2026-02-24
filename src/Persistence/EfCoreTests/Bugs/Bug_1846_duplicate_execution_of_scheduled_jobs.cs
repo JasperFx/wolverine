@@ -13,6 +13,7 @@ using Xunit.Abstractions;
 
 namespace EfCoreTests.Bugs;
 
+[Collection("sqlserver")]
 public class Bug_1846_duplicate_execution_of_scheduled_jobs
 {
     private readonly ITestOutputHelper _output;

@@ -1,4 +1,3 @@
-using EfCoreTests.MultiTenancy;
 using IntegrationTests;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;

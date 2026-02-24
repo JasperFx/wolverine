@@ -1,4 +1,3 @@
-using EfCoreTests.MultiTenancy;
 using IntegrationTests;
 using JasperFx;
 using JasperFx.Core.Reflection;

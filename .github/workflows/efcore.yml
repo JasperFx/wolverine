@@ -40,7 +40,9 @@ jobs:
         run: docker compose up -d postgresql sqlserver
 
       - name: Build
-        run: dotnet build src/Persistence/EfCoreTests/EfCoreTests.csproj --configuration ${{ env.config }} --framework net9.0
+        run: |
+          dotnet build src/Persistence/EfCoreTests/EfCoreTests.csproj --configuration ${{ env.config }} --framework net9.0
+          dotnet build src/Persistence/EfCoreTests.MultiTenancy/EfCoreTests.MultiTenancy.csproj --configuration ${{ env.config }} --framework net9.0
 
       - name: Wait for PostgreSQL
         run: |
@@ -68,6 +70,9 @@ jobs:
 
       - name: Test EfCoreTests
         run: dotnet test src/Persistence/EfCoreTests/EfCoreTests.csproj --configuration ${{ env.config }} --framework net9.0 --no-build --logger "GitHubActions;summary.includePassedTests=true;summary.includeSkippedTests=true"
+
+      - name: Test EfCoreTests.MultiTenancy
+        run: dotnet test src/Persistence/EfCoreTests.MultiTenancy/EfCoreTests.MultiTenancy.csproj --configuration ${{ env.config }} --framework net9.0 --no-build --logger "GitHubActions;summary.includePassedTests=true;summary.includeSkippedTests=true"
 
       - name: Stop containers
         if: always()
