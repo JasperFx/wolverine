@@ -51,7 +51,7 @@ public partial class CosmosDbDurabilityAgent : IAgent
 
     internal void StartTimers()
     {
-        _metrics = new PersistenceMetrics(_runtime.Meter, _settings, null);
+        _metrics = new PersistenceMetrics(_runtime, _settings, null);
 
         if (_settings.DurabilityMetricsEnabled)
         {

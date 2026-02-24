@@ -3,7 +3,6 @@ using JasperFx;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.Core;
 using JasperFx.Resources;
-using Marten;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -15,7 +14,6 @@ using Weasel.SqlServer;
 using Weasel.SqlServer.Tables;
 using Wolverine;
 using Wolverine.EntityFrameworkCore;
-using Wolverine.Marten;
 using Wolverine.Persistence;
 using Wolverine.Runtime;
 using Wolverine.SqlServer;
@@ -52,6 +50,7 @@ public class idempotency_with_inline_or_buffered_endpoints_end_to_end : IAsyncLi
 
     public Task DisposeAsync()
     {
+        SqlConnection.ClearAllPools();
         return Task.CompletedTask;
     }
 

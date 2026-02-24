@@ -11,6 +11,8 @@ using Wolverine.EntityFrameworkCore.Internals;
 using Wolverine.Persistence;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
+using Microsoft.Data.SqlClient;
+using Npgsql;
 using Wolverine.SqlServer;
 using Wolverine.Tracking;
 
@@ -93,6 +95,8 @@ public class persisting_envelopes_with_sqlserver : IAsyncLifetime
     {
         await _host.StopAsync();
         _host.Dispose();
+        SqlConnection.ClearAllPools();
+        NpgsqlConnection.ClearAllPools();
     }
 
     [Fact]

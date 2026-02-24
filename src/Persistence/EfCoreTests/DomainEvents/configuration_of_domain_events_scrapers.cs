@@ -4,6 +4,7 @@ using JasperFx;
 using JasperFx.Resources;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using SharedPersistenceModels.Items;
@@ -40,6 +41,7 @@ public class configuration_of_domain_events_scrapers : IAsyncDisposable
     {
         await theHost.StopAsync();
         theHost.Dispose();
+        NpgsqlConnection.ClearAllPools();
     }
 
     public async Task startHostAsync(Action<WolverineOptions> configure)

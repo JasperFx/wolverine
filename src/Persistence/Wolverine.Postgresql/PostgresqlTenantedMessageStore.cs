@@ -147,7 +147,7 @@ internal class PostgresqlTenantedMessageStore : ITenantedMessageSource
                     var store = buildTenantStoreForDataSource(assignment.Value);
                     store.TenantIds.Fill(assignment.TenantId);
                     
-                    if (_runtime.Options.AutoBuildMessageStorageOnStartup != AutoCreate.None)
+                    if (withMigration && _runtime.Options.AutoBuildMessageStorageOnStartup != AutoCreate.None)
                     {
                         await store.Admin.MigrateAsync();
                     }

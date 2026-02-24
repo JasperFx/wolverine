@@ -4,9 +4,6 @@
         <PackageId>WolverineFx</PackageId>
     </PropertyGroup>
     <ItemGroup>
-        <PackageReference Include="JasperFx" />
-        <PackageReference Include="JasperFx.Events" />
-        <PackageReference Include="JasperFx.RuntimeCompiler" />
         <PackageReference Include="Microsoft.Extensions.Caching.Memory" />
         <PackageReference Include="Microsoft.Extensions.Configuration" />
         <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" />
@@ -21,6 +18,15 @@
         <PackageReference Include="System.Diagnostics.DiagnosticSource" />
         <PackageReference Include="System.Net.NameResolution" />
         <PackageReference Include="System.Threading.Tasks.Dataflow" />
+    </ItemGroup>
+    <ItemGroup>
+        <PackageReference Include="JasperFx" />
+        <PackageReference Include="JasperFx.Events" />
+        <PackageReference Include="JasperFx.RuntimeCompiler" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <None Include="Runtime\Metrics\METRICS.md" />
     </ItemGroup>
 
     <Import Project="../../Analysis.Build.props" />

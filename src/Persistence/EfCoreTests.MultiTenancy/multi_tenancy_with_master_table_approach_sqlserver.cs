@@ -9,18 +9,19 @@ using Wolverine;
 using Wolverine.EntityFrameworkCore;
 using Wolverine.Postgresql;
 using Wolverine.RDBMS;
+using Wolverine.SqlServer;
 
 namespace EfCoreTests.MultiTenancy;
 
-public class multi_tenancy_with_master_table_approach_postgresql : MultiTenancyCompliance
+public class multi_tenancy_with_master_table_approach_sqlserver : MultiTenancyCompliance
 {
-    public multi_tenancy_with_master_table_approach_postgresql() : base(DatabaseEngine.PostgreSQL)
+    public multi_tenancy_with_master_table_approach_sqlserver() : base(DatabaseEngine.SqlServer)
     {
     }
 
     public override void Configure(WolverineOptions opts)
     {
-        opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, "dynamic_multi_tenancy")
+        opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString, "dynamic_multi_tenancy")
             .UseMasterTableTenancy(tenants => 
             {
                 tenants.Register("red", tenant1ConnectionString);
@@ -35,9 +36,9 @@ public class multi_tenancy_with_master_table_approach_postgresql : MultiTenancyC
         
         opts.Services.AddDbContextWithWolverineManagedMultiTenancy<ItemsDbContext>((builder, connectionString, _) =>
         {
-            builder.UseNpgsql(connectionString.Value, b => b.MigrationsAssembly("MultiTenantedEfCoreWithPostgreSQL"));
+            builder.UseSqlServer(connectionString.Value,
+                b => b.MigrationsAssembly("MultiTenantedEfCoreWithSqlServer"));
         }, AutoCreate.CreateOrUpdate);
 
-        opts.Services.AddResourceSetupOnStartup();
     }
 }

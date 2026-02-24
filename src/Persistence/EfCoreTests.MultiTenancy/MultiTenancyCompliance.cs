@@ -83,9 +83,29 @@ public abstract class MultiTenancyCompliance : IAsyncLifetime, IWolverineExtensi
         theBuilder = theHost.Services.GetRequiredService<IDbContextBuilder<ItemsDbContext>>();
     }
 
-    public Task DisposeAsync()
+    public async Task DisposeAsync()
     {
-        return theHost.StopAsync();
+        try
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            await theHost.StopAsync(cts.Token);
+        }
+        catch (Exception)
+        {
+            // Swallow shutdown errors - host may have already stopped or timed out
+        }
+
+        try
+        {
+            theHost.Dispose();
+        }
+        catch (Exception)
+        {
+            // Swallow errors from inner WebApplicationFactory dispose
+        }
+
+        NpgsqlConnection.ClearAllPools();
+        SqlConnection.ClearAllPools();
     }
 
     public abstract void Configure(WolverineOptions options);

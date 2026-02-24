@@ -219,3 +219,5 @@ public class MyMessageHandler
 
 #endregion
 
+public record CreateItem(string Name);
+

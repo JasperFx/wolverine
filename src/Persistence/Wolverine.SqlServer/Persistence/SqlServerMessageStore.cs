@@ -330,20 +330,20 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
 
     protected override Task deleteMany(DbTransaction tx, Guid[] ids, DbObjectName tableName, string idColumnName)
     {
-        var builder = new CommandBuilder();
+        var builder = new BatchBuilder();
 
         foreach (var id in ids)
         {
+            builder.StartNewCommand();
             builder.Append($"delete from {tableName.QualifiedName} where {idColumnName} = ");
             builder.AppendParameter(id);
-            builder.Append(";");
         }
 
-        var command = builder.Compile();
-        command.Connection = (SqlConnection)tx.Connection;
-        command.Transaction = (SqlTransaction)tx;
+        var batch = builder.Compile();
+        batch.Connection = (SqlConnection)tx.Connection;
+        batch.Transaction = (SqlTransaction)tx;
 
-        return command.ExecuteNonQueryAsync();
+        return batch.ExecuteNonQueryAsync();
     }
 
     protected override Task<bool> TryAttainLockAsync(int lockId, SqlConnection connection, CancellationToken token)
