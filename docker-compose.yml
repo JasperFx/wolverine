@@ -7,6 +7,13 @@ networks:
   sb-emulator-2:
 
 services:
+  mosquitto:
+    image: "eclipse-mosquitto:latest"
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./docker/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
+
   postgresql:
     image: "postgres:latest"
     ports:
