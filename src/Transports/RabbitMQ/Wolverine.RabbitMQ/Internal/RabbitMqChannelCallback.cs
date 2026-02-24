@@ -99,7 +99,9 @@ internal class RabbitMqChannelCallback : IChannelCallback, IDisposable, ISupport
         {
             if (envelope.RabbitMqListener.Channel is not null)
             {
-                // For idempotency
+                // Mark as acknowledged before the NACK so that any subsequent
+                // CompleteAsync() call is a no-op (prevents double ack/nack)
+                envelope.Acknowledged = true;
                 envelope.HasBeenAcked = true;
                 await envelope.RabbitMqListener.Channel.BasicNackAsync(envelope.DeliveryTag, false, false, token);
             }
