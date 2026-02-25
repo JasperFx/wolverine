@@ -165,7 +165,8 @@ const config: UserConfig<DefaultTheme.Config> = {
                                         {text: 'Interoperability', link:'/guide/messaging/transports/azureservicebus/interoperability'},
                                         {text: 'Session Identifiers and FIFO Queues', link: '/guide/messaging/transports/azureservicebus/session-identifiers'},
                                         {text: 'Scheduled Delivery', link: '/guide/messaging/transports/azureservicebus/scheduled'},
-                                        {text: 'Multi-Tenancy', link: '/guide/messaging/transports/azureservicebus/multi-tenancy'}
+                                        {text: 'Multi-Tenancy', link: '/guide/messaging/transports/azureservicebus/multi-tenancy'},
+                                        {text: 'Using the Emulator', link: '/guide/messaging/transports/azureservicebus/emulator'}
                                     ]},
                                 {text: 'Amazon SQS', link: '/guide/messaging/transports/sqs/', items:[
                                         {text: 'Publishing', link:'/guide/messaging/transports/sqs/publishing'},
@@ -271,8 +272,9 @@ const config: UserConfig<DefaultTheme.Config> = {
                                 {text: 'Operation Side Effects', link: '/guide/durability/efcore/operations'},
                                 {text: 'Saga Storage', link: '/guide/durability/efcore/sagas'},
                                 {text: 'Multi-Tenancy', link: '/guide/durability/efcore/multi-tenancy'},
-                                {text: 'Domain Events', link: '/guide/durability/efcore/domain-events'}
-                            
+                                {text: 'Domain Events', link: '/guide/durability/efcore/domain-events'},
+                                {text: 'Database Migrations', link: '/guide/durability/efcore/migrations'}
+
                             ]},
                         {text: 'Managing Message Storage', link: '/guide/durability/managing'},
                         {text: 'Dead Letter Storage', link: '/guide/durability/dead-letter-storage'},

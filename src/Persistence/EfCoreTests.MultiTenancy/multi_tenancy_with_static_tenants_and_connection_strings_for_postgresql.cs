@@ -1,8 +1,8 @@
-using System.Data.Common;
 using IntegrationTests;
 using JasperFx;
 using JasperFx.Resources;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Npgsql;
 using SharedPersistenceModels.Items;
@@ -10,6 +10,7 @@ using SharedPersistenceModels.Orders;
 using Shouldly;
 using Wolverine;
 using Wolverine.EntityFrameworkCore;
+using Wolverine.EntityFrameworkCore.Internals;
 using Wolverine.Postgresql;
 using Wolverine.RDBMS;
 using Wolverine.Runtime;
@@ -17,22 +18,22 @@ using Wolverine.Tracking;
 
 namespace EfCoreTests.MultiTenancy;
 
-public class multi_tenancy_with_static_tenants_and_data_sources_for_postgresql : MultiTenancyCompliance
+public class multi_tenancy_with_static_tenants_and_connection_strings_for_postgresql : MultiTenancyCompliance
 {
     
 
-    public multi_tenancy_with_static_tenants_and_data_sources_for_postgresql() : base(DatabaseEngine.PostgreSQL)
+    public multi_tenancy_with_static_tenants_and_connection_strings_for_postgresql() : base(DatabaseEngine.PostgreSQL)
     {
     }
 
     public override void Configure(WolverineOptions opts)
     {
-        opts.PersistMessagesWithPostgresql(NpgsqlDataSource.Create(Servers.PostgresConnectionString), "static_multi_tenancy")
-            .RegisterStaticTenantsByDataSource(tenants =>
+        opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, "static_multi_tenancy")
+            .RegisterStaticTenants(tenants =>
             {
-                tenants.Register("red", NpgsqlDataSource.Create(tenant1ConnectionString));
-                tenants.Register("blue", NpgsqlDataSource.Create(tenant2ConnectionString));
-                tenants.Register("green", NpgsqlDataSource.Create(tenant3ConnectionString));
+                tenants.Register("red", tenant1ConnectionString);
+                tenants.Register("blue", tenant2ConnectionString);
+                tenants.Register("green", tenant3ConnectionString);
             });
         
         // Little weird, but we have to remove this DbContext to use
@@ -40,14 +41,13 @@ public class multi_tenancy_with_static_tenants_and_data_sources_for_postgresql :
         opts.Services.RemoveAll(typeof(OrdersDbContext));
         opts.AddSagaType<Order>();
         
-        opts.Services.AddDbContextWithWolverineManagedMultiTenancyByDbDataSource<ItemsDbContext>((builder, dataSource, _) =>
+        opts.Services.AddDbContextWithWolverineManagedMultiTenancy<ItemsDbContext>((builder, connectionString, _) =>
         {
-            builder.UseNpgsql<ItemsDbContext>((DbDataSource)dataSource, b => b.MigrationsAssembly("MultiTenantedEfCoreWithPostgreSQL"));
+            builder.UseNpgsql(connectionString.Value, b => b.MigrationsAssembly("MultiTenantedEfCoreWithPostgreSQL"));
         }, AutoCreate.CreateOrUpdate);
 
-        opts.Services.AddResourceSetupOnStartup();
     }
-    
+
     [Fact]
     public async Task opens_the_db_context_to_the_correct_database_1()
     {
@@ -80,4 +80,15 @@ public class multi_tenancy_with_static_tenants_and_data_sources_for_postgresql :
         var builder = new NpgsqlConnectionStringBuilder(blue.Database.GetConnectionString());
         builder.Database.ShouldBe("db3");
     }
+
+    [Fact]
+    public async Task open_db_from_context_factory()
+    {
+        var factory = theHost.Services.GetRequiredService<IDbContextOutboxFactory>();
+
+        var blueOutbox = await factory.CreateForTenantAsync<ItemsDbContext>("blue", CancellationToken.None);
+        var builder = new NpgsqlConnectionStringBuilder(blueOutbox.DbContext.Database.GetConnectionString());
+        builder.Database.ShouldBe("db2");
+    }
+
 }

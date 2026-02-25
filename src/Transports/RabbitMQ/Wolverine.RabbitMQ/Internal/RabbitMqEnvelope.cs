@@ -21,10 +21,12 @@ internal class RabbitMqEnvelope : Envelope
     internal RabbitMqListener RabbitMqListener { get;  }
     internal ulong DeliveryTag { get; private set;}
 
-    public bool Acknowledged { get; private set; }
+    public bool Acknowledged { get; internal set; }
 
     internal async Task CompleteAsync()
     {
+        if (Acknowledged) return;
+
         await RabbitMqListener.CompleteAsync(DeliveryTag);
         Acknowledged = true;
     }

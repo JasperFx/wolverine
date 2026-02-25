@@ -97,6 +97,32 @@ public class using_native_scheduling : IAsyncLifetime
     }
 
     [Fact]
+    public async Task schedule_to_topic_with_subscription_listener()
+    {
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.UseAzureServiceBusTesting()
+                    .AutoProvision().AutoPurgeOnStartup();
+
+                opts.PublishMessage<AsbMessage1>().ToAzureServiceBusTopic("scheduled-topic");
+                opts.ListenToAzureServiceBusSubscription("scheduled-sub")
+                    .FromTopic("scheduled-topic")
+                    .ProcessInline();
+            }).StartAsync();
+
+        var session = await host.TrackActivity()
+            .IncludeExternalTransports()
+            .Timeout(20.Seconds())
+            .ExecuteAndWaitAsync(c => c.ScheduleAsync(new AsbMessage1("topic scheduled"), 3.Seconds()));
+
+        session.Received.SingleMessage<AsbMessage1>()
+            .Name.ShouldBe("topic scheduled");
+
+        await host.StopAsync();
+    }
+
+    [Fact]
     public async Task with_buffered_endpoint() // durable would have similar mechanics
     {
         using var host = await Host.CreateDefaultBuilder()

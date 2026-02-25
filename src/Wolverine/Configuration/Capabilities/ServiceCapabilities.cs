@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Text.Json.Serialization;
 using JasperFx.Core.Reflection;
 using JasperFx.Descriptors;
+using Wolverine.Attributes;
 using JasperFx.Events;
 using JasperFx.Events.Descriptors;
 using Microsoft.Extensions.DependencyInjection;
@@ -23,8 +24,11 @@ public class ServiceCapabilities : OptionsDescription
     }
 
     public DateTimeOffset Evaluated { get; set; } = DateTimeOffset.UtcNow;
+
+    [JsonConverter(typeof(VersionJsonConverter))]
     public Version Version { get; set; }
 
+    [JsonConverter(typeof(VersionJsonConverter))]
     public Version? WolverineVersion { get; set; }
 
     public List<EventStoreUsage> EventStores { get; set; } = [];
@@ -69,6 +73,7 @@ public class ServiceCapabilities : OptionsDescription
     {
         foreach (var endpoint in runtime.Options.Transports.AllEndpoints().OrderBy(x => x.Uri.ToString()))
         {
+            if (endpoint.Role == EndpointRole.System) continue;
             capabilities.MessagingEndpoints.Add(new EndpointDescriptor(endpoint));
         }
     }
@@ -78,6 +83,7 @@ public class ServiceCapabilities : OptionsDescription
         var messageTypes = runtime.Options.Discovery.FindAllMessages(runtime.Options.HandlerGraph);
         foreach (var messageType in messageTypes.OrderBy(x => x.FullNameInCode()))
         {
+            if (messageType.Assembly.HasAttribute<ExcludeFromServiceCapabilitiesAttribute>()) continue;
             capabilities.Messages.Add(new MessageDescriptor(messageType, runtime));
         }
     }

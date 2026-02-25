@@ -1,5 +1,7 @@
 using Wolverine.Configuration;
+using Wolverine.Logging;
 using Wolverine.Runtime.Agents;
+using Wolverine.Runtime.Metrics;
 using Wolverine.Runtime.Routing;
 using Wolverine.Transports;
 using Xunit.Abstractions;
@@ -80,5 +82,15 @@ public class XUnitObserver(ITestOutputHelper Output) : IWolverineObserver
         Output.WriteLine("Back Pressure was Lifted!");
         Lifted?.TrySetResult();
         return Task.CompletedTask;
+    }
+
+    public void PersistedCounts(Uri storeUri, PersistedCounts counts)
+    {
+        // Nothing here...
+    }
+
+    public void MessageHandlingMetricsExported(MessageHandlingMetrics metrics)
+    {
+        // Nothing here...
     }
 }

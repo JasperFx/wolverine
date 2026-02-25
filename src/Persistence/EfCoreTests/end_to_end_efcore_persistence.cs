@@ -1,4 +1,3 @@
-using EfCoreTests.MultiTenancy;
 using IntegrationTests;
 using JasperFx;
 using JasperFx.Core.Reflection;
@@ -200,8 +199,6 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
             var messaging = nested.ServiceProvider.GetRequiredService<IDbContextOutbox<ItemsDbContext>>()
                 .ShouldBeOfType<DbContextOutbox<ItemsDbContext>>();
 
-            await messaging.DbContext.Database.EnsureCreatedAsync();
-
             await messaging.Transaction.PersistOutgoingAsync(envelope);
             messaging.DbContext.Items.Add(new Item { Id = Guid.NewGuid(), Name = Guid.NewGuid().ToString() });
 
@@ -244,8 +241,6 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
         {
             var messaging = nested.ServiceProvider.GetRequiredService<IDbContextOutbox<SampleMappedDbContext>>()
                 .ShouldBeOfType<DbContextOutbox<SampleMappedDbContext>>();
-
-            await messaging.DbContext.Database.EnsureCreatedAsync();
 
             await messaging.Transaction.PersistOutgoingAsync(envelope);
             messaging.DbContext.Items.Add(new Item { Id = Guid.NewGuid(), Name = Guid.NewGuid().ToString() });

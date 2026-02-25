@@ -43,8 +43,6 @@ public class multi_tenancy_with_shared_database_between_tenants_sql_server : Mul
             builder.UseSqlServer(connectionString.Value, b => b.MigrationsAssembly("MultiTenantedEfCoreWithSqlServer"));
         }, AutoCreate.CreateOrUpdate);
 
-        opts.Services.AddResourceSetupOnStartup();
-
     }
 
     [Fact]

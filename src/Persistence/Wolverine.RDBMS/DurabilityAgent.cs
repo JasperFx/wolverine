@@ -67,7 +67,7 @@ internal class DurabilityAgent : IAgent
 
     public Task StartAsync(CancellationToken cancellationToken)
     {
-        _metrics = new PersistenceMetrics(_runtime.Meter, _settings, _database.Name);
+        _metrics = new PersistenceMetrics(_runtime, _settings, _database.Name);
 
         if (_settings.DurabilityMetricsEnabled)
         {

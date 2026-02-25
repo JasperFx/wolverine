@@ -21,8 +21,8 @@
     <PackageVersion Include="Grpc.Core" Version="2.46.6" />
     <PackageVersion Include="Grpc.Tools" Version="2.72.0" />
     <PackageVersion Include="HtmlTags" Version="9.0.0" />
-    <PackageVersion Include="JasperFx" Version="1.19.0" />
-    <PackageVersion Include="JasperFx.Events" Version="1.21.0" />
+    <PackageVersion Include="JasperFx" Version="1.20.0" />
+    <PackageVersion Include="JasperFx.Events" Version="1.21.1" />
     <PackageVersion Include="JasperFx.RuntimeCompiler" Version="4.4.0" />
     <PackageVersion Include="Lamar.Microsoft.DependencyInjection" Version="15.0.1" />
     <PackageVersion Include="Marten" Version="8.22.0" />
@@ -79,13 +79,13 @@
     <PackageVersion Include="System.Diagnostics.DiagnosticSource" Version="9.0.5" />
     <PackageVersion Include="System.Net.NameResolution" Version="4.3.0" />
     <PackageVersion Include="System.Threading.Tasks.Dataflow" Version="9.0.5" />
-    <PackageVersion Include="Weasel.Core" Version="8.6.2" />
-    <PackageVersion Include="Weasel.EntityFrameworkCore" Version="8.6.2" />
-    <PackageVersion Include="Weasel.MySql" Version="8.6.2" />
-    <PackageVersion Include="Weasel.Oracle" Version="8.6.2" />
-    <PackageVersion Include="Weasel.Postgresql" Version="8.6.2" />
-    <PackageVersion Include="Weasel.SqlServer" Version="8.6.2" />
-    <PackageVersion Include="Weasel.Sqlite" Version="8.6.2" />
+    <PackageVersion Include="Weasel.Core" Version="8.8.0" />
+    <PackageVersion Include="Weasel.EntityFrameworkCore" Version="8.8.0" />
+    <PackageVersion Include="Weasel.MySql" Version="8.8.0" />
+    <PackageVersion Include="Weasel.Oracle" Version="8.8.0" />
+    <PackageVersion Include="Weasel.Postgresql" Version="8.8.0" />
+    <PackageVersion Include="Weasel.SqlServer" Version="8.8.0" />
+    <PackageVersion Include="Weasel.Sqlite" Version="8.8.0" />
     <PackageVersion Include="xunit" Version="2.9.3" />
     <PackageVersion Include="xunit.assemblyfixture" Version="2.2.0" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="2.8.2" />

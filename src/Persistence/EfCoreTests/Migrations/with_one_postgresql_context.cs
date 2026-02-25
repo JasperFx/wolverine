@@ -53,6 +53,8 @@ public class with_one_postgresql_context : IAsyncLifetime
     public async Task DisposeAsync()
     {
         await _host.StopAsync();
+        _host.Dispose();
+        NpgsqlConnection.ClearAllPools();
     }
 
     [Fact]

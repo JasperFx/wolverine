@@ -31,6 +31,8 @@ public class using_add_dbcontext_with_wolverine_integration : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
+        SqlConnection.ClearAllPools();
+
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -49,6 +51,7 @@ public class using_add_dbcontext_with_wolverine_integration : IAsyncLifetime
     {
         await _host.StopAsync();
         _host.Dispose();
+        SqlConnection.ClearAllPools();
     }
     
     public Table ItemsTable { get; }

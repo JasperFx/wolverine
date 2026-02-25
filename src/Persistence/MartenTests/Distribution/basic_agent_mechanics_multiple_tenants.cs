@@ -1,16 +1,15 @@
 using JasperFx.Core;
+using JasperFx.Events.Projections;
+using Marten;
 using MartenTests.Distribution.Support;
+using MartenTests.Distribution.TripDomain;
 using Wolverine;
 using Xunit.Abstractions;
 
 namespace MartenTests.Distribution;
 
-public class basic_agent_mechanics_multiple_tenants : MultiTenantContext
+public class basic_agent_mechanics_multiple_tenants(ITestOutputHelper output) : MultiTenantContext(output)
 {
-    public basic_agent_mechanics_multiple_tenants(ITestOutputHelper output) : base(output)
-    {
-    }
-
     [Fact]
     public async Task start_with_multiple_databases_on_one_single_node()
     {
@@ -44,15 +43,6 @@ public class basic_agent_mechanics_multiple_tenants : MultiTenantContext
 
         var host2 = await startHostAsync();
         
-        // await theOriginalHost.WaitUntilAssignmentsChangeTo(w =>
-        // {
-        //     w.AgentScheme = theProjectionAgents.Scheme;
-        //
-        //     // 3 projections x 2 databases = 6 total
-        //     w.ExpectRunningAgents(theOriginalHost, 6);
-        //     w.ExpectRunningAgents(host2, 6);
-        // }, 30.Seconds());
-        
 
         var host3 = await startHostAsync();
         var host4 = await startHostAsync();
@@ -68,6 +58,12 @@ public class basic_agent_mechanics_multiple_tenants : MultiTenantContext
             w.ExpectRunningAgents(host4, 3);
         }, 30.Seconds());
     }
-    
 
+
+    protected override void SetupProjections(StoreOptions storeOptions)
+    {
+        storeOptions.Projections.Add<TripProjection>(ProjectionLifecycle.Async);
+        storeOptions.Projections.Add<DayProjection>(ProjectionLifecycle.Async);
+        storeOptions.Projections.Add<DistanceProjection>(ProjectionLifecycle.Async);
+    }
 }
