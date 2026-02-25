@@ -26,6 +26,8 @@ public interface IListeningAgent : IListenerCircuit
     ValueTask StopAndDrainAsync();
 
     ValueTask MarkAsTooBusyAndStopReceivingAsync();
+
+    ValueTask LatchPermanently();
 }
 
 public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
@@ -34,7 +36,7 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
     private readonly CircuitBreaker? _circuitBreaker;
     private readonly ILogger _logger;
     private readonly HandlerPipeline _pipeline;
-    private readonly IWolverineRuntime _runtime;
+    private readonly WolverineRuntime _runtime;
     private IReceiver? _receiver;
     private IDisposable? _restarter;
 
@@ -138,7 +140,7 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
 
     public async ValueTask StopAndDrainAsync()
     {
-        if (Status == ListeningStatus.Stopped)
+        if (Status == ListeningStatus.Stopped || Status == ListeningStatus.GloballyLatched)
         {
             return;
         }
@@ -175,13 +177,34 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
         _logger.LogInformation("Stopped message listener at {Uri}", Uri);
     }
 
+    public async ValueTask LatchPermanently()
+    {
+        await StopAndDrainAsync();
+
+        Status = ListeningStatus.GloballyLatched;
+        _runtime.Tracker.Publish(new ListenerState(Uri, Endpoint.EndpointName, Status));
+
+        _logger.LogInformation("Listener at {Uri} has been permanently latched", Uri);
+        await _runtime.Observer.ListenerLatched(Endpoint);
+    }
+
     public async ValueTask StartAsync()
     {
         if (Status == ListeningStatus.Accepting)
         {
             return;
         }
-        
+
+        if (_runtime.DurabilitySettings.Mode == DurabilityMode.Balanced
+            && _runtime.Restrictions.FindPausedAgentUris().Any(u => u == Uri))
+        {
+            Status = ListeningStatus.GloballyLatched;
+            _runtime.Tracker.Publish(new ListenerState(Uri, Endpoint.EndpointName, Status));
+            _logger.LogInformation(
+                "Listener at {Uri} is not being started because of an existing agent restriction", Uri);
+            return;
+        }
+
         _receiver ??= Endpoint.MaybeWrapReceiver(await buildReceiverAsync());
     
         if (Endpoint.ListenerCount > 1)

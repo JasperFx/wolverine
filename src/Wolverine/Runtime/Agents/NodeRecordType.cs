@@ -10,7 +10,8 @@ public enum NodeRecordType
     AgentStopped,
     DormantNodeEjected,
     AssignmentChanged,
-    LeadershipAssumed
+    LeadershipAssumed,
+    ListenerLatched
 }
 
 // This is marked as ISerializable so that it can go to CritterWatch w/o

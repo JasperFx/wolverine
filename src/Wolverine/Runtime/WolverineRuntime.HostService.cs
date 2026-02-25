@@ -73,6 +73,7 @@ public partial class WolverineRuntime
             switch (Options.Durability.Mode)
             {
                 case DurabilityMode.Balanced:
+                    await loadAgentRestrictionsAsync();
                     await startMessagingTransportsAsync();
                     startInMemoryScheduledJobs();
                     await startNodeAgentWorkflowAsync();
@@ -231,6 +232,12 @@ public partial class WolverineRuntime
         {
             await d.DisposeAsync();
         }
+    }
+
+    private async Task loadAgentRestrictionsAsync()
+    {
+        var state = await Storage.Nodes.LoadNodeAgentStateAsync(Cancellation);
+        Restrictions = state.Restrictions;
     }
 
     private void startInMemoryScheduledJobs()

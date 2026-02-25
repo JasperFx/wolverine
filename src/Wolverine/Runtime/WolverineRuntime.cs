@@ -185,6 +185,8 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
         return extension;
     }
 
+    public AgentRestrictions Restrictions { get; set; } = new AgentRestrictions();
+
     public DurabilitySettings DurabilitySettings { get; }
 
     public ILogger Logger { get; }
