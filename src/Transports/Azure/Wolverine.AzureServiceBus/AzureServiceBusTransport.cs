@@ -89,6 +89,13 @@ public partial class AzureServiceBusTransport : BrokerTransport<AzureServiceBusE
 
     public string? ConnectionString { get; set; }
 
+    /// <summary>
+    /// Optional separate connection string for the ServiceBusAdministrationClient.
+    /// When set, the management client uses this instead of ConnectionString.
+    /// Useful for the Azure Service Bus Emulator which exposes management on a different port.
+    /// </summary>
+    public string? ManagementConnectionString { get; set; }
+
     public string? FullyQualifiedNamespace { get; set; }
     public TokenCredential? TokenCredential { get; set; }
     public AzureNamedKeyCredential? NamedKeyCredential { get; set; }
@@ -108,20 +115,38 @@ public partial class AzureServiceBusTransport : BrokerTransport<AzureServiceBusE
             tenant.Transport.NamedKeyCredential ??= NamedKeyCredential;
             tenant.Transport.SasCredential ??= SasCredential;
             tenant.Transport.TokenCredential ??= TokenCredential;
-            await tenant.Transport.WithManagementClientAsync(action);
+
+            try
+            {
+                await tenant.Transport.WithManagementClientAsync(action);
+            }
+            catch (Exception)
+            {
+                // Tenant management failures should not block the default namespace.
+                // Tenant resources will be provisioned on demand or by their own hosts.
+            }
         }
     }
 
     public async Task WithServiceBusClientAsync(Func<ServiceBusClient, Task> action)
     {
         await action(BusClient);
-        
+
         foreach (var tenant in Tenants)
         {
             tenant.Transport.NamedKeyCredential ??= NamedKeyCredential;
             tenant.Transport.SasCredential ??= SasCredential;
             tenant.Transport.TokenCredential ??= TokenCredential;
-            await tenant.Transport.WithServiceBusClientAsync(action);
+
+            try
+            {
+                await tenant.Transport.WithServiceBusClientAsync(action);
+            }
+            catch (Exception)
+            {
+                // Tenant management failures should not block the default namespace.
+                // Tenant resources will be provisioned on demand or by their own hosts.
+            }
         }
     }
     
@@ -304,7 +329,7 @@ public partial class AzureServiceBusTransport : BrokerTransport<AzureServiceBusE
             return new ServiceBusAdministrationClient(FullyQualifiedNamespace, SasCredential);
         }
 
-        return new ServiceBusAdministrationClient(ConnectionString);
+        return new ServiceBusAdministrationClient(ManagementConnectionString ?? ConnectionString);
     }
 
 

@@ -52,6 +52,8 @@ public class with_one_sqlserver_context : IAsyncLifetime
     public async Task DisposeAsync()
     {
         await _host.StopAsync();
+        _host.Dispose();
+        SqlConnection.ClearAllPools();
     }
 
     [Fact]

@@ -2,6 +2,7 @@ using Amazon.Runtime;
 using Amazon.SQS;
 using Amazon.SQS.Model;
 using JasperFx.Core;
+using Microsoft.Extensions.Logging;
 using Spectre.Console;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
@@ -12,8 +13,15 @@ namespace Wolverine.AmazonSqs.Internal;
 public class AmazonSqsTransport : BrokerTransport<AmazonSqsQueue>
 {
     public const string DeadLetterQueueName = DeadLetterQueueConstants.DefaultQueueName;
-
+    public const string ResponseEndpointName = "AmazonSqsResponses";
     public const char Separator = '-';
+
+    private static readonly TimeSpan OrphanThreshold = TimeSpan.FromMinutes(5);
+    private static readonly TimeSpan KeepAliveInterval = TimeSpan.FromMinutes(2);
+    private const string LastActiveTagKey = "wolverine:last-active";
+
+    internal readonly List<AmazonSqsQueue> SystemQueues = new();
+    private Task? _keepAliveTask;
 
     public AmazonSqsTransport(string protocol) : base(protocol, "Amazon SQS", ["aws", "sqs"])
     {
@@ -45,6 +53,12 @@ public class AmazonSqsTransport : BrokerTransport<AmazonSqsQueue>
 
     public bool UseLocalStackInDevelopment { get; set; }
     public bool DisableDeadLetterQueues { get; set; }
+
+    /// <summary>
+    /// Is this transport connection allowed to build and use response and control queues
+    /// for just this node? Default is false, requiring explicit opt-in.
+    /// </summary>
+    public bool SystemQueuesEnabled { get; set; }
 
     public static string SanitizeSqsName(string identifier)
     {
@@ -95,10 +109,127 @@ public class AmazonSqsTransport : BrokerTransport<AmazonSqsQueue>
         return Queues.Where(x => x.Uri.OriginalString == uri.OriginalString).FirstOrDefault() ?? Queues[uri.OriginalString.Split("//")[1].TrimEnd('/')];
     }
 
-    public override ValueTask ConnectAsync(IWolverineRuntime runtime)
+    protected override void tryBuildSystemEndpoints(IWolverineRuntime runtime)
+    {
+        if (!SystemQueuesEnabled) return;
+
+        // Lowercase the name because Uri normalizes the host portion to lowercase,
+        // and SQS queue names are case-sensitive. Without this, the sender creates
+        // "wolverine-response-MyApp-123" but the receiver resolves the reply URI
+        // to "wolverine-response-myapp-123" (lowercased by Uri), creating a different queue.
+        var responseName = SanitizeSqsName(
+            $"wolverine.response.{runtime.Options.ServiceName}.{runtime.DurabilitySettings.AssignedNodeNumber}")
+            .ToLowerInvariant();
+
+        var queue = Queues[responseName];
+        queue.Mode = EndpointMode.BufferedInMemory;
+        queue.IsListener = true;
+        queue.EndpointName = ResponseEndpointName;
+        queue.IsUsedForReplies = true;
+        queue.Role = EndpointRole.System;
+        queue.DeadLetterQueueName = null;
+        queue.Configuration.Attributes ??= new Dictionary<string, string>();
+        queue.Configuration.Attributes["MessageRetentionPeriod"] = "300";
+
+        SystemQueues.Add(queue);
+    }
+
+    public override async ValueTask ConnectAsync(IWolverineRuntime runtime)
     {
         Client ??= BuildClient(runtime);
-        return ValueTask.CompletedTask;
+
+        if (SystemQueuesEnabled)
+        {
+            await CleanupOrphanedSystemQueuesAsync(runtime);
+            StartSystemQueueKeepAlive(runtime.DurabilitySettings.Cancellation, runtime);
+        }
+    }
+
+    internal async Task CleanupOrphanedSystemQueuesAsync(IWolverineRuntime runtime)
+    {
+        var logger = runtime.LoggerFactory.CreateLogger<AmazonSqsTransport>();
+        var prefixes = new[] { "wolverine-response-", "wolverine-control-" };
+
+        foreach (var prefix in prefixes)
+        {
+            try
+            {
+                var response = await Client!.ListQueuesAsync(new ListQueuesRequest { QueueNamePrefix = prefix });
+
+                foreach (var queueUrl in response.QueueUrls)
+                {
+                    try
+                    {
+                        var tags = await Client.ListQueueTagsAsync(new ListQueueTagsRequest { QueueUrl = queueUrl });
+
+                        if (tags.Tags.TryGetValue(LastActiveTagKey, out var lastActiveStr)
+                            && DateTimeOffset.TryParse(lastActiveStr, out var lastActive))
+                        {
+                            if (DateTimeOffset.UtcNow - lastActive > OrphanThreshold)
+                            {
+                                await Client.DeleteQueueAsync(new DeleteQueueRequest(queueUrl));
+                                logger.LogInformation("Deleted orphaned Wolverine system queue {QueueUrl}", queueUrl);
+                            }
+                        }
+                        else
+                        {
+                            // No valid tag — consider it orphaned
+                            await Client.DeleteQueueAsync(new DeleteQueueRequest(queueUrl));
+                            logger.LogInformation("Deleted untagged Wolverine system queue {QueueUrl}", queueUrl);
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        logger.LogWarning(e, "Error checking orphaned queue {QueueUrl}", queueUrl);
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                logger.LogWarning(e, "Error listing queues with prefix {Prefix}", prefix);
+            }
+        }
+    }
+
+    internal async Task TagSystemQueueAsync(string queueUrl)
+    {
+        await Client!.TagQueueAsync(new TagQueueRequest
+        {
+            QueueUrl = queueUrl,
+            Tags = new Dictionary<string, string>
+            {
+                [LastActiveTagKey] = DateTime.UtcNow.ToString("o")
+            }
+        });
+    }
+
+    internal void StartSystemQueueKeepAlive(CancellationToken cancellation, IWolverineRuntime runtime)
+    {
+        if (_keepAliveTask != null) return;
+
+        var logger = runtime.LoggerFactory.CreateLogger<AmazonSqsTransport>();
+
+        _keepAliveTask = Task.Run(async () =>
+        {
+            using var timer = new PeriodicTimer(KeepAliveInterval);
+            while (await timer.WaitForNextTickAsync(cancellation))
+            {
+                foreach (var queue in SystemQueues)
+                {
+                    if (queue.QueueUrl.IsNotEmpty())
+                    {
+                        try
+                        {
+                            await TagSystemQueueAsync(queue.QueueUrl!);
+                        }
+                        catch (Exception e)
+                        {
+                            logger.LogWarning(e, "Error refreshing keep-alive tag for system queue {QueueName}", queue.QueueName);
+                        }
+                    }
+                }
+            }
+        }, cancellation);
     }
 
     public override IEnumerable<PropertyColumn> DiagnosticColumns()

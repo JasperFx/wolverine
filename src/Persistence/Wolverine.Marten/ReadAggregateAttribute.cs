@@ -22,6 +22,8 @@ namespace Wolverine.Marten;
 /// </summary>
 public class ReadAggregateAttribute : WolverineParameterAttribute, IDataRequirement
 {
+    private OnMissing? _onMissing;
+
     public ReadAggregateAttribute()
     {
         ValueSource = ValueSource.Anything;
@@ -31,18 +33,24 @@ public class ReadAggregateAttribute : WolverineParameterAttribute, IDataRequirem
     {
         ValueSource = ValueSource.Anything;
     }
-    
+
     /// <summary>
     /// Is the existence of this aggregate required for the rest of the handler action or HTTP endpoint
-    /// execution to continue? Default is true. 
+    /// execution to continue? Default is true.
     /// </summary>
     public bool Required { get; set; } = true;
 
     public string MissingMessage { get; set; }
-    public OnMissing OnMissing { get; set; }
+
+    public OnMissing OnMissing
+    {
+        get => _onMissing ?? OnMissing.Simple404;
+        set => _onMissing = value;
+    }
 
     public override Variable Modify(IChain chain, ParameterInfo parameter, IServiceContainer container, GenerationRules rules)
     {
+        _onMissing ??= container.GetInstance<WolverineOptions>().EntityDefaults.OnMissing;
         // I know it's goofy that this refers to the saga, but it should work fine here too
         var idType = new MartenPersistenceFrameProvider().DetermineSagaIdType(parameter.ParameterType, container);
 
@@ -57,20 +65,28 @@ public class ReadAggregateAttribute : WolverineParameterAttribute, IDataRequirem
         }
 
         var frame = new FetchLatestAggregateFrame(parameter.ParameterType, identity);
-        
+        frame.Aggregate.OverrideName(parameter.Name);
+
+        Variable returnVariable;
         if (Required)
         {
             var otherFrames = chain.AddStopConditionIfNull(frame.Aggregate, identity, this);
-            
+
             var block = new LoadEntityFrameBlock(frame.Aggregate, otherFrames);
             chain.Middleware.Add(block);
 
-            return block.Mirror;
+            returnVariable = block.Mirror;
         }
-        
-        chain.Middleware.Add(frame);
+        else
+        {
+            chain.Middleware.Add(frame);
+            returnVariable = frame.Aggregate;
+        }
 
-        return frame.Aggregate;
+        // Store deferred assignment for middleware methods added later (Before/After)
+        AggregateHandling.StoreDeferredMiddlewareVariable(chain, parameter.Name, returnVariable);
+
+        return returnVariable;
     }
 }
 

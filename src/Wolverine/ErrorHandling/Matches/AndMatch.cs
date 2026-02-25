@@ -13,7 +13,12 @@ internal class AndMatch : IExceptionMatch
 
     public bool Matches(Exception ex)
     {
-        return Inners.All(x => x.Matches(ex));
+        foreach (var inner in Inners)
+        {
+            if (!inner.Matches(ex)) return false;
+        }
+
+        return true;
     }
 
     public string Description => Inners.Select(x => x.Formatted()).Join(" and ");

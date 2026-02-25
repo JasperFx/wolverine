@@ -16,7 +16,7 @@ internal class AutoApplyTransactions : IChainPolicy
             return;
         }
 
-        foreach (var chain in chains.Where(x => !x.HasAttribute<TransactionalAttribute>()))
+        foreach (var chain in chains.Where(x => !x.HasAttribute<TransactionalAttribute>() && !x.HasAttribute<NonTransactionalAttribute>()))
         {
             if (Idempotency.HasValue)
             {

@@ -1,0 +1,47 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <IsPackable>false</IsPackable>
+        <IsTestProject>true</IsTestProject>
+        <TargetFrameworks>net9.0</TargetFrameworks>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Alba" />
+        <PackageReference Include="Microsoft.NET.Test.Sdk" />
+        <PackageReference Include="Shouldly" />
+        <PackageReference Include="xunit"/>
+        <PackageReference Include="xunit.runner.visualstudio">
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+            <PrivateAssets>all</PrivateAssets>
+        </PackageReference>
+        <PackageReference Include="coverlet.collector">
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+            <PrivateAssets>all</PrivateAssets>
+        </PackageReference>
+        <PackageReference Include="GitHubActionsTestLogger" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer"/>
+        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <Compile Include="..\..\Servers.cs">
+            <Link>Servers.cs</Link>
+        </Compile>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\Testing\Wolverine.ComplianceTests\Wolverine.ComplianceTests.csproj" />
+        <ProjectReference Include="..\MultiTenantedEfCoreWithPostgreSQL\MultiTenantedEfCoreWithPostgreSQL.csproj" />
+        <ProjectReference Include="..\MultiTenantedEfCoreWithSqlServer\MultiTenantedEfCoreWithSqlServer.csproj" />
+        <ProjectReference Include="..\SharedPersistenceModels\SharedPersistenceModels.csproj" />
+        <ProjectReference Include="..\Wolverine.EntityFrameworkCore\Wolverine.EntityFrameworkCore.csproj"/>
+        <ProjectReference Include="..\Wolverine.Marten\Wolverine.Marten.csproj" />
+        <ProjectReference Include="..\Wolverine.Postgresql\Wolverine.Postgresql.csproj"/>
+        <ProjectReference Include="..\Wolverine.SqlServer\Wolverine.SqlServer.csproj"/>
+    </ItemGroup>
+
+</Project>

@@ -4,6 +4,7 @@ using JasperFx.CommandLine;
 using Wolverine.Attributes;
 
 [assembly: JasperFx.Core.TypeScanning.IgnoreAssembly]
+[assembly: ExcludeFromServiceCapabilities]
 [assembly: JasperFxAssembly]
 [assembly: WolverineFeature]
 
@@ -17,6 +18,7 @@ using Wolverine.Attributes;
 [assembly: InternalsVisibleTo("Wolverine.RabbitMq")]
 [assembly: InternalsVisibleTo("Wolverine.RabbitMq.Tests")]
 [assembly: InternalsVisibleTo("Wolverine.AzureServiceBus")]
+[assembly: InternalsVisibleTo("Wolverine.AmazonSqs")]
 [assembly: InternalsVisibleTo("Wolverine.ConfluentKafka")]
 [assembly: InternalsVisibleTo("Wolverine.AzureServiceBus.Tests")]
 [assembly: InternalsVisibleTo("PersistenceTests")]

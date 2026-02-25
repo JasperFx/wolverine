@@ -94,6 +94,13 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
         EnvelopeMapper ??= BuildMapper(runtime);
 
         var config = GetEffectiveConsumerConfig();
+
+        if (Mode == EndpointMode.Durable)
+        {
+            config.EnableAutoCommit = false;
+            config.EnableAutoOffsetStore = false;
+        }
+
         var listener = new KafkaListener(this, config,
             Parent.CreateConsumer(config), receiver, runtime.LoggerFactory.CreateLogger<KafkaListener>());
         return ValueTask.FromResult((IListener)listener);

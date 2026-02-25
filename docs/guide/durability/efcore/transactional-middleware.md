@@ -71,6 +71,28 @@ public static ItemCreated Handle(
 When using the transactional middleware around a message handler, the `DbContext` is used to persist
 the outgoing messages as part of Wolverine's outbox support.
 
+### Opting Out with [NonTransactional]
+
+When using `AutoApplyTransactions()`, you can opt specific handlers or HTTP endpoints out of
+transactional middleware by decorating them with the `[NonTransactional]` attribute:
+
+```cs
+using Wolverine.Attributes;
+
+public static class MyHandler
+{
+    // This handler will NOT have transactional middleware applied
+    // even when AutoApplyTransactions() is enabled
+    [NonTransactional]
+    public static void Handle(MyCommand command, MyDbContext db)
+    {
+        // You're managing the DbContext yourself here
+    }
+}
+```
+
+The `[NonTransactional]` attribute can be placed on individual handler methods or on the handler class to opt out all methods in that class.
+
 ## Eager vs Lightweight Transactions <Badge type="tip" text="5.15" />
 
 By default, the EF Core middleware will run in `Eager` mode meaning that Wolverine

@@ -16,6 +16,7 @@ using Xunit.Abstractions;
 
 namespace EfCoreTests.Bugs;
 
+[Collection("postgresql")]
 public class Bug_2075_separated_behavior_and_scheduled_messages(ITestOutputHelper Output)
 {
     [Fact]

@@ -23,22 +23,22 @@
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\..\Persistence\Wolverine.Marten\Wolverine.Marten.csproj"/>
+        <ProjectReference Include="..\..\Persistence\Wolverine.Marten\Wolverine.Marten.csproj" />
         <ProjectReference Include="..\..\Testing\Wolverine.ComplianceTests\Wolverine.ComplianceTests.csproj" />
-        <ProjectReference Include="..\Wolverine.Http.Tests.DifferentAssembly\Wolverine.Http.Tests.DifferentAssembly.csproj"/>
-        <ProjectReference Include="..\Wolverine.Http\Wolverine.Http.csproj"/>
-        <FrameworkReference Include="Microsoft.AspNetCore.App"/>
-        <ProjectReference Include="..\WolverineWebApi\WolverineWebApi.csproj"/>
+        <ProjectReference Include="..\Wolverine.Http.Tests.DifferentAssembly\Wolverine.Http.Tests.DifferentAssembly.csproj" />
+        <ProjectReference Include="..\Wolverine.Http\Wolverine.Http.csproj" />
+        <FrameworkReference Include="Microsoft.AspNetCore.App" />
+        <ProjectReference Include="..\WolverineWebApi\WolverineWebApi.csproj" />
     </ItemGroup>
 
     <ItemGroup>
-        <Compile Remove="Bugs\Bug_748_using_side_effect_in_tuple.cs"/>
+        <Compile Remove="Bugs\Bug_748_using_side_effect_in_tuple.cs" />
         <Compile Remove="AlbaExtensions.cs" />
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer"/>
-        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL"/>
+        <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" />
+        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
     </ItemGroup>
 
 </Project>

@@ -27,28 +27,41 @@ internal class RequeueContinuation : IContinuation, IContinuationSource
 
         if (Delay != null)
         {
-            // First, defer/requeue the message back to the transport
+            var envelope = lifecycle.Envelope!;
+            var agent = findListenerCircuit(envelope, runtime);
+
+            // For external transport listeners, stop the consumer BEFORE requeuing
+            // to prevent the requeued message from being immediately re-consumed.
+            // Without this, there is a race condition where the message is picked up
+            // before the background PauseAsync can cancel the consumer.
+            if (agent is ListeningAgent { Listener: not null } listeningAgent)
+            {
+                await listeningAgent.Listener.StopAsync();
+            }
+
+            // Defer/requeue the message back to the transport.
+            // The consumer is already stopped, so the message will sit in the queue
+            // until the listener restarts after the pause period.
             await lifecycle.DeferAsync();
 
-            // Schedule the listener pause on a background task to avoid deadlocking
+            // Schedule the full pause cycle on a background task to avoid deadlocking
             // the BufferedReceiver's DrainAsync (which waits for in-flight messages,
-            // including this one, to complete).
-            var envelope = lifecycle.Envelope!;
-            _ = Task.Run(async () =>
+            // including this one, to complete). This drains remaining messages,
+            // disposes the listener, and schedules a restart after Delay.
+            if (agent != null)
             {
-                try
+                _ = Task.Run(async () =>
                 {
-                    var agent = findListenerCircuit(envelope, runtime);
-                    if (agent != null)
+                    try
                     {
                         await agent.PauseAsync(Delay.Value);
                     }
-                }
-                catch (Exception e)
-                {
-                    runtime.Logger.LogError(e, "Error pausing listener for PauseThenRequeue");
-                }
-            });
+                    catch (Exception e)
+                    {
+                        runtime.Logger.LogError(e, "Error pausing listener for PauseThenRequeue");
+                    }
+                });
+            }
         }
         else
         {

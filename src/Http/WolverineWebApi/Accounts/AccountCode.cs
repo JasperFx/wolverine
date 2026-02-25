@@ -95,3 +95,88 @@ public static class TransferMoneyHandler3
     }
 }
 
+
+public static class TransferMoneyEndpointWithBefore
+{
+    public static void Before(Account fromAccount, Account toAccount)
+    {
+        From = fromAccount;
+        To = toAccount;
+    }
+
+    public static Account To { get; set; }
+
+    public static Account From { get; set; }
+
+    [WolverinePost("/accounts/transfer4")]
+    public static void Handle(
+        TransferMoney command,
+
+        [WriteAggregate(nameof(TransferMoney.FromId), LoadStyle = ConcurrencyStyle.Exclusive)] IEventStream<Account> fromAccount,
+
+        [WriteAggregate(nameof(TransferMoney.ToId))] IEventStream<Account> toAccount)
+    {
+        // Would already 404 if either referenced account does not exist
+        if (fromAccount.Aggregate.Amount >= command.Amount)
+        {
+            fromAccount.AppendOne(new Withdrawn(command.Amount));
+            toAccount.AppendOne(new Debited(command.Amount));
+        }
+    }
+}
+
+public static class TransferMoneyEndpointWithBeforeAggregate
+{
+    public static void Before(Account fromAccount, Account toAccount)
+    {
+        From = fromAccount;
+        To = toAccount;
+    }
+
+    public static Account To { get; set; }
+
+    public static Account From { get; set; }
+
+    [WolverinePost("/accounts/transfer5")]
+    public static void Handle(
+        TransferMoney command,
+
+        [Aggregate(nameof(TransferMoney.FromId))] IEventStream<Account> fromAccount,
+
+        [Aggregate(nameof(TransferMoney.ToId))] IEventStream<Account> toAccount)
+    {
+        if (fromAccount.Aggregate.Amount >= command.Amount)
+        {
+            fromAccount.AppendOne(new Withdrawn(command.Amount));
+            toAccount.AppendOne(new Debited(command.Amount));
+        }
+    }
+}
+
+public static class TransferMoneyEndpointWithBeforeMixed
+{
+    public static void Before(Account fromAccount, Account toAccount)
+    {
+        From = fromAccount;
+        To = toAccount;
+    }
+
+    public static Account To { get; set; }
+
+    public static Account From { get; set; }
+
+    [WolverinePost("/accounts/transfer6")]
+    public static void Handle(
+        TransferMoney command,
+
+        [WriteAggregate(nameof(TransferMoney.FromId))] IEventStream<Account> fromAccount,
+
+        [ReadAggregate(nameof(TransferMoney.ToId))] Account toAccount)
+    {
+        if (fromAccount.Aggregate.Amount >= command.Amount)
+        {
+            fromAccount.AppendOne(new Withdrawn(command.Amount));
+        }
+    }
+}
+

@@ -14,10 +14,25 @@ internal class ComplexMatch : IExceptionMatch
     {
         if (Includes.Count != 0)
         {
-            return Includes.Any(x => x.Matches(ex)) && !Excludes.Any(x => x.Matches(ex));
+            var included = false;
+            foreach (var include in Includes)
+            {
+                if (include.Matches(ex))
+                {
+                    included = true;
+                    break;
+                }
+            }
+
+            if (!included) return false;
         }
 
-        return !Excludes.Any(x => x.Matches(ex));
+        foreach (var exclude in Excludes)
+        {
+            if (exclude.Matches(ex)) return false;
+        }
+
+        return true;
     }
 
     public bool IsEmpty()

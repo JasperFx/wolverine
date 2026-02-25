@@ -40,7 +40,7 @@ For contributors, there's a light naming style Jeremy refuses to let go of that 
 2. All private or protected members should be Camel cased
 3. Use `_` as a prefix for private fields
 
-The build is scripted out with [Bullseye](https://github.com/adamralph/bullseye) in the `/build` folder. To run the
+The build is scripted out with [Nuke](https://github.com/nuke-build/nuke) in the `/build` folder. To run the
 build file locally, use `build` with Windows or `./build.sh` on OSX or Linux.
 
 ## Documentation

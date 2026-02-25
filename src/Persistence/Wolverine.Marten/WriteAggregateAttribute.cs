@@ -34,9 +34,16 @@ public class WriteAggregateAttribute : WolverineParameterAttribute, IDataRequire
 
     public string? RouteOrParameterName { get; }
 
+    private OnMissing? _onMissing;
+
     public bool Required { get; set; } = true;
     public string MissingMessage { get; set; }
-    public OnMissing OnMissing { get; set; }
+
+    public OnMissing OnMissing
+    {
+        get => _onMissing ?? OnMissing.Simple404;
+        set => _onMissing = value;
+    }
 
     /// <summary>
     ///     Opt into exclusive locking or optimistic checks on the aggregate stream
@@ -46,6 +53,7 @@ public class WriteAggregateAttribute : WolverineParameterAttribute, IDataRequire
 
     public override Variable Modify(IChain chain, ParameterInfo parameter, IServiceContainer container, GenerationRules rules)
     {
+        _onMissing ??= container.GetInstance<WolverineOptions>().EntityDefaults.OnMissing;
         var aggregateType = parameter.ParameterType;
         if (aggregateType.IsNullable())
         {

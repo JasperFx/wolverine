@@ -336,6 +336,7 @@ class Build : NukeBuild
                 Solution.Persistence.Wolverine_MySql,
                 Solution.Persistence.Wolverine_Oracle,
                 Solution.Persistence.Wolverine_Sqlite,
+                Solution.Persistence.CosmosDb.Wolverine_CosmosDb,
                 Solution.Extensions.Wolverine_FluentValidation,
                 Solution.Extensions.Wolverine_MemoryPack,
                 Solution.Extensions.Wolverine_MessagePack,
@@ -362,8 +363,19 @@ class Build : NukeBuild
     Target DockerUp => _ => _
         .Executes(() =>
         {
+            bool IsToolAvailable(string toolName)
+            {
+                try
+                { ToolPathResolver.GetPathExecutable(toolName);
+                  return true; }
+                catch (ArgumentException)
+                { return false; }
+            }
+
+            string toolName = new List<string> { "docker", "podman" }
+                                  .FirstOrDefault(IsToolAvailable) ?? "docker";
             ProcessTasks
-                .StartProcess("docker", "compose up -d", logOutput: false)
+                .StartProcess(toolName, "compose up -d", logOutput: false)
                 .AssertWaitForExit()
                 .AssertZeroExitCode();
             WaitForDatabaseToBeReady();

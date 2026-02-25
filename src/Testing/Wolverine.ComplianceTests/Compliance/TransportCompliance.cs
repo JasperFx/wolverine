@@ -54,6 +54,18 @@ public abstract class TransportComplianceFixture : IDisposable, IAsyncDisposable
                 Receiver.Dispose();
             }
         }
+
+        await AfterDisposeAsync();
+    }
+
+    /// <summary>
+    /// Template method for transport-specific cleanup after hosts are disposed.
+    /// Override this in transport compliance fixtures that need to clean up
+    /// broker resources (e.g., deleting queues from an emulator).
+    /// </summary>
+    protected virtual Task AfterDisposeAsync()
+    {
+        return Task.CompletedTask;
     }
 
     public void Dispose()

@@ -61,11 +61,34 @@ using var host = await Host.CreateDefaultBuilder()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/Samples.cs#L92-L101' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_auto_purge_with_azure_service_bus' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-And lastly, because Azure Service Bus is a centralized broker model and you may have to share a single
-environment between multiple developers or development environments, you can use prefixing with Azure Service Bus
-so that every queue, topic, and subscription is quietly prefixed for uniqueness:
+## Identifier Prefixing for Shared Brokers
 
+Because Azure Service Bus is a centralized broker model, you may need to share a single namespace between multiple developers or development environments. You can use `PrefixIdentifiers()` to automatically prepend a prefix to every queue, topic, and subscription name created by Wolverine, isolating the cloud resources for each environment:
 
+```csharp
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.UseAzureServiceBus("some connection string")
+            .AutoProvision()
+
+            // Prefix all queue, topic, and subscription names with "dev-john."
+            .PrefixIdentifiers("dev-john");
+
+        // A queue named "orders" becomes "dev-john.orders"
+        opts.ListenToAzureServiceBusQueue("orders");
+    }).StartAsync();
+```
+
+You can also use `PrefixIdentifiersWithMachineName()` as a convenience to use the current machine name as the prefix:
+
+```csharp
+opts.UseAzureServiceBus("some connection string")
+    .AutoProvision()
+    .PrefixIdentifiersWithMachineName();
+```
+
+The default delimiter between the prefix and the original name is `.` for Azure Service Bus (e.g., `dev-john.orders`).
 
 ## Configuring Queues
 

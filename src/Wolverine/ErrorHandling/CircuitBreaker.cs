@@ -132,8 +132,12 @@ internal class CircuitBreaker : IAsyncDisposable, IMessageSuccessTracker
 
     public bool ShouldStopProcessing()
     {
-        var failures = _generations.Sum(x => x.Failures);
-        var totals = _generations.Sum(x => x.Total);
+        int failures = 0, totals = 0;
+        foreach (var generation in _generations)
+        {
+            failures += generation.Failures;
+            totals += generation.Total;
+        }
 
         if (totals < Options.MinimumThreshold)
         {
@@ -150,7 +154,14 @@ internal class CircuitBreaker : IAsyncDisposable, IMessageSuccessTracker
 
     public ValueTask ProcessExceptionsAsync(DateTimeOffset time, object[] tokens)
     {
-        var failures = tokens.OfType<Exception>().Count(x => _match.Matches(x));
+        var failures = 0;
+        foreach (var token in tokens)
+        {
+            if (token is Exception ex && _match.Matches(ex))
+            {
+                failures++;
+            }
+        }
 
         return UpdateTotalsAsync(time, failures, tokens.Length);
     }
@@ -172,15 +183,18 @@ internal class CircuitBreaker : IAsyncDisposable, IMessageSuccessTracker
     public Generation DetermineGeneration(DateTimeOffset now)
     {
         _generations.RemoveAll(x => x.IsExpired(now));
-        if (!_generations.Any(x => x.IsActive(now)))
-        {
-            var generation = new Generation(now, this);
-            _generations.Add(generation);
 
-            return generation;
+        for (var i = _generations.Count - 1; i >= 0; i--)
+        {
+            if (_generations[i].IsActive(now))
+            {
+                return _generations[i];
+            }
         }
 
-        return _generations.Last();
+        var generation = new Generation(now, this);
+        _generations.Add(generation);
+        return generation;
     }
 
     public void Reset()

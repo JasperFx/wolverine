@@ -37,28 +37,32 @@ internal class CompositeContinuation : IContinuation, IInlineContinuation
     public async ValueTask<InvokeResult> ExecuteInlineAsync(IEnvelopeLifecycle lifecycle, IWolverineRuntime runtime, DateTimeOffset now,
         Activity? activity, CancellationToken cancellation)
     {
-        var inners = _continuations.OfType<IInlineContinuation>().ToArray();
-        if (inners.Any())
+        var allTryAgain = true;
+        var hasInline = false;
+
+        foreach (var continuation in _continuations)
         {
-            var results = new InvokeResult[inners.Length];
-            for (int i = 0; i < inners.Length; i++)
+            if (continuation is IInlineContinuation inline)
             {
+                hasInline = true;
                 try
                 {
-                    results[i] = await inners[i].ExecuteInlineAsync(lifecycle, runtime, now, activity, cancellation);
+                    var result = await inline.ExecuteInlineAsync(lifecycle, runtime, now, activity, cancellation);
+                    if (result != InvokeResult.TryAgain)
+                    {
+                        allTryAgain = false;
+                    }
                 }
                 catch (Exception e)
                 {
-                    results[i] = InvokeResult.Stop;
+                    allTryAgain = false;
                     runtime.Logger.LogError(e,
-                        "Failed while attempting to apply inline continuation {Continuation} on Envelope {Envelope}", inners[i],
+                        "Failed while attempting to apply inline continuation {Continuation} on Envelope {Envelope}", inline,
                         lifecycle.Envelope);
                 }
             }
-
-            if (results.All(x => x == InvokeResult.TryAgain)) return InvokeResult.TryAgain;
         }
-        
-        return InvokeResult.Stop;
+
+        return hasInline && allTryAgain ? InvokeResult.TryAgain : InvokeResult.Stop;
     }
 }

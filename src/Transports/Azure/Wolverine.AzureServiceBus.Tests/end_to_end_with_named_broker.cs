@@ -1,3 +1,4 @@
+using IntegrationTests;
 using JasperFx.Core;
 using JasperFx.Resources;
 using Microsoft.Extensions.Configuration;
@@ -14,8 +15,12 @@ using Xunit.Abstractions;
 
 namespace Wolverine.AzureServiceBus.Tests;
 
-public class end_to_end_with_named_broker
+public class end_to_end_with_named_broker : IAsyncLifetime
 {
+    public Task InitializeAsync() => Task.CompletedTask;
+
+    public async Task DisposeAsync() => await AzureServiceBusTesting.DeleteAllEmulatorObjectsAsync();
+
     public static async Task bootstrap_with_named_brokers()
     {
         #region sample_using_named_azure_service_bus_broker
@@ -53,7 +58,7 @@ public class end_to_end_with_named_broker
         var queueName = Guid.NewGuid().ToString();
         using var publisher = WolverineHost.For(opts =>
         {
-            opts.AddNamedAzureServiceBusBroker(theName, "REPLACE ME").SystemQueuesAreEnabled(false).AutoProvision().AutoPurgeOnStartup();
+            opts.AddNamedAzureServiceBusBroker(theName, Servers.AzureServiceBusConnectionString).SystemQueuesAreEnabled(false).AutoProvision().AutoPurgeOnStartup();
 
             opts.PublishAllMessages()
                 .ToAzureServiceBusQueueOnNamedBroker(theName, queueName)
@@ -65,7 +70,7 @@ public class end_to_end_with_named_broker
 
         using var receiver = WolverineHost.For(opts =>
         {
-            opts.AddNamedAzureServiceBusBroker(theName, "REPLACE ME").SystemQueuesAreEnabled(false).AutoProvision();
+            opts.AddNamedAzureServiceBusBroker(theName, Servers.AzureServiceBusConnectionString).SystemQueuesAreEnabled(false).AutoProvision();
 
             opts.ListenToAzureServiceBusQueueOnNamedBroker(theName, queueName).ProcessInline().Named(queueName);
             opts.Services.AddSingleton<ColorHistory>();
@@ -101,9 +106,12 @@ public class end_to_end_with_named_broker
         {
             opts.ServiceName = "Publisher";
             opts.Discovery.DisableConventionalDiscovery();
-            
-            opts.AddNamedAzureServiceBusBroker(theName, "REPLACE ME")
+
+            opts.AddNamedAzureServiceBusBroker(theName, Servers.AzureServiceBusConnectionString)
                 .AutoProvision().AutoPurgeOnStartup();
+
+            var namedTransport = opts.Transports.GetOrCreate<AzureServiceBusTransport>(theName);
+            namedTransport.ManagementConnectionString = Servers.AzureServiceBusManagementConnectionString;
 
             opts.PublishAllMessages()
                 .ToAzureServiceBusQueueOnNamedBroker(theName, queueName)
@@ -119,7 +127,7 @@ public class end_to_end_with_named_broker
             opts.UseAzureServiceBusTesting().AutoProvision();
 
             opts.ListenToAzureServiceBusQueue(queueName).Named(queueName);
-            
+
             opts.Services.AddSingleton<ColorHistory>();
 
             opts.Services.AddResourceSetupOnStartup(StartupAction.ResetState);

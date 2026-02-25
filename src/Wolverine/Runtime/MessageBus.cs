@@ -310,10 +310,35 @@ public class MessageBus : IMessageBus, IMessageContext
         {
             // This filtering is done to only persist envelopes where
             // the sender is currently latched
-            var envelopes = outgoing.Where(isDurable).ToArray();
-            foreach (var envelope in envelopes.Where(x =>
-                         x is { Sender: { Latched: true }, Status: EnvelopeStatus.Outgoing }))
-                envelope.OwnerId = TransportConstants.AnyNode;
+            var durableCount = 0;
+            for (var i = 0; i < outgoing.Length; i++)
+            {
+                if (isDurable(outgoing[i]))
+                {
+                    durableCount++;
+                }
+            }
+
+            var envelopes = durableCount == outgoing.Length ? outgoing : new Envelope[durableCount];
+            if (durableCount != outgoing.Length)
+            {
+                var index = 0;
+                for (var i = 0; i < outgoing.Length; i++)
+                {
+                    if (isDurable(outgoing[i]))
+                    {
+                        envelopes[index++] = outgoing[i];
+                    }
+                }
+            }
+
+            for (var i = 0; i < envelopes.Length; i++)
+            {
+                if (envelopes[i] is { Sender: { Latched: true }, Status: EnvelopeStatus.Outgoing })
+                {
+                    envelopes[i].OwnerId = TransportConstants.AnyNode;
+                }
+            }
 
             await Transaction.PersistAsync(envelopes);
 

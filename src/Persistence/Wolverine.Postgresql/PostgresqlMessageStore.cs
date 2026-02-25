@@ -180,29 +180,13 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
     {
         var counts = new PersistedCounts();
 
-        await using (var reader = await CreateCommand( $"select status, count(*) from {SchemaName}.{DatabaseConstants.IncomingTable} group by status")
-                         .ExecuteReaderAsync())
+        if (Durability.EnableInboxPartitioning)
         {
-            while (await reader.ReadAsync())
-            {
-                var status = Enum.Parse<EnvelopeStatus>(await reader.GetFieldValueAsync<string>(0));
-                var count = await reader.GetFieldValueAsync<int>(1);
-
-                if (status == EnvelopeStatus.Incoming)
-                {
-                    counts.Incoming = count;
-                }
-                else if (status == EnvelopeStatus.Handled)
-                {
-                    counts.Handled = count;
-                }
-                else if (status == EnvelopeStatus.Scheduled)
-                {
-                    counts.Scheduled = count;
-                }
-            }
-
-            await reader.CloseAsync();
+            await fetchCountsWithPartitionEstimates(counts);
+        }
+        else
+        {
+            await fetchCountsWithGroupBy(counts);
         }
 
         var longCount = await CreateCommand($"select count(*) from {SchemaName}.{DatabaseConstants.OutgoingTable}")
@@ -216,6 +200,102 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
         counts.DeadLetter = Convert.ToInt32(deadLetterCount);
 
         return counts;
+    }
+
+    private async Task fetchCountsWithGroupBy(PersistedCounts counts)
+    {
+        await using var reader = await CreateCommand(
+                $"select status, count(*) from {SchemaName}.{DatabaseConstants.IncomingTable} group by status")
+            .ExecuteReaderAsync();
+
+        while (await reader.ReadAsync())
+        {
+            var status = Enum.Parse<EnvelopeStatus>(await reader.GetFieldValueAsync<string>(0));
+            var count = await reader.GetFieldValueAsync<int>(1);
+
+            if (status == EnvelopeStatus.Incoming)
+            {
+                counts.Incoming = count;
+            }
+            else if (status == EnvelopeStatus.Handled)
+            {
+                counts.Handled = count;
+            }
+            else if (status == EnvelopeStatus.Scheduled)
+            {
+                counts.Scheduled = count;
+            }
+        }
+
+        await reader.CloseAsync();
+    }
+
+    private async Task fetchCountsWithPartitionEstimates(PersistedCounts counts)
+    {
+        // Use pg_class reltuples to estimate row counts per partition.
+        // This is the "Safe and Explicit" approach from
+        // https://stackoverflow.com/questions/7943233: handles never-vacuumed
+        // tables (reltuples < 0) and empty tables (relpages = 0), then
+        // scales the estimate by the current relation size.
+        // If any partition has data (pg_relation_size > 0) but stale stats
+        // (reltuples <= 0), we fall back to exact GROUP BY count.
+        var sql = $@"
+select p.partition_name, c.reltuples,
+       pg_catalog.pg_relation_size(c.oid) as relation_size,
+       (case when c.reltuples < 0 then 0
+             when c.relpages = 0 then 0
+             else (c.reltuples / c.relpages)
+                  * (pg_catalog.pg_relation_size(c.oid)
+                     / pg_catalog.current_setting('block_size')::int)
+        end)::bigint as estimated_count
+from pg_catalog.pg_class c
+join (values
+    ('{DatabaseConstants.IncomingTable}_incoming',  'Incoming'),
+    ('{DatabaseConstants.IncomingTable}_scheduled', 'Scheduled'),
+    ('{DatabaseConstants.IncomingTable}_handled',   'Handled')
+) as p(relname, partition_name) on c.relname = p.relname
+join pg_catalog.pg_namespace n on n.oid = c.relnamespace and n.nspname = '{SchemaName}';";
+
+        var needsFallback = false;
+
+        await using (var reader = await CreateCommand(sql).ExecuteReaderAsync())
+        {
+            while (await reader.ReadAsync())
+            {
+                var partitionName = await reader.GetFieldValueAsync<string>(0);
+                var reltuples = await reader.GetFieldValueAsync<float>(1);
+                var relationSize = await reader.GetFieldValueAsync<long>(2);
+                var estimate = await reader.GetFieldValueAsync<long>(3);
+
+                // If the partition has physical data but reltuples hasn't been
+                // updated by VACUUM/ANALYZE, the estimate will be wrong.
+                if (reltuples <= 0 && relationSize > 0)
+                {
+                    needsFallback = true;
+                    break;
+                }
+
+                switch (partitionName)
+                {
+                    case "Incoming":
+                        counts.Incoming = (int)estimate;
+                        break;
+                    case "Scheduled":
+                        counts.Scheduled = (int)estimate;
+                        break;
+                    case "Handled":
+                        counts.Handled = (int)estimate;
+                        break;
+                }
+            }
+
+            await reader.CloseAsync();
+        }
+
+        if (needsFallback)
+        {
+            await fetchCountsWithGroupBy(counts);
+        }
     }
 
     public override async Task DiscardAndReassignOutgoingAsync(Envelope[] discards, Envelope[] reassigned, int nodeId)

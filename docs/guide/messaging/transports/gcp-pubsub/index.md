@@ -71,3 +71,32 @@ var host = await Host.CreateDefaultBuilder()
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/DocumentationSamples.cs#L53-L62' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_enable_system_endpoints_in_pubsub' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+
+## Identifier Prefixing for Shared Environments
+
+When sharing a single GCP project between multiple developers or development environments, you can use `PrefixIdentifiers()` to automatically prepend a prefix to every topic and subscription name created by Wolverine. This helps isolate the cloud resources for each developer or environment:
+
+```csharp
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.UsePubsub("your-project-id")
+            .AutoProvision()
+
+            // Prefix all topic and subscription names with "dev-john."
+            .PrefixIdentifiers("dev-john");
+
+        // A topic named "orders" becomes "dev-john.orders"
+        opts.ListenToPubsubTopic("orders");
+    }).StartAsync();
+```
+
+You can also use `PrefixIdentifiersWithMachineName()` as a convenience to use the current machine name as the prefix:
+
+```csharp
+opts.UsePubsub("your-project-id")
+    .AutoProvision()
+    .PrefixIdentifiersWithMachineName();
+```
+
+The default delimiter between the prefix and the original name is `.` for GCP Pub/Sub (e.g., `dev-john.orders`).

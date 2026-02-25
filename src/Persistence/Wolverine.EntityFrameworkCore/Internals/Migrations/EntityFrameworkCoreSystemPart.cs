@@ -53,10 +53,30 @@ public class EntityFrameworkCoreSystemPart : ISystemPart, IDatabaseSource
 
     public async ValueTask<IReadOnlyList<IStatefulResource>> FindResources()
     {
-        var databases = await BuildDatabases();
-        var resources = databases.Select(x => new DatabaseResource(x, new Uri("efcore://"))).ToList();
+        // Only create DatabaseResource instances for non-tenanted DbContexts.
+        // Tenanted DbContexts are managed by TenantedDbContextInitializer which handles
+        // both database creation and schema migration via IResourceCreator.
+        var dbContextTypes = _container
+            .FindMatchingServices(type => type.CanBeCastTo<DbContext>())
+            .Where(x => !x.IsKeyedService)
+            .Select(x => x.ServiceType)
+            .ToArray();
 
-        return resources;
+        var list = new List<IStatefulResource>();
+        using var scope = _container.GetInstance<IServiceScopeFactory>().CreateScope();
+
+        foreach (var dbContextType in dbContextTypes)
+        {
+            var matching = _sources.FirstOrDefault(x => x.DbContextType == dbContextType);
+            if (matching == null)
+            {
+                var context = (DbContext)scope.ServiceProvider.GetRequiredService(dbContextType);
+                var database = _container.Services.CreateDatabase(context, dbContextType.FullNameInCode());
+                list.Add(new DatabaseResource(database, SubjectUri));
+            }
+        }
+
+        return list;
     }
 
     public async Task AssertEnvironmentAsync(IServiceProvider services, EnvironmentCheckResults results, CancellationToken token)
@@ -110,7 +130,7 @@ public class EntityFrameworkCoreSystemPart : ISystemPart, IDatabaseSource
                 var contexts = await matching.FindAllAsync();
                 foreach (var dbContext in contexts)
                 {
-                    await dbContext.Database.EnsureCreatedAsync();
+                    await scope.ServiceProvider.EnsureDatabaseExistsAsync(dbContext);
                     var database = _container.Services.CreateDatabase(dbContext, dbContextType.FullNameInCode());
                     list.Add(database);
                 }

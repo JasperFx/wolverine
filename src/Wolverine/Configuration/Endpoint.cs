@@ -376,6 +376,12 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
     /// </summary>
     public int MaximumEnvelopeRetryStorage { get; set; } = 100;
 
+    /// <summary>
+    /// Per-endpoint failure handling policies for outgoing message send failures.
+    /// When set, these rules take priority over the global SendingFailure policies.
+    /// </summary>
+    public SendingFailurePolicies? SendingFailure { get; set; }
+
     public virtual IDictionary<string, object> DescribeProperties()
     {
         var dict = new Dictionary<string, object>

@@ -28,8 +28,18 @@ public class RecoverOutgoingMessagesCommand : IAgentCommand
         }
 
         var outgoing = await _store.Outbox.LoadOutgoingAsync(_sendingAgent.Destination);
-        var expiredMessages = outgoing.Where(x => x.IsExpired()).ToArray();
-        var good = outgoing.Where(x => !x.IsExpired()).ToArray();
+        var expiredList = new List<Envelope>();
+        var goodList = new List<Envelope>();
+        foreach (var envelope in outgoing)
+        {
+            if (envelope.IsExpired())
+                expiredList.Add(envelope);
+            else
+                goodList.Add(envelope);
+        }
+
+        var expiredMessages = expiredList.ToArray();
+        var good = goodList.ToArray();
 
         await _store.Outbox.DiscardAndReassignOutgoingAsync(expiredMessages, good,
             runtime.Options.Durability.AssignedNodeNumber);

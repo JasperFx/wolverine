@@ -29,16 +29,35 @@ internal class DefaultMessageBatcher<T> : IMessageBatcher
 {
     public IEnumerable<Envelope> Group(IReadOnlyList<Envelope> envelopes)
     {
-        // Group by tenant id
-        var groups = envelopes.GroupBy(x => x.TenantId).ToArray();
-        
+        // Group by tenant id. Use empty string as sentinel for null TenantId
+        // since Dictionary<string, ...> does not allow null keys
+        var groups = new Dictionary<string, List<Envelope>>();
+        foreach (var envelope in envelopes)
+        {
+            var key = envelope.TenantId ?? string.Empty;
+            if (!groups.TryGetValue(key, out var list))
+            {
+                list = new List<Envelope>();
+                groups[key] = list;
+            }
+
+            list.Add(envelope);
+        }
+
         foreach (var group in groups)
         {
-            var message = group.Select(x => x.Message).OfType<T>().ToArray();
-
-            yield return new Envelope(message, group)
+            var messages = new List<T>(group.Value.Count);
+            foreach (var envelope in group.Value)
             {
-                TenantId = group.Key
+                if (envelope.Message is T typed)
+                {
+                    messages.Add(typed);
+                }
+            }
+
+            yield return new Envelope(messages.ToArray(), group.Value)
+            {
+                TenantId = group.Key.Length == 0 ? null : group.Key
             };
         }
     }

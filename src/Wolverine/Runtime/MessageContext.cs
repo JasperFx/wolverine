@@ -60,7 +60,7 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
     /// </summary>
     public MultiFlushMode MultiFlushMode { get; set; } = MultiFlushMode.OnlyOnce;
 
-    internal IList<Envelope> Scheduled { get; } = new List<Envelope>();
+    internal List<Envelope> Scheduled { get; } = new();
 
     private bool hasRequestedReply()
     {
@@ -69,7 +69,21 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
 
     private bool isMissingRequestedReply()
     {
-        return Outstanding.Concat(_sent ?? []).All(x => x.MessageType != Envelope!.ReplyRequested);
+        var replyRequested = Envelope!.ReplyRequested;
+        foreach (var envelope in Outstanding)
+        {
+            if (envelope.MessageType == replyRequested) return false;
+        }
+
+        if (_sent != null)
+        {
+            foreach (var envelope in _sent)
+            {
+                if (envelope.MessageType == replyRequested) return false;
+            }
+        }
+
+        return true;
     }
 
     /// <summary>
@@ -137,7 +151,7 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
 
         await AssertAnyRequiredResponseWasGenerated();
 
-        if (!Outstanding.Any())
+        if (_outstanding.Count == 0)
         {
             return;
         }
@@ -155,12 +169,18 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
                     {
                         if (envelope.Sender!.SupportsNativeScheduledSend)
                         {
+                            Runtime.Logger.LogDebug("Sending scheduled envelope {EnvelopeId} ({MessageType}) via native scheduled send to {Destination}", envelope.Id, envelope.MessageType, envelope.Destination);
                             await sendEnvelopeAsync(envelope);
                         }
                         else
                         {
+                            Runtime.Logger.LogDebug("Scheduling envelope {EnvelopeId} ({MessageType}) for in-memory execution (non-durable, no native scheduling) to {Destination}", envelope.Id, envelope.MessageType, envelope.Destination);
                             Runtime.ScheduleLocalExecutionInMemory(envelope.ScheduledTime!.Value, envelope);
                         }
+                    }
+                    else
+                    {
+                        Runtime.Logger.LogDebug("Envelope {EnvelopeId} ({MessageType}) is scheduled with durable sender to {Destination}, relying on durable inbox scheduling", envelope.Id, envelope.MessageType, envelope.Destination);
                     }
 
                     // If NullMessageStore, then we're calling a different Send method that is marking the message
@@ -216,10 +236,16 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
             if (isMissingRequestedReply())
             {
                 var failureDescription = $"No response was created for expected response '{Envelope.ReplyRequested}' back to reply-uri {Envelope.ReplyUri}. ";
-                if (_outstanding.Any())
+                if (_outstanding.Count > 0)
                 {
-                    failureDescription += "Actual cascading messages were " +
-                                          _outstanding.Concat(_sent ?? []).Select(x => x.MessageType).Join(", ");
+                    var types = new List<string>(_outstanding.Count + (_sent?.Count ?? 0));
+                    foreach (var e in _outstanding) types.Add(e.MessageType!);
+                    if (_sent != null)
+                    {
+                        foreach (var e in _sent) types.Add(e.MessageType!);
+                    }
+
+                    failureDescription += "Actual cascading messages were " + string.Join(", ", types);
                 }
                 else
                 {
@@ -271,10 +297,12 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         Envelope.ScheduledTime = scheduledTime;
         if (tryGetRescheduler(_channel, Envelope) is ISupportNativeScheduling c)
         {
+            Runtime.Logger.LogDebug("Rescheduling envelope {EnvelopeId} ({MessageType}) via native scheduling to {ScheduledTime}", Envelope.Id, Envelope.MessageType, scheduledTime);
             await c.MoveToScheduledUntilAsync(Envelope, Envelope.ScheduledTime.Value);
         }
         else
         {
+            Runtime.Logger.LogDebug("Rescheduling envelope {EnvelopeId} ({MessageType}) via durable inbox to {ScheduledTime}", Envelope.Id, Envelope.MessageType, scheduledTime);
             await Storage.Inbox.RescheduleExistingEnvelopeForRetryAsync(Envelope);
         }
     }
@@ -653,6 +681,7 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         {
             foreach (var envelope in Scheduled)
             {
+                Runtime.Logger.LogDebug("Flushing scheduled envelope {EnvelopeId} ({MessageType}) to in-memory execution (NullMessageStore)", envelope.Id, envelope.MessageType);
                 Runtime.ScheduleLocalExecutionInMemory(envelope.ScheduledTime!.Value, envelope);
             }
         }
@@ -660,6 +689,7 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         {
             foreach (var envelope in Scheduled)
             {
+                Runtime.Logger.LogDebug("Flushing scheduled envelope {EnvelopeId} ({MessageType}) to durable inbox for retry scheduling", envelope.Id, envelope.MessageType);
                 await Storage.Inbox.RescheduleExistingEnvelopeForRetryAsync(envelope);
             }
         }

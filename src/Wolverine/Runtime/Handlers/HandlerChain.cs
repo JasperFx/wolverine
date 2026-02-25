@@ -46,7 +46,7 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
     public const string Consume = "Consume";
     public const string Consumes = "Consumes";
 
-    private readonly List<HandlerChain> _byEndpoint = [];
+    protected readonly List<HandlerChain> _byEndpoint = [];
 
     private readonly List<Endpoint> _endpoints = [];
 
@@ -407,7 +407,6 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
 
     public override Frame[] AddStopConditionIfNull(Variable data, Variable? identity, IDataRequirement requirement)
     {
-        // TODO -- want to use WolverineOptions here for a default
         switch (requirement.OnMissing)
         {
             case OnMissing.Simple404:

@@ -183,9 +183,19 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
         {
             if (!chain.HasDefaultNonStickyHandlers())
             {
+                // If all sticky handlers target local queues, create a fanout handler
+                // to relay the message from the external endpoint to each local queue
+                var allLocal = chain.ByEndpoint.All(
+                    c => c.Endpoints.All(e => e is LocalQueue));
+
+                if (allLocal && endpoint is not LocalQueue)
+                {
+                    return getOrBuildFanoutHandler(messageType, chain);
+                }
+
                 throw new NoHandlerForEndpointException(messageType, endpoint.Uri);
             }
-            
+
             return HandlerFor(messageType);
         }
 
@@ -267,6 +277,27 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
             _handlers = _handlers.AddOrUpdate(messageType, handler);
         }
 
+        return handler;
+    }
+
+    private IMessageHandler getOrBuildFanoutHandler(Type messageType, HandlerChain chain)
+    {
+        if (_handlers.TryFind(messageType, out var cached) && cached != null)
+        {
+            return cached;
+        }
+
+        var localUris = chain.ByEndpoint
+            .SelectMany(c => c.Endpoints)
+            .OfType<LocalQueue>()
+            .Select(e => e.Uri)
+            .Distinct()
+            .ToArray();
+
+        var handlerType = typeof(FanoutMessageHandler<>).MakeGenericType(messageType);
+        var handler = (IMessageHandler)Activator.CreateInstance(handlerType, localUris, chain)!;
+
+        _handlers = _handlers.AddOrUpdate(messageType, handler);
         return handler;
     }
 
