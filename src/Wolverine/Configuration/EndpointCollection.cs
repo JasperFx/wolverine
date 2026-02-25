@@ -424,4 +424,19 @@ public class EndpointCollection : IEndpointCollection
     {
         return _senders.Contains(uri);
     }
+
+    internal async Task RemoveSendingAgentAsync(Uri destination)
+    {
+        ISendingAgent? agent = null;
+        lock (_channelLock)
+        {
+            if (!_senders.TryFind(destination, out agent)) return;
+            _senders = _senders.Remove(destination);
+        }
+
+        if (agent is IAsyncDisposable ad)
+        {
+            await ad.DisposeAsync();
+        }
+    }
 }

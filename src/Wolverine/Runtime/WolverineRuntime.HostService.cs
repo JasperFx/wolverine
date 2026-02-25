@@ -1,5 +1,6 @@
 using JasperFx;
 using JasperFx.CodeGeneration;
+using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
@@ -8,12 +9,14 @@ using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.Scheduled;
 using Wolverine.Runtime.WorkerQueues;
 using Wolverine.Transports;
+using Wolverine.Transports.Local;
 
 namespace Wolverine.Runtime;
 
 public partial class WolverineRuntime
 {
     private bool _hasStarted;
+    private Task? _idleAgentCleanupLoop;
 
     public async Task StartAsync(CancellationToken cancellationToken)
     {
@@ -77,10 +80,12 @@ public partial class WolverineRuntime
                     await startMessagingTransportsAsync();
                     startInMemoryScheduledJobs();
                     await startNodeAgentWorkflowAsync();
+                    _idleAgentCleanupLoop = Task.Run(executeIdleSendingAgentCleanup, Cancellation);
                     break;
                 case DurabilityMode.Solo:
                     await startMessagingTransportsAsync();
                     startInMemoryScheduledJobs();
+                    _idleAgentCleanupLoop = Task.Run(executeIdleSendingAgentCleanup, Cancellation);
                     break;
 
                 case DurabilityMode.Serverless:
@@ -189,6 +194,8 @@ public partial class WolverineRuntime
 
         // Latch health checks ASAP
         DisableHealthChecks();
+
+        _idleAgentCleanupLoop?.SafeDispose();
         
         if (_stores.IsValueCreated && StopMode == StopMode.Normal)
         {
@@ -236,6 +243,7 @@ public partial class WolverineRuntime
 
     private async Task loadAgentRestrictionsAsync()
     {
+        if (Storage is NullMessageStore) return;
         var state = await Storage.Nodes.LoadNodeAgentStateAsync(Cancellation);
         Restrictions = state.Restrictions;
     }
@@ -302,6 +310,34 @@ public partial class WolverineRuntime
         else
         {
             Logger.LogInformation("All external endpoint listeners are disabled because of configuration");
+        }
+    }
+
+    private async Task executeIdleSendingAgentCleanup()
+    {
+        while (!Cancellation.IsCancellationRequested)
+        {
+            await Task.Delay(Options.Durability.SendingAgentIdleTimeout, Cancellation);
+            try
+            {
+                var idleTimeout = Options.Durability.SendingAgentIdleTimeout;
+                var cutoff = DateTimeOffset.UtcNow.Subtract(idleTimeout);
+
+                foreach (var agent in _endpoints.ActiveSendingAgents().ToArray())
+                {
+                    if (agent.Endpoint is LocalQueue) continue;
+                    if (agent.Endpoint.AutoStartSendingAgent()) continue;
+                    if (agent.LastMessageSentAt > cutoff) continue;
+
+                    Logger.LogInformation("Removing idle sending agent for {Destination}", agent.Destination);
+                    await _endpoints.RemoveSendingAgentAsync(agent.Destination);
+                }
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception e)
+            {
+                Logger.LogError(e, "Error cleaning up idle sending agents");
+            }
         }
     }
 

@@ -21,6 +21,7 @@ public abstract class SendingAgent : ISendingAgent, ISenderCallback, ISenderCirc
     protected readonly DurabilitySettings _settings;
     private CircuitWatcher? _circuitWatcher;
     private int _failureCount;
+    private DateTimeOffset _lastMessageSentAt = DateTimeOffset.UtcNow;
 
     private readonly IWolverineRuntime? _runtime;
     private readonly SendingFailurePolicies? _sendingFailurePolicies;
@@ -142,6 +143,7 @@ public abstract class SendingAgent : ISendingAgent, ISenderCallback, ISenderCirc
     {
         setDefaults(envelope);
         await _sending.PostAsync(envelope);
+        _lastMessageSentAt = DateTimeOffset.UtcNow;
         _messageLogger.Sent(envelope);
     }
 
@@ -151,10 +153,13 @@ public abstract class SendingAgent : ISendingAgent, ISenderCallback, ISenderCirc
 
         await storeAndForwardAsync(envelope);
 
+        _lastMessageSentAt = DateTimeOffset.UtcNow;
         _messageLogger.Sent(envelope);
     }
 
     public bool SupportsNativeScheduledSend => _sender.SupportsNativeScheduledSend;
+
+    public DateTimeOffset LastMessageSentAt => _lastMessageSentAt;
 
     protected async Task executeWithRetriesAsync(Func<Task> action)
     {

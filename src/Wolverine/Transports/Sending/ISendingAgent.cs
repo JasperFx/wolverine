@@ -14,6 +14,8 @@ public interface ISendingAgent
 
     Endpoint Endpoint { get; }
 
+    DateTimeOffset LastMessageSentAt { get; }
+
     /// <summary>
     ///     Attempt to start sending this envelope
     /// </summary>
