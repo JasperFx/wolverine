@@ -1,30 +1,16 @@
-﻿using Microsoft.Extensions.Logging;
 using Wolverine.RoutingSlip.Abstractions;
+using Wolverine.RoutingSlip.Messages;
 
 namespace Wolverine.RoutingSlip.Middlewares;
 
 /// <summary>
-///     A middleware that compensates the next activity in a routing slip
+/// Middleware that delegates successful compensation transitions to the coordinator.
 /// </summary>
 public sealed class RoutingSlipCompensationMiddleware
 {
-    /// <summary>
-    ///     After processing a message, if there are more activities to compensate, compensate the next activity
-    /// </summary>
-    /// <param name="msg"></param>
-    /// <param name="context"></param>
-    /// <param name="executor"></param>
-    /// <param name="logger"></param>
-    public async ValueTask AfterAsync(CompensationContext msg, IMessageContext context, 
-        IActivityExecutor executor, ILogger logger)
+    public ValueTask AfterAsync(RoutingSlipCompensationContext msg, IMessageContext context,
+        IRoutingSlipCoordinator coordinator)
     {
-        if (msg.RoutingSlip.TryGetExecutedActivity(out var activity))
-        {
-            await executor.CompensateAsync(context, msg.RoutingSlip, activity);
-        }
-        else
-        {
-            logger.LogDebug("No more compensations for {TrackingNumber}", msg.RoutingSlip.TrackingNumber);
-        }
+        return coordinator.OnCompensationSucceededAsync(context, msg);
     }
 }

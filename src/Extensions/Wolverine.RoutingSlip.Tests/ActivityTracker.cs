@@ -30,16 +30,28 @@ internal static class ActivityTracker
 
     public static IReadOnlyList<ActivityExecutionRecord> GetExecutions(Guid trackingNumber)
     {
-        return Executions.TryGetValue(trackingNumber, out var records)
-            ? records.ToList()
-            : Array.Empty<ActivityExecutionRecord>();
+        if (!Executions.TryGetValue(trackingNumber, out var records))
+        {
+            return Array.Empty<ActivityExecutionRecord>();
+        }
+
+        lock (records)
+        {
+            return records.ToList();
+        }
     }
 
     public static IReadOnlyList<ActivityCompensationRecord> GetCompensations(Guid trackingNumber)
     {
-        return Compensations.TryGetValue(trackingNumber, out var records)
-            ? records.ToList()
-            : Array.Empty<ActivityCompensationRecord>();
+        if (!Compensations.TryGetValue(trackingNumber, out var records))
+        {
+            return Array.Empty<ActivityCompensationRecord>();
+        }
+
+        lock (records)
+        {
+            return records.ToList();
+        }
     }
 
     public static void RecordActivityFault(Guid trackingNumber, ExceptionInfo exceptionInfo)
@@ -62,16 +74,28 @@ internal static class ActivityTracker
 
     public static IReadOnlyList<ExceptionInfo> GetActivityFaults(Guid trackingNumber)
     {
-        return ActivityFaults.TryGetValue(trackingNumber, out var records)
-            ? records.ToList()
-            : Array.Empty<ExceptionInfo>();
+        if (!ActivityFaults.TryGetValue(trackingNumber, out var records))
+        {
+            return Array.Empty<ExceptionInfo>();
+        }
+
+        lock (records)
+        {
+            return records.ToList();
+        }
     }
 
     public static IReadOnlyList<ExceptionInfo> GetCompensationFailures(Guid trackingNumber)
     {
-        return CompensationFailures.TryGetValue(trackingNumber, out var records)
-            ? records.ToList()
-            : Array.Empty<ExceptionInfo>();
+        if (!CompensationFailures.TryGetValue(trackingNumber, out var records))
+        {
+            return Array.Empty<ExceptionInfo>();
+        }
+
+        lock (records)
+        {
+            return records.ToList();
+        }
     }
 
     public static void Reset()

@@ -1,0 +1,3 @@
+﻿namespace Wolverine.RoutingSlip.Abstractions;
+
+public interface IRoutingSlipActivity : IRoutingSlipExecutionActivity, IRoutingSlipCompensationActivity;

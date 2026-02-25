@@ -1,8 +1,11 @@
-﻿using System.Collections.Concurrent;
+using System.Collections.Concurrent;
+using System.Diagnostics;
 using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Shouldly;
+using Wolverine.RoutingSlip.Abstractions;
+using Wolverine.RoutingSlip.Messages;
 using Wolverine.Tracking;
 using Wolverine.Transports.Tcp;
 using Wolverine.Util;
@@ -38,7 +41,7 @@ public class end_to_end : IAsyncLifetime
             .ExecuteAndWaitAsync(ctx => ctx.ExecuteRoutingSlip(builder.Build()));
         
         // Assert
-        var received = session.Received.MessagesOf<ExecutionContext>().ToList();
+        var received = session.Received.MessagesOf<RoutingSlipExecutionContext>().ToList();
         received.Count.ShouldBe(3);
 
         var trackingNumber = received.Select(x => x.RoutingSlip.TrackingNumber).Distinct().Single();
@@ -69,13 +72,15 @@ public class end_to_end : IAsyncLifetime
             .Timeout(30.Seconds())
             .ExecuteAndWaitAsync(ctx => ctx.ExecuteRoutingSlip(builder.Build()));
 
-        await Task.Delay(1000);
-        
         // Assert
-        var receivedExecutions = session.Received.MessagesOf<ExecutionContext>().ToList();
+        var receivedExecutions = session.Received.MessagesOf<RoutingSlipExecutionContext>().ToList();
         receivedExecutions.Count.ShouldBe(3);
 
         var trackingNumber = receivedExecutions.Select(x => x.RoutingSlip.TrackingNumber).Distinct().Single();
+        await WaitForAsync(() =>
+            ActivityTracker.GetActivityFaults(trackingNumber).Count == 1 &&
+            ActivityTracker.GetCompensations(trackingNumber).Count == 2, 10.Seconds());
+
         ActivityTracker.GetActivityFaults(trackingNumber).Count.ShouldBe(1);
         var compensationEvents = ActivityTracker.GetCompensations(trackingNumber);
         compensationEvents.Select(x => x.ActivityName).OrderBy(x => x).ShouldBe(new[] { "activity1", "activity2" }.OrderBy(x => x).ToArray());
@@ -102,14 +107,42 @@ public class end_to_end : IAsyncLifetime
             .Timeout(30.Seconds())
             .ExecuteAndWaitAsync(ctx => ctx.ExecuteRoutingSlip(builder.Build()));
 
-        await Task.Delay(1000);
-
-        var executions = session.Received.MessagesOf<ExecutionContext>().ToList();
+        var executions = session.Received.MessagesOf<RoutingSlipExecutionContext>().ToList();
         executions.Count.ShouldBe(3);
         var trackingNumber = executions.Select(x => x.RoutingSlip.TrackingNumber).Distinct().Single();
 
+        await WaitForAsync(() =>
+            ActivityTracker.GetActivityFaults(trackingNumber).Count == 1 &&
+            ActivityTracker.GetCompensationFailures(trackingNumber).Count == 1, 10.Seconds());
+
         ActivityTracker.GetActivityFaults(trackingNumber).Count.ShouldBe(1);
         ActivityTracker.GetCompensationFailures(trackingNumber).Count.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task publishes_activity_failed_when_first_activity_faults()
+    {
+        ResetActivityState();
+
+        var builder = new RoutingSlipBuilder();
+        builder.AddActivity("errorActivity3", new Uri($"tcp://localhost:{_firstHostPort}"));
+        builder.AddActivity("activity2", new Uri($"tcp://localhost:{_secondHostPort}"));
+
+        var session = await _pubHost.TrackActivity()
+            .IncludeExternalTransports()
+            .DoNotAssertOnExceptionsDetected()
+            .AlsoTrack(_firstHost, _secondHost, _thirdHost)
+            .Timeout(30.Seconds())
+            .ExecuteAndWaitAsync(ctx => ctx.ExecuteRoutingSlip(builder.Build()));
+
+        var executions = session.Received.MessagesOf<RoutingSlipExecutionContext>().ToList();
+        executions.Count.ShouldBe(1);
+        var trackingNumber = executions.Select(x => x.RoutingSlip.TrackingNumber).Distinct().Single();
+
+        await WaitForAsync(() => ActivityTracker.GetActivityFaults(trackingNumber).Count == 1, 10.Seconds());
+
+        ActivityTracker.GetActivityFaults(trackingNumber).Count.ShouldBe(1);
+        ActivityTracker.GetCompensations(trackingNumber).ShouldBeEmpty();
     }
 
     [Fact]
@@ -131,7 +164,7 @@ public class end_to_end : IAsyncLifetime
         var pubHost = await Host.CreateDefaultBuilder().UseWolverine(opts =>
         {
             opts.UseRoutingSlip(retryPolicy)
-                .PublishMessage<ExecutionContext>().ToPort(firstPort);
+                .PublishMessage<RoutingSlipExecutionContext>().ToPort(firstPort);
         }).StartAsync();
 
         var firstHost = await Host.CreateDefaultBuilder().UseWolverine(opts =>
@@ -167,7 +200,7 @@ public class end_to_end : IAsyncLifetime
                 .AlsoTrack(firstHost, secondHost, thirdHost)
                 .ExecuteAndWaitAsync(ctx => ctx.ExecuteRoutingSlip(builder.Build()));
 
-            var trackingNumber = session.Received.MessagesOf<ExecutionContext>()
+            var trackingNumber = session.Received.MessagesOf<RoutingSlipExecutionContext>()
                 .Select(x => x.RoutingSlip.TrackingNumber).Distinct().Single();
 
             var executions = ActivityTracker.GetExecutions(trackingNumber);
@@ -194,7 +227,7 @@ public class end_to_end : IAsyncLifetime
         _pubHost = await Host.CreateDefaultBuilder().UseWolverine( opts =>
         {
             opts.UseRoutingSlip()
-                .PublishMessage<ExecutionContext>().ToPort(_firstHostPort);
+                .PublishMessage<RoutingSlipExecutionContext>().ToPort(_firstHostPort);
             }).StartAsync();
 
         _firstHost = await Host.CreateDefaultBuilder().UseWolverine(opts =>
@@ -230,19 +263,35 @@ public class end_to_end : IAsyncLifetime
         ActivityHandlerBehavior.Reset();
     }
 
+    private static async Task WaitForAsync(Func<bool> condition, TimeSpan timeout)
+    {
+        var sw = Stopwatch.StartNew();
+        while (sw.Elapsed < timeout)
+        {
+            if (condition())
+            {
+                return;
+            }
+
+            await Task.Delay(100);
+        }
+
+        throw new TimeoutException("Condition was not met within the expected timeout.");
+    }
+
     #endregion
 }
 
-public sealed class ActivityHandler(ILogger<ActivityHandler> logger) : IExecutionActivity, ICompensationActivity
+public sealed class RoutingSlipActivityHandler(ILogger<RoutingSlipActivityHandler> logger) : IRoutingSlipActivity
 {
-    public ValueTask HandleAsync(ExecutionContext context, CancellationToken ct)
+    public ValueTask HandleAsync(RoutingSlipExecutionContext context, CancellationToken ct)
     {
         if (context.CurrentActivity is { } activity)
         {
             ActivityTracker.RecordExecution(context.RoutingSlip.TrackingNumber, activity.Name, activity.DestinationUri);
         }
 
-        logger.LogInformation("ExecutionContext on {Host} Tracking={Tracking}" +
+        logger.LogInformation("RoutingSlipExecutionContext on {Host} Tracking={Tracking}" +
                               "ExecutionId={ExecutionId} ExecutionName={ExecutionName}",
             Environment.MachineName, context.RoutingSlip.TrackingNumber,
             context.Id, context.CurrentActivity?.Name);
@@ -256,7 +305,7 @@ public sealed class ActivityHandler(ILogger<ActivityHandler> logger) : IExecutio
         return ValueTask.CompletedTask;
     }
     
-    public ValueTask HandleAsync(CompensationContext context,  CancellationToken ct)
+    public ValueTask HandleAsync(RoutingSlipCompensationContext context,  CancellationToken ct)
     {
         if (ActivityHandlerBehavior.ShouldFailCompensation(context.CurrentLog.ExecutionName))
         {
@@ -266,14 +315,14 @@ public sealed class ActivityHandler(ILogger<ActivityHandler> logger) : IExecutio
         ActivityTracker.RecordCompensation(context.RoutingSlip.TrackingNumber,
             context.CurrentLog.ExecutionName, context.CurrentLog.DestinationUri);
 
-        logger.LogInformation("CompensationContext on {Host} Tracking={Tracking} " +
+        logger.LogInformation("RoutingSlipCompensationContext on {Host} Tracking={Tracking} " +
                               "ExecutionId={ExecutionId} ExecutionName={ExecutionName}",
             Environment.MachineName, context.RoutingSlip.TrackingNumber, 
             context.ExecutionId, context.CurrentLog.ExecutionName);
         return ValueTask.CompletedTask;
     }
 
-    public ValueTask HandleAsync(RoutingSlipActivityFaulted message, CancellationToken ct)
+    public ValueTask HandleAsync(RoutingSlipActivityFailed message, CancellationToken ct)
     {
         ActivityTracker.RecordActivityFault(message.TrackingNumber, message.ExceptionInfo);
         return ValueTask.CompletedTask;

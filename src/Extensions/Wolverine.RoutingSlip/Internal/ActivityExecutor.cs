@@ -1,21 +1,22 @@
-﻿using Wolverine.RoutingSlip.Abstractions;
+using Wolverine.RoutingSlip.Abstractions;
+using Wolverine.RoutingSlip.Messages;
 
 namespace Wolverine.RoutingSlip.Internal;
 
 /// <inheritdoc />
-public sealed class ActivityExecutor() : IActivityExecutor
+public sealed class ActivityExecutor : IActivityExecutor
 {
     /// <inheritdoc />
-    public async ValueTask ExecuteAsync(IMessageContext context, RoutingSlip slip, RoutingSlipExecution next)
+    public ValueTask ExecuteAsync(IMessageContext context, RoutingSlip slip, RoutingSlipExecution next)
     {
-        var msg = new ExecutionContext(Guid.NewGuid(), next, slip);
-        await context.EndpointFor(next.DestinationUri).SendAsync(msg);
+        var message = new RoutingSlipExecutionContext(Guid.NewGuid(), next, slip);
+        return context.EndpointFor(next.DestinationUri).SendAsync(message);
     }
-    
+
     /// <inheritdoc />
-    public async ValueTask CompensateAsync(IMessageContext context, RoutingSlip slip, RoutingSlipExecutionLog next)
+    public ValueTask CompensateAsync(IMessageContext context, RoutingSlip slip, RoutingSlipExecutionLog next)
     {
-        var msg = new CompensationContext(next.ExecutionId, next, slip);
-        await context.EndpointFor(next.DestinationUri).SendAsync(msg);
+        var message = new RoutingSlipCompensationContext(next.ExecutionId, next, slip);
+        return context.EndpointFor(next.DestinationUri).SendAsync(message);
     }
 }

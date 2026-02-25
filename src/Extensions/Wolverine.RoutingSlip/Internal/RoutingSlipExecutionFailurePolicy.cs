@@ -1,13 +1,16 @@
-﻿using JasperFx.CodeGeneration;
+using JasperFx.CodeGeneration;
+using Microsoft.Extensions.DependencyInjection;
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
+using Wolverine.RoutingSlip.Abstractions;
+using Wolverine.RoutingSlip.Messages;
 using Wolverine.Runtime.Handlers;
 
 namespace Wolverine.RoutingSlip.Internal;
 
 /// <summary>
-///     Applies either the user-provided routing slip failure policy or the default discard + compensation behavior
-///     to handler chains that process <see cref="ExecutionContext" /> and <see cref="CompensationContext" /> messages.
+/// Applies either the user-provided routing slip failure policy or the default discard behavior.
+/// The default failure transition orchestration is delegated to <see cref="IRoutingSlipCoordinator" />.
 /// </summary>
 /// <param name="routingSlipOptions"></param>
 internal sealed class RoutingSlipExecutionFailurePolicy(RoutingSlipOptions routingSlipOptions) : IHandlerPolicy
@@ -16,8 +19,8 @@ internal sealed class RoutingSlipExecutionFailurePolicy(RoutingSlipOptions routi
     {
         foreach (var chain in chains)
         {
-            if (chain.MessageType != typeof(ExecutionContext) &&
-                chain.MessageType != typeof(CompensationContext))
+            if (chain.MessageType != typeof(RoutingSlipExecutionContext) &&
+                chain.MessageType != typeof(RoutingSlipCompensationContext))
             {
                 continue;
             }
@@ -32,27 +35,19 @@ internal sealed class RoutingSlipExecutionFailurePolicy(RoutingSlipOptions routi
 
             expression
                 .Discard()
-                .And(async (_, context, exception) =>
+                .And(async (runtime, context, exception) =>
                 {
                     var message = context.Envelope?.Message;
-                    var exceptionInfo = ExceptionInfo.From(exception);
+                    var coordinator = runtime.Services.GetRequiredService<IRoutingSlipCoordinator>();
+
                     switch (message)
                     {
-                        case ExecutionContext execution when execution.RoutingSlip.TryGetExecutedActivity(out var next):
-                            await context.PublishAsync(new RoutingSlipActivityFaulted(
-                                execution.RoutingSlip.TrackingNumber,
-                                exceptionInfo));
-
-                            await context.PublishAsync(new CompensationContext(
-                                execution.Id,
-                                next,
-                                execution.RoutingSlip));
+                        case RoutingSlipExecutionContext execution:
+                            await coordinator.OnExecutionFailedAsync(context, execution, exception);
                             break;
 
-                        case CompensationContext compensation:
-                            await context.PublishAsync(new RoutingSlipCompensationFailed(
-                                compensation.RoutingSlip.TrackingNumber,
-                                exceptionInfo));
+                        case RoutingSlipCompensationContext compensation:
+                            await coordinator.OnCompensationFailedAsync(context, compensation, exception);
                             break;
                     }
                 });
