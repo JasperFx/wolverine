@@ -116,7 +116,7 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
 
     public ObjectPool<MessageContext> ExecutionPool { get; }
 
-    internal HandlerGraph Handlers { get; }
+    public HandlerGraph Handlers { get; }
 
     internal IScheduledJobProcessor ScheduledJobs { get; private set; } = null!;
 
