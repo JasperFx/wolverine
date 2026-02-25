@@ -12,7 +12,7 @@
         <ProjectReference Include="..\Wolverine.Postgresql\Wolverine.Postgresql.csproj" />
     </ItemGroup>
     <ItemGroup>
-      <PackageReference Include="Marten" />
+      <ProjectReference Include="../../../../marten/src/Marten/Marten.csproj" />
     </ItemGroup>
     <Import Project="../../../Analysis.Build.props" />
 </Project>

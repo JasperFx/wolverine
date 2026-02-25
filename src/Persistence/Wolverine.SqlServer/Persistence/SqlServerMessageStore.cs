@@ -12,6 +12,7 @@ using Weasel.SqlServer;
 using Wolverine.Logging;
 using Wolverine.Persistence.Durability;
 using Wolverine.Persistence.Durability.DeadLetterManagement;
+using Wolverine.Persistence.Durability.ScheduledMessageManagement;
 using Wolverine.RDBMS;
 using Wolverine.RDBMS.Sagas;
 using Wolverine.RDBMS.Transport;
@@ -146,6 +147,16 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
     }
 
     protected override string toTopClause(DeadLetterEnvelopeQuery query)
+    {
+        if (query.PageSize > 0 && query.PageNumber <= 1)
+        {
+            return $" top {query.PageSize}";
+        }
+
+        return string.Empty;
+    }
+
+    protected override string toTopClause(ScheduledMessageQuery query)
     {
         if (query.PageSize > 0 && query.PageNumber <= 1)
         {

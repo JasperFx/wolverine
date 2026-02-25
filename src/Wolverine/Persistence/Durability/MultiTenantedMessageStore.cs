@@ -7,6 +7,7 @@ using JasperFx.MultiTenancy;
 using Microsoft.Extensions.Logging;
 using Wolverine.Logging;
 using Wolverine.Persistence.Durability.DeadLetterManagement;
+using Wolverine.Persistence.Durability.ScheduledMessageManagement;
 using Wolverine.Persistence.Sagas;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
@@ -350,6 +351,7 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
     public IMessageInbox Inbox => this;
     public IMessageOutbox Outbox => this;
     public IDeadLetters DeadLetters => this;
+    public IScheduledMessages ScheduledMessages => Main.ScheduledMessages;
     public INodeAgentPersistence Nodes => this;
     public IMessageStoreAdmin Admin => this;
 
