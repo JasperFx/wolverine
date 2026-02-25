@@ -89,14 +89,22 @@ internal class RabbitMqListener : RabbitMqChannelAgent, IListener, ISupportDeadL
 
     public async ValueTask StopAsync()
     {
-        if (_consumer == null)
+        var consumer = _consumer;
+        if (consumer == null)
         {
             return;
         }
 
-        foreach (var consumerTag in _consumer.ConsumerTags) await Channel!.BasicCancelAsync(consumerTag, true, default);
+        var channel = Channel;
+        if (channel != null)
+        {
+            foreach (var consumerTag in consumer.ConsumerTags)
+            {
+                await channel.BasicCancelAsync(consumerTag, true, default);
+            }
+        }
 
-        _consumer.Dispose();
+        consumer.Dispose();
         _consumer = null;
     }
 

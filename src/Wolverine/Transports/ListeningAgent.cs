@@ -143,31 +143,42 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
             return;
         }
 
-        if (Listener == null)
+        var listener = Listener;
+        var receiver = _receiver;
+        if (listener == null)
         {
             return;
         }
+
+        Listener = null;
+        _receiver = null;
 
         try
         {
             using var activity = WolverineTracing.ActivitySource.StartActivity(WolverineTracing.StoppingListener);
             activity?.SetTag(WolverineTracing.EndpointAddress, Uri);
 
-            if (Listener == null) return;
-            
-            await Listener.StopAsync();
-            await _receiver!.DrainAsync();
+            await listener.StopAsync();
+            if (receiver != null)
+            {
+                await receiver.DrainAsync();
+            }
 
-            await Listener.DisposeAsync();
-            _receiver?.Dispose();
+            try
+            {
+                await listener.DisposeAsync();
+            }
+            catch (ObjectDisposedException)
+            {
+                // Listener may already be disposed during rapid pause/stop cycles.
+            }
+
+            receiver?.Dispose();
         }
         catch (Exception e)
         {
             _logger.LogError(e, "Unable to stop and drain the listener for {Uri}", Uri);
         }
-
-        Listener = null;
-        _receiver = null;
 
         Status = ListeningStatus.Stopped;
         _runtime.Tracker.Publish(new ListenerState(Uri, Endpoint.EndpointName, Status));
