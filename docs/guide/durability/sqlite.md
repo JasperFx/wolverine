@@ -118,7 +118,7 @@ that they are utilizing the transactional inbox and outbox. The SQLite queues ca
 ```cs
 opts.ListenToSqliteQueue("sender").BufferedInMemory();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqliteTests/DocumentationSamples.cs#L166-L170' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setting_sqlite_queue_to_buffered' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqliteTests/DocumentationSamples.cs#L186-L190' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setting_sqlite_queue_to_buffered' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Using this option just means that the SQLite queues can be used for both sending or receiving with no integration
@@ -138,14 +138,14 @@ builder.UseWolverine(opts =>
     // Health check message queue/dequeue
     opts.Durability.HealthCheckPollingTime = TimeSpan.FromSeconds(10);
 
-    // Node reassigment checks
+    // Node reassignment checks
     opts.Durability.NodeReassignmentPollingTime = TimeSpan.FromSeconds(5);
 
     // User queue poll frequency
     opts.Durability.ScheduledJobPollingTime = TimeSpan.FromSeconds(5);
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqliteTests/DocumentationSamples.cs#L161-L174' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sqlite_polling_configuration' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqliteTests/DocumentationSamples.cs#L160-L175' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sqlite_polling_configuration' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: info Control queue
