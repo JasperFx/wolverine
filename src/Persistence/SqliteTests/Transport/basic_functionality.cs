@@ -21,11 +21,13 @@ public class basic_functionality : SqliteContext, IAsyncLifetime
 {
     private readonly ITestOutputHelper _output;
     private readonly string _connectionString;
+    private readonly SqliteTestDatabase _database;
 
     public basic_functionality(ITestOutputHelper output)
     {
         _output = output;
-        _connectionString = Servers.CreateInMemoryConnectionString();
+        _database = Servers.CreateDatabase(nameof(basic_functionality));
+        _connectionString = _database.ConnectionString;
     }
 
     private IHost theHost;
@@ -40,6 +42,8 @@ public class basic_functionality : SqliteContext, IAsyncLifetime
             .UseWolverine(opts =>
             {
                 opts.UseSqlitePersistenceAndTransport(_connectionString);
+                opts.Durability.ScheduledJobFirstExecution = 5.Minutes();
+                opts.Durability.ScheduledJobPollingTime = 5.Minutes();
                 opts.ListenToSqliteQueue("one");
             }).StartAsync();
 
@@ -55,17 +59,16 @@ public class basic_functionality : SqliteContext, IAsyncLifetime
     {
         await theHost.StopAsync();
         theHost.Dispose();
+        _database.Dispose();
     }
 
     [Fact]
     public async Task expected_tables_exist_for_queue()
     {
-        await using var conn = new SqliteConnection(_connectionString);
-        await conn.OpenAsync();
+        using var dataSource = new SqliteDataSource(_connectionString);
+        await using var conn = (SqliteConnection)await dataSource.OpenConnectionAsync();
 
         var names = await conn.ExistingTablesAsync();
-
-        await conn.CloseAsync();
 
         names.Any(x => x.Name == "wolverine_queue_one").ShouldBeTrue();
         names.Any(x => x.Name == "wolverine_queue_one_scheduled").ShouldBeTrue();

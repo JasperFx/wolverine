@@ -1,6 +1,5 @@
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
-using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
@@ -19,21 +18,27 @@ using Wolverine.Transports.Tcp;
 namespace SqliteTests;
 
 [Collection("sqlite")]
-public class SqliteMessageStoreTests : MessageStoreCompliance
+public class SqliteMessageStoreTests : MessageStoreCompliance, IAsyncLifetime
 {
-    private readonly string _connectionString = Servers.CreateInMemoryConnectionString();
+    private readonly SqliteTestDatabase _database = Servers.CreateDatabase(nameof(SqliteMessageStoreTests));
 
     public override async Task<IHost> BuildCleanHost()
     {
         var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.PersistMessagesWithSqlite(_connectionString);
+                opts.PersistMessagesWithSqlite(_database.ConnectionString);
 
                 opts.ListenAtPort(2345).UseDurableInbox();
             }).StartAsync();
 
         return host;
+    }
+
+    async Task IAsyncLifetime.DisposeAsync()
+    {
+        await base.DisposeAsync();
+        _database.Dispose();
     }
 
     [Fact]
@@ -87,13 +92,12 @@ public class SqliteMessageStoreTests : MessageStoreCompliance
         var log = new PersistNodeRecord(messageDatabase.Settings, [nodeRecord1, nodeRecord2]);
         await theHost.InvokeAsync(new DatabaseOperationBatch(messageDatabase, [log]));
 
-        await using var conn = new SqliteConnection(_connectionString);
-        await conn.OpenAsync();
+        using var dataSource = new SqliteDataSource(_database.ConnectionString);
+        await using var conn = await dataSource.OpenConnectionAsync();
         await conn.CreateCommand(
                 $"update {DatabaseConstants.NodeRecordTableName} set timestamp = @time where node_number = 2")
             .With("time", DateTimeOffset.UtcNow.Subtract(10.Days()).ToString("o"))
             .ExecuteNonQueryAsync();
-        await conn.CloseAsync();
 
         var recent2 = await thePersistence.Nodes.FetchRecentRecordsAsync(100);
 

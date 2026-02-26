@@ -58,6 +58,7 @@ internal class SqliteMessageStore : MessageDatabase<SqliteConnection>
                                          $";update {DatabaseConstants.OutgoingTable} set owner_id = @node where id IN (@rids)";
 
         DataSource = dataSource ?? throw new ArgumentNullException(nameof(dataSource));
+        _settings.DataSource ??= DataSource;
 
         AdvisoryLock = new SqliteAdvisoryLock(dataSource, logger, Identifier);
 
@@ -146,8 +147,8 @@ internal class SqliteMessageStore : MessageDatabase<SqliteConnection>
     protected override Task deleteMany(DbTransaction tx, Guid[] ids, DbObjectName tableName,
         string idColumnName)
     {
-        var idList = string.Join(",", ids.Select(id => $"'{id.ToString().ToUpperInvariant()}'"));
-        return tx.CreateCommand($"delete from {tableName.QualifiedName} where {idColumnName} IN ({idList})")
+        var idList = string.Join(",", ids.Select(id => $"'{id:D}'"));
+        return tx.CreateCommand($"delete from {tableName.QualifiedName} where lower({idColumnName}) IN ({idList})")
             .ExecuteNonQueryAsync();
     }
 
@@ -216,12 +217,12 @@ internal class SqliteMessageStore : MessageDatabase<SqliteConnection>
 
     public override async Task DiscardAndReassignOutgoingAsync(Envelope[] discards, Envelope[] reassigned, int nodeId)
     {
-        var discardIds = string.Join(",", discards.Select(e => $"'{e.Id.ToString().ToUpperInvariant()}'"));
-        var reassignIds = string.Join(",", reassigned.Select(e => $"'{e.Id.ToString().ToUpperInvariant()}'"));
+        var discardIds = string.Join(",", discards.Select(e => $"'{e.Id:D}'"));
+        var reassignIds = string.Join(",", reassigned.Select(e => $"'{e.Id:D}'"));
 
         await using var cmd = CreateCommand(
-            $"delete from {DatabaseConstants.OutgoingTable} WHERE id IN ({discardIds});" +
-            $"update {DatabaseConstants.OutgoingTable} set owner_id = @node where id IN ({reassignIds})");
+            $"delete from {DatabaseConstants.OutgoingTable} WHERE lower(id) IN ({discardIds});" +
+            $"update {DatabaseConstants.OutgoingTable} set owner_id = @node where lower(id) IN ({reassignIds})");
         cmd.Parameters.Add(new SqliteParameter("@node", nodeId));
 
         await cmd.ExecuteNonQueryAsync(_cancellation);
@@ -231,8 +232,8 @@ internal class SqliteMessageStore : MessageDatabase<SqliteConnection>
     {
         if (HasDisposed) return;
 
-        var ids = string.Join(",", envelopes.Select(e => $"'{e.Id.ToString().ToUpperInvariant()}'"));
-        await CreateCommand($"delete from {DatabaseConstants.OutgoingTable} WHERE id IN ({ids})")
+        var ids = string.Join(",", envelopes.Select(e => $"'{e.Id:D}'"));
+        await CreateCommand($"delete from {DatabaseConstants.OutgoingTable} WHERE lower(id) IN ({ids})")
             .ExecuteNonQueryAsync(_cancellation);
     }
 
@@ -259,10 +260,10 @@ internal class SqliteMessageStore : MessageDatabase<SqliteConnection>
     public override void WriteLoadScheduledEnvelopeSql(DbCommandBuilder builder, DateTimeOffset utcNow)
     {
         builder.Append(
-            $"select {DatabaseConstants.IncomingFields} from {DatabaseConstants.IncomingTable} where status = '{EnvelopeStatus.Scheduled}' and execution_time <= ");
+            $"select {DatabaseConstants.IncomingFields} from {DatabaseConstants.IncomingTable} where status = '{EnvelopeStatus.Scheduled}' and datetime(execution_time) <= datetime(");
 
-        builder.AppendParameter(utcNow.ToString("O"));
-        builder.Append($" order by execution_time LIMIT {Durability.RecoveryBatchSize};");
+        builder.AppendParameter(utcNow.UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss"));
+        builder.Append($") order by execution_time LIMIT {Durability.RecoveryBatchSize};");
     }
 
     public override async Task PollForScheduledMessagesAsync(IWolverineRuntime runtime, ILogger logger,
@@ -293,10 +294,11 @@ internal class SqliteMessageStore : MessageDatabase<SqliteConnection>
                 return;
             }
 
-            var ids = string.Join(",", envelopes.Select(e => $"'{e.Id.ToString().ToUpperInvariant()}'"));
-            await conn.CreateCommand(
-                    $"update {DatabaseConstants.IncomingTable} set owner_id = @owner, status = '{EnvelopeStatus.Incoming}' where id IN ({ids})")
-                .With("owner", durabilitySettings.AssignedNodeNumber)
+            var ids = string.Join(",", envelopes.Select(e => $"'{e.Id:D}'"));
+            var reassign = conn.CreateCommand(
+                $"update {DatabaseConstants.IncomingTable} set owner_id = @owner, status = '{EnvelopeStatus.Incoming}' where lower(id) IN ({ids})");
+            reassign.Transaction = tx;
+            await reassign.With("owner", durabilitySettings.AssignedNodeNumber)
                 .ExecuteNonQueryAsync(_cancellation);
 
             await tx.CommitAsync(cancellationToken);
@@ -497,8 +499,8 @@ internal class SqliteMessageStore : MessageDatabase<SqliteConnection>
 
     protected override void writeMessageIdArrayQueryList(DbCommandBuilder builder, Guid[] messageIds)
     {
-        var ids = string.Join(",", messageIds.Select(id => $"'{id.ToString().ToUpperInvariant()}'"));
-        builder.Append($" and {DatabaseConstants.Id} IN ({ids})");
+        var ids = string.Join(",", messageIds.Select(id => $"'{id:D}'"));
+        builder.Append($" and lower({DatabaseConstants.Id}) IN ({ids})");
     }
 
     public override async Task DeleteAllHandledAsync()

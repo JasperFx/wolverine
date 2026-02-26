@@ -14,10 +14,11 @@ public class extension_registrations : SqliteContext
     [Fact]
     public async Task should_register_message_store()
     {
+        using var database = Servers.CreateDatabase(nameof(should_register_message_store));
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.PersistMessagesWithSqlite(Servers.CreateInMemoryConnectionString());
+                opts.PersistMessagesWithSqlite(database.ConnectionString);
             }).StartAsync();
 
         host.Services.GetRequiredService<IMessageStore>()
@@ -27,10 +28,11 @@ public class extension_registrations : SqliteContext
     [Fact]
     public async Task should_set_durability_agent()
     {
+        using var database = Servers.CreateDatabase(nameof(should_set_durability_agent));
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.PersistMessagesWithSqlite(Servers.CreateInMemoryConnectionString());
+                opts.PersistMessagesWithSqlite(database.ConnectionString);
                 opts.Durability.Mode = DurabilityMode.Solo;
             }).StartAsync();
 
