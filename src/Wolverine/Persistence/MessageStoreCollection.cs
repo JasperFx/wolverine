@@ -102,12 +102,6 @@ public class MessageStoreCollection : IAgentFamily, IAsyncDisposable
         if (_hasInitialized) return;
         _hasInitialized = true;
 
-        if (!_runtime.Options.Durability.DurabilityAgentEnabled)
-        {
-            Main = new NullMessageStore();
-            return;
-        }
-        
         foreach (var tenantedMessageStore in _multiTenanted)
         {
             await tenantedMessageStore.InitializeAsync(_runtime);
