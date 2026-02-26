@@ -1,5 +1,6 @@
 ﻿using JasperFx.Descriptors;
 using JasperFx.MultiTenancy;
+using Wolverine.Persistence.Durability.ScheduledMessageManagement;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
 
@@ -100,6 +101,8 @@ public interface IMessageStore : IAsyncDisposable
     IMessageStoreAdmin Admin { get; }
 
     IDeadLetters DeadLetters { get; }
+
+    IScheduledMessages ScheduledMessages { get; }
 
 
     /// <summary>

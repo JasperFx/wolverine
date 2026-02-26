@@ -106,6 +106,8 @@ internal class StubEndpoint : Endpoint, ISendingAgent, ISender, IListener
 
     public bool SupportsNativeScheduledSend => true;
 
+    public DateTimeOffset LastMessageSentAt => DateTimeOffset.UtcNow;
+
     public void Dispose()
     {
     }

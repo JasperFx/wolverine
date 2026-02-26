@@ -6,6 +6,7 @@ using JasperFx.Resources;
 using Shouldly;
 using Wolverine.Persistence.Durability;
 using Wolverine.Persistence.Durability.DeadLetterManagement;
+using Wolverine.Persistence.Durability.ScheduledMessageManagement;
 using Wolverine.Runtime.Agents;
 using Wolverine.Transports;
 using Xunit;
@@ -818,6 +819,179 @@ public abstract class MessageStoreCompliance : IAsyncLifetime
         var state = await thePersistence.Nodes.LoadNodeAgentStateAsync(CancellationToken.None);
 
         state.Restrictions.Current.OrderBy(x => x.AgentUri.ToString()).ShouldBe([restriction1, restriction2, restriction5, restriction6]);
+    }
+
+    [Fact]
+    public async Task query_scheduled_messages()
+    {
+        var scheduledList = new List<Envelope>();
+        for (var i = 0; i < 5; i++)
+        {
+            var envelope = ObjectMother.Envelope();
+            envelope.Status = EnvelopeStatus.Scheduled;
+            envelope.ScheduledTime = DateTimeOffset.UtcNow.AddMinutes(10 + i);
+            scheduledList.Add(envelope);
+        }
+
+        await thePersistence.Inbox.StoreIncomingAsync(scheduledList);
+
+        // Also add non-scheduled incoming
+        var incomingList = new List<Envelope>();
+        for (var i = 0; i < 3; i++)
+        {
+            var envelope = ObjectMother.Envelope();
+            envelope.Status = EnvelopeStatus.Incoming;
+            incomingList.Add(envelope);
+        }
+
+        await thePersistence.Inbox.StoreIncomingAsync(incomingList);
+
+        var results = await thePersistence.ScheduledMessages.QueryAsync(
+            new ScheduledMessageQuery { PageSize = 3 }, CancellationToken.None);
+
+        results.Messages.Count.ShouldBe(3);
+        results.TotalCount.ShouldBe(5);
+    }
+
+    [Fact]
+    public async Task query_scheduled_messages_by_message_type()
+    {
+        var list = new List<Envelope>();
+        for (var i = 0; i < 3; i++)
+        {
+            var envelope = ObjectMother.Envelope();
+            envelope.Status = EnvelopeStatus.Scheduled;
+            envelope.ScheduledTime = DateTimeOffset.UtcNow.AddMinutes(10);
+            envelope.MessageType = "TypeA";
+            list.Add(envelope);
+        }
+
+        for (var i = 0; i < 2; i++)
+        {
+            var envelope = ObjectMother.Envelope();
+            envelope.Status = EnvelopeStatus.Scheduled;
+            envelope.ScheduledTime = DateTimeOffset.UtcNow.AddMinutes(10);
+            envelope.MessageType = "TypeB";
+            list.Add(envelope);
+        }
+
+        await thePersistence.Inbox.StoreIncomingAsync(list);
+
+        var results = await thePersistence.ScheduledMessages.QueryAsync(
+            new ScheduledMessageQuery { MessageType = "TypeA" }, CancellationToken.None);
+
+        results.TotalCount.ShouldBe(3);
+        results.Messages.Count.ShouldBe(3);
+        results.Messages.ShouldAllBe(m => m.MessageType == "TypeA");
+    }
+
+    [Fact]
+    public async Task cancel_scheduled_message_by_id()
+    {
+        var list = new List<Envelope>();
+        for (var i = 0; i < 3; i++)
+        {
+            var envelope = ObjectMother.Envelope();
+            envelope.Status = EnvelopeStatus.Scheduled;
+            envelope.ScheduledTime = DateTimeOffset.UtcNow.AddMinutes(10);
+            list.Add(envelope);
+        }
+
+        await thePersistence.Inbox.StoreIncomingAsync(list);
+
+        await thePersistence.ScheduledMessages.CancelAsync(
+            new ScheduledMessageQuery { MessageIds = [list[1].Id] }, CancellationToken.None);
+
+        var counts = await thePersistence.Admin.FetchCountsAsync();
+        counts.Scheduled.ShouldBe(2);
+    }
+
+    [Fact]
+    public async Task cancel_scheduled_messages_by_message_type()
+    {
+        var list = new List<Envelope>();
+        for (var i = 0; i < 3; i++)
+        {
+            var envelope = ObjectMother.Envelope();
+            envelope.Status = EnvelopeStatus.Scheduled;
+            envelope.ScheduledTime = DateTimeOffset.UtcNow.AddMinutes(10);
+            envelope.MessageType = "CancelTypeA";
+            list.Add(envelope);
+        }
+
+        for (var i = 0; i < 2; i++)
+        {
+            var envelope = ObjectMother.Envelope();
+            envelope.Status = EnvelopeStatus.Scheduled;
+            envelope.ScheduledTime = DateTimeOffset.UtcNow.AddMinutes(10);
+            envelope.MessageType = "CancelTypeB";
+            list.Add(envelope);
+        }
+
+        await thePersistence.Inbox.StoreIncomingAsync(list);
+
+        await thePersistence.ScheduledMessages.CancelAsync(
+            new ScheduledMessageQuery { MessageType = "CancelTypeA" }, CancellationToken.None);
+
+        var counts = await thePersistence.Admin.FetchCountsAsync();
+        counts.Scheduled.ShouldBe(2);
+    }
+
+    [Fact]
+    public async Task reschedule_scheduled_message()
+    {
+        var envelope = ObjectMother.Envelope();
+        envelope.Status = EnvelopeStatus.Scheduled;
+        envelope.ScheduledTime = DateTimeOffset.UtcNow.AddMinutes(10);
+        await thePersistence.Inbox.StoreIncomingAsync(envelope);
+
+        var newTime = DateTimeOffset.UtcNow.AddHours(5);
+        await thePersistence.ScheduledMessages.RescheduleAsync(envelope.Id, newTime, CancellationToken.None);
+
+        var results = await thePersistence.ScheduledMessages.QueryAsync(
+            new ScheduledMessageQuery { MessageIds = [envelope.Id] }, CancellationToken.None);
+
+        results.Messages.Count.ShouldBe(1);
+        // Verify the time was updated (within a second tolerance)
+        results.Messages[0].ScheduledTime!.Value.ShouldBe(newTime.ToUniversalTime(), TimeSpan.FromSeconds(1));
+    }
+
+    [Fact]
+    public async Task summarize_scheduled_messages()
+    {
+        var list = new List<Envelope>();
+        for (var i = 0; i < 3; i++)
+        {
+            var envelope = ObjectMother.Envelope();
+            envelope.Status = EnvelopeStatus.Scheduled;
+            envelope.ScheduledTime = DateTimeOffset.UtcNow.AddMinutes(10);
+            envelope.MessageType = "SumTypeA";
+            list.Add(envelope);
+        }
+
+        for (var i = 0; i < 2; i++)
+        {
+            var envelope = ObjectMother.Envelope();
+            envelope.Status = EnvelopeStatus.Scheduled;
+            envelope.ScheduledTime = DateTimeOffset.UtcNow.AddMinutes(10);
+            envelope.MessageType = "SumTypeB";
+            list.Add(envelope);
+        }
+
+        var envelope3 = ObjectMother.Envelope();
+        envelope3.Status = EnvelopeStatus.Scheduled;
+        envelope3.ScheduledTime = DateTimeOffset.UtcNow.AddMinutes(10);
+        envelope3.MessageType = "SumTypeC";
+        list.Add(envelope3);
+
+        await thePersistence.Inbox.StoreIncomingAsync(list);
+
+        var counts = await thePersistence.ScheduledMessages.SummarizeAsync("TestService", CancellationToken.None);
+
+        counts.Count.ShouldBeGreaterThanOrEqualTo(3);
+        counts.ShouldContain(c => c.MessageType == "SumTypeA" && c.Count == 3);
+        counts.ShouldContain(c => c.MessageType == "SumTypeB" && c.Count == 2);
+        counts.ShouldContain(c => c.MessageType == "SumTypeC" && c.Count == 1);
     }
 
 }

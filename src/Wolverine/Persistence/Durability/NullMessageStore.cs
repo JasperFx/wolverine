@@ -2,6 +2,7 @@ using JasperFx.Core;
 using JasperFx.Descriptors;
 using Wolverine.Logging;
 using Wolverine.Persistence.Durability.DeadLetterManagement;
+using Wolverine.Persistence.Durability.ScheduledMessageManagement;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.Scheduled;
@@ -11,7 +12,7 @@ namespace Wolverine.Persistence.Durability;
 /// <summary>
 ///     Nullo implementation of a message store
 /// </summary>
-public class NullMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IMessageStoreAdmin, IDeadLetters
+public class NullMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IMessageStoreAdmin, IDeadLetters, IScheduledMessages
 {
     internal IScheduledJobProcessor? ScheduledJobs { get; set; }
 
@@ -141,6 +142,7 @@ public class NullMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IM
     public IMessageInbox Inbox => this;
     public IMessageOutbox Outbox => this;
     public IDeadLetters DeadLetters => this;
+    public IScheduledMessages ScheduledMessages => this;
     public INodeAgentPersistence Nodes => throw new NotSupportedException();
 
     public IMessageStoreAdmin Admin => this;
@@ -265,6 +267,26 @@ public class NullMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IM
     public Task<DeadLetterEnvelope?> DeadLetterEnvelopeByIdAsync(Guid id, string? tenantId = null)
     {
         throw new NotImplementedException();
+    }
+
+    Task<ScheduledMessageResults> IScheduledMessages.QueryAsync(ScheduledMessageQuery query, CancellationToken token)
+    {
+        return Task.FromResult(new ScheduledMessageResults());
+    }
+
+    public Task CancelAsync(ScheduledMessageQuery query, CancellationToken token)
+    {
+        return Task.CompletedTask;
+    }
+
+    public Task RescheduleAsync(Guid envelopeId, DateTimeOffset newExecutionTime, CancellationToken token)
+    {
+        return Task.CompletedTask;
+    }
+
+    public Task<IReadOnlyList<ScheduledMessageCount>> SummarizeAsync(string serviceName, CancellationToken token)
+    {
+        return Task.FromResult<IReadOnlyList<ScheduledMessageCount>>(new List<ScheduledMessageCount>());
     }
 }
 

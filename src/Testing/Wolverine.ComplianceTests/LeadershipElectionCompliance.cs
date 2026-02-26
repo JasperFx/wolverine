@@ -75,7 +75,7 @@ public abstract class LeadershipElectionCompliance : IAsyncLifetime
         var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.Discovery.IncludeAssembly(GetType().Assembly).IncludeType(typeof(DoOnAgentHandler));
+                opts.Discovery.IncludeAssembly(GetType().Assembly).IncludeType(typeof(DoOnAgentHandler)).IncludeType(typeof(TriggerFanOutHandler)).IncludeType(typeof(FanOutHandler));
                 
                 opts.Durability.CheckAssignmentPeriod = 1.Seconds();
                 opts.Durability.HealthCheckPollingTime = 1.Seconds();
@@ -339,6 +339,46 @@ public abstract class LeadershipElectionCompliance : IAsyncLifetime
     }
 
     [Fact]
+    public async Task fan_out_message_to_all_nodes()
+    {
+        FanOutHandler.Handled.Clear();
+
+        await _originalHost.WaitUntilAssumesLeadershipAsync(5.Seconds());
+
+        var host2 = await startHostAsync();
+        var host3 = await startHostAsync();
+
+        await _originalHost.WaitUntilAssignmentsChangeTo(w =>
+        {
+            w.ExpectRunningAgents(_originalHost, 4);
+            w.ExpectRunningAgents(host2, 4);
+            w.ExpectRunningAgents(host3, 4);
+        }, 30.Seconds());
+
+        // Send TriggerFanOut to node1; its handler calls FanOutToAllNodes(new FannedOut())
+        await _originalHost.InvokeMessageAndWaitAsync(new TriggerFanOut());
+
+        var nodes = new[] { _originalHost, host2, host3 };
+        var expectedNodeNumbers = nodes.Select(x => x.NodeNumber()).ToHashSet();
+
+        // Poll for delivery to all 3 nodes (control queue messages are not tracked)
+        var cancellation = new CancellationTokenSource();
+        cancellation.CancelAfter(15.Seconds());
+        while (!cancellation.IsCancellationRequested)
+        {
+            var handledNumbers = FanOutHandler.Handled.ToHashSet();
+            if (expectedNodeNumbers.All(n => handledNumbers.Contains(n))) break;
+            await Task.Delay(250.Milliseconds());
+        }
+
+        var finalHandled = FanOutHandler.Handled.ToHashSet();
+        foreach (var expected in expectedNodeNumbers)
+        {
+            finalHandled.ShouldContain(expected);
+        }
+    }
+
+    [Fact]
     public async Task ability_to_send_messages_to_correct_node_or_forward()
     {
         DoOnAgentHandler.Handled.Clear();
@@ -396,7 +436,7 @@ public record AgentHandled(Uri AgentUri, int NodeNumber);
 public static class DoOnAgentHandler
 {
     public static ConcurrentBag<AgentHandled> Handled = new();
-    
+
     public static async Task HandleAsync(DoOnAgent command, IMessageContext context, CancellationToken cancellationToken)
     {
         await context.InvokeOnAgentOrForwardAsync(command.AgentUri, (runtime, c) =>
@@ -406,5 +446,27 @@ public static class DoOnAgentHandler
 
             return Task.CompletedTask;
         }, cancellationToken);
+    }
+}
+
+public record TriggerFanOut;
+
+public record FannedOut;
+
+public static class TriggerFanOutHandler
+{
+    public static async Task HandleAsync(TriggerFanOut command, IMessageContext context)
+    {
+        await context.FanOutToAllNodes(new FannedOut());
+    }
+}
+
+public static class FanOutHandler
+{
+    public static ConcurrentBag<int> Handled = new();
+
+    public static void Handle(FannedOut message, IWolverineRuntime runtime)
+    {
+        Handled.Add(runtime.DurabilitySettings.AssignedNodeNumber);
     }
 }
