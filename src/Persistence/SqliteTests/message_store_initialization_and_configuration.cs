@@ -20,10 +20,12 @@ public class message_store_initialization_and_configuration : SqliteContext, IAs
 {
     private IHost _host;
     private readonly string _connectionString;
+    private readonly SqliteTestDatabase _database;
 
     public message_store_initialization_and_configuration()
     {
-        _connectionString = Servers.CreateInMemoryConnectionString();
+        _database = Servers.CreateDatabase(nameof(message_store_initialization_and_configuration));
+        _connectionString = _database.ConnectionString;
     }
 
     public async Task InitializeAsync()
@@ -44,6 +46,8 @@ public class message_store_initialization_and_configuration : SqliteContext, IAs
             await _host.StopAsync();
             _host.Dispose();
         }
+
+        _database.Dispose();
     }
 
     [Fact]
@@ -55,11 +59,10 @@ public class message_store_initialization_and_configuration : SqliteContext, IAs
     [Fact]
     public async Task builds_the_node_and_control_queue_tables()
     {
-        await using var conn = new SqliteConnection(_connectionString);
-        await conn.OpenAsync();
+        using var dataSource = new SqliteDataSource(_connectionString);
+        await using var conn = (SqliteConnection)await dataSource.OpenConnectionAsync();
 
         var tables = await conn.ExistingTablesAsync(schemas: ["main"]);
-        await conn.CloseAsync();
 
         tables.ShouldContain(x => x.Name == DatabaseConstants.NodeTableName);
         tables.ShouldContain(x => x.Name == DatabaseConstants.NodeAssignmentsTableName);

@@ -66,16 +66,7 @@ public class DocumentationSamples
         builder.UseWolverine(opts =>
         {
             var connectionString = builder.Configuration.GetConnectionString("sqlite");
-            opts.UseSqlitePersistenceAndTransport(
-                    connectionString,
-
-                    // This argument is the database schema name for the envelope storage.
-                    // In SQLite, the default is 'main' which refers to the primary database.
-                    "main",
-
-                    // This schema name is for the actual SQLite queue tables.
-                    // Default is 'wolverine_queues'
-                    transportSchema:"wolverine_queues")
+            opts.UseSqlitePersistenceAndTransport(connectionString)
 
                 // Tell Wolverine to build out all necessary queue or scheduled message
                 // tables on demand as needed

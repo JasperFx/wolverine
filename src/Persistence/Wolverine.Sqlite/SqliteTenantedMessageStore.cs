@@ -74,7 +74,8 @@ internal class SqliteTenantedMessageStore : ITenantedMessageSource
 
     private SqliteMessageStore buildTenantStoreForConnectionString(string connectionString)
     {
-        var dataSource = Microsoft.Data.Sqlite.SqliteFactory.Instance.CreateDataSource(connectionString);
+        // var dataSource = Microsoft.Data.Sqlite.SqliteFactory.Instance.CreateDataSource(connectionString);
+        var dataSource = new WolverineSqliteDataSource(connectionString);
         var settings = new DatabaseSettings
         {
             CommandQueuesEnabled = false,

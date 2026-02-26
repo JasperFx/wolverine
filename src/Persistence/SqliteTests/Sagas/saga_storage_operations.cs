@@ -1,4 +1,3 @@
-using Microsoft.Data.Sqlite;
 using Shouldly;
 using Weasel.Sqlite;
 using Weasel.Sqlite.Tables;
@@ -13,16 +12,20 @@ public class saga_storage_operations : SqliteContext, IAsyncLifetime
 {
     private readonly DatabaseSagaSchema<LightweightSaga, Guid> _theSchema;
     private readonly string _connectionString;
-    private SqliteConnection? _keepAlive;
+    private readonly SqliteDataSource _dataSource;
+    private readonly SqliteTestDatabase _database;
 
     public saga_storage_operations()
     {
-        _connectionString = Servers.CreateInMemoryConnectionString();
+        _database = Servers.CreateDatabase(nameof(saga_storage_operations));
+        _connectionString = _database.ConnectionString;
+        _dataSource = new SqliteDataSource(_connectionString);
 
         var settings = new DatabaseSettings
         {
             ConnectionString = _connectionString,
             SchemaName = "main",
+            DataSource = _dataSource,
         };
 
         var definition = new SagaTableDefinition(typeof(LightweightSaga), null);
@@ -31,34 +34,28 @@ public class saga_storage_operations : SqliteContext, IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-        // Open keep-alive connection for the in-memory database
-        _keepAlive = new SqliteConnection(_connectionString);
-        await _keepAlive.OpenAsync();
-
         // Create the saga table before any tests run (avoids locking issues
         // when ensureStorageExistsAsync opens a second connection while a transaction is open)
+        await using var conn = await _dataSource.OpenConnectionAsync();
         var table = (Table)_theSchema.Table;
         var sql = table.ToBasicCreateTableSql();
-        var cmd = _keepAlive.CreateCommand();
+        var cmd = conn.CreateCommand();
         cmd.CommandText = sql;
         await cmd.ExecuteNonQueryAsync();
         _theSchema.MarkAsChecked();
     }
 
-    public async Task DisposeAsync()
+    public Task DisposeAsync()
     {
-        if (_keepAlive != null)
-        {
-            await _keepAlive.CloseAsync();
-            await _keepAlive.DisposeAsync();
-        }
+        _dataSource.Dispose();
+        _database.Dispose();
+        return Task.CompletedTask;
     }
 
     [Fact]
     public async Task load_with_no_document_happily_returns_null()
     {
-        await using var conn = new SqliteConnection(_connectionString);
-        await conn.OpenAsync();
+        await using var conn = await _dataSource.OpenConnectionAsync();
 
         using var tx = await conn.BeginTransactionAsync();
 
@@ -69,8 +66,7 @@ public class saga_storage_operations : SqliteContext, IAsyncLifetime
     [Fact]
     public async Task get_an_invalid_operation_exception_for_missing_id()
     {
-        await using var conn = new SqliteConnection(_connectionString);
-        await conn.OpenAsync();
+        await using var conn = await _dataSource.OpenConnectionAsync();
         await using var db = await conn.BeginTransactionAsync();
 
         var saga = new LightweightSaga
@@ -88,8 +84,7 @@ public class saga_storage_operations : SqliteContext, IAsyncLifetime
     [Fact]
     public async Task insert_then_load()
     {
-        await using var conn = new SqliteConnection(_connectionString);
-        await conn.OpenAsync();
+        await using var conn = await _dataSource.OpenConnectionAsync();
         await using var db = await conn.BeginTransactionAsync();
 
         var saga = new LightweightSaga
@@ -110,8 +105,7 @@ public class saga_storage_operations : SqliteContext, IAsyncLifetime
     [Fact]
     public async Task insert_update_then_load()
     {
-        await using var conn = new SqliteConnection(_connectionString);
-        await conn.OpenAsync();
+        await using var conn = await _dataSource.OpenConnectionAsync();
         await using var db = await conn.BeginTransactionAsync();
 
         var saga = new LightweightSaga
@@ -135,8 +129,7 @@ public class saga_storage_operations : SqliteContext, IAsyncLifetime
     [Fact]
     public async Task insert_then_delete()
     {
-        await using var conn = new SqliteConnection(_connectionString);
-        await conn.OpenAsync();
+        await using var conn = await _dataSource.OpenConnectionAsync();
         await using var db = await conn.BeginTransactionAsync();
 
         var saga = new LightweightSaga
@@ -158,8 +151,7 @@ public class saga_storage_operations : SqliteContext, IAsyncLifetime
     [Fact]
     public async Task concurrency_exception_when_version_does_not_match()
     {
-        await using var conn = new SqliteConnection(_connectionString);
-        await conn.OpenAsync();
+        await using var conn = await _dataSource.OpenConnectionAsync();
 
         var db = await conn.BeginTransactionAsync();
 

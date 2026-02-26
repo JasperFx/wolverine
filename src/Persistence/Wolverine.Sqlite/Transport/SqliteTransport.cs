@@ -23,16 +23,6 @@ public class SqliteTransport : BrokerTransport<SqliteQueue>, ITransportConfigure
 
     public override Uri ResourceUri => new Uri("sqlite-transport://");
 
-    /// <summary>
-    /// Schema name for the queue and scheduled message tables
-    /// </summary>
-    public string TransportSchemaName { get; set; } = "main";
-
-    /// <summary>
-    /// Schema name for the message storage tables
-    /// </summary>
-    public string MessageStorageSchemaName { get; set; } = "main";
-
     public async ValueTask ConfigureAsync(IWolverineRuntime runtime)
     {
         // This is important, let the SQLite queues get built automatically
@@ -51,8 +41,6 @@ public class SqliteTransport : BrokerTransport<SqliteQueue>, ITransportConfigure
                 store.AddTable(queue.QueueTable);
                 store.AddTable(queue.ScheduledTable);
             }
-
-            MessageStorageSchemaName = store.SchemaName;
         }
 
         if (runtime.Storage is SqliteMessageStore s)

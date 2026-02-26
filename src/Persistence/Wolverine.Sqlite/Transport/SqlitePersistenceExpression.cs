@@ -1,4 +1,3 @@
-using JasperFx.Core;
 using Wolverine.Configuration;
 
 namespace Wolverine.Sqlite.Transport;
@@ -45,25 +44,4 @@ public class SqlitePersistenceExpression
         return this;
     }
 
-    /// <summary>
-    /// Set the schema name for the SQLite transport queue tables. Default is 'wolverine_queues'
-    /// </summary>
-    /// <param name="schemaName"></param>
-    /// <returns></returns>
-    public SqlitePersistenceExpression TransportSchemaName(string schemaName)
-    {
-        _transport.TransportSchemaName = schemaName;
-        return this;
-    }
-
-    /// <summary>
-    /// Set the schema name for the Wolverine message storage. Default is 'main'
-    /// </summary>
-    /// <param name="schemaName"></param>
-    /// <returns></returns>
-    public SqlitePersistenceExpression MessageStorageSchemaName(string schemaName)
-    {
-        _transport.MessageStorageSchemaName = schemaName;
-        return this;
-    }
 }
