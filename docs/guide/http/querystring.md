@@ -81,7 +81,7 @@ it would be convenient to have Wolverine just let you declare a single .NET type
 will be filled with any of the matching query string parameters like this sample:
 
 <!-- snippet: sample_using_[FromQuery]_binding -->
-<a id='snippet-sample_using_[fromquery]_binding'></a>
+<a id='snippet-sample_using_[FromQuery]_binding'></a>
 ```cs
 // If you want every value to be optional, use public, settable
 // properties and a no-arg public constructor
@@ -120,7 +120,7 @@ public static class QueryOrdersEndpoint
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L340-L380' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_[fromquery]_binding' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L340-L380' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_[FromQuery]_binding' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Because we've used the `[FromQuery]` attribute on a parameter argument that's not a simple type, Wolverine is trying to bind

@@ -81,7 +81,7 @@ app.MapDeadLettersEndpoints()
     //.RequireAuthorization("Admin")
     ;
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L202-L213' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_register_dead_letter_endpoints' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L206-L217' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_register_dead_letter_endpoints' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ### Using the Dead Letters REST API

@@ -27,7 +27,7 @@ public class FileUploadEndpoint
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/FileUploadEndpoint.cs#L7-L30' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_file_uploads' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/FileUploadEndpoint.cs#L9-L32' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_file_uploads' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 See [Upload files in ASP.NET Core](https://learn.microsoft.com/en-us/aspnet/core/mvc/models/file-uploads?view=aspnetcore-7.0)
@@ -70,7 +70,7 @@ public static class MultipartUploadEndpoints
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/FileUploadEndpoint.cs#L77-L102' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_multipart_upload_endpoints' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/FileUploadEndpoint.cs#L77-L105' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_multipart_upload_endpoints' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Each `IFormFile` parameter is matched to the uploaded file by its parameter name. When sending a multipart request, make sure the form field names match the parameter names in your endpoint method.

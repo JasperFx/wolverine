@@ -181,7 +181,7 @@ The [Fluent Validation middleware](./fluentvalidation) for Wolverine.HTTP is abl
 bound with `[AsParameters]`:
 
 <!-- snippet: sample_using_fluent_validation_with_AsParameters -->
-<a id='snippet-sample_using_fluent_validation_with_asparameters'></a>
+<a id='snippet-sample_using_fluent_validation_with_AsParameters'></a>
 ```cs
 public static class ValidatedAsParametersEndpoint
 {
@@ -208,5 +208,5 @@ public class ValidatedQuery
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Forms/FormEndpoints.cs#L230-L257' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_fluent_validation_with_asparameters' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Forms/FormEndpoints.cs#L230-L257' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_fluent_validation_with_AsParameters' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->

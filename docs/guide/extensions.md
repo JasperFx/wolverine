@@ -9,7 +9,7 @@ in the IoC container at bootstrapping time.
 Wolverine supports the concept of extensions for modularizing Wolverine configuration with implementations of the `IWolverineExtension` interface:
 
 <!-- snippet: sample_IWolverineExtension -->
-<a id='snippet-sample_iwolverineextension'></a>
+<a id='snippet-sample_IWolverineExtension'></a>
 ```cs
 /// <summary>
 ///     Use to create loadable extensions to Wolverine applications
@@ -23,13 +23,13 @@ public interface IWolverineExtension
     void Configure(WolverineOptions options);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/IWolverineExtension.cs#L3-L17' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_iwolverineextension' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/IWolverineExtension.cs#L3-L17' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_IWolverineExtension' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Here's a sample:
 
 <!-- snippet: sample_SampleExtension -->
-<a id='snippet-sample_sampleextension'></a>
+<a id='snippet-sample_SampleExtension'></a>
 ```cs
 public class SampleExtension : IWolverineExtension
 {
@@ -44,7 +44,7 @@ public class SampleExtension : IWolverineExtension
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/ExtensionSamples.cs#L9-L24' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sampleextension' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/ExtensionSamples.cs#L9-L24' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_SampleExtension' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Extensions can be applied programmatically against the `WolverineOptions` like this:
@@ -99,7 +99,7 @@ await using var host = await AlbaHost.For<Program>(x =>
 Behind the scenes, Wolverine has a small extension like this:
 
 <!-- snippet: sample_DisableExternalTransports -->
-<a id='snippet-sample_disableexternaltransports'></a>
+<a id='snippet-sample_DisableExternalTransports'></a>
 ```cs
 internal class DisableExternalTransports : IWolverineExtension
 {
@@ -109,7 +109,7 @@ internal class DisableExternalTransports : IWolverineExtension
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/HostBuilderExtensions.cs#L426-L436' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disableexternaltransports' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/HostBuilderExtensions.cs#L426-L436' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_DisableExternalTransports' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And that extension is just added to the application's IoC container at test bootstrapping time like this:
@@ -179,7 +179,7 @@ There is also any option for creating Wolverine extensions that need to use asyn
 the `WolverineOptions` using the `IAsyncWolverineExtension` library. A sample is shown below:
 
 <!-- snippet: sample_async_Wolverine_extension -->
-<a id='snippet-sample_async_wolverine_extension'></a>
+<a id='snippet-sample_async_Wolverine_extension'></a>
 ```cs
 public class SampleAsyncExtension : IAsyncWolverineExtension
 {
@@ -203,7 +203,7 @@ public class SampleAsyncExtension : IAsyncWolverineExtension
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/using_async_extensions.cs#L64-L88' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_async_wolverine_extension' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/using_async_extensions.cs#L64-L88' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_async_Wolverine_extension' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Which can be added to your application with this extension method on `IServiceCollection`:
@@ -234,7 +234,7 @@ this method in your `Program` file *after* building the `WebApplication`, but be
 `MapWolverineEndpoints()` like so:
 
 <!-- snippet: sample_calling_ApplyAsyncWolverineExtensions -->
-<a id='snippet-sample_calling_applyasyncwolverineextensions'></a>
+<a id='snippet-sample_calling_ApplyAsyncWolverineExtensions'></a>
 ```cs
 var app = builder.Build();
 
@@ -242,7 +242,7 @@ var app = builder.Build();
 // you will need to explicitly call this *before* MapWolverineEndpoints()
 await app.Services.ApplyAsyncWolverineExtensions();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L164-L172' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_calling_applyasyncwolverineextensions' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L168-L176' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_calling_ApplyAsyncWolverineExtensions' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Wolverine Plugin Modules

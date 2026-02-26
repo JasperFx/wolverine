@@ -41,7 +41,7 @@ builder.UseWolverine(opts =>
     }, AutoCreate.CreateOrUpdate);
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests/MultiTenancy/MultiTenancyDocumentationSamples.cs#L24-L51' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_static_tenant_registry_with_postgresql' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests.MultiTenancy/MultiTenancyDocumentationSamples.cs#L24-L51' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_static_tenant_registry_with_postgresql' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And instead with [multi-tenanted SQL Server](/guide/durability/sqlserver.html#multi-tenancy) storage:
@@ -81,7 +81,7 @@ builder.UseWolverine(opts =>
     }, AutoCreate.CreateOrUpdate);
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests/MultiTenancy/MultiTenancyDocumentationSamples.cs#L56-L90' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_static_tenant_registry_with_sqlserver' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests.MultiTenancy/MultiTenancyDocumentationSamples.cs#L56-L90' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_static_tenant_registry_with_sqlserver' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Note in both samples how I'm registering the `DbContext` types. There's a fluent interface first to register the multi-tenanted
@@ -119,7 +119,7 @@ opts.Services.AddDbContextWithWolverineManagedMultiTenancyByDbDataSource<ItemsDb
     builder.UseNpgsql(dataSource, b => b.MigrationsAssembly("MultiTenantedEfCoreWithPostgreSQL"));
 }, AutoCreate.CreateOrUpdate);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests/MultiTenancy/multi_tenancy_with_marten_managed_multi_tenancy.cs#L24-L44' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_use_multi_tenancy_with_both_marten_and_ef_core' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests.MultiTenancy/multi_tenancy_with_marten_managed_multi_tenancy.cs#L24-L44' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_use_multi_tenancy_with_both_marten_and_ef_core' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Outside of Handlers or Endpoints
@@ -166,14 +166,14 @@ builder.UseWolverine(opts =>
     }, AutoCreate.CreateOrUpdate);
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests/MultiTenancy/MultiTenancyDocumentationSamples.cs#L56-L90' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_static_tenant_registry_with_sqlserver' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests.MultiTenancy/MultiTenancyDocumentationSamples.cs#L56-L90' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_static_tenant_registry_with_sqlserver' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Then you can _still_ use those EF Core `DbContext` services with Wolverine messaging including the Wolverine outbox like 
 this sample code:
 
 <!-- snippet: sample_using_IDbContextOutboxFactory -->
-<a id='snippet-sample_using_idbcontextoutboxfactory'></a>
+<a id='snippet-sample_using_IDbContextOutboxFactory'></a>
 ```cs
 public class MyMessageHandler
 {
@@ -203,7 +203,7 @@ public class MyMessageHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests/MultiTenancy/MultiTenancyDocumentationSamples.cs#L190-L220' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_idbcontextoutboxfactory' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests.MultiTenancy/MultiTenancyDocumentationSamples.cs#L190-L220' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_IDbContextOutboxFactory' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The important thing to note above is just that this pattern and service will work with any .NET code and not just within Wolverine

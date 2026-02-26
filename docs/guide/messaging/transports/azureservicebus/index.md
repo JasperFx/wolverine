@@ -117,7 +117,7 @@ var host = await Host.CreateDefaultBuilder()
         opts.PublishAllMessages().ToAzureServiceBusQueue("send_and_receive");
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/end_to_end.cs#L87-L101' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disable_system_queues_in_azure_service_bus' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/end_to_end.cs#L85-L99' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disable_system_queues_in_azure_service_bus' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Connecting To Multiple Namespaces <Badge type="tip" text="5.0" />
@@ -143,7 +143,7 @@ builder.UseWolverine(opts =>
     opts.ListenToAzureServiceBusSubscriptionOnNamedBroker(new BrokerName("two"), "subscription1");
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/end_to_end_with_named_broker.cs#L21-L39' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_named_azure_service_bus_broker' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/end_to_end_with_named_broker.cs#L26-L44' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_named_azure_service_bus_broker' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
