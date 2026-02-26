@@ -44,7 +44,7 @@ public class basic_functionality : SqliteContext, IAsyncLifetime
                 opts.UseSqlitePersistenceAndTransport(_connectionString);
                 opts.Durability.ScheduledJobFirstExecution = 5.Minutes();
                 opts.Durability.ScheduledJobPollingTime = 5.Minutes();
-                opts.ListenToSqliteQueue("one");
+                opts.PublishAllMessages().ToSqliteQueue("one");
             }).StartAsync();
 
         theTransport = theHost.GetRuntime().Options.Transports.GetOrCreate<SqliteTransport>();
@@ -172,6 +172,8 @@ public class basic_functionality : SqliteContext, IAsyncLifetime
 
         (await theQueue.CountAsync()).ShouldBe(3);
 
+        await theHost.StopAsync();
+
         var durableReceiver = new DurableReceiver(theQueue, theRuntime, Substitute.For<IHandlerPipeline>());
         await using var theListener = new SqliteQueueListener(theQueue, theRuntime, durableReceiver, theQueue.DataSource, null);
 
@@ -203,6 +205,8 @@ public class basic_functionality : SqliteContext, IAsyncLifetime
 
         (await theQueue.ScheduledCountAsync()).ShouldBe(30);
         (await theQueue.CountAsync()).ShouldBe(0);
+
+        await theHost.StopAsync();
 
         var durableReceiver = new DurableReceiver(theQueue, theRuntime, Substitute.For<IHandlerPipeline>());
         await using var theListener = new SqliteQueueListener(theQueue, theRuntime, durableReceiver, theQueue.DataSource, null);

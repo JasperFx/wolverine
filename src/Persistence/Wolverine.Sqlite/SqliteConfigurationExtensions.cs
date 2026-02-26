@@ -20,6 +20,8 @@ public static class SqliteConfigurationExtensions
     public static ISqliteBackedPersistence PersistMessagesWithSqlite(this WolverineOptions options, string connectionString,
         string? schemaName = null, MessageStoreRole role = MessageStoreRole.Main)
     {
+        SqliteConnectionStringPolicy.AssertFileBased(connectionString, nameof(connectionString));
+
         var persistence = new SqliteBackedPersistence(options.Durability, options)
         {
             ConnectionString = connectionString,
@@ -47,6 +49,8 @@ public static class SqliteConfigurationExtensions
     public static ISqliteBackedPersistence PersistMessagesWithSqlite(this WolverineOptions options, DbDataSource dataSource,
         string? schemaName = null, MessageStoreRole role = MessageStoreRole.Main)
     {
+        SqliteConnectionStringPolicy.AssertFileBased(dataSource, nameof(dataSource));
+
         var persistence = new SqliteBackedPersistence(options.Durability, options)
         {
             DataSource = dataSource,

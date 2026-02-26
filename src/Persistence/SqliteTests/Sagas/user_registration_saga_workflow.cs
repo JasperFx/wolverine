@@ -10,7 +10,7 @@ using Wolverine.Tracking;
 
 namespace SqliteTests.Sagas;
 
-public class file_based_user_registration_saga_workflow
+public class user_registration_saga_workflow
 {
     [Fact]
     public async Task starts_registration_and_sends_verification_email()
