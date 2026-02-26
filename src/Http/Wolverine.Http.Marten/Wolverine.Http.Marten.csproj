@@ -13,7 +13,7 @@
     <ItemGroup>
         <ProjectReference Include="..\..\Persistence\Wolverine.Marten\Wolverine.Marten.csproj" />
         <ProjectReference Include="..\Wolverine.Http\Wolverine.Http.csproj" />
-        <ProjectReference Include="../../../../marten/src/Marten.AspNetCore/Marten.AspNetCore.csproj" />
+        <PackageReference Include="Marten.AspNetCore" />
     </ItemGroup>
 
 </Project>
