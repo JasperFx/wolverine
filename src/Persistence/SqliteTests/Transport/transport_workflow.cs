@@ -9,7 +9,7 @@ using Wolverine.Sqlite;
 namespace SqliteTests.Transport;
 
 [Collection("sqlite")]
-public class file_based_sqlite_transport_workflow
+public class transport_workflow
 {
     [Fact]
     public async Task delivers_message_to_sqlite_queue()

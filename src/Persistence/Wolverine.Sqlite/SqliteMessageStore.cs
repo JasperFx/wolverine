@@ -371,7 +371,7 @@ internal class SqliteMessageStore : MessageDatabase<SqliteConnection>
         {
             Engine = "SQLite",
             ServerName = "local",
-            DatabaseName = builder.DataSource ?? ":memory:",
+            DatabaseName = builder.DataSource ?? "unspecified",
             Subject = GetType().FullNameInCode(),
             SubjectUri = SubjectUri,
             Identifier = Identifier

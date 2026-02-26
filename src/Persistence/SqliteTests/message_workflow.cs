@@ -10,7 +10,7 @@ using Wolverine.Sqlite;
 namespace SqliteTests;
 
 [Collection("sqlite")]
-public class file_based_sqlite_message_workflow
+public class message_workflow
 {
     [Fact]
     public async Task processes_message_through_durable_local_queue()
