@@ -8,6 +8,7 @@ using Weasel.Core;
 using Weasel.Core.Migrations;
 using Wolverine.Persistence;
 using Wolverine.Persistence.Durability;
+using Wolverine.Persistence.Durability.ScheduledMessageManagement;
 using Wolverine.Persistence.Sagas;
 using Wolverine.RDBMS.Polling;
 using Wolverine.RDBMS.Sagas;
@@ -20,7 +21,7 @@ using DbCommandBuilder = Weasel.Core.DbCommandBuilder;
 namespace Wolverine.RDBMS;
 
 public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
-    IMessageDatabase, IMessageInbox, IMessageOutbox, IMessageStoreAdmin, IDeadLetters, ISagaSupport where T : DbConnection, new()
+    IMessageDatabase, IMessageInbox, IMessageOutbox, IMessageStoreAdmin, IDeadLetters, IScheduledMessages, ISagaSupport where T : DbConnection, new()
 {
     // ReSharper disable once InconsistentNaming
     protected readonly CancellationToken _cancellation;

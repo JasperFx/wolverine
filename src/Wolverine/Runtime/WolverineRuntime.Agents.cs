@@ -1,6 +1,5 @@
 using ImTools;
 using JasperFx.Core;
-using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Logging;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime.Agents;
@@ -277,29 +276,5 @@ public partial class WolverineRuntime : IAgentRuntime
         }
 
         return Task.FromResult(AgentCommands.Empty);
-    }
-}
-
-public static class AgentMessagingExtensions
-{
-    public static async Task<bool> InvokeOnAgentOrForwardAsync(this IMessageContext context, Uri agentUri,
-        Func<IWolverineRuntime, CancellationToken, Task> action, CancellationToken cancellationToken)
-    {
-        var messageContext = context.As<MessageContext>();
-        var runtime = messageContext.Runtime;
-
-        if (runtime.Agents.AllRunningAgentUris().Contains(agentUri))
-        {
-            await action(runtime, cancellationToken);
-            return true;
-        }
-
-        var all = await runtime.Storage.Nodes.LoadAllNodesAsync(cancellationToken);
-        var node = all.FirstOrDefault(x => x.ActiveAgents.Contains(agentUri));
-
-        if (node == null) return false;
-
-        await messageContext.EndpointFor(node!.ControlUri!).SendAsync(context.Envelope!.Message);
-        return true;
     }
 }

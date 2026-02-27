@@ -89,7 +89,7 @@ At runtime, when you publish an `IOrderCommand` within the system, Wolverine wil
 queues to send the message, and the easiest way to explain this is really just to show the internal code:
 
 <!-- snippet: sample_SlotForSending -->
-<a id='snippet-sample_slotforsending'></a>
+<a id='snippet-sample_SlotForSending'></a>
 ```cs
 /// <summary>
 /// Uses a combination of message grouping id rules and a deterministic hash
@@ -114,7 +114,7 @@ public static int SlotForSending(this Envelope envelope, int numberOfSlots, Mess
     return Math.Abs(groupId.GetDeterministicHashCode() % numberOfSlots);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/Partitioning/PartitionedMessagingExtensions.cs#L17-L42' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_slotforsending' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/Partitioning/PartitionedMessagingExtensions.cs#L17-L42' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_SlotForSending' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The code above manages publishing between the "orders1", "orders2", "orders3", and "orders4" queues. Inside of each of the 
@@ -177,7 +177,7 @@ The built in rules *at this point* include:
 Internally, Wolverine is using a list of implementations of this interface:
 
 <!-- snippet: sample_IGroupingRule -->
-<a id='snippet-sample_igroupingrule'></a>
+<a id='snippet-sample_IGroupingRule'></a>
 ```cs
 /// <summary>
 /// Strategy for determining the GroupId of a message
@@ -187,7 +187,7 @@ public interface IGroupingRule
     bool TryFindIdentity(Envelope envelope, out string groupId);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/Partitioning/IGroupingRule.cs#L3-L13' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_igroupingrule' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/Partitioning/IGroupingRule.cs#L3-L13' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_IGroupingRule' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Definitely note that these rules are fall through, and the order you declare the rules

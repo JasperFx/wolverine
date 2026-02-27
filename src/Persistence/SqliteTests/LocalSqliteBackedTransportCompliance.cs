@@ -8,10 +8,12 @@ namespace SqliteTests;
 public class LocalSqliteBackedFixture : TransportComplianceFixture, IAsyncLifetime
 {
     private readonly string _connectionString;
+    private readonly SqliteTestDatabase _database;
 
     public LocalSqliteBackedFixture() : base("local://one/durable".ToUri())
     {
-        _connectionString = Servers.CreateInMemoryConnectionString();
+        _database = Servers.CreateDatabase(nameof(LocalSqliteBackedFixture));
+        _connectionString = _database.ConnectionString;
     }
 
     public Task InitializeAsync()
@@ -26,6 +28,7 @@ public class LocalSqliteBackedFixture : TransportComplianceFixture, IAsyncLifeti
     public new async Task DisposeAsync()
     {
         await base.DisposeAsync();
+        _database.Dispose();
     }
 }
 

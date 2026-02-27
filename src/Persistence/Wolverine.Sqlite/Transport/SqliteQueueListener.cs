@@ -137,7 +137,7 @@ internal class SqliteQueueListener : IListener
                 INSERT INTO {_queueTableName} (id, body, message_type)
                 SELECT id, body, message_type
                 FROM {_scheduledTableName}
-                WHERE execution_time <= datetime('now')
+                WHERE julianday(execution_time) <= julianday('now')
                 AND id NOT IN (SELECT id FROM {_queueTableName})
             ";
 
@@ -148,7 +148,7 @@ internal class SqliteQueueListener : IListener
             deleteCommand.Transaction = tx;
             deleteCommand.CommandText = $@"
                 DELETE FROM {_scheduledTableName}
-                WHERE execution_time <= datetime('now')
+                WHERE julianday(execution_time) <= julianday('now')
             ";
 
             count = await deleteCommand.ExecuteNonQueryAsync(cancellationToken);
@@ -167,7 +167,7 @@ internal class SqliteQueueListener : IListener
     {
         await using var conn = await _dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
 
-        await conn.CreateCommand($"delete from {_queueTableName} where keep_until is not null and keep_until < datetime('now')")
+        await conn.CreateCommand($"delete from {_queueTableName} where keep_until is not null and julianday(keep_until) < julianday('now')")
             .ExecuteNonQueryAsync(cancellationToken);
     }
 
@@ -219,10 +219,10 @@ internal class SqliteQueueListener : IListener
                     if (envelopes.Any())
                     {
                         // Delete the messages we retrieved
-                        var ids = string.Join(",", envelopes.Select(e => $"'{e.Id.ToString().ToUpperInvariant()}'"));
+                        var ids = string.Join(",", envelopes.Select(e => $"'{e.Id:D}'"));
                         var deleteCmd = conn.CreateCommand();
                         deleteCmd.Transaction = tx;
-                        deleteCmd.CommandText = $"DELETE FROM {_queueTableName} WHERE {DatabaseConstants.Id} IN ({ids})";
+                        deleteCmd.CommandText = $"DELETE FROM {_queueTableName} WHERE lower({DatabaseConstants.Id}) IN ({ids})";
                         await deleteCmd.ExecuteNonQueryAsync(_cancellation.Token);
 
                         await tx.CommitAsync(_cancellation.Token);
@@ -230,7 +230,6 @@ internal class SqliteQueueListener : IListener
                         foreach (var envelope in envelopes)
                         {
                             envelope.Destination = Address;
-                            envelope.ReplyUri = Address;
 
                             await _receiver.ReceivedAsync(this, envelope);
                         }
@@ -238,6 +237,11 @@ internal class SqliteQueueListener : IListener
                     else
                     {
                         await tx.RollbackAsync(_cancellation.Token);
+
+                        // Opportunistically promote due scheduled messages when the ready queue is empty.
+                        // This keeps delayed delivery responsive even if the background scheduler is delayed.
+                        await MoveScheduledToReadyQueueAsync(_cancellation.Token);
+
                         await Task.Delay(250.Milliseconds(), _cancellation.Token);
                     }
                 }

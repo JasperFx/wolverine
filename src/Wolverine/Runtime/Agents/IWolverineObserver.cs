@@ -25,6 +25,7 @@ public interface IWolverineObserver
 
     Task BackPressureTriggered(Endpoint endpoint, IListeningAgent agent);
     Task BackPressureLifted(Endpoint endpoint);
+    Task ListenerLatched(Endpoint endpoint);
     void PersistedCounts(Uri storeUri, PersistedCounts counts);
     void MessageHandlingMetricsExported(MessageHandlingMetrics metrics);
 }
@@ -46,6 +47,19 @@ internal class PersistenceWolverineObserver : IWolverineObserver
     public Task BackPressureLifted(Endpoint endpoint)
     {
         return Task.CompletedTask;
+    }
+
+    public async Task ListenerLatched(Endpoint endpoint)
+    {
+        try
+        {
+            await _runtime.Storage.Nodes.LogRecordsAsync(NodeRecord.For(_runtime.Options,
+                NodeRecordType.ListenerLatched, endpoint.Uri));
+        }
+        catch (NotSupportedException)
+        {
+            // NullMessageStore does not support node persistence
+        }
     }
 
     public void PersistedCounts(Uri storeUri, PersistedCounts counts)

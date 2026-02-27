@@ -49,21 +49,62 @@ public class DatabaseSagaSchema<T, TId> : IDatabaseSagaSchema<TId, T> where T : 
 
     public bool HasChecked { get; private set; }
 
-    private async Task ensureStorageExistsAsync(CancellationToken cancellationToken)
+    private async Task ensureStorageExistsAsync(DbTransaction? tx, CancellationToken cancellationToken)
     {
         if (HasChecked || _settings.AutoCreate == AutoCreate.None) return;
 
-        var dataSource = _settings.DataSource ?? throw new InvalidOperationException("DataSource is required");
-        await using var conn = (SqliteConnection)await dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
-
-        var migration = await SchemaMigration.DetermineAsync(conn, cancellationToken, Table);
-
-        if (migration.Difference != SchemaPatchDifference.None)
+        if (tx?.Connection is SqliteConnection)
         {
-            await new SqliteMigrator().ApplyAllAsync(conn, migration, _settings.AutoCreate, ct: cancellationToken);
+            var table = (Table)Table;
+            var tableExists = await tx.CreateCommand("select count(*) from sqlite_master where type = 'table' and name = @name")
+                .With("name", table.Identifier.Name)
+                .ExecuteScalarAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            if (Convert.ToInt32(tableExists) == 0)
+            {
+                var createSql = table.ToBasicCreateTableSql();
+
+                await tx.CreateCommand(createSql)
+                    .ExecuteNonQueryAsync(cancellationToken)
+                    .ConfigureAwait(false);
+            }
+
+            HasChecked = true;
+            return;
         }
 
-        HasChecked = true;
+        SqliteConnection? ownedConnection = null;
+
+        try
+        {
+            var dataSource = _settings.DataSource;
+            if (dataSource == null)
+            {
+                var connectionString = _settings.ConnectionString
+                                       ?? throw new InvalidOperationException("Either DataSource or ConnectionString is required");
+
+                dataSource = _settings.DataSource = new WolverineSqliteDataSource(connectionString);
+            }
+
+            ownedConnection = (SqliteConnection)await dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+            var conn = ownedConnection;
+            var migration = await SchemaMigration.DetermineAsync(conn, cancellationToken, Table);
+
+            if (migration.Difference != SchemaPatchDifference.None)
+            {
+                await new SqliteMigrator().ApplyAllAsync(conn, migration, _settings.AutoCreate, ct: cancellationToken);
+            }
+
+            HasChecked = true;
+        }
+        finally
+        {
+            if (ownedConnection != null)
+            {
+                await ownedConnection.DisposeAsync().ConfigureAwait(false);
+            }
+        }
     }
 
     public Func<T, TId> IdSource { get; }
@@ -71,7 +112,7 @@ public class DatabaseSagaSchema<T, TId> : IDatabaseSagaSchema<TId, T> where T : 
 
     public async Task InsertAsync(T document, DbTransaction tx, CancellationToken cancellationToken)
     {
-        await ensureStorageExistsAsync(cancellationToken);
+        await ensureStorageExistsAsync(tx, cancellationToken);
 
         var json = JsonSerializer.Serialize(document);
         var id = IdSource(document);
@@ -91,7 +132,7 @@ public class DatabaseSagaSchema<T, TId> : IDatabaseSagaSchema<TId, T> where T : 
 
     public async Task<T?> LoadAsync(TId id, DbTransaction tx, CancellationToken cancellationToken)
     {
-        await ensureStorageExistsAsync(cancellationToken);
+        await ensureStorageExistsAsync(tx, cancellationToken);
 
         var cmd = tx.CreateCommand(_loadSql)
             .With("id", id?.ToString() ?? throw new InvalidOperationException("Saga id cannot be null"));
@@ -116,7 +157,7 @@ public class DatabaseSagaSchema<T, TId> : IDatabaseSagaSchema<TId, T> where T : 
 
     public async Task UpdateAsync(T document, DbTransaction tx, CancellationToken cancellationToken)
     {
-        await ensureStorageExistsAsync(cancellationToken);
+        await ensureStorageExistsAsync(tx, cancellationToken);
 
         var json = JsonSerializer.Serialize(document);
         var id = IdSource(document);
@@ -138,7 +179,7 @@ public class DatabaseSagaSchema<T, TId> : IDatabaseSagaSchema<TId, T> where T : 
 
     public async Task DeleteAsync(T document, DbTransaction tx, CancellationToken cancellationToken)
     {
-        await ensureStorageExistsAsync(cancellationToken);
+        await ensureStorageExistsAsync(tx, cancellationToken);
 
         var id = IdSource(document);
 

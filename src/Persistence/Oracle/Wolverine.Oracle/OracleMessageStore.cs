@@ -16,6 +16,7 @@ using Wolverine.Oracle.Sagas;
 using Wolverine.Oracle.Schema;
 using Wolverine.Persistence;
 using Wolverine.Persistence.Durability;
+using Wolverine.Persistence.Durability.ScheduledMessageManagement;
 using Wolverine.Persistence.Sagas;
 using Wolverine.RDBMS;
 using Wolverine.RDBMS.MultiTenancy;
@@ -32,7 +33,7 @@ using Table = Weasel.Oracle.Tables.Table;
 
 namespace Wolverine.Oracle;
 
-internal partial class OracleMessageStore : IMessageDatabase, IMessageInbox, IMessageOutbox, IMessageStoreAdmin, IDeadLetters, ISagaSupport
+internal partial class OracleMessageStore : IMessageDatabase, IMessageInbox, IMessageOutbox, IMessageStoreAdmin, IDeadLetters, IScheduledMessages, ISagaSupport
 {
     private readonly OracleDataSource _dataSource;
     private readonly DatabaseSettings _settings;

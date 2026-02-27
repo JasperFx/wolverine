@@ -200,6 +200,8 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
 
     public bool SupportsNativeScheduledSend => true;
 
+    public DateTimeOffset LastMessageSentAt => DateTimeOffset.UtcNow;
+
     private async Task storeAndEnqueueAsync(Envelope envelope)
     {
         try

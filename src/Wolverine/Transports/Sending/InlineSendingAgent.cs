@@ -55,11 +55,14 @@ public class InlineSendingAgent : ISendingAgent, IDisposable
     public bool IsDurable => false;
     public bool SupportsNativeScheduledSend => Sender.SupportsNativeScheduledSend;
 
-    public ValueTask EnqueueOutgoingAsync(Envelope envelope)
+    public DateTimeOffset LastMessageSentAt { get; private set; } = DateTimeOffset.UtcNow;
+
+    public async ValueTask EnqueueOutgoingAsync(Envelope envelope)
     {
         setDefaults(envelope);
 
-        return new ValueTask(_sending.PostAsync(envelope));
+        await _sending.PostAsync(envelope);
+        LastMessageSentAt = DateTimeOffset.UtcNow;
     }
 
     public ValueTask StoreAndForwardAsync(Envelope envelope)

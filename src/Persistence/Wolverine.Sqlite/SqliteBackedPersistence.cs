@@ -1,6 +1,7 @@
 using System.Data.Common;
 using JasperFx;
 using JasperFx.Core;
+using JasperFx.MultiTenancy;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Weasel.Core.Migrations;
@@ -73,6 +74,29 @@ public interface ISqliteBackedPersistence
     /// <param name="enabled"></param>
     /// <returns></returns>
     ISqliteBackedPersistence EnableCommandQueues(bool enabled);
+
+    /// <summary>
+    /// Opt into using static per-tenant database multi-tenancy with separate SQLite files.
+    /// </summary>
+    /// <param name="configure"></param>
+    /// <returns></returns>
+    ISqliteBackedPersistence RegisterStaticTenants(Action<StaticConnectionStringSource> configure);
+
+    /// <summary>
+    /// Opt into multi-tenancy with separate SQLite files using your own strategy for finding
+    /// the right connection string for a given tenant id.
+    /// </summary>
+    /// <param name="tenantSource"></param>
+    /// <returns></returns>
+    ISqliteBackedPersistence RegisterTenants(ITenantedSource<string> tenantSource);
+
+    /// <summary>
+    /// Opt into multi-tenancy with separate SQLite files using a master table lookup of tenant id
+    /// to connection string controlled by Wolverine.
+    /// </summary>
+    /// <param name="configure">Register default tenant connection strings to seed the table.</param>
+    /// <returns></returns>
+    ISqliteBackedPersistence UseMasterTableTenancy(Action<StaticConnectionStringSource> configure);
 }
 
 /// <summary>
@@ -153,6 +177,26 @@ internal class SqliteBackedPersistence : ISqliteBackedPersistence, IWolverineExt
         var mainSource = DataSource ?? new WolverineSqliteDataSource(ConnectionString!);
         var logger = runtime.LoggerFactory.CreateLogger<SqliteMessageStore>();
 
+        if (UseMasterTableTenancy)
+        {
+            var defaultStore = new SqliteMessageStore(settings, runtime.DurabilitySettings, mainSource,
+                logger, sagaTables);
+
+            ConnectionStringTenancy = new MasterTenantSource(defaultStore, runtime.Options);
+
+            return new MultiTenantedMessageStore(defaultStore, runtime,
+                new SqliteTenantedMessageStore(runtime, this, sagaTables));
+        }
+
+        if (ConnectionStringTenancy != null)
+        {
+            var defaultStore = new SqliteMessageStore(settings, runtime.DurabilitySettings, mainSource,
+                logger, sagaTables);
+
+            return new MultiTenantedMessageStore(defaultStore, runtime,
+                new SqliteTenantedMessageStore(runtime, this, sagaTables));
+        }
+
         settings.Role = Role;
 
         return new SqliteMessageStore(settings, runtime.DurabilitySettings, mainSource,
@@ -170,7 +214,9 @@ internal class SqliteBackedPersistence : ISqliteBackedPersistence, IWolverineExt
             ConnectionString = ConnectionString,
             DataSource = DataSource,
             ScheduledJobLockId = ScheduledJobLockId,
-            SchemaName = EnvelopeStorageSchemaName
+            SchemaName = EnvelopeStorageSchemaName,
+            AddTenantLookupTable = UseMasterTableTenancy,
+            TenantConnections = TenantConnections
         };
         return settings;
     }
@@ -230,5 +276,57 @@ internal class SqliteBackedPersistence : ISqliteBackedPersistence, IWolverineExt
     {
         CommandQueuesEnabled = enabled;
         return this;
+    }
+
+    public ITenantedSource<string>? ConnectionStringTenancy { get; set; }
+
+    public bool UseMasterTableTenancy { get; set; }
+
+    public StaticConnectionStringSource? TenantConnections { get; set; }
+
+    ISqliteBackedPersistence ISqliteBackedPersistence.RegisterStaticTenants(Action<StaticConnectionStringSource> configure)
+    {
+        var source = new StaticConnectionStringSource();
+        configure(source);
+
+        validateTenantConnectionStrings(source);
+
+        ConnectionStringTenancy = source;
+
+        return this;
+    }
+
+    ISqliteBackedPersistence ISqliteBackedPersistence.RegisterTenants(ITenantedSource<string> tenantSource)
+    {
+        validateTenantConnectionStrings(tenantSource);
+
+        ConnectionStringTenancy = tenantSource;
+        return this;
+    }
+
+    ISqliteBackedPersistence ISqliteBackedPersistence.UseMasterTableTenancy(
+        Action<StaticConnectionStringSource> configure)
+    {
+        UseMasterTableTenancy = true;
+        var source = new StaticConnectionStringSource();
+        configure(source);
+
+        validateTenantConnectionStrings(source);
+
+        TenantConnections = source;
+        return this;
+    }
+
+    private static void validateTenantConnectionStrings(ITenantedSource<string> tenantSource)
+    {
+        foreach (var assignment in tenantSource.AllActiveByTenant())
+        {
+            SqliteConnectionStringPolicy.AssertFileBased(assignment.Value, $"tenant '{assignment.TenantId}'");
+        }
+
+        foreach (var connectionString in tenantSource.AllActive())
+        {
+            SqliteConnectionStringPolicy.AssertFileBased(connectionString, "tenant connection string");
+        }
     }
 }

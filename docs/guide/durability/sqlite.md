@@ -51,24 +51,23 @@ return await app.RunJasperFxCommands(args);
 
 ### Connection String Examples
 
-SQLite supports both file-based and in-memory databases:
+Use file-based SQLite databases for Wolverine durability:
 
 <!-- snippet: sample_sqlite_connection_string_examples -->
 <a id='snippet-sample_sqlite_connection_string_examples'></a>
 ```cs
-// File-based database (recommended for production)
+// File-based database (recommended)
 opts.PersistMessagesWithSqlite("Data Source=wolverine.db");
 
-// Shared in-memory database (useful for testing)
-opts.PersistMessagesWithSqlite("Data Source=wolverine;Mode=Memory;Cache=Shared");
+// File-based database in an application data folder
+opts.PersistMessagesWithSqlite("Data Source=./data/wolverine.db");
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqliteTests/DocumentationSamples.cs#L49-L57' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sqlite_connection_string_examples' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: warning
-When using in-memory databases with `Mode=Memory;Cache=Shared`, the database is destroyed when the last connection
-closes. Wolverine internally manages a keep-alive connection to prevent premature destruction, but this mode is
-best suited for testing scenarios rather than production deployments.
+In-memory SQLite connection strings are intentionally not supported for Wolverine durability.
+Use file-backed SQLite databases instead.
 :::
 
 ## SQLite Messaging Transport
@@ -84,16 +83,7 @@ var builder = Host.CreateApplicationBuilder();
 builder.UseWolverine(opts =>
 {
     var connectionString = builder.Configuration.GetConnectionString("sqlite");
-    opts.UseSqlitePersistenceAndTransport(
-            connectionString,
-
-            // This argument is the database schema name for the envelope storage.
-            // In SQLite, the default is 'main' which refers to the primary database.
-            "main",
-
-            // This schema name is for the actual SQLite queue tables.
-            // Default is 'wolverine_queues'
-            transportSchema:"wolverine_queues")
+    opts.UseSqlitePersistenceAndTransport(connectionString)
 
         // Tell Wolverine to build out all necessary queue or scheduled message
         // tables on demand as needed
@@ -117,7 +107,7 @@ builder.UseWolverine(opts =>
 using var host = builder.Build();
 await host.StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqliteTests/DocumentationSamples.cs#L63-L102' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_sqlite_transport' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqliteTests/DocumentationSamples.cs#L63-L93' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_sqlite_transport' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The SQLite transport is strictly queue-based at this point. The queues are configured as durable by default, meaning
@@ -128,7 +118,7 @@ that they are utilizing the transactional inbox and outbox. The SQLite queues ca
 ```cs
 opts.ListenToSqliteQueue("sender").BufferedInMemory();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqliteTests/DocumentationSamples.cs#L113-L117' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setting_sqlite_queue_to_buffered' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqliteTests/DocumentationSamples.cs#L186-L190' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setting_sqlite_queue_to_buffered' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Using this option just means that the SQLite queues can be used for both sending or receiving with no integration
@@ -139,6 +129,8 @@ lost if held in memory when the application shuts down unexpectedly.
 Wolverine has a number of internal polling operations, and any SQLite queues will be polled on a configured interval.
 The default polling interval is set in the `DurabilitySettings` class and can be configured at runtime as below:
 
+<!-- snippet: sample_sqlite_polling_configuration -->
+<a id='snippet-sample_sqlite_polling_configuration'></a>
 ```cs
 var builder = Host.CreateApplicationBuilder();
 builder.UseWolverine(opts =>
@@ -146,13 +138,15 @@ builder.UseWolverine(opts =>
     // Health check message queue/dequeue
     opts.Durability.HealthCheckPollingTime = TimeSpan.FromSeconds(10);
 
-    // Node reassigment checks
+    // Node reassignment checks
     opts.Durability.NodeReassignmentPollingTime = TimeSpan.FromSeconds(5);
 
     // User queue poll frequency
     opts.Durability.ScheduledJobPollingTime = TimeSpan.FromSeconds(5);
-}
+});
 ```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqliteTests/DocumentationSamples.cs#L160-L175' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sqlite_polling_configuration' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 ::: info Control queue
 Wolverine has an internal control queue (`dbcontrol`) used for internal operations.
@@ -189,16 +183,66 @@ The SQLite persistence uses the following data type mappings:
 ### Schema Names
 
 SQLite only supports the `main` schema name at this time. Unlike PostgreSQL or SQL Server, SQLite does not have
-a traditional schema system, so custom schema names are not currently supported. The `schemaName` parameter on
-`PersistMessagesWithSqlite()` and `UseSqlitePersistenceAndTransport()` is provided for forward compatibility —
-a future release will support non-"main" schemas via SQLite's
-[ATTACH DATABASE](https://www.sqlite.org/lang_attach.html) mechanism.
+a traditional schema system for Wolverine queue and envelope tables.
+
+`UseSqlitePersistenceAndTransport()` is intentionally connection-string only:
+
+<!-- snippet: sample_sqlite_connection_string_only_transport -->
+<a id='snippet-sample_sqlite_connection_string_only_transport'></a>
+```cs
+opts.UseSqlitePersistenceAndTransport("Data Source=wolverine.db");
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqliteTests/DocumentationSamples.cs#L101-L105' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sqlite_connection_string_only_transport' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 ### Multi-Tenancy
 
-Multi-tenancy through separate databases per tenant is not yet supported for the SQLite persistence. This feature
-is planned for an upcoming release. For multi-tenant scenarios today, consider using the
-[PostgreSQL integration](/guide/durability/postgresql#multi-tenancy) instead.
+SQLite multi-tenancy is supported by mapping tenant ids to separate SQLite files (connection strings).
+You can do this with static configuration:
+
+<!-- snippet: sample_sqlite_static_tenancy -->
+<a id='snippet-sample_sqlite_static_tenancy'></a>
+```cs
+opts.PersistMessagesWithSqlite("Data Source=main.db")
+    .RegisterStaticTenants(tenants =>
+    {
+        tenants.Register("red", "Data Source=red.db");
+        tenants.Register("blue", "Data Source=blue.db");
+    })
+    .EnableMessageTransport(x => x.AutoProvision());
+
+opts.ListenToSqliteQueue("incoming").UseDurableInbox();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqliteTests/DocumentationSamples.cs#L114-L126' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sqlite_static_tenancy' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Or with Wolverine-managed master-table tenancy for dynamic tenant onboarding:
+
+<!-- snippet: sample_sqlite_master_table_tenancy -->
+<a id='snippet-sample_sqlite_master_table_tenancy'></a>
+```cs
+opts.PersistMessagesWithSqlite("Data Source=main.db")
+    .UseMasterTableTenancy(seed =>
+    {
+        seed.Register("red", "Data Source=red.db");
+        seed.Register("blue", "Data Source=blue.db");
+    })
+    .EnableMessageTransport(x => x.AutoProvision());
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqliteTests/DocumentationSamples.cs#L135-L145' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sqlite_master_table_tenancy' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+For tenant-specific sends, set `DeliveryOptions.TenantId`.
+
+<!-- snippet: sample_sqlite_tenant_specific_send -->
+<a id='snippet-sample_sqlite_tenant_specific_send'></a>
+```cs
+await host.SendAsync(new SampleTenantMessage("hello"), new DeliveryOptions { TenantId = "red" });
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqliteTests/DocumentationSamples.cs#L151-L155' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sqlite_tenant_specific_send' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+When transport is enabled, each tenant database gets its own durable queue tables and scheduled polling.
 
 ### Concurrency
 

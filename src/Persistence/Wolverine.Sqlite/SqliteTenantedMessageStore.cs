@@ -2,6 +2,7 @@ using System.Data.Common;
 using ImTools;
 using JasperFx;
 using JasperFx.Core;
+using JasperFx.Descriptors;
 using JasperFx.MultiTenancy;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
@@ -28,7 +29,7 @@ internal class SqliteTenantedMessageStore : ITenantedMessageSource
         _runtime = runtime;
     }
 
-    public JasperFx.Descriptors.DatabaseCardinality Cardinality => JasperFx.Descriptors.DatabaseCardinality.Single;
+    public DatabaseCardinality Cardinality => _persistence.ConnectionStringTenancy?.Cardinality ?? DatabaseCardinality.Single;
 
     public IReadOnlyList<IMessageStore> AllActive()
     {
@@ -42,12 +43,12 @@ internal class SqliteTenantedMessageStore : ITenantedMessageSource
 
     public Task RefreshAsync()
     {
-        return Task.CompletedTask;
+        return RefreshAsync(true);
     }
 
     public Task RefreshLiteAsync()
     {
-        return Task.CompletedTask;
+        return RefreshAsync(false);
     }
 
     public async ValueTask<IMessageStore> FindAsync(string tenantId)
@@ -57,8 +58,12 @@ internal class SqliteTenantedMessageStore : ITenantedMessageSource
             return store;
         }
 
-        // SQLite typically uses file-based databases, so we build from connection string
-        var connectionString = _persistence.ConnectionString ?? throw new InvalidOperationException("Connection string is required for tenanted SQLite stores");
+        if (_persistence.ConnectionStringTenancy == null)
+        {
+            throw new InvalidOperationException("No multi-tenancy configured for SQLite");
+        }
+
+        var connectionString = await _persistence.ConnectionStringTenancy.FindAsync(tenantId);
         store = buildTenantStoreForConnectionString(connectionString);
 
         store.TenantIds.Fill(tenantId);
@@ -72,9 +77,36 @@ internal class SqliteTenantedMessageStore : ITenantedMessageSource
         return store;
     }
 
+    private async Task RefreshAsync(bool withMigration)
+    {
+        if (_persistence.ConnectionStringTenancy == null)
+        {
+            return;
+        }
+
+        await _persistence.ConnectionStringTenancy.RefreshAsync();
+
+        foreach (var assignment in _persistence.ConnectionStringTenancy.AllActiveByTenant())
+        {
+            if (_stores.Contains(assignment.TenantId)) continue;
+
+            var store = buildTenantStoreForConnectionString(assignment.Value);
+            store.TenantIds.Fill(assignment.TenantId);
+
+            if (withMigration && _runtime.Options.AutoBuildMessageStorageOnStartup != AutoCreate.None)
+            {
+                await store.Admin.MigrateAsync();
+            }
+
+            _stores = _stores.AddOrUpdate(assignment.TenantId, store);
+        }
+    }
+
     private SqliteMessageStore buildTenantStoreForConnectionString(string connectionString)
     {
-        var dataSource = Microsoft.Data.Sqlite.SqliteFactory.Instance.CreateDataSource(connectionString);
+        SqliteConnectionStringPolicy.AssertFileBased(connectionString, "tenant connection string");
+
+        var dataSource = new WolverineSqliteDataSource(connectionString);
         var settings = new DatabaseSettings
         {
             CommandQueuesEnabled = false,

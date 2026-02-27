@@ -5,11 +5,11 @@ messaging transport for Wolverine messaging. Assuming you have that library atta
 this declaration to your `WebApplication` in your `Program.Main()` method:
 
 <!-- snippet: sample_MapWolverineHttpTransportEndpoints -->
-<a id='snippet-sample_mapwolverinehttptransportendpoints'></a>
+<a id='snippet-sample_MapWolverineHttpTransportEndpoints'></a>
 ```cs
 app.MapWolverineHttpTransportEndpoints();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L288-L292' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_mapwolverinehttptransportendpoints' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L292-L296' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_MapWolverineHttpTransportEndpoints' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The declaration above is actually using Minimal API rather than native Wolverine.HTTP endpoints, but that's perfectly fine 

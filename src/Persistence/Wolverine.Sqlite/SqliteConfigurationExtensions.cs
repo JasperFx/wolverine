@@ -20,6 +20,8 @@ public static class SqliteConfigurationExtensions
     public static ISqliteBackedPersistence PersistMessagesWithSqlite(this WolverineOptions options, string connectionString,
         string? schemaName = null, MessageStoreRole role = MessageStoreRole.Main)
     {
+        SqliteConnectionStringPolicy.AssertFileBased(connectionString, nameof(connectionString));
+
         var persistence = new SqliteBackedPersistence(options.Durability, options)
         {
             ConnectionString = connectionString,
@@ -47,6 +49,8 @@ public static class SqliteConfigurationExtensions
     public static ISqliteBackedPersistence PersistMessagesWithSqlite(this WolverineOptions options, DbDataSource dataSource,
         string? schemaName = null, MessageStoreRole role = MessageStoreRole.Main)
     {
+        SqliteConnectionStringPolicy.AssertFileBased(dataSource, nameof(dataSource));
+
         var persistence = new SqliteBackedPersistence(options.Durability, options)
         {
             DataSource = dataSource,
@@ -70,23 +74,13 @@ public static class SqliteConfigurationExtensions
     /// </summary>
     /// <param name="options"></param>
     /// <param name="connectionString"></param>
-    /// <param name="schema"></param>
-    /// <param name="transportSchema"></param>
     /// <returns></returns>
     public static SqlitePersistenceExpression UseSqlitePersistenceAndTransport(this WolverineOptions options,
-        string connectionString,
-        string? schema = null,
-        string? transportSchema = "wolverine_queues")
+        string connectionString)
     {
-        options.PersistMessagesWithSqlite(connectionString, schema);
+        options.PersistMessagesWithSqlite(connectionString);
 
         var transport = options.Transports.GetOrCreate<SqliteTransport>();
-        transport.MessageStorageSchemaName = schema ?? "main";
-
-        if (transportSchema.IsNotEmpty())
-        {
-            transport.TransportSchemaName = transportSchema;
-        }
 
         options.Transports.Add(transport);
 

@@ -9,20 +9,20 @@ using Wolverine.Sqlite;
 
 namespace SqliteTests.Agents;
 
-public class node_persistence : NodePersistenceCompliance
+public class node_persistence : NodePersistenceCompliance, IAsyncLifetime
 {
-    private readonly string _connectionString = Servers.CreateInMemoryConnectionString();
+    private readonly SqliteTestDatabase _database = Servers.CreateDatabase(nameof(node_persistence));
 
     protected override async Task<IMessageStore> buildCleanMessageStore()
     {
         var settings = new DatabaseSettings
         {
-            ConnectionString = _connectionString,
+            ConnectionString = _database.ConnectionString,
             SchemaName = "main",
             Role = MessageStoreRole.Main
         };
 
-        var dataSource = new SqliteDataSource(_connectionString);
+        var dataSource = new SqliteDataSource(_database.ConnectionString);
         var database = new SqliteMessageStore(settings, new DurabilitySettings(),
             dataSource,
             NullLogger<SqliteMessageStore>.Instance);
@@ -30,5 +30,11 @@ public class node_persistence : NodePersistenceCompliance
         await database.Admin.MigrateAsync();
 
         return database;
+    }
+
+    async Task IAsyncLifetime.DisposeAsync()
+    {
+        await base.DisposeAsync();
+        _database.Dispose();
     }
 }

@@ -84,6 +84,12 @@ public class XUnitObserver(ITestOutputHelper Output) : IWolverineObserver
         return Task.CompletedTask;
     }
 
+    public Task ListenerLatched(Endpoint endpoint)
+    {
+        Output.WriteLine($"Listener at {endpoint.Uri} has been permanently latched");
+        return Task.CompletedTask;
+    }
+
     public void PersistedCounts(Uri storeUri, PersistedCounts counts)
     {
         // Nothing here...

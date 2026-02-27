@@ -5,5 +5,6 @@ public enum ListeningStatus
     Accepting,
     TooBusy,
     Stopped,
-    Unknown
+    Unknown,
+    GloballyLatched
 }

@@ -62,6 +62,8 @@ internal class BufferedLocalQueue : BufferedReceiver, ISendingAgent, IListenerCi
 
     public bool SupportsNativeScheduledSend => true;
 
+    public DateTimeOffset LastMessageSentAt => DateTimeOffset.UtcNow;
+
     internal void EnqueueDirectly(Envelope envelope)
     {
         _messageTracker.Sent(envelope);

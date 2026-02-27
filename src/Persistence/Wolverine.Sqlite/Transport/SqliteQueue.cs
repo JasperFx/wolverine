@@ -73,6 +73,16 @@ public class SqliteQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint
             await SetupAsync(runtime.LoggerFactory.CreateLogger<SqliteQueue>());
         }
 
+        if (Parent.Databases != null)
+        {
+            var mtListener = new MultiTenantedQueueListener(
+                runtime.LoggerFactory.CreateLogger<MultiTenantedQueueListener>(), this, Parent.Databases, runtime,
+                receiver);
+
+            await mtListener.StartAsync();
+            return mtListener;
+        }
+
         var listener = new SqliteQueueListener(this, runtime, receiver, DataSource, null);
         await listener.StartAsync();
         return listener;
@@ -80,7 +90,16 @@ public class SqliteQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint
 
     private void buildSenderIfMissing()
     {
-        _sender = new SqliteQueueSender(this, DataSource, null);
+        if (_sender != null) return;
+
+        if (Parent.Databases != null)
+        {
+            _sender = new MultiTenantedQueueSender(this, Parent.Databases);
+        }
+        else
+        {
+            _sender = new SqliteQueueSender(this, DataSource, null);
+        }
     }
 
     protected override ISender CreateSender(IWolverineRuntime runtime)
@@ -119,7 +138,16 @@ public class SqliteQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint
 
     private async ValueTask forEveryDatabase(Func<DbDataSource, string, Task> action)
     {
-        if (Parent?.Store?.DataSource != null)
+        if (Parent.Databases != null)
+        {
+            await Parent.Databases.Source.RefreshLiteAsync();
+
+            foreach (var database in Parent.Databases.ActiveDatabases().OfType<SqliteMessageStore>())
+            {
+                await action(database.DataSource, database.Identifier);
+            }
+        }
+        else if (Parent?.Store?.DataSource != null)
         {
             await action(Parent.Store.DataSource, Parent.Store.Identifier);
         }

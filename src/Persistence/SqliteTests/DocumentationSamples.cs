@@ -48,11 +48,11 @@ public class DocumentationSamples
             {
                 #region sample_sqlite_connection_string_examples
 
-                // File-based database (recommended for production)
+                // File-based database (recommended)
                 opts.PersistMessagesWithSqlite("Data Source=wolverine.db");
 
-                // Shared in-memory database (useful for testing)
-                opts.PersistMessagesWithSqlite("Data Source=wolverine;Mode=Memory;Cache=Shared");
+                // File-based database in an application data folder
+                opts.PersistMessagesWithSqlite("Data Source=./data/wolverine.db");
 
                 #endregion
             }).Build();
@@ -66,16 +66,7 @@ public class DocumentationSamples
         builder.UseWolverine(opts =>
         {
             var connectionString = builder.Configuration.GetConnectionString("sqlite");
-            opts.UseSqlitePersistenceAndTransport(
-                    connectionString,
-
-                    // This argument is the database schema name for the envelope storage.
-                    // In SQLite, the default is 'main' which refers to the primary database.
-                    "main",
-
-                    // This schema name is for the actual SQLite queue tables.
-                    // Default is 'wolverine_queues'
-                    transportSchema:"wolverine_queues")
+            opts.UseSqlitePersistenceAndTransport(connectionString)
 
                 // Tell Wolverine to build out all necessary queue or scheduled message
                 // tables on demand as needed
@@ -102,12 +93,94 @@ public class DocumentationSamples
         #endregion
     }
 
+    public static void SqliteTransportConnectionStringOnly()
+    {
+        using var host = Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                #region sample_sqlite_connection_string_only_transport
+
+                opts.UseSqlitePersistenceAndTransport("Data Source=wolverine.db");
+
+                #endregion
+            }).Build();
+    }
+
+    public static void SqliteStaticTenantConfiguration()
+    {
+        using var host = Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                #region sample_sqlite_static_tenancy
+
+                opts.PersistMessagesWithSqlite("Data Source=main.db")
+                    .RegisterStaticTenants(tenants =>
+                    {
+                        tenants.Register("red", "Data Source=red.db");
+                        tenants.Register("blue", "Data Source=blue.db");
+                    })
+                    .EnableMessageTransport(x => x.AutoProvision());
+
+                opts.ListenToSqliteQueue("incoming").UseDurableInbox();
+
+                #endregion
+            }).Build();
+    }
+
+    public static void SqliteMasterTableTenancy()
+    {
+        using var host = Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                #region sample_sqlite_master_table_tenancy
+
+                opts.PersistMessagesWithSqlite("Data Source=main.db")
+                    .UseMasterTableTenancy(seed =>
+                    {
+                        seed.Register("red", "Data Source=red.db");
+                        seed.Register("blue", "Data Source=blue.db");
+                    })
+                    .EnableMessageTransport(x => x.AutoProvision());
+
+                #endregion
+            }).Build();
+    }
+
+    public static async Task SqliteTenantSpecificSend(IHost host)
+    {
+        #region sample_sqlite_tenant_specific_send
+
+        await host.SendAsync(new SampleTenantMessage("hello"), new DeliveryOptions { TenantId = "red" });
+
+        #endregion
+    }
+
+    public static void ConfigureSqlitePollingSettings()
+    {
+        #region sample_sqlite_polling_configuration
+
+        var builder = Host.CreateApplicationBuilder();
+        builder.UseWolverine(opts =>
+        {
+            // Health check message queue/dequeue
+            opts.Durability.HealthCheckPollingTime = TimeSpan.FromSeconds(10);
+
+            // Node reassignment checks
+            opts.Durability.NodeReassignmentPollingTime = TimeSpan.FromSeconds(5);
+
+            // User queue poll frequency
+            opts.Durability.ScheduledJobPollingTime = TimeSpan.FromSeconds(5);
+        });
+
+        #endregion
+    }
+
     public static void SetSqliteQueueToBuffered()
     {
         using var host = Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.UseSqlitePersistenceAndTransport("Data Source=wolverine;Mode=Memory;Cache=Shared")
+                opts.UseSqlitePersistenceAndTransport("Data Source=wolverine-buffered.db")
                     .AutoProvision().AutoPurgeOnStartup().DisableInboxAndOutboxOnAll();
 
                 #region sample_setting_sqlite_queue_to_buffered
@@ -118,3 +191,5 @@ public class DocumentationSamples
             }).Build();
     }
 }
+
+public record SampleTenantMessage(string Name);
