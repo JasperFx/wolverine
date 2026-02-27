@@ -161,6 +161,53 @@ public class remote_invocation : IAsyncLifetime
     }
 
     [Fact]
+    public async Task happy_path_with_explicit_endpoint_name_with_response_and_delivery_options()
+    {
+        Response1 response = null!;
+
+        Func<IMessageContext, Task<Response1>> fetch = async c =>
+            response = await c.EndpointFor("Receiver2")
+                .InvokeAsync<Response1>(new Request1 { Name = "Croaker" },
+                    new DeliveryOptions(){ TenantId = "TheTenant" });
+
+        var session = await _sender.TrackActivity()
+            .AlsoTrack(_receiver1, _receiver2)
+            .Timeout(5.Seconds())
+            .ExecuteAndWaitAsync(fetch);
+
+        var send = session.FindEnvelopesWithMessageType<Request1>()
+            .Single(x => x.MessageEventType == MessageEventType.Sent);
+
+        send.Envelope.DeliverBy.ShouldNotBeNull();
+
+        var envelope = session.Received.SingleEnvelope<Response1>();
+        envelope.Source.ShouldBe("Receiver2");
+        envelope.Message.ShouldBe(response);
+        envelope.TenantId.ShouldBe("TheTenant");
+        response.Name.ShouldBe("Croaker");
+    }
+
+    [Fact]
+    public async Task happy_path_with_explicit_endpoint_name_and_delivery_options()
+    {
+        var (session, ack) = await _sender.TrackActivity()
+            .AlsoTrack(_receiver1, _receiver2)
+            .Timeout(5.Seconds())
+            .SendMessageAndWaitForAcknowledgementAsync(c =>
+                c.EndpointFor("Receiver2").InvokeAsync(new Request2 { Name = "Croaker" },
+                    new DeliveryOptions() { TenantId = "TheTenant" }));
+
+        var send = session.FindEnvelopesWithMessageType<Request2>()
+            .Single(x => x.MessageEventType == MessageEventType.Sent);
+
+        send.Envelope.DeliverBy.ShouldNotBeNull();
+
+        var envelope = session.Received.SingleEnvelope<Acknowledgement>();
+        envelope.Source.ShouldBe("Receiver2");
+        envelope.TenantId.ShouldBe("TheTenant");
+    }
+
+    [Fact]
     public async Task happy_path_with_explicit_uri_destination()
     {
         var destination = new Uri("tcp://localhost:" + _receiver2Port);

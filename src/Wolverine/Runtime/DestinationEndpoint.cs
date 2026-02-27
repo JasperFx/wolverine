@@ -112,6 +112,18 @@ internal class DestinationEndpoint : IDestinationEndpoint
         return route.InvokeAsync<Acknowledgement>(message, _parent, cancellation, timeout);
     }
 
+    public Task<Acknowledgement> InvokeAsync(object message, DeliveryOptions options, CancellationToken cancellation = default,
+        TimeSpan? timeout = null)
+    {
+        if (message == null)
+        {
+            throw new ArgumentNullException(nameof(message));
+        }
+
+        var route = _endpoint.RouteFor(message.GetType(), _parent.Runtime);
+        return route.InvokeAsync<Acknowledgement>(message, _parent, cancellation, timeout, options);
+    }
+
     public Task<T> InvokeAsync<T>(object message, CancellationToken cancellation = default, TimeSpan? timeout = null)
         where T : class
     {
@@ -124,5 +136,19 @@ internal class DestinationEndpoint : IDestinationEndpoint
 
         var route = _endpoint.RouteFor(message.GetType(), _parent.Runtime);
         return route.InvokeAsync<T>(message, _parent, cancellation, timeout);
+    }
+
+    public Task<T> InvokeAsync<T>(object message, DeliveryOptions options, CancellationToken cancellation = default,
+        TimeSpan? timeout = null) where T : class
+    {
+        _parent.Runtime.RegisterMessageType(typeof(T));
+
+        if (message == null)
+        {
+            throw new ArgumentNullException(nameof(message));
+        }
+
+        var route = _endpoint.RouteFor(message.GetType(), _parent.Runtime);
+        return route.InvokeAsync<T>(message, _parent, cancellation, timeout, options);
     }
 }

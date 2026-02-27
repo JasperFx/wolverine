@@ -30,6 +30,17 @@ public interface IDestinationEndpoint
         TimeSpan? timeout = null);
 
     /// <summary>
+    ///     Execute the message at this destination
+    /// </summary>
+    /// <param name="message"></param>
+    /// <param name="options">Use to pass in extra metadata like headers or group id or correlation information to the command execution</param>
+    /// <param name="cancellation"></param>
+    /// <param name="timeout"></param>
+    /// <returns></returns>
+    Task<Acknowledgement> InvokeAsync(object message, DeliveryOptions options, CancellationToken cancellation = default,
+        TimeSpan? timeout = null);
+
+    /// <summary>
     ///     Execute the summary at this destination and retrieve the expected
     ///     response from the destination
     /// </summary>
@@ -41,6 +52,18 @@ public interface IDestinationEndpoint
     Task<T> InvokeAsync<T>(object message, CancellationToken cancellation = default, TimeSpan? timeout = null)
         where T : class;
 
+    /// <summary>
+    ///     Execute the summary at this destination and retrieve the expected
+    ///     response from the destination
+    /// </summary>
+    /// <param name="message"></param>
+    /// <param name="options">Use to pass in extra metadata like headers or group id or correlation information to the command execution</param>
+    /// <param name="cancellation"></param>
+    /// <param name="timeout"></param>
+    /// <typeparam name="T"></typeparam>
+    /// <returns></returns>
+    Task<T> InvokeAsync<T>(object message, DeliveryOptions options, CancellationToken cancellation = default, TimeSpan? timeout = null)
+        where T : class;
 
     /// <summary>
     /// Send a message by its raw binary contents and optionally configure how Wolverine
