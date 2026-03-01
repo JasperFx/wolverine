@@ -318,6 +318,150 @@ public class TestMessageContextTests
         ex.Message.ShouldStartWith("There is no matching expectation for the request message");
     }
 
+    [Fact]
+    public async Task invoke_acknowledgement_with_delivery_options_to_endpoint_by_uri()
+    {
+        var uri = "something://one".ToUri();
+        var message1 = new Message1();
+
+        await theContext.EndpointFor(uri).InvokeAsync(message1, new DeliveryOptions().WithHeader("ack-test", "value"));
+
+        var envelope = theSpy.Sent.ShouldHaveEnvelopeForMessageType<Message1>();
+        envelope.Destination.ShouldBe(uri);
+        envelope.Headers["ack-test"].ShouldBe("value");
+    }
+
+    [Fact]
+    public async Task invoke_acknowledgement_with_delivery_options_to_endpoint_by_name()
+    {
+        var message1 = new Message1();
+
+        await theContext.EndpointFor("endpoint1").InvokeAsync(message1, new DeliveryOptions().WithHeader("ack-name-test", "value"));
+
+        var envelope = theSpy.Sent.ShouldHaveEnvelopeForMessageType<Message1>();
+        envelope.EndpointName.ShouldBe("endpoint1");
+        envelope.Headers["ack-name-test"].ShouldBe("value");
+    }
+
+    [Fact]
+    public async Task invoke_with_expected_response_and_delivery_options_no_filter_hit()
+    {
+        var response = new NumberResponse(11);
+        theSpy.WhenInvokedMessageOf<NumberRequest>().RespondWith(response);
+
+        var result = await theContext.InvokeAsync<NumberResponse>(
+            new NumberRequest(3, 4),
+            new DeliveryOptions().WithHeader("custom", "value"));
+
+        result.ShouldBeSameAs(response);
+
+        var envelope = theSpy.Invoked.OfType<Envelope>().Last();
+        envelope.Headers["custom"].ShouldBe("value");
+    }
+
+    [Fact]
+    public async Task invoke_with_expected_response_and_delivery_options_and_filter_hit()
+    {
+        var response1 = new NumberResponse(11);
+        var response2 = new NumberResponse(12);
+        theSpy.WhenInvokedMessageOf<NumberRequest>(x => x.X == 3).RespondWith(response1);
+        theSpy.WhenInvokedMessageOf<NumberRequest>(x => x.X == 5).RespondWith(response2);
+
+        var result1 = await theContext.InvokeAsync<NumberResponse>(
+            new NumberRequest(3, 4),
+            new DeliveryOptions().WithHeader("test", "one"));
+
+        result1.ShouldBeSameAs(response1);
+
+        var result2 = await theContext.InvokeAsync<NumberResponse>(
+            new NumberRequest(5, 4),
+            new DeliveryOptions().WithHeader("test", "two"));
+
+        result2.ShouldBeSameAs(response2);
+    }
+
+    [Fact]
+    public async Task invoke_with_expected_response_and_delivery_options_and_filter_miss()
+    {
+        var response1 = new NumberResponse(11);
+        theSpy.WhenInvokedMessageOf<NumberRequest>(x => x.X == 100).RespondWith(response1);
+
+        var ex = await Should.ThrowAsync<Exception>(async () =>
+        {
+            await theContext.InvokeAsync<NumberResponse>(
+                new NumberRequest(3, 4),
+                new DeliveryOptions().WithHeader("test", "value"));
+        });
+
+        ex.Message.ShouldStartWith("There is no matching expectation for the request message");
+    }
+
+    [Fact]
+    public async Task invoke_with_expected_response_and_delivery_options_to_endpoint_by_uri()
+    {
+        var response = new NumberResponse(11);
+        var destination = new Uri("stub://one");
+        theSpy.WhenInvokedMessageOf<NumberRequest>(destination: destination).RespondWith(response);
+
+        var result = await theContext.EndpointFor(destination)
+            .InvokeAsync<NumberResponse>(
+                new NumberRequest(4, 5),
+                new DeliveryOptions().WithHeader("uri-test", "value"));
+
+        result.ShouldBeSameAs(response);
+
+        var envelope = theSpy.Invoked.OfType<Envelope>().Last();
+        envelope.Headers["uri-test"].ShouldBe("value");
+        envelope.Destination.ShouldBe(destination);
+    }
+
+    [Fact]
+    public async Task invoke_with_expected_response_and_delivery_options_and_filter_to_endpoint_by_uri()
+    {
+        var response = new NumberResponse(11);
+        var destination = new Uri("stub://one");
+        theSpy.WhenInvokedMessageOf<NumberRequest>(x => x.X == 4, destination: destination).RespondWith(response);
+
+        var result = await theContext.EndpointFor(destination)
+            .InvokeAsync<NumberResponse>(
+                new NumberRequest(4, 5),
+                new DeliveryOptions().WithHeader("filter-uri-test", "value"));
+
+        result.ShouldBeSameAs(response);
+    }
+
+    [Fact]
+    public async Task invoke_with_expected_response_and_delivery_options_to_endpoint_by_name()
+    {
+        var response = new NumberResponse(11);
+        theSpy.WhenInvokedMessageOf<NumberRequest>(endpointName: "one").RespondWith(response);
+
+        var result = await theContext.EndpointFor("one")
+            .InvokeAsync<NumberResponse>(
+                new NumberRequest(4, 5),
+                new DeliveryOptions().WithHeader("name-test", "value"));
+
+        result.ShouldBeSameAs(response);
+
+        var envelope = theSpy.Invoked.OfType<Envelope>().Last();
+        envelope.Headers["name-test"].ShouldBe("value");
+        envelope.EndpointName.ShouldBe("one");
+    }
+
+    [Fact]
+    public async Task invoke_with_expected_response_and_delivery_options_and_filter_to_endpoint_by_name()
+    {
+        var response = new NumberResponse(11);
+        theSpy.WhenInvokedMessageOf<NumberRequest>(x => x.X == 4, endpointName: "one").RespondWith(response);
+
+        var result = await theContext.EndpointFor("one")
+            .InvokeAsync<NumberResponse>(
+                new NumberRequest(4, 5),
+                new DeliveryOptions().WithHeader("filter-name-test", "value"));
+
+        result.ShouldBeSameAs(response);
+    }
+
     public static async Task set_up_invoke_expectations()
     {
         #region sample_using_invoke_with_expected_response_with_test_message_context

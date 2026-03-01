@@ -156,6 +156,11 @@ public abstract class HttpHandler
 
             return (body, HandlerContinuation.Continue);
         }
+        catch (OperationCanceledException)
+        {
+            context.Response.StatusCode = 204;
+            return (default, HandlerContinuation.Stop);
+        }
         catch (Exception e)
         {
             var logger = context.RequestServices.GetService<ILogger<T>>();
