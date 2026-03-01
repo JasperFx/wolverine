@@ -112,4 +112,22 @@ public class posting_json : IntegrationContext
             x.StatusCodeShouldBe(406);
         });
     }
+
+    [Fact]
+    public async Task reading_json_from_canceled_request_gets_204()
+    {
+        var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        var response = await Scenario(x =>
+        {
+            x.ConfigureHttpContext(ctx =>
+            {
+                ctx.Request.HttpContext.RequestAborted = cts.Token;
+            });
+            x.Post.Json(new Question { One = 3, Two = 4 }).ToUrl("/question");
+            x.WithRequestHeader("accept", "application/json");
+            x.StatusCodeShouldBe(204);
+        });
+    }
 }
