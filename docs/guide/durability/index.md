@@ -224,7 +224,7 @@ using var host = await Host.CreateDefaultBuilder()
 
 ## Local Queues
 
-When you mark a [local queue](/guide/messaging/transports/local) as durable, you're telling Wolverine to store every message published
+When you mark a [local queue](/guide/messaging/transports/local) as durable, you're telling Wolverine to ensure that every message published
 to that queue be stored in the backing message database until it is successfully processed. Doing so makes even the local queues be able
 to guarantee eventual delivery even if the current node where the message was published fails before the message is processed.
 
