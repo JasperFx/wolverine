@@ -17,8 +17,15 @@ internal class PauseListenerContinuation : IContinuation, IContinuationSource
     public ValueTask ExecuteAsync(IEnvelopeLifecycle lifecycle, IWolverineRuntime runtime, DateTimeOffset now,
         Activity? activity)
     {
+        var envelope = lifecycle.Envelope;
+        if (envelope == null)
+        {
+            runtime.Logger.LogInformation("Unable to pause listening endpoint because no envelope is active.");
+            return ValueTask.CompletedTask;
+        }
+
         IListenerCircuit? agent;
-        var destination = lifecycle.Envelope!.Destination;
+        var destination = envelope.Destination;
         if (destination?.Scheme == "local")
         {
             // This will only work for durable, local queues
@@ -26,7 +33,10 @@ internal class PauseListenerContinuation : IContinuation, IContinuationSource
         }
         else
         {
-            agent = runtime.Endpoints.FindListeningAgent(lifecycle.Envelope!.Listener!.Address);
+            var listenerAddress = envelope.Listener?.Address ?? destination;
+            agent = listenerAddress != null
+                ? runtime.Endpoints.FindListeningAgent(listenerAddress)
+                : null;
         }
 
         if (agent != null)
