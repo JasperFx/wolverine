@@ -110,6 +110,25 @@ public class PartitioningSamples
         #endregion
     }
 
+    public static async Task configuring_by_property_name()
+    {
+        #region sample_configuring_by_property_name
+
+        var builder = Host.CreateApplicationBuilder();
+        builder.UseWolverine(opts =>
+        {
+            opts.MessagePartitioning
+                // Look for a property named "StreamId" or "Id" on the message type
+                // and use its value as the GroupId for partitioned processing.
+                // The first matching property name wins.
+                // This is particularly useful when message types are auto-generated
+                // (e.g. from .proto files) and cannot implement a marker interface.
+                .ByPropertyNamed("StreamId", "Id");
+        });
+
+        #endregion
+    }
+
     #region sample_send_message_with_group_id
 
     public static async Task SendMessageToGroup(IMessageBus bus)
