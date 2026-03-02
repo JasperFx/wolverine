@@ -78,6 +78,19 @@ public class MessagePartitioningRules
     }
 
     /// <summary>
+    /// Determine the GroupId of a message by looking for a property with a matching name
+    /// on the message type. This is useful when your message types are auto-generated (e.g. from
+    /// .proto files) and you cannot add a marker interface. The first matching property name wins.
+    /// Property values are converted to string via ToString(), with null values becoming string.Empty.
+    /// </summary>
+    /// <param name="propertyNames">The property names to look for on each message type</param>
+    public MessagePartitioningRules ByPropertyNamed(params string[] propertyNames)
+    {
+        _rules.Add(new PropertyNameGroupingRule(propertyNames));
+        return this;
+    }
+
+    /// <summary>
     /// Add a grouping rule based on a concrete message type and the property
     /// of the message type that exposes the group id information
     /// Used extensively internally

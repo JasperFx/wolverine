@@ -222,6 +222,37 @@ builder.UseWolverine(opts =>
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PartitioningSamples.cs#L86-L110' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_message_grouping_rules' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Grouping by Property Name <Badge type="tip" text="5.17" />
+
+If your message contracts are auto-generated (e.g. from `.proto` files) and you cannot add a marker interface,
+you can use the `ByPropertyNamed()` rule to look for a property by name on any message type. This is a built-in
+`IGroupingRule` that inspects the incoming message type at runtime for a property matching one of the specified names
+and uses its value as the `GroupId`.
+
+The first matching property name wins, and property values of any type are converted to `string` via `ToString()`.
+Null property values result in `string.Empty`. If no matching property is found on a message type, the rule falls
+through to the next rule in the chain.
+
+The property accessor is compiled via `LambdaBuilder` and memoized per message type for performance.
+
+<!-- snippet: sample_configuring_by_property_name -->
+<a id='snippet-sample_configuring_by_property_name'></a>
+```cs
+var builder = Host.CreateApplicationBuilder();
+builder.UseWolverine(opts =>
+{
+    opts.MessagePartitioning
+        // Look for a property named "StreamId" or "Id" on the message type
+        // and use its value as the GroupId for partitioned processing.
+        // The first matching property name wins.
+        // This is particularly useful when message types are auto-generated
+        // (e.g. from .proto files) and cannot implement a marker interface.
+        .ByPropertyNamed("StreamId", "Id");
+});
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PartitioningSamples.cs#L113-L127' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_by_property_name' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
 ## Explicit Group Ids
 
 ::: tip
