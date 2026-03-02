@@ -98,7 +98,6 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
         if (Mode == EndpointMode.Durable)
         {
             config.EnableAutoCommit = false;
-            config.EnableAutoOffsetStore = false;
         }
 
         var listener = new KafkaListener(this, config,

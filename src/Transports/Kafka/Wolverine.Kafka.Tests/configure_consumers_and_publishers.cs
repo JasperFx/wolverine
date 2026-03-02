@@ -1,7 +1,9 @@
+using IntegrationTests;
 using JasperFx.Resources;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
 using Wolverine.Kafka.Internals;
+using Wolverine.Postgresql;
 using Wolverine.Tracking;
 using Wolverine.Transports;
 using Wolverine.Transports.Sending;
@@ -81,6 +83,11 @@ public class configure_consumers_and_publishers : IAsyncLifetime
                 opts.ListenToKafkaTopic("green")
                     .BufferedInMemory();
 
+                opts.ListenToKafkaTopic("blue")
+                    .UseDurableInbox();
+
+                opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, "kafka_config");
+
                 // Include test assembly for handler discovery
                 opts.Discovery.IncludeAssembly(GetType().Assembly);
 
@@ -139,6 +146,17 @@ public class configure_consumers_and_publishers : IAsyncLifetime
         var colors = _host.GetRuntime().Endpoints.GetOrBuildSendingAgent(new Uri("kafka://topic/colors"))
             .ShouldBeOfType<InlineSendingAgent>().Sender.ShouldBeOfType<InlineKafkaSender>();
         colors.Config.BatchSize.ShouldBe(222);
+    }
+
+    [Fact]
+    public void durable_mode_disables_auto_commit_but_not_auto_offset_store()
+    {
+        var blue = _host.GetRuntime().Endpoints.ActiveListeners()
+            .Single(x => x.Uri.ToString().Contains("blue")).ShouldBeOfType<ListeningAgent>()
+            .Listener.ShouldBeOfType<KafkaListener>();
+
+        blue.Config.EnableAutoCommit.ShouldBe(false);
+        blue.Config.EnableAutoOffsetStore.ShouldBeNull();
     }
 
 }
