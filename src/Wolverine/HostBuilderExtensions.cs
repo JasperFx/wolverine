@@ -420,6 +420,8 @@ public static class HostBuilderExtensions
     public static IServiceCollection DisableAllWolverineMessagePersistence(this IServiceCollection services)
     {
         services.AddSingleton<IWolverineExtension, DisablePersistence>();
+        services.RemoveAll<IMessageStore>();
+        services.RemoveAll<AncillaryMessageStore>();
         return services;
     }
 
