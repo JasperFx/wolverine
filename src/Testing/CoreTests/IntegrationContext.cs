@@ -1,5 +1,6 @@
 ﻿using CoreTests.Acceptance;
 using CoreTests.Bugs;
+using CoreTests.Shims;
 using JasperFx.Core.Reflection;
 using Lamar.Microsoft.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection;
@@ -32,6 +33,8 @@ public class DefaultApp : IDisposable
 
                 opts.Services.AddSingleton(Substitute.For<IIdentityService>());
                 opts.Services.AddSingleton(Substitute.For<ITrackedTaskRepository>());
+                
+                opts.Services.AddScoped<IAdditionService, AdditionService>();
                 
                 opts.RegisterMessageType(typeof(ExplicitMessage1));
                 opts.RegisterMessageType(typeof(ExplicitMessage2));

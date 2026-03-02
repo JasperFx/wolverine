@@ -10,7 +10,7 @@ namespace Wolverine.Shims.MediatR;
 /// </summary>
 /// <typeparam name="TRequest">The request type</typeparam>
 /// <typeparam name="TResponse">The response type</typeparam>
-public interface IRequestHandler<in TRequest, TResponse> where TRequest : IRequest<TResponse>
+public interface IRequestHandler<in TRequest, TResponse> : IWolverineHandler where TRequest : IRequest<TResponse>
 {
     /// <summary>
     /// Handles a request and returns a response
@@ -27,7 +27,7 @@ public interface IRequestHandler<in TRequest, TResponse> where TRequest : IReque
 /// Handlers implementing this interface will be automatically discovered by Wolverine.
 /// </summary>
 /// <typeparam name="TRequest">The request type</typeparam>
-public interface IRequestHandler<in TRequest> where TRequest : IRequest
+public interface IRequestHandler<in TRequest> : IWolverineHandler where TRequest : IRequest
 {
     /// <summary>
     /// Handles a request without returning a response
