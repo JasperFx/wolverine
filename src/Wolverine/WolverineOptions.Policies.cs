@@ -277,6 +277,11 @@ public sealed partial class WolverineOptions : IPolicies
         RegisteredPolicies.Insert(0, new LogStartingActivityPolicy(logLevel));
     }
 
+    void IPolicies.PropagateGroupIdToPartitionKey()
+    {
+        MetadataRules.Add(new GroupIdToPartitionKeyRule());
+    }
+
     internal MiddlewarePolicy FindOrCreateMiddlewarePolicy()
     {
         var policy = RegisteredPolicies.OfType<MiddlewarePolicy>().FirstOrDefault();

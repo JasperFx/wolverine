@@ -432,6 +432,39 @@ opts.MessagePartitioning.PublishToShardedAmazonSqsQueues("letters", 4, topology 
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/concurrency_resilient_sharded_processing.cs#L72-L87' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_partitioned_publishing_through_amazon_sqs' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Propagating GroupId to PartitionKey <Badge type="tip" text="5.17" />
+
+When using Kafka (or any transport that uses `PartitionKey`), you may want cascaded messages from a handler to
+automatically inherit the originating message's `GroupId` as their `PartitionKey`. This ensures that cascaded messages
+land on the same Kafka partition as the originating message without manually specifying `DeliveryOptions` on every
+outgoing message.
+
+This is especially useful when you have a chain of message handlers where the first message arrives at a Kafka topic
+with a consumer group id, and you want all downstream cascaded messages to be published to the same partition.
+
+<!-- snippet: sample_propagate_group_id_to_partition_key -->
+<a id='snippet-sample_propagate_group_id_to_partition_key'></a>
+```cs
+var builder = Host.CreateApplicationBuilder();
+builder.UseWolverine(opts =>
+{
+    // Automatically propagate the originating message's GroupId
+    // to the PartitionKey of all cascaded outgoing messages.
+    // This is particularly useful with Kafka where you want
+    // cascaded messages to land on the same partition as the
+    // originating message without manually specifying
+    // DeliveryOptions on every outgoing message.
+    opts.Policies.PropagateGroupIdToPartitionKey();
+});
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PartitioningSamples.cs#L144-L158' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_propagate_group_id_to_partition_key' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+::: tip
+The rule will not override an explicitly set `PartitionKey` on an outgoing envelope. If you set `PartitionKey` via
+`DeliveryOptions`, that value takes precedence.
+:::
+
 ## Partitioning Messages Received from External Systems
 
 ::: warning

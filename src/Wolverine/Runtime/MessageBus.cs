@@ -253,7 +253,12 @@ public partial class MessageBus : IMessageBus, IMessageContext
     internal async ValueTask PersistOrSendAsync(Envelope envelope)
     {
         if (envelope is null) return; // Not sure how this would happen
-        
+
+        foreach (var rule in Runtime.Options.MetadataRules)
+        {
+            rule.ApplyCorrelation(this, envelope);
+        }
+
         if (envelope.Sender is null)
         {
             throw new InvalidOperationException("Envelope has not been routed");
@@ -306,6 +311,18 @@ public partial class MessageBus : IMessageBus, IMessageContext
 
     internal async ValueTask PersistOrSendAsync(params Envelope[] outgoing)
     {
+        var metadataRules = Runtime.Options.MetadataRules;
+        if (metadataRules.Count > 0)
+        {
+            foreach (var envelope in outgoing)
+            {
+                foreach (var rule in metadataRules)
+                {
+                    rule.ApplyCorrelation(this, envelope);
+                }
+            }
+        }
+
         if (Transaction != null)
         {
             // This filtering is done to only persist envelopes where

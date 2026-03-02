@@ -1,3 +1,4 @@
+using JasperFx.Core;
 using Wolverine.Util;
 
 namespace Wolverine;
@@ -105,6 +106,30 @@ internal class DeliverWithinRule : IEnvelopeRule
     public override int GetHashCode()
     {
         return Time.GetHashCode();
+    }
+}
+
+/// <summary>
+/// Propagates the originating message's GroupId to the outgoing envelope's PartitionKey.
+/// This is useful for automatically carrying forward a stream/group id as a Kafka partition key
+/// on cascaded or published messages without manually setting DeliveryOptions on every message.
+/// </summary>
+internal class GroupIdToPartitionKeyRule : IEnvelopeRule
+{
+    public void Modify(Envelope envelope)
+    {
+        // No-op when used without an originator context
+    }
+
+    public void ApplyCorrelation(IMessageContext originator, Envelope outgoing)
+    {
+        if (outgoing.PartitionKey.IsNotEmpty()) return;
+
+        var groupId = originator.Envelope?.GroupId;
+        if (groupId.IsNotEmpty())
+        {
+            outgoing.PartitionKey = groupId;
+        }
     }
 }
 

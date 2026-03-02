@@ -134,11 +134,30 @@ public class PartitioningSamples
     public static async Task SendMessageToGroup(IMessageBus bus)
     {
         await bus.PublishAsync(
-            new ApproveInvoice("AAA"), 
+            new ApproveInvoice("AAA"),
             new() { GroupId = "agroup" });
     }
 
     #endregion
+
+    public static async Task propagate_group_id_to_partition_key()
+    {
+        #region sample_propagate_group_id_to_partition_key
+
+        var builder = Host.CreateApplicationBuilder();
+        builder.UseWolverine(opts =>
+        {
+            // Automatically propagate the originating message's GroupId
+            // to the PartitionKey of all cascaded outgoing messages.
+            // This is particularly useful with Kafka where you want
+            // cascaded messages to land on the same partition as the
+            // originating message without manually specifying
+            // DeliveryOptions on every outgoing message.
+            opts.Policies.PropagateGroupIdToPartitionKey();
+        });
+
+        #endregion
+    }
 }
 
 public record PayInvoice(string Id);
