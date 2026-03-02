@@ -1,4 +1,5 @@
 ﻿using System.Reflection;
+using Wolverine.Attributes;
 
 namespace Wolverine.Runtime.Handlers;
 
@@ -19,6 +20,17 @@ public static class MethodInfoExtensions
         }
 
         var parameters = method.GetParameters();
-        return parameters.FirstOrDefault()?.ParameterType;
+        var paramType = parameters.FirstOrDefault()?.ParameterType;
+
+        if (paramType is { IsGenericType: true })
+        {
+            var genericDef = paramType.GetGenericTypeDefinition();
+            if (genericDef.GetCustomAttribute<WolverineMessageWrapperAttribute>() != null)
+            {
+                return paramType.GetGenericArguments()[0];
+            }
+        }
+
+        return paramType;
     }
 }

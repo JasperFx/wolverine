@@ -7,7 +7,7 @@ using Wolverine.Transports;
 
 namespace Wolverine.Runtime;
 
-public class MessageBus : IMessageBus, IMessageContext
+public partial class MessageBus : IMessageBus, IMessageContext
 {
     public static MessageBus Build(IWolverineRuntime runtime, string correlationId) =>
         new MessageBus(runtime, correlationId);

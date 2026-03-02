@@ -117,6 +117,14 @@ public sealed partial class WolverineOptions
         CodeGeneration = new GenerationRules("Internal.Generated");
         CodeGeneration.Sources.Add(new NowTimeVariableSource());
         CodeGeneration.Sources.Add(new TenantIdSource());
+
+        // MassTransit shim variable sources
+        CodeGeneration.Sources.Add(new Shims.MassTransit.ConsumeContextVariableSource());
+        CodeGeneration.Sources.Add(new Shims.MassTransit.MassTransitInterfaceVariableSource());
+
+        // NServiceBus shim variable sources
+        CodeGeneration.Sources.Add(new Shims.NServiceBus.MessageHandlerContextVariableSource());
+
         CodeGeneration.Assemblies.Add(GetType().Assembly);
 
         if (assemblyName != null)

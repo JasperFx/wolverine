@@ -374,6 +374,106 @@ opts.Policies.RegisterInteropMessageAssembly(typeof(SharedMessages).Assembly);
 Supported transports: RabbitMQ, Azure Service Bus, Amazon SQS/SNS. See the full
 [interoperability guide](/tutorials/interop#interop-with-masstransit).
 
+### MassTransit Shim Interfaces
+
+Wolverine provides shim interfaces in the `Wolverine.Shims.MassTransit` namespace that mimic MassTransit's
+core consumer API while delegating to Wolverine's `IMessageBus` and `IMessageContext`. These shims let you
+keep your existing `IConsumer<T>` handler signatures working under Wolverine during migration.
+
+::: tip
+The shim interfaces are included in the core Wolverine NuGet package -- no additional packages are needed.
+While these shims ease migration, the Wolverine team recommends eventually moving to Wolverine's native
+convention-based handlers for the best developer experience.
+:::
+
+#### Automatic Handler Discovery
+
+Wolverine automatically discovers classes implementing `IConsumer<T>` during its normal
+[handler discovery](/guide/handlers/discovery) assembly scanning -- no explicit registration is needed.
+The `ConsumeContext<T>`, `IPublishEndpoint`, and `ISendEndpointProvider` types are automatically
+resolved in handler methods via Wolverine's built-in code generation.
+
+Just make sure the assembly containing your `IConsumer<T>` implementations is included in Wolverine's
+discovery. By default, Wolverine scans the application assembly and any assemblies explicitly added via
+`opts.Discovery.IncludeAssembly()`. See the [handler discovery documentation](/guide/handlers/discovery)
+for more details on controlling which assemblies are scanned.
+
+#### Available Interfaces
+
+| MassTransit Shim | Delegates To | Purpose |
+|-----------------|-------------|---------|
+| `IConsumer<T>` | `IWolverineHandler` | Consumer/handler discovery marker |
+| `ConsumeContext<T>` | `IMessageContext` | Message access, Send/Publish/Respond inside consumers |
+| `IPublishEndpoint` | `IMessageBus` | Publish events outside of consumers |
+| `ISendEndpointProvider` | `IMessageBus` | Send commands outside of consumers |
+
+#### Using IConsumer\<T\>
+
+The `IConsumer<T>` shim extends `IWolverineHandler`, so implementing it automatically registers your
+consumer with Wolverine's handler discovery:
+
+```csharp
+using Wolverine.Shims.MassTransit;
+
+public class OrderConsumer : IConsumer<SubmitOrder>
+{
+    public async Task Consume(ConsumeContext<SubmitOrder> context)
+    {
+        var order = new Order(context.Message.OrderId);
+
+        // ConsumeContext delegates to Wolverine's IMessageContext
+        await context.Publish(new OrderSubmitted { OrderId = context.Message.OrderId });
+        await context.RespondAsync(new SubmitOrderResponse { Success = true });
+    }
+}
+```
+
+#### Using IPublishEndpoint / ISendEndpointProvider
+
+Inject these interfaces to send and publish messages outside of consumers:
+
+```csharp
+using Wolverine.Shims.MassTransit;
+
+public class OrderController : ControllerBase
+{
+    private readonly ISendEndpointProvider _sender;
+    private readonly IPublishEndpoint _publisher;
+
+    public OrderController(ISendEndpointProvider sender, IPublishEndpoint publisher)
+    {
+        _sender = sender;
+        _publisher = publisher;
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> PlaceOrder(PlaceOrderRequest request)
+    {
+        await _sender.Send(new SubmitOrder(request.OrderId));
+        return Accepted();
+    }
+
+    [HttpPost("notify")]
+    public async Task<IActionResult> NotifyOrderShipped(string orderId)
+    {
+        await _publisher.Publish(new OrderShipped { OrderId = orderId });
+        return Ok();
+    }
+}
+```
+
+#### ConsumeContext Properties
+
+The `ConsumeContext<T>` shim exposes common MassTransit properties mapped to Wolverine:
+
+| ConsumeContext Property | Wolverine Source |
+|------------------------|-----------------|
+| `Message` | The message instance |
+| `MessageId` | `Envelope.Id` |
+| `CorrelationId` | `IMessageContext.CorrelationId` |
+| `ConversationId` | `Envelope.ConversationId` |
+| `Headers` | `Envelope.Headers` |
+
 ### Migration Checklist
 
 **Phase 1: Coexistence**
@@ -588,6 +688,129 @@ opts.Policies.RegisterInteropMessageAssembly(typeof(SharedMessages).Assembly);
 Wolverine detects message types from standard NServiceBus headers. You may need [message type aliases](/guide/messages#message-type-name-or-alias)
 to bridge naming differences. See the full [interoperability guide](/tutorials/interop#interop-with-nservicebus).
 
+### NServiceBus Shim Interfaces
+
+Wolverine provides shim interfaces in the `Wolverine.Shims.NServiceBus` namespace that mimic the core NServiceBus
+API surface while delegating to Wolverine's `IMessageBus` and `IMessageContext` under the hood. These shims let
+you migrate handler code incrementally without rewriting every handler signature at once.
+
+::: tip
+The shim interfaces are included in the core Wolverine NuGet package -- no additional packages are needed.
+While these shims ease migration, the Wolverine team recommends eventually moving to Wolverine's native
+convention-based handlers and pure function style for the best developer experience.
+:::
+
+#### Automatic Handler Discovery
+
+Wolverine automatically discovers classes implementing `IHandleMessages<T>` during its normal
+[handler discovery](/guide/handlers/discovery) assembly scanning -- no explicit registration is needed.
+The `IMessageHandlerContext` parameter in `Handle(T message, IMessageHandlerContext context)` is
+automatically resolved via Wolverine's built-in code generation.
+
+Just make sure the assembly containing your `IHandleMessages<T>` implementations is included in
+Wolverine's discovery. By default, Wolverine scans the application assembly and any assemblies
+explicitly added via `opts.Discovery.IncludeAssembly()`. See the
+[handler discovery documentation](/guide/handlers/discovery) for more details on controlling which
+assemblies are scanned.
+
+#### DI Registration for Non-Handler Interfaces
+
+If you need to inject NServiceBus shim interfaces (`IMessageSession`, `IEndpointInstance`,
+`IUniformSession`, `ITransactionalSession`) into services outside of message handlers via
+constructor injection, register them with:
+
+```csharp
+builder.Host.UseWolverine(opts =>
+{
+    opts.UseNServiceBusShims();
+
+    // Your Wolverine configuration...
+});
+```
+
+#### Available Interfaces
+
+| NServiceBus Shim | Delegates To | Purpose |
+|-----------------|-------------|---------|
+| `IMessageSession` | `IMessageBus` | Send/Publish outside of handlers |
+| `IEndpointInstance` | `IMessageBus` + `IHost` | Running endpoint with lifecycle |
+| `IMessageHandlerContext` | `IMessageContext` | Send/Publish/Reply inside handlers |
+| `IUniformSession` | `IMessageBus` | Unified Send/Publish (inside or outside handlers) |
+| `ITransactionalSession` | `IMessageBus` | Transactional Send/Publish (Open/Commit are obsolete) |
+| `IHandleMessages<T>` | `IWolverineHandler` | Handler discovery marker |
+
+#### Using IHandleMessages\<T\>
+
+The `IHandleMessages<T>` shim extends `IWolverineHandler`, so implementing it automatically registers your
+handler with Wolverine's handler discovery:
+
+```csharp
+using Wolverine.Shims.NServiceBus;
+
+// This handler is discovered by Wolverine via the IWolverineHandler marker
+public class OrderHandler : IHandleMessages<PlaceOrder>
+{
+    public async Task Handle(PlaceOrder message, IMessageHandlerContext context)
+    {
+        // context.Send, context.Publish, context.Reply all delegate to Wolverine
+        await context.Publish(new OrderPlaced(message.OrderId));
+        await context.Reply(new PlaceOrderResponse { Success = true });
+    }
+}
+```
+
+#### Using IMessageSession / IEndpointInstance
+
+Inject `IMessageSession` or `IEndpointInstance` to send and publish messages outside of handlers:
+
+```csharp
+using Wolverine.Shims.NServiceBus;
+
+public class OrderController : ControllerBase
+{
+    private readonly IMessageSession _session;
+
+    public OrderController(IMessageSession session) => _session = session;
+
+    [HttpPost]
+    public async Task<IActionResult> PlaceOrder(PlaceOrderRequest request)
+    {
+        await _session.Send(new PlaceOrder(request.OrderId));
+        return Accepted();
+    }
+}
+```
+
+#### NServiceBus-Style Options
+
+The shims include `SendOptions`, `PublishOptions`, and `ReplyOptions` classes that map to Wolverine's
+`DeliveryOptions`:
+
+```csharp
+var options = new SendOptions();
+options.SetDestination("remote-endpoint");       // routes to a named endpoint
+options.SetHeader("tenant-id", "acme");          // adds a header
+options.DelayDeliveryWith(TimeSpan.FromMinutes(5)); // schedules delivery
+
+await session.Send(new PlaceOrder("ABC-123"), options);
+```
+
+#### ITransactionalSession
+
+`ITransactionalSession` delegates `Send` and `Publish` to `IMessageBus`. The `Open()` and `Commit()`
+lifecycle methods are marked `[Obsolete]` and throw `NotSupportedException` because Wolverine handles
+transactional messaging automatically via its built-in [outbox](/guide/durability/):
+
+```csharp
+// These methods are obsolete -- just delete the calls
+// session.Open();   // throws NotSupportedException
+// session.Commit(); // throws NotSupportedException
+
+// Send and Publish work normally
+await session.Send(new PlaceOrder("ABC-123"));
+await session.Publish(new OrderPlaced("ABC-123"));
+```
+
 ### Migration Checklist
 
 **Phase 1: Coexistence**
@@ -622,6 +845,62 @@ to bridge naming differences. See the full [interoperability guide](/tutorials/i
 ## From MediatR
 
 For a detailed comparison of MediatR and Wolverine, see the dedicated [Wolverine for MediatR Users](/introduction/from-mediatr) guide.
+
+### MediatR Shim Interfaces
+
+Wolverine provides shim interfaces in the `Wolverine.Shims.MediatR` namespace that let you keep your existing
+MediatR handler signatures working under Wolverine without any code changes. These shims are included in the
+core Wolverine NuGet package.
+
+::: tip
+These shim interfaces are marker types that Wolverine's [handler discovery](/guide/handlers/discovery)
+recognizes via `IWolverineHandler`. No additional DI registration is needed -- just change your `using`
+statements from `MediatR` to `Wolverine.Shims.MediatR` and remove the MediatR NuGet packages.
+:::
+
+#### Available Interfaces
+
+| MediatR Shim | Purpose |
+|-------------|---------|
+| `IRequest<T>` | Marker for request messages that return a response of type `T` |
+| `IRequest` | Marker for request messages that do not return a response |
+| `IRequestHandler<TRequest, TResponse>` | Handler for requests with a response (extends `IWolverineHandler`) |
+| `IRequestHandler<TRequest>` | Handler for requests without a response (extends `IWolverineHandler`) |
+
+#### Usage
+
+Simply change the `using` directive from `MediatR` to `Wolverine.Shims.MediatR`:
+
+```csharp
+// Before: using MediatR;
+using Wolverine.Shims.MediatR;
+
+public record CreateOrder(string OrderId) : IRequest<OrderResult>;
+public record OrderResult(string OrderId, string Status);
+
+public class CreateOrderHandler : IRequestHandler<CreateOrder, OrderResult>
+{
+    public Task<OrderResult> Handle(CreateOrder request, CancellationToken cancellationToken)
+    {
+        return Task.FromResult(new OrderResult(request.OrderId, "Created"));
+    }
+}
+```
+
+Invoke using Wolverine's `IMessageBus`:
+
+```csharp
+// Before: var result = await mediator.Send(new CreateOrder("ABC-123"));
+var result = await bus.InvokeAsync<OrderResult>(new CreateOrder("ABC-123"));
+```
+
+#### Migration Steps
+
+1. Replace `using MediatR;` with `using Wolverine.Shims.MediatR;` in your handler files
+2. Replace `IMediator.Send()` calls with `IMessageBus.InvokeAsync()` at call sites
+3. Replace `IMediator.Publish()` calls with `IMessageBus.PublishAsync()`
+4. Remove the MediatR NuGet packages
+5. Over time, consider removing the shim interfaces and adopting Wolverine's native convention-based handlers
 
 The key differences in summary:
 
