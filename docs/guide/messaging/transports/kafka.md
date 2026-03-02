@@ -146,17 +146,19 @@ processes messages. Understanding these settings is important for getting the de
 ### How Endpoint Mode Affects Consumer Configuration
 
 When an endpoint uses `EndpointMode.Durable` (i.e., you've called `.UseDurableInbox()` or applied durable inbox
-globally), Wolverine overrides two key consumer settings before building the listener:
+globally), Wolverine overrides the following consumer setting before building the listener:
 
 | Consumer Setting | Durable (`UseDurableInbox`) | Non-Durable (`BufferedInMemory` / `Inline`) |
 |---|---|---|
 | `EnableAutoCommit` | `false` | `true` (Kafka default) |
-| `EnableAutoOffsetStore` | `false` | `true` (Kafka default) |
+| `EnableAutoOffsetStore` | `true` (Kafka default) | `true` (Kafka default) |
 
-In **durable mode**, Wolverine disables Kafka's automatic offset management so that offsets are only committed
-after a message has been successfully processed and persisted to the transactional inbox. This prevents message loss
-if the application shuts down unexpectedly -- unprocessed messages will be re-delivered when the consumer rejoins
-the group.
+In **durable mode**, Wolverine disables Kafka's automatic offset *commit* so that offsets are only committed
+when Wolverine explicitly calls `Commit()` after a message has been successfully persisted to the transactional
+inbox. The Kafka client still auto-stores the offset on each `Consume()` call (the default behavior), which
+tracks the consumer's position. However, the stored offset is not pushed to the broker until `Commit()` is
+called. This gives correct at-least-once semantics -- if the application shuts down unexpectedly before
+committing, unprocessed messages will be re-delivered when the consumer rejoins the group.
 
 In **non-durable mode** (`BufferedInMemory` or `ProcessInline`), Kafka's default auto-commit behavior is left
 in place. The Kafka client library periodically commits offsets automatically, which provides higher throughput

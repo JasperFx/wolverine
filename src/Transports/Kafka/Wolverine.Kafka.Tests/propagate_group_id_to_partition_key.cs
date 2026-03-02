@@ -1,7 +1,9 @@
+using Confluent.Kafka;
 using JasperFx.Core;
 using JasperFx.Resources;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
+using Wolverine.Attributes;
 using Wolverine.Tracking;
 
 namespace Wolverine.Kafka.Tests;
@@ -30,11 +32,17 @@ public class propagate_group_id_to_partition_key : IAsyncLifetime
                     .ConfigureConsumer(config =>
                     {
                         config.GroupId = "source-group-123";
+                        config.AutoOffsetReset = AutoOffsetReset.Earliest;
                     });
 
                 // Listen to target topic where cascaded messages arrive
                 opts.ListenToKafkaTopic("groupid-target")
                     .ProcessInline();
+
+                // Route TriggerFromGroupId to the source topic
+                opts.PublishMessage<TriggerFromGroupId>()
+                    .ToKafkaTopic("groupid-source")
+                    .SendInline();
 
                 // Route cascaded TargetFromGroupId messages to the target topic
                 opts.PublishMessage<TargetFromGroupId>()
@@ -65,8 +73,10 @@ public class propagate_group_id_to_partition_key : IAsyncLifetime
     }
 }
 
+[Topic("groupid-source")]
 public record TriggerFromGroupId(string Name);
 
+[Topic("groupid-target")]
 public record TargetFromGroupId(string Name);
 
 public static class TriggerFromGroupIdHandler
