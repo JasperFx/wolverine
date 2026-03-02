@@ -9,6 +9,11 @@ namespace Wolverine;
 public interface IEnvelopeRule
 {
     void Modify(Envelope envelope);
+
+    public void ApplyCorrelation(IMessageContext originator, Envelope outgoing)
+    {
+        Modify(outgoing);
+    }
 }
 
 internal class MessageTypeRule : IEnvelopeRule
