@@ -170,4 +170,12 @@ public interface IPolicies : IEnumerable<IWolverinePolicy>, IWithFailurePolicies
     /// history, and endpoint events to the message bus? The default is false;
     /// </summary>
     bool PublishAgentEvents { get; set; }
+
+    /// <summary>
+    /// Automatically propagate the originating message's GroupId to the PartitionKey of outgoing
+    /// envelopes. This is useful when using Kafka and you want cascaded messages to inherit
+    /// the partition key from the originating message's group/stream id without manually
+    /// specifying DeliveryOptions on every outgoing message.
+    /// </summary>
+    void PropagateGroupIdToPartitionKey();
 }

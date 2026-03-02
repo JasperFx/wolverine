@@ -199,7 +199,13 @@ public sealed partial class WolverineOptions
     /// This will be automatically applied to all outgoing messages, but will never override
     /// any explicitly defined Envelope.GroupId
     /// </summary>
-    public MessagePartitioningRules MessagePartitioning { get; } 
+    public MessagePartitioningRules MessagePartitioning { get; }
+
+    /// <summary>
+    /// Internal list of IEnvelopeRule instances that are applied via ApplyCorrelation
+    /// to outgoing envelopes in PersistOrSendAsync
+    /// </summary>
+    internal List<IEnvelopeRule> MetadataRules { get; } = new();
 
     
     /// For advanced usages, this gives you the ability to register pre-canned message handling

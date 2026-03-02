@@ -227,6 +227,20 @@ public static ValueTask publish_by_partition_key(IMessageBus bus)
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/when_publishing_and_receiving_by_partition_key.cs#L13-L20' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_publish_to_kafka_by_partition_key' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Propagating GroupId to PartitionKey <Badge type="tip" text="5.17" />
+
+When consuming from a Kafka topic, the incoming envelope's `GroupId` is automatically set from the Kafka consumer's
+configured `GroupId`. If your handler produces cascaded messages that should land on the same partition, you can
+enable automatic propagation of the originating `GroupId` to the outgoing `PartitionKey`:
+
+```csharp
+opts.Policies.PropagateGroupIdToPartitionKey();
+```
+
+This eliminates the need to manually set `DeliveryOptions.PartitionKey` on every outgoing message from your handlers.
+The rule will never override an explicitly set `PartitionKey`. See the [Partitioned Sequential Messaging](/guide/messaging/partitioning#propagating-groupid-to-partitionkey)
+documentation for more details and a code sample.
+
 ## Interoperability
 
 ::: tip
