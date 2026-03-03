@@ -19,17 +19,15 @@ public class ServiceCapabilities : OptionsDescription
 
     public ServiceCapabilities(WolverineOptions options) : base(options)
     {
-        Version = (options.ApplicationAssembly ?? Assembly.GetEntryAssembly()).GetName().Version;
-        WolverineVersion = options.GetType().Assembly.GetName().Version;
+        Version = (options.ApplicationAssembly ?? Assembly.GetEntryAssembly()).GetName().Version?.ToString();
+        WolverineVersion = options.GetType().Assembly.GetName().Version?.ToString();
     }
 
     public DateTimeOffset Evaluated { get; set; } = DateTimeOffset.UtcNow;
 
-    [JsonConverter(typeof(VersionJsonConverter))]
-    public Version Version { get; set; }
+    public string Version { get; set; }
 
-    [JsonConverter(typeof(VersionJsonConverter))]
-    public Version? WolverineVersion { get; set; }
+    public string? WolverineVersion { get; set; }
 
     public List<EventStoreUsage> EventStores { get; set; } = [];
 
@@ -88,6 +86,8 @@ public class ServiceCapabilities : OptionsDescription
         }
     }
 
+    public const string EventSubscriptionAgentScheme = "event-subscriptions";
+
     private static async Task readEventStores(IWolverineRuntime runtime, CancellationToken token,
         ServiceCapabilities capabilities)
     {
@@ -98,10 +98,11 @@ public class ServiceCapabilities : OptionsDescription
             var eventStoreUsage = await eventStore.TryCreateUsage(token);
             if (eventStoreUsage != null)
             {
+                eventStoreUsage.PopulateAgentUris(EventSubscriptionAgentScheme, eventStore.Identity);
                 storeList.Add(eventStoreUsage);
             }
         }
-        
+
         capabilities.EventStores.AddRange(storeList.OrderBy(x => x.SubjectUri.ToString()));
     }
 
