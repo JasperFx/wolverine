@@ -14,7 +14,7 @@
     </ItemGroup>
 
     <ItemGroup>
-      <PackageReference Include="Weasel.Core" />
+      <ProjectReference Include="../../../../weasel/src/Weasel.Core/Weasel.Core.csproj" />
     </ItemGroup>
 
     <Import Project="../../../Analysis.Build.props" />
