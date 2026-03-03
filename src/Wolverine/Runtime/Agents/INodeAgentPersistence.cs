@@ -33,6 +33,11 @@ public interface INodeAgentPersistence
     Task LogRecordsAsync(params NodeRecord[] records);
 
     Task<IReadOnlyList<NodeRecord>> FetchRecentRecordsAsync(int count);
+
+    /// <summary>
+    /// Delete old node records, retaining only the most recent <paramref name="retainCount"/> records.
+    /// </summary>
+    Task DeleteOldNodeRecordsAsync(int retainCount) => Task.CompletedTask;
     
     
     bool HasLeadershipLock();

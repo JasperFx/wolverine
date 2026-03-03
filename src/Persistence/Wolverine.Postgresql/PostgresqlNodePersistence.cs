@@ -308,6 +308,16 @@ internal class PostgresqlNodePersistence : DatabaseConstants, INodeAgentPersiste
             .FetchListAsync(readRecord);
     }
 
+    public Task DeleteOldNodeRecordsAsync(int retainCount)
+    {
+        if (retainCount <= 0) return Task.CompletedTask;
+
+        return _dataSource.CreateCommand(
+                $"delete from {_settings.SchemaName}.{NodeRecordTableName} where id not in (select id from {_settings.SchemaName}.{NodeRecordTableName} order by id desc limit :retain)")
+            .With("retain", retainCount)
+            .ExecuteNonQueryAsync();
+    }
+
     public bool HasLeadershipLock()
     {
         return _database.AdvisoryLock.HasLock(_lockId);
