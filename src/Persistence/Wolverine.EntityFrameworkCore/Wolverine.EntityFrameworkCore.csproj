@@ -15,7 +15,7 @@
         <PackageReference Include="Microsoft.EntityFrameworkCore"/>
         <PackageReference Include="Microsoft.EntityFrameworkCore.Design"/>
         <PackageReference Include="Microsoft.EntityFrameworkCore.Relational"/>
-        <PackageReference Include="Weasel.EntityFrameworkCore" />
+        <ProjectReference Include="../../../../weasel/src/Weasel.EntityFrameworkCore/Weasel.EntityFrameworkCore.csproj" />
         <ProjectReference Include="..\Wolverine.RDBMS\Wolverine.RDBMS.csproj"/>
     </ItemGroup>
 
