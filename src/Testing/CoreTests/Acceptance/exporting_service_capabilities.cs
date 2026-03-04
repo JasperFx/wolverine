@@ -28,13 +28,13 @@ public class exporting_service_capabilities : IntegrationContext, IAsyncLifetime
     [Fact]
     public void wolverine_version()
     {
-        theCapabilities.WolverineVersion.ShouldBe(typeof(WolverineOptions).Assembly.GetName().Version);
+        theCapabilities.WolverineVersion.ShouldBe(typeof(WolverineOptions).Assembly.GetName().Version?.ToString());
     }
 
     [Fact]
     public void the_application_version()
     {
-        theCapabilities.Version.ShouldBe(GetType().Assembly.GetName().Version);
+        theCapabilities.Version.ShouldBe(GetType().Assembly.GetName().Version?.ToString());
     }
 
     [Fact]
