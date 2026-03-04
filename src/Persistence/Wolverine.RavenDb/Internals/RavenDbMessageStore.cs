@@ -1,6 +1,7 @@
 using JasperFx.Core.Reflection;
 using JasperFx.Descriptors;
 using Raven.Client.Documents;
+using Wolverine.Persistence;
 using Wolverine.Persistence.Durability;
 using Wolverine.RavenDb.Internals.Durability;
 using Wolverine.Runtime;
@@ -44,7 +45,7 @@ public partial class RavenDbMessageStore : IMessageStoreWithAgentSupport
 
     public string Name => _store.Identifier;
 
-    public Uri Uri => new("ravendb://durability");
+    public Uri Uri => new($"{PersistenceConstants.AgentScheme}://ravendb/durability");
 
     public string IdentityFor(Envelope envelope) => _identity(envelope);
 
