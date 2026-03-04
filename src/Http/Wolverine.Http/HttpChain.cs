@@ -522,7 +522,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
 
             if (parameterType == typeof(string[]))
             {
-                variable = new ParsedArrayQueryStringValue(parameterType, parameterName).Variable;
+                variable = new ParsedArrayQueryStringValue(parameterType, key).Variable;
                 variable.Name = key;
                 _querystringVariables.Add(variable);
             }
@@ -533,22 +533,22 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
                 if (RouteParameterStrategy.CanParse(inner))
                 {
                     //variable = new ParsedNullableQueryStringValue(parameterType, parameterName).Variable;
-                    variable = new ReadHttpFrame(BindingSource.QueryString, parameterType, parameterName).Variable;
+                    variable = new ReadHttpFrame(BindingSource.QueryString, parameterType, key).Variable;
                     variable.Name = key;
                     _querystringVariables.Add(variable);
                 }
             }
-            
+
             if (parameterType.IsArray && RouteParameterStrategy.CanParse(parameterType.GetElementType()))
             {
-                variable = new ParsedArrayQueryStringValue(parameterType, parameterName).Variable;
+                variable = new ParsedArrayQueryStringValue(parameterType, key).Variable;
                 variable.Name = key;
                 _querystringVariables.Add(variable);
             }
 
             if (ParsedCollectionQueryStringValue.CanParse(parameterType))
             {
-                variable = new ParsedCollectionQueryStringValue(parameterType, parameterName).Variable;
+                variable = new ParsedCollectionQueryStringValue(parameterType, key).Variable;
                 variable.Name = key;
                 _querystringVariables.Add(variable);
             }

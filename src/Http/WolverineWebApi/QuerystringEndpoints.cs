@@ -90,6 +90,18 @@ public static class FromQueryEndpoints
 
     [WolverineGet("/api/bigquery")]
     public static BigQuery Get([FromQuery] BigQuery query) => query;
+
+    [WolverineGet("/api/fromquery/aliased-array")]
+    public static AliasedArrayQuery GetAliasedArray([FromQuery] AliasedArrayQuery query) => query;
+
+    [WolverineGet("/api/fromquery/aliased-int-array")]
+    public static AliasedIntArrayQuery GetAliasedIntArray([FromQuery] AliasedIntArrayQuery query) => query;
+
+    [WolverineGet("/api/asparameters/aliased-array")]
+    public static AliasedArrayQuery GetAliasedArrayAsParams([AsParameters] AliasedArrayQuery query) => query;
+
+    [WolverineGet("/api/asparameters/aliased-int-array")]
+    public static AliasedIntArrayQuery GetAliasedIntArrayAsParams([AsParameters] AliasedIntArrayQuery query) => query;
 }
 
 
@@ -98,6 +110,10 @@ public record Query2(int Number);
 public record Query3(Guid Id);
 
 public record Query4(string Name, int Number, Direction Direction);
+
+public record AliasedArrayQuery([FromQuery(Name = "v")] string[] Values);
+
+public record AliasedIntArrayQuery([FromQuery(Name = "n")] int[] Numbers);
 
 
 public class BigQuery
@@ -122,4 +138,16 @@ public class BigQuery
     public List<Direction> EnumListValues { get; set; } = new();
 
     public List<int> IntList { get; set; }
+
+    [FromQuery(Name = "v")]
+    [FromForm(Name = "v")]
+    public string[] AliasedValues { get; set; }
+
+    [FromQuery(Name = "n")]
+    [FromForm(Name = "n")]
+    public int[] AliasedNumbers { get; set; }
+
+    [FromQuery(Name = "d")]
+    [FromForm(Name = "d")]
+    public List<Direction> AliasedEnumList { get; set; } = new();
 }
