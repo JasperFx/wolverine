@@ -10,6 +10,13 @@ public interface IMessageContext : IMessageBus
     string? CorrelationId { get; set; }
 
     /// <summary>
+    ///     The authenticated user name for tracking and auditing purposes.
+    ///     When EnableRelayOfUserName is true, this is automatically propagated
+    ///     to outgoing messages and Marten's LastModifiedBy.
+    /// </summary>
+    string? UserName { get; set; }
+
+    /// <summary>
     ///     The envelope being currently handled. This will only be non-null during
     ///     the handling of a message
     /// </summary>

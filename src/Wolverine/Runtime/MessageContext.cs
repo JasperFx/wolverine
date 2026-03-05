@@ -662,6 +662,7 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         _channel = channel;
         _sagaId = originalEnvelope.SagaId;
         TenantId = originalEnvelope.TenantId;
+        UserName = originalEnvelope.UserName;
 
         Transaction = this;
 

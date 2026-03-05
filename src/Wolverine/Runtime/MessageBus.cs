@@ -42,6 +42,7 @@ public partial class MessageBus : IMessageBus, IMessageContext
     }
 
     public string? CorrelationId { get; set; }
+    public string? UserName { get; set; }
     public Envelope? Envelope { get; protected set; }
     public virtual ValueTask RespondToSenderAsync(object response)
     {
@@ -305,6 +306,12 @@ public partial class MessageBus : IMessageBus, IMessageContext
         outbound.CorrelationId = CorrelationId;
         outbound.ConversationId = outbound.Id; // the message chain originates here
         outbound.TenantId ??= TenantId; // don't override a tenant id that's specifically set on the envelope itself
+
+        if (Runtime.Options.EnableRelayOfUserName)
+        {
+            outbound.UserName ??= UserName;
+        }
+
         outbound.ParentId = activity?.Id;
         outbound.Store = Storage;
     }

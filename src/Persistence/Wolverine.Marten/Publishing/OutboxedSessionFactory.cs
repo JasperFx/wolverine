@@ -145,6 +145,15 @@ public class OutboxedSessionFactory
 
         session.CorrelationId = context.CorrelationId;
 
+        if (context.Envelope?.UserName is not null)
+        {
+            session.LastModifiedBy = context.Envelope.UserName;
+        }
+        else if (context.UserName is not null)
+        {
+            session.LastModifiedBy = context.UserName;
+        }
+
         var transaction = new MartenEnvelopeTransaction(session, context);
         context.EnlistInOutbox(transaction);
 
