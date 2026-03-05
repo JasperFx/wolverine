@@ -249,7 +249,11 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
 
         if (_latched && !envelope.IsFromLocalDurableQueue())
         {
-            await _deferBlock.PostAsync(envelope);
+            if (envelope.Listener != null)
+            {
+                await _deferBlock.PostAsync(envelope);
+            }
+
             return;
         }
 
