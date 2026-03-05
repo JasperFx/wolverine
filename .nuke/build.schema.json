@@ -56,7 +56,6 @@
         "PulsarTests",
         "RabbitmqTests",
         "Restore",
-        "ShimsTests",
         "SqliteTests",
         "Test",
         "TestExtensions",

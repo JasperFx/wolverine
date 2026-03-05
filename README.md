@@ -21,7 +21,7 @@ for Wolverine.
 
 ## Working with the Code
 
-To work with the code, just open the `wolverine.sln` file in the root of the repository and go. If you want to run
+To work with the code, just open the `wolverine.slnx` file in the root of the repository and go. If you want to run
 integration tests though, you'll want Docker installed locally
 and to start the matching testing services with:
 
