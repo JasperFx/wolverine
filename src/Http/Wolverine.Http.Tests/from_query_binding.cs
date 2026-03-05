@@ -184,4 +184,109 @@ public class from_query_binding : IntegrationContext
         (await forQuerystring("name=Jones&number=95&Aliased=foo")).ValueWithAlias.ShouldBe("foo");
         (await forQuerystring("name=Jones&number=95&valueWithAlias=foo")).ValueWithAlias.ShouldBeNull();
     }
+
+    [Fact]
+    public async Task aliased_string_array_as_property()
+    {
+        var result = await Scenario(x =>
+        {
+            x.Get
+                .Url("/api/bigquery")
+                .QueryString("v", "one")
+                .QueryString("v", "two");
+        });
+
+        var query = result.ReadAsJson<BigQuery>();
+        query.AliasedValues.ShouldBe(["one", "two"]);
+    }
+
+    [Fact]
+    public async Task aliased_int_array_as_property()
+    {
+        var result = await Scenario(x =>
+        {
+            x.Get
+                .Url("/api/bigquery")
+                .QueryString("n", "10")
+                .QueryString("n", "20");
+        });
+
+        var query = result.ReadAsJson<BigQuery>();
+        query.AliasedNumbers.ShouldBe([10, 20]);
+    }
+
+    [Fact]
+    public async Task aliased_enum_list_as_property()
+    {
+        var result = await Scenario(x =>
+        {
+            x.Get
+                .Url("/api/bigquery")
+                .QueryString("d", "North")
+                .QueryString("d", "South");
+        });
+
+        var query = result.ReadAsJson<BigQuery>();
+        query.AliasedEnumList.ShouldBe([Direction.North, Direction.South]);
+    }
+
+    [Fact]
+    public async Task aliased_string_array_in_record_with_fromquery()
+    {
+        var result = await Scenario(x =>
+        {
+            x.Get
+                .Url("/api/fromquery/aliased-array")
+                .QueryString("v", "one")
+                .QueryString("v", "two");
+        });
+
+        var query = result.ReadAsJson<AliasedArrayQuery>();
+        query.Values.ShouldBe(["one", "two"]);
+    }
+
+    [Fact]
+    public async Task aliased_int_array_in_record_with_fromquery()
+    {
+        var result = await Scenario(x =>
+        {
+            x.Get
+                .Url("/api/fromquery/aliased-int-array")
+                .QueryString("n", "5")
+                .QueryString("n", "10");
+        });
+
+        var query = result.ReadAsJson<AliasedIntArrayQuery>();
+        query.Numbers.ShouldBe([5, 10]);
+    }
+
+    [Fact]
+    public async Task aliased_string_array_in_record_with_asparameters()
+    {
+        var result = await Scenario(x =>
+        {
+            x.Get
+                .Url("/api/asparameters/aliased-array")
+                .QueryString("v", "one")
+                .QueryString("v", "two");
+        });
+
+        var query = result.ReadAsJson<AliasedArrayQuery>();
+        query.Values.ShouldBe(["one", "two"]);
+    }
+
+    [Fact]
+    public async Task aliased_int_array_in_record_with_asparameters()
+    {
+        var result = await Scenario(x =>
+        {
+            x.Get
+                .Url("/api/asparameters/aliased-int-array")
+                .QueryString("n", "5")
+                .QueryString("n", "10");
+        });
+
+        var query = result.ReadAsJson<AliasedIntArrayQuery>();
+        query.Numbers.ShouldBe([5, 10]);
+    }
 }
