@@ -97,12 +97,8 @@ public class NatsListener : IListener, ISupportDeadLetterQueue
                     {
                         envelope.Attempts = (int)(metadata?.NumDelivered ?? 1);
 
-                        envelope.Headers["x-dlq-reason"] = exception.Message;
-                        envelope.Headers["x-dlq-timestamp"] = DateTimeOffset.UtcNow.ToString("O");
+                        DeadLetterQueueConstants.StampFailureMetadata(envelope, exception);
                         envelope.Headers["x-dlq-original-subject"] = _endpoint.Subject;
-                        envelope.Headers["x-dlq-attempts"] = envelope.Attempts.ToString();
-                        envelope.Headers["x-dlq-exception-type"] =
-                            exception.GetType().FullName ?? "Unknown";
 
                         await _deadLetterSender.SendAsync(envelope);
                     }

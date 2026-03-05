@@ -39,6 +39,7 @@ internal class RabbitMqInteropFriendlyCallback : IChannelCallback, ISupportDeadL
 
     public async Task MoveToErrorsAsync(Envelope envelope, Exception exception)
     {
+        DeadLetterQueueConstants.StampFailureMetadata(envelope, exception);
         await _sendBlock.PostAsync(envelope);
     }
 
@@ -73,8 +74,11 @@ internal class RabbitMqListener : RabbitMqChannelAgent, IListener, ISupportDeadL
         _transport = transport;
         _receiver = receiver ?? throw new ArgumentNullException(nameof(receiver));
 
-        _callback = (Queue.DeadLetterQueue != null) &
-                    (Queue.DeadLetterQueue?.Mode == DeadLetterQueueMode.InteropFriendly)
+        var useEnhancedOrInterop = Queue.DeadLetterQueue != null &&
+                                    (Queue.DeadLetterQueue.Mode == DeadLetterQueueMode.InteropFriendly ||
+                                     _transport.UseEnhancedDeadLettering);
+
+        _callback = useEnhancedOrInterop
             ? new RabbitMqInteropFriendlyCallback(_transport, _transport.Queues[Queue.DeadLetterQueue!.QueueName],
                 _runtime)
             : _transport.Callback!;

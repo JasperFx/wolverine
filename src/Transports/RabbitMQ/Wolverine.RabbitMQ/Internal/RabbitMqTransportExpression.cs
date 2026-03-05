@@ -13,6 +13,18 @@ public class RabbitMqTransportExpression : BrokerExpression<RabbitMqTransport, R
     }
 
     /// <summary>
+    /// When enabled, Wolverine will publish failed messages to the dead letter queue
+    /// with exception metadata headers (exception type, message, stack trace, timestamp)
+    /// instead of using RabbitMQ's native NACK-based dead lettering. This enables richer
+    /// error information at the cost of not using native RabbitMQ dead letter exchange mechanisms.
+    /// </summary>
+    public RabbitMqTransportExpression EnableEnhancedDeadLettering()
+    {
+        Transport.UseEnhancedDeadLettering = true;
+        return this;
+    }
+
+    /// <summary>
     /// Opt into making Wolverine "auto ping" new listeners by trying to send a fake Wolverine "ping" message
     /// This *might* assist in Wolverine auto-starting rabbit mq connections that have failed on the Rabbit MQ side
     /// Experimental

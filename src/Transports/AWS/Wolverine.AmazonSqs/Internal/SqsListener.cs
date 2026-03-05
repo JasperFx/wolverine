@@ -185,6 +185,7 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue
 
     public Task MoveToErrorsAsync(Envelope envelope, Exception exception)
     {
+        DeadLetterQueueConstants.StampFailureMetadata(envelope, exception);
         return _deadLetterBlock!.PostAsync(envelope);
     }
 

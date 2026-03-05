@@ -69,6 +69,36 @@ using var host = await Host.CreateDefaultBuilder()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L435-L458' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_overriding_rabbit_mq_dead_letter_queue_interop_friendly' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Enhanced Dead Lettering with Exception Metadata
+
+By default, Wolverine uses RabbitMQ's native NACK mechanism to move failed messages to the dead letter exchange. While simple, this approach does not include any information about *why* the message failed.
+
+With `EnableEnhancedDeadLettering()`, Wolverine will instead publish failed messages directly to the dead letter queue with exception metadata headers, then ACK the original message. This gives you structured failure information on each dead-lettered message:
+
+| Header | Description |
+|--------|-------------|
+| `exception-type` | Full type name of the exception |
+| `exception-message` | The exception message |
+| `exception-stack` | The exception stack trace |
+| `failed-at` | Unix timestamp (milliseconds) when the failure occurred |
+
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.UseRabbitMq()
+            .EnableEnhancedDeadLettering();
+    }).StartAsync();
+```
+
+::: tip
+These same metadata headers are automatically included for all other Wolverine transports (SQS, Azure Service Bus, GCP Pub/Sub, NATS, Kafka, Redis, Pulsar) when messages are moved to dead letter queues.
+:::
+
+::: warning
+Enhanced dead lettering bypasses RabbitMQ's native dead letter exchange (DLX) mechanism. Messages are published to the DLQ by Wolverine rather than being NACK'd. If you rely on native DLX routing or policies, this mode may not be appropriate.
+:::
+
 And lastly, if you don't particularly want to have any Rabbit MQ dead letter queues and you quite like the [database backed 
 dead letter queues](/guide/durability/dead-letter-storage) you get with Wolverine's message durability, you can use the `WolverineStorage` option:
 

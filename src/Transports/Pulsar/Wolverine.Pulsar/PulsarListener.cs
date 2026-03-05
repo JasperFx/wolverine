@@ -348,6 +348,8 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
             messageMetadata.DeliverAtTimeAsDateTimeOffset = DateTimeOffset.UtcNow;
             if (exception != null)
             {
+                DeadLetterQueueConstants.StampFailureMetadata(envelope, exception);
+
                 var exceptionText = exception.ToString();
                 messageMetadata[PulsarEnvelopeConstants.Exception] = exceptionText;
                 e.Headers[PulsarEnvelopeConstants.Exception] = exceptionText;
