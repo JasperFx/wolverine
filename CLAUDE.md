@@ -62,8 +62,8 @@ npm install && npm run docs
 ```
 
 **Solutions**:
-- `wolverine.sln` - Full solution
-- `wolverine_slim.sln` - Lightweight variant
+- `wolverine.slnx` - Full solution
+- `wolverine_slim.slnx` - Lightweight variant
 
 ## Key Entry Points
 
