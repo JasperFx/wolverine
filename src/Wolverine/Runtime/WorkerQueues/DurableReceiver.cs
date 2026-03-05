@@ -313,6 +313,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
     public Task MoveToErrorsAsync(Envelope envelope, Exception exception)
     {
         envelope.Failure = exception;
+        DeadLetterQueueConstants.StampFailureMetadata(envelope, exception);
 
         return _moveToErrors.PostAsync(envelope);
     }

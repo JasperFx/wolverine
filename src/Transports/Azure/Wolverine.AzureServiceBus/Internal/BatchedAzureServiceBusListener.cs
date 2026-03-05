@@ -101,6 +101,7 @@ public class BatchedAzureServiceBusListener : IListener, ISupportDeadLetterQueue
     {
         if (envelope is AzureServiceBusEnvelope e)
         {
+            DeadLetterQueueConstants.StampFailureMetadata(envelope, exception);
             e.Exception = exception;
             await _deadLetter.PostAsync(e);
         }

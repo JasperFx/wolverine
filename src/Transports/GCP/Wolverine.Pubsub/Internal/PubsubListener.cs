@@ -111,6 +111,7 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue
 
     public Task MoveToErrorsAsync(Envelope envelope, Exception exception)
     {
+        DeadLetterQueueConstants.StampFailureMetadata(envelope, exception);
         return _deadLetter.PostAsync(envelope);
     }
 

@@ -318,6 +318,14 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IAsy
     public ILogger<RabbitMqTransport> Logger { get; private set; } = NullLogger<RabbitMqTransport>.Instance;
     
     /// <summary>
+    /// When true, Wolverine will publish failed messages to the dead letter queue
+    /// with exception metadata headers instead of using RabbitMQ's native NACK-based
+    /// dead lettering. This enables richer error information at the cost of not using
+    /// native RabbitMQ dead letter exchange mechanisms.
+    /// </summary>
+    public bool UseEnhancedDeadLettering { get; set; }
+
+    /// <summary>
     /// Opt into making Wolverine "auto ping" new listeners by trying to send a fake Wolverine "ping" message
     /// This *might* assist in Wolverine auto-starting rabbit mq connections that have failed on the Rabbit MQ side
     /// </summary>
