@@ -128,7 +128,11 @@ public static class EnvelopeSerializer
                 case EnvelopeConstants.TopicNameKey:
                     env.TopicName = value;
                     break;
-                
+
+                case EnvelopeConstants.UserNameKey:
+                    env.UserName = value;
+                    break;
+
                 case EnvelopeConstants.PartitionKey:
                     env.PartitionKey = value;
                     break;
@@ -255,7 +259,7 @@ public static class EnvelopeSerializer
         writer.WriteProp(ref count, EnvelopeConstants.ParentIdKey, env.ParentId);
         writer.WriteProp(ref count, EnvelopeConstants.TenantIdKey, env.TenantId);
         writer.WriteProp(ref count, EnvelopeConstants.TopicNameKey, env.TopicName);
-        
+        writer.WriteProp(ref count, EnvelopeConstants.UserNameKey, env.UserName);
 
         if (env.AcceptedContentTypes.Length != 0)
         {

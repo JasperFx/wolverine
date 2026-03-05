@@ -306,6 +306,11 @@ public partial class Envelope : IHasTenantId
     public string? TenantId { get; set; }
 
     /// <summary>
+    ///     The authenticated user name for tracking and auditing purposes
+    /// </summary>
+    public string? UserName { get; set; }
+
+    /// <summary>
     ///     Specifies the accepted content types for the requested reply
     /// </summary>
     internal static readonly string?[] DefaultAcceptedContentTypes = ["application/json"];

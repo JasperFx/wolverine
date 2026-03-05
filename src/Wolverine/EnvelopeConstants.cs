@@ -26,4 +26,5 @@ public static class EnvelopeConstants
     public const string PartitionKey = "partition-key";
     public const string TopicNameKey = "topic-name";
     public const string KeepUntilKey = "keep-until";
+    public const string UserNameKey = "user-name";
 }

@@ -146,6 +146,61 @@ public class MessageContextTests
     }
 
     [Fact]
+    public void track_envelope_correlation_relays_user_name_when_enabled()
+    {
+        theRuntime.Options.EnableRelayOfUserName = true;
+        theContext.UserName = "testuser";
+
+        using var activity = new Activity("DoWork");
+        activity.Start();
+
+        theContext.TrackEnvelopeCorrelation(theEnvelope, activity);
+
+        theEnvelope.UserName.ShouldBe("testuser");
+    }
+
+    [Fact]
+    public void track_envelope_correlation_does_not_relay_user_name_when_disabled()
+    {
+        theRuntime.Options.EnableRelayOfUserName = false;
+        theContext.UserName = "testuser";
+
+        using var activity = new Activity("DoWork");
+        activity.Start();
+
+        theContext.TrackEnvelopeCorrelation(theEnvelope, activity);
+
+        theEnvelope.UserName.ShouldBeNull();
+    }
+
+    [Fact]
+    public void track_envelope_correlation_does_not_override_existing_user_name()
+    {
+        theRuntime.Options.EnableRelayOfUserName = true;
+        theContext.UserName = "contextuser";
+        theEnvelope.UserName = "envelopeuser";
+
+        using var activity = new Activity("DoWork");
+        activity.Start();
+
+        theContext.TrackEnvelopeCorrelation(theEnvelope, activity);
+
+        theEnvelope.UserName.ShouldBe("envelopeuser");
+    }
+
+    [Fact]
+    public void reads_user_name_from_envelope()
+    {
+        var original = ObjectMother.Envelope();
+        original.UserName = "fromenvelope";
+
+        var context = new MessageContext(theRuntime);
+        context.ReadEnvelope(original, InvocationCallback.Instance);
+
+        context.UserName.ShouldBe("fromenvelope");
+    }
+
+    [Fact]
     public void reads_tenant_id_from_envelope()
     {
         theContext.TenantId.ShouldBe("some tenant");

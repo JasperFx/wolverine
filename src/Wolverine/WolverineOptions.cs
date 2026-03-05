@@ -168,6 +168,13 @@ public sealed partial class WolverineOptions
     public SendingFailurePolicies SendingFailure { get; } = new();
 
     /// <summary>
+    /// When enabled, Wolverine will automatically relay the authenticated user name
+    /// from HTTP ClaimsPrincipal through the messaging infrastructure, propagating it
+    /// on outgoing envelopes and into Marten's IDocumentSession.LastModifiedBy
+    /// </summary>
+    public bool EnableRelayOfUserName { get; set; }
+
+    /// <summary>
     /// What is the policy within this application for whether or not it is valid to allow Service Location within
     /// the generated code for message handlers or HTTP endpoints. Default is AllowedByWarn. Just keep in mind that
     /// Wolverine really does not want you to use service location if you don't have to!

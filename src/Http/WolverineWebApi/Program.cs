@@ -116,6 +116,8 @@ public class Program
 
             opts.Durability.Mode = DurabilityMode.Solo;
 
+            opts.EnableRelayOfUserName = true;
+
             // Other Wolverine configuration...
             opts.Policies.AutoApplyTransactions();
             opts.Policies.UseDurableLocalQueues();

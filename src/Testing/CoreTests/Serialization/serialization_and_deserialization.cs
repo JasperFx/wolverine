@@ -50,6 +50,20 @@ public class serialization_and_deserialization_of_single_message
     }
 
     [Fact]
+    public void user_name_is_round_tripped()
+    {
+        outgoing.UserName = "testuser@example.com";
+        incoming.UserName.ShouldBe(outgoing.UserName);
+    }
+
+    [Fact]
+    public void user_name_null_is_round_tripped()
+    {
+        outgoing.UserName = null;
+        incoming.UserName.ShouldBeNull();
+    }
+
+    [Fact]
     public void accepted_content_types_positive()
     {
         outgoing.AcceptedContentTypes = ["a", "b"];

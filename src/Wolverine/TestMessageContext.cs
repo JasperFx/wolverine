@@ -179,6 +179,7 @@ public class TestMessageContext : IMessageContext
     }
 
     public string? CorrelationId { get; set; }
+    public string? UserName { get; set; }
     public Envelope? Envelope { get; }
 
     Task ICommandBus.InvokeAsync(object message, CancellationToken cancellation, TimeSpan? timeout)
