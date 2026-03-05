@@ -219,6 +219,5 @@
     <Project Path="src/Transports/SignalR/Wolverine.SignalR.Tests/Wolverine.SignalR.Tests.csproj" />
     <Project Path="src/Transports/SignalR/Wolverine.SignalR/Wolverine.SignalR.csproj" />
   </Folder>
-  <Project Path="build/build.csproj" />
   <Project Path="src/Wolverine/Wolverine.csproj" />
 </Solution>
