@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <Description>Polecat-backed Persistence for Wolverine Applications</Description>
+        <PackageId>WolverineFx.Polecat</PackageId>
+        <TargetFrameworks>net10.0</TargetFrameworks>
+        <GenerateAssemblyProductAttribute>false</GenerateAssemblyProductAttribute>
+        <GenerateAssemblyCopyrightAttribute>false</GenerateAssemblyCopyrightAttribute>
+        <GenerateAssemblyVersionAttribute>false</GenerateAssemblyVersionAttribute>
+        <GenerateAssemblyFileVersionAttribute>false</GenerateAssemblyFileVersionAttribute>
+        <GenerateAssemblyInformationalVersionAttribute>false</GenerateAssemblyInformationalVersionAttribute>
+    </PropertyGroup>
+    <ItemGroup>
+        <ProjectReference Include="..\Wolverine.SqlServer\Wolverine.SqlServer.csproj" />
+    </ItemGroup>
+    <ItemGroup>
+      <PackageReference Include="Polecat" />
+    </ItemGroup>
+    <Import Project="../../../Analysis.Build.props" />
+</Project>

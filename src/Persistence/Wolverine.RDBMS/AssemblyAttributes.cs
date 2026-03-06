@@ -4,6 +4,7 @@ using System.Runtime.CompilerServices;
 [assembly: InternalsVisibleTo("SqlServerTests")]
 [assembly: InternalsVisibleTo("PostgresqlTests")]
 [assembly: InternalsVisibleTo("MartenTests")]
+[assembly: InternalsVisibleTo("PolecatTests")]
 [assembly: InternalsVisibleTo("SqliteTests")]
 [assembly: InternalsVisibleTo("Wolverine.Oracle")]
 [assembly: InternalsVisibleTo("OracleTests")]

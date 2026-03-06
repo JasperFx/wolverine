@@ -386,6 +386,39 @@ Wolverine can't (yet) handle a signature with multiple event streams of the same
 `UpdatedAggregate`. 
 :::
 
+## Overriding Version Discovery <Badge type="tip" text="5.17" />
+
+By default, Wolverine looks for a variable named `version` (from route arguments, query string, or request body) for
+optimistic concurrency checks. In multi-stream scenarios, you can use the `VersionSource` property on `[Aggregate]` or
+`[WriteAggregate]` to specify a different source:
+
+```cs
+// Version from route argument
+[WolverinePost("/orders/{orderId}/ship/{expectedVersion}")]
+[EmptyResponse]
+public static OrderShipped Ship(
+    ShipOrder command,
+    [Aggregate(VersionSource = "expectedVersion")] Order order)
+{
+    return new OrderShipped();
+}
+
+// Version from request body member
+public record ShipOrderWithVersion(Guid OrderId, long ExpectedVersion);
+
+[WolverinePost("/orders/ship-versioned")]
+[EmptyResponse]
+public static OrderShipped Ship(
+    ShipOrderWithVersion command,
+    [Aggregate(VersionSource = nameof(ShipOrderWithVersion.ExpectedVersion))] Order order)
+{
+    return new OrderShipped();
+}
+```
+
+See [Overriding Version Discovery](/guide/durability/marten/event-sourcing.html#overriding-version-discovery) in the
+aggregate handler workflow documentation for more details and multi-stream examples.
+
 ## Reading the Latest Version of an Aggregate
 
 ::: info

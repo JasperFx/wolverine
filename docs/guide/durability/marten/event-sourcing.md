@@ -905,6 +905,202 @@ public class when_transfering_money
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/Marten/working_against_multiple_streams.cs#L163-L190' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_when_transfering_money' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+### Finer-Grained Optimistic Concurrency in Multi-Stream Operations <Badge type="tip" text="5.17" />
+
+When a handler uses multiple `[WriteAggregate]` parameters, Wolverine automatically applies version discovery only
+to the **first** aggregate parameter. Secondary aggregate parameters will **not** automatically look for a `Version`
+variable, preventing them from accidentally sharing the same version source.
+
+To opt a secondary stream into optimistic concurrency checking, use the `VersionSource` property to explicitly point
+it at a different member:
+
+```cs
+public record TransferMoney(Guid FromId, Guid ToId, decimal Amount,
+    long FromVersion, long ToVersion);
+
+public static class TransferMoneyHandler
+{
+    public static void Handle(
+        TransferMoney command,
+
+        // First parameter: discovers "Version" automatically, or use
+        // VersionSource for an explicit member name
+        [WriteAggregate(nameof(TransferMoney.FromId),
+            VersionSource = nameof(TransferMoney.FromVersion))]
+        IEventStream<Account> fromAccount,
+
+        // Secondary parameter: only gets version checking if VersionSource is set
+        [WriteAggregate(nameof(TransferMoney.ToId),
+            VersionSource = nameof(TransferMoney.ToVersion))]
+        IEventStream<Account> toAccount)
+    {
+        if (fromAccount.Aggregate.Amount >= command.Amount)
+        {
+            fromAccount.AppendOne(new Withdrawn(command.Amount));
+            toAccount.AppendOne(new Debited(command.Amount));
+        }
+    }
+}
+```
+
+You can also use `AlwaysEnforceConsistency` on individual streams within a multi-stream operation to ensure a
+concurrency check even when no events are appended to that stream:
+
+```cs
+public static void Handle(
+    TransferMoney command,
+    [WriteAggregate(nameof(TransferMoney.FromId),
+        AlwaysEnforceConsistency = true)]
+    IEventStream<Account> fromAccount,
+    [WriteAggregate(nameof(TransferMoney.ToId))]
+    IEventStream<Account> toAccount)
+{
+    // Even if insufficient funds cause no events to be appended
+    // to fromAccount, Marten will still verify its version hasn't changed
+    if (fromAccount.Aggregate.Amount >= command.Amount)
+    {
+        fromAccount.AppendOne(new Withdrawn(command.Amount));
+        toAccount.AppendOne(new Debited(command.Amount));
+    }
+}
+```
+
+## Enforcing Consistency Without New Events <Badge type="tip" text="5.17" />
+
+In some cases, your command handler may decide not to emit any new events after evaluating the current aggregate state.
+By default, Marten will silently succeed in this case without checking whether the stream has been modified since it was fetched.
+This can be problematic for cross-stream operations where you need to guarantee that all referenced aggregates are still in the
+state you expect at commit time.
+
+The `AlwaysEnforceConsistency` option tells Marten to perform an optimistic concurrency check on the stream even if no events
+are appended. If another session has written to the stream between your `FetchForWriting()` and `SaveChangesAsync()`, Marten
+will throw a `ConcurrencyException`.
+
+### Using the property on `[AggregateHandler]`
+
+You can set `AlwaysEnforceConsistency = true` on the `[AggregateHandler]` attribute:
+
+```cs
+[AggregateHandler(AlwaysEnforceConsistency = true)]
+public static class MyAggregateHandler
+{
+    public static void Handle(DoSomething command, IEventStream<MyAggregate> stream)
+    {
+        // Even if no events are appended, Marten will verify
+        // the stream version hasn't changed since it was fetched
+    }
+}
+```
+
+### Using `[ConsistentAggregateHandler]`
+
+For convenience, there is a `[ConsistentAggregateHandler]` attribute that automatically sets `AlwaysEnforceConsistency = true`:
+
+```cs
+[ConsistentAggregateHandler]
+public static class MyAggregateHandler
+{
+    public static void Handle(DoSomething command, IEventStream<MyAggregate> stream)
+    {
+        // AlwaysEnforceConsistency is automatically true
+    }
+}
+```
+
+### Parameter-level usage with `[ConsistentAggregate]`
+
+When using parameter-level attributes (the `[Aggregate]` pattern), you can use `[ConsistentAggregate]` instead:
+
+```cs
+public static class MyHandler
+{
+    public static void Handle(DoSomething command,
+        [ConsistentAggregate] IEventStream<MyAggregate> stream)
+    {
+        // AlwaysEnforceConsistency is automatically true
+    }
+}
+```
+
+Or set the property directly on `[Aggregate]`:
+
+```cs
+public static class MyHandler
+{
+    public static void Handle(DoSomething command,
+        [Aggregate(AlwaysEnforceConsistency = true)] IEventStream<MyAggregate> stream)
+    {
+        // Explicitly opt into consistency enforcement
+    }
+}
+```
+
+## Overriding Version Discovery <Badge type="tip" text="5.17" />
+
+By default, Wolverine discovers a version member on your command type by looking for a property or field named `Version`
+of type `int` or `long`. In multi-stream operations where each stream needs its own version source, this convention
+breaks down because you can't have multiple properties all named "Version".
+
+The `VersionSource` property lets you explicitly specify which member supplies the expected stream version for
+optimistic concurrency checks.
+
+### On `[AggregateHandler]`
+
+```cs
+public record TransferMoney(Guid FromId, Guid ToId, decimal Amount, long FromVersion);
+
+[AggregateHandler(VersionSource = nameof(TransferMoney.FromVersion))]
+public static class TransferMoneyHandler
+{
+    public static IEnumerable<object> Handle(TransferMoney command, Account account)
+    {
+        // FromVersion will be checked against the "from" account's stream version
+        yield return new Withdrawn(command.Amount);
+    }
+}
+```
+
+### On `[WriteAggregate]` / `[Aggregate]`
+
+This is particularly useful for multi-stream operations where each stream needs independent version tracking:
+
+```cs
+public record TransferMoney(Guid FromId, Guid ToId, decimal Amount,
+    long FromVersion, long ToVersion);
+
+public static class TransferMoneyHandler
+{
+    public static void Handle(
+        TransferMoney command,
+        [WriteAggregate(nameof(TransferMoney.FromId),
+            VersionSource = nameof(TransferMoney.FromVersion))]
+        IEventStream<Account> fromAccount,
+        [WriteAggregate(nameof(TransferMoney.ToId),
+            VersionSource = nameof(TransferMoney.ToVersion))]
+        IEventStream<Account> toAccount)
+    {
+        if (fromAccount.Aggregate.Amount >= command.Amount)
+        {
+            fromAccount.AppendOne(new Withdrawn(command.Amount));
+            toAccount.AppendOne(new Debited(command.Amount));
+        }
+    }
+}
+```
+
+For HTTP endpoints, `VersionSource` can resolve from route arguments, query string parameters, or request body members:
+
+```cs
+[WolverinePost("/orders/{orderId}/ship/{expectedVersion}")]
+[EmptyResponse]
+public static OrderShipped Ship(
+    ShipOrder command,
+    [Aggregate(VersionSource = "expectedVersion")] Order order)
+{
+    return new OrderShipped();
+}
+```
+
 ## Strong Typed Identifiers <Badge type="tip" text="5.0" />
 
 If you're so inclined, you can use strong typed identifiers from tools like  [Vogen](https://github.com/SteveDunn/Vogen) and [StronglyTypedId](https://github.com/andrewlock/StronglyTypedId)
@@ -1024,4 +1220,33 @@ public static StrongLetterAggregate Handle(
 
 
 tools do this for you, and value types generated by these tools are
-legal route argument variables for Wolverine.HTTP now. 
+legal route argument variables for Wolverine.HTTP now.
+
+## Natural Keys
+
+Marten supports [natural keys](/events/natural-keys) on aggregates, allowing you to look up event streams by a domain-meaningful identifier (like an order number) instead of the internal stream id. Wolverine's aggregate handler workflow fully supports natural keys, letting you route commands to the correct aggregate using a business identifier.
+
+### Defining the Aggregate with a Natural Key
+
+First, define your aggregate with a `[NaturalKey]` property and mark the methods that set the key with `[NaturalKeySource]`:
+
+<!-- snippet: sample_wolverine_marten_natural_key_aggregate -->
+<!-- endSnippet -->
+
+### Using Natural Keys in Command Handlers
+
+When your command carries the natural key value instead of a stream id, Wolverine can resolve it automatically. The command property should match the aggregate's natural key type:
+
+<!-- snippet: sample_wolverine_marten_natural_key_commands -->
+<!-- endSnippet -->
+
+Wolverine uses the natural key type on the command property to call `FetchForWriting<TAggregate, TNaturalKey>()` under the covers, resolving the stream by the natural key in a single database round-trip.
+
+### Handler Examples
+
+Here are the handlers that process those commands, using `[WriteAggregate]` and `IEventStream<T>`:
+
+<!-- snippet: sample_wolverine_marten_natural_key_handlers -->
+<!-- endSnippet -->
+
+For more details on how natural keys work at the Marten level, see the [Marten natural keys documentation](https://martendb.io/events/natural-keys).

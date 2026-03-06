@@ -25,7 +25,7 @@ internal class LoadAggregateFrame : AsyncFrame,  IBatchableFrame
     {
         _att = att;
         _identity = _att.AggregateId;
-        
+
         if (_att is { LoadStyle: ConcurrencyStyle.Optimistic, Version: not null })
         {
             _version = _att.Version;
@@ -35,17 +35,35 @@ internal class LoadAggregateFrame : AsyncFrame,  IBatchableFrame
         Stream = new Variable(_eventStreamType, this);
 
         _rawIdentity = _identity;
-        if (_rawIdentity.VariableType != typeof(Guid) && _rawIdentity.VariableType != typeof(string))
+        // For natural keys, keep the full natural key object (don't unwrap)
+        if (!_att.IsNaturalKey && _rawIdentity.VariableType != typeof(Guid) && _rawIdentity.VariableType != typeof(string))
         {
             var valueType = ValueTypeInfo.ForType(_rawIdentity.VariableType);
             _rawIdentity = new MemberAccessVariable(_identity, valueType.ValueProperty);
         }
     }
-    
+
     public Variable Stream { get; }
+    public bool IsNaturalKey => _att.IsNaturalKey;
+
+    private string NaturalKeyFetchForWriting(string targetUsage, string? cancellationTokenUsage = null)
+    {
+        var aggType = _att.AggregateType.FullNameInCode();
+        var nkType = _identity.VariableType.FullNameInCode();
+        var args = cancellationTokenUsage != null
+            ? $"{_identity.Usage}, {cancellationTokenUsage}"
+            : _identity.Usage;
+        return $"{targetUsage}.Events.FetchForWriting<{aggType}, {nkType}>({args})";
+    }
 
     public void WriteCodeToEnlistInBatchQuery(GeneratedMethod method, ISourceWriter writer)
     {
+        if (_att.IsNaturalKey)
+        {
+            writer.WriteLine($"var {_batchQueryItem.Usage} = {NaturalKeyFetchForWriting(_batchQuery!.Usage)};");
+            return;
+        }
+
         if (_att.LoadStyle == ConcurrencyStyle.Exclusive)
         {
             writer.WriteLine($"var {_batchQueryItem.Usage} = {_batchQuery!.Usage}.Events.FetchForExclusiveWriting<{_att.AggregateType.FullNameInCode()}>({_rawIdentity.Usage});");
@@ -71,7 +89,7 @@ internal class LoadAggregateFrame : AsyncFrame,  IBatchableFrame
     {
         yield return _identity;
         if (_version != null) yield return _version;
-        
+
         _session = chain.FindVariable(typeof(IDocumentSession));
         yield return _session;
 
@@ -89,7 +107,11 @@ internal class LoadAggregateFrame : AsyncFrame,  IBatchableFrame
         writer.WriteComment("Loading Marten aggregate as part of the aggregate handler workflow");
         if (_batchQueryItem == null)
         {
-            if (_att.LoadStyle == ConcurrencyStyle.Exclusive)
+            if (_att.IsNaturalKey)
+            {
+                writer.WriteLine($"var {Stream.Usage} = await {NaturalKeyFetchForWriting(_session!.Usage, _token!.Usage)};");
+            }
+            else if (_att.LoadStyle == ConcurrencyStyle.Exclusive)
             {
                 writer.WriteLine($"var {Stream.Usage} = await {_session!.Usage}.Events.FetchForExclusiveWriting<{_att.AggregateType.FullNameInCode()}>({_rawIdentity.Usage}, {_token.Usage});");
             }
@@ -105,9 +127,14 @@ internal class LoadAggregateFrame : AsyncFrame,  IBatchableFrame
         else
         {
             writer.Write(
-                $"var {Stream.Usage} = await {_batchQueryItem.Usage}.ConfigureAwait(false);"); 
+                $"var {Stream.Usage} = await {_batchQueryItem.Usage}.ConfigureAwait(false);");
         }
-        
+
+        if (_att.AlwaysEnforceConsistency)
+        {
+            writer.WriteLine($"{Stream.Usage}.{nameof(IEventStream<string>.AlwaysEnforceConsistency)} = true;");
+        }
+
         Next?.GenerateCode(method, writer);
     }
 }

@@ -212,7 +212,7 @@ class Build : NukeBuild
         .Executes(() =>
         {
             DotNetTest(c => c
-                .SetProjectFile(Solution.Persistence.SqliteTests)
+                .SetProjectFile(Solution.Persistence.Sqlite.SqliteTests)
                 .SetConfiguration(Configuration)
                 .EnableNoBuild()
                 .EnableNoRestore()
@@ -329,13 +329,13 @@ class Build : NukeBuild
                 Solution.Transports.Pulsar.Wolverine_Pulsar,
                 Solution.Transports.GCP.Wolverine_Pubsub,
                 Solution.Persistence.Wolverine_RDBMS,
-                Solution.Persistence.Wolverine_Postgresql,
-                Solution.Persistence.Wolverine_Marten,
-                Solution.Persistence.Wolverine_RavenDb,
-                Solution.Persistence.Wolverine_SqlServer,
-                Solution.Persistence.Wolverine_MySql,
-                Solution.Persistence.Wolverine_Oracle,
-                Solution.Persistence.Wolverine_Sqlite,
+                Solution.Persistence.PostgreSQL.Wolverine_Postgresql,
+                Solution.Persistence.Marten.Wolverine_Marten,
+                Solution.Persistence.RavenDb.Wolverine_RavenDb,
+                Solution.Persistence.SqlServer.Wolverine_SqlServer,
+                Solution.Persistence.MySql.Wolverine_MySql,
+                Solution.Persistence.Oracle.Wolverine_Oracle,
+                Solution.Persistence.Sqlite.Wolverine_Sqlite,
                 Solution.Persistence.CosmosDb.Wolverine_CosmosDb,
                 Solution.Extensions.Wolverine_FluentValidation,
                 Solution.Extensions.Wolverine_MemoryPack,
@@ -478,10 +478,10 @@ class Build : NukeBuild
     {
         yield return new(Solution.Wolverine, ["JasperFx", "JasperFx.RuntimeCompiler", "JasperFx.Events"]);
         
-        yield return new(Solution.Persistence.Wolverine_Postgresql, ["Weasel.Postgresql"]);
+        yield return new(Solution.Persistence.PostgreSQL.Wolverine_Postgresql, ["Weasel.Postgresql"]);
         yield return new(Solution.Persistence.Wolverine_RDBMS, ["Weasel.Core"]);
-        yield return new(Solution.Persistence.Wolverine_SqlServer, ["Weasel.SqlServer"]);
-        yield return new(Solution.Persistence.Wolverine_Marten, ["Marten"]);
+        yield return new(Solution.Persistence.SqlServer.Wolverine_SqlServer, ["Weasel.SqlServer"]);
+        yield return new(Solution.Persistence.Marten.Wolverine_Marten, ["Marten"]);
     }
     
     Target Attach => _ => _.Executes(() =>

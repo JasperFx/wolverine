@@ -59,4 +59,7 @@ public class FakeEvent<T> : IEvent<T>
     public string AggregateTypeName { get; set; }
     public string? UserName { get; set; }
     public bool IsSkipped { get; set; }
+    public IReadOnlyList<JasperFx.Events.EventTag>? Tags => null;
+    public void AddTag<TTag>(TTag tag) where TTag : notnull { }
+    public void AddTag(JasperFx.Events.EventTag tag) { }
 }

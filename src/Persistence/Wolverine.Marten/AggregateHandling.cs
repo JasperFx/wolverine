@@ -31,7 +31,9 @@ internal record AggregateHandling(IDataRequirement Requirement)
 
     public ConcurrencyStyle LoadStyle { get; init; }
     public Variable? Version { get; init; }
+    public bool AlwaysEnforceConsistency { get; init; }
     public ParameterInfo? Parameter { get; set; }
+    public bool IsNaturalKey { get; init; }
 
     public Variable Apply(IChain chain, IServiceContainer container)
     {
@@ -127,7 +129,7 @@ internal record AggregateHandling(IDataRequirement Requirement)
     }
 
     internal static (MemberInfo, MemberInfo?) DetermineAggregateIdAndVersion(Type aggregateType, Type commandType,
-        IServiceContainer container)
+        IServiceContainer container, string? versionSource = null)
     {
         if (commandType.Closes(typeof(IEvent<>)))
         {
@@ -147,8 +149,27 @@ internal record AggregateHandling(IDataRequirement Requirement)
         }
 
         var aggregateId = DetermineAggregateIdMember(aggregateType, commandType);
-        var version = DetermineVersionMember(commandType);
+        var version = versionSource != null
+            ? DetermineVersionMemberByName(commandType, versionSource)
+            : DetermineVersionMember(commandType);
         return (aggregateId, version);
+    }
+
+    internal static MemberInfo? DetermineVersionMemberByName(Type commandType, string memberName)
+    {
+        var bindingFlags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+
+        var prop = commandType.GetProperties(bindingFlags)
+            .FirstOrDefault(x => x.Name.EqualsIgnoreCase(memberName)
+                                 && (x.PropertyType == typeof(int) || x.PropertyType == typeof(long)));
+
+        if (prop != null) return prop;
+
+        var field = commandType.GetFields(bindingFlags)
+            .FirstOrDefault(x => x.Name.EqualsIgnoreCase(memberName)
+                                 && (x.FieldType == typeof(int) || x.FieldType == typeof(long)));
+
+        return field;
     }
 
     internal static void ValidateMethodSignatureForEmittedEvents(IChain chain, MethodCall firstCall,
@@ -175,11 +196,43 @@ internal record AggregateHandling(IDataRequirement Requirement)
 
         if (member == null)
         {
+            // Fall back: if the aggregate uses a strong typed ID, look for a single
+            // property of that exact type on the command
+            member = TryFindStrongTypedIdMember(aggregateType, commandType);
+        }
+
+        if (member == null)
+        {
             throw new InvalidOperationException(
                 $"Unable to determine the aggregate id for aggregate type {aggregateType.FullNameInCode()} on command type {commandType.FullNameInCode()}. Either make a property or field named '{conventionalMemberName}', or decorate a member with the {typeof(IdentityAttribute).FullNameInCode()} attribute");
         }
 
         return member;
+    }
+
+    internal static MemberInfo? TryFindStrongTypedIdMember(Type aggregateType, Type commandType)
+    {
+        // Determine the strong typed ID type from the aggregate
+        var strongTypedIdType = WriteAggregateAttribute.FindIdentifiedByType(aggregateType);
+
+        if (strongTypedIdType == null)
+        {
+            // Check the Id property on the aggregate itself
+            var idProp = aggregateType.GetProperty("Id");
+            if (idProp != null && !WriteAggregateAttribute.IsPrimitiveIdType(idProp.PropertyType))
+            {
+                strongTypedIdType = idProp.PropertyType;
+            }
+        }
+
+        if (strongTypedIdType == null) return null;
+
+        // Look for a single property of the strong typed ID type on the command
+        var matchingProps = commandType.GetProperties()
+            .Where(x => x.PropertyType == strongTypedIdType && x.CanRead)
+            .ToArray();
+
+        return matchingProps.Length == 1 ? matchingProps[0] : null;
     }
 
     internal static void DetermineEventCaptureHandling(IChain chain, MethodCall firstCall, Type aggregateType)

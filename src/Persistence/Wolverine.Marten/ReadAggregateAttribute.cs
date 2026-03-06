@@ -12,6 +12,7 @@ using Wolverine.Attributes;
 using Wolverine.Configuration;
 using Wolverine.Marten.Codegen;
 using Wolverine.Marten.Persistence.Sagas;
+using JasperFx.Events.Aggregation;
 using Wolverine.Persistence;
 using Wolverine.Runtime;
 
@@ -20,7 +21,7 @@ namespace Wolverine.Marten;
 /// <summary>
 /// Use Marten's FetchLatest() API to retrieve the parameter value
 /// </summary>
-public class ReadAggregateAttribute : WolverineParameterAttribute, IDataRequirement
+public class ReadAggregateAttribute : WolverineParameterAttribute, IDataRequirement, IRefersToAggregate
 {
     private OnMissing? _onMissing;
 
@@ -61,7 +62,12 @@ public class ReadAggregateAttribute : WolverineParameterAttribute, IDataRequirem
         
         if (!tryFindIdentityVariable(chain, parameter, idType, out var identity))
         {
-            throw new InvalidEntityLoadUsageException(this, parameter);
+            // Fall back to strong typed ID matching
+            identity = tryFindStrongTypedIdentityVariable(chain, parameter.ParameterType, idType);
+            if (identity == null)
+            {
+                throw new InvalidEntityLoadUsageException(this, parameter);
+            }
         }
 
         var frame = new FetchLatestAggregateFrame(parameter.ParameterType, identity);
@@ -87,6 +93,35 @@ public class ReadAggregateAttribute : WolverineParameterAttribute, IDataRequirem
         AggregateHandling.StoreDeferredMiddlewareVariable(chain, parameter.Name, returnVariable);
 
         return returnVariable;
+    }
+
+    private Variable? tryFindStrongTypedIdentityVariable(IChain chain, Type aggregateType, Type idType)
+    {
+        var strongTypedIdType = idType;
+
+        if (WriteAggregateAttribute.IsPrimitiveIdType(idType))
+        {
+            strongTypedIdType = WriteAggregateAttribute.FindIdentifiedByType(aggregateType);
+        }
+
+        if (strongTypedIdType == null || WriteAggregateAttribute.IsPrimitiveIdType(strongTypedIdType)) return null;
+
+        var inputType = chain.InputType();
+        if (inputType == null) return null;
+
+        var matchingProps = inputType.GetProperties()
+            .Where(x => x.PropertyType == strongTypedIdType && x.CanRead)
+            .ToArray();
+
+        if (matchingProps.Length == 1)
+        {
+            if (chain.TryFindVariable(matchingProps[0].Name, ValueSource, strongTypedIdType, out var variable))
+            {
+                return variable;
+            }
+        }
+
+        return null;
     }
 }
 

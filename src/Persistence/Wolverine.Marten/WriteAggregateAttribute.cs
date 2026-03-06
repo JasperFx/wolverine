@@ -7,6 +7,7 @@ using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Marten;
 using Marten.Events;
+using JasperFx.Events.Aggregation;
 using Wolverine.Attributes;
 using Wolverine.Configuration;
 using Wolverine.Persistence;
@@ -21,7 +22,7 @@ namespace Wolverine.Marten;
 ///     "aggregate handler" workflow
 /// </summary>
 [AttributeUsage(AttributeTargets.Parameter)]
-public class WriteAggregateAttribute : WolverineParameterAttribute, IDataRequirement, IMayInferMessageIdentity
+public class WriteAggregateAttribute : WolverineParameterAttribute, IDataRequirement, IMayInferMessageIdentity, IRefersToAggregate
 {
     public WriteAggregateAttribute()
     {
@@ -51,6 +52,21 @@ public class WriteAggregateAttribute : WolverineParameterAttribute, IDataRequire
     /// </summary>
     public ConcurrencyStyle LoadStyle { get; set; } = ConcurrencyStyle.Optimistic;
 
+    /// <summary>
+    ///     If true, Marten will enforce an optimistic concurrency check on this stream even if no
+    ///     events are appended at the time of calling SaveChangesAsync(). This is useful when you want
+    ///     to ensure the stream version has not advanced since it was fetched, even if the command
+    ///     handler decides not to emit any new events.
+    /// </summary>
+    public bool AlwaysEnforceConsistency { get; set; }
+
+    /// <summary>
+    ///     Override the name of the variable or member used to find the expected stream version
+    ///     for optimistic concurrency checks. By default, Wolverine looks for a variable named "version".
+    ///     This is useful in multi-stream operations where each stream needs its own version source.
+    /// </summary>
+    public string? VersionSource { get; set; }
+
     public override Variable Modify(IChain chain, ParameterInfo parameter, IServiceContainer container, GenerationRules rules)
     {
         _onMissing ??= container.GetInstance<WolverineOptions>().EntityDefaults.OnMissing;
@@ -68,13 +84,24 @@ public class WriteAggregateAttribute : WolverineParameterAttribute, IDataRequire
         var store = container.GetInstance<IDocumentStore>();
         var idType = store.Options.FindOrResolveDocumentType(aggregateType).IdType;
 
-        var identity = FindIdentity(aggregateType, idType, chain) ?? throw new InvalidOperationException(
-            $"Unable to determine an aggregate id for the parameter '{parameter.Name}' on method {chain.HandlerCalls().First()}");
+        var identity = FindIdentity(aggregateType, idType, chain);
+        var isNaturalKey = false;
+
+        // If standard identity resolution failed, check for natural key support
+        if (identity == null && store.Options is StoreOptions storeOptions)
+        {
+            var naturalKey = storeOptions.Projections.FindNaturalKeyDefinition(aggregateType);
+            if (naturalKey != null)
+            {
+                identity = FindIdentity(aggregateType, naturalKey.OuterType, chain);
+                if (identity != null) isNaturalKey = true;
+            }
+        }
 
         if (identity == null)
         {
             throw new InvalidOperationException(
-                "Cannot determine an identity variable for this aggregate from the route arguments");
+                $"Unable to determine an aggregate id for the parameter '{parameter.Name}' on method {chain.HandlerCalls().First()}");
         }
 
         var version = findVersionVariable(chain);
@@ -87,7 +114,9 @@ public class WriteAggregateAttribute : WolverineParameterAttribute, IDataRequire
             AggregateId = identity,
             LoadStyle = LoadStyle,
             Version = version,
-            Parameter = parameter
+            AlwaysEnforceConsistency = AlwaysEnforceConsistency,
+            Parameter = parameter,
+            IsNaturalKey = isNaturalKey
         };
 
         return handling.Apply(chain, container);
@@ -95,24 +124,29 @@ public class WriteAggregateAttribute : WolverineParameterAttribute, IDataRequire
     
     internal Variable? findVersionVariable(IChain chain)
     {
-        if (chain.TryFindVariable("version", ValueSource.Anything, typeof(long), out var variable))
+        // If no explicit VersionSource is set and another aggregate handling already
+        // exists on this chain, skip automatic version discovery to avoid multiple
+        // streams accidentally sharing the same "version" variable
+        if (VersionSource == null && chain.Tags.ContainsKey(nameof(AggregateHandling)))
+        {
+            return null;
+        }
+
+        var name = VersionSource ?? "version";
+
+        if (chain.TryFindVariable(name, ValueSource.Anything, typeof(long), out var variable))
         {
             return variable;
         }
 
-        if (chain.TryFindVariable("version", ValueSource.Anything, typeof(int), out var v2))
+        if (chain.TryFindVariable(name, ValueSource.Anything, typeof(int), out var v2))
         {
             return v2;
         }
 
-        if (chain.TryFindVariable("version", ValueSource.Anything, typeof(uint), out var v3))
+        if (chain.TryFindVariable(name, ValueSource.Anything, typeof(uint), out var v3))
         {
             return v3;
-        }
-
-        if (chain.TryFindVariable("version", ValueSource.Anything, typeof(uint), out var v4))
-        {
-            return v4;
         }
 
         return null;
@@ -138,7 +172,50 @@ public class WriteAggregateAttribute : WolverineParameterAttribute, IDataRequire
             return v3;
         }
 
+        // Fall back to strong typed identifier matching: if the identity type is a
+        // strong typed ID (not a primitive like Guid/string), look for a single property
+        // of that exact type on the input/command type.
+        var strongTypedIdType = idType;
+
+        // If idType is primitive, check if the aggregate declares IdentifiedBy<T>
+        if (IsPrimitiveIdType(idType))
+        {
+            strongTypedIdType = FindIdentifiedByType(aggregateType);
+        }
+
+        if (strongTypedIdType != null && !IsPrimitiveIdType(strongTypedIdType))
+        {
+            var inputType = chain.InputType();
+            if (inputType != null)
+            {
+                var matchingProps = inputType.GetProperties()
+                    .Where(x => x.PropertyType == strongTypedIdType && x.CanRead)
+                    .ToArray();
+
+                if (matchingProps.Length == 1)
+                {
+                    if (chain.TryFindVariable(matchingProps[0].Name, ValueSource.Anything, strongTypedIdType, out var v4))
+                    {
+                        return v4;
+                    }
+                }
+            }
+        }
+
         return null;
+    }
+
+    internal static bool IsPrimitiveIdType(Type type)
+    {
+        return type == typeof(Guid) || type == typeof(string) || type == typeof(int) || type == typeof(long);
+    }
+
+    internal static Type? FindIdentifiedByType(Type aggregateType)
+    {
+        var identifiedByInterface = aggregateType.GetInterfaces()
+            .FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IdentifiedBy<>));
+
+        return identifiedByInterface?.GetGenericArguments()[0];
     }
 
     public bool TryInferMessageIdentity(IChain chain, out PropertyInfo property)
