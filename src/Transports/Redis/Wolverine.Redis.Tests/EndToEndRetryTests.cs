@@ -2,7 +2,6 @@ using JasperFx.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
-using StackExchange.Redis;
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
 using Wolverine.Redis.Internal;
@@ -13,45 +12,38 @@ using Xunit.Abstractions;
 namespace Wolverine.Redis.Tests;
 
 [Collection("EndToEndRetryTests")]
-public class EndToEndRetryTests
+public class EndToEndRetryTests(ITestOutputHelper output)
 {
-    private readonly ITestOutputHelper _output;
-
-    public EndToEndRetryTests(ITestOutputHelper output)
-    {
-        _output = output;
-    }
-
     [Fact]
     public async Task message_with_retry_policy_saves_to_redis_and_retries()
     {
         var streamKey = $"e2e-retry-{Guid.NewGuid():N}";
-        
+
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
                 opts.ServiceName = "E2ERetryTestService";
-                
+
                 // Configure fast polling for test
                 opts.Durability.ScheduledJobFirstExecution = 100.Milliseconds();
                 opts.Durability.ScheduledJobPollingTime = 200.Milliseconds();
-                
+
                 opts.UseRedisTransport("localhost:6379").AutoProvision();
-                
+
                 // Configure routing to our test stream (without SendInline to ensure durable processing)
                 opts.PublishMessage<E2EFailingCommand>().ToRedisStream(streamKey);
-                
-                // Listen to the stream - it will be Durable mode by default for Redis streams
+
                 opts.ListenToRedisStream(streamKey, "e2e-retry-group")
+                    .UseDurableInbox() // Use Durable endpoint (for Redis streams BufferedInMemory is default)
                     .StartFromBeginning();
-                
+
                 // Configure a retry policy
                 opts.Policies.OnException<InvalidOperationException>()
                     .ScheduleRetry(1.Seconds());
-                
+
                 // Register the handler
                 opts.Discovery.IncludeType<E2EFailingCommandHandler>();
-                
+
                 opts.Services.AddSingleton<E2ERetryTracker>();
             }).StartAsync();
 
@@ -61,9 +53,7 @@ public class EndToEndRetryTests
         var database = transport.GetDatabase(database: endpoint.DatabaseId);
         var scheduledKey = endpoint.ScheduledMessagesKey;
 
-        // Verify endpoint implements IDatabaseBackedEndpoint
-        _output.WriteLine($"Endpoint Mode: {endpoint.Mode}");
-        _output.WriteLine($"Is IDatabaseBackedEndpoint: {endpoint is IDatabaseBackedEndpoint}");
+        endpoint.Mode.ShouldBe(EndpointMode.Durable, "Endpoint should be in Durable mode for retries to work");
         endpoint.ShouldBeAssignableTo<IDatabaseBackedEndpoint>("Endpoint should implement IDatabaseBackedEndpoint");
 
         // Clear the scheduled set
@@ -73,119 +63,68 @@ public class EndToEndRetryTests
         var tracker = host.Services.GetRequiredService<E2ERetryTracker>();
         tracker.FailCount = 1; // Fail once, then succeed
 
-        // Wait for listener to fully initialize
-        await Task.Delay(500);
-
-        // Check if there are messages in the stream initially
-        var initialStreamLength = await database.StreamLengthAsync(streamKey);
-        _output.WriteLine($"Initial stream length: {initialStreamLength}");
-
         // Send a message that will fail 
         var bus = host.MessageBus();
         var command = new E2EFailingCommand(Guid.NewGuid().ToString());
-        
-        _output.WriteLine($"Sending command: {command.Id}");
+
+        output.WriteLine($"Sending command: {command.Id}");
         await bus.PublishAsync(command);
 
-        // Wait a moment for the message to be sent to Redis
-        await Task.Delay(300);
-
         // Check if the message was actually sent to the stream
+        await WaitForAsync("message is sent", async () => tracker.AttemptCount == 1);
         var streamLength = await database.StreamLengthAsync(streamKey);
-        _output.WriteLine($"Stream length after publish: {streamLength}");
-
-        // Wait for initial processing and failure
-        await Task.Delay(1500);
-
-        // Check if handler was called
-        _output.WriteLine($"Handler attempt count: {tracker.AttemptCount}");
-        
-        if (tracker.AttemptCount == 0)
-        {
-            _output.WriteLine("⚠ Handler was NEVER called!");
-            _output.WriteLine("  Possible issues:");
-            _output.WriteLine($"  - Message not sent to Redis stream? (stream length: {streamLength})");
-            _output.WriteLine("  - Listener not processing messages?");
-            _output.WriteLine("  - Handler not registered or discovered?");
-            _output.WriteLine("  - Message routing issue?");
-        }
-        
-        tracker.AttemptCount.ShouldBeGreaterThan(0, "Handler should have been called at least once");
+        tracker.AttemptCount.ShouldBe(1, "Handler should have been called once");
 
         // Verify the message is in the scheduled set (waiting for retry)
-        var scheduledCount = await database.SortedSetLengthAsync(scheduledKey);
-        _output.WriteLine($"Scheduled messages count: {scheduledCount}");
-        
-        if (scheduledCount > 0)
+        long scheduledCount = 0;
+        await WaitForAsync("message is in the scheduled set for retry", async () =>
         {
-            _output.WriteLine("✓ Message was saved to Redis sorted set for retry");
-            
-            // Verify the score is in the future (retry delay)
-            var entries = await database.SortedSetRangeByScoreWithScoresAsync(scheduledKey);
-            if (entries.Length > 0)
-            {
-                var retryTime = DateTimeOffset.FromUnixTimeMilliseconds((long)entries[0].Score);
-                var now = DateTimeOffset.UtcNow;
-                _output.WriteLine($"Retry scheduled for: {retryTime}");
-                _output.WriteLine($"Current time: {now}");
-                
-                retryTime.ShouldBeGreaterThan(now.AddMilliseconds(-500), "Retry should be scheduled in the future");
-            }
+            scheduledCount = await database.SortedSetLengthAsync(scheduledKey);
+            return scheduledCount == 1;
+        });
+        scheduledCount.ShouldBe(1, "Message should be in the scheduled set for retry");
 
-            // Wait for retry to be processed
-            _output.WriteLine("Waiting for retry to be processed...");
-            await Task.Delay(2500);
+        // Verify the score is in the future (retry delay)
+        var entries = await database.SortedSetRangeByScoreWithScoresAsync(scheduledKey);
+        entries.Length.ShouldBe(1, "There should be one entry in the scheduled set");
+        var retryTime = DateTimeOffset.FromUnixTimeMilliseconds((long)entries[0].Score);
+        retryTime.ShouldBeGreaterThan(DateTimeOffset.UtcNow.AddMilliseconds(-500), "Retry should be scheduled in the future");
 
-            // Verify the handler was called again (retry)
-            tracker.AttemptCount.ShouldBe(2, "Handler should be called twice: initial attempt + retry");
-            
-            // Verify the scheduled set is now empty
-            var finalScheduledCount = await database.SortedSetLengthAsync(scheduledKey);
-            finalScheduledCount.ShouldBe(0, "Message should have been removed from scheduled set after retry");
+        // Verify the handler was called again (retry)
+        await WaitForAsync("handler is called again for retry", async () => tracker.AttemptCount == 2);
+        tracker.AttemptCount.ShouldBe(2, "Handler should be called twice: initial attempt + retry");
+        tracker.LastFailed.ShouldBeFalse();
 
-            _output.WriteLine($"✓ Message successfully retried from Redis");
-        }
-        else
+        // Verify the scheduled set is now empty
+        var finalScheduledCount = await database.SortedSetLengthAsync(scheduledKey);
+        finalScheduledCount.ShouldBe(0, "Message should have been removed from scheduled set after retry");
+    }
+
+    private async Task WaitForAsync(string message, Func<ValueTask<bool>> condition, int delayMs = 50, int maxRetries = 100)
+    {
+        var i = 0;
+        while (!await condition() && i < maxRetries)
         {
-            _output.WriteLine("⚠ Message was NOT saved to Redis sorted set");
-            _output.WriteLine("  This could mean:");
-            _output.WriteLine("  1. The message succeeded on first try (tracker.FailCount might not be working)");
-            _output.WriteLine("  2. DurableReceiver is not using IDatabaseBackedEndpoint.ScheduleRetryAsync");
-            _output.WriteLine("  3. The endpoint mode is not Durable");
-            
-            // Let's check if the message succeeded (which would mean no retry was needed)
-            if (tracker.AttemptCount == 1 && !tracker.LastFailed)
-            {
-                _output.WriteLine("  Message succeeded on first attempt - no retry needed");
-            }
+            i++;
+            output.WriteLine($"Waiting for condition: {message} (total {i * delayMs}ms)...");
+            await Task.Delay(delayMs);
         }
-
-        _output.WriteLine($"Final state:");
-        _output.WriteLine($"  Total attempts: {tracker.AttemptCount}");
-        _output.WriteLine($"  Last failed: {tracker.LastFailed}");
     }
 }
 
 public record E2EFailingCommand(string Id);
 
-public class E2EFailingCommandHandler
+public class E2EFailingCommandHandler(E2ERetryTracker tracker)
 {
-    private readonly E2ERetryTracker _tracker;
-
-    public E2EFailingCommandHandler(E2ERetryTracker tracker)
-    {
-        _tracker = tracker;
-    }
-
     public void Handle(E2EFailingCommand command)
     {
-        var attempt = _tracker.RecordAttempt();
-        
-        if (attempt <= _tracker.FailCount)
+        var attempt = tracker.RecordAttempt();
+
+        if (attempt <= tracker.FailCount)
         {
             throw new InvalidOperationException($"Intentional failure on attempt {attempt} for command {command.Id}");
         }
-        
+
         // Success
     }
 }
@@ -219,4 +158,3 @@ public class E2ERetryTracker
         }
     }
 }
-
