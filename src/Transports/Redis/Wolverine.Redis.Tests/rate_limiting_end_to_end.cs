@@ -1,5 +1,4 @@
 using JasperFx.Core;
-using JasperFx.Events.Daemon;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
