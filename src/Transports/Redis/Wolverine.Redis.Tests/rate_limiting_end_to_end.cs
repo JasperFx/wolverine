@@ -2,125 +2,99 @@ using JasperFx.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
-using Wolverine.Configuration;
+using System.Collections.Concurrent;
 using Wolverine.RateLimiting;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace Wolverine.Redis.Tests;
 
-public class rate_limiting_end_to_end
+public class rate_limiting_end_to_end(ITestOutputHelper output) : IAsyncLifetime
 {
-    [Fact]
-    public async Task rate_limited_messages_are_delayed_with_native_scheduling()
+    private readonly ConditionPoller _poller = new(output, maxRetries: 20, retryDelay: 1000.Milliseconds());
+    private readonly RateLimit _limit = new(1, 2.Seconds());
+    private IHost _host = null!;
+    private RedisRateLimitTracker _tracker = null!;
+
+    public async Task InitializeAsync()
     {
         var streamKey = $"rate-limit-{Guid.NewGuid():N}";
         var groupName = $"rate-limit-group-{Guid.NewGuid():N}";
-        var window = 2.Seconds();
-        var limit = new RateLimit(1, window);
-        var tracker = new RedisRateLimitTracker(expectedCount: 2);
+
+        _tracker = new RedisRateLimitTracker(output);
         var endpointUri = new Uri($"redis://stream/0/{streamKey}");
 
-        using var host = await Host.CreateDefaultBuilder()
+        _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
                 opts.ApplicationAssembly = typeof(rate_limiting_end_to_end).Assembly;
-                opts.Services.AddSingleton(tracker);
+                opts.Services.AddSingleton(_tracker);
 
                 opts.UseRedisTransport("localhost:6379").AutoProvision();
                 opts.PublishAllMessages().ToRedisStream(streamKey);
-                opts.ListenToRedisStream(streamKey, groupName).StartFromBeginning();
+                opts.ListenToRedisStream(streamKey, groupName)
+                    .UseDurableInbox()
+                    .StartFromBeginning();
 
-                opts.RateLimitEndpoint(endpointUri, limit);
+                opts.RateLimitEndpoint(endpointUri, _limit);
             }).StartAsync();
-
-        await Task.Delay(250.Milliseconds());
-        await waitForNextBucketStartAsync(limit);
-
-        var bus = host.MessageBus();
-        await bus.PublishAsync(new RedisRateLimitedMessage(Guid.NewGuid().ToString()));
-        await bus.PublishAsync(new RedisRateLimitedMessage(Guid.NewGuid().ToString()));
-
-        await tracker.WaitForHandledAsync(15.Seconds());
-
-        var handled = tracker.HandledTimes;
-        handled.Count.ShouldBeGreaterThanOrEqualTo(2);
-
-        var firstBucket = RateLimitBucket.For(limit, handled[0]);
-        var secondBucket = RateLimitBucket.For(limit, handled[1]);
-        firstBucket.WindowStart.ShouldNotBe(secondBucket.WindowStart);
     }
 
-    private static async Task waitForNextBucketStartAsync(RateLimit limit)
+    public async Task DisposeAsync()
     {
-        var now = DateTimeOffset.UtcNow;
-        var bucket = RateLimitBucket.For(limit, now);
-        var delay = bucket.WindowEnd - now + 50.Milliseconds();
-        if (delay < TimeSpan.Zero)
-        {
-            delay = 50.Milliseconds();
-        }
+        await _host.StopAsync();
+        _host.Dispose();
+    }
 
-        await Task.Delay(delay);
+    [Fact]
+    public async Task rate_limited_messages_are_delayed_with_native_scheduling()
+    {
+        RedisRateLimitedMessage[] messages = [
+            new RedisRateLimitedMessage("A"),
+            new RedisRateLimitedMessage("B")
+        ];
+        var bus = _host.MessageBus();
+
+        output.WriteLine("{0} Sending message: {1}", DateTime.UtcNow, messages[0]);
+        await bus.PublishAsync(messages[0]);
+        output.WriteLine("{0} Sending message: {1}", DateTime.UtcNow, messages[1]);
+        await bus.PublishAsync(messages[1]);
+
+        await _poller.WaitForAsync("handled at least 2 messages",
+            () => _tracker.HandledMessages.Count >= 2);
+
+        var handled = _tracker.HandledMessages;
+        handled.Select(x => x.Message).ShouldBe(messages, ignoreOrder: true);
+
+        var buckets = handled.Select(x => RateLimitBucket.For(_limit, x.TimeStamp)).ToArray();
+        buckets[0].WindowStart.ShouldBeLessThan(buckets[1].WindowStart);
     }
 }
 
 public record RedisRateLimitedMessage(string Id);
 
-public class RedisRateLimitedMessageHandler
+public class RedisRateLimitedMessageHandler(RedisRateLimitTracker tracker)
 {
-    private readonly RedisRateLimitTracker _tracker;
-
-    public RedisRateLimitedMessageHandler(RedisRateLimitTracker tracker)
-    {
-        _tracker = tracker;
-    }
+    private readonly RedisRateLimitTracker _tracker = tracker;
 
     public Task Handle(RedisRateLimitedMessage message, CancellationToken cancellationToken)
     {
-        _tracker.RecordHandled();
+        _tracker.RecordHandled(message);
         return Task.CompletedTask;
     }
 }
 
-public class RedisRateLimitTracker
+public class RedisRateLimitTracker(ITestOutputHelper output)
 {
-    private readonly int _expectedCount;
-    private readonly TaskCompletionSource<bool> _completion =
-        new(TaskCreationOptions.RunContinuationsAsynchronously);
-    private readonly List<DateTimeOffset> _handledTimes = [];
-    private readonly object _lock = new();
+    private readonly ITestOutputHelper output = output;
+    private readonly ConcurrentQueue<(DateTime, RedisRateLimitedMessage)> _handledMessages = [];
 
-    public RedisRateLimitTracker(int expectedCount)
-    {
-        _expectedCount = expectedCount;
-    }
+    public IReadOnlyCollection<(DateTime TimeStamp, RedisRateLimitedMessage Message)> HandledMessages => _handledMessages;
 
-    public IReadOnlyList<DateTimeOffset> HandledTimes
+    public void RecordHandled(RedisRateLimitedMessage message)
     {
-        get
-        {
-            lock (_lock)
-            {
-                return _handledTimes.ToList();
-            }
-        }
-    }
-
-    public void RecordHandled()
-    {
-        lock (_lock)
-        {
-            _handledTimes.Add(DateTimeOffset.UtcNow);
-            if (_handledTimes.Count >= _expectedCount)
-            {
-                _completion.TrySetResult(true);
-            }
-        }
-    }
-
-    public async Task WaitForHandledAsync(TimeSpan timeout)
-    {
-        using var cts = new CancellationTokenSource(timeout);
-        await _completion.Task.WaitAsync(cts.Token);
+        var now = DateTime.UtcNow;
+        _handledMessages.Enqueue((now, message));
+        output.WriteLine("{0} Handled message {1}", now, message);
     }
 }

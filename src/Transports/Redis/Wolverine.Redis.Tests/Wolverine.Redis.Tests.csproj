@@ -10,7 +10,7 @@
         <PackageReference Include="Microsoft.NET.Test.Sdk" />
         <PackageReference Include="NSubstitute" />
         <PackageReference Include="Shouldly" />
-        <PackageReference Include="xunit"/>
+        <PackageReference Include="xunit" />
         <PackageReference Include="xunit.runner.visualstudio">
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
             <PrivateAssets>all</PrivateAssets>
@@ -23,7 +23,7 @@
 
     <ItemGroup>
         <ProjectReference Include="..\..\..\Testing\Wolverine.ComplianceTests\Wolverine.ComplianceTests.csproj" />
-        <ProjectReference Include="..\Wolverine.Redis\Wolverine.Redis.csproj"/>
+        <ProjectReference Include="..\Wolverine.Redis\Wolverine.Redis.csproj" />
     </ItemGroup>
 
     <ItemGroup>
