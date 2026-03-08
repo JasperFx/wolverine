@@ -150,6 +150,14 @@ public class RabbitMqExchange : RabbitMqEndpoint, IRabbitMqExchange
 
         foreach (var binding in _exchangeBindings)
         {
+            // Ensure the source exchange is declared before creating the binding,
+            // since ExchangeBindAsync requires both exchanges to exist in RabbitMQ
+            var sourceExchange = _parent.Exchanges[binding.SourceExchangeName];
+            if (!sourceExchange.HasDeclared)
+            {
+                await sourceExchange.DeclareAsync(channel, logger);
+            }
+
             await binding.DeclareAsync(channel, logger);
         }
     }
