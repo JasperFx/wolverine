@@ -143,6 +143,36 @@ return await app.RunJasperFxCommands(args);
 Note that this stateful resource model is also available at the command line as well for deploy time
 management.
 
+## Exchange-to-Exchange Bindings
+
+Wolverine supports [RabbitMQ exchange-to-exchange bindings](https://www.rabbitmq.com/docs/e2e), which allow you
+to route messages between exchanges before they reach a queue. This is useful for building message routing
+topologies where a source exchange fans out to multiple destination exchanges, each with their own queue bindings.
+
+You can declare exchange-to-exchange bindings using the fluent `BindExchange().ToExchange()` syntax:
+
+```csharp
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.UseRabbitMq()
+            .AutoProvision()
+
+            // Bind source exchange to destination exchange with a routing key
+            .BindExchange("source-exchange").ToExchange("destination-exchange", "routing.key")
+
+            // The destination exchange still needs a queue binding for consumers
+            .BindExchange("destination-exchange").ToQueue("my-queue", "routing.key");
+
+        opts.PublishAllMessages().ToRabbitExchange("source-exchange");
+        opts.ListenToRabbitQueue("my-queue");
+    }).StartAsync();
+```
+
+When `AutoProvision()` is enabled, Wolverine will automatically declare the exchanges and create the 
+exchange-to-exchange bindings at startup. Both the source and destination exchanges are created 
+if they don't already exist.
+
 ## Runtime Declaration
 
 From a user request, there are some extension methods in the WolverineFx.RabbitMQ Nuget off of `IWolverineRuntime` that will enable you to 
