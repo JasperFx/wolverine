@@ -22,6 +22,7 @@ public class SagaDbContext : DbContext
             map.Property(x => x.TwoCompleted).HasColumnName("two");
             map.Property(x => x.ThreeCompleted).HasColumnName("three");
             map.Property(x => x.FourCompleted).HasColumnName("four");
+            map.Property(x => x.Name).HasColumnName("Name");
         });
 
         modelBuilder.Entity<IntBasicWorkflow>(map =>
@@ -32,6 +33,7 @@ public class SagaDbContext : DbContext
             map.Property(x => x.TwoCompleted).HasColumnName("two");
             map.Property(x => x.ThreeCompleted).HasColumnName("three");
             map.Property(x => x.FourCompleted).HasColumnName("four");
+            map.Property(x => x.Name).HasColumnName("Name");
         });
 
         modelBuilder.Entity<StringBasicWorkflow>(map =>
@@ -42,6 +44,7 @@ public class SagaDbContext : DbContext
             map.Property(x => x.TwoCompleted).HasColumnName("two");
             map.Property(x => x.ThreeCompleted).HasColumnName("three");
             map.Property(x => x.FourCompleted).HasColumnName("four");
+            map.Property(x => x.Name).HasColumnName("Name");
         });
 
         modelBuilder.Entity<LongBasicWorkflow>(map =>
@@ -52,6 +55,7 @@ public class SagaDbContext : DbContext
             map.Property(x => x.TwoCompleted).HasColumnName("two");
             map.Property(x => x.ThreeCompleted).HasColumnName("three");
             map.Property(x => x.FourCompleted).HasColumnName("four");
+            map.Property(x => x.Name).HasColumnName("Name");
         });
     }
 }

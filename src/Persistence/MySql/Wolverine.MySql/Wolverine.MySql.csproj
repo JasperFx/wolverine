@@ -12,11 +12,9 @@
 
     <ItemGroup>
         <ProjectReference Include="..\..\Wolverine.RDBMS\Wolverine.RDBMS.csproj" />
-        <!-- Using Weasel from source until a fixed NuGet package is published -->
     </ItemGroup>
 
     <ItemGroup>
-      <!-- MySqlConnector is needed as direct reference when using Weasel from source -->
       <PackageReference Include="MySqlConnector" />
       <PackageReference Include="Weasel.MySql" />
     </ItemGroup>

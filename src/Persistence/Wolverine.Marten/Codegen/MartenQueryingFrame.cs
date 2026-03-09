@@ -30,6 +30,14 @@ internal class MartenBatchingPolicy : IMethodPreCompilationPolicy
         }
     }
 
+    private static bool IsBatchable(IBatchableFrame frame)
+    {
+        // Natural key aggregate loads cannot be batched because IBatchedQuery
+        // does not have a FetchForWriting<T, TNaturalKey> overload
+        if (frame is LoadAggregateFrame laf && laf.IsNaturalKey) return false;
+        return true;
+    }
+
     private static (int, IReadOnlyList<IBatchableFrame> frames) sortThroughFrames(IGeneratedMethod method)
     {
         var list = new List<IBatchableFrame>();
@@ -38,7 +46,7 @@ internal class MartenBatchingPolicy : IMethodPreCompilationPolicy
         for (int i = 0; i < method.Frames.Count; i++)
         {
             var frame = method.Frames[i];
-            if (frame is LoadEntityFrameBlock block && block.Creator is IBatchableFrame b)
+            if (frame is LoadEntityFrameBlock block && block.Creator is IBatchableFrame b && IsBatchable(b))
             {
                 list.Add(b);
                 if (index == -1)
@@ -46,7 +54,7 @@ internal class MartenBatchingPolicy : IMethodPreCompilationPolicy
                     index = i;
                 }
             }
-            else if (frame is IBatchableFrame batchable)    
+            else if (frame is IBatchableFrame batchable && IsBatchable(batchable))
             {
                 list.Add(batchable);
                 if (index == -1)

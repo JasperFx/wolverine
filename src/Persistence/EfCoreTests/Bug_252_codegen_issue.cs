@@ -2,15 +2,12 @@ using IntegrationTests;
 using JasperFx;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
-using Microsoft.Data.SqlClient;
+using JasperFx.Resources;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using SharedPersistenceModels.Items;
 using Shouldly;
-using Weasel.Core;
-using Weasel.SqlServer;
-using Weasel.SqlServer.Tables;
 using Wolverine;
 using Wolverine.Attributes;
 using Wolverine.EntityFrameworkCore;
@@ -51,20 +48,11 @@ public class Bug_252_codegen_issue
 
                 opt.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString);
                 opt.UseEntityFrameworkCoreTransactions();
+                opt.UseEntityFrameworkCoreWolverineManagedMigrations();
+                opt.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
                 opt.Policies.UseDurableLocalQueues();
                 opt.Policies.AutoApplyTransactions();
             }).StartAsync();
-
-        var table = new Table("OrderSagas");
-        table.AddColumn<Guid>("id").AsPrimaryKey();
-        table.AddColumn<int>("version");
-        await using var conn = new SqlConnection(Servers.SqlServerConnectionString);
-        await conn.OpenAsync();
-
-        var migration = await SchemaMigration.DetermineAsync(conn, table);
-        await new SqlServerMigrator().ApplyAllAsync(conn, migration, AutoCreate.All);
-
-        await conn.CloseAsync();
 
         await host.InvokeMessageAndWaitAsync(new OrderCreated(Guid.NewGuid()));
     }
@@ -79,7 +67,7 @@ public class Bug_252_codegen_issue
                 {
                     o.UseSqlServer(Servers.SqlServerConnectionString);
                 });
-                
+
                 opt.Services.AddDbContextWithWolverineIntegration<ItemsDbContext>(o =>
                 {
                     o.UseSqlServer(Servers.SqlServerConnectionString);
@@ -89,19 +77,11 @@ public class Bug_252_codegen_issue
 
                 opt.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString);
                 opt.UseEntityFrameworkCoreTransactions();
+                opt.UseEntityFrameworkCoreWolverineManagedMigrations();
+                opt.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
                 opt.Policies.UseDurableLocalQueues();
                 opt.Policies.AutoApplyTransactions();
             }).StartAsync();
-
-        var table = new Table("OrderSagas");
-        table.AddColumn<Guid>("id").AsPrimaryKey();
-        await using var conn = new SqlConnection(Servers.SqlServerConnectionString);
-        await conn.OpenAsync();
-
-        var migration = await SchemaMigration.DetermineAsync(conn, table);
-        await new SqlServerMigrator().ApplyAllAsync(conn, migration, AutoCreate.All);
-
-        await conn.CloseAsync();
 
         var chain = host.Services.GetRequiredService<HandlerGraph>().HandlerFor<CreateOrder>().As<MessageHandler>().Chain;
         

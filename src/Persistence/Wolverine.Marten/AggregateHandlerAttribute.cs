@@ -43,6 +43,22 @@ public class AggregateHandlerAttribute : ModifyChainAttribute, IDataRequirement,
     internal ConcurrencyStyle LoadStyle { get; }
 
     /// <summary>
+    ///     If true, Marten will enforce an optimistic concurrency check on this stream even if no
+    ///     events are appended at the time of calling SaveChangesAsync(). This is useful when you want
+    ///     to ensure the stream version has not advanced since it was fetched, even if the command
+    ///     handler decides not to emit any new events.
+    /// </summary>
+    public bool AlwaysEnforceConsistency { get; set; }
+
+    /// <summary>
+    ///     Override the name of the member on the command type used to find the expected stream version
+    ///     for optimistic concurrency checks. By default, Wolverine looks for a member named "Version"
+    ///     of type int or long. This is useful in multi-stream operations where each stream needs
+    ///     its own version source.
+    /// </summary>
+    public string? VersionSource { get; set; }
+
+    /// <summary>
     ///     Override or "help" Wolverine to understand which type is the aggregate type
     /// </summary>
     public Type? AggregateType { get; set; }
@@ -74,11 +90,11 @@ public class AggregateHandlerAttribute : ModifyChainAttribute, IDataRequirement,
         AggregateType ??= AggregateHandling.DetermineAggregateType(chain);
 
         (AggregateIdMember, VersionMember) =
-            AggregateHandling.DetermineAggregateIdAndVersion(AggregateType, CommandType, container);
+            AggregateHandling.DetermineAggregateIdAndVersion(AggregateType, CommandType, container, VersionSource);
 
         var aggregateFrame = new MemberAccessFrame(CommandType, AggregateIdMember,
             $"{Variable.DefaultArgName(AggregateType)}_Id");
-        
+
         var versionFrame = VersionMember == null ? null : new MemberAccessFrame(CommandType,VersionMember, $"{Variable.DefaultArgName(CommandType)}_Version");
 
         var handling = new AggregateHandling(this)
@@ -86,7 +102,8 @@ public class AggregateHandlerAttribute : ModifyChainAttribute, IDataRequirement,
             AggregateType = AggregateType,
             AggregateId = aggregateFrame.Variable,
             LoadStyle = LoadStyle,
-            Version = versionFrame?.Variable
+            Version = versionFrame?.Variable,
+            AlwaysEnforceConsistency = AlwaysEnforceConsistency
         };
         
         handling.Apply(chain, container);

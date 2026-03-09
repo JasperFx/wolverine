@@ -2,15 +2,12 @@ using IntegrationTests;
 using JasperFx;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
-using Microsoft.Data.SqlClient;
+using JasperFx.Resources;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using SharedPersistenceModels.Items;
 using Shouldly;
-using Weasel.Core;
-using Weasel.SqlServer;
-using Weasel.SqlServer.Tables;
 using Wolverine;
 using Wolverine.Attributes;
 using Wolverine.ComplianceTests;
@@ -47,21 +44,11 @@ public class Optimistic_concurrency_with_ef_core
 
                 opt.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString);
                 opt.UseEntityFrameworkCoreTransactions();
+                opt.UseEntityFrameworkCoreWolverineManagedMigrations();
+                opt.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
                 opt.Policies.UseDurableLocalQueues();
                 opt.Policies.AutoApplyTransactions();
             }).StartAsync();
-
-        var table = new Table("ConcurrencyTestSagas");
-        table.AddColumn<Guid>("id").AsPrimaryKey();
-        table.AddColumn<string>("value");
-        table.AddColumn<int>("version");
-        await using var conn = new SqlConnection(Servers.SqlServerConnectionString);
-        await conn.OpenAsync();
-
-        var migration = await SchemaMigration.DetermineAsync(conn, table);
-        await new SqlServerMigrator().ApplyAllAsync(conn, migration, AutoCreate.All);
-
-        await conn.CloseAsync();
 
         using var scope = host.Services.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<OptConcurrencyDbContext>();

@@ -9,9 +9,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using SharedPersistenceModels.Items;
 using Shouldly;
-using Weasel.Core;
-using Weasel.SqlServer;
-using Weasel.SqlServer.Tables;
 using Wolverine;
 using Wolverine.EntityFrameworkCore;
 using Wolverine.Persistence;
@@ -23,29 +20,9 @@ namespace EfCoreTests;
 
 public class idempotency_with_inline_or_buffered_endpoints_end_to_end : IAsyncLifetime
 {
-    public async Task InitializeAsync()
+    public Task InitializeAsync()
     {
-        await buildSqlServer();
-    }
-
-    private static async Task buildSqlServer()
-    {
-        var itemsTable = new Table(new DbObjectName("dbo", "items"));
-        itemsTable.AddColumn<Guid>("Id").AsPrimaryKey();
-        itemsTable.AddColumn<string>("Name");
-        itemsTable.AddColumn<bool>("Approved");
-
-        await using var conn = new SqlConnection(Servers.SqlServerConnectionString);
-        await conn.OpenAsync();
-        var migration = await SchemaMigration.DetermineAsync(conn, itemsTable);
-        if (migration.Difference != SchemaPatchDifference.None)
-        {
-            var sqlServerMigrator = new SqlServerMigrator();
-
-            await sqlServerMigrator.ApplyAllAsync(conn, migration, AutoCreate.CreateOrUpdate);
-        }
-
-        await conn.CloseAsync();
+        return Task.CompletedTask;
     }
 
     public Task DisposeAsync()
@@ -81,6 +58,7 @@ public class idempotency_with_inline_or_buffered_endpoints_end_to_end : IAsyncLi
 
                 opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString, "idempotency");
                 opts.UseEntityFrameworkCoreTransactions();
+                opts.UseEntityFrameworkCoreWolverineManagedMigrations();
             }).StartAsync();
 
         var messageId = Guid.NewGuid();
@@ -131,6 +109,7 @@ public class idempotency_with_inline_or_buffered_endpoints_end_to_end : IAsyncLi
 
                 opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString, "idempotency");
                 opts.UseEntityFrameworkCoreTransactions();
+                opts.UseEntityFrameworkCoreWolverineManagedMigrations();
             }).StartAsync();
 
         var messageId = Guid.NewGuid();
@@ -173,6 +152,7 @@ public class idempotency_with_inline_or_buffered_endpoints_end_to_end : IAsyncLi
 
                 opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString, "idempotency");
                 opts.UseEntityFrameworkCoreTransactions();
+                opts.UseEntityFrameworkCoreWolverineManagedMigrations();
                 
                 // THIS RIGHT HERE
                 opts.Policies.AutoApplyIdempotencyOnNonTransactionalHandlers();

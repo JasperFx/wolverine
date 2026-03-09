@@ -21,6 +21,7 @@ public class ServiceCapabilities : OptionsDescription
     {
         Version = (options.ApplicationAssembly ?? Assembly.GetEntryAssembly()).GetName().Version;
         WolverineVersion = options.GetType().Assembly.GetName().Version;
+        DurabilitySettings = new DurabilitySettingsDescription(options.Durability);
     }
 
     public DateTimeOffset Evaluated { get; set; } = DateTimeOffset.UtcNow;
@@ -42,6 +43,8 @@ public class ServiceCapabilities : OptionsDescription
     public DatabaseCardinality MessageStoreCardinality { get; set; } = DatabaseCardinality.None;
 
     public List<BrokerDescription> Brokers { get; set; } = [];
+
+    public DurabilitySettingsDescription? DurabilitySettings { get; set; }
 
     /// <summary>
     ///     Uri for sending command messages to this service
