@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Wolverine.Configuration;
 using Wolverine.Nats.Configuration;
 using Wolverine.Nats.Internal;
+using Wolverine.Runtime.Partitioning;
 
 namespace Wolverine.Nats;
 
@@ -135,5 +136,51 @@ public static class NatsTransportExtensions
     {
         var transport = options.NatsTransport();
         return new NatsTransportExpression(transport, options);
+    }
+
+    /// <summary>
+    /// Create a sharded message topology with NATS subjects named
+    /// baseName1, baseName2, etc.
+    /// </summary>
+    /// <param name="rules"></param>
+    /// <param name="baseName"></param>
+    /// <param name="numberOfEndpoints"></param>
+    /// <param name="configure"></param>
+    /// <returns></returns>
+    public static MessagePartitioningRules PublishToShardedNatsSubjects(this MessagePartitioningRules rules, string baseName, int numberOfEndpoints, Action<PartitionedMessageTopologyWithSubjects> configure)
+    {
+        rules.AddPublishingTopology((opts, _) =>
+        {
+            var topology = new PartitionedMessageTopologyWithSubjects(opts, PartitionSlots.Five, baseName, numberOfEndpoints);
+            topology.ConfigureListening(x => {});
+            configure(topology);
+            topology.AssertValidity();
+
+            return topology;
+        });
+
+        return rules;
+    }
+
+    /// <summary>
+    /// Use sharded NATS subjects for global partitioned message processing.
+    /// Subjects will be named baseName1, baseName2, etc.
+    /// </summary>
+    /// <param name="topology"></param>
+    /// <param name="baseName"></param>
+    /// <param name="numberOfEndpoints"></param>
+    /// <param name="configure"></param>
+    /// <returns></returns>
+    public static GlobalPartitionedMessageTopology UseShardedNatsSubjects(
+        this GlobalPartitionedMessageTopology topology, string baseName, int numberOfEndpoints,
+        Action<PartitionedMessageTopologyWithSubjects>? configure = null)
+    {
+        topology.SetExternalTopology(opts =>
+        {
+            var t = new PartitionedMessageTopologyWithSubjects(opts, PartitionSlots.Five, baseName, numberOfEndpoints);
+            configure?.Invoke(t);
+            return t;
+        }, baseName);
+        return topology;
     }
 }

@@ -8,6 +8,7 @@ using Microsoft.Extensions.Hosting;
 using Wolverine.AzureServiceBus.Internal;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
+using Wolverine.Runtime.Partitioning;
 
 namespace Wolverine.AzureServiceBus;
 
@@ -459,5 +460,51 @@ public static class AzureServiceBusTransportExtensions
         publishing.To(endpoint.Uri);
 
         return new AzureServiceBusTopicSubscriberConfiguration(endpoint);
+    }
+
+    /// <summary>
+    /// Create a sharded message topology with Azure Service Bus queues named
+    /// baseName1, baseName2, etc.
+    /// </summary>
+    /// <param name="rules"></param>
+    /// <param name="baseName"></param>
+    /// <param name="numberOfEndpoints"></param>
+    /// <param name="configure"></param>
+    /// <returns></returns>
+    public static MessagePartitioningRules PublishToShardedAzureServiceBusQueues(this MessagePartitioningRules rules, string baseName, int numberOfEndpoints, Action<PartitionedMessageTopologyWithQueues> configure)
+    {
+        rules.AddPublishingTopology((opts, _) =>
+        {
+            var topology = new PartitionedMessageTopologyWithQueues(opts, PartitionSlots.Five, baseName, numberOfEndpoints);
+            topology.ConfigureListening(x => {});
+            configure(topology);
+            topology.AssertValidity();
+
+            return topology;
+        });
+
+        return rules;
+    }
+
+    /// <summary>
+    /// Use sharded Azure Service Bus queues for global partitioned message processing.
+    /// Queues will be named baseName1, baseName2, etc.
+    /// </summary>
+    /// <param name="topology"></param>
+    /// <param name="baseName"></param>
+    /// <param name="numberOfEndpoints"></param>
+    /// <param name="configure"></param>
+    /// <returns></returns>
+    public static GlobalPartitionedMessageTopology UseShardedAzureServiceBusQueues(
+        this GlobalPartitionedMessageTopology topology, string baseName, int numberOfEndpoints,
+        Action<PartitionedMessageTopologyWithQueues>? configure = null)
+    {
+        topology.SetExternalTopology(opts =>
+        {
+            var t = new PartitionedMessageTopologyWithQueues(opts, PartitionSlots.Five, baseName, numberOfEndpoints);
+            configure?.Invoke(t);
+            return t;
+        }, baseName);
+        return topology;
     }
 }

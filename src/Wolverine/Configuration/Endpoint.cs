@@ -461,6 +461,12 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
     // If so, this should be "auto-started"
     internal bool UsedInShardedTopology { get; set; }
 
+    /// <summary>
+    /// If set, this endpoint is part of a global partitioned topology and messages
+    /// should be forwarded to this companion local queue URI for processing.
+    /// </summary>
+    internal Uri? GlobalPartitionLocalQueueUri { get; set; }
+
     public virtual bool AutoStartSendingAgent()
     {
         return UsedInShardedTopology || Subscriptions.Any();

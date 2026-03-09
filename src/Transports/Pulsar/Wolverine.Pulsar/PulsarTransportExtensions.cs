@@ -6,6 +6,8 @@ using JasperFx.Core.Reflection;
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
 using Wolverine.Pulsar.ErrorHandling;
+using Wolverine.Pulsar.Internal;
+using Wolverine.Runtime.Partitioning;
 
 namespace Wolverine.Pulsar;
 
@@ -117,6 +119,52 @@ public static class PulsarTransportExtensions
     {
         policies.Add(new PulsarCloudEventsPolicy(jsonSerializerOptions));
         return policies;
+    }
+
+    /// <summary>
+    /// Create a sharded message topology with Pulsar topics named
+    /// baseName1, baseName2, etc.
+    /// </summary>
+    /// <param name="rules"></param>
+    /// <param name="baseName"></param>
+    /// <param name="numberOfEndpoints"></param>
+    /// <param name="configure"></param>
+    /// <returns></returns>
+    public static MessagePartitioningRules PublishToShardedPulsarTopics(this MessagePartitioningRules rules, string baseName, int numberOfEndpoints, Action<PartitionedMessageTopologyWithTopics> configure)
+    {
+        rules.AddPublishingTopology((opts, _) =>
+        {
+            var topology = new PartitionedMessageTopologyWithTopics(opts, PartitionSlots.Five, baseName, numberOfEndpoints);
+            topology.ConfigureListening(x => {});
+            configure(topology);
+            topology.AssertValidity();
+
+            return topology;
+        });
+
+        return rules;
+    }
+
+    /// <summary>
+    /// Use sharded Pulsar topics for global partitioned message processing.
+    /// Topics will be named baseName1, baseName2, etc.
+    /// </summary>
+    /// <param name="topology"></param>
+    /// <param name="baseName"></param>
+    /// <param name="numberOfEndpoints"></param>
+    /// <param name="configure"></param>
+    /// <returns></returns>
+    public static GlobalPartitionedMessageTopology UseShardedPulsarTopics(
+        this GlobalPartitionedMessageTopology topology, string baseName, int numberOfEndpoints,
+        Action<PartitionedMessageTopologyWithTopics>? configure = null)
+    {
+        topology.SetExternalTopology(opts =>
+        {
+            var t = new PartitionedMessageTopologyWithTopics(opts, PartitionSlots.Five, baseName, numberOfEndpoints);
+            configure?.Invoke(t);
+            return t;
+        }, baseName);
+        return topology;
     }
 }
 

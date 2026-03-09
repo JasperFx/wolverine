@@ -21,6 +21,8 @@ public class MessagePartitioningRules
     
     internal List<PartitionedMessageTopology> ShardedMessageTopologies { get; } = new();
 
+    internal List<GlobalPartitionedMessageTopology> GlobalPartitionedTopologies { get; } = new();
+
     public void AddPublishingTopology(Func<WolverineOptions, MessagePartitioningRules, PartitionedMessageTopology> factory)
     {
         ShardedMessageTopologies.Add(factory(_options, this));
@@ -45,6 +47,33 @@ public class MessagePartitioningRules
         ShardedMessageTopologies.Add(topology);
     }
     
+    /// <summary>
+    /// Configure global partitioning which ensures that no two messages with the same
+    /// GroupId are ever executed concurrently throughout an application cluster.
+    /// Both external transport queues and local queues will be forced to durable mode.
+    /// </summary>
+    /// <param name="configure">Configure the global partitioned topology</param>
+    public void GlobalPartitioned(Action<GlobalPartitionedMessageTopology> configure)
+    {
+        ArgumentNullException.ThrowIfNull(configure);
+
+        var topology = new GlobalPartitionedMessageTopology(_options);
+        configure(topology);
+
+        topology.AssertValidity();
+
+        GlobalPartitionedTopologies.Add(topology);
+
+        // Also register with sharded topologies so route discovery finds it
+        // The external topology is already registered for listening/sending
+    }
+
+    internal bool TryFindGlobalTopology(Type messageType, out GlobalPartitionedMessageTopology? topology)
+    {
+        topology = GlobalPartitionedTopologies.FirstOrDefault(x => x.Matches(messageType));
+        return topology != null;
+    }
+
     /// <summary>
     /// Use any known TenantId as the message GroupId
     /// </summary>

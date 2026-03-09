@@ -2,7 +2,9 @@ using System.Text;
 using Confluent.Kafka;
 using JasperFx.Core.Reflection;
 using Wolverine.Configuration;
+using Wolverine.Kafka.Internal;
 using Wolverine.Kafka.Internals;
+using Wolverine.Runtime.Partitioning;
 
 namespace Wolverine.Kafka;
 
@@ -215,5 +217,51 @@ public static class KafkaTransportExtensions
         mapper.MapEnvelopeToOutgoing(envelope, message);
 
         return message;
+    }
+
+    /// <summary>
+    /// Create a sharded message topology with Kafka topics named
+    /// baseName1, baseName2, etc.
+    /// </summary>
+    /// <param name="rules"></param>
+    /// <param name="baseName"></param>
+    /// <param name="numberOfEndpoints"></param>
+    /// <param name="configure"></param>
+    /// <returns></returns>
+    public static MessagePartitioningRules PublishToShardedKafkaTopics(this MessagePartitioningRules rules, string baseName, int numberOfEndpoints, Action<PartitionedMessageTopologyWithTopics> configure)
+    {
+        rules.AddPublishingTopology((opts, _) =>
+        {
+            var topology = new PartitionedMessageTopologyWithTopics(opts, PartitionSlots.Five, baseName, numberOfEndpoints);
+            topology.ConfigureListening(x => {});
+            configure(topology);
+            topology.AssertValidity();
+
+            return topology;
+        });
+
+        return rules;
+    }
+
+    /// <summary>
+    /// Use sharded Kafka topics for global partitioned message processing.
+    /// Topics will be named baseName1, baseName2, etc.
+    /// </summary>
+    /// <param name="topology"></param>
+    /// <param name="baseName"></param>
+    /// <param name="numberOfEndpoints"></param>
+    /// <param name="configure"></param>
+    /// <returns></returns>
+    public static GlobalPartitionedMessageTopology UseShardedKafkaTopics(
+        this GlobalPartitionedMessageTopology topology, string baseName, int numberOfEndpoints,
+        Action<PartitionedMessageTopologyWithTopics>? configure = null)
+    {
+        topology.SetExternalTopology(opts =>
+        {
+            var t = new PartitionedMessageTopologyWithTopics(opts, PartitionSlots.Five, baseName, numberOfEndpoints);
+            configure?.Invoke(t);
+            return t;
+        }, baseName);
+        return topology;
     }
 }

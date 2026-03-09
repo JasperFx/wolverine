@@ -42,3 +42,7 @@ using Wolverine.Attributes;
 [assembly: InternalsVisibleTo("Wolverine.Http")]
 [assembly: InternalsVisibleTo("Wolverine.Http.Tests")]
 [assembly: InternalsVisibleTo("Wolverine.Kafka.Tests")]
+[assembly: InternalsVisibleTo("Wolverine.Kafka")]
+[assembly: InternalsVisibleTo("Wolverine.Nats")]
+[assembly: InternalsVisibleTo("Wolverine.Redis")]
+[assembly: InternalsVisibleTo("Wolverine.Pubsub")]
