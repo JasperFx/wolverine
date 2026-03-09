@@ -27,6 +27,21 @@ public class SagaChain : HandlerChain
     public const string SagaIdVariableName = "sagaId";
     public static readonly Type[] ValidSagaIdTypes = [typeof(Guid), typeof(int), typeof(long), typeof(string)];
 
+    /// <summary>
+    /// Determines whether a type is a valid saga identity type. Supports the standard
+    /// primitive types (Guid, int, long, string) as well as strong-typed identifier types
+    /// (e.g., OrderId wrapping a Guid).
+    /// </summary>
+    public static bool IsValidSagaIdType(Type type)
+    {
+        if (ValidSagaIdTypes.Contains(type)) return true;
+
+        // Accept strong-typed identifiers: value types (structs) or reference types
+        // that are not one of the known primitives. Marten and other persistence
+        // providers know how to resolve their underlying storage type.
+        return type is { IsPrimitive: false, IsEnum: false };
+    }
+
     public SagaChain(WolverineOptions options, IGrouping<Type, HandlerCall> grouping, HandlerGraph parent) : base(options, grouping, parent)
     {
         // After base constructor, saga handlers may have been moved to ByEndpoint (Separated mode).
