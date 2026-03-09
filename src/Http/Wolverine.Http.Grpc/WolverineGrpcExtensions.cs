@@ -47,12 +47,33 @@ public static class WolverineGrpcExtensions
     /// additional assemblies configured in <see cref="WolverineGrpcOptions"/>.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// A type is eligible when it:
     /// <list type="bullet">
     ///   <item>Inherits from <see cref="WolverineGrpcEndpointBase"/></item>
     ///   <item>Is decorated with <see cref="WolverineGrpcServiceAttribute"/> OR its name ends with
     ///         "GrpcEndpoint", "GrpcEndpoints", "GrpcService", or "GrpcServices"</item>
     /// </list>
+    /// </para>
+    /// <para>
+    /// <strong>Relationship to <c>MapWolverineEndpoints</c>:</strong>
+    /// <c>MapWolverineEndpoints</c> (from <c>Wolverine.Http</c>) is dedicated to HTTP endpoints
+    /// and registers routes via an <c>EndpointDataSource</c> data-source pattern — no runtime
+    /// reflection is involved in calling the route builder API.
+    /// This method, by contrast, must call the generic <c>MapGrpcService&lt;T&gt;()</c> API from
+    /// <c>protobuf-net.Grpc.AspNetCore</c> for each discovered type. Because that API only exposes
+    /// a generic overload and the concrete service types are not known until assembly scanning runs
+    /// at startup, <see cref="System.Reflection.MethodInfo.MakeGenericMethod"/> is used
+    /// (with the <c>MethodInfo</c> cached statically in <see cref="GrpcEndpointSource"/>).
+    /// This is the correct and intentional approach given the constraints of the underlying gRPC
+    /// library, and mirrors how the Wolverine.Http package would behave if <c>MapGrpcService</c>
+    /// had a non-generic overload.
+    /// </para>
+    /// <para>
+    /// <c>MapWolverineEndpoints</c> is exclusive to <c>Wolverine.Http</c> (HTTP/REST endpoints)
+    /// and is not extended here. gRPC endpoint registration is intentionally kept in this separate
+    /// method to maintain a clear separation of concerns between HTTP and gRPC transports.
+    /// </para>
     /// </remarks>
     /// <param name="endpoints">The endpoint route builder.</param>
     /// <returns>The endpoint route builder for chaining.</returns>
@@ -63,11 +84,10 @@ public static class WolverineGrpcExtensions
         var grpcOptions = endpoints.ServiceProvider.GetService<WolverineGrpcOptions>();
         var logger = endpoints.ServiceProvider.GetRequiredService<ILogger<WolverineGrpcOptions>>();
 
-        var assemblies = runtime.Options.Assemblies.ToList();
-        if (grpcOptions != null)
-        {
-            assemblies.AddRange(grpcOptions.Assemblies);
-        }
+        var assemblies = runtime.Options.Assemblies
+            .Concat(grpcOptions?.Assemblies ?? [])
+            .Distinct()
+            .ToList();
 
         var grpcEndpointTypes = GrpcEndpointSource.FindGrpcEndpointTypes(assemblies);
 
@@ -82,17 +102,11 @@ public static class WolverineGrpcExtensions
                 "No Wolverine gRPC endpoint types were discovered. Ensure your endpoint classes " +
                 "inherit from WolverineGrpcEndpointBase and either have a [WolverineGrpcService] " +
                 "attribute or a name ending in 'GrpcEndpoint', 'GrpcService', etc.");
+
+            return endpoints;
         }
 
-        // Use reflection to call the generic MapGrpcService<T>() for each discovered type.
-        var mapMethod = typeof(GrpcEndpointRouteBuilderExtensions)
-            .GetMethod(nameof(GrpcEndpointRouteBuilderExtensions.MapGrpcService))!;
-
-        foreach (var serviceType in grpcEndpointTypes)
-        {
-            logger.LogDebug("Mapping Wolverine gRPC endpoint: {Type}", serviceType.FullName);
-            mapMethod.MakeGenericMethod(serviceType).Invoke(null, [endpoints]);
-        }
+        GrpcEndpointSource.MapGrpcEndpointTypes(endpoints, grpcEndpointTypes, logger);
 
         return endpoints;
     }
