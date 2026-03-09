@@ -31,7 +31,7 @@ And then lastly, you're going to want some resiliency and selective retry capabi
 Let's just right into an example order management system. I'm going to model the order workflow with this aggregate model:
 
 <!-- snippet: sample_Order_event_sourced_aggregate -->
-<a id='snippet-sample_Order_event_sourced_aggregate'></a>
+<a id='snippet-sample_order_event_sourced_aggregate'></a>
 ```cs
 public class Item
 {
@@ -75,19 +75,19 @@ public class Order
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/OrderEventSourcingSample/Order.cs#L22-L66' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_Order_event_sourced_aggregate' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/OrderEventSourcingSample/Order.cs#L22-L66' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_order_event_sourced_aggregate' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 At a minimum, we're going to want a command handler for this command message that marks an order item as ready to ship and then evaluates whether
 or not based on the current state of the `Order` aggregate whether or not the logical order is ready to be shipped out:
 
 <!-- snippet: sample_MarkItemReady -->
-<a id='snippet-sample_MarkItemReady'></a>
+<a id='snippet-sample_markitemready'></a>
 ```cs
 // OrderId refers to the identity of the Order aggregate
 public record MarkItemReady(Guid OrderId, string ItemName, int Version);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/OrderEventSourcingSample/Order.cs#L68-L73' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_MarkItemReady' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/OrderEventSourcingSample/Order.cs#L68-L73' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_markitemready' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In the code above, we're also utilizing Wolverine's [outbox messaging](/guide/durability/) support to both order and guarantee the delivery of a `ShipOrder` message when
@@ -96,7 +96,7 @@ the Marten transaction
 Before getting into Wolverine middleware strategies, let's first build out an MVC controller method for the command above:
 
 <!-- snippet: sample_MarkItemController -->
-<a id='snippet-sample_MarkItemController'></a>
+<a id='snippet-sample_markitemcontroller'></a>
 ```cs
 [HttpPost("/orders/itemready")]
 public async Task Post(
@@ -147,7 +147,7 @@ public async Task Post(
     await session.SaveChangesAsync();
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/OrderEventSourcingSample/Order.cs#L77-L128' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_MarkItemController' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/OrderEventSourcingSample/Order.cs#L77-L128' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_markitemcontroller' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Hopefully, that code is easy to understand, but there's some potentially repetitive code
@@ -160,7 +160,7 @@ pattern with Marten using the `[AggregateHandler]` middleware.
 Using that middleware, we get this slimmer code:
 
 <!-- snippet: sample_MarkItemReadyHandler -->
-<a id='snippet-sample_MarkItemReadyHandler'></a>
+<a id='snippet-sample_markitemreadyhandler'></a>
 ```cs
 [AggregateHandler]
 public static IEnumerable<object> Handle(MarkItemReady command, Order order)
@@ -187,7 +187,7 @@ public static IEnumerable<object> Handle(MarkItemReady command, Order order)
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/OrderEventSourcingSample/Order.cs#L254-L281' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_MarkItemReadyHandler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/OrderEventSourcingSample/Order.cs#L254-L281' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_markitemreadyhandler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In the case above, Wolverine is wrapping middleware around our basic command handler to
@@ -250,7 +250,7 @@ Alternatively, there is also the newer `[WriteAggregate]` usage, with this examp
 mark up:
 
 <!-- snippet: sample_MarkItemReadyHandler_with_WriteAggregate -->
-<a id='snippet-sample_MarkItemReadyHandler_with_WriteAggregate'></a>
+<a id='snippet-sample_markitemreadyhandler_with_writeaggregate'></a>
 ```cs
 public static IEnumerable<object> Handle(
     // The command
@@ -281,7 +281,7 @@ public static IEnumerable<object> Handle(
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/OrderEventSourcingSample/Order.cs#L286-L317' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_MarkItemReadyHandler_with_WriteAggregate' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/OrderEventSourcingSample/Order.cs#L286-L317' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_markitemreadyhandler_with_writeaggregate' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The `[WriteAggregate]` attribute also opts into the "aggregate handler workflow", but is placed at the parameter level
@@ -299,7 +299,7 @@ By default, the "aggregate handler workflow" does no validation on whether or no
 exists at runtime, and it's possible to receive a null for the aggregate in this example if the aggregate does not exist:
 
 <!-- snippet: sample_MarkItemReadyHandler_with_WriteAggregate -->
-<a id='snippet-sample_MarkItemReadyHandler_with_WriteAggregate'></a>
+<a id='snippet-sample_markitemreadyhandler_with_writeaggregate'></a>
 ```cs
 public static IEnumerable<object> Handle(
     // The command
@@ -330,7 +330,7 @@ public static IEnumerable<object> Handle(
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/OrderEventSourcingSample/Order.cs#L286-L317' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_MarkItemReadyHandler_with_WriteAggregate' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/OrderEventSourcingSample/Order.cs#L286-L317' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_markitemreadyhandler_with_writeaggregate' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 As long as you handle the case where the requested is null, you can even effectively start a new stream by emitting events
@@ -408,7 +408,7 @@ The Marten workflow command handler method signature needs to follow these rules
   in the Marten `IEventStream<T>` type (`IEventStream<Order>`). There is an example of that usage below:
 
 <!-- snippet: sample_MarkItemReadyHandler_with_explicit_stream -->
-<a id='snippet-sample_MarkItemReadyHandler_with_explicit_stream'></a>
+<a id='snippet-sample_markitemreadyhandler_with_explicit_stream'></a>
 ```cs
 [AggregateHandler]
 public static void Handle(OrderEventSourcingSample.MarkItemReady command, IEventStream<Order> stream)
@@ -437,7 +437,7 @@ public static void Handle(OrderEventSourcingSample.MarkItemReady command, IEvent
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/OrderEventSourcingSample/Alternatives/Signatures.cs#L26-L55' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_MarkItemReadyHandler_with_explicit_stream' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/OrderEventSourcingSample/Alternatives/Signatures.cs#L26-L55' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_markitemreadyhandler_with_explicit_stream' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Just as in other Wolverine [message handlers](/guide/handlers/), you can use
@@ -458,7 +458,7 @@ As for the return values from these handler methods, you can use:
 Here's an alternative to the `MarkItemReady` handler that uses `Events`:
 
 <!-- snippet: sample_using_events_and_messages_from_AggregateHandler -->
-<a id='snippet-sample_using_events_and_messages_from_AggregateHandler'></a>
+<a id='snippet-sample_using_events_and_messages_from_aggregatehandler'></a>
 ```cs
 [AggregateHandler]
 public static async Task<(Events, OutgoingMessages)> HandleAsync(MarkItemReady command, Order order, ISomeService service)
@@ -498,7 +498,7 @@ public static async Task<(Events, OutgoingMessages)> HandleAsync(MarkItemReady c
     return (events, messages);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/OrderEventSourcingSample/Order.cs#L329-L369' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_events_and_messages_from_AggregateHandler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/OrderEventSourcingSample/Order.cs#L329-L369' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_events_and_messages_from_aggregatehandler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -511,12 +511,12 @@ where the `OrderId` property is assumed to be the identity of the `Order` aggreg
 by appending "Id" to the aggregate type name (it's not case sensitive if you were wondering):
 
 <!-- snippet: sample_MarkItemReady -->
-<a id='snippet-sample_MarkItemReady'></a>
+<a id='snippet-sample_markitemready'></a>
 ```cs
 // OrderId refers to the identity of the Order aggregate
 public record MarkItemReady(Guid OrderId, string ItemName, int Version);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/OrderEventSourcingSample/Order.cs#L68-L73' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_MarkItemReady' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/OrderEventSourcingSample/Order.cs#L68-L73' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_markitemready' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Or if you want to use a different member, bypass the convention, or just don't like conventional
@@ -524,7 +524,7 @@ magic, you can decorate a public member
 on the command class with Marten's `[Identity]` attribute like so:
 
 <!-- snippet: sample_MarkItemReady_with_explicit_identity -->
-<a id='snippet-sample_MarkItemReady_with_explicit_identity'></a>
+<a id='snippet-sample_markitemready_with_explicit_identity'></a>
 ```cs
 public class MarkItemReady
 {
@@ -535,7 +535,7 @@ public class MarkItemReady
     public string ItemName { get; init; }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/OrderEventSourcingSample/Alternatives/Signatures.cs#L9-L20' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_MarkItemReady_with_explicit_identity' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/OrderEventSourcingSample/Alternatives/Signatures.cs#L9-L20' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_markitemready_with_explicit_identity' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Validation <Badge type="tip" text="4.8" />
@@ -606,7 +606,7 @@ taking the `MarkItemReady` command handler we've used earlier in this guide and 
 produces a response of the latest aggregate:
 
 <!-- snippet: sample_MarkItemReadyHandler_with_response_for_updated_aggregate -->
-<a id='snippet-sample_MarkItemReadyHandler_with_response_for_updated_aggregate'></a>
+<a id='snippet-sample_markitemreadyhandler_with_response_for_updated_aggregate'></a>
 ```cs
 [AggregateHandler]
 public static (
@@ -644,7 +644,7 @@ public static (
     return (new UpdatedAggregate(), events);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/OrderEventSourcingSample/Alternatives/Signatures.cs#L63-L101' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_MarkItemReadyHandler_with_response_for_updated_aggregate' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/OrderEventSourcingSample/Alternatives/Signatures.cs#L63-L101' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_markitemreadyhandler_with_response_for_updated_aggregate' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Note the usage of the `Wolverine.Marten.UpdatedAggregate` response in the handler. That type by itself is just a directive 
@@ -652,7 +652,7 @@ to Wolverine to generate the necessary code to call `FetchLatest` and respond wi
 us to use the command in a mediator usage like so:
 
 <!-- snippet: sample_using_UpdatedAggregate_with_invoke_async -->
-<a id='snippet-sample_using_UpdatedAggregate_with_invoke_async'></a>
+<a id='snippet-sample_using_updatedaggregate_with_invoke_async'></a>
 ```cs
 public static Task<Order> update_and_get_latest(IMessageBus bus, MarkItemReady command)
 {
@@ -662,7 +662,7 @@ public static Task<Order> update_and_get_latest(IMessageBus bus, MarkItemReady c
     return bus.InvokeAsync<Order>(command);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/OrderEventSourcingSample/Alternatives/Signatures.cs#L103-L113' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_UpdatedAggregate_with_invoke_async' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/OrderEventSourcingSample/Alternatives/Signatures.cs#L103-L113' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_updatedaggregate_with_invoke_async' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Likewise, you can use `UpdatedAggregate` as the response body of an HTTP endpoint with Wolverine.HTTP [as shown here](/guide/http/marten.html#responding-with-the-updated-aggregate~~~~).
@@ -716,7 +716,7 @@ If you want to inject the current state of an event sourced aggregate as a param
 a message handler method strictly for information and don't need the heavier "aggregate handler workflow," use the `[ReadAggregate]` attribute like this:
 
 <!-- snippet: sample_using_ReadAggregate_in_messsage_handlers -->
-<a id='snippet-sample_using_ReadAggregate_in_messsage_handlers'></a>
+<a id='snippet-sample_using_readaggregate_in_messsage_handlers'></a>
 ```cs
 public record FindAggregate(Guid Id);
 
@@ -741,7 +741,7 @@ public static class FindLettersHandler
     */
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/read_aggregate_attribute_usage.cs#L81-L106' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_ReadAggregate_in_messsage_handlers' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/read_aggregate_attribute_usage.cs#L81-L106' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_readaggregate_in_messsage_handlers' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 If the aggregate doesn't exist, the HTTP request will stop with a 404 status code.
@@ -819,18 +819,18 @@ public class Account
 And you need to handle a command like this:
 
 <!-- snippet: sample_TransferMoney_command -->
-<a id='snippet-sample_TransferMoney_command'></a>
+<a id='snippet-sample_transfermoney_command'></a>
 ```cs
 public record TransferMoney(Guid FromId, Guid ToId, double Amount);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Accounts/AccountCode.cs#L29-L33' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_TransferMoney_command' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Accounts/AccountCode.cs#L29-L33' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_transfermoney_command' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Using the `[WriteAggregate]` attribute to denote the event streams we need to work with,
 we could write this message handler + HTTP endpoint:
 
 <!-- snippet: sample_TransferMoneyEndpoint -->
-<a id='snippet-sample_TransferMoneyEndpoint'></a>
+<a id='snippet-sample_transfermoneyendpoint'></a>
 ```cs
 public static class TransferMoneyHandler    
 {
@@ -851,7 +851,7 @@ public static class TransferMoneyHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Accounts/AccountCode.cs#L35-L56' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_TransferMoneyEndpoint' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Accounts/AccountCode.cs#L35-L56' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_transfermoneyendpoint' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The `IEventStream<T>` abstraction comes from Marten’s `FetchForWriting()` API that is our
@@ -1231,6 +1231,44 @@ Marten supports [natural keys](/events/natural-keys) on aggregates, allowing you
 First, define your aggregate with a `[NaturalKey]` property and mark the methods that set the key with `[NaturalKeySource]`:
 
 <!-- snippet: sample_wolverine_marten_natural_key_aggregate -->
+<a id='snippet-sample_wolverine_marten_natural_key_aggregate'></a>
+```cs
+public record NkHandlerOrderNumber(string Value);
+
+public class NkOrderAggregate
+{
+    public Guid Id { get; set; }
+
+    [NaturalKey]
+    public NkHandlerOrderNumber OrderNum { get; set; } = null!;
+
+    public decimal TotalAmount { get; set; }
+    public string CustomerName { get; set; } = string.Empty;
+    public bool IsComplete { get; set; }
+
+    [NaturalKeySource]
+    public void Apply(NkHandlerOrderCreated e)
+    {
+        OrderNum = e.OrderNumber;
+        CustomerName = e.CustomerName;
+    }
+
+    public void Apply(NkHandlerItemAdded e)
+    {
+        TotalAmount += e.Price;
+    }
+
+    public void Apply(NkHandlerOrderCompleted e)
+    {
+        IsComplete = true;
+    }
+}
+
+public record NkHandlerOrderCreated(NkHandlerOrderNumber OrderNumber, string CustomerName);
+public record NkHandlerItemAdded(string ItemName, decimal Price);
+public record NkHandlerOrderCompleted;
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AggregateHandlerWorkflow/natural_key_aggregate_handler_workflow.cs#L118-L155' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_marten_natural_key_aggregate' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ### Using Natural Keys in Command Handlers
@@ -1238,6 +1276,13 @@ First, define your aggregate with a `[NaturalKey]` property and mark the methods
 When your command carries the natural key value instead of a stream id, Wolverine can resolve it automatically. The command property should match the aggregate's natural key type:
 
 <!-- snippet: sample_wolverine_marten_natural_key_commands -->
+<a id='snippet-sample_wolverine_marten_natural_key_commands'></a>
+```cs
+public record AddNkOrderItem(NkHandlerOrderNumber OrderNum, string ItemName, decimal Price);
+public record AddNkOrderItems(NkHandlerOrderNumber OrderNum, (string Name, decimal Price)[] Items);
+public record CompleteNkOrder(NkHandlerOrderNumber OrderNum);
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AggregateHandlerWorkflow/natural_key_aggregate_handler_workflow.cs#L157-L163' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_marten_natural_key_commands' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Wolverine uses the natural key type on the command property to call `FetchForWriting<TAggregate, TNaturalKey>()` under the covers, resolving the stream by the natural key in a single database round-trip.
@@ -1247,6 +1292,280 @@ Wolverine uses the natural key type on the command property to call `FetchForWri
 Here are the handlers that process those commands, using `[WriteAggregate]` and `IEventStream<T>`:
 
 <!-- snippet: sample_wolverine_marten_natural_key_handlers -->
+<a id='snippet-sample_wolverine_marten_natural_key_handlers'></a>
+```cs
+public static class NkOrderHandler
+{
+    public static NkHandlerItemAdded Handle(AddNkOrderItem command,
+        [WriteAggregate] NkOrderAggregate aggregate)
+    {
+        return new NkHandlerItemAdded(command.ItemName, command.Price);
+    }
+
+    public static IEnumerable<object> Handle(AddNkOrderItems command,
+        [WriteAggregate] NkOrderAggregate aggregate)
+    {
+        foreach (var (name, price) in command.Items)
+        {
+            yield return new NkHandlerItemAdded(name, price);
+        }
+    }
+
+    public static void Handle(CompleteNkOrder command,
+        [WriteAggregate] IEventStream<NkOrderAggregate> stream)
+    {
+        stream.AppendOne(new NkHandlerOrderCompleted());
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AggregateHandlerWorkflow/natural_key_aggregate_handler_workflow.cs#L165-L191' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_marten_natural_key_handlers' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 For more details on how natural keys work at the Marten level, see the [Marten natural keys documentation](https://martendb.io/events/natural-keys).
+
+## Dynamic Consistency Boundary (DCB)
+
+::: tip
+The [Dynamic Consistency Boundary](https://dcb.events/) pattern enables event-sourced handlers to work across **multiple event streams simultaneously** within a single consistency boundary. This is essential for domain logic that naturally spans multiple entities.
+:::
+
+Traditional aggregate handlers work with a single event stream at a time. But some business decisions require state from multiple streams — for example, subscribing a student to a course requires checking both the student's enrollment history and the course's capacity. The DCB pattern solves this by loading events from multiple streams based on **event tags**, projecting them into a single aggregate state, and appending new events atomically.
+
+### How It Works
+
+1. A `Load()` or `Before()` method returns an `EventTagQuery` that specifies which tagged events to load
+2. Marten loads all matching events and projects them into your aggregate type using the standard `Apply()` methods
+3. Your handler receives the projected state and makes decisions
+4. Returned events are appended atomically through the `IEventBoundary<T>` interface
+
+### Example: University Course Subscription
+
+This example is ported from the [AxonIQ DCB demo](https://dcb.events/). A student subscribing to a course must enforce rules spanning both the student and course boundaries:
+
+- Student must be enrolled in faculty
+- Student can't subscribe to more than 3 courses
+- Course must exist and have vacant spots
+- Student not already subscribed
+
+First, define your domain events and strong-typed IDs:
+
+<!-- snippet: sample_wolverine_dcb_university_ids -->
+<a id='snippet-sample_wolverine_dcb_university_ids'></a>
+```cs
+namespace MartenTests.Dcb.University;
+
+/// <summary>
+/// Strong-typed ID for a course. Uses string value with "Course:" prefix.
+/// </summary>
+public record CourseId(string Value)
+{
+    public static CourseId Random() => new($"Course:{Guid.NewGuid()}");
+    public static CourseId Of(string raw) => new(raw.StartsWith("Course:") ? raw : $"Course:{raw}");
+    public override string ToString() => Value;
+}
+
+/// <summary>
+/// Strong-typed ID for a student. Uses string value with "Student:" prefix.
+/// </summary>
+public record StudentId(string Value)
+{
+    public static StudentId Random() => new($"Student:{Guid.NewGuid()}");
+    public static StudentId Of(string raw) => new(raw.StartsWith("Student:") ? raw : $"Student:{raw}");
+    public override string ToString() => Value;
+}
+
+/// <summary>
+/// Strong-typed ID for the faculty. Single-instance in this demo.
+/// </summary>
+public record FacultyId(string Value)
+{
+    public static readonly FacultyId Default = new("Faculty:ONLY_FACULTY_ID");
+    public static FacultyId Of(string raw) => new(raw.StartsWith("Faculty:") ? raw : $"Faculty:{raw}");
+    public override string ToString() => Value;
+}
+
+/// <summary>
+/// Composite ID for a student-course subscription.
+/// </summary>
+public record SubscriptionId(CourseId CourseId, StudentId StudentId);
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/Dcb/University/UniversityIds.cs#L1-L38' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_dcb_university_ids' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+<!-- snippet: sample_wolverine_dcb_university_events -->
+<a id='snippet-sample_wolverine_dcb_university_events'></a>
+```cs
+namespace MartenTests.Dcb.University;
+
+public record CourseCreated(FacultyId FacultyId, CourseId CourseId, string Name, int Capacity);
+
+public record CourseRenamed(FacultyId FacultyId, CourseId CourseId, string Name);
+
+public record CourseCapacityChanged(FacultyId FacultyId, CourseId CourseId, int Capacity);
+
+public record StudentEnrolledInFaculty(FacultyId FacultyId, StudentId StudentId, string FirstName, string LastName);
+
+public record StudentSubscribedToCourse(FacultyId FacultyId, StudentId StudentId, CourseId CourseId);
+
+public record StudentUnsubscribedFromCourse(FacultyId FacultyId, StudentId StudentId, CourseId CourseId);
+
+public record AllCoursesFullyBookedNotificationSent(FacultyId FacultyId);
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/Dcb/University/UniversityEvents.cs#L1-L17' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_dcb_university_events' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Next, define the aggregate state that spans both boundaries. This single type projects events tagged with either a `CourseId` or `StudentId`:
+
+<!-- snippet: sample_wolverine_dcb_subscription_state -->
+<a id='snippet-sample_wolverine_dcb_subscription_state'></a>
+```cs
+namespace MartenTests.Dcb.University;
+/// Built from events tagged with BOTH CourseId and StudentId.
+/// This is the core DCB pattern — the consistency boundary spans multiple streams.
+///
+/// Ported from the Axon SubscribeStudentToCourseCommandHandler.State which uses
+/// EventCriteria.either() to load events matching CourseId OR StudentId.
+/// </summary>
+public class SubscriptionState
+{
+    public CourseId? CourseId { get; private set; }
+    public int CourseCapacity { get; private set; }
+    public int StudentsSubscribedToCourse { get; private set; }
+
+    public StudentId? StudentId { get; private set; }
+    public int CoursesStudentSubscribed { get; private set; }
+    public bool AlreadySubscribed { get; private set; }
+
+    public void Apply(CourseCreated e)
+    {
+        CourseId = e.CourseId;
+        CourseCapacity = e.Capacity;
+    }
+
+    public void Apply(CourseCapacityChanged e)
+    {
+        CourseCapacity = e.Capacity;
+    }
+
+    public void Apply(StudentEnrolledInFaculty e)
+    {
+        StudentId = e.StudentId;
+    }
+
+    public void Apply(StudentSubscribedToCourse e)
+    {
+        if (e.CourseId == CourseId)
+            StudentsSubscribedToCourse++;
+        if (e.StudentId == StudentId)
+            CoursesStudentSubscribed++;
+        if (e.StudentId == StudentId && e.CourseId == CourseId)
+            AlreadySubscribed = true;
+    }
+
+    public void Apply(StudentUnsubscribedFromCourse e)
+    {
+        if (e.CourseId == CourseId)
+            StudentsSubscribedToCourse--;
+        if (e.StudentId == StudentId)
+            CoursesStudentSubscribed--;
+        if (e.StudentId == StudentId && e.CourseId == CourseId)
+            AlreadySubscribed = false;
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/Dcb/University/SubscriptionState.cs#L1-L55' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_dcb_subscription_state' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+### Using the `[BoundaryModel]` Attribute
+
+The `[BoundaryModel]` attribute on a handler parameter triggers the DCB workflow. Your handler class must include a `Load()` (or `LoadAsync()`, `Before()`, `BeforeAsync()`) method that returns an `EventTagQuery`:
+
+<!-- snippet: sample_wolverine_dcb_boundary_model_handler -->
+<a id='snippet-sample_wolverine_dcb_boundary_model_handler'></a>
+```cs
+public static class BoundaryModelSubscribeStudentHandler
+{
+    public const int MaxCoursesPerStudent = 3;
+
+    public static EventTagQuery Load(BoundaryModelSubscribeStudentToCourse command)
+        => EventTagQuery
+            .For(command.CourseId)
+            .AndEventsOfType<CourseCreated, CourseCapacityChanged, StudentSubscribedToCourse, StudentUnsubscribedFromCourse>()
+            .Or(command.StudentId)
+            .AndEventsOfType<StudentEnrolledInFaculty, StudentSubscribedToCourse, StudentUnsubscribedFromCourse>();
+
+    public static StudentSubscribedToCourse Handle(
+        BoundaryModelSubscribeStudentToCourse command,
+        [BoundaryModel]
+        SubscriptionState state)
+    {
+        if (state.StudentId == null)
+            throw new InvalidOperationException("Student with given id never enrolled the faculty");
+
+        if (state.CoursesStudentSubscribed >= MaxCoursesPerStudent)
+            throw new InvalidOperationException("Student subscribed to too many courses");
+
+        if (state.CourseId == null)
+            throw new InvalidOperationException("Course with given id does not exist");
+
+        if (state.StudentsSubscribedToCourse >= state.CourseCapacity)
+            throw new InvalidOperationException("Course is fully booked");
+
+        if (state.AlreadySubscribed)
+            throw new InvalidOperationException("Student already subscribed to this course");
+
+        return new StudentSubscribedToCourse(FacultyId.Default, command.StudentId, command.CourseId);
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/Dcb/University/BoundaryModelSubscribeStudentToCourse.cs#L8-L43' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_dcb_boundary_model_handler' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+The `EventTagQuery` uses a fluent API to define which events to load:
+
+- `EventTagQuery.For(tag)` — start with a tag value (e.g., a `CourseId`)
+- `.AndEventsOfType<T1, T2, ...>()` — filter to specific event types for that tag
+- `.Or(tag)` — add another tag to query (e.g., a `StudentId`)
+
+Marten loads all events matching **any** of the tag criteria, projects them into your aggregate using the standard `Apply()` methods, and provides the result to your handler.
+
+### Using `IEventBoundary<T>` Directly
+
+For more control over event appending, you can accept `IEventBoundary<T>` as a parameter instead of the aggregate type:
+
+```cs
+public static void Handle(
+    SubscribeStudentToCourse command,
+    [BoundaryModel] IEventBoundary<SubscriptionState> boundary)
+{
+    var state = boundary.Aggregate;
+
+    // validation logic...
+
+    boundary.AppendOne(new StudentSubscribedToCourse(
+        FacultyId.Default, command.StudentId, command.CourseId));
+}
+```
+
+### Return Value Handling
+
+The DCB workflow supports the same return value patterns as the standard aggregate handler workflow:
+
+- Single event objects are appended via `boundary.AppendOne()`
+- `IEnumerable<object>` or `Events` collections are appended via `boundary.AppendMany()`
+- `IAsyncEnumerable<object>` events are appended one at a time
+- `OutgoingMessages` and `ISideEffect` are handled as cascading messages, not events
+
+### Validation on Boundary Existence
+
+Use the `Required` property to enforce that the projected aggregate state is not null:
+
+```cs
+public static StudentSubscribedToCourse Handle(
+    SubscribeStudentToCourse command,
+    [BoundaryModel(Required = true)] SubscriptionState state)
+{
+    // state is guaranteed to be non-null
+    // ...
+}
+```

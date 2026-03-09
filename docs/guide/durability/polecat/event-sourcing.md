@@ -516,6 +516,44 @@ Polecat supports [natural keys](/events/natural-keys) on aggregates, allowing yo
 First, define your aggregate with a `[NaturalKey]` property and mark the methods that set the key with `[NaturalKeySource]`:
 
 <!-- snippet: sample_wolverine_polecat_natural_key_aggregate -->
+<a id='snippet-sample_wolverine_polecat_natural_key_aggregate'></a>
+```cs
+public record PcNkOrderNumber(string Value);
+
+public class PcNkOrderAggregate
+{
+    public Guid Id { get; set; }
+
+    [NaturalKey]
+    public PcNkOrderNumber OrderNum { get; set; } = null!;
+
+    public decimal TotalAmount { get; set; }
+    public string CustomerName { get; set; } = string.Empty;
+    public bool IsComplete { get; set; }
+
+    [NaturalKeySource]
+    public void Apply(PcNkOrderCreated e)
+    {
+        OrderNum = e.OrderNumber;
+        CustomerName = e.CustomerName;
+    }
+
+    public void Apply(PcNkItemAdded e)
+    {
+        TotalAmount += e.Price;
+    }
+
+    public void Apply(PcNkOrderCompleted e)
+    {
+        IsComplete = true;
+    }
+}
+
+public record PcNkOrderCreated(PcNkOrderNumber OrderNumber, string CustomerName);
+public record PcNkItemAdded(string ItemName, decimal Price);
+public record PcNkOrderCompleted;
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PolecatTests/natural_key_aggregate_handler_workflow.cs#L123-L160' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_polecat_natural_key_aggregate' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ### Using Natural Keys in Command Handlers
@@ -523,6 +561,13 @@ First, define your aggregate with a `[NaturalKey]` property and mark the methods
 When your command carries the natural key value instead of a stream id, Wolverine can resolve it automatically. The command property should match the aggregate's natural key type:
 
 <!-- snippet: sample_wolverine_polecat_natural_key_commands -->
+<a id='snippet-sample_wolverine_polecat_natural_key_commands'></a>
+```cs
+public record AddPcNkOrderItem(PcNkOrderNumber OrderNum, string ItemName, decimal Price);
+public record AddPcNkOrderItems(PcNkOrderNumber OrderNum, (string Name, decimal Price)[] Items);
+public record CompletePcNkOrder(PcNkOrderNumber OrderNum);
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PolecatTests/natural_key_aggregate_handler_workflow.cs#L162-L168' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_polecat_natural_key_commands' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Wolverine uses the natural key type on the command property to call `FetchForWriting<TAggregate, TNaturalKey>()` under the covers, resolving the stream by the natural key in a single database round-trip.
@@ -532,6 +577,280 @@ Wolverine uses the natural key type on the command property to call `FetchForWri
 Here are the handlers that process those commands, using `[WriteAggregate]` and `IEventStream<T>`:
 
 <!-- snippet: sample_wolverine_polecat_natural_key_handlers -->
+<a id='snippet-sample_wolverine_polecat_natural_key_handlers'></a>
+```cs
+public static class PcNkOrderHandler
+{
+    public static PcNkItemAdded Handle(AddPcNkOrderItem command,
+        [WriteAggregate] PcNkOrderAggregate aggregate)
+    {
+        return new PcNkItemAdded(command.ItemName, command.Price);
+    }
+
+    public static IEnumerable<object> Handle(AddPcNkOrderItems command,
+        [WriteAggregate] PcNkOrderAggregate aggregate)
+    {
+        foreach (var (name, price) in command.Items)
+        {
+            yield return new PcNkItemAdded(name, price);
+        }
+    }
+
+    public static void Handle(CompletePcNkOrder command,
+        [WriteAggregate] IEventStream<PcNkOrderAggregate> stream)
+    {
+        stream.AppendOne(new PcNkOrderCompleted());
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PolecatTests/natural_key_aggregate_handler_workflow.cs#L170-L196' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_polecat_natural_key_handlers' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 For more details on how natural keys work at the Polecat level, see the [Polecat natural keys documentation](/events/natural-keys).
+
+## Dynamic Consistency Boundary (DCB)
+
+::: tip
+The [Dynamic Consistency Boundary](https://dcb.events/) pattern enables event-sourced handlers to work across **multiple event streams simultaneously** within a single consistency boundary. This is essential for domain logic that naturally spans multiple entities.
+:::
+
+Traditional aggregate handlers work with a single event stream at a time. But some business decisions require state from multiple streams — for example, subscribing a student to a course requires checking both the student's enrollment history and the course's capacity. The DCB pattern solves this by loading events from multiple streams based on **event tags**, projecting them into a single aggregate state, and appending new events atomically.
+
+### How It Works
+
+1. A `Load()` or `Before()` method returns an `EventTagQuery` that specifies which tagged events to load
+2. Polecat loads all matching events and projects them into your aggregate type using the standard `Apply()` methods
+3. Your handler receives the projected state and makes decisions
+4. Returned events are appended atomically through the `IEventBoundary<T>` interface
+
+### Example: University Course Subscription
+
+This example is ported from the [AxonIQ DCB demo](https://dcb.events/). A student subscribing to a course must enforce rules spanning both the student and course boundaries:
+
+- Student must be enrolled in faculty
+- Student can't subscribe to more than 3 courses
+- Course must exist and have vacant spots
+- Student not already subscribed
+
+First, define your domain events and strong-typed IDs:
+
+<!-- snippet: sample_wolverine_dcb_university_ids -->
+<a id='snippet-sample_wolverine_dcb_university_ids'></a>
+```cs
+namespace MartenTests.Dcb.University;
+
+/// <summary>
+/// Strong-typed ID for a course. Uses string value with "Course:" prefix.
+/// </summary>
+public record CourseId(string Value)
+{
+    public static CourseId Random() => new($"Course:{Guid.NewGuid()}");
+    public static CourseId Of(string raw) => new(raw.StartsWith("Course:") ? raw : $"Course:{raw}");
+    public override string ToString() => Value;
+}
+
+/// <summary>
+/// Strong-typed ID for a student. Uses string value with "Student:" prefix.
+/// </summary>
+public record StudentId(string Value)
+{
+    public static StudentId Random() => new($"Student:{Guid.NewGuid()}");
+    public static StudentId Of(string raw) => new(raw.StartsWith("Student:") ? raw : $"Student:{raw}");
+    public override string ToString() => Value;
+}
+
+/// <summary>
+/// Strong-typed ID for the faculty. Single-instance in this demo.
+/// </summary>
+public record FacultyId(string Value)
+{
+    public static readonly FacultyId Default = new("Faculty:ONLY_FACULTY_ID");
+    public static FacultyId Of(string raw) => new(raw.StartsWith("Faculty:") ? raw : $"Faculty:{raw}");
+    public override string ToString() => Value;
+}
+
+/// <summary>
+/// Composite ID for a student-course subscription.
+/// </summary>
+public record SubscriptionId(CourseId CourseId, StudentId StudentId);
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/Dcb/University/UniversityIds.cs#L1-L38' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_dcb_university_ids' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+<!-- snippet: sample_wolverine_dcb_university_events -->
+<a id='snippet-sample_wolverine_dcb_university_events'></a>
+```cs
+namespace MartenTests.Dcb.University;
+
+public record CourseCreated(FacultyId FacultyId, CourseId CourseId, string Name, int Capacity);
+
+public record CourseRenamed(FacultyId FacultyId, CourseId CourseId, string Name);
+
+public record CourseCapacityChanged(FacultyId FacultyId, CourseId CourseId, int Capacity);
+
+public record StudentEnrolledInFaculty(FacultyId FacultyId, StudentId StudentId, string FirstName, string LastName);
+
+public record StudentSubscribedToCourse(FacultyId FacultyId, StudentId StudentId, CourseId CourseId);
+
+public record StudentUnsubscribedFromCourse(FacultyId FacultyId, StudentId StudentId, CourseId CourseId);
+
+public record AllCoursesFullyBookedNotificationSent(FacultyId FacultyId);
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/Dcb/University/UniversityEvents.cs#L1-L17' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_dcb_university_events' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Next, define the aggregate state that spans both boundaries. This single type projects events tagged with either a `CourseId` or `StudentId`:
+
+<!-- snippet: sample_wolverine_dcb_subscription_state -->
+<a id='snippet-sample_wolverine_dcb_subscription_state'></a>
+```cs
+namespace MartenTests.Dcb.University;
+/// Built from events tagged with BOTH CourseId and StudentId.
+/// This is the core DCB pattern — the consistency boundary spans multiple streams.
+///
+/// Ported from the Axon SubscribeStudentToCourseCommandHandler.State which uses
+/// EventCriteria.either() to load events matching CourseId OR StudentId.
+/// </summary>
+public class SubscriptionState
+{
+    public CourseId? CourseId { get; private set; }
+    public int CourseCapacity { get; private set; }
+    public int StudentsSubscribedToCourse { get; private set; }
+
+    public StudentId? StudentId { get; private set; }
+    public int CoursesStudentSubscribed { get; private set; }
+    public bool AlreadySubscribed { get; private set; }
+
+    public void Apply(CourseCreated e)
+    {
+        CourseId = e.CourseId;
+        CourseCapacity = e.Capacity;
+    }
+
+    public void Apply(CourseCapacityChanged e)
+    {
+        CourseCapacity = e.Capacity;
+    }
+
+    public void Apply(StudentEnrolledInFaculty e)
+    {
+        StudentId = e.StudentId;
+    }
+
+    public void Apply(StudentSubscribedToCourse e)
+    {
+        if (e.CourseId == CourseId)
+            StudentsSubscribedToCourse++;
+        if (e.StudentId == StudentId)
+            CoursesStudentSubscribed++;
+        if (e.StudentId == StudentId && e.CourseId == CourseId)
+            AlreadySubscribed = true;
+    }
+
+    public void Apply(StudentUnsubscribedFromCourse e)
+    {
+        if (e.CourseId == CourseId)
+            StudentsSubscribedToCourse--;
+        if (e.StudentId == StudentId)
+            CoursesStudentSubscribed--;
+        if (e.StudentId == StudentId && e.CourseId == CourseId)
+            AlreadySubscribed = false;
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/Dcb/University/SubscriptionState.cs#L1-L55' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_dcb_subscription_state' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+### Using the `[BoundaryModel]` Attribute
+
+The `[BoundaryModel]` attribute on a handler parameter triggers the DCB workflow. Your handler class must include a `Load()` (or `LoadAsync()`, `Before()`, `BeforeAsync()`) method that returns an `EventTagQuery`:
+
+<!-- snippet: sample_wolverine_dcb_boundary_model_handler -->
+<a id='snippet-sample_wolverine_dcb_boundary_model_handler'></a>
+```cs
+public static class BoundaryModelSubscribeStudentHandler
+{
+    public const int MaxCoursesPerStudent = 3;
+
+    public static EventTagQuery Load(BoundaryModelSubscribeStudentToCourse command)
+        => EventTagQuery
+            .For(command.CourseId)
+            .AndEventsOfType<CourseCreated, CourseCapacityChanged, StudentSubscribedToCourse, StudentUnsubscribedFromCourse>()
+            .Or(command.StudentId)
+            .AndEventsOfType<StudentEnrolledInFaculty, StudentSubscribedToCourse, StudentUnsubscribedFromCourse>();
+
+    public static StudentSubscribedToCourse Handle(
+        BoundaryModelSubscribeStudentToCourse command,
+        [BoundaryModel]
+        SubscriptionState state)
+    {
+        if (state.StudentId == null)
+            throw new InvalidOperationException("Student with given id never enrolled the faculty");
+
+        if (state.CoursesStudentSubscribed >= MaxCoursesPerStudent)
+            throw new InvalidOperationException("Student subscribed to too many courses");
+
+        if (state.CourseId == null)
+            throw new InvalidOperationException("Course with given id does not exist");
+
+        if (state.StudentsSubscribedToCourse >= state.CourseCapacity)
+            throw new InvalidOperationException("Course is fully booked");
+
+        if (state.AlreadySubscribed)
+            throw new InvalidOperationException("Student already subscribed to this course");
+
+        return new StudentSubscribedToCourse(FacultyId.Default, command.StudentId, command.CourseId);
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/Dcb/University/BoundaryModelSubscribeStudentToCourse.cs#L8-L43' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_dcb_boundary_model_handler' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+The `EventTagQuery` uses a fluent API to define which events to load:
+
+- `EventTagQuery.For(tag)` — start with a tag value (e.g., a `CourseId`)
+- `.AndEventsOfType<T1, T2, ...>()` — filter to specific event types for that tag
+- `.Or(tag)` — add another tag to query (e.g., a `StudentId`)
+
+Polecat loads all events matching **any** of the tag criteria, projects them into your aggregate using the standard `Apply()` methods, and provides the result to your handler.
+
+### Using `IEventBoundary<T>` Directly
+
+For more control over event appending, you can accept `IEventBoundary<T>` as a parameter instead of the aggregate type:
+
+```cs
+public static void Handle(
+    SubscribeStudentToCourse command,
+    [BoundaryModel] IEventBoundary<SubscriptionState> boundary)
+{
+    var state = boundary.Aggregate;
+
+    // validation logic...
+
+    boundary.AppendOne(new StudentSubscribedToCourse(
+        FacultyId.Default, command.StudentId, command.CourseId));
+}
+```
+
+### Return Value Handling
+
+The DCB workflow supports the same return value patterns as the standard aggregate handler workflow:
+
+- Single event objects are appended via `boundary.AppendOne()`
+- `IEnumerable<object>` or `Events` collections are appended via `boundary.AppendMany()`
+- `IAsyncEnumerable<object>` events are appended one at a time
+- `OutgoingMessages` and `ISideEffect` are handled as cascading messages, not events
+
+### Validation on Boundary Existence
+
+Use the `Required` property to enforce that the projected aggregate state is not null:
+
+```cs
+public static StudentSubscribedToCourse Handle(
+    SubscribeStudentToCourse command,
+    [BoundaryModel(Required = true)] SubscriptionState state)
+{
+    // state is guaranteed to be non-null
+    // ...
+}
+```

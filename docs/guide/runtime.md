@@ -8,7 +8,7 @@ everything is just a message.
 The two key parts of a Wolverine application are messages:
 
 <!-- snippet: sample_DebutAccount_command -->
-<a id='snippet-sample_DebutAccount_command'></a>
+<a id='snippet-sample_debutaccount_command'></a>
 ```cs
 // A "command" message
 public record DebitAccount(long AccountId, decimal Amount);
@@ -16,13 +16,13 @@ public record DebitAccount(long AccountId, decimal Amount);
 // An "event" message
 public record AccountOverdrawn(long AccountId);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MessageBusBasics.cs#L76-L84' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_DebutAccount_command' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MessageBusBasics.cs#L76-L84' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_debutaccount_command' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And the message handling code for the messages, which in Wolverine's case just means a function or method that accepts the message type as its first argument like so:
 
 <!-- snippet: sample_DebitAccountHandler -->
-<a id='snippet-sample_DebitAccountHandler'></a>
+<a id='snippet-sample_debitaccounthandler'></a>
 ```cs
 public static class DebitAccountHandler
 {
@@ -32,7 +32,7 @@ public static class DebitAccountHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MessageBusBasics.cs#L64-L74' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_DebitAccountHandler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MessageBusBasics.cs#L64-L74' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_debitaccounthandler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Invoking a Message Inline
@@ -239,7 +239,7 @@ The stateful, running "agents" are exposed through an `IAgent`
 interface like so:
 
 <!-- snippet: sample_IAgent -->
-<a id='snippet-sample_IAgent'></a>
+<a id='snippet-sample_iagent'></a>
 ```cs
 /// <summary>
 ///     Models a constantly running background process within a Wolverine
@@ -258,8 +258,8 @@ public interface IAgent : IHostedService // Standard .NET interface for backgrou
     AgentStatus Status { get; }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/Agents/IAgent.cs#L9-L28' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_IAgent' title='Start of snippet'>anchor</a></sup>
-<a id='snippet-sample_IAgent-1'></a>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/Agents/IAgent.cs#L9-L28' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_iagent' title='Start of snippet'>anchor</a></sup>
+<a id='snippet-sample_iagent-1'></a>
 ```cs
 /// <summary>
 ///     Models a constantly running background process within a Wolverine
@@ -312,13 +312,13 @@ public class CompositeAgent : IAgent
     public AgentStatus Status { get; private set; } = AgentStatus.Stopped;
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/Agents/IAgent.cs#L7-L64' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_IAgent-1' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/Agents/IAgent.cs#L7-L64' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_iagent-1' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 With related groups of agents built and assigned by IoC-registered implementations of this interface:
 
 <!-- snippet: sample_IAgentFamily -->
-<a id='snippet-sample_IAgentFamily'></a>
+<a id='snippet-sample_iagentfamily'></a>
 ```cs
 /// <summary>
 ///     Pluggable model for managing the assignment and execution of stateful, "sticky"
@@ -360,7 +360,7 @@ public interface IAgentFamily
     ValueTask EvaluateAssignmentsAsync(AssignmentGrid assignments);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/Agents/IAgentFamily.cs#L16-L58' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_IAgentFamily' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/Agents/IAgentFamily.cs#L16-L58' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_iagentfamily' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Built in examples of the agent and agent family are:

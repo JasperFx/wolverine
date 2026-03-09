@@ -39,7 +39,7 @@ you don't want logging for that particular message type, but do for all other me
 level for only that specific message type like so:
 
 <!-- snippet: sample_customized_handler_using_Configure -->
-<a id='snippet-sample_customized_handler_using_Configure'></a>
+<a id='snippet-sample_customized_handler_using_configure'></a>
 ```cs
 public class CustomizedHandler
 {
@@ -60,7 +60,7 @@ public class CustomizedHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/can_customize_handler_chain_through_Configure_call_on_HandlerType.cs#L25-L46' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_customized_handler_using_Configure' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/can_customize_handler_chain_through_Configure_call_on_HandlerType.cs#L25-L46' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_customized_handler_using_configure' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Methods on message handler types with the signature:
@@ -98,7 +98,7 @@ way to do that is to use the `[WolverineLogging]` attribute on either the handle
 below:
 
 <!-- snippet: sample_using_Wolverine_Logging_attribute -->
-<a id='snippet-sample_using_Wolverine_Logging_attribute'></a>
+<a id='snippet-sample_using_wolverine_logging_attribute'></a>
 ```cs
 public record QuietMessage;
 
@@ -134,7 +134,7 @@ public class QuietAndVerboseMessageHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/logging_configuration.cs#L78-L114' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_Wolverine_Logging_attribute' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/logging_configuration.cs#L78-L114' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_wolverine_logging_attribute' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 

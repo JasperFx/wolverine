@@ -44,7 +44,7 @@ public interface IOrderCommand
 public record ApproveOrder(string OrderId) : IOrderCommand;
 public record CancelOrder(string OrderId) : IOrderCommand;
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PartitioningSamples.cs#L140-L150' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_order_commands_for_partitioning' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PartitioningSamples.cs#L178-L188' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_order_commands_for_partitioning' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 If we were only running our system on a single node so we only care about a single process, we can do this:
@@ -89,7 +89,7 @@ At runtime, when you publish an `IOrderCommand` within the system, Wolverine wil
 queues to send the message, and the easiest way to explain this is really just to show the internal code:
 
 <!-- snippet: sample_SlotForSending -->
-<a id='snippet-sample_SlotForSending'></a>
+<a id='snippet-sample_slotforsending'></a>
 ```cs
 /// <summary>
 /// Uses a combination of message grouping id rules and a deterministic hash
@@ -114,7 +114,7 @@ public static int SlotForSending(this Envelope envelope, int numberOfSlots, Mess
     return Math.Abs(groupId.GetDeterministicHashCode() % numberOfSlots);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/Partitioning/PartitionedMessagingExtensions.cs#L17-L42' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_SlotForSending' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/Partitioning/PartitionedMessagingExtensions.cs#L17-L42' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_slotforsending' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The code above manages publishing between the "orders1", "orders2", "orders3", and "orders4" queues. Inside of each of the 
@@ -177,7 +177,7 @@ The built in rules *at this point* include:
 Internally, Wolverine is using a list of implementations of this interface:
 
 <!-- snippet: sample_IGroupingRule -->
-<a id='snippet-sample_IGroupingRule'></a>
+<a id='snippet-sample_igroupingrule'></a>
 ```cs
 /// <summary>
 /// Strategy for determining the GroupId of a message
@@ -187,7 +187,7 @@ public interface IGroupingRule
     bool TryFindIdentity(Envelope envelope, out string groupId);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/Partitioning/IGroupingRule.cs#L3-L13' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_IGroupingRule' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/Partitioning/IGroupingRule.cs#L3-L13' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_igroupingrule' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Definitely note that these rules are fall through, and the order you declare the rules
@@ -250,7 +250,7 @@ builder.UseWolverine(opts =>
         .ByPropertyNamed("StreamId", "Id");
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PartitioningSamples.cs#L113-L127' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_by_property_name' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PartitioningSamples.cs#L115-L129' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_by_property_name' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Explicit Group Ids
@@ -268,11 +268,11 @@ You can also explicitly specify a group id for a message when you send or publis
 public static async Task SendMessageToGroup(IMessageBus bus)
 {
     await bus.PublishAsync(
-        new ApproveInvoice("AAA"), 
+        new ApproveInvoice("AAA"),
         new() { GroupId = "agroup" });
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PartitioningSamples.cs#L113-L122' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_send_message_with_group_id' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PartitioningSamples.cs#L132-L141' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_send_message_with_group_id' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 If you are using [cascaded messages](/guide/handlers/cascading) from your message handlers, there's an extension method helper
@@ -286,7 +286,7 @@ public static IEnumerable<object> Handle(ApproveInvoice command)
     yield return new PayInvoice(command.Id).WithGroupId("aaa");
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PartitioningSamples.cs#L130-L137' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_with_group_id_as_cascading_message' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PartitioningSamples.cs#L168-L175' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_with_group_id_as_cascading_message' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Partitioned Publishing Locally
@@ -457,7 +457,7 @@ builder.UseWolverine(opts =>
     opts.Policies.PropagateGroupIdToPartitionKey();
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PartitioningSamples.cs#L144-L158' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_propagate_group_id_to_partition_key' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PartitioningSamples.cs#L145-L159' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_propagate_group_id_to_partition_key' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: tip

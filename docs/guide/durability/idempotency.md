@@ -14,7 +14,7 @@ Instead of immediately deleting message storage for a successfully completed mes
 that message in storage for a default of 5 minutes to protect against duplicate incoming messages. To override that setting, you have this option:
 
 <!-- snippet: sample_configuring_KeepAfterMessageHandling -->
-<a id='snippet-sample_configuring_KeepAfterMessageHandling'></a>
+<a id='snippet-sample_configuring_keepaftermessagehandling'></a>
 ```cs
 using var host = await Host.CreateDefaultBuilder()
     .UseWolverine(opts =>
@@ -25,5 +25,5 @@ using var host = await Host.CreateDefaultBuilder()
         opts.Durability.KeepAfterMessageHandling = 10.Minutes();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L195-L206' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_KeepAfterMessageHandling' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L195-L206' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_keepaftermessagehandling' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->

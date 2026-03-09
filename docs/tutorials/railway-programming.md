@@ -75,7 +75,7 @@ You have more specialized ways of doing that in HTTP endpoints by using the `Pro
 processing like this example that uses a `Validate()` method to potentially stop processing with a descriptive 400 and error message:
 
 <!-- snippet: sample_CategoriseIncident -->
-<a id='snippet-sample_CategoriseIncident'></a>
+<a id='snippet-sample_categoriseincident'></a>
 ```cs
 public record CategoriseIncident(
     IncidentCategory Category,
@@ -116,7 +116,7 @@ public static class CategoriseIncidentEndpoint
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/IncidentService/IncidentService/CategoriseIncident.cs#L8-L49' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_CategoriseIncident' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/IncidentService/IncidentService/CategoriseIncident.cs#L8-L49' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_categoriseincident' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The value `WolverineContinue.NoProblems` tells Wolverine that everything is good, full speed ahead. Anything else will write the `ProblemDetails`

@@ -170,7 +170,7 @@ You can explicitly override this behavior on a handler by handler basis with the
 as shown below:
 
 <!-- snippet: sample_using_AlwaysPublishResponse -->
-<a id='snippet-sample_using_AlwaysPublishResponse'></a>
+<a id='snippet-sample_using_alwayspublishresponse'></a>
 ```cs
 public class CreateItemCommandHandler
 {
@@ -191,7 +191,7 @@ public class CreateItemCommandHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/Bugs/Bug_305_invoke_async_with_return_not_publishing_with_tuple_return_value.cs#L65-L86' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_AlwaysPublishResponse' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/Bugs/Bug_305_invoke_async_with_return_not_publishing_with_tuple_return_value.cs#L65-L86' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_alwayspublishresponse' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Global Timeout Default for Request/Reply <Badge type="tip" text="5.11" />
@@ -327,7 +327,7 @@ actually have a couple different syntactical options. First, if you're directly 
 can schedule a message with a delay using this extension method:
 
 <!-- snippet: sample_ScheduleSend_In_3_Days -->
-<a id='snippet-sample_ScheduleSend_In_3_Days'></a>
+<a id='snippet-sample_schedulesend_in_3_days'></a>
 ```cs
 public async Task schedule_send(IMessageContext context, Guid issueId)
 {
@@ -346,13 +346,13 @@ public async Task schedule_send(IMessageContext context, Guid issueId)
     });
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/ScheduledExecutionSamples.cs#L8-L27' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_ScheduleSend_In_3_Days' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/ScheduledExecutionSamples.cs#L8-L27' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_schedulesend_in_3_days' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Or using an absolute time, with this overload of the extension method:
 
 <!-- snippet: sample_ScheduleSend_At_5_PM_Tomorrow -->
-<a id='snippet-sample_ScheduleSend_At_5_PM_Tomorrow'></a>
+<a id='snippet-sample_schedulesend_at_5_pm_tomorrow'></a>
 ```cs
 public async Task schedule_send_at_5_tomorrow_afternoon(IMessageContext context, Guid issueId)
 {
@@ -369,7 +369,7 @@ public async Task schedule_send_at_5_tomorrow_afternoon(IMessageContext context,
     await context.ScheduleAsync(timeout, time);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/ScheduledExecutionSamples.cs#L29-L47' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_ScheduleSend_At_5_PM_Tomorrow' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/ScheduledExecutionSamples.cs#L29-L47' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_schedulesend_at_5_pm_tomorrow' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Now, Wolverine tries really hard to enable you to use [pure functions](https://en.wikipedia.org/wiki/Pure_function) for as many message handlers as possible, so
@@ -402,13 +402,13 @@ Lastly, there's a special base class called `TimeoutMessage` that your message t
 directly to the message itself for easy usage as a cascaded message. Here's an example message type:
 
 <!-- snippet: sample_OrderTimeout -->
-<a id='snippet-sample_OrderTimeout'></a>
+<a id='snippet-sample_ordertimeout'></a>
 ```cs
 // This message will always be scheduled to be delivered after
 // a one minute delay
 public record OrderTimeout(string Id) : TimeoutMessage(1.Minutes());
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderSagaSample/OrderSaga.cs#L12-L18' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_OrderTimeout' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderSagaSample/OrderSaga.cs#L12-L18' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_ordertimeout' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Which is used within this sample saga implementation:
@@ -435,7 +435,7 @@ public static (Order, OrderTimeout) Start(StartOrder order, ILogger<Order> logge
 TODO -- more text here. NEW PAGE???
 
 <!-- snippet: sample_SendMessagesWithDeliveryOptions -->
-<a id='snippet-sample_SendMessagesWithDeliveryOptions'></a>
+<a id='snippet-sample_sendmessageswithdeliveryoptions'></a>
 ```cs
 public static async Task SendMessagesWithDeliveryOptions(IMessageBus bus)
 {
@@ -453,7 +453,7 @@ public static async Task SendMessagesWithDeliveryOptions(IMessageBus bus)
         .WithHeader("tenant", "one"));
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CustomizingMessageDelivery.cs#L9-L27' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_SendMessagesWithDeliveryOptions' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CustomizingMessageDelivery.cs#L9-L27' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sendmessageswithdeliveryoptions' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Sending Raw Message Data  <Badge type="tip" text="5.8" />

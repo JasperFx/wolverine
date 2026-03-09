@@ -43,7 +43,7 @@ You can direct Wolverine to take custom actions on messages received with unknow
 a custom implementation of this interface:
 
 <!-- snippet: sample_IMissingHandler -->
-<a id='snippet-sample_IMissingHandler'></a>
+<a id='snippet-sample_imissinghandler'></a>
 ```cs
 namespace Wolverine;
 
@@ -62,13 +62,13 @@ public interface IMissingHandler
     ValueTask HandleAsync(IEnvelopeLifecycle context, IWolverineRuntime root);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/IMissingHandler.cs#L4-L22' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_IMissingHandler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/IMissingHandler.cs#L4-L22' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_imissinghandler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Here's a made up sample that theoretically posts a message to a Slack room by sending a Wolverine message in response:
 
 <!-- snippet: sample_MyCustomActionForMissingHandlers -->
-<a id='snippet-sample_MyCustomActionForMissingHandlers'></a>
+<a id='snippet-sample_mycustomactionformissinghandlers'></a>
 ```cs
 public class MyCustomActionForMissingHandlers : IMissingHandler
 {
@@ -80,7 +80,7 @@ public class MyCustomActionForMissingHandlers : IMissingHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MissingHandlerSample.cs#L10-L22' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_MyCustomActionForMissingHandlers' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MissingHandlerSample.cs#L10-L22' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_mycustomactionformissinghandlers' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And simply registering that with your application's IoC container against the `IMissingHandler` interface like this:

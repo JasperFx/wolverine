@@ -126,7 +126,7 @@ public async Task hello_world()
 Moving on to the actual `Todo` problem domain, let's assume we've got a class like this:
 
 <!-- snippet: sample_Todo -->
-<a id='snippet-sample_Todo'></a>
+<a id='snippet-sample_todo'></a>
 ```cs
 public class Todo
 {
@@ -135,7 +135,7 @@ public class Todo
     public bool IsComplete { get; set; }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/TodoWebService/TodoWebService/Endpoints.cs#L7-L16' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_Todo' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/TodoWebService/TodoWebService/Endpoints.cs#L7-L16' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_todo' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In a sample class called [TodoEndpoints](https://github.com/JasperFx/wolverine/blob/main/src/Samples/TodoWebService/TodoWebService/Endpoints.cs)
@@ -159,7 +159,7 @@ will shine in more complicated endpoints.
 Consider this endpoint just to return the data for a single `Todo` document:
 
 <!-- snippet: sample_GetTodo -->
-<a id='snippet-sample_GetTodo'></a>
+<a id='snippet-sample_gettodo'></a>
 ```cs
 // Wolverine can infer the 200/404 status codes for you here
 // so there's no code noise just to satisfy OpenAPI tooling
@@ -167,7 +167,7 @@ Consider this endpoint just to return the data for a single `Todo` document:
 public static Task<Todo?> GetTodo(int id, IQuerySession session, CancellationToken cancellation)
     => session.LoadAsync<Todo>(id, cancellation);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/TodoWebService/TodoWebService/Endpoints.cs#L40-L48' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_GetTodo' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/TodoWebService/TodoWebService/Endpoints.cs#L40-L48' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_gettodo' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 At this point it's effectively de rigueur for any web service to support [OpenAPI](https://www.openapis.org/) documentation directly
@@ -212,7 +212,7 @@ handling and response by whether or not the document actually exists. Just to sh
 and also how WolverineFx.Http supports middleware, consider this more complex endpoint:
 
 <!-- snippet: sample_UpdateTodoEndpoint -->
-<a id='snippet-sample_UpdateTodoEndpoint'></a>
+<a id='snippet-sample_updatetodoendpoint'></a>
 ```cs
 public static class UpdateTodoEndpoint
 {
@@ -233,7 +233,7 @@ public static class UpdateTodoEndpoint
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/TodoWebService/TodoWebService/Endpoints.cs#L81-L102' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_UpdateTodoEndpoint' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/TodoWebService/TodoWebService/Endpoints.cs#L81-L102' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_updatetodoendpoint' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## How it Works

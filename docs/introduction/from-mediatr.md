@@ -165,7 +165,7 @@ avoid the really nasty kind of Exception stack traces you get from many other mi
 Let's say that you have a Wolverine.HTTP endpoint like so:
 
 <!-- snippet: sample_CreateCustomer_endpoint_with_validation -->
-<a id='snippet-sample_CreateCustomer_endpoint_with_validation'></a>
+<a id='snippet-sample_createcustomer_endpoint_with_validation'></a>
 ```cs
 public record CreateCustomer
 (
@@ -200,7 +200,7 @@ public static class CreateCustomerEndpoint
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Validation/CreateCustomerEndpoint.cs#L8-L43' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_CreateCustomer_endpoint_with_validation' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Validation/CreateCustomerEndpoint.cs#L8-L43' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_createcustomer_endpoint_with_validation' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In the application bootstrapping, I've added this option:

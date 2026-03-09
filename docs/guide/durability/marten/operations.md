@@ -14,7 +14,7 @@ The `Wolverine.Marten` library includes some helpers for Wolverine [side effects
 Marten with the `IMartenOp` interface:
 
 <!-- snippet: sample_IMartenOp -->
-<a id='snippet-sample_IMartenOp'></a>
+<a id='snippet-sample_imartenop'></a>
 ```cs
 /// <summary>
 /// Interface for any kind of Marten related side effect
@@ -24,7 +24,7 @@ public interface IMartenOp : ISideEffect
     void Execute(IDocumentSession session);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/Wolverine.Marten/IMartenOp.cs#L18-L28' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_IMartenOp' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/Wolverine.Marten/IMartenOp.cs#L18-L28' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_imartenop' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The built in side effects can all be used from the `MartenOps` static class like this HTTP endpoint example:
