@@ -6,7 +6,7 @@ using ISubscriptionAgent = JasperFx.Events.Daemon.ISubscriptionAgent;
 
 namespace Wolverine.Marten.Distribution;
 
-internal class EventSubscriptionAgent : IAgent
+public class EventSubscriptionAgent : IAgent
 {
     private readonly ShardName _shardName;
     private readonly IProjectionDaemon _daemon;
@@ -31,8 +31,13 @@ internal class EventSubscriptionAgent : IAgent
         Status = AgentStatus.Stopped;
     }
 
+    public async Task RebuildAsync(CancellationToken cancellationToken)
+    {
+        await _daemon.RebuildProjectionAsync(_shardName.Name, cancellationToken);
+    }
+
     public Uri Uri { get; }
-    
+
     // Be nice for this to get the Paused too
     public AgentStatus Status { get; private set; } = AgentStatus.Stopped;
 }
