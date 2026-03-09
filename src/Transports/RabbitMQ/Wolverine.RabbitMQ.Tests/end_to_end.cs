@@ -759,6 +759,80 @@ public class end_to_end
     
     
     [Fact]
+    public async Task use_exchange_to_exchange_binding()
+    {
+        var sourceExchange = RabbitTesting.NextExchangeName();
+        var destinationExchange = RabbitTesting.NextExchangeName();
+        var queueName = RabbitTesting.NextQueueName();
+
+        using var publisher = await WolverineHost.ForAsync(opts =>
+        {
+            opts.UseRabbitMq().AutoProvision()
+                // Bind source exchange to destination exchange
+                .BindExchange(sourceExchange).ToExchange(destinationExchange, "e2e.key")
+                // Bind destination exchange to a queue so we can consume
+                .BindExchange(destinationExchange).ToQueue(queueName, "e2e.key");
+
+            opts.PublishAllMessages().ToRabbitExchange(sourceExchange);
+        });
+
+        using var receiver = await WolverineHost.ForAsync(opts =>
+        {
+            opts.UseRabbitMq();
+
+            opts.ListenToRabbitQueue(queueName);
+            opts.Services.AddSingleton<ColorHistory>();
+        });
+
+        var session = await publisher
+            .TrackActivity()
+            .Timeout(30.Seconds())
+            .AlsoTrack(receiver)
+            .WaitForMessageToBeReceivedAt<ColorChosen>(receiver)
+            .SendMessageAndWaitAsync(new ColorChosen { Name = "Blue" });
+
+        receiver.Get<ColorHistory>().Name.ShouldBe("Blue");
+    }
+
+    [Fact]
+    public async Task use_exchange_to_exchange_binding_via_declare_exchange()
+    {
+        var sourceExchange = RabbitTesting.NextExchangeName();
+        var destinationExchange = RabbitTesting.NextExchangeName();
+        var queueName = RabbitTesting.NextQueueName();
+
+        using var publisher = await WolverineHost.ForAsync(opts =>
+        {
+            opts.UseRabbitMq().AutoProvision()
+                .DeclareExchange(destinationExchange, exchange =>
+                {
+                    exchange.ExchangeType = ExchangeType.Fanout;
+                    exchange.BindExchange(sourceExchange);
+                    exchange.BindQueue(queueName);
+                });
+
+            opts.PublishAllMessages().ToRabbitExchange(sourceExchange);
+        });
+
+        using var receiver = await WolverineHost.ForAsync(opts =>
+        {
+            opts.UseRabbitMq();
+
+            opts.ListenToRabbitQueue(queueName);
+            opts.Services.AddSingleton<ColorHistory>();
+        });
+
+        var session = await publisher
+            .TrackActivity()
+            .Timeout(30.Seconds())
+            .AlsoTrack(receiver)
+            .WaitForMessageToBeReceivedAt<ColorChosen>(receiver)
+            .SendMessageAndWaitAsync(new ColorChosen { Name = "Green" });
+
+        receiver.Get<ColorHistory>().Name.ShouldBe("Green");
+    }
+
+    [Fact]
     public async Task request_reply_from_within_handler()
     {
         var queueName = RabbitTesting.NextQueueName();

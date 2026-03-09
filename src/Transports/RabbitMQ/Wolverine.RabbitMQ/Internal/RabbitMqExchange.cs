@@ -10,6 +10,7 @@ namespace Wolverine.RabbitMQ.Internal;
 public class RabbitMqExchange : RabbitMqEndpoint, IRabbitMqExchange
 {
     private readonly RabbitMqTransport _parent;
+    private readonly List<RabbitMqExchangeBinding> _exchangeBindings = [];
 
     private bool _initialized;
 
@@ -58,6 +59,46 @@ public class RabbitMqExchange : RabbitMqEndpoint, IRabbitMqExchange
 
     public IDictionary<string, object> Arguments { get; } = new Dictionary<string, object>();
     
+    internal bool HasExchangeBindings => _exchangeBindings.Count > 0;
+
+    /// <summary>
+    /// Bind a source exchange to this exchange (this exchange is the destination).
+    /// Messages published to the source exchange will be routed to this exchange.
+    /// </summary>
+    /// <param name="sourceExchangeName">The exchange that receives published messages</param>
+    /// <param name="bindingKey">Optional routing/binding key</param>
+    /// <param name="arguments">Optional binding arguments</param>
+    /// <returns></returns>
+    public RabbitMqExchangeBinding BindExchange(string sourceExchangeName, string? bindingKey = null, Dictionary<string, object>? arguments = null)
+    {
+        if (sourceExchangeName == null)
+        {
+            throw new ArgumentNullException(nameof(sourceExchangeName));
+        }
+
+        var existing = _exchangeBindings.FirstOrDefault(x => x.SourceExchangeName == sourceExchangeName && x.BindingKey == bindingKey);
+        if (existing != null) return existing;
+
+        // Ensure the source exchange exists so resource setup works correctly
+        _parent.Exchanges.FillDefault(sourceExchangeName);
+
+        var binding = new RabbitMqExchangeBinding(sourceExchangeName, Name, bindingKey);
+        if (arguments is not null)
+        {
+            foreach (var argument in arguments)
+            {
+                binding.Arguments.Add(argument);
+            }
+        }
+        _exchangeBindings.Add(binding);
+        return binding;
+    }
+
+    public IEnumerable<RabbitMqExchangeBinding> ExchangeBindings()
+    {
+        return _exchangeBindings;
+    }
+
     // this is meh
     public string? DirectRoutingKey { get; set; }
 
@@ -106,6 +147,19 @@ public class RabbitMqExchange : RabbitMqEndpoint, IRabbitMqExchange
             DeclaredName, exchangeTypeName, IsDurable, AutoDelete);
 
         HasDeclared = true;
+
+        foreach (var binding in _exchangeBindings)
+        {
+            // Ensure the source exchange is declared before creating the binding,
+            // since ExchangeBindAsync requires both exchanges to exist in RabbitMQ
+            var sourceExchange = _parent.Exchanges[binding.SourceExchangeName];
+            if (!sourceExchange.HasDeclared)
+            {
+                await sourceExchange.DeclareAsync(channel, logger);
+            }
+
+            await binding.DeclareAsync(channel, logger);
+        }
     }
 
     public override async ValueTask<bool> CheckAsync()
@@ -126,6 +180,11 @@ public class RabbitMqExchange : RabbitMqEndpoint, IRabbitMqExchange
     {
         await _parent.WithAdminChannelAsync(async channel =>
         {
+            foreach (var binding in _exchangeBindings)
+            {
+                await binding.TeardownAsync(channel);
+            }
+
             if (DeclaredName == string.Empty)
             {
             }

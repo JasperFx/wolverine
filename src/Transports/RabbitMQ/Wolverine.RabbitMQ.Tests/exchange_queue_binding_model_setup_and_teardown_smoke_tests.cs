@@ -39,6 +39,11 @@ public class exchange_queue_binding_model_setup_and_teardown_smoke_tests
             .BindExchange("fan1")
             .ToQueue("xqueue2", "key2");
 
+        // Exchange-to-exchange binding
+        expression
+            .BindExchange("direct1")
+            .ToExchange("fan1", "e2e_key");
+
         var wolverineRuntime = new MockWolverineRuntime();
         theTransport.TryBuildStatefulResource(wolverineRuntime, out var resource);
 
