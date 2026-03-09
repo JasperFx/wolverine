@@ -302,6 +302,12 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
         return HasRequestType ? RequestType : ComplexQueryStringType;
     }
 
+    public override Frame? CreateSimpleValidationFrame(Variable variable)
+    {
+        Metadata.Produces(400, contentType: "application/problem+json");
+        return new SimpleValidationHttpFrame(variable);
+    }
+
     public override Frame[] AddStopConditionIfNull(Variable variable)
     {
         return [new SetStatusCodeAndReturnIfEntityIsNullFrame(variable)];

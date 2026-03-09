@@ -45,6 +45,14 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
 
     public abstract bool TryInferMessageIdentity(out PropertyInfo? property);
 
+    /// <summary>
+    /// Default implementation for message handlers: log validation messages and return
+    /// </summary>
+    public virtual Frame? CreateSimpleValidationFrame(Variable variable)
+    {
+        return new SimpleValidationHandlerFrame(variable);
+    }
+
     public bool IsTransactional { get; set; }
     public abstract bool ShouldFlushOutgoingMessages();
     public abstract bool RequiresOutbox();

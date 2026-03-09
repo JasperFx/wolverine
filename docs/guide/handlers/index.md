@@ -525,3 +525,59 @@ public static class PingHandler
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/PingPongWithRabbitMq/Ponger/PingHandler.cs#L6-L35' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_PingHandler-1' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Validation
+
+Wolverine provides several options for validating messages before they are processed by your handler logic. These range from lightweight, inline validation to full integration with popular validation libraries.
+
+### Lightweight Validation with String Messages
+
+The simplest approach is to add a `Validate` or `ValidateAsync` method to your handler class that returns validation error messages as strings. If any messages are returned, Wolverine will log them and abort the handler execution.
+
+Supported return types are `IEnumerable<string>`, `string[]`, `Task<string[]>`, and `ValueTask<string[]>`.
+
+For **message handlers**, Wolverine will:
+1. Check if there are any validation messages
+2. If none, continue processing
+3. If there are messages, log each one as a warning using `ILogger`
+4. Abort the handler by returning early
+
+<!-- snippet: sample_simple_validation_ienumerable -->
+<!-- endSnippet -->
+
+You can also use synchronous `string[]` returns:
+
+<!-- snippet: sample_simple_validation_string_array -->
+<!-- endSnippet -->
+
+Or asynchronous validation:
+
+<!-- snippet: sample_simple_validation_async -->
+<!-- endSnippet -->
+
+For **HTTP endpoints**, the behavior is different — Wolverine will create a `ProblemDetails` response with a 400 status code containing the validation messages:
+
+<!-- snippet: sample_simple_validation_http_ienumerable -->
+<!-- endSnippet -->
+
+### Validation with HandlerContinuation
+
+For more control, your `Validate` method can return a `HandlerContinuation` to explicitly signal whether processing should continue or stop:
+
+<!-- snippet: sample_sending_messages_in_before_middleware -->
+<!-- endSnippet -->
+
+### Validation with ProblemDetails
+
+In HTTP endpoints (and message handlers with the Wolverine.Http package), you can return a `ProblemDetails` object for richer validation responses:
+
+<!-- snippet: sample_ProblemDetailsUsageEndpoint -->
+<!-- endSnippet -->
+
+### FluentValidation Integration
+
+For more complex validation scenarios, Wolverine integrates with [FluentValidation](/guide/handlers/fluent-validation). This allows you to use FluentValidation's full feature set including rule builders, conditional rules, and custom validators.
+
+### Data Annotations Integration
+
+Wolverine also supports [.NET Data Annotations](/guide/handlers/dataannotations-validation) for validation, allowing you to use standard `[Required]`, `[Range]`, and other validation attributes on your message types.
+
