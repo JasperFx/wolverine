@@ -559,6 +559,39 @@ For **HTTP endpoints**, the behavior is different — Wolverine will create a `P
 <!-- snippet: sample_simple_validation_http_ienumerable -->
 <!-- endSnippet -->
 
+### Validation with RequirementResult
+
+For more structured validation, your `Validate` or `ValidateAsync` method can return a `RequirementResult` record that combines a `HandlerContinuation` branch with an array of string messages:
+
+```csharp
+public record RequirementResult(HandlerContinuation Branch, string[] Messages);
+```
+
+If `Branch == Continue`, processing continues normally. If `Branch == Stop`:
+
+- For **message handlers**, Wolverine logs each message as a warning (or "Invalid Request" if no messages) and aborts the handler
+- For **HTTP endpoints**, Wolverine returns a `ProblemDetails` with status 400. If messages are provided, they are included in the `errors` extension. If messages are empty, `ProblemDetails.Detail` is set to `"Invalid Request"`
+
+Synchronous validation:
+
+<!-- snippet: sample_requirement_result_validation -->
+<!-- endSnippet -->
+
+Asynchronous validation:
+
+<!-- snippet: sample_requirement_result_validation_async -->
+<!-- endSnippet -->
+
+Validation with empty messages (still stops processing):
+
+<!-- snippet: sample_requirement_result_validation_empty_messages -->
+<!-- endSnippet -->
+
+For HTTP endpoints:
+
+<!-- snippet: sample_requirement_result_http_validation -->
+<!-- endSnippet -->
+
 ### Validation with HandlerContinuation
 
 For more control, your `Validate` method can return a `HandlerContinuation` to explicitly signal whether processing should continue or stop:

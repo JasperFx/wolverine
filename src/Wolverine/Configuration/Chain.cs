@@ -53,6 +53,11 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
         return new SimpleValidationHandlerFrame(variable);
     }
 
+    public virtual Frame? CreateRequirementResultFrame(Variable variable)
+    {
+        return new RequirementResultHandlerFrame(variable);
+    }
+
     public bool IsTransactional { get; set; }
     public abstract bool ShouldFlushOutgoingMessages();
     public abstract bool RequiresOutbox();

@@ -178,6 +178,14 @@ public interface IChain
     /// <param name="variable">The variable containing validation messages</param>
     /// <returns>A frame that checks for validation messages and aborts if any exist, or null if not supported</returns>
     Frame? CreateSimpleValidationFrame(Variable variable);
+
+    /// <summary>
+    /// Create a Frame for validation based on a RequirementResult variable.
+    /// If Branch == Continue, processing continues. If Branch == Stop, processing aborts.
+    /// </summary>
+    /// <param name="variable">The variable containing the RequirementResult</param>
+    /// <returns>A frame that checks the RequirementResult and aborts if Branch == Stop, or null if not supported</returns>
+    Frame? CreateRequirementResultFrame(Variable variable);
 }
 
 #endregion
