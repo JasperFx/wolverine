@@ -4,6 +4,7 @@ using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
 using Wolverine.Logging;
 using Wolverine.Runtime;
+using Wolverine.Runtime.Partitioning;
 using Wolverine.Runtime.WorkerQueues;
 
 namespace Wolverine.Transports;
@@ -217,7 +218,28 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
         }
 
         _receiver ??= Endpoint.MaybeWrapReceiver(await buildReceiverAsync());
-    
+
+        // If this endpoint is part of a global partitioned topology, swap receiver to bridge to local queue
+        if (Endpoint.GlobalPartitionLocalQueueUri != null)
+        {
+            var localQueue = _runtime.Endpoints.AgentForLocalQueue(Endpoint.GlobalPartitionLocalQueueUri) as ILocalQueue;
+            if (localQueue != null)
+            {
+                _receiver = new GlobalPartitionedReceiverBridge(localQueue);
+            }
+        }
+        // If there are global partitioned topologies and this is NOT a paired endpoint, intercept matching messages
+        else if (_runtime.Options.MessagePartitioning.GlobalPartitionedTopologies.Count > 0
+                 && !Endpoint.UsedInShardedTopology
+                 && Endpoint.Uri.Scheme != "local")
+        {
+            _receiver = new GlobalPartitionedInterceptor(
+                _receiver,
+                new Runtime.MessageBus(_runtime),
+                _runtime.Options.MessagePartitioning.GlobalPartitionedTopologies,
+                _logger);
+        }
+
         if (Endpoint.ListenerCount > 1)
         {
             var listeners = new List<IListener>(Endpoint.ListenerCount);

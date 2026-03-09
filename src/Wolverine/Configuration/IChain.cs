@@ -170,6 +170,14 @@ public interface IChain
     Frame[] AddStopConditionIfNull(Variable data, Variable? identity, IDataRequirement requirement);
 
     bool TryInferMessageIdentity(out PropertyInfo? property);
+
+    /// <summary>
+    /// Create a Frame for simple validation based on a variable that contains
+    /// string validation messages (IEnumerable&lt;string&gt;, string[], etc.)
+    /// </summary>
+    /// <param name="variable">The variable containing validation messages</param>
+    /// <returns>A frame that checks for validation messages and aborts if any exist, or null if not supported</returns>
+    Frame? CreateSimpleValidationFrame(Variable variable);
 }
 
 #endregion

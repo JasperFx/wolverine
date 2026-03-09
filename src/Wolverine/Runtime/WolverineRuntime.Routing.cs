@@ -67,6 +67,14 @@ internal class ExplicitRouting : IMessageRouteSource
                 yield return route!;
             }
         }
+
+        foreach (var topology in runtime.Options.MessagePartitioning.GlobalPartitionedTopologies)
+        {
+            if (topology.TryMatch(messageType, runtime, out var globalRoute))
+            {
+                yield return globalRoute!;
+            }
+        }
     }
 
     public bool IsAdditive => false;
