@@ -10,7 +10,7 @@ convention-driven model you already use for HTTP endpoints.
 
 gRPC is well-suited to **service-to-service** communication where you want:
 
-* **High performance** — HTTP/2 multiplexing and binary Protocol Buffers serialisation
+* **High performance** — HTTP/2 multiplexing and binary Protocol Buffers serialization
 * **Strong contracts** — service definitions and message schemas are compile-time checked
 * **Streaming** — bidirectional streaming is available for more advanced scenarios
 * **Language interop** — gRPC clients exist for virtually every language and platform
@@ -47,7 +47,7 @@ using ProtoBuf;
 using ProtoBuf.Grpc;
 using System.ServiceModel;
 
-// Protobuf-serialisable request
+// Protobuf-serializable request
 [ProtoContract]
 public class PingMessage
 {
@@ -55,7 +55,7 @@ public class PingMessage
     [ProtoMember(2)] public string Message { get; set; } = string.Empty;
 }
 
-// Protobuf-serialisable response
+// Protobuf-serializable response
 [ProtoContract]
 public class PongMessage
 {

@@ -59,7 +59,7 @@ public static class WolverineGrpcExtensions
     public static IEndpointRouteBuilder MapWolverineGrpcEndpoints(
         this IEndpointRouteBuilder endpoints)
     {
-        var runtime = (IWolverineRuntime)endpoints.ServiceProvider.GetRequiredService<IWolverineRuntime>();
+        var runtime = endpoints.ServiceProvider.GetRequiredService<IWolverineRuntime>();
         var grpcOptions = endpoints.ServiceProvider.GetService<WolverineGrpcOptions>();
         var logger = endpoints.ServiceProvider.GetRequiredService<ILogger<WolverineGrpcOptions>>();
 
