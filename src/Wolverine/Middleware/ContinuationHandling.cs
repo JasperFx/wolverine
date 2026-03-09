@@ -16,7 +16,7 @@ public static class ContinuationHandling
             return list;
         }
 
-        return [new HandlerContinuationPolicy(), new SimpleValidationContinuationPolicy()];
+        return [new HandlerContinuationPolicy(), new SimpleValidationContinuationPolicy(), new RequirementResultContinuationPolicy()];
     }
 
     /// <summary>
@@ -37,6 +37,7 @@ public static class ContinuationHandling
             [
                 new HandlerContinuationPolicy(),
                 new SimpleValidationContinuationPolicy(),
+                new RequirementResultContinuationPolicy(),
                 new T()
             ];
             rules.Properties[Continuations] = list;
