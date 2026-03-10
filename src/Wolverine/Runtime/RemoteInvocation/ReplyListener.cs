@@ -54,6 +54,13 @@ internal class ReplyListener<T> : IReplyListener
 
     private void onCancellation()
     {
+        // Unregister before setting the exception so the listener is removed
+        // before any continuation runs (TaskCreationOptions.RunContinuationsAsynchronously
+        // can cause the awaiter to resume before subsequent lines execute)
+        Parent.Unregister(this);
+
+        Status = TaskStatus.Faulted;
+
         if (typeof(T) == typeof(Acknowledgement))
         {
             _completion?.TrySetException(new TimeoutException(
@@ -64,9 +71,5 @@ internal class ReplyListener<T> : IReplyListener
             _completion?.TrySetException(new TimeoutException(
                 $"Timed out waiting for expected response {typeof(T).FullNameInCode()} for original message {RequestId} of type {RequestType} with a configured timeout of {_timeout.TotalMilliseconds} milliseconds"));
         }
-
-        Parent.Unregister(this);
-
-        Status = TaskStatus.Faulted;
     }
 }
