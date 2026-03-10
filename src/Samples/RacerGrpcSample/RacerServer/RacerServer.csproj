@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+    <PropertyGroup>
+        <RootNamespace>RacerServer</RootNamespace>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\..\..\src\Http\Wolverine.Http.Grpc\Wolverine.Http.Grpc.csproj"/>
+        <ProjectReference Include="..\RacerContracts\RacerContracts.csproj"/>
+    </ItemGroup>
+
+</Project>

@@ -418,15 +418,125 @@ app.MapWolverineGrpcEndpoints();    // gRPC endpoints
 
 ### TLS / HTTPS
 
-For production use, configure Kestrel with a TLS certificate and use `https://` URLs.
-In development you can use unencrypted HTTP/2 (`http://`) for simplicity, but make sure
-the gRPC client is configured to allow plain-text connections:
+gRPC runs over HTTP/2, which almost always requires TLS in production.  No Wolverine-specific API
+is needed — you configure Kestrel exactly as the
+[ASP.NET Core TLS documentation](https://learn.microsoft.com/en-us/aspnet/core/grpc/aspnetcore#tls)
+describes.
+
+**Development** — the ASP.NET Core development certificate is sufficient.  When you create a
+project with `dotnet new web`, the default profile uses `https://` automatically.  For plain
+HTTP/2 (useful if TLS adds friction during early development) add the switch to the **client**:
 
 ```csharp
 // Development only — do not use in production without TLS!
 AppContext.SetSwitch("System.Net.Http.SocketsHttpHandler.Http2UnencryptedSupport", true);
-var channel = GrpcChannel.ForAddress("http://localhost:5200");
+var channel = GrpcChannel.ForAddress("http://localhost:5300");
 ```
+
+And configure the Kestrel listener to use plain HTTP/2 on the server (`appsettings.json`):
+
+```json
+{
+  "Kestrel": {
+    "Endpoints": {
+      "Grpc": {
+        "Url": "http://localhost:5300",
+        "Protocols": "Http2"
+      }
+    }
+  }
+}
+```
+
+**Production (appsettings.json)** — specify the certificate and restrict to HTTP/2:
+
+```json
+{
+  "Kestrel": {
+    "Endpoints": {
+      "Grpc": {
+        "Url": "https://0.0.0.0:5300",
+        "Protocols": "Http2",
+        "Certificate": {
+          "Path": "/etc/ssl/certs/grpc.pfx",
+          "Password": "<your-password>"
+        }
+      }
+    }
+  }
+}
+```
+
+**Production (`Program.cs`)** — alternatively configure Kestrel in code:
+
+```csharp
+builder.WebHost.ConfigureKestrel(kestrel =>
+{
+    kestrel.Listen(IPAddress.Any, 5300, listen =>
+    {
+        listen.Protocols = HttpProtocols.Http2;
+        listen.UseHttps("/etc/ssl/certs/grpc.pfx", "<your-password>");
+    });
+});
+```
+
+::: tip
+`WolverineFx.Http.Grpc` does not add its own TLS fluent API — you use the standard
+ASP.NET Core / Kestrel configuration surfaces above.  This keeps the security surface small and
+aligned with Microsoft's official guidance.
+:::
+
+### Authorization
+
+gRPC services hosted by Wolverine are standard ASP.NET Core services and support all of the
+same authorization primitives:
+
+**Requiring authentication on a single method** — add `[Authorize]` to the endpoint class or to
+a specific gRPC method implementation.  The framework checks the attribute before the method body
+runs:
+
+```csharp
+using Microsoft.AspNetCore.Authorization;
+
+[WolverineGrpcService]
+public class SecureOrderService : WolverineGrpcEndpointBase, IOrderService
+{
+    [Authorize]                           // JWT / bearer token required
+    public Task<OrderReply> PlaceOrderAsync(OrderRequest request, CallContext context = default)
+        => Bus.InvokeAsync<OrderReply>(request, context.CancellationToken);
+}
+```
+
+**Bootstrap** — enable ASP.NET Core authentication before `MapWolverineGrpcEndpoints`:
+
+```csharp
+builder.Services.AddAuthentication().AddJwtBearer();
+builder.Services.AddAuthorization();
+
+// ...
+
+app.UseAuthentication();
+app.UseAuthorization();
+app.MapWolverineGrpcEndpoints();
+```
+
+**Client** — attach a bearer token to every call via `CallCredentials`:
+
+```csharp
+var credentials = CallCredentials.FromInterceptor((context, metadata) =>
+{
+    metadata.Add("Authorization", $"Bearer {myJwtToken}");
+    return Task.CompletedTask;
+});
+
+var channel = GrpcChannel.ForAddress("https://localhost:5300", new GrpcChannelOptions
+{
+    Credentials = ChannelCredentials.Create(new SslCredentials(), credentials)
+});
+```
+
+For a full walkthrough of gRPC JWT authentication in ASP.NET Core, see the
+[Microsoft Ticketer example](https://github.com/grpc/grpc-dotnet/tree/master/examples/Ticketer).
 
 ### Dependency Injection and Lifetime
 
@@ -447,9 +557,83 @@ gRPC translates exceptions thrown inside service methods into gRPC status codes 
 
 ### Streaming
 
-Unary (request/response) calls are fully supported. Server-streaming, client-streaming, and
-bidirectional streaming are also possible through `IAsyncEnumerable<T>` return types in
-protobuf-net.Grpc — Wolverine handlers can return streaming responses if needed.
+Unary (request/response) calls are fully supported.  **Server-streaming**, **client-streaming**,
+and **bidirectional (duplex) streaming** are all available through `IAsyncEnumerable<T>` in
+protobuf-net.Grpc:
+
+| Pattern | Contract signature |
+|---|---|
+| Unary | `Task<TReply> MethodAsync(TRequest req, CallContext ctx = default)` |
+| Server streaming | `IAsyncEnumerable<TReply> MethodAsync(TRequest req, CallContext ctx = default)` |
+| Client streaming | `Task<TReply> MethodAsync(IAsyncEnumerable<TRequest> reqs, CallContext ctx = default)` |
+| Bidirectional | `IAsyncEnumerable<TReply> MethodAsync(IAsyncEnumerable<TRequest> reqs, CallContext ctx = default)` |
+
+**Example — bidirectional streaming service contract:**
+
+```csharp
+[ServiceContract]
+public interface IRacingService
+{
+    [OperationContract]
+    IAsyncEnumerable<RacePosition> RaceAsync(
+        IAsyncEnumerable<RacerUpdate> updates,
+        CallContext context = default);
+}
+```
+
+**Example — bidirectional streaming server endpoint** (iterates the incoming stream and yields
+responses back as they arrive):
+
+```csharp
+[WolverineGrpcService]
+public class RacingService : WolverineGrpcEndpointBase, IRacingService
+{
+    private readonly ConcurrentDictionary<string, double> _speeds = new();
+
+    public async IAsyncEnumerable<RacePosition> RaceAsync(
+        IAsyncEnumerable<RacerUpdate> updates,
+        CallContext context = default)
+    {
+        await foreach (var update in updates.WithCancellation(context.CancellationToken))
+        {
+            _speeds[update.RacerId] = update.Speed;
+
+            var standings = _speeds
+                .OrderByDescending(kv => kv.Value)
+                .Select((kv, i) => new RacePosition { RacerId = kv.Key, Position = i + 1, Speed = kv.Value })
+                .ToList();
+
+            yield return standings.FirstOrDefault(p => p.RacerId == update.RacerId)
+                ?? new RacePosition { RacerId = update.RacerId };
+        }
+    }
+}
+```
+
+**Example — bidirectional streaming client:**
+
+```csharp
+using var channel = GrpcChannel.ForAddress("http://localhost:5300");
+var racing = channel.CreateGrpcService<IRacingService>();
+
+async IAsyncEnumerable<RacerUpdate> ProduceUpdates(
+    [EnumeratorCancellation] CancellationToken cancellationToken = default)
+{
+    while (!cancellationToken.IsCancellationRequested)
+    {
+        yield return new RacerUpdate { RacerId = "Racer-A", Speed = 175.3 };
+        await Task.Delay(200, cancellationToken);
+    }
+}
+
+await foreach (var position in racing.RaceAsync(ProduceUpdates(cts.Token), cts.Token))
+{
+    Console.WriteLine($"{position.RacerId} is in position {position.Position}");
+}
+```
+
+A full working bidirectional streaming sample is available in
+`src/Samples/RacerGrpcSample/` in this repository.
 
 ---
 

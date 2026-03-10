@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <RootNamespace>RacerClient</RootNamespace>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Grpc.Net.Client"/>
+        <PackageReference Include="protobuf-net.Grpc.ClientFactory"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\RacerContracts\RacerContracts.csproj"/>
+    </ItemGroup>
+
+</Project>
