@@ -4,6 +4,7 @@ using JasperFx.Core;
 using Weasel.Core;
 using Wolverine.Persistence.Durability.DeadLetterManagement;
 using Wolverine.RDBMS.Durability;
+using Wolverine.Runtime.Serialization;
 
 namespace Wolverine.RDBMS;
 
@@ -184,6 +185,28 @@ public abstract partial class MessageDatabase<T>
         builder.Append(';');
 
         return executeCommandBatch(builder, token);
+    }
+
+    public async Task EditAndReplayAsync(Guid envelopeId, byte[] newBody, CancellationToken token)
+    {
+        // Read the current serialized envelope, replace its Data, and re-serialize
+        var deadLetter = await DeadLetterEnvelopeByIdAsync(envelopeId);
+        if (deadLetter == null) return;
+
+        deadLetter.Envelope.Data = newBody;
+        var serialized = EnvelopeSerializer.Serialize(deadLetter.Envelope);
+
+        var builder = ToCommandBuilder();
+        builder.Append(
+            $"update {SchemaName}.{DatabaseConstants.DeadLetterTable} set {DatabaseConstants.Body} = ");
+        builder.AppendParameter(serialized);
+        builder.Append($", {DatabaseConstants.Replayable} = ");
+        builder.AppendParameter(true);
+        builder.Append($" where {DatabaseConstants.Id} = ");
+        builder.AppendParameter(envelopeId);
+        builder.Append(';');
+
+        await executeCommandBatch(builder, token);
     }
 
 }

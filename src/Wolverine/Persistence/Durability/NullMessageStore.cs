@@ -234,6 +234,11 @@ public class NullMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IM
         return Task.CompletedTask;
     }
 
+    public Task EditAndReplayAsync(Guid envelopeId, byte[] newBody, CancellationToken token)
+    {
+        return Task.CompletedTask;
+    }
+
     public Task RebuildAsync()
     {
         return Task.CompletedTask;

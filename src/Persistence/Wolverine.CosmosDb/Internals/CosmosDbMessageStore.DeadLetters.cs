@@ -3,6 +3,7 @@ using JasperFx.Core;
 using Microsoft.Azure.Cosmos;
 using Wolverine.Persistence.Durability;
 using Wolverine.Persistence.Durability.DeadLetterManagement;
+using Wolverine.Runtime.Serialization;
 
 namespace Wolverine.CosmosDb.Internals;
 
@@ -299,6 +300,28 @@ public partial class CosmosDbMessageStore : IDeadLetters
         }
 
         return messages;
+    }
+
+    public async Task EditAndReplayAsync(Guid envelopeId, byte[] newBody, CancellationToken token)
+    {
+        try
+        {
+            var response = await _container.ReadItemAsync<DeadLetterMessage>(DlqId(envelopeId),
+                new PartitionKey(DocumentTypes.DeadLetterPartition), cancellationToken: token);
+            var message = response.Resource;
+
+            // Deserialize the stored envelope, replace its Data with the new message body, re-serialize
+            var envelope = EnvelopeSerializer.Deserialize(message.Body);
+            envelope.Data = newBody;
+            message.Body = EnvelopeSerializer.Serialize(envelope);
+            message.Replayable = true;
+            await _container.ReplaceItemAsync(message, message.Id,
+                new PartitionKey(DocumentTypes.DeadLetterPartition), cancellationToken: token);
+        }
+        catch (CosmosException e) when (e.StatusCode == HttpStatusCode.NotFound)
+        {
+            // Already gone
+        }
     }
 
     private QueryDefinition RebuildQueryDef(string queryText, DeadLetterEnvelopeQuery query)
