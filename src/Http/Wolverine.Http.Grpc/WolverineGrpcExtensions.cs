@@ -17,6 +17,12 @@ public static class WolverineGrpcExtensions
     /// Call this in your <c>IServiceCollection</c> configuration, typically alongside
     /// <see cref="WolverineHttpEndpointRouteBuilderExtensions.AddWolverineHttp"/>.
     /// </summary>
+    /// <remarks>
+    /// Supports both the <strong>code-first</strong> approach (protobuf-net.Grpc, using
+    /// <see cref="WolverineGrpcEndpointBase"/>) and the <strong>proto-first</strong> approach
+    /// (Grpc.AspNetCore + <c>.proto</c> files, using <see cref="WolverineGrpcServiceAttribute"/>
+    /// with constructor-injected <c>IMessageBus</c>).
+    /// </remarks>
     /// <param name="services">The service collection.</param>
     /// <param name="configure">Optional callback to configure <see cref="WolverineGrpcOptions"/>.</param>
     /// <returns>The service collection for chaining.</returns>
@@ -30,7 +36,9 @@ public static class WolverineGrpcExtensions
         this IServiceCollection services,
         Action<WolverineGrpcOptions>? configure = null)
     {
-        // Register code-first gRPC support (protobuf-net.Grpc)
+        // AddCodeFirstGrpc() registers the protobuf-net.Grpc code-first pipeline, which also
+        // calls the underlying services.AddGrpc() required by Grpc.AspNetCore for proto-first services.
+        // Both code-first and proto-first services are therefore supported after this call.
         services.AddCodeFirstGrpc();
 
         var options = new WolverineGrpcOptions();
@@ -48,10 +56,12 @@ public static class WolverineGrpcExtensions
     /// </summary>
     /// <remarks>
     /// <para>
-    /// A type is eligible when it:
+    /// A type is eligible when it satisfies <strong>either</strong> of the following:
     /// <list type="bullet">
-    ///   <item>Inherits from <see cref="WolverineGrpcEndpointBase"/></item>
-    ///   <item>Is decorated with <see cref="WolverineGrpcServiceAttribute"/> OR its name ends with
+    ///   <item>It is decorated with <see cref="WolverineGrpcServiceAttribute"/>
+    ///         (<see cref="WolverineGrpcEndpointBase"/> is <strong>not</strong> required —
+    ///         this enables proto-first services that inherit a proto-generated base class)</item>
+    ///   <item>OR it inherits from <see cref="WolverineGrpcEndpointBase"/> AND its name ends with
     ///         "GrpcEndpoint", "GrpcEndpoints", "GrpcService", or "GrpcServices"</item>
     /// </list>
     /// </para>
@@ -99,9 +109,11 @@ public static class WolverineGrpcExtensions
         if (grpcEndpointTypes.Count == 0)
         {
             logger.LogWarning(
-                "No Wolverine gRPC endpoint types were discovered. Ensure your endpoint classes " +
-                "inherit from WolverineGrpcEndpointBase and either have a [WolverineGrpcService] " +
-                "attribute or a name ending in 'GrpcEndpoint', 'GrpcService', etc.");
+                "No Wolverine gRPC endpoint types were discovered. " +
+                "A type is eligible when it is decorated with [WolverineGrpcService] " +
+                "(sufficient on its own — no base class required, enabling proto-first services) " +
+                "OR when it inherits WolverineGrpcEndpointBase and its name ends with " +
+                "'GrpcEndpoint', 'GrpcEndpoints', 'GrpcService', or 'GrpcServices'.");
 
             return endpoints;
         }

@@ -6,8 +6,18 @@ namespace Wolverine.Http.Grpc;
 /// <see cref="WolverineGrpcExtensions.MapWolverineGrpcEndpoints"/> is called.
 /// </summary>
 /// <remarks>
-/// Apply this attribute to classes that inherit from <see cref="WolverineGrpcEndpointBase"/>
-/// and implement a gRPC service contract interface decorated with [ServiceContract].
+/// <para>
+/// <strong>Code-first services (protobuf-net.Grpc)</strong>: Apply this attribute to a class that
+/// inherits from <see cref="WolverineGrpcEndpointBase"/> and implements a gRPC service contract
+/// interface decorated with <c>[ServiceContract]</c>.
+/// </para>
+/// <para>
+/// <strong>Proto-first services (Grpc.AspNetCore + .proto files)</strong>: Apply this attribute
+/// to a class that inherits from the proto-generated base class (e.g. <c>Greeter.GreeterBase</c>)
+/// and injects <see cref="Wolverine.IMessageBus"/> via the constructor.
+/// <c>WolverineGrpcEndpointBase</c> is <strong>not required</strong> when this attribute is present —
+/// the attribute alone is sufficient for automatic discovery.
+/// </para>
 /// </remarks>
 [AttributeUsage(AttributeTargets.Class, AllowMultiple = false, Inherited = false)]
 public sealed class WolverineGrpcServiceAttribute : Attribute
