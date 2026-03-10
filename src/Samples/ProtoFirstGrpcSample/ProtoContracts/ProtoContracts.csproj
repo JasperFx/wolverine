@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <!--
+            This project acts as the shared "contracts" library for the proto-first gRPC sample.
+            In a real enterprise scenario this project would be published as a private NuGet package
+            so both the server and any clients can reference the same generated types.
+        -->
+        <AssemblyName>ProtoContracts</AssemblyName>
+        <RootNamespace>ProtoContracts</RootNamespace>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <!--
+            Google.Protobuf + Grpc.Tools generate the C# message types and the service base class
+            (Greeter.GreeterBase) from the greeter.proto file at build time.
+            GrpcServices="Both" means both client stub and server base class are emitted.
+        -->
+        <PackageReference Include="Google.Protobuf"/>
+        <PackageReference Include="Grpc.Tools">
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+            <PrivateAssets>all</PrivateAssets>
+        </PackageReference>
+        <Protobuf Include="Protos\greeter.proto" GrpcServices="Both"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <!--
+            Grpc.AspNetCore is needed in the contracts project because the generated GreeterBase
+            class references Grpc.Core.ServerCallContext, which lives in Grpc.Core.Api.
+        -->
+        <PackageReference Include="Grpc.AspNetCore"/>
+    </ItemGroup>
+
+</Project>

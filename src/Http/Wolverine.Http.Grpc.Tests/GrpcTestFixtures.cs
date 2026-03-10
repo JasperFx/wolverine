@@ -137,11 +137,25 @@ public class TypeDiscovery_InvalidNoMatch : WolverineGrpcEndpointBase, ITypeDisc
 }
 
 /// <summary>
-/// Invalid: has the [WolverineGrpcService] attribute but does NOT inherit
-/// WolverineGrpcEndpointBase — the base-class constraint is not satisfied.
+/// Valid (proto-first pattern): has [WolverineGrpcService] attribute but does NOT inherit
+/// WolverineGrpcEndpointBase. This simulates a proto-first gRPC service that inherits the
+/// proto-generated base class (e.g., Greeter.GreeterBase) and uses constructor DI for IMessageBus.
+/// The [WolverineGrpcService] attribute alone is sufficient for discovery.
 /// </summary>
 [WolverineGrpcService]
-public class TypeDiscovery_InvalidNoBaseClass : ITypeDiscoverySharedContract
+public class TypeDiscovery_ValidAttributeOnlyNoBaseClass : ITypeDiscoverySharedContract
+{
+    public Task<TypeDiscoveryResponse> ProcessAsync(TypeDiscoveryRequest request, CallContext context = default)
+        => Task.FromResult(new TypeDiscoveryResponse());
+}
+
+/// <summary>
+/// Invalid: has the naming-convention suffix "GrpcEndpoint" but does NOT inherit
+/// WolverineGrpcEndpointBase and does NOT have [WolverineGrpcService].
+/// Convention-based discovery still requires WolverineGrpcEndpointBase to avoid
+/// accidentally picking up unrelated classes.
+/// </summary>
+public class TypeDiscovery_InvalidConventionSuffixWithoutBaseClass : ITypeDiscoverySharedContract
 {
     public Task<TypeDiscoveryResponse> ProcessAsync(TypeDiscoveryRequest request, CallContext context = default)
         => Task.FromResult(new TypeDiscoveryResponse());

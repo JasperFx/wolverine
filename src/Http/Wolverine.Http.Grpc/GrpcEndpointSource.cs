@@ -7,10 +7,16 @@ using Microsoft.Extensions.Logging;
 namespace Wolverine.Http.Grpc;
 
 /// <summary>
-/// Scans assemblies for Wolverine gRPC service endpoint types – concrete classes
-/// that are decorated with <see cref="WolverineGrpcServiceAttribute"/> OR that
-/// inherit from <see cref="WolverineGrpcEndpointBase"/> and whose name ends with
-/// "GrpcEndpoint", "GrpcEndpoints", "GrpcService", or "GrpcServices".
+/// Scans assemblies for Wolverine gRPC service endpoint types.
+///
+/// A type qualifies when:
+/// <list type="bullet">
+///   <item>It is decorated with <see cref="WolverineGrpcServiceAttribute"/> — no base class required.
+///         This enables both code-first (protobuf-net.Grpc) and proto-first (Grpc.AspNetCore)
+///         services to be discovered automatically.</item>
+///   <item>OR it inherits from <see cref="WolverineGrpcEndpointBase"/> AND its name ends with one of
+///         the conventional suffixes: "GrpcEndpoint", "GrpcEndpoints", "GrpcService", "GrpcServices".</item>
+/// </list>
 /// </summary>
 internal static class GrpcEndpointSource
 {
@@ -92,19 +98,23 @@ internal static class GrpcEndpointSource
             return false;
         }
 
-        // Must inherit from WolverineGrpcEndpointBase
-        if (!type.CanBeCastTo<WolverineGrpcEndpointBase>())
-        {
-            return false;
-        }
-
-        // Discovered either by explicit attribute...
+        // Explicit [WolverineGrpcService] attribute is sufficient on its own — the base class
+        // is NOT required when the attribute is present.  This enables proto-first (Grpc.AspNetCore)
+        // services that must inherit a proto-generated base class rather than
+        // WolverineGrpcEndpointBase, and still want automatic discovery.
         if (type.HasAttribute<WolverineGrpcServiceAttribute>())
         {
             return true;
         }
 
-        // ...or by naming convention
+        // Naming-convention discovery still requires WolverineGrpcEndpointBase to avoid
+        // accidentally picking up unrelated classes whose names happen to end with a
+        // recognised suffix (e.g. "CustomerGrpcService" that is not a gRPC service at all).
+        if (!type.CanBeCastTo<WolverineGrpcEndpointBase>())
+        {
+            return false;
+        }
+
         return ConventionalSuffixes.Any(suffix =>
             type.Name.EndsWith(suffix, StringComparison.OrdinalIgnoreCase));
     }
