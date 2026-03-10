@@ -15,7 +15,7 @@ gRPC is well-suited to **service-to-service** communication where you want:
 * **Streaming** — bidirectional streaming is available for more advanced scenarios
 * **Language interop** — gRPC clients exist for virtually every language and platform
 
-For a comprehensive overview of gRPC in ASP.NET Core, see the
+For a comprehensive overview of gRPC in ASP.Net Core, see the
 [official Microsoft documentation](https://learn.microsoft.com/en-us/aspnet/core/grpc/).
 
 ## Installation
@@ -36,8 +36,7 @@ Both approaches integrate with Wolverine's message bus in exactly the same way.
 ## Code-First Approach
 
 The code-first approach, built on [protobuf-net.Grpc](https://protobuf-net.github.io/protobuf-net.grpc/),
-lets you define gRPC contracts as plain C# interfaces.
-No `.proto` files are required.
+lets you define gRPC contracts as plain C# interfaces — no `.proto` files required.
 See the [Microsoft code-first gRPC documentation](https://learn.microsoft.com/en-us/aspnet/core/grpc/code-first)
 for background.
 
@@ -101,14 +100,14 @@ public static class PingHandler
 }
 ```
 
-#### 3. Add a gRPC endpoint adapter
+#### 3. Write the gRPC service class
 
 There are three equivalent ways to write the endpoint class. Pick whichever best fits your style:
 
-**Option A — Naming convention + `WolverineGrpcEndpointBase` (property injection)**
+**Convention-based discovery (inherits `WolverineGrpcEndpointBase`)**
 
 Wolverine discovers the class automatically because its name ends with `GrpcEndpoint` **and** it
-inherits `WolverineGrpcEndpointBase`. The `Bus` property is populated by ASP.NET Core DI at
+inherits `WolverineGrpcEndpointBase`. The `Bus` property is populated by ASP.Net Core's DI at
 request time.
 
 ```csharp
@@ -122,9 +121,9 @@ public class PongerGrpcEndpoint : WolverineGrpcEndpointBase, IPongerService
 }
 ```
 
-**Option B — `[WolverineGrpcService]` attribute + `WolverineGrpcEndpointBase` (property injection)**
+**Attribute-based discovery (inherits `WolverineGrpcEndpointBase`)**
 
-Use the explicit attribute when you want attribute-driven discovery without relying on the naming
+Use `[WolverineGrpcService]` when you want attribute-driven discovery without relying on the naming
 convention. `IMessageBus` is still obtained from the `Bus` property on the base class.
 
 ```csharp
@@ -136,7 +135,7 @@ public class PongerService : WolverineGrpcEndpointBase, IPongerService
 }
 ```
 
-**Option C — `[WolverineGrpcService]` attribute + constructor injection (no base class)**
+**Attribute-based discovery with constructor injection (no base class)**
 
 When you prefer constructor injection — or when your class must inherit a different base class
 (e.g., a proto-generated `ServiceName.ServiceNameBase`) — omit `WolverineGrpcEndpointBase`
@@ -157,7 +156,7 @@ public class PongerService : IPongerService
 ```
 
 ::: tip
-Option C is also **required** for proto-first services (see the [Proto-First Approach](#proto-first-approach-proto-files) section below), because proto-generated services must inherit `ServiceName.ServiceNameBase` and C# does not allow multiple inheritance.
+Constructor injection is also **required** for proto-first services (see the [Proto-First Approach](#proto-first-approach-proto-files) section below), because proto-generated services must inherit `ServiceName.ServiceNameBase` and C# does not allow multiple inheritance.
 :::
 
 #### 4. Bootstrap the server
@@ -221,13 +220,13 @@ var pong = await ponger.SendPingAsync(new PingMessage { Number = 1, Message = "H
 Console.WriteLine(pong.Message); // "Pong #1"
 ```
 
-### Code-First Sample Project
+### Code-First Sample Projects
 
-A complete PingPong sample demonstrating two services communicating over gRPC can be found at
-`src/Samples/PingPongWithGrpc` in the Wolverine repository.
+A complete PingPong sample demonstrating two services communicating over gRPC can be found in
+[`src/Samples/PingPongWithGrpc`](https://github.com/JasperFx/wolverine/tree/main/src/Samples/PingPongWithGrpc):
 
-* **GrpcPonger** — the server that listens for Ping messages and responds with Pong via gRPC
-* **GrpcPinger** — the client that sends Ping messages every second
+* **GrpcPonger** — the server that listens for `PingMessage` and responds with `PongMessage` over gRPC
+* **GrpcPinger** — the client that sends `PingMessage` requests every second
 * **Contracts** — the shared service contract and protobuf message definitions
 
 ---
@@ -241,8 +240,8 @@ This is the preferred pattern for enterprises and cross-language teams that publ
 `.proto`-based NuGet package so both .NET servers and non-.NET clients share the same schema.
 
 ::: tip
-A complete proto-first sample project can be found at `src/Samples/ProtoFirstGrpcSample` in
-the Wolverine repository.
+A complete proto-first sample project can be found in
+[`src/Samples/ProtoFirstGrpcSample`](https://github.com/JasperFx/wolverine/tree/main/src/Samples/ProtoFirstGrpcSample).
 :::
 
 ### How it works with Wolverine
@@ -251,7 +250,7 @@ With the proto-first approach:
 
 1. The service **does not** inherit `WolverineGrpcEndpointBase`; it inherits the
    proto-generated `<ServiceName>.<ServiceName>Base` class (e.g. `Greeter.GreeterBase`).
-2. `IMessageBus` is injected via the **constructor** (standard ASP.NET Core DI) rather than
+2. `IMessageBus` is injected via the **constructor** (standard ASP.Net Core DI) rather than
    via the `Bus` property on the base class.
 3. The `[WolverineGrpcService]` **attribute is required** for automatic discovery because
    the naming-convention discovery path still requires `WolverineGrpcEndpointBase`.
@@ -360,9 +359,9 @@ return await app.RunJasperFxCommands(args);
 ```
 <!-- endSnippet -->
 
-### Code-First vs Proto-First comparison
+### Code-First vs. Proto-First comparison
 
-| | Code-First (Option A/B) | Code-First (Option C) | Proto-First |
+| Feature | Code-first (convention or attribute + base class) | Code-first (attribute + constructor injection) | Proto-first |
 |--|-----------|-------------|-------------|
 | Contract definition | C# interface + `[ServiceContract]` | C# interface + `[ServiceContract]` | `.proto` file |
 | C# type generation | None (already C#) | None (already C#) | `Grpc.Tools` at build time |
@@ -420,10 +419,10 @@ app.MapWolverineGrpcEndpoints();    // gRPC endpoints
 
 gRPC runs over HTTP/2, which almost always requires TLS in production.  No Wolverine-specific API
 is needed — you configure Kestrel exactly as the
-[ASP.NET Core TLS documentation](https://learn.microsoft.com/en-us/aspnet/core/grpc/aspnetcore#tls)
+[ASP.Net Core TLS documentation](https://learn.microsoft.com/en-us/aspnet/core/grpc/aspnetcore#tls)
 describes.
 
-**Development** — the ASP.NET Core development certificate is sufficient.  When you create a
+**Development** — the ASP.Net Core development certificate is sufficient.  When you create a
 project with `dotnet new web`, the default profile uses `https://` automatically.  For plain
 HTTP/2 (useful if TLS adds friction during early development) add the switch to the **client**:
 
@@ -482,13 +481,13 @@ builder.WebHost.ConfigureKestrel(kestrel =>
 
 ::: tip
 `WolverineFx.Http.Grpc` does not add its own TLS fluent API — you use the standard
-ASP.NET Core / Kestrel configuration surfaces above.  This keeps the security surface small and
+ASP.Net Core / Kestrel configuration surfaces above.  This keeps the security surface small and
 aligned with Microsoft's official guidance.
 :::
 
 ### Authorization
 
-gRPC services hosted by Wolverine are standard ASP.NET Core services and support all of the
+gRPC services hosted by Wolverine are standard ASP.Net Core services and support all of the
 same authorization primitives:
 
 **Requiring authentication on a single method** — add `[Authorize]` to the endpoint class or to
@@ -507,7 +506,7 @@ public class SecureOrderService : WolverineGrpcEndpointBase, IOrderService
 }
 ```
 
-**Bootstrap** — enable ASP.NET Core authentication before `MapWolverineGrpcEndpoints`:
+**Bootstrap** — enable ASP.Net Core authentication before `MapWolverineGrpcEndpoints`:
 
 ```csharp
 builder.Services.AddAuthentication().AddJwtBearer();
@@ -535,16 +534,16 @@ var channel = GrpcChannel.ForAddress("https://localhost:5300", new GrpcChannelOp
 });
 ```
 
-For a full walkthrough of gRPC JWT authentication in ASP.NET Core, see the
+For a full walkthrough of gRPC JWT authentication in ASP.Net Core, see the
 [Microsoft Ticketer example](https://github.com/grpc/grpc-dotnet/tree/master/examples/Ticketer).
 
 ### Dependency Injection and Lifetime
 
 **Code-first** (`WolverineGrpcEndpointBase`): Exposes a settable `Bus` property (`IMessageBus`)
-that is populated by ASP.NET Core's dependency injection at request time.
+that is populated by ASP.Net Core's dependency injection at request time.
 
-**Proto-first** (constructor injection): `IMessageBus` is injected via the constructor, which
-is the standard ASP.NET Core DI pattern. Both patterns result in the same per-request lifetime.
+**Constructor injection**: `IMessageBus` is injected via the constructor, which
+is the standard ASP.Net Core DI pattern. Both patterns result in the same per-request lifetime.
 
 gRPC service types are resolved per request (transient / scoped) by default, which aligns with
 how Wolverine handlers work.
@@ -633,18 +632,18 @@ await foreach (var position in racing.RaceAsync(ProduceUpdates(cts.Token), cts.T
 ```
 
 A full working bidirectional streaming sample is available in
-`src/Samples/RacerGrpcSample/` in this repository.
+[`src/Samples/RacerGrpcSample`](https://github.com/JasperFx/wolverine/tree/main/src/Samples/RacerGrpcSample).
 
 ---
 
-## Roadmap: Eliminating the base class requirement
+## Design Notes: The `WolverineGrpcEndpointBase` Requirement
 
 ::: info
-This section documents the current state of the `WolverineGrpcEndpointBase` requirement and
-the planned evolution toward making it optional for all discovery paths.
+This section explains why `WolverineGrpcEndpointBase` exists, when it is and isn't required, and
+the trade-offs behind the current design.
 :::
 
-### Why `WolverineGrpcEndpointBase` exists today
+### Why `WolverineGrpcEndpointBase` exists
 
 `WolverineGrpcEndpointBase` is a thin bridge class that exposes a single property:
 
@@ -655,20 +654,20 @@ public abstract class WolverineGrpcEndpointBase
 }
 ```
 
-ASP.NET Core's DI container populates `Bus` at request time via property injection.
+ASP.Net Core's DI container populates `Bus` at request time via property injection.
 The base class is required by the **naming-convention** discovery path to avoid accidentally
 registering unrelated classes whose names happen to end with `GrpcService`.
 
-### The proto-first work already relaxes the constraint
+### The attribute-based path already relaxes the constraint
 
 As of this release, the `[WolverineGrpcService]` **attribute bypasses the base class check** —
 proto-first services only need the attribute and constructor injection of `IMessageBus`.
 This means the base class is effectively optional for any service that uses the attribute,
 regardless of whether it is code-first or proto-first.
 
-### Why full elimination is non-trivial
+### Why convention-based discovery still requires it
 
-Removing the base class entirely from **code-first convention-based discovery** would require
+Removing the base class entirely from **naming-convention discovery** would require
 one of:
 
 1. **Roslyn Source Generators** — generate the gRPC service class at compile time from an
@@ -685,4 +684,4 @@ one of:
 
 The current approach (attribute removes the base class requirement; convention retains it as
 a safety net) provides the best balance of ergonomics, discoverability, and safety.
-Full source-generator support is tracked as a future enhancement.
+Full source-generator support remains a future possibility.
