@@ -103,9 +103,13 @@ public static class PingHandler
 
 #### 3. Add a gRPC endpoint adapter
 
-Create a class that bridges the gRPC contract to the Wolverine bus.
-Wolverine discovers it automatically because its name ends with `GrpcEndpoint` **and** it
-inherits `WolverineGrpcEndpointBase`.
+There are three equivalent ways to write the endpoint class. Pick whichever best fits your style:
+
+**Option A — Naming convention + `WolverineGrpcEndpointBase` (property injection)**
+
+Wolverine discovers the class automatically because its name ends with `GrpcEndpoint` **and** it
+inherits `WolverineGrpcEndpointBase`. The `Bus` property is populated by ASP.NET Core DI at
+request time.
 
 ```csharp
 using ProtoBuf.Grpc;
@@ -118,8 +122,10 @@ public class PongerGrpcEndpoint : WolverineGrpcEndpointBase, IPongerService
 }
 ```
 
-Alternatively, use the explicit `[WolverineGrpcService]` attribute if you prefer not to rely on
-the naming convention:
+**Option B — `[WolverineGrpcService]` attribute + `WolverineGrpcEndpointBase` (property injection)**
+
+Use the explicit attribute when you want attribute-driven discovery without relying on the naming
+convention. `IMessageBus` is still obtained from the `Bus` property on the base class.
 
 ```csharp
 [WolverineGrpcService]
@@ -129,6 +135,30 @@ public class PongerService : WolverineGrpcEndpointBase, IPongerService
         => Bus.InvokeAsync<PongMessage>(request, context.CancellationToken);
 }
 ```
+
+**Option C — `[WolverineGrpcService]` attribute + constructor injection (no base class)**
+
+When you prefer constructor injection — or when your class must inherit a different base class
+(e.g., a proto-generated `ServiceName.ServiceNameBase`) — omit `WolverineGrpcEndpointBase`
+entirely and inject `IMessageBus` via the constructor. The attribute alone is sufficient for
+automatic discovery.
+
+```csharp
+[WolverineGrpcService]
+public class PongerService : IPongerService
+{
+    private readonly IMessageBus _bus;
+
+    public PongerService(IMessageBus bus) => _bus = bus;
+
+    public Task<PongMessage> SendPingAsync(PingMessage request, CallContext context = default)
+        => _bus.InvokeAsync<PongMessage>(request, context.CancellationToken);
+}
+```
+
+::: tip
+Option C is also **required** for proto-first services (see the [Proto-First Approach](#proto-first-approach-proto-files) section below), because proto-generated services must inherit `ServiceName.ServiceNameBase` and C# does not allow multiple inheritance.
+:::
 
 #### 4. Bootstrap the server
 
@@ -332,15 +362,15 @@ return await app.RunJasperFxCommands(args);
 
 ### Code-First vs Proto-First comparison
 
-| | Code-First | Proto-First |
-|--|-----------|-------------|
-| Contract definition | C# interface + `[ServiceContract]` | `.proto` file |
-| C# type generation | None (already C#) | `Grpc.Tools` at build time |
-| Cross-language support | Limited (protobuf schema can be exported) | Full (`.proto` file is language-neutral) |
-| Base class | `WolverineGrpcEndpointBase` | Proto-generated `ServiceName.ServiceNameBase` |
-| `IMessageBus` access | `Bus` property (property injection) | Constructor injection |
-| Auto-discovery | Attribute OR naming convention | `[WolverineGrpcService]` attribute required |
-| NuGet sharing | Share the C# contracts assembly | Share the `.proto` file (or generated assembly) |
+| | Code-First (Option A/B) | Code-First (Option C) | Proto-First |
+|--|-----------|-------------|-------------|
+| Contract definition | C# interface + `[ServiceContract]` | C# interface + `[ServiceContract]` | `.proto` file |
+| C# type generation | None (already C#) | None (already C#) | `Grpc.Tools` at build time |
+| Cross-language support | Limited | Limited | Full |
+| Base class | `WolverineGrpcEndpointBase` | None required | Proto-generated `ServiceName.ServiceNameBase` |
+| `IMessageBus` access | `Bus` property (property injection) | Constructor injection | Constructor injection |
+| Auto-discovery | Attribute OR naming convention | `[WolverineGrpcService]` attribute required | `[WolverineGrpcService]` attribute required |
+| NuGet sharing | Share the C# contracts assembly | Share the C# contracts assembly | Share the `.proto` file (or generated assembly) |
 
 ---
 

@@ -1,6 +1,7 @@
 using ProtoBuf;
 using ProtoBuf.Grpc;
 using System.ServiceModel;
+using Wolverine;
 using Wolverine.Http.Grpc;
 
 namespace Wolverine.Http.Grpc.Tests;
@@ -40,12 +41,50 @@ public interface IBootstrapPingContract
 /// <summary>
 /// Concrete endpoint discovered by [WolverineGrpcService]. Used in bootstrapping
 /// integration tests to verify that MapWolverineGrpcEndpoints() maps the PingAsync route.
+/// Uses property injection via WolverineGrpcEndpointBase (the code-first default pattern).
 /// </summary>
 [WolverineGrpcService]
 public class BootstrapAttributedGrpcService : WolverineGrpcEndpointBase, IBootstrapPingContract
 {
     public Task<BootstrapPingResponse> PingAsync(BootstrapPingRequest request, CallContext context = default)
         => Task.FromResult(new BootstrapPingResponse { Reply = $"pong: {request.Message}" });
+}
+
+// ---------------------------------------------------------------------------
+// Constructor-injection fixture (code-first, no base class)
+//
+// Demonstrates that [WolverineGrpcService] alone is sufficient for discovery —
+// WolverineGrpcEndpointBase is NOT required when using constructor DI.
+// This is the recommended pattern for any service (code-first OR proto-first)
+// that prefers constructor injection over the Bus property.
+// ---------------------------------------------------------------------------
+
+/// <summary>
+/// Service contract used by the constructor-injection bootstrapping fixtures.
+/// The deliberately unique method name "CtorPingAsync" lets route assertions
+/// distinguish this service from BootstrapAttributedGrpcService (which uses "PingAsync").
+/// </summary>
+[ServiceContract]
+public interface IBootstrapCtorContract
+{
+    [OperationContract]
+    Task<BootstrapPingResponse> CtorPingAsync(BootstrapPingRequest request, CallContext context = default);
+}
+
+/// <summary>
+/// Code-first gRPC endpoint that uses constructor injection of <see cref="IMessageBus"/>
+/// instead of inheriting <see cref="WolverineGrpcEndpointBase"/>.
+/// The <c>[WolverineGrpcService]</c> attribute is the only requirement for auto-discovery.
+/// </summary>
+[WolverineGrpcService]
+public class BootstrapCtorInjectedGrpcService : IBootstrapCtorContract
+{
+    private readonly IMessageBus _bus;
+
+    public BootstrapCtorInjectedGrpcService(IMessageBus bus) => _bus = bus;
+
+    public Task<BootstrapPingResponse> CtorPingAsync(BootstrapPingRequest request, CallContext context = default)
+        => _bus.InvokeAsync<BootstrapPingResponse>(request, context.CancellationToken);
 }
 
 // ---------------------------------------------------------------------------

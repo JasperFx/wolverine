@@ -152,6 +152,46 @@ public class grpc_endpoint_bootstrapping
     }
 
     [Fact]
+    public async Task map_wolverine_grpc_endpoints_registers_route_for_constructor_injected_service()
+    {
+        // BootstrapCtorInjectedGrpcService uses [WolverineGrpcService] + constructor injection of
+        // IMessageBus WITHOUT inheriting WolverineGrpcEndpointBase.  This is the code-first
+        // constructor-injection pattern (and also the required pattern for proto-first services).
+        // MapWolverineGrpcEndpoints() must discover and map it via the attribute path.
+        //
+        // protobuf-net.Grpc derives the route prefix from the SERVICE CONTRACT INTERFACE name
+        // (strips the leading 'I'), so the expected route pattern for IBootstrapCtorContract is:
+        //   /{Namespace}.BootstrapCtorContract/CtorPing   (method "CtorPingAsync" → "CtorPing")
+        var builder = BuildMinimalApp();
+        builder.Services.AddWolverineGrpc();
+
+        await using var app = builder.Build();
+        app.UseRouting();
+        app.MapWolverineGrpcEndpoints();
+        await app.StartAsync();
+
+        try
+        {
+            var dataSource = app.Services.GetRequiredService<EndpointDataSource>();
+            var routeEndpoints = dataSource.Endpoints.OfType<RouteEndpoint>().ToList();
+
+            routeEndpoints.ShouldNotBeEmpty("At least one gRPC route must be registered");
+
+            routeEndpoints
+                .Any(e => e.RoutePattern.RawText?.Contains(
+                    "BootstrapCtorContract", StringComparison.OrdinalIgnoreCase) == true)
+                .ShouldBeTrue(
+                    "Expected a gRPC route containing 'BootstrapCtorContract' to be registered " +
+                    "for IBootstrapCtorContract / BootstrapCtorInjectedGrpcService, which uses " +
+                    "[WolverineGrpcService] + constructor injection (no WolverineGrpcEndpointBase)");
+        }
+        finally
+        {
+            await app.StopAsync();
+        }
+    }
+
+    [Fact]
     public async Task map_wolverine_grpc_endpoints_handles_no_discovered_types_gracefully()
     {
         // Point Wolverine at the gRPC library assembly itself, which contains no user-defined
