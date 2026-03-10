@@ -52,6 +52,7 @@ public class reacting_to_entity_attributes : IAsyncLifetime
         if (theHost != null)
         {
             await theHost.StopAsync();
+            theHost.Dispose();
         }
     }
 

@@ -101,6 +101,7 @@ public class configure_consumers_and_publishers : IAsyncLifetime
     public async Task DisposeAsync()
     {
         await _host.StopAsync();
+        _host.Dispose();
     }
 
     [Fact]

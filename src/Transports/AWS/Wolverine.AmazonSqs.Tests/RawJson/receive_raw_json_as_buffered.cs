@@ -112,7 +112,9 @@ namespace Wolverine.AmazonSqs.Tests.RawJson
         public async Task DisposeAsync()
         {
             await _host.StopAsync();
+            _host.Dispose();
             await _sender.StopAsync();
+            _sender.Dispose();
         }
     }
 }

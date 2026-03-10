@@ -35,6 +35,7 @@ public class response_queue_mechanics : IAsyncLifetime
     public async Task DisposeAsync()
     {
         await _host.StopAsync();
+        _host.Dispose();
     }
 
     [Fact]

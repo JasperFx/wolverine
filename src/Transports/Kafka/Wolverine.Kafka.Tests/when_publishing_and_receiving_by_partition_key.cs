@@ -97,6 +97,8 @@ public class when_publishing_and_receiving_by_partition_key : IAsyncLifetime
     public async Task DisposeAsync()
     {
         await _sender.StopAsync();
+        _sender.Dispose();
         await _receiver.StopAsync();
+        _receiver.Dispose();
     }
 }

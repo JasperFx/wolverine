@@ -49,6 +49,7 @@ public class send_to_topic_and_receive_in_queue_in_aws : IAsyncLifetime
         }
         
         await _host.StopAsync();
+        _host.Dispose();
     }
 
     [Fact]

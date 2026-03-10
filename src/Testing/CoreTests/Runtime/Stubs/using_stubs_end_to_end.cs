@@ -37,7 +37,9 @@ public class using_stubs_end_to_end : IAsyncLifetime
     public async Task DisposeAsync()
     {
         await theSender.StopAsync();
+        theSender.Dispose();
         await theReceiver.StopAsync();
+        theReceiver.Dispose();
     }
 
     [Fact]

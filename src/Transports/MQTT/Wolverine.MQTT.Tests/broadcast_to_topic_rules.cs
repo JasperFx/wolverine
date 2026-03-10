@@ -91,7 +91,9 @@ public class broadcast_to_topic_rules : IAsyncLifetime
         await Broker.StopAsync();
         await Broker.DisposeAsync();
         await _sender.StopAsync();
+        _sender.Dispose();
         await _receiver.StopAsync();
+        _receiver.Dispose();
     }
 }
 

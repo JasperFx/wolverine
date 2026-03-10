@@ -46,6 +46,7 @@ public class global_entity_defaults_http : IAsyncLifetime
         if (theHost != null)
         {
             await theHost.StopAsync();
+            theHost.Dispose();
         }
     }
 

@@ -199,6 +199,8 @@ public class rate_limiting_end_to_end
         {
         }
 
+        host.Dispose();
+
         try
         {
             host.Dispose();

@@ -111,5 +111,9 @@ public class when_session_is_tracked_for_published_message_without_handler : IAs
     }
 
 
-    public async Task DisposeAsync() => await _host.StopAsync();
+    public async Task DisposeAsync()
+    {
+        await _host.StopAsync();
+        _host.Dispose();
+    }
 }

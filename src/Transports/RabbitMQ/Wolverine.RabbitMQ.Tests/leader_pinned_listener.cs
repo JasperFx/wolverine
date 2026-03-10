@@ -56,6 +56,7 @@ public class leader_pinned_listener : IAsyncDisposable
         foreach (var host in _hosts)
         {
             await host.StopAsync();
+            host.Dispose();
         }
     }
     
@@ -104,8 +105,9 @@ public class leader_pinned_listener : IAsyncDisposable
         host4.GetRuntime().Endpoints.ActiveListeners().Where(x => x.Endpoint.Role == EndpointRole.Application).Any(x => x.Uri.Scheme == "rabbitmq").ShouldBeFalse();
 
         await host.StopAsync();
+        host.Dispose();
         _hosts.Remove(host);
-        
+
         await host2.WaitUntilAssumesLeadershipAsync(30.Seconds());
         await host2.WaitUntilAssignmentsChangeTo(w =>
         {

@@ -48,6 +48,7 @@ public class send_to_topic_and_receive_in_queue_with_cloud_events : IAsyncLifeti
         }
         
         await _host.StopAsync();
+        _host.Dispose();
     }
 
     [Fact]

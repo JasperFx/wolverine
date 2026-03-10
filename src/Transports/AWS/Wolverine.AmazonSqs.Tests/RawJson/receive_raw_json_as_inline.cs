@@ -112,6 +112,8 @@ public class receive_raw_json_as_inline : IAsyncLifetime
     public async Task DisposeAsync()
     {
         await _host.StopAsync();
+        _host.Dispose();
         await _sender.StopAsync();
+        _sender.Dispose();
     }
 }

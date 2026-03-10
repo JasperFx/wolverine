@@ -46,7 +46,11 @@ public class reacting_to_required_attribute : IAsyncLifetime
 
     async Task IAsyncLifetime.DisposeAsync()
     {
-        if (theHost != null) await theHost.StopAsync();
+        if (theHost != null)
+        {
+            await theHost.StopAsync();
+            theHost.Dispose();
+        }
     }
 
     [Fact]

@@ -105,9 +105,13 @@ public class MultiTenantedAzureServiceBusFixture : IAsyncLifetime
     public async Task DisposeAsync()
     {
         await Main.StopAsync();
+        Main.Dispose();
         await One.StopAsync();
+        One.Dispose();
         await Two.StopAsync();
+        Two.Dispose();
         await Three.StopAsync();
+        Three.Dispose();
     }
 }
 
