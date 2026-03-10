@@ -5,6 +5,7 @@ using Wolverine.Oracle.Util;
 using Wolverine.Persistence.Durability;
 using Wolverine.Persistence.Durability.DeadLetterManagement;
 using Wolverine.RDBMS;
+using Wolverine.Runtime.Serialization;
 
 namespace Wolverine.Oracle;
 
@@ -165,6 +166,37 @@ internal partial class OracleMessageStore
         builder.AppendParameter(1); // Oracle uses NUMBER(1) for bool
         builder.Append(" WHERE 1 = 1");
         writeDeadLetterWhereClause(query, builder);
+
+        var cmd = builder.Compile();
+
+        await using var conn = await _dataSource.OpenConnectionAsync(token);
+        try
+        {
+            cmd.Connection = conn;
+            await cmd.ExecuteNonQueryAsync(token);
+        }
+        finally
+        {
+            await conn.CloseAsync();
+        }
+    }
+
+    public async Task EditAndReplayAsync(Guid envelopeId, byte[] newBody, CancellationToken token)
+    {
+        var deadLetter = await DeadLetterEnvelopeByIdAsync(envelopeId);
+        if (deadLetter == null) return;
+
+        deadLetter.Envelope.Data = newBody;
+        var serialized = EnvelopeSerializer.Serialize(deadLetter.Envelope);
+
+        var builder = ToOracleCommandBuilder();
+        builder.Append(
+            $"UPDATE {SchemaName}.{DatabaseConstants.DeadLetterTable} SET {DatabaseConstants.Body} = ");
+        builder.AppendParameter(serialized);
+        builder.Append($", {DatabaseConstants.Replayable} = ");
+        builder.AppendParameter(1); // Oracle uses NUMBER(1) for bool
+        builder.Append($" WHERE {DatabaseConstants.Id} = ");
+        builder.AppendParameter(envelopeId);
 
         var cmd = builder.Compile();
 

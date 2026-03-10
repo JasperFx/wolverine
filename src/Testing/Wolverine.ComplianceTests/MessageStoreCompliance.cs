@@ -822,6 +822,24 @@ public abstract class MessageStoreCompliance : IAsyncLifetime
     }
 
     [Fact]
+    public async Task can_edit_and_replay_dead_letter_envelope()
+    {
+        var envelope = ObjectMother.Envelope();
+        await thePersistence.Inbox.StoreIncomingAsync(envelope);
+
+        var exception = new InvalidOperationException("Test error");
+        await thePersistence.Inbox.MoveToDeadLetterStorageAsync(envelope, exception);
+
+        var newBody = new byte[] { 1, 2, 3, 4, 5 };
+        await thePersistence.DeadLetters.EditAndReplayAsync(envelope.Id, newBody, CancellationToken.None);
+
+        var deadLetter = await thePersistence.DeadLetters.DeadLetterEnvelopeByIdAsync(envelope.Id);
+        deadLetter.ShouldNotBeNull();
+        deadLetter.Envelope.Data.ShouldBe(newBody);
+        deadLetter.Replayable.ShouldBeTrue();
+    }
+
+    [Fact]
     public async Task query_scheduled_messages()
     {
         var scheduledList = new List<Envelope>();

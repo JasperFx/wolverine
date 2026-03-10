@@ -8,7 +8,6 @@ using Microsoft.Extensions.Hosting;
 using JasperFx.Resources;
 using SharedPersistenceModels.Items;
 using Shouldly;
-using Wolverine.ComplianceTests;
 using Weasel.Core;
 using Weasel.SqlServer;
 using Weasel.SqlServer.Tables;
@@ -24,11 +23,21 @@ using Wolverine.Transports;
 
 namespace EfCoreTests;
 
-public class EFCorePersistenceContext : BaseContext
+public class EFCorePersistenceContext : IAsyncLifetime
 {
-    public EFCorePersistenceContext() : base(true)
+    public IHost theHost { get; private set; } = null!;
+
+    public async Task InitializeAsync()
     {
-        builder.ConfigureServices((c, services) =>
+        // Drop the schema first so Weasel migrations can cleanly create/alter columns
+        // without conflicting with stale data from previous test runs
+        await using var conn = new SqlConnection(Servers.SqlServerConnectionString);
+        await conn.OpenAsync();
+        await conn.DropSchemaAsync("mt_items");
+        await conn.CloseAsync();
+
+        theHost = await Host.CreateDefaultBuilder()
+            .ConfigureServices((c, services) =>
             {
                 services.AddDbContext<ItemsDbContext>(x => x.UseSqlServer(Servers.SqlServerConnectionString));
                 services.AddDbContext<SampleMappedDbContext>(x => x.UseSqlServer(Servers.SqlServerConnectionString));
@@ -39,16 +48,21 @@ public class EFCorePersistenceContext : BaseContext
                 options.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString);
                 options.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
                 options.UseEntityFrameworkCoreTransactions();
-                
+
                 options.Policies.ConfigureConventionalLocalRouting()
                     .CustomizeQueues((_, q) => q.UseDurableInbox());
-                
+
                 options.Policies.AutoApplyTransactions();
-                
+
                 options.UseEntityFrameworkCoreWolverineManagedMigrations();
-            });
+            }).StartAsync();
     }
 
+    public async Task DisposeAsync()
+    {
+        await theHost.StopAsync();
+        theHost.Dispose();
+    }
 }
 
 [Collection("sqlserver")]
