@@ -50,6 +50,7 @@ public class batch_processing : IAsyncLifetime
     public async Task DisposeAsync()
     {
         await theHost.StopAsync();
+        theHost.Dispose();
     }
 
     [Fact]

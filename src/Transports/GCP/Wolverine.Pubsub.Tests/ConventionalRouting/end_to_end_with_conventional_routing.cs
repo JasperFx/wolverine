@@ -55,7 +55,9 @@ public class end_to_end_with_conventional_routing : IAsyncLifetime
     public async Task DisposeAsync()
     {
         await _sender.StopAsync();
+        _sender.Dispose();
         await _receiver.StopAsync();
+        _receiver.Dispose();
     }
 
     [Fact]

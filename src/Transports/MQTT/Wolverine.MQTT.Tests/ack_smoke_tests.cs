@@ -72,7 +72,9 @@ public class ack_smoke_tests : IAsyncLifetime
     public async Task DisposeAsync()
     {
         await _sender.StopAsync();
+        _sender.Dispose();
         await _receiver.StopAsync();
+        _receiver.Dispose();
         await Broker.StopAsync();
         await Broker.DisposeAsync();
     }

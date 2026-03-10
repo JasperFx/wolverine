@@ -70,6 +70,7 @@ public class propagate_group_id_to_partition_key : IAsyncLifetime
     public async Task DisposeAsync()
     {
         await _host.StopAsync();
+        _host.Dispose();
     }
 }
 

@@ -71,8 +71,11 @@ public class remote_invocation : IAsyncLifetime
     public async Task DisposeAsync()
     {
         await _receiver1.StopAsync();
+        _receiver1.Dispose();
         await _receiver2.StopAsync();
+        _receiver2.Dispose();
         await _sender.StopAsync();
+        _sender.Dispose();
     }
 
     [Fact]

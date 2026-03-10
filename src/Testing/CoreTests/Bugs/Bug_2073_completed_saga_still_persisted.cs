@@ -26,6 +26,7 @@ public class Bug_2073_completed_saga_still_persisted : IAsyncLifetime
     public async Task DisposeAsync()
     {
         await _host.StopAsync();
+        _host.Dispose();
     }
 
     [Fact]

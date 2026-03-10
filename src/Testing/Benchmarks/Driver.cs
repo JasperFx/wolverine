@@ -77,6 +77,7 @@ public class Driver : IDisposable
         if (Host != null)
         {
             await Host.StopAsync();
+            Host.Dispose();
             Host = null;
         }
     }

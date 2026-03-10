@@ -77,7 +77,11 @@ public class exclusive_listeners : IAsyncLifetime
     public async Task DisposeAsync()
     {
         _hosts.Reverse();
-        foreach (var host in _hosts) await host.StopAsync();
+        foreach (var host in _hosts)
+        {
+            await host.StopAsync();
+            host.Dispose();
+        }
     }
 
     private async Task<IHost> startHostAsync()
@@ -111,6 +115,7 @@ public class exclusive_listeners : IAsyncLifetime
     {
         host.GetRuntime().Agents.DisableHealthChecks();
         await host.StopAsync();
+        host.Dispose();
         _hosts.Remove(host);
     }
 

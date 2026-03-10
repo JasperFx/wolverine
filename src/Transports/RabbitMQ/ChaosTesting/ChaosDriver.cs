@@ -279,6 +279,7 @@ public class ChaosDriver : IAsyncDisposable, IDisposable
     public async Task StopReceiver(string name)
     {
         await _receivers[name].StopAsync();
+        _receivers[name].Dispose();
         _receivers.Remove(name);
 
         _output.WriteLine($"Stopped receiver {name}");
@@ -312,6 +313,7 @@ public class ChaosDriver : IAsyncDisposable, IDisposable
     public async Task StopSender(string name)
     {
         await _senders[name].StopAsync();
+        _senders[name].Dispose();
         _senders.Remove(name);
 
         _output.WriteLine($"Stopped sender {name}");

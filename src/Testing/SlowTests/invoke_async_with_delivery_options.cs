@@ -39,7 +39,9 @@ public class invoke_async_with_delivery_options : IAsyncLifetime
     public async Task DisposeAsync()
     {
         await _publisher.StopAsync();
+        _publisher.Dispose();
         await _receiver.StopAsync();
+        _receiver.Dispose();
     }
 
     [Fact]

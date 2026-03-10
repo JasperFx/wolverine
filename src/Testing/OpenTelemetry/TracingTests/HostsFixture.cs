@@ -78,8 +78,9 @@ public class HostsFixture : IAsyncLifetime
 
     public async Task DisposeAsync()
     {
-        // await WebApi.DisposeAsync();
-        // await FirstSubscriber.StopAsync();
+        await WebApi.DisposeAsync();
+        await FirstSubscriber.StopAsync();
+        FirstSubscriber.Dispose();
         await SecondSubscriber.StopAsync();
         SecondSubscriber.Dispose();
     }

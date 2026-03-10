@@ -104,10 +104,12 @@ public abstract class WebSocketTestContext : IAsyncLifetime
     public async Task DisposeAsync()
     {
         await theWebApp.StopAsync();
+        theWebApp.Dispose();
 
         foreach (var clientHost in _clientHosts)
         {
             await clientHost.StopAsync();
+            clientHost.Dispose();
         }
     }
 
@@ -223,10 +225,12 @@ public abstract class WebSocketTestContextWithCustomHub<THub> : IAsyncLifetime w
     public virtual async Task DisposeAsync()
     {
         await theWebApp.StopAsync();
+        theWebApp.Dispose();
 
         foreach (var clientHost in _clientHosts)
         {
             await clientHost.StopAsync();
+            clientHost.Dispose();
         }
     }
 

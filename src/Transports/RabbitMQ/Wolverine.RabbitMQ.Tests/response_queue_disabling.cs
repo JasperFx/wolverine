@@ -28,6 +28,10 @@ public class response_queue_disabling : IAsyncLifetime
             }).StartAsync();
     }
 
-    public Task DisposeAsync() => _host.StopAsync();
+    public async Task DisposeAsync()
+    {
+        await _host.StopAsync();
+        _host.Dispose();
+    }
 }
  

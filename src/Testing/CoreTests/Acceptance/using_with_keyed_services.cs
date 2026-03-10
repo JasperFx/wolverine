@@ -27,9 +27,10 @@ public class using_with_keyed_services : IAsyncLifetime
             }).StartAsync();
     }
 
-    public Task DisposeAsync()
+    public async Task DisposeAsync()
     {
-        return _host.StopAsync();
+        await _host.StopAsync();
+        _host.Dispose();
     }
 
     [Fact]
@@ -82,9 +83,10 @@ public class using_with_keyed_services_and_lamar : IAsyncLifetime
             }).StartAsync();
     }
 
-    public Task DisposeAsync()
+    public async Task DisposeAsync()
     {
-        return _host.StopAsync();
+        await _host.StopAsync();
+        _host.Dispose();
     }
 
     [Fact]
