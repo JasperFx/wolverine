@@ -1,6 +1,5 @@
 using GrpcPingPongContracts;
 using ProtoBuf.Grpc;
-using Wolverine;
 using Wolverine.Http.Grpc;
 
 namespace GrpcPonger;
@@ -10,16 +9,14 @@ namespace GrpcPonger;
 /// Wolverine message bus. Incoming gRPC calls are dispatched as Wolverine commands
 /// and the response is returned to the caller.
 ///
-/// Uses constructor injection of IMessageBus. The [WolverineGrpcService] attribute
-/// enables automatic discovery when MapWolverineGrpcEndpoints() is called.
+/// Inherits WolverineGrpcEndpointBase so that IMessageBus is available via the
+/// Bus property (property injection) — no constructor boilerplate required.
+/// The [WolverineGrpcService] attribute enables automatic discovery when
+/// MapWolverineGrpcEndpoints() is called.
 /// </summary>
 [WolverineGrpcService]
-public class PongerGrpcEndpoint : IPongerService
+public class PongerGrpcEndpoint : WolverineGrpcEndpointBase, IPongerService
 {
-    private readonly IMessageBus _bus;
-
-    public PongerGrpcEndpoint(IMessageBus bus) => _bus = bus;
-
     public Task<PongMessage> SendPingAsync(PingMessage request, CallContext context = default)
-        => _bus.InvokeAsync<PongMessage>(request, context.CancellationToken);
+        => Bus.InvokeAsync<PongMessage>(request, context.CancellationToken);
 }
