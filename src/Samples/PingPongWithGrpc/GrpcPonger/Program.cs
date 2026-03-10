@@ -1,6 +1,5 @@
 #region sample_grpc_ponger_bootstrapping
 
-using GrpcPonger;
 using JasperFx;
 using Wolverine;
 using Wolverine.Http.Grpc;

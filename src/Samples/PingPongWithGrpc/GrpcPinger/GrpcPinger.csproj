@@ -1,14 +1,14 @@
 <Project Sdk="Microsoft.NET.Sdk.Worker">
 
     <PropertyGroup>
-        <RootNamespace>GrpcPinger</RootNamespace>
+        <TargetFrameworks>net8.0;net9.0</TargetFrameworks>
     </PropertyGroup>
 
     <ItemGroup>
         <PackageReference Include="Grpc.Net.Client"/>
         <PackageReference Include="Microsoft.Extensions.Hosting"/>
         <PackageReference Include="protobuf-net.Grpc.ClientFactory"/>
-        <ProjectReference Include="..\Contracts\Contracts.csproj"/>
+        <ProjectReference Include="..\GrpcPingPongContracts\GrpcPingPongContracts.csproj"/>
     </ItemGroup>
 
 </Project>

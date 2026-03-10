@@ -6,11 +6,6 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <FrameworkReference Include="Microsoft.AspNetCore.App"/>
-        <ProjectReference Include="..\Wolverine.Http.Grpc\Wolverine.Http.Grpc.csproj"/>
-    </ItemGroup>
-
-    <ItemGroup>
         <PackageReference Include="Alba"/>
         <PackageReference Include="coverlet.collector">
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
@@ -24,6 +19,13 @@
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
             <PrivateAssets>all</PrivateAssets>
         </PackageReference>
+    </ItemGroup>
+
+    <ItemGroup>
+        <FrameworkReference Include="Microsoft.AspNetCore.App"/>
+        <ProjectReference Include="..\Wolverine.Http.Grpc\Wolverine.Http.Grpc.csproj"/>
+        <ProjectReference Include="..\Wolverine.Http.Tests\Wolverine.Http.Tests.csproj" />
+        <ProjectReference Include="..\WolverineWebApi\WolverineWebApi.csproj" />
     </ItemGroup>
 
 </Project>

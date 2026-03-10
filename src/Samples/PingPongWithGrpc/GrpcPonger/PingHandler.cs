@@ -1,5 +1,5 @@
-using PingPongContracts;
-using Microsoft.Extensions.Logging;
+using GrpcPingPongContracts;
+using Spectre.Console;
 
 namespace GrpcPonger;
 
@@ -9,14 +9,10 @@ namespace GrpcPonger;
 /// </summary>
 public static class PingHandler
 {
-    public static PongMessage Handle(PingMessage ping, ILogger logger)
+    public static PongMessage Handle(PingMessage message)
     {
-        logger.LogInformation("Received Ping #{Number}: {Message}", ping.Number, ping.Message);
+        AnsiConsole.MarkupLine($"[blue]Got ping #{message.Number}[/]");
 
-        return new PongMessage
-        {
-            Number = ping.Number,
-            Message = $"Pong #{ping.Number}"
-        };
+        return new PongMessage { Number = message.Number, };
     }
 }

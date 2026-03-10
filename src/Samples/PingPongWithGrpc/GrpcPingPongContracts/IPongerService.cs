@@ -2,7 +2,7 @@ using ProtoBuf;
 using ProtoBuf.Grpc;
 using System.ServiceModel;
 
-namespace PingPongContracts;
+namespace GrpcPingPongContracts;
 
 /// <summary>
 /// A ping message sent from the Pinger service to the Ponger service via gRPC.
