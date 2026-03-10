@@ -4,21 +4,8 @@ using Wolverine.Http.Grpc;
 namespace Wolverine.Http.Grpc.Tests;
 
 /// <summary>
-/// Unit tests for <see cref="GrpcEndpointSource"/> type-eligibility logic.
-///
-/// No web host is required — these tests exercise pure type-metadata checks against
-/// the <c>IsGrpcEndpointType</c> and <c>FindGrpcEndpointTypes</c> methods.
-/// They mirror the style used in Wolverine.Http.Tests/endpoint_discovery_and_construction.cs
-/// but operate one level lower: at the raw type-filter layer rather than at the
-/// fully-bootstrapped routing layer.
-///
-/// Discovery rules (as of the proto-first update):
-/// <list type="bullet">
-///   <item>[WolverineGrpcService] attribute alone is SUFFICIENT — the WolverineGrpcEndpointBase
-///         base class is NOT required when the attribute is present. This enables proto-first services
-///         (inheriting a proto-generated base class) to be discovered automatically.</item>
-///   <item>Naming-convention suffixes still REQUIRE WolverineGrpcEndpointBase to avoid false positives.</item>
-/// </list>
+/// Unit tests for GrpcEndpointSource type-eligibility logic.
+/// Tests the IsGrpcEndpointType and FindGrpcEndpointTypes methods without requiring a web host.
 /// </summary>
 public class grpc_endpoint_type_discovery
 {
@@ -49,9 +36,8 @@ public class grpc_endpoint_type_discovery
     [Fact]
     public void type_with_attribute_and_no_base_class_is_eligible_proto_first_scenario()
     {
-        // Proto-first services inherit from the proto-generated base class (e.g. Greeter.GreeterBase)
-        // rather than WolverineGrpcEndpointBase. The [WolverineGrpcService] attribute alone is
-        // sufficient for automatic discovery — no base class required.
+        // Proto-first services inherit from proto-generated base classes, not WolverineGrpcEndpointBase.
+        // [WolverineGrpcService] attribute alone is sufficient.
         GrpcEndpointSource.IsGrpcEndpointType(typeof(TypeDiscovery_ValidAttributeOnlyNoBaseClass))
             .ShouldBeTrue();
     }
@@ -79,10 +65,7 @@ public class grpc_endpoint_type_discovery
     [Fact]
     public void convention_suffix_without_base_class_and_without_attribute_is_not_eligible()
     {
-        // Naming-convention discovery requires WolverineGrpcEndpointBase to avoid accidentally
-        // picking up unrelated classes whose names happen to end with a gRPC suffix.
-        // A class named with a convention suffix but WITHOUT the base class AND WITHOUT the
-        // explicit attribute must NOT be auto-discovered.
+        // Naming-convention discovery requires WolverineGrpcEndpointBase to avoid false positives.
         GrpcEndpointSource.IsGrpcEndpointType(typeof(TypeDiscovery_InvalidConventionSuffixWithoutBaseClass))
             .ShouldBeFalse();
     }
@@ -109,7 +92,7 @@ public class grpc_endpoint_type_discovery
     [Fact]
     public void find_grpc_endpoint_types_discovers_attributed_type_without_base_class()
     {
-        // Proto-first fixture: [WolverineGrpcService] attribute without WolverineGrpcEndpointBase.
+        // Proto-first scenario: [WolverineGrpcService] without WolverineGrpcEndpointBase.
         var types = GrpcEndpointSource.FindGrpcEndpointTypes([typeof(grpc_endpoint_type_discovery).Assembly]);
         types.ShouldContain(typeof(TypeDiscovery_ValidAttributeOnlyNoBaseClass));
     }
@@ -141,7 +124,6 @@ public class grpc_endpoint_type_discovery
         var assembly = typeof(grpc_endpoint_type_discovery).Assembly;
         var types = GrpcEndpointSource.FindGrpcEndpointTypes([assembly, assembly]);
 
-        // All returned types should be distinct — no duplicates from repeated assemblies.
         types.Count.ShouldBe(types.Distinct().Count());
     }
 
