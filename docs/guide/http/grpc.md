@@ -15,7 +15,7 @@ gRPC is well-suited to **service-to-service** communication where you want:
 * **Streaming** — bidirectional streaming is available for more advanced scenarios
 * **Language interop** — gRPC clients exist for virtually every language and platform
 
-For a comprehensive overview of gRPC in ASP.Net Core, see the
+For a comprehensive overview of gRPC in ASP.NET Core, see the
 [official Microsoft documentation](https://learn.microsoft.com/en-us/aspnet/core/grpc/).
 
 ## Installation
@@ -107,7 +107,7 @@ There are three equivalent ways to write the endpoint class. Pick whichever best
 **Convention-based discovery (inherits `WolverineGrpcEndpointBase`)**
 
 Wolverine discovers the class automatically because its name ends with `GrpcEndpoint` **and** it
-inherits `WolverineGrpcEndpointBase`. The `Bus` property is populated by ASP.Net Core's DI at
+inherits `WolverineGrpcEndpointBase`. The `Bus` property is populated by ASP.NET Core's DI at
 request time.
 
 ```csharp
@@ -250,7 +250,7 @@ With the proto-first approach:
 
 1. The service **does not** inherit `WolverineGrpcEndpointBase`; it inherits the
    proto-generated `<ServiceName>.<ServiceName>Base` class (e.g. `Greeter.GreeterBase`).
-2. `IMessageBus` is injected via the **constructor** (standard ASP.Net Core DI) rather than
+2. `IMessageBus` is injected via the **constructor** (standard ASP.NET Core DI) rather than
    via the `Bus` property on the base class.
 3. The `[WolverineGrpcService]` **attribute is required** for automatic discovery because
    the naming-convention discovery path still requires `WolverineGrpcEndpointBase`.
@@ -419,10 +419,10 @@ app.MapWolverineGrpcEndpoints();    // gRPC endpoints
 
 gRPC runs over HTTP/2, which almost always requires TLS in production.  No Wolverine-specific API
 is needed — you configure Kestrel exactly as the
-[ASP.Net Core TLS documentation](https://learn.microsoft.com/en-us/aspnet/core/grpc/aspnetcore#tls)
+[ASP.NET Core TLS documentation](https://learn.microsoft.com/en-us/aspnet/core/grpc/aspnetcore#tls)
 describes.
 
-**Development** — the ASP.Net Core development certificate is sufficient.  When you create a
+**Development** — the ASP.NET Core development certificate is sufficient.  When you create a
 project with `dotnet new web`, the default profile uses `https://` automatically.  For plain
 HTTP/2 (useful if TLS adds friction during early development) add the switch to the **client**:
 
@@ -481,13 +481,13 @@ builder.WebHost.ConfigureKestrel(kestrel =>
 
 ::: tip
 `WolverineFx.Http.Grpc` does not add its own TLS fluent API — you use the standard
-ASP.Net Core / Kestrel configuration surfaces above.  This keeps the security surface small and
+ASP.NET Core / Kestrel configuration surfaces above.  This keeps the security surface small and
 aligned with Microsoft's official guidance.
 :::
 
 ### Authorization
 
-gRPC services hosted by Wolverine are standard ASP.Net Core services and support all of the
+gRPC services hosted by Wolverine are standard ASP.NET Core services and support all of the
 same authorization primitives:
 
 **Requiring authentication on a single method** — add `[Authorize]` to the endpoint class or to
@@ -506,7 +506,7 @@ public class SecureOrderService : WolverineGrpcEndpointBase, IOrderService
 }
 ```
 
-**Bootstrap** — enable ASP.Net Core authentication before `MapWolverineGrpcEndpoints`:
+**Bootstrap** — enable ASP.NET Core authentication before `MapWolverineGrpcEndpoints`:
 
 ```csharp
 builder.Services.AddAuthentication().AddJwtBearer();
@@ -534,16 +534,16 @@ var channel = GrpcChannel.ForAddress("https://localhost:5300", new GrpcChannelOp
 });
 ```
 
-For a full walkthrough of gRPC JWT authentication in ASP.Net Core, see the
+For a full walkthrough of gRPC JWT authentication in ASP.NET Core, see the
 [Microsoft Ticketer example](https://github.com/grpc/grpc-dotnet/tree/master/examples/Ticketer).
 
 ### Dependency Injection and Lifetime
 
 **Code-first** (`WolverineGrpcEndpointBase`): Exposes a settable `Bus` property (`IMessageBus`)
-that is populated by ASP.Net Core's dependency injection at request time.
+that is populated by ASP.NET Core's dependency injection at request time.
 
 **Constructor injection**: `IMessageBus` is injected via the constructor, which
-is the standard ASP.Net Core DI pattern. Both patterns result in the same per-request lifetime.
+is the standard ASP.NET Core DI pattern. Both patterns result in the same per-request lifetime.
 
 gRPC service types are resolved per request (transient / scoped) by default, which aligns with
 how Wolverine handlers work.
@@ -654,7 +654,7 @@ public abstract class WolverineGrpcEndpointBase
 }
 ```
 
-ASP.Net Core's DI container populates `Bus` at request time via property injection.
+ASP.NET Core's DI container populates `Bus` at request time via property injection.
 The base class is required by the **naming-convention** discovery path to avoid accidentally
 registering unrelated classes whose names happen to end with `GrpcService`.
 
