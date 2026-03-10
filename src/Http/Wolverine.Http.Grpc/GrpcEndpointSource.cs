@@ -8,8 +8,9 @@ namespace Wolverine.Http.Grpc;
 
 /// <summary>
 /// Scans assemblies for Wolverine gRPC service endpoint types.
-/// A type qualifies when it is decorated with <see cref="WolverineGrpcServiceAttribute"/>
-/// OR when it inherits <see cref="WolverineGrpcEndpointBase"/> and has a conventional suffix.
+/// A type qualifies when it is decorated with <see cref="WolverineGrpcServiceAttribute"/> (no base class required),
+/// OR when it inherits <see cref="WolverineGrpcEndpointBase"/> and its name ends with one of the conventional
+/// suffixes: "GrpcEndpoint", "GrpcEndpoints", "GrpcService", or "GrpcServices".
 /// </summary>
 internal static class GrpcEndpointSource
 {

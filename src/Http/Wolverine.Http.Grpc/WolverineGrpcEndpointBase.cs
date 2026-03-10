@@ -10,7 +10,9 @@ namespace Wolverine.Http.Grpc;
 /// <para>
 /// <strong>Code-first services</strong>: Inherit this base class and implement your
 /// <c>[ServiceContract]</c> interface. The <see cref="Bus"/> property is automatically
-/// injected by ASP.NET Core's DI container — no constructor needed.
+/// injected by ASP.NET Core's DI container — no constructor needed. Convention-based
+/// discovery requires the class name to end with "GrpcEndpoint", "GrpcEndpoints",
+/// "GrpcService", or "GrpcServices" unless <see cref="WolverineGrpcServiceAttribute"/> is also applied.
 /// </para>
 /// <para>
 /// <strong>Proto-first services</strong>: Use <see cref="WolverineGrpcServiceAttribute"/>

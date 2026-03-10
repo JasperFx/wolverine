@@ -36,8 +36,9 @@ public static class WolverineGrpcExtensions
 
     /// <summary>
     /// Discovers and maps all Wolverine gRPC service endpoint types.
-    /// A type is eligible when it has <see cref="WolverineGrpcServiceAttribute"/>
-    /// OR inherits <see cref="WolverineGrpcEndpointBase"/> with a conventional suffix.
+    /// A type is eligible when it is decorated with <see cref="WolverineGrpcServiceAttribute"/>
+    /// OR when it inherits <see cref="WolverineGrpcEndpointBase"/> and its name ends with one of
+    /// the conventional suffixes: "GrpcEndpoint", "GrpcEndpoints", "GrpcService", or "GrpcServices".
     /// </summary>
     /// <param name="endpoints">The endpoint route builder.</param>
     /// <returns>The endpoint route builder for chaining.</returns>
