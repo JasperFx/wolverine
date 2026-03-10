@@ -29,9 +29,22 @@ internal static class GrpcEndpointSource
     // assembly scanning, a one-time MakeGenericMethod call per type is the correct approach.
     // The MethodInfo is cached as a static field so the reflection lookup itself only happens
     // once per application lifetime, not once per registered service type.
+    //
+    // GetMethods() + LINQ is used instead of GetMethod(name) to avoid an
+    // AmbiguousMatchException: in SDK.Web projects the gRPC method is present in both
+    // the shared ASP.NET Core framework assembly and the Grpc.AspNetCore NuGet package.
+    // The filter selects the unique overload that is:
+    //   • a generic method definition
+    //   • with exactly one type parameter (TService : class)
+    //   • and one parameter of type IEndpointRouteBuilder
     private static readonly MethodInfo MapGrpcServiceMethod =
         typeof(GrpcEndpointRouteBuilderExtensions)
-            .GetMethod(nameof(GrpcEndpointRouteBuilderExtensions.MapGrpcService))!;
+            .GetMethods()
+            .Single(m => m.Name == nameof(GrpcEndpointRouteBuilderExtensions.MapGrpcService)
+                         && m.IsGenericMethodDefinition
+                         && m.GetGenericArguments().Length == 1
+                         && m.GetParameters().Length == 1
+                         && m.GetParameters()[0].ParameterType == typeof(IEndpointRouteBuilder));
 
     /// <summary>
     /// Returns all concrete, non-generic, public types in the supplied assemblies

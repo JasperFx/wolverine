@@ -375,6 +375,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Sqlite", "Sqlite", "{AFFE32
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wolverine.Http.Grpc", "src\Http\Wolverine.Http.Grpc\Wolverine.Http.Grpc.csproj", "{7094F985-4009-49C5-812C-13D69B529B5D}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wolverine.Http.Grpc.Tests", "src\Http\Wolverine.Http.Grpc.Tests\Wolverine.Http.Grpc.Tests.csproj", "{67BB9CBC-130C-41A7-979B-9C6A21051182}"
+EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Contracts", "src\Samples\PingPongWithGrpc\Contracts\Contracts.csproj", "{C0C6B9D3-AF6C-409D-9B52-502D2998E69C}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GrpcPonger", "src\Samples\PingPongWithGrpc\GrpcPonger\GrpcPonger.csproj", "{F3A89DF9-42E9-45D1-9E5B-E3A98A1A161C}"
@@ -2035,6 +2037,18 @@ Global
 		{7094F985-4009-49C5-812C-13D69B529B5D}.Release|x64.Build.0 = Release|Any CPU
 		{7094F985-4009-49C5-812C-13D69B529B5D}.Release|x86.ActiveCfg = Release|Any CPU
 		{7094F985-4009-49C5-812C-13D69B529B5D}.Release|x86.Build.0 = Release|Any CPU
+		{67BB9CBC-130C-41A7-979B-9C6A21051182}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{67BB9CBC-130C-41A7-979B-9C6A21051182}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{67BB9CBC-130C-41A7-979B-9C6A21051182}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{67BB9CBC-130C-41A7-979B-9C6A21051182}.Debug|x64.Build.0 = Debug|Any CPU
+		{67BB9CBC-130C-41A7-979B-9C6A21051182}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{67BB9CBC-130C-41A7-979B-9C6A21051182}.Debug|x86.Build.0 = Debug|Any CPU
+		{67BB9CBC-130C-41A7-979B-9C6A21051182}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{67BB9CBC-130C-41A7-979B-9C6A21051182}.Release|Any CPU.Build.0 = Release|Any CPU
+		{67BB9CBC-130C-41A7-979B-9C6A21051182}.Release|x64.ActiveCfg = Release|Any CPU
+		{67BB9CBC-130C-41A7-979B-9C6A21051182}.Release|x64.Build.0 = Release|Any CPU
+		{67BB9CBC-130C-41A7-979B-9C6A21051182}.Release|x86.ActiveCfg = Release|Any CPU
+		{67BB9CBC-130C-41A7-979B-9C6A21051182}.Release|x86.Build.0 = Release|Any CPU
 		{C0C6B9D3-AF6C-409D-9B52-502D2998E69C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{C0C6B9D3-AF6C-409D-9B52-502D2998E69C}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{C0C6B9D3-AF6C-409D-9B52-502D2998E69C}.Debug|x64.ActiveCfg = Debug|Any CPU
