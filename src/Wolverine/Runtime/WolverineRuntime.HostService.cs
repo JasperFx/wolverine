@@ -2,6 +2,7 @@ using JasperFx;
 using JasperFx.CodeGeneration;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
 using Wolverine.Persistence.Durability;
@@ -102,12 +103,31 @@ public partial class WolverineRuntime
 
             await Observer.RuntimeIsFullyStarted();
             _hasStarted = true;
+
+            // Subscribe to the host shutdown signal so we can immediately latch all receivers
+            // the moment SIGTERM/ApplicationStopping fires, rather than waiting until our
+            // IHostedService.StopAsync is called (which may be delayed by other hosted services)
+            try
+            {
+                var lifetime = _container.Services.GetService(typeof(IHostApplicationLifetime)) as IHostApplicationLifetime;
+                lifetime?.ApplicationStopping.Register(OnApplicationStopping);
+            }
+            catch (Exception e)
+            {
+                Logger.LogDebug(e, "Could not subscribe to IHostApplicationLifetime.ApplicationStopping");
+            }
         }
         catch (Exception? e)
         {
             MessageTracking.LogException(e, message: "Failed to start the Wolverine messaging");
             throw;
         }
+    }
+
+    internal void OnApplicationStopping()
+    {
+        Logger.LogInformation("Application stopping signal received, latching all message receivers");
+        _endpoints.LatchAllReceivers();
     }
 
     private bool _hasMigratedStorage;
@@ -196,7 +216,21 @@ public partial class WolverineRuntime
         DisableHealthChecks();
 
         _idleAgentCleanupLoop?.SafeDispose();
-        
+
+        if (StopMode == StopMode.Normal)
+        {
+            // Step 1: Drain endpoints first — stop listeners from accepting new messages
+            // and wait for in-flight handlers to complete before releasing ownership.
+            // Receivers were already latched via IHostApplicationLifetime.ApplicationStopping
+            // to prevent new messages from being picked up, so this just waits for completion.
+            await _endpoints.DrainAsync();
+
+            if (_accumulator.IsValueCreated)
+            {
+                await _accumulator.Value.DrainAsync();
+            }
+        }
+
         if (_stores.IsValueCreated && StopMode == StopMode.Normal)
         {
             try
@@ -210,7 +244,8 @@ public partial class WolverineRuntime
 
             try
             {
-                // New to 3.0, try to release any ownership on the way out. Do this *after* the drain
+                // Release any ownership on the way out. Do this *after* draining endpoints
+                // so in-flight messages complete before their ownership is released.
                 await _stores.Value.ReleaseAllOwnershipAsync(DurabilitySettings.AssignedNodeNumber);
             }
             catch (ObjectDisposedException)
@@ -221,15 +256,8 @@ public partial class WolverineRuntime
 
         if (StopMode == StopMode.Normal)
         {
-            // This MUST be called before draining the endpoints
+            // Step 2: Now teardown agents — safe after endpoints drained and ownership released
             await teardownAgentsAsync();
-            
-            await _endpoints.DrainAsync();
-
-            if (_accumulator.IsValueCreated)
-            {
-                await _accumulator.Value.DrainAsync();
-            }
         }
 
         DurabilitySettings.Cancel();
