@@ -248,6 +248,12 @@ public class DurabilitySettings
     public TimeSpan? NodeAssignmentHealthCheckTraceSamplingPeriod { get; set; }
 
     /// <summary>
+    /// Maximum time to wait for in-flight message handlers to complete during graceful
+    /// shutdown before proceeding with the shutdown sequence. Default is 30 seconds.
+    /// </summary>
+    public TimeSpan DrainTimeout { get; set; } = 30.Seconds();
+
+    /// <summary>
     ///     Get or set the logical Wolverine service name. By default, this is
     ///     derived from the name of a custom WolverineOptions
     /// </summary>

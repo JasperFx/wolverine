@@ -119,6 +119,18 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
         _latched = true;
         _receivingBlock.Complete();
 
+        // Wait for in-flight handler executions to complete, bounded by a timeout
+        // to prevent hanging during shutdown
+        try
+        {
+            var completion = _receivingBlock.WaitForCompletionAsync();
+            await Task.WhenAny(completion, Task.Delay(_settings.DrainTimeout));
+        }
+        catch (Exception e)
+        {
+            _logger.LogDebug(e, "Error waiting for in-flight message processing to complete at {Uri}", Uri);
+        }
+
         await _completeBlock.DrainAsync();
         await _deferBlock.DrainAsync();
 
@@ -126,9 +138,6 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
         {
             await _moveToErrors.DrainAsync();
         }
-
-        // It hangs, nothing to be done about this I think
-        //await _receivingBlock.Completion;
     }
 
     public void Enqueue(Envelope envelope)

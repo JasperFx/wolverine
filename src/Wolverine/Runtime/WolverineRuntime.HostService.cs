@@ -196,7 +196,21 @@ public partial class WolverineRuntime
         DisableHealthChecks();
 
         _idleAgentCleanupLoop?.SafeDispose();
-        
+
+        if (StopMode == StopMode.Normal)
+        {
+            // Step 1: Drain endpoints first — stop listeners from accepting new messages
+            // and wait for in-flight handlers to complete before releasing ownership.
+            // This prevents the race condition where background threads re-acquire messages
+            // after the atomic node cleanup.
+            await _endpoints.DrainAsync();
+
+            if (_accumulator.IsValueCreated)
+            {
+                await _accumulator.Value.DrainAsync();
+            }
+        }
+
         if (_stores.IsValueCreated && StopMode == StopMode.Normal)
         {
             try
@@ -210,7 +224,7 @@ public partial class WolverineRuntime
 
             try
             {
-                // New to 3.0, try to release any ownership on the way out. Do this *after* the drain
+                // Try to release any ownership on the way out. Do this *after* the endpoint drain
                 await _stores.Value.ReleaseAllOwnershipAsync(DurabilitySettings.AssignedNodeNumber);
             }
             catch (ObjectDisposedException)
@@ -221,15 +235,10 @@ public partial class WolverineRuntime
 
         if (StopMode == StopMode.Normal)
         {
-            // This MUST be called before draining the endpoints
+            // Step 2: Now teardown agents — this calls DeleteAsync which atomically removes
+            // the node record and releases any remaining messages. Safe to do after endpoints
+            // are drained and ownership is released.
             await teardownAgentsAsync();
-            
-            await _endpoints.DrainAsync();
-
-            if (_accumulator.IsValueCreated)
-            {
-                await _accumulator.Value.DrainAsync();
-            }
         }
 
         DurabilitySettings.Cancel();
