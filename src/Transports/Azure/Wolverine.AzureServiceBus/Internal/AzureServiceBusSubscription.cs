@@ -120,29 +120,62 @@ public class AzureServiceBusSubscription : AzureServiceBusEndpoint, IBrokerQueue
 
     public async ValueTask PurgeAsync(ILogger logger)
     {
-        try
+        await Parent.WithServiceBusClientAsync(async client =>
         {
-            await Parent.WithServiceBusClientAsync(async client =>
+            try
             {
-                var receiver = client.CreateReceiver(Topic.TopicName, SubscriptionName);
-
-                var stopwatch = new Stopwatch();
-                stopwatch.Start();
-                while (stopwatch.ElapsedMilliseconds < 2000)
+                if (Options.RequiresSession)
                 {
-                    var messages = await receiver.ReceiveMessagesAsync(25, 1.Seconds());
-                    if (!messages.Any())
-                    {
-                        return;
-                    }
-
-                    foreach (var message in messages) await receiver.CompleteMessageAsync(message);
+                    await purgeWithSessions(client);
                 }
-            });
-        }
-        catch (Exception e)
+                else
+                {
+                    await purgeWithoutSessions(client);
+                }
+            }
+            catch (Exception e)
+            {
+                logger.LogDebug(e, "Error trying to purge Azure Service Bus subscription {SubscriptionName} for topic {TopicName}", SubscriptionName, Topic.TopicName);
+            }
+        });
+    }
+
+    private async Task purgeWithSessions(ServiceBusClient client)
+    {
+        var cancellation = new CancellationTokenSource();
+        cancellation.CancelAfter(2000);
+
+        var stopwatch = new Stopwatch();
+        stopwatch.Start();
+        while (stopwatch.ElapsedMilliseconds < 2000)
         {
-            logger.LogError(e, "Error trying to purge Azure Service Bus subscription {SubscriptionName} for topic {TopicName}", SubscriptionName, Topic.TopicName);
+            var session = await client.AcceptNextSessionAsync(Topic.TopicName, SubscriptionName, cancellationToken: cancellation.Token);
+
+            var messages = await session.ReceiveMessagesAsync(25, 1.Seconds(), cancellation.Token);
+            foreach (var message in messages) await session.CompleteMessageAsync(message, cancellation.Token);
+            while (messages.Any())
+            {
+                messages = await session.ReceiveMessagesAsync(25, 1.Seconds(), cancellation.Token);
+                foreach (var message in messages) await session.CompleteMessageAsync(message, cancellation.Token);
+            }
+        }
+    }
+
+    private async Task purgeWithoutSessions(ServiceBusClient client)
+    {
+        var receiver = client.CreateReceiver(Topic.TopicName, SubscriptionName);
+
+        var stopwatch = new Stopwatch();
+        stopwatch.Start();
+        while (stopwatch.ElapsedMilliseconds < 2000)
+        {
+            var messages = await receiver.ReceiveMessagesAsync(25, 1.Seconds());
+            if (!messages.Any())
+            {
+                return;
+            }
+
+            foreach (var message in messages) await receiver.CompleteMessageAsync(message);
         }
     }
 
