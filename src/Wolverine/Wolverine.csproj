@@ -14,9 +14,7 @@
         <PackageReference Include="Microsoft.Extensions.ObjectPool" />
         <PackageReference Include="NewId" />
         <PackageReference Include="Newtonsoft.Json" />
-        <PackageReference Include="System.ComponentModel" />
         <PackageReference Include="System.Diagnostics.DiagnosticSource" />
-        <PackageReference Include="System.Net.NameResolution" />
         <PackageReference Include="System.Threading.Tasks.Dataflow" />
     </ItemGroup>
     <ItemGroup>
