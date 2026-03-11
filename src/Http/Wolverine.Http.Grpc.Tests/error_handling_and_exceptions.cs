@@ -11,11 +11,6 @@ using Wolverine.Http.Grpc;
 
 namespace Wolverine.Http.Grpc.Tests;
 
-/// <summary>
-/// Tests for error handling, exceptions, and edge cases in gRPC endpoints.
-/// Verifies proper exception propagation, cancellation handling, and error responses.
-/// Mirrors patterns from Wolverine.Http.Tests for error scenarios.
-/// </summary>
 public class error_handling_and_exceptions : IAsyncLifetime
 {
     private WebApplication? _app;
@@ -117,19 +112,16 @@ public class error_handling_and_exceptions : IAsyncLifetime
 
         var tasks = new List<Task<ErrorResponse>>();
 
-        // Mix of successful and failing requests
         for (int i = 0; i < 10; i++)
         {
             if (i % 2 == 0)
             {
-                // Successful requests
                 tasks.Add(client.HandleEmptyRequestAsync(
                     new ErrorRequest(),
                     CallContext.Default));
             }
             else
             {
-                // Failing requests
                 tasks.Add(Task.Run(async () =>
                 {
                     try
@@ -148,7 +140,6 @@ public class error_handling_and_exceptions : IAsyncLifetime
 
         var results = await Task.WhenAll(tasks);
 
-        // At least some requests should succeed
         results.Count(r => r.Message.Contains("Handled")).ShouldBeGreaterThan(0);
     }
 }

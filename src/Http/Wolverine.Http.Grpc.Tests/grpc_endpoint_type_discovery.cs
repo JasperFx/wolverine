@@ -3,16 +3,8 @@ using Wolverine.Http.Grpc;
 
 namespace Wolverine.Http.Grpc.Tests;
 
-/// <summary>
-/// Unit tests for GrpcEndpointSource type-eligibility logic.
-/// Tests the IsGrpcEndpointType and FindGrpcEndpointTypes methods without requiring a web host.
-/// </summary>
 public class grpc_endpoint_type_discovery
 {
-    // ---------------------------------------------------------------------------
-    // IsGrpcEndpointType — eligible types (expect true)
-    // ---------------------------------------------------------------------------
-
     [Fact]
     public void type_with_attribute_and_no_naming_convention_is_eligible()
         => GrpcEndpointSource.IsGrpcEndpointType(typeof(TypeDiscovery_ValidByAttribute)).ShouldBeTrue();
@@ -36,15 +28,9 @@ public class grpc_endpoint_type_discovery
     [Fact]
     public void type_with_attribute_and_no_base_class_is_eligible_proto_first_scenario()
     {
-        // Proto-first services inherit from proto-generated base classes, not WolverineGrpcEndpointBase.
-        // [WolverineGrpcService] attribute alone is sufficient.
         GrpcEndpointSource.IsGrpcEndpointType(typeof(TypeDiscovery_ValidAttributeOnlyNoBaseClass))
             .ShouldBeTrue();
     }
-
-    // ---------------------------------------------------------------------------
-    // IsGrpcEndpointType — ineligible types (expect false)
-    // ---------------------------------------------------------------------------
 
     [Fact]
     public void type_without_attribute_and_without_matching_suffix_is_not_eligible()
@@ -65,14 +51,9 @@ public class grpc_endpoint_type_discovery
     [Fact]
     public void convention_suffix_without_base_class_and_without_attribute_is_not_eligible()
     {
-        // Naming-convention discovery requires WolverineGrpcEndpointBase to avoid false positives.
         GrpcEndpointSource.IsGrpcEndpointType(typeof(TypeDiscovery_InvalidConventionSuffixWithoutBaseClass))
             .ShouldBeFalse();
     }
-
-    // ---------------------------------------------------------------------------
-    // FindGrpcEndpointTypes — assembly scanning
-    // ---------------------------------------------------------------------------
 
     [Fact]
     public void find_grpc_endpoint_types_returns_empty_for_no_assemblies()
