@@ -76,9 +76,23 @@ internal class DurabilityAgent : IAgent
 
         var recoveryStart = _settings.ScheduledJobFirstExecution.Add(new Random().Next(0, 1000).Milliseconds());
 
-        _recoveryTimer = new Timer(_ =>
+        _recoveryTimer = new Timer(async _ =>
         {
-            var operations = buildOperationBatch();
+            IReadOnlyList<int>? activeNodeNumbers = null;
+            if (_database.Settings.Role != MessageStoreRole.Main)
+            {
+                try
+                {
+                    var nodes = await _runtime.Storage.Nodes.LoadAllNodesAsync(_runtime.Cancellation);
+                    activeNodeNumbers = nodes.Select(n => n.AssignedNodeNumber).ToList();
+                }
+                catch (Exception e)
+                {
+                    _logger.LogDebug(e, "Failed to load active nodes for orphaned message detection");
+                }
+            }
+
+            var operations = buildOperationBatch(activeNodeNumbers);
 
             var batch = new DatabaseOperationBatch(_database, operations);
             _runningBlock.Post(batch);
@@ -156,7 +170,7 @@ internal class DurabilityAgent : IAgent
         return false;
     }
 
-    private IDatabaseOperation[] buildOperationBatch()
+    private IDatabaseOperation[] buildOperationBatch(IReadOnlyList<int>? activeNodeNumbers = null)
     {
         var incomingTable = new DbObjectName(_database.SchemaName, DatabaseConstants.IncomingTable);
         var now = DateTimeOffset.UtcNow;
@@ -169,9 +183,18 @@ internal class DurabilityAgent : IAgent
             new MoveReplayableErrorMessagesToIncomingOperation(_database)
         ];
 
-        if (_database.Settings.Role == MessageStoreRole.Main && isTimeToPruneNodeEventRecords())
+        if (_database.Settings.Role == MessageStoreRole.Main)
         {
-            ops.Add(new DeleteOldNodeEventRecords(_database, _settings));
+            ops.Add(new ReleaseOrphanedMessagesOperation(_database));
+
+            if (isTimeToPruneNodeEventRecords())
+            {
+                ops.Add(new DeleteOldNodeEventRecords(_database, _settings));
+            }
+        }
+        else if (activeNodeNumbers is { Count: > 0 })
+        {
+            ops.Add(new ReleaseOrphanedMessagesForAncillaryOperation(_database, activeNodeNumbers));
         }
 
         if (_runtime.Options.Durability.OutboxStaleTime.HasValue)
