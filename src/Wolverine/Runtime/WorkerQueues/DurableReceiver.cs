@@ -286,8 +286,17 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
         _latched = true;
         _receiver.Complete();
 
-        // Latching is the best you can do here, otherwise it can hang
-        //await _receiver.Completion;
+        // Wait for in-flight handler executions to complete, bounded by a timeout
+        // to prevent hanging during shutdown
+        try
+        {
+            var completion = _receiver.WaitForCompletionAsync();
+            await Task.WhenAny(completion, Task.Delay(_settings.DrainTimeout));
+        }
+        catch (Exception e)
+        {
+            _logger.LogDebug(e, "Error waiting for in-flight message processing to complete at {Uri}", Uri);
+        }
 
         await _incrementAttempts.DrainAsync();
         await _scheduleExecution.DrainAsync();

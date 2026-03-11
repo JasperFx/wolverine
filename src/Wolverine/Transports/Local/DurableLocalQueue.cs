@@ -63,6 +63,15 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
 
     public CircuitBreaker? CircuitBreaker { get; }
 
+    /// <summary>
+    /// Immediately latch the receiver to stop processing new messages.
+    /// </summary>
+    public void LatchReceiver()
+    {
+        Latched = true;
+        _receiver?.Latch();
+    }
+
     int IListenerCircuit.QueueCount => _receiver?.QueueCount ?? 0;
 
     async Task IListenerCircuit.EnqueueDirectlyAsync(IEnumerable<Envelope> envelopes)
