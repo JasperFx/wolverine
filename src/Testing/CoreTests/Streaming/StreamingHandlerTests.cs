@@ -33,13 +33,13 @@ public class StreamingHandlerTests : IAsyncLifetime
 
         var results = new List<CountResponse>();
 
-        await foreach (var response in bus.StreamAsync<CountResponse>(new CountRequest { Count = 5 }))
+        await foreach (var response in bus.StreamAsync<CountResponse>(new CountRequest(5)))
         {
             results.Add(response);
         }
 
         results.Count.ShouldBe(5);
-        results.Select(x => x.Number).ShouldHaveTheSameElementsAs(1, 2, 3, 4, 5);
+        results.Select(x => x.Number).ToArray().ShouldBe(new[] { 1, 2, 3, 4, 5 });
     }
 
     [Fact]
@@ -49,7 +49,7 @@ public class StreamingHandlerTests : IAsyncLifetime
 
         var results = new List<CountResponse>();
 
-        await foreach (var response in bus.StreamAsync<CountResponse>(new CountRequest { Count = 0 }))
+        await foreach (var response in bus.StreamAsync<CountResponse>(new CountRequest(0)))
         {
             results.Add(response);
         }
@@ -67,7 +67,7 @@ public class StreamingHandlerTests : IAsyncLifetime
         try
         {
             await foreach (var response in bus.StreamAsync<CountResponse>(
-                new CountRequest { Count = 100 }, cts.Token))
+                new CountRequest(100), cts.Token))
             {
                 results.Add(response);
                 if (results.Count >= 3)
