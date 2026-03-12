@@ -3,6 +3,10 @@ using Wolverine.Http.Grpc;
 
 namespace Wolverine.Http.Grpc.Tests;
 
+/// <summary>
+/// Unit tests for GrpcEndpointSource type-eligibility logic.
+/// Tests the IsGrpcEndpointType and FindGrpcEndpointTypes methods without requiring a web host.
+/// </summary>
 public class grpc_endpoint_type_discovery
 {
     [Fact]

@@ -7,10 +7,18 @@ using Wolverine.Http.Grpc;
 
 namespace Wolverine.Http.Grpc.Tests;
 
+/// <summary>
+/// Integration tests for the Wolverine gRPC bootstrapping pipeline:
+/// <c>AddWolverineGrpc()</c> + <c>MapWolverineGrpcEndpoints()</c>.
+///
+/// Each test spins up a self-contained <see cref="WebApplication"/> via
+/// <see cref="AlbaHost"/> (the same pattern used in Wolverine.Http.Tests for
+/// isolated bootstrapping scenarios) and inspects service registrations and
+/// routing data sources — without making live gRPC network calls.
+/// </summary>
 public class grpc_endpoint_bootstrapping
 {
     // Service registration tests
-
     [Fact]
     public async Task add_wolverine_grpc_registers_wolverine_grpc_options_as_singleton()
     {
@@ -61,6 +69,8 @@ public class grpc_endpoint_bootstrapping
         var builder = BuildMinimalApp();
         builder.Services.AddWolverineGrpc();
 
+        // Should not throw during startup — gRPC routes for BootstrapAttributedGrpcService
+        // are registered cleanly.
         await using var host = await AlbaHost.For(builder, app =>
         {
             app.UseRouting();
@@ -81,6 +91,8 @@ public class grpc_endpoint_bootstrapping
         await using var host = await AlbaHost.For(builder, app =>
         {
             app.UseRouting();
+            // MapWolverineGrpcEndpoints should return the same IEndpointRouteBuilder
+            // so that calls can be chained (e.g. app.MapWolverineGrpcEndpoints().MapHealthChecks(...)).
             returned = app.MapWolverineGrpcEndpoints();
         });
 
@@ -153,6 +165,9 @@ public class grpc_endpoint_bootstrapping
     [Fact]
     public async Task map_wolverine_grpc_endpoints_handles_no_discovered_types_gracefully()
     {
+        // Point Wolverine at the gRPC library assembly itself, which contains no user-defined
+        // endpoint types.  MapWolverineGrpcEndpoints should log a warning and return without
+        // throwing, leaving zero gRPC routes registered.
         var builder = WebApplication.CreateBuilder([]);
         builder.Host.UseWolverine(opts =>
         {

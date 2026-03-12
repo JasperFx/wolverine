@@ -11,6 +11,11 @@ using Wolverine.Http.Grpc;
 
 namespace Wolverine.Http.Grpc.Tests;
 
+/// <summary>
+/// Tests for error handling, exceptions, and edge cases in gRPC endpoints.
+/// Verifies proper exception propagation, cancellation handling, and error responses.
+/// Mirrors patterns from Wolverine.Http.Tests for error scenarios.
+/// </summary>
 public class error_handling_and_exceptions : IAsyncLifetime
 {
     private WebApplication? _app;

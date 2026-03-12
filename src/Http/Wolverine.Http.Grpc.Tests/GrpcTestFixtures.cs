@@ -6,12 +6,11 @@ using Wolverine.Http.Grpc;
 
 namespace Wolverine.Http.Grpc.Tests;
 
-// ---------------------------------------------------------------------------
-// Bootstrapping integration test fixtures
-// Used by grpc_endpoint_bootstrapping to verify AddWolverineGrpc() +
-// MapWolverineGrpcEndpoints() register a real code-first gRPC service.
-// ---------------------------------------------------------------------------
-
+/// <summary>
+/// Bootstrapping integration test fixtures
+/// Used by grpc_endpoint_bootstrapping to verify AddWolverineGrpc() +
+/// MapWolverineGrpcEndpoints() register a real code-first gRPC service.
+/// </summary>
 [ProtoContract]
 public class BootstrapPingRequest
 {

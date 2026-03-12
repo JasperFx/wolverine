@@ -17,7 +17,7 @@ namespace Wolverine.Http.Grpc.Tests;
 /// Integration tests for Wolverine message bus operations within gRPC endpoints.
 /// Tests InvokeAsync, PublishAsync, SendAsync, and other bus operations.
 /// Mirrors patterns from Wolverine.Http.Tests/publishing_messages_from_http_endpoint.cs
-/// and sending_messages_from_http_endpoint.cs.
+/// and sending_messages_from_http_endpoint.cs. 
 /// </summary>
 public class message_bus_integration : IAsyncLifetime
 {
