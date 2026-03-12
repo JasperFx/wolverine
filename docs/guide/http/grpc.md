@@ -413,6 +413,85 @@ app.MapWolverineEndpoints();        // REST endpoints
 app.MapWolverineGrpcEndpoints();    // gRPC endpoints
 ```
 
+## Code Generation and Performance
+
+Wolverine.Http.Grpc uses **runtime code generation** to create optimized handler implementations for your gRPC services. This eliminates dependency injection boilerplate and improves performance by generating specialized adapters at startup.
+
+### How it works
+
+When you call `MapWolverineGrpcEndpoints()`, Wolverine:
+
+1. **Discovers** all eligible gRPC service types via the `GrpcGraph`
+2. **Analyzes** each service to determine if code generation is needed
+3. **Generates** optimized handler code using JasperFx's code generation framework
+4. **Compiles** the generated code into a runtime assembly
+5. **Registers** the generated types with ASP.NET Core's DI container
+
+### When code generation happens
+
+Code generation is **selective** and only occurs when beneficial:
+
+| Service pattern | Code generation? | Reason |
+|----------------|------------------|--------|
+| Inherits `WolverineGrpcEndpointBase` | ❌ No | Already has `Bus` property; no optimization needed |
+| Constructor injection with `IMessageBus` | ❌ No | Standard DI pattern; no boilerplate to eliminate |
+| Abstract proto-first service with `[WolverineGrpcService]` | ✅ Yes | Generates concrete implementation delegating to `IMessageBus` |
+
+::: info
+Most common patterns (inheriting `WolverineGrpcEndpointBase` or using constructor injection) **do not trigger code generation** because they already have efficient implementations. Code generation is primarily used for advanced scenarios like abstract service base classes.
+:::
+
+### Viewing generated code
+
+To inspect the generated handler code for debugging or understanding:
+
+#### Option 1: Use the preview mode
+
+Enable code generation preview mode in your `Program.cs`:
+
+```csharp
+builder.Host.UseWolverine(opts =>
+{
+    opts.ApplicationAssembly = typeof(Program).Assembly;
+
+    // Write generated code to console/logs
+    opts.CodeGeneration.TypeLoadMode = JasperFx.CodeGeneration.TypeLoadMode.Auto;
+    opts.CodeGeneration.SourceCodeWritingEnabled = true;
+});
+```
+
+#### Option 2: Pre-generate code files
+
+Use Wolverine's code generation command to write the generated code to disk:
+
+```bash
+dotnet run -- codegen write
+```
+
+This creates `.cs` files in the `Internal/Generated` directory of your project. You can inspect these files to see exactly what Wolverine generated for your gRPC services.
+
+::: tip
+Pre-generating code is also useful for **production deployments** where you want to eliminate startup time spent on code generation and ensure deterministic behavior.
+:::
+
+#### Option 3: Check logs
+
+Wolverine logs code generation activity at the `Debug` and `Information` levels:
+
+```json
+{
+  "Logging": {
+    "LogLevel": {
+      "Wolverine.Http.Grpc.GrpcGraph": "Debug"
+    }
+  }
+}
+```
+
+Look for log messages like:
+- `Creating GrpcChain for service type: YourNamespace.YourService`
+- `Discovered N gRPC service(s) for code generation`
+
 ## Considerations
 
 ### TLS / HTTPS
