@@ -646,6 +646,18 @@ protobuf-net.Grpc:
 | Client streaming | `Task<TReply> MethodAsync(IAsyncEnumerable<TRequest> reqs, CallContext ctx = default)` |
 | Bidirectional | `IAsyncEnumerable<TReply> MethodAsync(IAsyncEnumerable<TRequest> reqs, CallContext ctx = default)` |
 
+#### Streaming with IMessageBus.StreamAsync (Recommended Pattern)
+
+Wolverine supports **streaming handlers** that return `IAsyncEnumerable<T>` and can be invoked via
+`IMessageBus.StreamAsync<TResponse>()`. This pattern enables streaming through Wolverine's full
+middleware pipeline with automatic OpenTelemetry instrumentation.
+
+**Key benefits:**
+- ✅ **Separation of concerns** - gRPC endpoint handles protocol, handler contains business logic
+- ✅ **Middleware pipeline** - Automatic telemetry, cascading messages, side effects, error policies
+- ✅ **Testability** - Test handlers independently without gRPC infrastructure
+- ✅ **Reusability** - Same handler can be invoked via gRPC, HTTP, message bus, or scheduled jobs
+
 **Example — bidirectional streaming service contract:**
 
 ```csharp
@@ -659,30 +671,55 @@ public interface IRacingService
 }
 ```
 
-**Example — bidirectional streaming server endpoint** (iterates the incoming stream and yields
-responses back as they arrive):
+**Example — Wolverine streaming handler** (business logic returns `IAsyncEnumerable<T>`):
 
 ```csharp
-[WolverineGrpcService]
-public class RacingService : WolverineGrpcEndpointBase, IRacingService
+public class RaceStreamHandler
 {
     private readonly ConcurrentDictionary<string, double> _speeds = new();
 
+    public async IAsyncEnumerable<RacePosition> Handle(RacerUpdate update)
+    {
+        _speeds[update.RacerId] = update.Speed;
+
+        var standings = _speeds
+            .OrderByDescending(kv => kv.Value)
+            .Select((kv, idx) => new RacePosition
+            {
+                RacerId = kv.Key,
+                Position = idx + 1,
+                Speed = kv.Value
+            })
+            .ToList();
+
+        var position = standings.FirstOrDefault(p => p.RacerId == update.RacerId);
+        if (position is not null)
+        {
+            yield return position;
+        }
+
+        await Task.Delay(1); // Simulate async work
+    }
+}
+```
+
+**Example — gRPC endpoint delegating to Wolverine handler** (thin protocol adapter):
+
+```csharp
+public class RacingGrpcService : WolverineGrpcEndpointBase, IRacingService
+{
     public async IAsyncEnumerable<RacePosition> RaceAsync(
         IAsyncEnumerable<RacerUpdate> updates,
         CallContext context = default)
     {
+        // For each incoming update, invoke the Wolverine streaming handler
+        // This provides automatic OpenTelemetry instrumentation and middleware pipeline execution
         await foreach (var update in updates.WithCancellation(context.CancellationToken))
         {
-            _speeds[update.RacerId] = update.Speed;
-
-            var standings = _speeds
-                .OrderByDescending(kv => kv.Value)
-                .Select((kv, i) => new RacePosition { RacerId = kv.Key, Position = i + 1, Speed = kv.Value })
-                .ToList();
-
-            yield return standings.FirstOrDefault(p => p.RacerId == update.RacerId)
-                ?? new RacePosition { RacerId = update.RacerId };
+            await foreach (var position in Bus.StreamAsync<RacePosition>(update, context.CancellationToken))
+            {
+                yield return position;
+            }
         }
     }
 }
@@ -710,8 +747,14 @@ await foreach (var position in racing.RaceAsync(ProduceUpdates(cts.Token), cts.T
 }
 ```
 
-A full working bidirectional streaming sample is available in
+A full working bidirectional streaming sample demonstrating `IMessageBus.StreamAsync` integration is available in
 [`src/Samples/RacerGrpcSample`](https://github.com/JasperFx/wolverine/tree/main/src/Samples/RacerGrpcSample).
+
+::: tip
+For simple inline streaming logic that doesn't need middleware pipeline execution, you can implement streaming
+directly in the gRPC endpoint method without delegating to a handler. However, the recommended pattern is to
+use `Bus.StreamAsync()` to leverage Wolverine's middleware pipeline, telemetry, and architectural benefits.
+:::
 
 ---
 
