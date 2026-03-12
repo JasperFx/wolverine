@@ -187,6 +187,13 @@ public class MessagePartitioningRules
             {
                 ByMessage(chain.MessageType, property);
             }
+
+            // For messages implementing SequencedMessage, use Order as the group id
+            // so that messages with the same sequence number are partitioned together
+            if (chain.MessageType.CanBeCastTo<SequencedMessage>())
+            {
+                _rules.Add(new SequencedMessageGroupingRule(chain.MessageType));
+            }
         }
     }
 }
@@ -233,9 +240,35 @@ internal class Grouper<TConcrete, TProperty> : IGrouper
     public string ToGroupId(object message)
     {
         var raw = _source((TConcrete)message);
-        
-        // If it's empty, it will get randomly sorted 
+
+        // If it's empty, it will get randomly sorted
         // into the partitioned slots
         return raw?.ToString() ?? string.Empty;
+    }
+}
+
+/// <summary>
+/// Grouping rule for SequencedMessage types that uses the Order property as the group id.
+/// Messages with null or zero Order get a random group id so they are not partitioned together.
+/// </summary>
+internal class SequencedMessageGroupingRule : IGroupingRule
+{
+    private readonly Type _messageType;
+
+    public SequencedMessageGroupingRule(Type messageType)
+    {
+        _messageType = messageType;
+    }
+
+    public bool TryFindIdentity(Envelope envelope, out string groupId)
+    {
+        if (envelope.Message is SequencedMessage sequenced && envelope.Message.GetType() == _messageType)
+        {
+            groupId = sequenced.Order?.ToString() ?? Guid.NewGuid().ToString();
+            return true;
+        }
+
+        groupId = default!;
+        return false;
     }
 }
