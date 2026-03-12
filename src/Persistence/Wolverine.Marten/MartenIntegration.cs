@@ -12,8 +12,10 @@ using Npgsql;
 using Weasel.Core;
 using Wolverine.ErrorHandling;
 using Wolverine.Marten.Codegen;
+using Wolverine.Middleware;
 using Wolverine.Marten.Persistence.Sagas;
 using Wolverine.Marten.Publishing;
+using Wolverine.Marten.Requirements;
 using Wolverine.Persistence.Sagas;
 using Wolverine.Postgresql.Transport;
 using Wolverine.RDBMS;
@@ -82,6 +84,8 @@ public class MartenIntegration : IWolverineExtension, IEventForwarding
         transport.MessageStorageSchemaName = MessageStorageSchemaName ?? "public";
         
         options.Policies.Add<MartenOpPolicy>();
+
+        options.CodeGeneration.AddContinuationStrategy<MartenDataRequirementContinuationStrategy>();
     }
 
     /// <summary>
