@@ -15,9 +15,11 @@ namespace Wolverine.Http.Grpc;
 /// "GrpcService", or "GrpcServices" unless <see cref="WolverineGrpcServiceAttribute"/> is also applied.
 /// </para>
 /// <para>
-/// <strong>Proto-first services</strong>: Use <see cref="WolverineGrpcServiceAttribute"/>
-/// with constructor injection of <see cref="IMessageBus"/> instead. Proto-first services
-/// inherit from proto-generated base classes and cannot also inherit this class.
+/// <strong>Proto-first services CANNOT use this base class</strong>: Proto-first services must
+/// inherit from proto-generated base classes (e.g. <c>Greeter.GreeterBase</c>) which are required
+/// by ASP.NET Core's gRPC infrastructure. Since C# does not allow multiple inheritance, you cannot
+/// inherit both. Instead, apply <see cref="WolverineGrpcServiceAttribute"/> and inject
+/// <see cref="IMessageBus"/> via constructor when needed.
 /// </para>
 /// </remarks>
 public abstract class WolverineGrpcEndpointBase

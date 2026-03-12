@@ -715,6 +715,66 @@ A full working bidirectional streaming sample is available in
 
 ---
 
+## FAQ: Proto-First Services
+
+### Why must proto-first services inherit the proto-generated base class?
+
+The proto-generated base class (e.g., `Greeter.GreeterBase`) is **required by ASP.NET Core's gRPC infrastructure**.
+It contains the gRPC method signatures and infrastructure integration that the framework needs to route
+requests to your implementation. There is **no way to remove it or replace it** — this is a gRPC/ASP.NET Core
+framework requirement, not a Wolverine limitation.
+
+### Why can't proto-first services inherit WolverineGrpcEndpointBase?
+
+C# **does not support multiple inheritance**. Since proto-first services must inherit from the proto-generated
+base class (e.g., `Greeter.GreeterBase`), they cannot also inherit from `WolverineGrpcEndpointBase`.
+This is a language constraint, not a design choice.
+
+### Why is [WolverineGrpcService] required for proto-first services?
+
+The `[WolverineGrpcService]` attribute is the **only way** to discover proto-first services automatically.
+Convention-based discovery (which looks for classes ending in `GrpcService`, `GrpcEndpoint`, etc.) requires
+`WolverineGrpcEndpointBase` as a safety guard to avoid false positives. Since proto-first services can't
+inherit that base class, the attribute is mandatory for discovery.
+
+### Do I always need to inject IMessageBus via constructor?
+
+**No, only if you actually use it**. If you call `_bus.InvokeAsync()` or other message bus methods in your
+service implementation, then you need the field and constructor parameter. If you handle requests inline
+without delegating to Wolverine handlers, you can omit both the field and constructor parameter entirely.
+
+**Example with IMessageBus (delegating to handlers):**
+```csharp
+[WolverineGrpcService]
+public class GreeterService : Greeter.GreeterBase
+{
+    private readonly IMessageBus _bus;
+
+    public GreeterService(IMessageBus bus) => _bus = bus;
+
+    public override Task<HelloReply> SayHello(HelloRequest request, ServerCallContext context)
+        => _bus.InvokeAsync<HelloReply>(request, context.CancellationToken);
+}
+```
+
+**Example without IMessageBus (inline handling):**
+```csharp
+[WolverineGrpcService]
+public class GreeterService : Greeter.GreeterBase
+{
+    public override Task<HelloReply> SayHello(HelloRequest request, ServerCallContext context)
+        => Task.FromResult(new HelloReply { Message = $"Hello, {request.Name}!" });
+}
+```
+
+### Can proto-first services use property injection like code-first services?
+
+No. Property injection (the `Bus` property on `WolverineGrpcEndpointBase`) only works if you inherit that
+base class. Since proto-first services must inherit the proto-generated base class instead, you **must use
+constructor injection** for any dependencies you need, including `IMessageBus`.
+
+---
+
 ## Design Notes: The `WolverineGrpcEndpointBase` Requirement
 
 ::: info
