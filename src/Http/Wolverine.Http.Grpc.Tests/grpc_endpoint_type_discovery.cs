@@ -28,6 +28,7 @@ public class grpc_endpoint_type_discovery
     [Fact]
     public void type_with_attribute_and_no_base_class_is_eligible_proto_first_scenario()
     {
+        // Proto-first services inherit proto-generated base classes, not WolverineGrpcEndpointBase
         GrpcEndpointSource.IsGrpcEndpointType(typeof(TypeDiscovery_ValidAttributeOnlyNoBaseClass))
             .ShouldBeTrue();
     }
@@ -51,6 +52,7 @@ public class grpc_endpoint_type_discovery
     [Fact]
     public void convention_suffix_without_base_class_and_without_attribute_is_not_eligible()
     {
+        // Convention discovery requires WolverineGrpcEndpointBase as a safety guard to avoid false positives
         GrpcEndpointSource.IsGrpcEndpointType(typeof(TypeDiscovery_InvalidConventionSuffixWithoutBaseClass))
             .ShouldBeFalse();
     }
@@ -73,7 +75,7 @@ public class grpc_endpoint_type_discovery
     [Fact]
     public void find_grpc_endpoint_types_discovers_attributed_type_without_base_class()
     {
-        // Proto-first scenario: [WolverineGrpcService] without WolverineGrpcEndpointBase.
+        // Proto-first services use [WolverineGrpcService] without inheriting WolverineGrpcEndpointBase
         var types = GrpcEndpointSource.FindGrpcEndpointTypes([typeof(grpc_endpoint_type_discovery).Assembly]);
         types.ShouldContain(typeof(TypeDiscovery_ValidAttributeOnlyNoBaseClass));
     }

@@ -9,6 +9,7 @@ namespace Wolverine.Http.Grpc.Tests;
 
 public class grpc_endpoint_bootstrapping
 {
+    // Service registration tests
 
     [Fact]
     public async Task add_wolverine_grpc_registers_wolverine_grpc_options_as_singleton()
@@ -52,9 +53,7 @@ public class grpc_endpoint_bootstrapping
         options.Assemblies.ShouldBeEmpty();
     }
 
-    // ---------------------------------------------------------------------------
-    // MapWolverineGrpcEndpoints — routing and startup
-    // ---------------------------------------------------------------------------
+    // Route registration and discovery tests
 
     [Fact]
     public async Task map_wolverine_grpc_endpoints_starts_application_without_exception()
@@ -124,6 +123,7 @@ public class grpc_endpoint_bootstrapping
     [Fact]
     public async Task map_wolverine_grpc_endpoints_registers_route_for_constructor_injected_service()
     {
+        // Tests constructor injection pattern (required for proto-first services that inherit proto-generated base classes)
         var builder = BuildMinimalApp();
         builder.Services.AddWolverineGrpc();
 
@@ -173,6 +173,7 @@ public class grpc_endpoint_bootstrapping
     [Fact]
     public async Task map_wolverine_grpc_endpoints_scans_additional_assemblies_from_options()
     {
+        // Tests the WolverineGrpcOptions.Assemblies configuration path
         var testAssembly = typeof(grpc_endpoint_bootstrapping).Assembly;
 
         var builder = WebApplication.CreateBuilder([]);
