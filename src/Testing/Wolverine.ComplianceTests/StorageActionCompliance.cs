@@ -42,6 +42,7 @@ public abstract class StorageActionCompliance : IAsyncLifetime
         }
         
         await Host.StopAsync();
+        Host.Dispose();
     }
 
 

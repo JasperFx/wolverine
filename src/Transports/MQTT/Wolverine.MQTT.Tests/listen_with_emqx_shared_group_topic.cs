@@ -72,6 +72,8 @@ public class listen_with_emqx_shared_group_topic : IAsyncLifetime
         await Broker.StopAsync();
         await Broker.DisposeAsync();
         await _sender.StopAsync();
+        _sender.Dispose();
         await _receiver.StopAsync();
+        _receiver.Dispose();
     }
 }

@@ -110,7 +110,9 @@ public class mosquitto_shared_subscription_specific_topic : IAsyncLifetime
     public async Task DisposeAsync()
     {
         await _sender.StopAsync();
+        _sender.Dispose();
         await _receiver.StopAsync();
+        _receiver.Dispose();
     }
 }
 
@@ -169,6 +171,8 @@ public class mosquitto_shared_subscription_with_wildcard : IAsyncLifetime
     public async Task DisposeAsync()
     {
         await _sender.StopAsync();
+        _sender.Dispose();
         await _receiver.StopAsync();
+        _receiver.Dispose();
     }
 }

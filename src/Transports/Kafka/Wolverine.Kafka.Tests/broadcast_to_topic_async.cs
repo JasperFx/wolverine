@@ -60,7 +60,9 @@ public class broadcast_to_topic_async : IAsyncLifetime
     public async Task DisposeAsync()
     {
         await _sender.StopAsync();
+        _sender.Dispose();
         await _receiver.StopAsync();
+        _receiver.Dispose();
     }
 }
 

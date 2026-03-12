@@ -48,6 +48,7 @@ public class send_to_topic_and_receive_in_queue : IAsyncLifetime
         }
         
         await _host.StopAsync();
+        _host.Dispose();
     }
 
     [Fact]

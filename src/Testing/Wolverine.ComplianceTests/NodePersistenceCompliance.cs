@@ -199,6 +199,20 @@ public abstract class NodePersistenceCompliance : IAsyncLifetime
     }
 
     [Fact]
+    public async Task delete_old_node_records_does_not_throw_on_empty_table()
+    {
+        // Should not throw even with no records
+        await _database.Nodes.DeleteOldNodeRecordsAsync(5);
+    }
+
+    [Fact]
+    public async Task delete_old_node_records_with_zero_retain_does_not_throw()
+    {
+        // retainCount <= 0 should be a safe no-op
+        await _database.Nodes.DeleteOldNodeRecordsAsync(0);
+    }
+
+    [Fact]
     public async Task update_health_check_smoke_test()
     {
         var node1 = createNode();

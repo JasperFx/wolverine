@@ -139,6 +139,24 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
 
     public ListeningStatus Status { get; private set; } = ListeningStatus.Stopped;
 
+    /// <summary>
+    /// Immediately latch the receiver to stop processing new messages from its internal queue.
+    /// Does not stop the listener or drain — just prevents the receiver from executing any more messages.
+    /// </summary>
+    public void LatchReceiver()
+    {
+        if (_receiver is DurableReceiver dr)
+        {
+            dr.Latch();
+        }
+        // BufferedReceiver latches via its _latched field in DrainAsync,
+        // but we need an immediate latch here too
+        else if (_receiver is BufferedReceiver br)
+        {
+            br.Latch();
+        }
+    }
+
     public async ValueTask StopAndDrainAsync()
     {
         if (Status == ListeningStatus.Stopped || Status == ListeningStatus.GloballyLatched)

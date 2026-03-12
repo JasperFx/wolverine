@@ -63,6 +63,7 @@ public class end_to_end : IAsyncLifetime
     public async Task DisposeAsync()
     {
         await _host.StopAsync();
+        _host.Dispose();
         await AzureServiceBusTesting.DeleteAllEmulatorObjectsAsync();
     }
 

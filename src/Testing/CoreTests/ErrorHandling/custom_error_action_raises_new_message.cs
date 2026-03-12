@@ -52,7 +52,9 @@ public class custom_error_action_raises_new_message_1 : IAsyncLifetime
     public async Task DisposeAsync()
     {
         await theReceiver.StopAsync();
+        theReceiver.Dispose();
         await theSender.StopAsync();
+        theSender.Dispose();
     }
 
     [Fact]
@@ -130,7 +132,9 @@ public class custom_error_action_raises_new_message_2 : IAsyncLifetime
     public async Task DisposeAsync()
     {
         await theReceiver.StopAsync();
+        theReceiver.Dispose();
         await theSender.StopAsync();
+        theSender.Dispose();
     }
 
     [Fact]

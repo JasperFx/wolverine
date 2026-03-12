@@ -25,6 +25,7 @@ public class PulsarListenerTests
         await host.MessageBus().PublishAsync(new PulsarListenerTestMessage());
 
         await host.StopAsync();
+        host.Dispose();
 
         var subscriptionExists = await SubscriptionExists();
 
@@ -47,6 +48,7 @@ public class PulsarListenerTests
         await host.MessageBus()!.PublishAsync(new PulsarListenerTestMessage());
 
         await host.StopAsync();
+        host.Dispose();
 
         var subscriptionExists = await SubscriptionExists();
 

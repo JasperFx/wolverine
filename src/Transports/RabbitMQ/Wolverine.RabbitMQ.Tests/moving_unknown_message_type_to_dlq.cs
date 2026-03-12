@@ -70,7 +70,9 @@ public class moving_unknown_message_type_to_dlq : IAsyncLifetime
     public async Task DisposeAsync()
     {
         await _sender.StopAsync();
+        _sender.Dispose();
         await _receiver.StopAsync();
+        _receiver.Dispose();
     }
 
     [Fact]

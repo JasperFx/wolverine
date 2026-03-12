@@ -32,6 +32,7 @@ public class send_and_receive : IAsyncLifetime
     public async Task DisposeAsync()
     {
         await _host.StopAsync();
+        _host.Dispose();
     }
 
     [Fact]
@@ -138,6 +139,7 @@ public class send_and_receive_with_cloudevents : IAsyncLifetime
     public async Task DisposeAsync()
     {
         await _host.StopAsync();
+        _host.Dispose();
     }
     
     [Fact]

@@ -382,6 +382,24 @@ public class EndpointCollection : IEndpointCollection
         return endpoint.StartSending(_runtime, transport.ReplyEndpoint()?.Uri);
     }
 
+    /// <summary>
+    /// Immediately latch all receivers to stop picking up new messages from their internal queues.
+    /// This is called as early as possible during shutdown (via IHostApplicationLifetime.ApplicationStopping)
+    /// so that messages already queued internally are not processed after the shutdown signal.
+    /// </summary>
+    public void LatchAllReceivers()
+    {
+        foreach (var listener in _listeners.Values)
+        {
+            listener.LatchReceiver();
+        }
+
+        foreach (var queue in _localSenders.Enumerate().Select(x => x.Value).OfType<DurableLocalQueue>())
+        {
+            queue.LatchReceiver();
+        }
+    }
+
     public async Task DrainAsync()
     {
         // Drain the listeners

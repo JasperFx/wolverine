@@ -21,6 +21,7 @@ public class dynamic_object_creation_smoke_tests : IAsyncLifetime
     public async Task DisposeAsync()
     {
         await _host.StopAsync();
+        _host.Dispose();
     }
 
     [Fact]

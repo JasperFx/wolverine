@@ -143,4 +143,30 @@ public class ChaosSpecifications
     [Fact]
     public Task RabbitMqFiveDurableListeners_Marten_ReceiverGoesUpAndDown() =>
         execute<MartenStorageStrategy, ReceiverGoesUpAndDown>(RabbitMqFiveDurableListeners);
+
+    // Graceful shutdown tests
+    [Fact]
+    public Task RabbitMqDurableListener_Marten_GracefulShutdown() =>
+        execute<MartenStorageStrategy, GracefulShutdown>(RabbitMqDurableListener);
+
+    [Fact]
+    public Task RabbitMqFiveDurableListeners_Marten_GracefulShutdown() =>
+        execute<MartenStorageStrategy, GracefulShutdown>(RabbitMqFiveDurableListeners);
+
+    [Fact]
+    public Task RabbitMqBufferedListener_Marten_GracefulShutdown() =>
+        execute<MartenStorageStrategy, GracefulShutdown>(RabbitMqBufferedListener);
+
+    [Fact]
+    public Task RabbitMqOneInlineListener_Marten_GracefulShutdown() =>
+        execute<MartenStorageStrategy, GracefulShutdown>(RabbitMqOneInlineListener);
+
+    // Rolling restart tests
+    [Fact]
+    public Task RabbitMqDurableListener_Marten_RollingRestart() =>
+        execute<MartenStorageStrategy, RollingRestart>(RabbitMqDurableListener);
+
+    [Fact]
+    public Task RabbitMqFiveDurableListeners_Marten_RollingRestart() =>
+        execute<MartenStorageStrategy, RollingRestart>(RabbitMqFiveDurableListeners);
 }

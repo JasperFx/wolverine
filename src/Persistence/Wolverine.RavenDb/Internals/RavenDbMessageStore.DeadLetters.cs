@@ -5,6 +5,7 @@ using Raven.Client.Documents.Operations;
 using Raven.Client.Documents.Queries;
 using Wolverine.Persistence.Durability;
 using Wolverine.Persistence.Durability.DeadLetterManagement;
+using Wolverine.Runtime.Serialization;
 
 namespace Wolverine.RavenDb.Internals;
 
@@ -248,5 +249,19 @@ update
     public async Task MarkDeadLetterEnvelopesAsReplayableAsync(Guid[] ids, string? tenantId = null)
     {
         await ReplayAsync(new DeadLetterEnvelopeQuery { MessageIds = ids }, CancellationToken.None);
+    }
+
+    public async Task EditAndReplayAsync(Guid envelopeId, byte[] newBody, CancellationToken token)
+    {
+        using var session = _store.OpenAsyncSession();
+        var message = await session.LoadAsync<DeadLetterMessage>(dlqId(envelopeId), token);
+        if (message is null) return;
+
+        // Deserialize the stored envelope, replace its Data with the new message body, re-serialize
+        var envelope = EnvelopeSerializer.Deserialize(message.Body);
+        envelope.Data = newBody;
+        message.Body = EnvelopeSerializer.Serialize(envelope);
+        message.Replayable = true;
+        await session.SaveChangesAsync(token);
     }
 }

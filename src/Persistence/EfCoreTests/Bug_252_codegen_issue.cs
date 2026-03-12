@@ -3,11 +3,13 @@ using JasperFx;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using JasperFx.Resources;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using SharedPersistenceModels.Items;
 using Shouldly;
+using Weasel.SqlServer;
 using Wolverine;
 using Wolverine.Attributes;
 using Wolverine.EntityFrameworkCore;
@@ -31,6 +33,11 @@ public class Bug_252_codegen_issue
     [Fact]
     public async Task use_the_saga_type_to_determine_the_correct_DbContext_type()
     {
+        await using var conn = new SqlConnection(Servers.SqlServerConnectionString);
+        await conn.OpenAsync();
+        await conn.DropSchemaAsync("mt_items");
+        await conn.CloseAsync();
+
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opt =>
             {
@@ -60,6 +67,11 @@ public class Bug_252_codegen_issue
     [Fact]
     public async Task bug_256_message_bus_should_be_in_outbox_transaction()
     {
+        await using var conn = new SqlConnection(Servers.SqlServerConnectionString);
+        await conn.OpenAsync();
+        await conn.DropSchemaAsync("mt_items");
+        await conn.CloseAsync();
+
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opt =>
             {

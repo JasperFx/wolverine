@@ -30,6 +30,7 @@ public class Bug_2056_saga_code_generation : IAsyncLifetime
     public async Task DisposeAsync()
     {
         await _host.StopAsync();
+        _host.Dispose();
     }
 
     [Fact]

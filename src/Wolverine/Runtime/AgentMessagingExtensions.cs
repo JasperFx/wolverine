@@ -1,4 +1,6 @@
 using JasperFx.Core.Reflection;
+using Microsoft.Extensions.Logging;
+using Wolverine.Runtime.Agents;
 
 namespace Wolverine.Runtime;
 
@@ -38,6 +40,37 @@ public static class AgentMessagingExtensions
 
         await messageContext.EndpointFor(node!.ControlUri!).SendAsync(context.Envelope!.Message);
         return true;
+    }
+
+    /// <summary>
+    /// Executes an action on a specific running agent (cast to type T) if the agent is on this node,
+    /// otherwise forwards the current message to the node that owns the agent.
+    /// </summary>
+    /// <typeparam name="T">The expected agent type implementing IAgent.</typeparam>
+    /// <param name="context">The current message context.</param>
+    /// <param name="agentUri">The URI identifying the target agent.</param>
+    /// <param name="action">The action to execute on the typed agent if found locally.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>
+    /// <c>true</c> if the action was executed locally or the message was successfully forwarded;
+    /// <c>false</c> if no node currently owns the specified agent.
+    /// </returns>
+    public static Task<bool> InvokeOnAgentOrForwardAsync<T>(this IMessageContext context, Uri agentUri,
+        Func<T, Task> action, CancellationToken cancellationToken) where T : class, IAgent
+    {
+        return context.InvokeOnAgentOrForwardAsync(agentUri, async (runtime, ct) =>
+        {
+            if (runtime.Agents.TryFindActiveAgent<T>(agentUri, out var agent))
+            {
+                await action(agent);
+            }
+            else
+            {
+                runtime.Logger.LogWarning(
+                    "Agent at {AgentUri} was expected to be of type {ExpectedType} but was not found or is a different type",
+                    agentUri, typeof(T).Name);
+            }
+        }, cancellationToken);
     }
 
     /// <summary>

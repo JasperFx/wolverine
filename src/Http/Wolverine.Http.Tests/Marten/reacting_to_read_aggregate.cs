@@ -44,6 +44,7 @@ public class reacting_to_read_aggregate : IAsyncLifetime
         if (theHost != null)
         {
             await theHost.StopAsync();
+            theHost.Dispose();
         }
     }
 

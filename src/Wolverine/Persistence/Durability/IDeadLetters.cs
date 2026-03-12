@@ -71,4 +71,13 @@ public interface IDeadLetters
     /// <param name="token"></param>
     /// <returns></returns>
     Task ReplayAsync(DeadLetterEnvelopeQuery query, CancellationToken token);
+
+    /// <summary>
+    /// Updates the body of a dead letter envelope and marks it as replayable
+    /// </summary>
+    /// <param name="envelopeId">The envelope to edit</param>
+    /// <param name="newBody">The new serialized message body</param>
+    /// <param name="token"></param>
+    /// <returns></returns>
+    Task EditAndReplayAsync(Guid envelopeId, byte[] newBody, CancellationToken token);
 }

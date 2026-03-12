@@ -372,6 +372,20 @@ internal class SqlServerNodePersistence : DatabaseConstants, INodeAgentPersisten
         return result;
     }
 
+    public async Task DeleteOldNodeRecordsAsync(int retainCount)
+    {
+        if (retainCount <= 0) return;
+
+        await using var conn = new SqlConnection(_settings.ConnectionString);
+        await conn.OpenAsync();
+
+        await conn.CreateCommand(
+                $"delete from {_settings.SchemaName}.{DatabaseConstants.NodeRecordTableName} where id not in (select top {retainCount} id from {_settings.SchemaName}.{DatabaseConstants.NodeRecordTableName} order by id desc)")
+            .ExecuteNonQueryAsync();
+
+        await conn.CloseAsync();
+    }
+
     public bool HasLeadershipLock()
     {
         return _database.AdvisoryLock.HasLock(_lockId);

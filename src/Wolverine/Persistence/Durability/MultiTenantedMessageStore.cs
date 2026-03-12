@@ -74,6 +74,11 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
         throw new NotSupportedException();
     }
 
+    public Task EditAndReplayAsync(Guid envelopeId, byte[] newBody, CancellationToken token)
+    {
+        throw new NotSupportedException();
+    }
+
     public async Task<DeadLetterEnvelope?> DeadLetterEnvelopeByIdAsync(Guid id, string? tenantId = null)
     {
         if (tenantId is not null)

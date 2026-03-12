@@ -98,4 +98,5 @@ public class OracleMessageStoreTests : MessageStoreCompliance
         var counts = await thePersistence.Admin.FetchCountsAsync();
         counts.Scheduled.ShouldBeGreaterThanOrEqualTo(1);
     }
+
 }

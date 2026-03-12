@@ -49,8 +49,9 @@ public class send_to_topic_and_receive_in_queue_with_rawMessageDelivery : IAsync
         }
         
         await _host.StopAsync();
+        _host.Dispose();
     }
-    
+
     [Fact]
     public async Task send_to_topic_and_receive_in_queue_raw_a_single_message_raw()
     {
