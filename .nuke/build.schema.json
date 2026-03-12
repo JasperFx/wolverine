@@ -56,9 +56,10 @@
         "PulsarTests",
         "RabbitmqTests",
         "Restore",
-        "ShimsTests",
         "SqliteTests",
         "Test",
+        "TestAllPersistence",
+        "TestAllTransports",
         "TestExtensions",
         "TestSamples",
         "TodoWebServiceSampleTests"
