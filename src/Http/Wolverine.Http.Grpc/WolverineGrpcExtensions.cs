@@ -1,3 +1,4 @@
+using JasperFx.CodeGeneration;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
@@ -31,6 +32,10 @@ public static class WolverineGrpcExtensions
         configure?.Invoke(options);
         services.AddSingleton(options);
 
+        // Register GrpcGraph for code generation
+        services.AddSingleton<GrpcGraph>();
+        services.AddSingleton<ICodeFileCollection>(sp => sp.GetRequiredService<GrpcGraph>());
+
         return services;
     }
 
@@ -48,6 +53,7 @@ public static class WolverineGrpcExtensions
         var runtime = endpoints.ServiceProvider.GetRequiredService<IWolverineRuntime>();
         var grpcOptions = endpoints.ServiceProvider.GetService<WolverineGrpcOptions>();
         var logger = endpoints.ServiceProvider.GetRequiredService<ILogger<WolverineGrpcOptions>>();
+        var grpcGraph = endpoints.ServiceProvider.GetRequiredService<GrpcGraph>();
 
         var assemblies = runtime.Options.Assemblies
             .Concat(grpcOptions?.Assemblies ?? [])
@@ -71,7 +77,30 @@ public static class WolverineGrpcExtensions
             return endpoints;
         }
 
-        GrpcEndpointSource.MapGrpcEndpointTypes(endpoints, grpcEndpointTypes, logger);
+        // Discover services and generate code
+        grpcGraph.DiscoverServices(grpcEndpointTypes);
+
+        // Compile the generated code (happens automatically via Wolverine's IAssemblyGenerator)
+        // The GrpcGraph is registered as ICodeFileCollection so Wolverine will compile it during startup
+
+        // Map the generated handler types (or fall back to original types for backwards compatibility)
+        var typesToMap = grpcEndpointTypes.Select(serviceType =>
+        {
+            var handlerType = grpcGraph.GetHandlerType(serviceType);
+            if (handlerType != null)
+            {
+                logger.LogDebug("Using generated handler {HandlerType} for service {ServiceType}",
+                    handlerType.Name, serviceType.Name);
+                return handlerType;
+            }
+
+            // Fallback to original type for backwards compatibility
+            logger.LogDebug("Using original service type {ServiceType} (no generated handler)",
+                serviceType.Name);
+            return serviceType;
+        }).ToList();
+
+        GrpcEndpointSource.MapGrpcEndpointTypes(endpoints, typesToMap, logger);
 
         return endpoints;
     }

@@ -9,9 +9,9 @@ namespace RacerServer;
 /// Bidirectional-streaming gRPC endpoint demonstrating high-throughput real-time updates.
 /// Tracks racer speeds in memory and yields updated standings as clients stream position updates.
 /// Each gRPC call gets its own transient service instance with isolated state.
+/// Uses convention-based discovery (name ends with "GrpcService").
 /// </summary>
-[WolverineGrpcService]
-public class RacingService : WolverineGrpcEndpointBase, IRacingService
+public class RacingGrpcService : WolverineGrpcEndpointBase, IRacingService
 {
     // Per-connection speed tracking (transient scope means this is isolated per call).
     private readonly ConcurrentDictionary<string, double> _speeds = new();

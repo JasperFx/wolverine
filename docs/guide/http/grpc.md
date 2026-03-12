@@ -413,6 +413,85 @@ app.MapWolverineEndpoints();        // REST endpoints
 app.MapWolverineGrpcEndpoints();    // gRPC endpoints
 ```
 
+## Code Generation and Performance
+
+Wolverine.Http.Grpc uses **runtime code generation** to create optimized handler implementations for your gRPC services. This eliminates dependency injection boilerplate and improves performance by generating specialized adapters at startup.
+
+### How it works
+
+When you call `MapWolverineGrpcEndpoints()`, Wolverine:
+
+1. **Discovers** all eligible gRPC service types via the `GrpcGraph`
+2. **Analyzes** each service to determine if code generation is needed
+3. **Generates** optimized handler code using JasperFx's code generation framework
+4. **Compiles** the generated code into a runtime assembly
+5. **Registers** the generated types with ASP.NET Core's DI container
+
+### When code generation happens
+
+Code generation is **selective** and only occurs when beneficial:
+
+| Service pattern | Code generation? | Reason |
+|----------------|------------------|--------|
+| Inherits `WolverineGrpcEndpointBase` | ❌ No | Already has `Bus` property; no optimization needed |
+| Constructor injection with `IMessageBus` | ❌ No | Standard DI pattern; no boilerplate to eliminate |
+| Abstract proto-first service with `[WolverineGrpcService]` | ✅ Yes | Generates concrete implementation delegating to `IMessageBus` |
+
+::: info
+Most common patterns (inheriting `WolverineGrpcEndpointBase` or using constructor injection) **do not trigger code generation** because they already have efficient implementations. Code generation is primarily used for advanced scenarios like abstract service base classes.
+:::
+
+### Viewing generated code
+
+To inspect the generated handler code for debugging or understanding:
+
+#### Option 1: Use the preview mode
+
+Enable code generation preview mode in your `Program.cs`:
+
+```csharp
+builder.Host.UseWolverine(opts =>
+{
+    opts.ApplicationAssembly = typeof(Program).Assembly;
+
+    // Write generated code to console/logs
+    opts.CodeGeneration.TypeLoadMode = JasperFx.CodeGeneration.TypeLoadMode.Auto;
+    opts.CodeGeneration.SourceCodeWritingEnabled = true;
+});
+```
+
+#### Option 2: Pre-generate code files
+
+Use Wolverine's code generation command to write the generated code to disk:
+
+```bash
+dotnet run -- codegen write
+```
+
+This creates `.cs` files in the `Internal/Generated` directory of your project. You can inspect these files to see exactly what Wolverine generated for your gRPC services.
+
+::: tip
+Pre-generating code is also useful for **production deployments** where you want to eliminate startup time spent on code generation and ensure deterministic behavior.
+:::
+
+#### Option 3: Check logs
+
+Wolverine logs code generation activity at the `Debug` and `Information` levels:
+
+```json
+{
+  "Logging": {
+    "LogLevel": {
+      "Wolverine.Http.Grpc.GrpcGraph": "Debug"
+    }
+  }
+}
+```
+
+Look for log messages like:
+- `Creating GrpcChain for service type: YourNamespace.YourService`
+- `Discovered N gRPC service(s) for code generation`
+
 ## Considerations
 
 ### TLS / HTTPS
@@ -633,6 +712,66 @@ await foreach (var position in racing.RaceAsync(ProduceUpdates(cts.Token), cts.T
 
 A full working bidirectional streaming sample is available in
 [`src/Samples/RacerGrpcSample`](https://github.com/JasperFx/wolverine/tree/main/src/Samples/RacerGrpcSample).
+
+---
+
+## FAQ: Proto-First Services
+
+### Why must proto-first services inherit the proto-generated base class?
+
+The proto-generated base class (e.g., `Greeter.GreeterBase`) is **required by ASP.NET Core's gRPC infrastructure**.
+It contains the gRPC method signatures and infrastructure integration that the framework needs to route
+requests to your implementation. There is **no way to remove it or replace it** — this is a gRPC/ASP.NET Core
+framework requirement, not a Wolverine limitation.
+
+### Why can't proto-first services inherit WolverineGrpcEndpointBase?
+
+C# **does not support multiple inheritance**. Since proto-first services must inherit from the proto-generated
+base class (e.g., `Greeter.GreeterBase`), they cannot also inherit from `WolverineGrpcEndpointBase`.
+This is a language constraint, not a design choice.
+
+### Why is [WolverineGrpcService] required for proto-first services?
+
+The `[WolverineGrpcService]` attribute is the **only way** to discover proto-first services automatically.
+Convention-based discovery (which looks for classes ending in `GrpcService`, `GrpcEndpoint`, etc.) requires
+`WolverineGrpcEndpointBase` as a safety guard to avoid false positives. Since proto-first services can't
+inherit that base class, the attribute is mandatory for discovery.
+
+### Do I always need to inject IMessageBus via constructor?
+
+**No, only if you actually use it**. If you call `_bus.InvokeAsync()` or other message bus methods in your
+service implementation, then you need the field and constructor parameter. If you handle requests inline
+without delegating to Wolverine handlers, you can omit both the field and constructor parameter entirely.
+
+**Example with IMessageBus (delegating to handlers):**
+```csharp
+[WolverineGrpcService]
+public class GreeterService : Greeter.GreeterBase
+{
+    private readonly IMessageBus _bus;
+
+    public GreeterService(IMessageBus bus) => _bus = bus;
+
+    public override Task<HelloReply> SayHello(HelloRequest request, ServerCallContext context)
+        => _bus.InvokeAsync<HelloReply>(request, context.CancellationToken);
+}
+```
+
+**Example without IMessageBus (inline handling):**
+```csharp
+[WolverineGrpcService]
+public class GreeterService : Greeter.GreeterBase
+{
+    public override Task<HelloReply> SayHello(HelloRequest request, ServerCallContext context)
+        => Task.FromResult(new HelloReply { Message = $"Hello, {request.Name}!" });
+}
+```
+
+### Can proto-first services use property injection like code-first services?
+
+No. Property injection (the `Bus` property on `WolverineGrpcEndpointBase`) only works if you inherit that
+base class. Since proto-first services must inherit the proto-generated base class instead, you **must use
+constructor injection** for any dependencies you need, including `IMessageBus`.
 
 ---
 
