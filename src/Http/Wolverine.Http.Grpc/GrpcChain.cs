@@ -59,7 +59,8 @@ public class GrpcChain : ICodeFile
             }
 
             // Skip code generation for services that have custom implementations
-            // (i.e., non-abstract services with actual method implementations)
+            // (i.e., non-abstract concrete services with actual method implementations)
+            // BUT do generate for abstract services (those are meant to be implemented by generated code)
             if (!_serviceType.IsInterface && !_serviceType.IsAbstract && HasCustomImplementation())
             {
                 return;
@@ -145,6 +146,13 @@ public class GrpcChain : ICodeFile
         }
         constructorCode.AppendLine();
 
+        // Generate Bus property if the base type needs it
+        if (NeedsBusProperty())
+        {
+            constructorCode.AppendLine("protected override IMessageBus Bus => new MessageContext(_runtime);");
+            constructorCode.AppendLine();
+        }
+
         // Generate constructor signature
         var ctorParams = new List<string> { "IWolverineRuntime runtime" };
         ctorParams.AddRange(dependencies.Select(d => $"{d.Type.FullNameInCode()} {d.ParameterName}"));
@@ -172,11 +180,23 @@ public class GrpcChain : ICodeFile
             _generatedType.Implements(_serviceType);
             ImplementInterfaceMethods();
         }
+        else if (_serviceType.IsAbstract)
+        {
+            // Service is abstract - we're generating the concrete implementation
+            // No need to implement methods if they're already implemented in the abstract base
+        }
         else
         {
             // For proto-first or class-based services, override virtual methods
             OverrideVirtualMethods();
         }
+    }
+
+    private bool NeedsBusProperty()
+    {
+        // Check if the service type has an abstract Bus property
+        var busProperty = _serviceType.GetProperty("Bus", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+        return busProperty != null && busProperty.GetGetMethod(true)?.IsAbstract == true;
     }
 
     private List<ConstructorDependency> AnalyzeConstructorDependencies()

@@ -66,12 +66,15 @@ internal static class GrpcEndpointSource
 
     internal static bool IsGrpcEndpointType(Type type)
     {
-        if (!type.IsPublic || type.IsAbstract || type.IsInterface || type.IsGenericTypeDefinition)
+        // Abstract types are allowed if they have [WolverineGrpcService] (for code generation pattern)
+        bool isEligibleAbstract = type.IsAbstract && type.HasAttribute<WolverineGrpcServiceAttribute>();
+
+        if (!type.IsPublic || (type.IsAbstract && !isEligibleAbstract) || type.IsInterface || type.IsGenericTypeDefinition)
         {
             return false;
         }
 
-        // [WolverineGrpcService] attribute is sufficient alone (enables proto-first services).
+        // [WolverineGrpcService] attribute is sufficient alone (enables proto-first and abstract services).
         if (type.HasAttribute<WolverineGrpcServiceAttribute>())
         {
             return true;

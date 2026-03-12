@@ -7,16 +7,15 @@ namespace ProtoFirstServer;
 
 /// <summary>
 /// Proto-first gRPC service demonstrating Wolverine integration with proto-generated base classes.
-/// Uses constructor injection of IMessageBus (standard DI) since proto-first services cannot
-/// inherit WolverineGrpcEndpointBase. [WolverineGrpcService] enables automatic discovery.
+/// With code generation, no constructor boilerplate is needed - Wolverine generates a handler that
+/// provides the Bus property automatically. [WolverineGrpcService] enables automatic discovery and code generation.
 /// </summary>
 [WolverineGrpcService]
-public class GreeterService : Greeter.GreeterBase
+public abstract class GreeterService : Greeter.GreeterBase
 {
-    private readonly IMessageBus _bus;
-
-    public GreeterService(IMessageBus bus) => _bus = bus;
+    // Bus property provided by generated handler - no constructor needed!
+    protected abstract IMessageBus Bus { get; }
 
     public override Task<HelloReply> SayHello(HelloRequest request, ServerCallContext context)
-        => _bus.InvokeAsync<HelloReply>(request, context.CancellationToken);
+        => Bus.InvokeAsync<HelloReply>(request, context.CancellationToken);
 }
