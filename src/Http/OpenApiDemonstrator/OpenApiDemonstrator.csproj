@@ -2,7 +2,6 @@
 
     <ItemGroup>
         <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
-        <PackageReference Include="Microsoft.AspNetCore.SignalR" />
         <PackageReference Include="Shouldly" />
         <PackageReference Include="Swashbuckle.AspNetCore" />
     </ItemGroup>
