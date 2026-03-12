@@ -169,8 +169,9 @@ opts.MessagePartitioning
 
 The built in rules *at this point* include:
 
-* Using the Sage identity of a message that is handled by a [Stateful Saga](/guide/durability/sagas)
+* Using the saga identity of a message that is handled by a [Stateful Saga](/guide/durability/sagas)
 * Using the stream/aggregate id of messages that are part of the [Aggregate Handler Workflow](/guide/durability/marten/event-sourcing) integration with Marten
+* Using the `Order` property of messages that implement the `SequencedMessage` interface (used by [ResequencerSaga](/guide/durability/sagas#resequencer-saga)). Messages with a `null` order value receive a random group id so they are distributed independently
 
 ## Specifying Grouping Rules
 

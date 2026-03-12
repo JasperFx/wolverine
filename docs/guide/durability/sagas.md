@@ -754,3 +754,18 @@ The saga state is **always** persisted regardless of whether the handler was cal
 |----------|-------------|
 | `LastSequence` | The highest sequence number that has been processed in order |
 | `Pending` | Messages received out of order, waiting for earlier messages to arrive |
+
+### Concurrency Considerations
+
+When using `ResequencerSaga`, we recommend also using [Partitioned Sequential Messaging](/guide/messaging/partitioning) to manage potential concurrency conflicts. When `UseInferredMessageGrouping()` is enabled, Wolverine automatically detects `SequencedMessage` types and uses the `Order` property as the group id for partitioning. Messages with `null` order values receive a random group id so they are distributed independently.
+
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.MessagePartitioning
+            // Automatically infers grouping from saga identity AND
+            // SequencedMessage.Order for resequencer sagas
+            .UseInferredMessageGrouping();
+    }).StartAsync();
+```
