@@ -80,6 +80,15 @@ public partial class Envelope
     public bool DoNotCascadeResponse { get; set; }
 
     /// <summary>
+    /// Used by the [AlwaysPublishResponse] attribute to explicitly signal
+    /// that the response should be published as a cascading message in addition
+    /// to being sent back via request/reply. This flag works for both in-process
+    /// and remote request/reply scenarios.
+    /// </summary>
+    [JsonIgnore]
+    public bool AlwaysPublishResponse { get; set; }
+
+    /// <summary>
     ///     Status according to the message persistence
     /// </summary>
     [JsonIgnore]

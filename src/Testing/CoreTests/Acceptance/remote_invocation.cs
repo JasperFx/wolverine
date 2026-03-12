@@ -63,7 +63,8 @@ public class remote_invocation : IAsyncLifetime
 
                 opts.PublishMessage<Request4>().ToPort(_receiver1Port);
                 opts.PublishMessage<Request4>().ToPort(_receiver2Port);
-                
+                opts.PublishMessage<AlwaysPublishRequest>().ToPort(_receiver1Port);
+
                 opts.EnableAutomaticFailureAcks = true;
             }).StartAsync();
     }
@@ -400,6 +401,27 @@ public class remote_invocation : IAsyncLifetime
 
         await Should.ThrowAsync<IndeterminateRoutesException>(() => publisher.InvokeAsync(new RequestWithNoHandler()));
     }
+
+    [Fact]
+    public async Task always_publish_response_should_also_publish_on_remote_request_reply()
+    {
+        AlwaysPublishResponseReceivedHandler.Received = new TaskCompletionSource<bool>();
+
+        var (session, response) = await _sender.TrackActivity()
+            .AlsoTrack(_receiver1)
+            .Timeout(10.Seconds())
+            .WaitForMessageToBeReceivedAt<AlwaysPublishResponse>(_receiver1)
+            .InvokeAndWaitAsync<AlwaysPublishResponse>(new AlwaysPublishRequest { Name = "test" });
+
+        // The response should have been returned to the sender via request/reply
+        response.ShouldNotBeNull();
+        response.Name.ShouldBe("test");
+
+        // The response should ALSO have been published as a cascading message
+        // and handled by AlwaysPublishResponseReceivedHandler on the receiver
+        var handled = await AlwaysPublishResponseReceivedHandler.Received.Task.WaitAsync(10.Seconds());
+        handled.ShouldBeTrue();
+    }
 }
 
 public class Request1
@@ -432,6 +454,35 @@ public class Response1
 public class Response3
 {
     public string Name { get; set; }
+}
+
+public class AlwaysPublishRequest
+{
+    public string Name { get; set; }
+}
+
+public class AlwaysPublishResponse
+{
+    public string Name { get; set; }
+}
+
+public static class AlwaysPublishResponseReceivedHandler
+{
+    public static TaskCompletionSource<bool> Received { get; set; } = new();
+
+    public static void Handle(AlwaysPublishResponse response)
+    {
+        Received.TrySetResult(true);
+    }
+}
+
+public static class AlwaysPublishRequestHandler
+{
+    [AlwaysPublishResponse]
+    public static AlwaysPublishResponse Handle(AlwaysPublishRequest request)
+    {
+        return new AlwaysPublishResponse { Name = request.Name };
+    }
 }
 
 public class RequestHandler
