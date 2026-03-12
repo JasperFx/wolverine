@@ -22,12 +22,10 @@ public partial class HandlerGraph
             {
                 yield return chain;
             }
-            else
+
+            foreach (var handlerChain in chain.ByEndpoint)
             {
-                foreach (var handlerChain in chain.ByEndpoint)
-                {
-                    yield return handlerChain;
-                }
+                yield return handlerChain;
             }
         }
     }
