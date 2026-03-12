@@ -22,7 +22,7 @@ var app = builder.Build();
 // (see Kestrel:Endpoints:Grpc:Protocols = Http2)
 app.UseRouting();
 
-// Discover and map RacingService (found via [WolverineGrpcService] attribute)
+// Discover and map RacingGrpcService (found via convention-based discovery)
 app.MapWolverineGrpcEndpoints();
 
 return await app.RunJasperFxCommands(args);
