@@ -25,6 +25,15 @@ public class error_handling_and_exceptions : IAsyncLifetime
     {
         var builder = WebApplication.CreateBuilder([]);
 
+        // Configure Kestrel to use HTTP/2 (required for gRPC)
+        builder.WebHost.ConfigureKestrel(options =>
+        {
+            options.Listen(System.Net.IPAddress.Loopback, 0, listenOptions =>
+            {
+                listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http2;
+            });
+        });
+
         builder.Host.UseWolverine(opts =>
         {
             opts.ApplicationAssembly = typeof(error_handling_and_exceptions).Assembly;

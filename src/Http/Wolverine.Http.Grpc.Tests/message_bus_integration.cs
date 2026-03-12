@@ -28,10 +28,19 @@ public class message_bus_integration : IAsyncLifetime
     {
         var builder = WebApplication.CreateBuilder([]);
 
+        // Configure Kestrel to use HTTP/2 (required for gRPC)
+        builder.WebHost.ConfigureKestrel(options =>
+        {
+            options.Listen(System.Net.IPAddress.Loopback, 0, listenOptions =>
+            {
+                listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http2;
+            });
+        });
+
         builder.Host.UseWolverine(opts =>
         {
             opts.ApplicationAssembly = typeof(message_bus_integration).Assembly;
-            opts.Discovery.DisableConventionalDiscovery();
+            // Don't disable handler discovery - we need it for message bus integration tests
         });
 
         builder.Services.AddWolverineGrpc();
