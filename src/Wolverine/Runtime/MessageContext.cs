@@ -626,6 +626,13 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         if (Envelope?.ReplyUri != null && message.GetType().ToMessageTypeName() == Envelope.ReplyRequested)
         {
             await EndpointFor(Envelope.ReplyUri!).SendAsync(message, new DeliveryOptions { IsResponse = true });
+
+            // If [AlwaysPublishResponse] was used, also publish as a cascading message
+            if (Envelope.AlwaysPublishResponse)
+            {
+                await PublishAsync(message);
+            }
+
             return;
         }
 

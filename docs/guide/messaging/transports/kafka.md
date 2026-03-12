@@ -401,6 +401,66 @@ using var host = await Host.CreateDefaultBuilder()
 
 The DLQ topic is shared across all listeners on the same Kafka transport that have native DLQ enabled. When `AutoProvision` is enabled, the DLQ topic will be automatically created.
 
+## Multi-Topic Listening <Badge type="tip" text="5.18" />
+
+By default, each call to `ListenToKafkaTopic()` creates a separate Kafka consumer. If you have many topics that share
+the same logical workload, this can lead to excessive consumer group rebalances and slower startup times.
+
+Wolverine supports subscribing to multiple Kafka topics with a single consumer using `ListenToKafkaTopics()`:
+
+```csharp
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.UseKafka("localhost:9092").AutoProvision();
+
+        // Subscribe to multiple topics with a single consumer
+        opts.ListenToKafkaTopics("orders", "invoices", "shipments")
+            .ProcessInline();
+    }).StartAsync();
+```
+
+This creates a single `KafkaTopicGroup` endpoint that subscribes to all listed topics using one Kafka consumer.
+The endpoint name defaults to the topic names joined by underscores (e.g. `orders_invoices_shipments`), and the
+URI follows the pattern `kafka://topic/orders_invoices_shipments`.
+
+### Consumer Configuration
+
+You can override the consumer configuration for a topic group just like for individual topics:
+
+```csharp
+opts.ListenToKafkaTopics("orders", "invoices")
+    .ConfigureConsumer(config =>
+    {
+        config.GroupId = "order-processing";
+        config.AutoOffsetReset = AutoOffsetReset.Earliest;
+    });
+```
+
+### Dead Letter Queue Support
+
+Multi-topic listeners support the same native dead letter queue as individual topic listeners:
+
+```csharp
+opts.ListenToKafkaTopics("orders", "invoices")
+    .ProcessInline()
+    .EnableNativeDeadLetterQueue();
+```
+
+### When to Use Multi-Topic Listening
+
+Use `ListenToKafkaTopics()` when:
+
+- Multiple topics feed into the same handler pipeline
+- You want to reduce the number of Kafka consumer connections
+- You need faster startup and fewer consumer group rebalances
+
+Use individual `ListenToKafkaTopic()` calls when:
+
+- Topics need different consumer configurations (e.g. different `GroupId` values)
+- Topics need different processing modes (inline vs buffered vs durable)
+- You want independent scaling or error handling per topic
+
 ## Disabling all Sending
 
 Hey, you might have an application that only consumes Kafka messages, but there are a *few* diagnostics in Wolverine that

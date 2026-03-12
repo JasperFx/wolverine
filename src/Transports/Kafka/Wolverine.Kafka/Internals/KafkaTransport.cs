@@ -18,6 +18,8 @@ public class KafkaTransport : BrokerTransport<KafkaTopic>
 {
     public Cache<string, KafkaTopic> Topics { get; }
 
+    internal List<KafkaTopicGroup> TopicGroups { get; } = new();
+
     public ProducerConfig ProducerConfig { get; } = new();
     public Action<ProducerBuilder<string, byte[]>> ConfigureProducerBuilders { get; internal set; } = _ => {};
 
@@ -64,7 +66,8 @@ public class KafkaTransport : BrokerTransport<KafkaTopic>
 
     protected override IEnumerable<KafkaTopic> endpoints()
     {
-        return Topics;
+        foreach (var topic in Topics) yield return topic;
+        foreach (var group in TopicGroups) yield return group;
     }
 
     protected override KafkaTopic findEndpointByUri(Uri uri)
@@ -91,6 +94,12 @@ public class KafkaTransport : BrokerTransport<KafkaTopic>
         {
             endpoint.Compile(runtime);
             if (endpoint.NativeDeadLetterQueueEnabled) needsDlqTopic = true;
+        }
+
+        foreach (var group in TopicGroups)
+        {
+            group.Compile(runtime);
+            if (group.NativeDeadLetterQueueEnabled) needsDlqTopic = true;
         }
 
         // Ensure the DLQ topic is registered and compiled so it gets auto-provisioned

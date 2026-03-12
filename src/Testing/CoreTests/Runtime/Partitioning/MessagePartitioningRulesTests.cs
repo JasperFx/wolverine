@@ -1,4 +1,6 @@
 using JasperFx.Core.Reflection;
+using Shouldly;
+using Wolverine;
 using Wolverine.ComplianceTests;
 using Wolverine.Runtime.Partitioning;
 using Xunit;
@@ -75,7 +77,47 @@ public class MessagePartitioningRulesTests
         envelope.Message = new Coffee3("Starbucks");
         rules.DetermineGroupId(envelope).ShouldBe("Starbucks");
     }
+    [Fact]
+    public void sequenced_message_with_order_uses_order_as_group_id()
+    {
+        var rule = new SequencedMessageGroupingRule(typeof(TestSequencedMsg));
+
+        var envelope = ObjectMother.Envelope();
+        envelope.Message = new TestSequencedMsg(5);
+
+        rule.TryFindIdentity(envelope, out var groupId).ShouldBeTrue();
+        groupId.ShouldBe("5");
+    }
+
+    [Fact]
+    public void sequenced_message_with_null_order_gets_random_group_id()
+    {
+        var rule = new SequencedMessageGroupingRule(typeof(TestSequencedMsg));
+
+        var envelope = ObjectMother.Envelope();
+        envelope.Message = new TestSequencedMsg(null);
+
+        rule.TryFindIdentity(envelope, out var groupId).ShouldBeTrue();
+        groupId.ShouldNotBeNullOrEmpty();
+
+        // Should get a different random id each time
+        rule.TryFindIdentity(envelope, out var groupId2).ShouldBeTrue();
+        groupId2.ShouldNotBe(groupId);
+    }
+
+    [Fact]
+    public void sequenced_message_rule_does_not_match_wrong_type()
+    {
+        var rule = new SequencedMessageGroupingRule(typeof(TestSequencedMsg));
+
+        var envelope = ObjectMother.Envelope();
+        envelope.Message = new Coffee1("Dark", "Paul Newman's");
+
+        rule.TryFindIdentity(envelope, out _).ShouldBeFalse();
+    }
 }
+
+public record TestSequencedMsg(int? Order) : SequencedMessage;
 
 public interface ICoffee
 {

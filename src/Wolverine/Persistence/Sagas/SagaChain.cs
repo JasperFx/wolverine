@@ -242,7 +242,7 @@ public class SagaChain : HandlerChain
         }
         else
         {
-            generateCodeForMaybeExisting(container, frameProvider, list);
+            generateCodeForMaybeExisting(container, frameProvider, list, messageVariable);
         }
 
         // .Concat(handlerReturnValueFrames)
@@ -251,7 +251,7 @@ public class SagaChain : HandlerChain
     }
 
     private void generateCodeForMaybeExisting(IServiceContainer container, IPersistenceFrameProvider frameProvider,
-        List<Frame> frames)
+        List<Frame> frames, MessageVariable? messageVariable = null)
     {
         var findSagaId = SagaIdMember == null
             ? (Frame)new PullSagaIdFromEnvelopeFrame(frameProvider.DetermineSagaIdType(SagaType, container))
@@ -267,7 +267,7 @@ public class SagaChain : HandlerChain
         var sagaId = resolve.SagaId;
 
         var startingFrames = DetermineSagaDoesNotExistSteps(sagaId, saga, frameProvider, container).ToArray();
-        var existingFrames = DetermineSagaExistsSteps(sagaId, saga, frameProvider, container).ToArray();
+        var existingFrames = DetermineSagaExistsSteps(sagaId, saga, frameProvider, container, messageVariable).ToArray();
         var ifNullBlock = new IfElseNullGuardFrame(saga, startingFrames,
             existingFrames);
 
@@ -362,15 +362,26 @@ public class SagaChain : HandlerChain
     }
 
     internal IEnumerable<Frame> DetermineSagaExistsSteps(Variable sagaId, Variable saga,
-        IPersistenceFrameProvider frameProvider, IServiceContainer container)
+        IPersistenceFrameProvider frameProvider, IServiceContainer container, MessageVariable? messageVariable = null)
     {
         // Set the saga ID on the context so cascading messages have the correct saga ID
         yield return new SetSagaIdFrame(sagaId);
 
+        var handlerFrames = new List<Frame>();
         foreach (var call in ExistingCalls)
         {
-            yield return call;
-            foreach (var frame in call.Creates.SelectMany(x => x.ReturnAction(this).Frames())) yield return frame;
+            handlerFrames.Add(call);
+            foreach (var frame in call.Creates.SelectMany(x => x.ReturnAction(this).Frames())) handlerFrames.Add(frame);
+        }
+
+        // For ResequencerSaga<T>, wrap handler calls with ShouldProceed() guard
+        if (messageVariable != null && IsResequencerGuarded)
+        {
+            yield return new ShouldProceedGuardFrame(saga, messageVariable, handlerFrames.ToArray());
+        }
+        else
+        {
+            foreach (var frame in handlerFrames) yield return frame;
         }
 
         var update = frameProvider.DetermineUpdateFrame(saga, container);
@@ -379,5 +390,26 @@ public class SagaChain : HandlerChain
         yield return new SagaStoreOrDeleteFrame(saga, update, delete);
 
         yield return frameProvider.CommitUnitOfWorkFrame(saga, container);
+    }
+
+    private bool IsResequencerGuarded
+    {
+        get
+        {
+            var resequencerMessageType = GetResequencerMessageType();
+            return resequencerMessageType != null && MessageType.CanBeCastTo(resequencerMessageType);
+        }
+    }
+
+    private Type? GetResequencerMessageType()
+    {
+        var current = SagaType;
+        while (current != null)
+        {
+            if (current.IsGenericType && current.GetGenericTypeDefinition() == typeof(ResequencerSaga<>))
+                return current.GetGenericArguments()[0];
+            current = current.BaseType;
+        }
+        return null;
     }
 }

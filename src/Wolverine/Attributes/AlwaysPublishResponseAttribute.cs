@@ -26,6 +26,7 @@ internal class AlwaysPublishResponseFrame : SyncFrame
     {
         writer.WriteComment("Always publish the response as a message due to the [AlwaysPublishResponse] usage");
         writer.WriteLine($"{_envelope.Usage}.{nameof(Envelope.DoNotCascadeResponse)} = false;");
+        writer.WriteLine($"{_envelope.Usage}.{nameof(Envelope.AlwaysPublishResponse)} = true;");
         Next?.GenerateCode(method, writer);
     }
 

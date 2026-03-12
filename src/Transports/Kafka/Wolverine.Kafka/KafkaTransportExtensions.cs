@@ -74,6 +74,28 @@ public static class KafkaTransportExtensions
     }
 
     /// <summary>
+    /// Listen for incoming messages from multiple Kafka topics using a single consumer.
+    /// This reduces consumer group rebalances and startup time compared to creating
+    /// individual listeners for each topic.
+    /// </summary>
+    /// <param name="endpoints"></param>
+    /// <param name="topicNames">The names of the Kafka topics to subscribe to</param>
+    /// <returns></returns>
+    public static KafkaTopicGroupListenerConfiguration ListenToKafkaTopics(this WolverineOptions endpoints,
+        params string[] topicNames)
+    {
+        if (topicNames.Length == 0) throw new ArgumentException("At least one topic name is required", nameof(topicNames));
+
+        var transport = endpoints.KafkaTransport();
+
+        var group = new KafkaTopicGroup(transport, topicNames, EndpointRole.Application);
+        group.IsListener = true;
+        transport.TopicGroups.Add(group);
+
+        return new KafkaTopicGroupListenerConfiguration(group);
+    }
+
+    /// <summary>
     ///     Listen for incoming messages at the designated Kafka topic name
     /// </summary>
     /// <param name="endpoints"></param>
