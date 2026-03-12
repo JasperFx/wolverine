@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using ProtoBuf.Grpc;
 using RacerContracts;
 using Wolverine.Http.Grpc;
@@ -6,38 +5,30 @@ using Wolverine.Http.Grpc;
 namespace RacerServer;
 
 /// <summary>
-/// Bidirectional-streaming gRPC endpoint demonstrating high-throughput real-time updates.
-/// Tracks racer speeds in memory and yields updated standings as clients stream position updates.
-/// Each gRPC call gets its own transient service instance with isolated state.
+/// Bidirectional-streaming gRPC endpoint demonstrating IMessageBus.StreamAsync integration.
+/// This version delegates to a Wolverine streaming handler (RaceStreamHandler) through the
+/// message bus, enabling streaming through the full Wolverine middleware pipeline with
+/// automatic OpenTelemetry instrumentation.
 /// Uses convention-based discovery (name ends with "GrpcService").
 /// </summary>
 public class RacingGrpcService : WolverineGrpcEndpointBase, IRacingService
 {
-    // Per-connection speed tracking (transient scope means this is isolated per call).
-    private readonly ConcurrentDictionary<string, double> _speeds = new();
-
     public async IAsyncEnumerable<RacePosition> RaceAsync(
         IAsyncEnumerable<RacerUpdate> updates,
         CallContext context = default)
     {
+        // For each incoming update from the client, invoke the Wolverine streaming handler
+        // through Bus.StreamAsync. This demonstrates:
+        // 1. Streaming handler integration with IMessageBus
+        // 2. OpenTelemetry instrumentation for each streamed message
+        // 3. Middleware pipeline execution (cascading, side effects, etc.)
         await foreach (var update in updates.WithCancellation(context.CancellationToken))
         {
-            _speeds[update.RacerId] = update.Speed;
-
-            // Compute standings: highest speed = position 1.
-            var standings = _speeds
-                .OrderByDescending(kv => kv.Value)
-                .Select((kv, idx) => new RacePosition
-                {
-                    RacerId = kv.Key,
-                    Position = idx + 1,
-                    Speed = kv.Value
-                })
-                .ToList();
-
-            // Yield the updated position for this racer.
-            var position = standings.FirstOrDefault(p => p.RacerId == update.RacerId);
-            if (position is not null) yield return position;
+            // Stream results from the Wolverine handler through the message bus
+            await foreach (var position in Bus.StreamAsync<RacePosition>(update, context.CancellationToken))
+            {
+                yield return position;
+            }
         }
     }
 }
