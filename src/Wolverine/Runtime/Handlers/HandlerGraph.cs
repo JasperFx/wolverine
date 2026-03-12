@@ -188,9 +188,19 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
                 var allLocal = chain.ByEndpoint.All(
                     c => c.Endpoints.All(e => e is LocalQueue));
 
-                if (allLocal && endpoint is not LocalQueue)
+                if (allLocal)
                 {
-                    return getOrBuildFanoutHandler(messageType, chain);
+                    if (endpoint is not LocalQueue)
+                    {
+                        return getOrBuildFanoutHandler(messageType, chain);
+                    }
+
+                    // Also fanout when the incoming local queue is part of a sharded/global
+                    // partition topology rather than a sticky handler's own queue
+                    if (endpoint.UsedInShardedTopology)
+                    {
+                        return getOrBuildFanoutHandler(messageType, chain);
+                    }
                 }
 
                 throw new NoHandlerForEndpointException(messageType, endpoint.Uri);
