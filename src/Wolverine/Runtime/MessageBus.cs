@@ -176,10 +176,32 @@ public partial class MessageBus : IMessageBus, IMessageContext
     {
         return Runtime.RoutingFor(message.GetType()).RouteForPublish(message, null);
     }
-    
+
     public IReadOnlyList<Envelope> PreviewSubscriptions(object message, DeliveryOptions options)
     {
         return Runtime.RoutingFor(message.GetType()).RouteForPublish(message, options);
+    }
+
+    public async IAsyncEnumerable<TResponse> StreamAsync<TResponse>(object message, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        if (message == null)
+        {
+            throw new ArgumentNullException(nameof(message));
+        }
+
+        Runtime.AssertHasStarted();
+
+        // For now, StreamAsync requires explicit IAsyncEnumerable<T> handler support
+        // This will be implemented in a future iteration with proper handler discovery
+        throw new NotSupportedException(
+            $"StreamAsync is not yet fully implemented. " +
+            $"For streaming gRPC operations, use IAsyncEnumerable<T> return types directly in your gRPC service methods. " +
+            $"Full message bus streaming support with middleware pipeline integration is planned for a future release.");
+
+        // Placeholder to satisfy async IAsyncEnumerable signature
+        #pragma warning disable CS0162
+        yield break;
+        #pragma warning restore CS0162
     }
 
     public ValueTask SendAsync<T>(T message, DeliveryOptions? options = null)

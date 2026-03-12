@@ -259,6 +259,13 @@ public class TestMessageContext : IMessageContext
         return ValueTask.CompletedTask;
     }
 
+    async IAsyncEnumerable<TResponse> IMessageBus.StreamAsync<TResponse>(object message, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        _invoked.Add(message);
+        // TestMessageContext doesn't actually execute handlers, so return empty stream
+        yield break;
+    }
+
     ValueTask IMessageBus.BroadcastToTopicAsync(string topicName, object message, DeliveryOptions? options)
     {
         var envelope = new Envelope { Message = message, TopicName = topicName };

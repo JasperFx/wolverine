@@ -118,6 +118,41 @@ internal static class WolverineTracing
     /// </summary>
     public const string TooManySenderFailures = "TooManySenderFailures";
 
+    /// <summary>
+    /// Span emitted when a streaming handler begins streaming responses
+    /// </summary>
+    public const string StreamingStarted = "wolverine.streaming.started";
+
+    /// <summary>
+    /// Span emitted when a streaming handler completes successfully
+    /// </summary>
+    public const string StreamingCompleted = "wolverine.streaming.completed";
+
+    /// <summary>
+    /// ActivityEvent marking when a streaming handler yields a message
+    /// </summary>
+    public const string StreamingMessageYielded = "wolverine.streaming.message.yielded";
+
+    /// <summary>
+    /// ActivityEvent marking when a streaming handler encounters an error
+    /// </summary>
+    public const string StreamingError = "wolverine.streaming.error";
+
+    /// <summary>
+    /// Tag name for the total count of messages streamed
+    /// </summary>
+    public const string StreamingMessageCount = "wolverine.streaming.message.count";
+
+    /// <summary>
+    /// Tag name for the duration of the streaming operation in milliseconds
+    /// </summary>
+    public const string StreamingDurationMs = "wolverine.streaming.duration.ms";
+
+    /// <summary>
+    /// Tag name for the type of message being streamed
+    /// </summary>
+    public const string StreamingMessageType = "wolverine.streaming.message.type";
+
     #endregion
 
     public static ActivitySource ActivitySource { get; } = new(
@@ -162,5 +197,63 @@ internal static class WolverineTracing
         {
             activity.SetTag(tagName, value);
         }
+    }
+
+    /// <summary>
+    /// Start a streaming activity for gRPC or other streaming operations
+    /// </summary>
+    public static Activity? StartStreaming<T>(string? correlationId = null)
+    {
+        var activity = ActivitySource.StartActivity(StreamingStarted, ActivityKind.Internal);
+        if (activity == null) return null;
+
+        activity.SetTag(StreamingMessageType, typeof(T).Name);
+        if (correlationId.IsNotEmpty())
+        {
+            activity.SetTag(MessagingConversationId, correlationId);
+        }
+
+        return activity;
+    }
+
+    /// <summary>
+    /// Record a streamed message event
+    /// </summary>
+    public static void RecordStreamedMessage<T>(this Activity? activity, T message)
+    {
+        activity?.AddEvent(new ActivityEvent(StreamingMessageYielded,
+            tags: new ActivityTagsCollection
+            {
+                { StreamingMessageType, typeof(T).Name }
+            }));
+    }
+
+    /// <summary>
+    /// Complete a streaming activity with metrics
+    /// </summary>
+    public static void CompleteStreaming(this Activity? activity, int messageCount, TimeSpan duration)
+    {
+        if (activity == null) return;
+
+        activity.SetTag(StreamingMessageCount, messageCount);
+        activity.SetTag(StreamingDurationMs, duration.TotalMilliseconds);
+        activity.AddEvent(new ActivityEvent(StreamingCompleted));
+    }
+
+    /// <summary>
+    /// Record a streaming error
+    /// </summary>
+    public static void RecordStreamingError(this Activity? activity, Exception exception)
+    {
+        if (activity == null) return;
+
+        activity.SetStatus(ActivityStatusCode.Error, exception.Message);
+        activity.AddEvent(new ActivityEvent(StreamingError,
+            tags: new ActivityTagsCollection
+            {
+                { "exception.type", exception.GetType().FullName },
+                { "exception.message", exception.Message },
+                { "exception.stacktrace", exception.StackTrace }
+            }));
     }
 }

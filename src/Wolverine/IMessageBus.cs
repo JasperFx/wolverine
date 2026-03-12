@@ -179,6 +179,16 @@ public interface IMessageBus : ICommandBus
     ValueTask PublishAsync<T>(T message, DeliveryOptions? options = null);
 
     /// <summary>
+    ///     Execute a message handler that returns a stream of results.
+    ///     Useful for streaming query results or real-time updates through the Wolverine middleware pipeline.
+    /// </summary>
+    /// <typeparam name="TResponse">The type of messages being streamed</typeparam>
+    /// <param name="message">The message that triggers the streaming handler</param>
+    /// <param name="cancellationToken">Cancellation token to stop streaming</param>
+    /// <returns>An async enumerable of response messages</returns>
+    IAsyncEnumerable<TResponse> StreamAsync<TResponse>(object message, CancellationToken cancellationToken = default);
+
+    /// <summary>
     ///     Send a message to a specific topic name. This relies
     ///     on having a backing transport endpoint that supports
     ///     topic routing.
