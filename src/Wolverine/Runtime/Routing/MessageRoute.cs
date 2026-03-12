@@ -157,6 +157,22 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
         return RemoteInvokeAsync<T>(message, bus, cancellation, timeout, options);
     }
 
+    public async IAsyncEnumerable<TResponse> StreamAsync<TResponse>(object message, MessageBus bus,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellation = default,
+        TimeSpan? timeout = null, DeliveryOptions? options = null)
+    {
+        // Streaming is not supported for remote invocation via message routing
+        // Remote streaming would require a different protocol (e.g., gRPC bidirectional streaming)
+        throw new NotSupportedException(
+            $"Streaming is not supported for remote invocation through message routing to {_endpoint.Uri}. " +
+            "For gRPC streaming, use direct gRPC service calls instead.");
+
+        // Unreachable, but needed to satisfy compiler for IAsyncEnumerable
+#pragma warning disable CS0162
+        yield break;
+#pragma warning restore CS0162
+    }
+
     internal async Task<T> RemoteInvokeAsync<T>(object message, MessageBus bus, CancellationToken cancellation,
         TimeSpan? timeout, DeliveryOptions? options, string? topicName = null)
     {

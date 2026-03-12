@@ -86,6 +86,22 @@ public class TopicRouting<T> : IMessageRouteSource, IMessageRoute, IMessageInvok
         return InvokeAsync<Acknowledgement>(message, bus, cancellation, timeout, options);
     }
 
+    public async IAsyncEnumerable<TResponse> StreamAsync<TResponse>(object message, MessageBus bus,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellation = default,
+        TimeSpan? timeout = null, DeliveryOptions? options = null)
+    {
+        // Streaming is not supported for topic routing via message bus
+        // For streaming, use dedicated streaming protocols like gRPC
+        throw new NotSupportedException(
+            $"Streaming is not supported for topic routing to {_topicEndpoint.Uri}. " +
+            "For streaming, use direct gRPC service calls or other streaming protocols.");
+
+        // Unreachable, but needed to satisfy compiler for IAsyncEnumerable
+#pragma warning disable CS0162
+        yield break;
+#pragma warning restore CS0162
+    }
+
     public override string ToString()
     {
         return $"Topic routing to {_topicEndpoint.Uri}";

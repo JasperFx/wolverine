@@ -158,11 +158,99 @@ internal class Executor : IExecutor
         {
             TenantId = options?.TenantId ?? bus.TenantId
         };
-        
+
         options?.Override(envelope);
 
         bus.TrackEnvelopeCorrelation(envelope, Activity.Current);
         return InvokeInlineAsync(envelope, cancellation);
+    }
+
+    public async IAsyncEnumerable<TResponse> StreamAsync<TResponse>(object message, MessageBus bus,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellation = default,
+        TimeSpan? timeout = null, DeliveryOptions? options = null)
+    {
+        if (message == null)
+        {
+            throw new ArgumentNullException(nameof(message));
+        }
+
+        // For now, streaming handlers work by setting the response on the envelope
+        // The handler should yield IAsyncEnumerable<TResponse> which gets captured
+        // This is a simplified implementation - full middleware pipeline integration
+        // would require extending HandlerChain code generation
+
+        var envelope = new Envelope(message)
+        {
+            TenantId = options?.TenantId ?? bus.TenantId
+        };
+
+        options?.Override(envelope);
+        bus.TrackEnvelopeCorrelation(envelope, Activity.Current);
+
+        var context = _contextPool.Get();
+        context.ReadEnvelope(envelope, InvocationCallback.Instance);
+
+        envelope.Attempts = 1;
+
+        using var activity = Handler.TelemetryEnabled ? WolverineTracing.StartExecuting(envelope) : null;
+
+        IAsyncEnumerable<TResponse>? stream = null;
+        Exception? handlerException = null;
+
+        _tracker.ExecutionStarted(envelope);
+
+        try
+        {
+            await Handler.HandleAsync(context, cancellation);
+
+            // If the handler set a streaming response, capture it
+            if (envelope.Response is IAsyncEnumerable<TResponse> asyncStream)
+            {
+                stream = asyncStream;
+            }
+            // If it's a single response, wrap it in an async enumerable
+            else if (envelope.Response is TResponse singleResponse)
+            {
+                stream = SingleItemAsyncEnumerable(singleResponse);
+            }
+        }
+        catch (Exception e)
+        {
+            handlerException = e;
+            activity?.SetStatus(ActivityStatusCode.Error, e.GetType().Name);
+            activity?.RecordStreamingError(e);
+            _tracker.ExecutionFinished(envelope, e);
+        }
+
+        // Now yield outside the try-catch
+        if (handlerException != null)
+        {
+            _contextPool.Return(context);
+            activity?.Stop();
+            throw handlerException;
+        }
+
+        if (stream != null)
+        {
+            await foreach (var item in stream.WithCancellation(cancellation))
+            {
+                activity?.RecordStreamedMessage(item);
+                yield return item;
+            }
+        }
+
+        await context.FlushOutgoingMessagesAsync();
+        activity?.SetStatus(ActivityStatusCode.Ok);
+        _tracker.ExecutionFinished(envelope);
+
+        _contextPool.Return(context);
+        activity?.Stop();
+    }
+
+    private static async IAsyncEnumerable<T> SingleItemAsyncEnumerable<T>(T item)
+    {
+        yield return item;
+        await Task.CompletedTask;
     }
 
     public async Task<IContinuation> ExecuteAsync(MessageContext context, CancellationToken cancellation)
