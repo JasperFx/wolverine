@@ -58,13 +58,20 @@ public abstract class ResequencerSaga<T> : Saga where T : SequencedMessage
     public List<T> Pending { get; set; } = new();
     public int LastSequence { get; set; }
 
-    // We'll enhance the code gen to use this around the Saga handling
+    // We'll enhance the code gen to use this around the Saga handling. So this would wrap
+    // around the call to the actual Handle method as a guard clause, but the saga still gets persisted
     public async ValueTask<bool> ShouldProceed(T message, IMessageBus bus)
     {
         // TODO -- probably want a Timeout around this?
         
         // If there is no order, do you just let it go? Or zero?
         if (!message.Order.HasValue || message.Order == 0)
+        {
+            return true;
+        }
+
+        // Already processed in sequence, allow re-published messages through
+        if (message.Order.Value <= LastSequence)
         {
             return true;
         }

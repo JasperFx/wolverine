@@ -697,3 +697,60 @@ When an `OrderPlaced` message is published, both sagas will be started independe
 ::: warning
 In `Separated` mode, messages routed to multiple sagas must be **published** (via `SendAsync` or `PublishAsync`), not **invoked** (via `InvokeAsync`). `InvokeAsync` bypasses message routing and will not reach the separated saga endpoints.
 :::
+
+## Resequencer Saga
+
+Wolverine supports the [Resequencer](https://www.enterpriseintegrationpatterns.com/patterns/messaging/Resequencer.html) pattern
+out of the box through the `ResequencerSaga<T>` base class. This is useful when you need to process messages in a specific order,
+but they may arrive out of sequence.
+
+Messages must implement the `SequencedMessage` interface:
+
+```cs
+public interface SequencedMessage
+{
+    int? Order { get; }
+}
+```
+
+Then subclass `ResequencerSaga<T>` instead of `Saga`:
+
+```cs
+public record StartMyWorkflow(Guid Id);
+
+public record MySequencedCommand(Guid SagaId, int? Order) : SequencedMessage;
+
+public class MyWorkflowSaga : ResequencerSaga<MySequencedCommand>
+{
+    public Guid Id { get; set; }
+
+    public static MyWorkflowSaga Start(StartMyWorkflow cmd)
+    {
+        return new MyWorkflowSaga { Id = cmd.Id };
+    }
+
+    public void Handle(MySequencedCommand cmd)
+    {
+        // This will only be called when messages arrive in the correct order,
+        // or when out-of-order messages are replayed after gaps are filled
+    }
+}
+```
+
+### How It Works
+
+Wolverine generates a `ShouldProceed()` guard around your `Handle`/`Orchestrate` methods:
+
+- If `Order` is `null` or `0`, the message bypasses the guard and is handled immediately
+- If `Order` equals `LastSequence + 1` (the next expected sequence), the handler executes normally and `LastSequence` advances
+- If `Order` is greater than `LastSequence + 1` (a gap exists), the message is added to the `Pending` list and the handler is **not** called
+- When a gap-filling message arrives, any consecutive pending messages are automatically re-published to be handled in order
+
+The saga state is **always** persisted regardless of whether the handler was called, because the `Pending` list and `LastSequence` may have changed.
+
+### Key Properties
+
+| Property | Description |
+|----------|-------------|
+| `LastSequence` | The highest sequence number that has been processed in order |
+| `Pending` | Messages received out of order, waiting for earlier messages to arrive |
