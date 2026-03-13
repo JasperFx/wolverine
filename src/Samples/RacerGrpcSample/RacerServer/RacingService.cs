@@ -13,15 +13,8 @@ namespace RacerServer;
 /// Uses attribute-based discovery with [WolverineGrpcService] and constructor injection.
 /// </summary>
 [WolverineGrpcService]
-public class RacingGrpcService : IRacingService
+public class RacingGrpcService(IMessageBus bus) : IRacingService
 {
-    private readonly IMessageBus _bus;
-
-    public RacingGrpcService(IMessageBus bus)
-    {
-        _bus = bus;
-    }
-
     public async IAsyncEnumerable<RacePosition> RaceAsync(
         IAsyncEnumerable<RacerUpdate> updates,
         CallContext context = default)
@@ -34,7 +27,7 @@ public class RacingGrpcService : IRacingService
         await foreach (var update in updates.WithCancellation(context.CancellationToken))
         {
             // Stream results from the Wolverine handler through the message bus
-            await foreach (var position in _bus.StreamAsync<RacePosition>(update, context.CancellationToken))
+            await foreach (var position in bus.StreamAsync<RacePosition>(update, context.CancellationToken))
             {
                 yield return position;
             }

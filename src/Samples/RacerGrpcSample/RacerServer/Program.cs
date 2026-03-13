@@ -7,10 +7,16 @@ using Wolverine.Http.Grpc;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Register singleton race state to track speeds across all racer updates
+builder.Services.AddSingleton<RaceState>();
+
 // Wolverine is required for WolverineFx.Http.Grpc
 builder.Host.UseWolverine(opts =>
 {
     opts.ApplicationAssembly = typeof(Program).Assembly;
+
+    // Suppress "No routes" logging for streaming responses that aren't meant to be routed
+    opts.NoRouteLogging = NoRouteBehavior.Silent;
 });
 
 // Register Wolverine gRPC services (adds code-first gRPC server support via protobuf-net.Grpc)
