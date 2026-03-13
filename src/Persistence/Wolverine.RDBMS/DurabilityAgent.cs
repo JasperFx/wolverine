@@ -79,7 +79,7 @@ internal class DurabilityAgent : IAgent
         _recoveryTimer = new Timer(async _ =>
         {
             IReadOnlyList<int>? activeNodeNumbers = null;
-            if (_database.Settings.Role != MessageStoreRole.Main)
+            if (_settings.Mode != DurabilityMode.Solo && _database.Settings.Role != MessageStoreRole.Main)
             {
                 try
                 {
@@ -170,7 +170,7 @@ internal class DurabilityAgent : IAgent
         return false;
     }
 
-    private IDatabaseOperation[] buildOperationBatch(IReadOnlyList<int>? activeNodeNumbers = null)
+    internal IDatabaseOperation[] buildOperationBatch(IReadOnlyList<int>? activeNodeNumbers = null)
     {
         var incomingTable = new DbObjectName(_database.SchemaName, DatabaseConstants.IncomingTable);
         var now = DateTimeOffset.UtcNow;
@@ -183,18 +183,24 @@ internal class DurabilityAgent : IAgent
             new MoveReplayableErrorMessagesToIncomingOperation(_database)
         ];
 
+        if (_settings.Mode != DurabilityMode.Solo)
+        {
+            if (_database.Settings.Role == MessageStoreRole.Main)
+            {
+                ops.Add(new ReleaseOrphanedMessagesOperation(_database));
+            }
+            else if (activeNodeNumbers is { Count: > 0 })
+            {
+                ops.Add(new ReleaseOrphanedMessagesForAncillaryOperation(_database, activeNodeNumbers));
+            }
+        }
+
         if (_database.Settings.Role == MessageStoreRole.Main)
         {
-            ops.Add(new ReleaseOrphanedMessagesOperation(_database));
-
             if (isTimeToPruneNodeEventRecords())
             {
                 ops.Add(new DeleteOldNodeEventRecords(_database, _settings));
             }
-        }
-        else if (activeNodeNumbers is { Count: > 0 })
-        {
-            ops.Add(new ReleaseOrphanedMessagesForAncillaryOperation(_database, activeNodeNumbers));
         }
 
         if (_runtime.Options.Durability.OutboxStaleTime.HasValue)
