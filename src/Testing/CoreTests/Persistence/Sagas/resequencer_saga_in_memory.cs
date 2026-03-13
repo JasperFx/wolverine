@@ -103,7 +103,7 @@ public class resequencer_saga_in_memory : IAsyncLifetime
         // The tracked session will wait for all cascading messages to complete
         await _host.ExecuteAndWaitAsync(async () =>
         {
-            await _host.Services.GetRequiredService<IMessageBus>()
+            await _host.MessageBus()
                 .PublishAsync(new SequencedCommand(sagaId, 1));
         }, timeoutInMilliseconds: 30000);
 
