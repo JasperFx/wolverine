@@ -21,7 +21,6 @@ public sealed partial class WolverineRuntime : IMessageTracker
     private static readonly Action<ILogger, Envelope, Exception?> _movedToErrorQueue;
     private static readonly Action<ILogger, Envelope, Exception?> _rescheduled;
     private static readonly Action<ILogger, string?, string, Guid, string, Exception?> _noHandler;
-    private static readonly Action<ILogger, Envelope, Exception?> _noRoutes;
     private static readonly Action<ILogger, string, string, Guid, string, string, Exception?> _received;
     private static readonly Action<ILogger, string, string, Guid, string, Exception?> _sent;
     private static readonly Action<ILogger, Envelope, Exception?> _undeliverable;
@@ -42,9 +41,6 @@ public sealed partial class WolverineRuntime : IMessageTracker
 
         _noHandler = LoggerMessage.Define<string?, string, Guid, string>(LogLevel.Information, NoHandlerEventId,
             "{CorrelationId}: No known handler for {Name}#{Id} from {ReplyUri}");
-
-        _noRoutes = LoggerMessage.Define<Envelope>(LogLevel.Information, NoRoutesEventId,
-            "No routes can be determined for {envelope}");
 
         _rescheduled = LoggerMessage.Define<Envelope>(LogLevel.Error, RescheduledEventId,
             "Envelope {envelope} was rescheduled to queue");
@@ -133,7 +129,19 @@ public sealed partial class WolverineRuntime : IMessageTracker
     public void NoRoutesFor(Envelope envelope)
     {
         ActiveSession?.Record(MessageEventType.NoRoutes, envelope, _serviceName, _uniqueNodeId);
-        _noRoutes(Logger, envelope, null);
+
+        var logLevel = Options.NoRouteLogging switch
+        {
+            NoRouteBehavior.LogInformation => LogLevel.Information,
+            NoRouteBehavior.LogDebug => LogLevel.Debug,
+            NoRouteBehavior.Silent => (LogLevel?)null,
+            _ => LogLevel.Information
+        };
+
+        if (logLevel.HasValue)
+        {
+            Logger.Log(logLevel.Value, NoRoutesEventId, "No routes can be determined for {envelope}", envelope);
+        }
     }
 
     public void MovedToErrorQueue(Envelope envelope, Exception ex)

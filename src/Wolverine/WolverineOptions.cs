@@ -77,6 +77,27 @@ public enum UnknownMessageBehavior
     DeadLetterQueue
 }
 
+public enum NoRouteBehavior
+{
+    /// <summary>
+    /// Default behavior. Wolverine will log at Information level when a message
+    /// cannot be routed to any endpoints
+    /// </summary>
+    LogInformation,
+
+    /// <summary>
+    /// Wolverine will log at Debug level when a message cannot be routed to any endpoints.
+    /// Useful for scenarios like gRPC streaming where response objects are not meant to be routed.
+    /// </summary>
+    LogDebug,
+
+    /// <summary>
+    /// Wolverine will not log when a message cannot be routed to any endpoints.
+    /// Use with caution as this may hide routing configuration issues.
+    /// </summary>
+    Silent
+}
+
 public class MetricsOptions
 {
     /// <summary>
@@ -170,6 +191,13 @@ public sealed partial class WolverineOptions
     /// on outgoing envelopes and into Marten's IDocumentSession.LastModifiedBy
     /// </summary>
     public bool EnableRelayOfUserName { get; set; }
+
+    /// <summary>
+    /// How should Wolverine handle messages that have no configured routes when being published?
+    /// Default is LogInformation. Change to LogDebug for scenarios like gRPC streaming where
+    /// response objects are not meant to be routed to message endpoints.
+    /// </summary>
+    public NoRouteBehavior NoRouteLogging { get; set; } = NoRouteBehavior.LogInformation;
 
     /// <summary>
     /// What is the policy within this application for whether or not it is valid to allow Service Location within
