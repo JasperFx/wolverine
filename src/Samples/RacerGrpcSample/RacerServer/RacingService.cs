@@ -1,5 +1,6 @@
 using ProtoBuf.Grpc;
 using RacerContracts;
+using Wolverine;
 using Wolverine.Http.Grpc;
 
 namespace RacerServer;
@@ -9,10 +10,18 @@ namespace RacerServer;
 /// This version delegates to a Wolverine streaming handler (RaceStreamHandler) through the
 /// message bus, enabling streaming through the full Wolverine middleware pipeline with
 /// automatic OpenTelemetry instrumentation.
-/// Uses convention-based discovery (name ends with "GrpcService").
+/// Uses attribute-based discovery with [WolverineGrpcService] and constructor injection.
 /// </summary>
-public class RacingGrpcService : WolverineGrpcEndpointBase, IRacingService
+[WolverineGrpcService]
+public class RacingGrpcService : IRacingService
 {
+    private readonly IMessageBus _bus;
+
+    public RacingGrpcService(IMessageBus bus)
+    {
+        _bus = bus;
+    }
+
     public async IAsyncEnumerable<RacePosition> RaceAsync(
         IAsyncEnumerable<RacerUpdate> updates,
         CallContext context = default)
@@ -25,7 +34,7 @@ public class RacingGrpcService : WolverineGrpcEndpointBase, IRacingService
         await foreach (var update in updates.WithCancellation(context.CancellationToken))
         {
             // Stream results from the Wolverine handler through the message bus
-            await foreach (var position in Bus.StreamAsync<RacePosition>(update, context.CancellationToken))
+            await foreach (var position in _bus.StreamAsync<RacePosition>(update, context.CancellationToken))
             {
                 yield return position;
             }
