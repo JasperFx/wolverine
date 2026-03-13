@@ -17,6 +17,17 @@ public class no_available_route_behavior : IntegrationContext
             await Publisher.SendAsync(new MessageWithNoRoutes());
         });
     }
+
+    [Fact]
+    public async Task stream_async_throws_indeterminate_routes_when_no_handler()
+    {
+        await Should.ThrowAsync<IndeterminateRoutesException>(async () =>
+        {
+            await foreach (var _ in Publisher.StreamAsync<MessageWithNoRoutes>(new MessageWithNoRoutes()))
+            {
+            }
+        });
+    }
 }
 
 public class MessageWithNoRoutes;
