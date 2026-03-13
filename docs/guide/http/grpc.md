@@ -156,6 +156,21 @@ public class PongerService : IPongerService
 ```
 
 ::: tip
+**C# 12+ Developers**: You can use **primary constructors** to reduce boilerplate when using constructor injection:
+
+```csharp
+[WolverineGrpcService]
+public class PongerService(IMessageBus bus) : IPongerService
+{
+    public Task<PongMessage> SendPingAsync(PingMessage request, CallContext context = default)
+        => bus.InvokeAsync<PongMessage>(request, context.CancellationToken);
+}
+```
+
+This is especially useful for proto-first services where constructor injection is required.
+:::
+
+::: tip
 Constructor injection is also **required** for proto-first services (see the [Proto-First Approach](#proto-first-approach-proto-files) section below), because proto-generated services must inherit `ServiceName.ServiceNameBase` and C# does not allow multiple inheritance.
 :::
 
@@ -309,6 +324,21 @@ public class GreeterService : Greeter.GreeterBase
         => _bus.InvokeAsync<HelloReply>(request, context.CancellationToken);
 }
 ```
+
+::: tip
+**C# 12+ alternative using primary constructors**:
+
+```csharp
+[WolverineGrpcService]
+public class GreeterService(IMessageBus bus) : Greeter.GreeterBase
+{
+    public override Task<HelloReply> SayHello(HelloRequest request, ServerCallContext context)
+        => bus.InvokeAsync<HelloReply>(request, context.CancellationToken);
+}
+```
+
+Primary constructors eliminate the need for explicit field declarations and assignment, reducing boilerplate.
+:::
 
 #### 3. Write the Wolverine handler
 
