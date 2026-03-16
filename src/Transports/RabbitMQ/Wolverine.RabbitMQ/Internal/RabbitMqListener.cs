@@ -107,13 +107,13 @@ internal class RabbitMqListener : RabbitMqChannelAgent, IListener, ISupportDeadL
                 await channel.BasicCancelAsync(consumerTag, true, default);
             }
         }
-
-        consumer.Dispose();
-        _consumer = null;
     }
 
     public override async ValueTask DisposeAsync()
     {
+        _consumer?.Dispose();
+        _consumer = null;
+
         await base.DisposeAsync();
 
         if (_sender.IsValueCreated && _sender.Value is IAsyncDisposable ad)
