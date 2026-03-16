@@ -161,6 +161,10 @@ public class CloudEventsMapper : IUnwrapsMetadataMessageSerializer
 
         if (node.TryGetValue<string>("type", out var cloudEventType))
         {
+            // Preserve the raw CloudEvent type on the envelope before resolution.
+            // If resolution fails, the raw type survives for dead-letter persistence.
+            envelope.MessageType = cloudEventType;
+
             if (_handlers.TryFindMessageType(cloudEventType, out var messageType))
             {
                 var data = node["data"];
@@ -169,6 +173,7 @@ public class CloudEventsMapper : IUnwrapsMetadataMessageSerializer
                     envelope.Message = data.Deserialize(messageType, _options);
                 }
 
+                // Overwrite with the canonical Wolverine message type name
                 envelope.MessageType = messageType.ToMessageTypeName();
             }
             else

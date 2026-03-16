@@ -415,9 +415,26 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
             {
                 if (envelope.MessageType.IsEmpty() && envelope.Serializer is IUnwrapsMetadataMessageSerializer serializer)
                 {
-                    serializer.Unwrap(envelope);
+                    try
+                    {
+                        serializer.Unwrap(envelope);
+                    }
+                    catch (Exception e)
+                    {
+                        _logger.LogInformation(e, "Failed to unwrap metadata for Envelope {Id} received at durable {Destination}. Moving to dead letter queue", envelope.Id, envelope.Destination);
+
+                        if (envelope.Id == Guid.Empty)
+                        {
+                            envelope.Id = NewId.NextSequentialGuid();
+                        }
+
+                        envelope.MessageType ??= $"unknown/{e.GetType().Name}";
+                        envelope.Failure = e;
+                        await _moveToErrors.PostAsync(envelope);
+                        return;
+                    }
                 }
-                
+
                 // Have to do this before moving to the DLQ
                 if (envelope.Id == Guid.Empty)
                 {
