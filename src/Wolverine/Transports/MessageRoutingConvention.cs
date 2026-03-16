@@ -148,6 +148,14 @@ public abstract class MessageRoutingConvention<TTransport, TListener, TSubscribe
         var (configuration, endpoint) = FindOrCreateSubscriber(corrected, transport);
         endpoint.EndpointName = destinationName;
 
+        // Register the subscription so that endpoint policies like
+        // UseDurableOutboxOnAllSendingEndpoints() recognize this as a sender
+        // endpoint when Compile() applies policies. See GH-2304.
+        if (!endpoint.Subscriptions.Any(s => s.Matches(messageType)))
+        {
+            endpoint.Subscriptions.Add(Subscription.ForType(messageType));
+        }
+
         _configureSending(configuration, new MessageRoutingContext(messageType, runtime));
 
         configuration.As<IDelayedEndpointConfiguration>().Apply();
