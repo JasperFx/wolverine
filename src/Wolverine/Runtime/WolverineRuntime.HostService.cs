@@ -373,6 +373,16 @@ public partial class WolverineRuntime
     {
         // Let any registered routing conventions discover listener endpoints
         var handledMessageTypes = Handlers.Chains.Select(x => x.MessageType).ToList();
+
+        // Include batch element types so that conventional routing creates listeners for
+        // the element type (e.g., BatchedItem) rather than only the array type (BatchedItem[])
+        foreach (var batch in Options.BatchDefinitions)
+        {
+            if (!handledMessageTypes.Contains(batch.ElementType))
+            {
+                handledMessageTypes.Add(batch.ElementType);
+            }
+        }
         if (!Options.ExternalTransportsAreStubbed)
         {
             foreach (var routingConvention in Options.RoutingConventions)

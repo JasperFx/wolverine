@@ -35,8 +35,22 @@ public abstract class MessageRoutingConvention<TTransport, TListener, TSubscribe
         foreach (var messageType in handledMessageTypes.Where(t => _typeFilters.Matches(t)))
         {
             var chain = runtime.Options.HandlerGraph.ChainFor(messageType);
-            if (chain == null) continue;
-            
+
+            // Batch element types won't have their own handler chain (only the array type does),
+            // but they still need external listeners created so messages can be received and
+            // routed to the local batching queue. See GH-2307.
+            var isBatchElementType = runtime.Options.BatchDefinitions.Any(b => b.ElementType == messageType);
+
+            if (chain == null)
+            {
+                if (isBatchElementType)
+                {
+                    maybeCreateListenerForMessageOrHandlerType(transport, messageType, runtime);
+                }
+
+                continue;
+            }
+
             if (runtime.Options.MultipleHandlerBehavior == MultipleHandlerBehavior.ClassicCombineIntoOneLogicalHandler && chain.Handlers.Any())
             {
                 maybeCreateListenerForMessageOrHandlerType(transport, messageType, runtime);
@@ -47,7 +61,7 @@ public abstract class MessageRoutingConvention<TTransport, TListener, TSubscribe
                 {
                     maybeCreateListenerForMessageOrHandlerType(transport, messageType, runtime);
                 }
-                
+
                 foreach (var handlerChain in chain.ByEndpoint)
                 {
                     var handlerType = handlerChain.Handlers.First().HandlerType;
@@ -59,8 +73,8 @@ public abstract class MessageRoutingConvention<TTransport, TListener, TSubscribe
                     }
                 }
             }
-            
-            
+
+
         }
     }
 
