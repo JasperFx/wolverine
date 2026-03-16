@@ -3,6 +3,7 @@ using JasperFx.Core.Reflection;
 using JasperFx.Descriptors;
 using Microsoft.Azure.Cosmos;
 using Wolverine.CosmosDb.Internals.Durability;
+using Wolverine.CosmosDb.Internals.Transport;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
@@ -70,7 +71,14 @@ public partial class CosmosDbMessageStore : IMessageStoreWithAgentSupport
 
     public void Initialize(IWolverineRuntime runtime)
     {
-        // Container creation is handled during setup/migration
+        if (Role == MessageStoreRole.Main
+            && runtime.Options.Transports.NodeControlEndpoint == null
+            && runtime.Options.Durability.Mode == DurabilityMode.Balanced)
+        {
+            var transport = new CosmosDbControlTransport(_container, runtime.Options);
+            runtime.Options.Transports.Add(transport);
+            runtime.Options.Transports.NodeControlEndpoint = transport.ControlEndpoint;
+        }
     }
 
     public DatabaseDescriptor Describe()

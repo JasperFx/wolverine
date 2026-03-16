@@ -1,0 +1,76 @@
+using System.Net;
+using Microsoft.Azure.Cosmos;
+using Microsoft.Extensions.DependencyInjection;
+using Wolverine;
+using Wolverine.CosmosDb;
+using Wolverine.CosmosDb.Internals;
+using Wolverine.ComplianceTests;
+using Xunit;
+using Xunit.Abstractions;
+
+namespace CosmosDbTests;
+
+[Collection("cosmosdb")]
+public class leader_election : LeadershipElectionCompliance
+{
+    public leader_election(ITestOutputHelper output) : base(output)
+    {
+    }
+
+    protected override void configureNode(WolverineOptions opts)
+    {
+        opts.UseCosmosDbPersistence(AppFixture.DatabaseName);
+
+        opts.Services.AddSingleton(new CosmosClient(AppFixture.ConnectionString, new CosmosClientOptions
+        {
+            HttpClientFactory = () =>
+            {
+                HttpMessageHandler httpMessageHandler = new HttpClientHandler
+                {
+                    ServerCertificateCustomValidationCallback =
+                        HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+                };
+                return new HttpClient(httpMessageHandler);
+            },
+            ConnectionMode = ConnectionMode.Gateway,
+            SerializerOptions = new CosmosSerializationOptions
+            {
+                PropertyNamingPolicy = CosmosPropertyNamingPolicy.CamelCase
+            }
+        }));
+    }
+
+    protected override async Task beforeBuildingHost()
+    {
+        var clientOptions = new CosmosClientOptions
+        {
+            HttpClientFactory = () =>
+            {
+                HttpMessageHandler httpMessageHandler = new HttpClientHandler
+                {
+                    ServerCertificateCustomValidationCallback =
+                        HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+                };
+                return new HttpClient(httpMessageHandler);
+            },
+            ConnectionMode = ConnectionMode.Gateway,
+            SerializerOptions = new CosmosSerializationOptions
+            {
+                PropertyNamingPolicy = CosmosPropertyNamingPolicy.CamelCase
+            }
+        };
+
+        using var client = new CosmosClient(AppFixture.ConnectionString, clientOptions);
+
+        // Ensure database and container exist
+        var databaseResponse = await client.CreateDatabaseIfNotExistsAsync(AppFixture.DatabaseName);
+        var containerProperties =
+            new ContainerProperties(DocumentTypes.ContainerName, DocumentTypes.PartitionKeyPath);
+        await databaseResponse.Database.CreateContainerIfNotExistsAsync(containerProperties);
+
+        // Clear existing data
+        var store = new CosmosDbMessageStore(client, AppFixture.DatabaseName,
+            databaseResponse.Database.GetContainer(DocumentTypes.ContainerName), new WolverineOptions());
+        await store.Admin.ClearAllAsync();
+    }
+}
