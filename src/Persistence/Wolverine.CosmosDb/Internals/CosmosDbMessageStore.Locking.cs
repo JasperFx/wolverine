@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text.Json.Serialization;
 using Newtonsoft.Json;
 using Microsoft.Azure.Cosmos;
 using Wolverine.Runtime;
@@ -195,13 +196,23 @@ public partial class CosmosDbMessageStore
 
 public class CosmosDistributedLock
 {
-    [JsonProperty("id")] public string Id { get; set; } = string.Empty;
+    [JsonProperty("id")]
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = string.Empty;
 
-    [JsonProperty("docType")] public string DocType { get; set; } = DocumentTypes.Lock;
+    [JsonProperty("docType")]
+    [JsonPropertyName("docType")]
+    public string DocType { get; set; } = DocumentTypes.Lock;
 
-    [JsonProperty("partitionKey")] public string PartitionKey { get; set; } = DocumentTypes.SystemPartition;
+    [JsonProperty("partitionKey")]
+    [JsonPropertyName("partitionKey")]
+    public string PartitionKey { get; set; } = DocumentTypes.SystemPartition;
 
-    [JsonProperty("nodeId")] public string NodeId { get; set; } = string.Empty;
+    [JsonProperty("nodeId")]
+    [JsonPropertyName("nodeId")]
+    public string NodeId { get; set; } = string.Empty;
 
-    [JsonProperty("expirationTime")] public DateTimeOffset ExpirationTime { get; set; }
+    [JsonProperty("expirationTime")]
+    [JsonPropertyName("expirationTime")]
+    public DateTimeOffset ExpirationTime { get; set; }
 }

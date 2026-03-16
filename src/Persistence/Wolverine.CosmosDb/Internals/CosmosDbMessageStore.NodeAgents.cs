@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text.Json.Serialization;
 using Newtonsoft.Json;
 using Microsoft.Azure.Cosmos;
 using Wolverine.Runtime.Agents;
@@ -381,28 +382,49 @@ public class CosmosWolverineNode
         Capabilities = node.Capabilities.Select(x => x.ToString()).ToList();
     }
 
-    [JsonProperty("id")] public string Id { get; set; } = string.Empty;
+    [JsonProperty("id")]
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = string.Empty;
 
-    [JsonProperty("docType")] public string DocType { get; set; } = DocumentTypes.Node;
+    [JsonProperty("docType")]
+    [JsonPropertyName("docType")]
+    public string DocType { get; set; } = DocumentTypes.Node;
 
-    [JsonProperty("partitionKey")] public string PartitionKey { get; set; } = DocumentTypes.SystemPartition;
+    [JsonProperty("partitionKey")]
+    [JsonPropertyName("partitionKey")]
+    public string PartitionKey { get; set; } = DocumentTypes.SystemPartition;
 
-    [JsonProperty("nodeId")] public string NodeId { get; set; } = string.Empty;
+    [JsonProperty("nodeId")]
+    [JsonPropertyName("nodeId")]
+    public string NodeId { get; set; } = string.Empty;
 
-    [JsonProperty("description")] public string? Description { get; set; }
+    [JsonProperty("description")]
+    [JsonPropertyName("description")]
+    public string? Description { get; set; }
 
     [JsonProperty("assignedNodeNumber")]
+    [JsonPropertyName("assignedNodeNumber")]
     public int AssignedNodeNumber { get; set; }
 
-    [JsonProperty("controlUri")] public string? ControlUri { get; set; }
+    [JsonProperty("controlUri")]
+    [JsonPropertyName("controlUri")]
+    public string? ControlUri { get; set; }
 
-    [JsonProperty("lastHealthCheck")] public DateTimeOffset LastHealthCheck { get; set; }
+    [JsonProperty("lastHealthCheck")]
+    [JsonPropertyName("lastHealthCheck")]
+    public DateTimeOffset LastHealthCheck { get; set; }
 
-    [JsonProperty("started")] public DateTimeOffset Started { get; set; }
+    [JsonProperty("started")]
+    [JsonPropertyName("started")]
+    public DateTimeOffset Started { get; set; }
 
-    [JsonProperty("version")] public string? Version { get; set; }
+    [JsonProperty("version")]
+    [JsonPropertyName("version")]
+    public string? Version { get; set; }
 
-    [JsonProperty("capabilities")] public List<string> Capabilities { get; set; } = new();
+    [JsonProperty("capabilities")]
+    [JsonPropertyName("capabilities")]
+    public List<string> Capabilities { get; set; } = new();
 
     public WolverineNode ToWolverineNode()
     {
@@ -439,41 +461,71 @@ public class CosmosAgentAssignment
         AgentUri = agentUri.ToString();
     }
 
-    [JsonProperty("id")] public string Id { get; set; } = string.Empty;
+    [JsonProperty("id")]
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = string.Empty;
 
-    [JsonProperty("docType")] public string DocType { get; set; } = DocumentTypes.AgentAssignment;
+    [JsonProperty("docType")]
+    [JsonPropertyName("docType")]
+    public string DocType { get; set; } = DocumentTypes.AgentAssignment;
 
-    [JsonProperty("partitionKey")] public string PartitionKey { get; set; } = DocumentTypes.SystemPartition;
+    [JsonProperty("partitionKey")]
+    [JsonPropertyName("partitionKey")]
+    public string PartitionKey { get; set; } = DocumentTypes.SystemPartition;
 
-    [JsonProperty("nodeId")] public string NodeId { get; set; } = string.Empty;
+    [JsonProperty("nodeId")]
+    [JsonPropertyName("nodeId")]
+    public string NodeId { get; set; } = string.Empty;
 
-    [JsonProperty("agentUri")] public string AgentUri { get; set; } = string.Empty;
+    [JsonProperty("agentUri")]
+    [JsonPropertyName("agentUri")]
+    public string AgentUri { get; set; } = string.Empty;
 }
 
 public class CosmosNodeSequence
 {
-    [JsonProperty("id")] public string Id { get; set; } = $"{DocumentTypes.NodeSequence}|sequence";
+    [JsonProperty("id")]
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = $"{DocumentTypes.NodeSequence}|sequence";
 
-    [JsonProperty("docType")] public string DocType { get; set; } = DocumentTypes.NodeSequence;
+    [JsonProperty("docType")]
+    [JsonPropertyName("docType")]
+    public string DocType { get; set; } = DocumentTypes.NodeSequence;
 
-    [JsonProperty("partitionKey")] public string PartitionKey { get; set; } = DocumentTypes.SystemPartition;
+    [JsonProperty("partitionKey")]
+    [JsonPropertyName("partitionKey")]
+    public string PartitionKey { get; set; } = DocumentTypes.SystemPartition;
 
-    [JsonProperty("count")] public int Count { get; set; }
+    [JsonProperty("count")]
+    [JsonPropertyName("count")]
+    public int Count { get; set; }
 }
 
 public class CosmosAgentRestriction
 {
-    [JsonProperty("id")] public string Id { get; set; } = string.Empty;
+    [JsonProperty("id")]
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = string.Empty;
 
-    [JsonProperty("docType")] public string DocType { get; set; } = DocumentTypes.AgentRestriction;
+    [JsonProperty("docType")]
+    [JsonPropertyName("docType")]
+    public string DocType { get; set; } = DocumentTypes.AgentRestriction;
 
-    [JsonProperty("partitionKey")] public string PartitionKey { get; set; } = DocumentTypes.SystemPartition;
+    [JsonProperty("partitionKey")]
+    [JsonPropertyName("partitionKey")]
+    public string PartitionKey { get; set; } = DocumentTypes.SystemPartition;
 
-    [JsonProperty("agentUri")] public string AgentUri { get; set; } = string.Empty;
+    [JsonProperty("agentUri")]
+    [JsonPropertyName("agentUri")]
+    public string AgentUri { get; set; } = string.Empty;
 
-    [JsonProperty("type")] public AgentRestrictionType Type { get; set; }
+    [JsonProperty("type")]
+    [JsonPropertyName("type")]
+    public AgentRestrictionType Type { get; set; }
 
-    [JsonProperty("nodeNumber")] public int NodeNumber { get; set; }
+    [JsonProperty("nodeNumber")]
+    [JsonPropertyName("nodeNumber")]
+    public int NodeNumber { get; set; }
 }
 
 public class CosmosNodeRecord
@@ -492,21 +544,37 @@ public class CosmosNodeRecord
         ServiceName = record.ServiceName;
     }
 
-    [JsonProperty("id")] public string Id { get; set; } = string.Empty;
+    [JsonProperty("id")]
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = string.Empty;
 
-    [JsonProperty("docType")] public string DocType { get; set; } = DocumentTypes.NodeRecord;
+    [JsonProperty("docType")]
+    [JsonPropertyName("docType")]
+    public string DocType { get; set; } = DocumentTypes.NodeRecord;
 
-    [JsonProperty("partitionKey")] public string PartitionKey { get; set; } = DocumentTypes.SystemPartition;
+    [JsonProperty("partitionKey")]
+    [JsonPropertyName("partitionKey")]
+    public string PartitionKey { get; set; } = DocumentTypes.SystemPartition;
 
-    [JsonProperty("nodeNumber")] public int NodeNumber { get; set; }
+    [JsonProperty("nodeNumber")]
+    [JsonPropertyName("nodeNumber")]
+    public int NodeNumber { get; set; }
 
-    [JsonProperty("recordType")] public NodeRecordType RecordType { get; set; }
+    [JsonProperty("recordType")]
+    [JsonPropertyName("recordType")]
+    public NodeRecordType RecordType { get; set; }
 
-    [JsonProperty("timestamp")] public DateTimeOffset Timestamp { get; set; }
+    [JsonProperty("timestamp")]
+    [JsonPropertyName("timestamp")]
+    public DateTimeOffset Timestamp { get; set; }
 
-    [JsonProperty("description")] public string? Description { get; set; }
+    [JsonProperty("description")]
+    [JsonPropertyName("description")]
+    public string? Description { get; set; }
 
-    [JsonProperty("serviceName")] public string? ServiceName { get; set; }
+    [JsonProperty("serviceName")]
+    [JsonPropertyName("serviceName")]
+    public string? ServiceName { get; set; }
 
     public NodeRecord ToNodeRecord()
     {
