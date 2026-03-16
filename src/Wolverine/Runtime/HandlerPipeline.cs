@@ -115,6 +115,7 @@ public class HandlerPipeline : IHandlerPipeline
         try
         {
             var serializer = envelope.Serializer ?? _runtime.Options.DetermineSerializer(envelope);
+            serializer.UnwrapEnvelopeIfNecessary(envelope);
 
             if (envelope.Data == null)
             {
@@ -122,7 +123,12 @@ public class HandlerPipeline : IHandlerPipeline
                     "Envelope does not have a message or deserialized message data");
             }
 
-            if (envelope.MessageType == null)
+            if (envelope.Message != null)
+            {
+                return NullContinuation.Instance;
+            }
+
+            if (string.IsNullOrEmpty(envelope.MessageType))
             {
                 throw new ArgumentOutOfRangeException(nameof(envelope),
                     "The envelope has no Message or MessageType name");
