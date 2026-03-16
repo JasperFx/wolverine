@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using JasperFx.Core.Reflection;
 using Newtonsoft.Json;
 using Wolverine.Persistence.Durability;
@@ -27,48 +28,63 @@ public class DeadLetterMessage
     }
 
     [JsonProperty("id")]
+    [JsonPropertyName("id")]
     public string Id { get; set; } = string.Empty;
 
     [JsonProperty("docType")]
+    [JsonPropertyName("docType")]
     public string DocType { get; set; } = DocumentTypes.DeadLetter;
 
     [JsonProperty("partitionKey")]
+    [JsonPropertyName("partitionKey")]
     public string PartitionKey { get; set; } = DocumentTypes.DeadLetterPartition;
 
     [JsonProperty("envelopeId")]
+    [JsonPropertyName("envelopeId")]
     public Guid EnvelopeId { get; set; }
 
     [JsonProperty("messageType")]
+    [JsonPropertyName("messageType")]
     public string? MessageType { get; set; }
 
     [JsonProperty("receivedAt")]
+    [JsonPropertyName("receivedAt")]
     public string? ReceivedAt { get; set; }
 
     [JsonProperty("sentAt")]
+    [JsonPropertyName("sentAt")]
     public DateTimeOffset? SentAt { get; set; }
 
     [JsonProperty("scheduledTime")]
+    [JsonPropertyName("scheduledTime")]
     public DateTimeOffset? ScheduledTime { get; set; }
 
     [JsonProperty("source")]
+    [JsonPropertyName("source")]
     public string? Source { get; set; }
 
     [JsonProperty("exceptionType")]
+    [JsonPropertyName("exceptionType")]
     public string? ExceptionType { get; set; }
 
     [JsonProperty("exceptionMessage")]
+    [JsonPropertyName("exceptionMessage")]
     public string? ExceptionMessage { get; set; }
 
     [JsonProperty("replayable")]
+    [JsonPropertyName("replayable")]
     public bool Replayable { get; set; }
 
     [JsonProperty("body")]
+    [JsonPropertyName("body")]
     public byte[] Body { get; set; } = [];
 
     [JsonProperty("expirationTime")]
+    [JsonPropertyName("expirationTime")]
     public DateTimeOffset ExpirationTime { get; set; }
 
     [JsonProperty("_etag")]
+    [JsonPropertyName("_etag")]
     public string? ETag { get; set; }
 
     public DeadLetterEnvelope ToEnvelope()
