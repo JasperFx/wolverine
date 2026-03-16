@@ -41,6 +41,10 @@ internal class MoveToErrorQueue : IContinuation
         {
             lifecycle.Envelope.MessageType = lifecycle.Envelope.Message.GetType().ToMessageTypeName();
         }
+        else
+        {
+            lifecycle.Envelope.MessageType ??= $"unknown/{Exception.GetType().Name}";
+        }
 
         await lifecycle.MoveToDeadLetterQueueAsync(Exception);
         

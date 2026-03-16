@@ -162,7 +162,7 @@ public static class DatabasePersistence
             builder.AddParameter(envelope.Id),
             builder.AddParameter(envelope.ScheduledTime),
             builder.AddParameter(data),
-            builder.AddParameter(envelope.MessageType),
+            builder.AddParameter(envelope.MessageType ?? "unknown"),
             builder.AddParameter(envelope.Destination?.ToString()),
             builder.AddParameter(envelope.Source),
             builder.AddParameter(exception?.GetType().FullNameInCode()),
