@@ -26,6 +26,17 @@ public interface IUnwrapsMetadataMessageSerializer : IMessageSerializer
     void Unwrap(Envelope envelope);
 }
 
+public static class MessageSerializerExtensions
+{
+    public static void UnwrapEnvelopeIfNecessary(this IMessageSerializer serializer, Envelope envelope)
+    {
+        if (string.IsNullOrEmpty(envelope.MessageType) && serializer is IUnwrapsMetadataMessageSerializer metadataSerializer)
+        {
+            metadataSerializer.Unwrap(envelope);
+        }
+    }
+}
+
 /// <summary>
 ///  Async version of <seealso cref="IMessageSerializer"/>
 /// </summary>
