@@ -1012,4 +1012,26 @@ public abstract class MessageStoreCompliance : IAsyncLifetime
         counts.ShouldContain(c => c.MessageType == "SumTypeC" && c.Count == 1);
     }
 
+    [Fact]
+    public async Task move_to_dead_letter_storage_with_null_source()
+    {
+        var envelope = ObjectMother.Envelope();
+        envelope.Source = null;
+        envelope.Status = EnvelopeStatus.Incoming;
+
+        await thePersistence.Inbox.StoreIncomingAsync(envelope);
+
+        var ex = new DivideByZeroException("Kaboom!");
+
+        await thePersistence.Inbox.MoveToDeadLetterStorageAsync(envelope, ex);
+
+        var stored = await thePersistence.DeadLetters.DeadLetterEnvelopeByIdAsync(envelope.Id);
+
+        stored.ShouldNotBeNull();
+        stored.Envelope.Id.ShouldBe(envelope.Id);
+        stored.Envelope.Source.ShouldBeNull();
+        stored.ExceptionMessage.ShouldBe("Kaboom!");
+        stored.ExceptionType.ShouldBe(typeof(DivideByZeroException).FullName);
+    }
+
 }
