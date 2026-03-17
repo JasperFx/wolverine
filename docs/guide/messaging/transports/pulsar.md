@@ -126,6 +126,32 @@ builder.UseWolverine(opts =>
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Pulsar/Wolverine.Pulsar.Tests/DocumentationSamples.cs#L86-L101' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pulsar_unsubscribe_on_close' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Global Partitioning
+
+Pulsar topics can be used as the external transport for [global partitioned messaging](/guide/messaging/partitioning#global-partitioning). This creates a set of sharded Pulsar topics with companion local queues for sequential processing across a multi-node cluster.
+
+Use `UseShardedPulsarTopics()` within a `GlobalPartitioned()` configuration:
+
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.UsePulsar();
+
+        opts.MessagePartitioning.ByMessage<IMyMessage>(x => x.GroupId);
+
+        opts.MessagePartitioning.GlobalPartitioned(topology =>
+        {
+            // Creates 4 sharded Pulsar topics named "orders1" through "orders4"
+            // with matching companion local queues for sequential processing
+            topology.UseShardedPulsarTopics("orders", 4);
+            topology.MessagesImplementing<IMyMessage>();
+        });
+    }).StartAsync();
+```
+
+This creates Pulsar topics named `orders1` through `orders4` with companion local queues `global-orders1` through `global-orders4`. Messages are routed to the correct shard based on their group id, and Wolverine handles the coordination between nodes automatically.
+
 ## Interoperability
 
 ::: tip

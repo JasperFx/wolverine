@@ -466,22 +466,84 @@ The rule will not override an explicitly set `PartitionKey` on an outgoing envel
 `DeliveryOptions`, that value takes precedence.
 :::
 
-## Partitioning Messages Received from External Systems
+## Global Partitioning
 
-::: warning
-Brute force, no points for style, explicit coding ahead!
+Global partitioning extends the [sharded publishing](#sharded-publishing) concept to support multi-node deployments where messages must be processed sequentially by group id across the entire cluster, not just within a single node.
+
+### How It Works
+
+When you configure global partitioning, Wolverine:
+
+1. **Links local queues to external transport queues** -- Each external transport endpoint (e.g., a RabbitMQ queue or Kafka topic) gets a companion local queue. The external queue acts as the coordination point across nodes, while the local queue handles the actual sequential processing within a node.
+
+2. **Smart routing based on listener ownership** -- When a message is published, Wolverine checks whether the current node owns the exclusive listener for the target shard. If it does, the message is routed directly to the companion local queue (avoiding unnecessary network hops). If the shard is owned by another node, the message is sent through the external transport so it reaches the correct node.
+
+3. **Support for modular monoliths** -- You can configure multiple global partitioning topologies for the same message type in different modules. Each module can have its own set of sharded queues and routing rules, allowing independent sequential processing pipelines within a single application.
+
+::: tip
+In single-node mode, global partitioning automatically shortcuts all messages to the companion local queues since the current node owns all listeners.
 :::
 
-If you are receiving messages from an external source that will be vulnerable to concurrent access problems when the messages
-are executed, but you either do not want to make the external system publish the group ids or have no ability to make the 
-upstream system care about your own internal group id details, you can simply relay the received messages back out
-to a partitioned message topology owned by your system.
+### Configuration
 
-Using Amazon SQS as our transport, lets say that we're receiving messages from the external system at one queue like this:
+Global partitioning is configured through `MessagePartitioningRules.GlobalPartitioned()`. You need to:
 
-Hey folks, more coming soon. Hopefully before Wolverine 5.0.
+1. Set up a message partitioning strategy (e.g., `ByMessage<T>()` or `UseInferredMessageGrouping()`)
+2. Configure the external transport topology (sharded queues/topics)
+3. Specify which message types participate in global partitioning
 
-Watch this issue: https://github.com/JasperFx/wolverine/issues/1728
+The external and local topologies are automatically created with matching shard counts. The local queues are named with a `global-` prefix followed by the base name (e.g., `global-orders1`, `global-orders2`, etc.).
 
+### Transport-Specific Configuration
+
+Each supported transport has its own extension method for configuring the external topology:
+
+| Transport | Extension Method | Documentation |
+|-----------|-----------------|---------------|
+| RabbitMQ | `UseShardedRabbitQueues()` | [RabbitMQ Global Partitioning](/guide/messaging/transports/rabbitmq/#global-partitioning) |
+| Kafka | `UseShardedKafkaTopics()` | [Kafka Global Partitioning](/guide/messaging/transports/kafka#global-partitioning) |
+| Amazon SQS | `UseShardedAmazonSqsQueues()` | [SQS Global Partitioning](/guide/messaging/transports/sqs/#global-partitioning) |
+| Pulsar | `UseShardedPulsarTopics()` | [Pulsar Global Partitioning](/guide/messaging/transports/pulsar#global-partitioning) |
+
+### Example with RabbitMQ
+
+<!-- snippet: sample_global_partitioned_with_rabbit_mq -->
+<a id='snippet-sample_global_partitioned_with_rabbit_mq'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.UseRabbitMq();
+
+        // Do something to add Saga storage too!
+
+        opts
+            .MessagePartitioning
+
+            // This tells Wolverine to "just" use implied
+            // message grouping based on Saga identity among other things
+            .UseInferredMessageGrouping()
+
+
+            .GlobalPartitioned(topology =>
+            {
+                // Creates 5 sharded RabbitMQ queues named "sequenced1" through "sequenced5"
+                // with matching companion local queues for sequential processing
+                topology.UseShardedRabbitQueues("sequenced", 5);
+                topology.MessagesImplementing<MySequencedCommand>();
+
+            });
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L721-L746' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_global_partitioned_with_rabbit_mq' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+### Validation
+
+Wolverine validates global partitioning configuration at startup. It will throw an `InvalidOperationException` if:
+
+- No message type matching policies are configured
+- No external transport topology is configured
+- The external and local topologies have different shard counts
 
 

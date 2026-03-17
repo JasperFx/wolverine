@@ -474,13 +474,39 @@ using var host = await Host.CreateDefaultBuilder()
     {
         opts
             .UseKafka("localhost:9092")
-            
+
             // Tell Wolverine that this application will never
             // produce messages to turn off any diagnostics that might
             // try to "ping" a topic and result in errors
             .ConsumeOnly();
-        
+
     }).StartAsync();
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/DocumentationSamples.cs#L131-L146' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disable_all_kafka_sending' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+
+## Global Partitioning
+
+Kafka topics can be used as the external transport for [global partitioned messaging](/guide/messaging/partitioning#global-partitioning). This creates a set of sharded Kafka topics with companion local queues for sequential processing across a multi-node cluster.
+
+Use `UseShardedKafkaTopics()` within a `GlobalPartitioned()` configuration:
+
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.UseKafka("localhost:9092").AutoProvision();
+
+        opts.MessagePartitioning.ByMessage<IMyMessage>(x => x.GroupId);
+
+        opts.MessagePartitioning.GlobalPartitioned(topology =>
+        {
+            // Creates 4 sharded Kafka topics named "orders1" through "orders4"
+            // with matching companion local queues for sequential processing
+            topology.UseShardedKafkaTopics("orders", 4);
+            topology.MessagesImplementing<IMyMessage>();
+        });
+    }).StartAsync();
+```
+
+This creates Kafka topics named `orders1` through `orders4` with companion local queues `global-orders1` through `global-orders4`. Messages are routed to the correct shard based on their group id, and Wolverine handles the coordination between nodes automatically.

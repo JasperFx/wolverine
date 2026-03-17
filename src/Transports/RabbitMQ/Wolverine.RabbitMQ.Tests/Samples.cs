@@ -7,6 +7,7 @@ using Wolverine.ComplianceTests;
 using Wolverine.ComplianceTests.Compliance;
 using Wolverine.RabbitMQ.Internal;
 using Wolverine.RabbitMQ.Tests.ConventionalRouting;
+using Wolverine.Runtime.Partitioning;
 
 namespace Wolverine.RabbitMQ.Tests;
 
@@ -708,5 +709,42 @@ public static class AdditionalBrokers
 
         var host = builder.Build();
         await host.StartAsync();
+    }
+}
+
+public record MySequencedCommand(Guid SagaId, int? Order) : SequencedMessage;
+
+public static class GlobalTopology
+{
+    public static async Task configure()
+    {
+        #region sample_global_partitioned_with_rabbit_mq
+
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.UseRabbitMq();
+
+                // Do something to add Saga storage too!
+
+                opts
+                    .MessagePartitioning
+
+                    // This tells Wolverine to "just" use implied
+                    // message grouping based on Saga identity among other things
+                    .UseInferredMessageGrouping()
+
+
+                    .GlobalPartitioned(topology =>
+                    {
+                        // Creates 5 sharded RabbitMQ queues named "sequenced1" through "sequenced5"
+                        // with matching companion local queues for sequential processing
+                        topology.UseShardedRabbitQueues("sequenced", 5);
+                        topology.MessagesImplementing<MySequencedCommand>();
+
+                    });
+            }).StartAsync();
+
+        #endregion
     }
 }
