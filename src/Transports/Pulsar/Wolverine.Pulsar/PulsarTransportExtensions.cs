@@ -161,6 +161,7 @@ public static class PulsarTransportExtensions
         topology.SetExternalTopology(opts =>
         {
             var t = new PartitionedMessageTopologyWithTopics(opts, PartitionSlots.Five, baseName, numberOfEndpoints);
+            t.ConfigureListening(x => {});
             configure?.Invoke(t);
             return t;
         }, baseName);
