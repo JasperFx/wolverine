@@ -123,7 +123,7 @@ public static class DatabasePersistence
         var envelope = EnvelopeSerializer.Deserialize(await reader.GetFieldValueAsync<byte[]>(2, cancellation));
         var messageType = await reader.GetFieldValueAsync<string>(3, cancellation);
         var receivedAt = await reader.GetFieldValueAsync<string>(4, cancellation);
-        var source = await reader.GetFieldValueAsync<string>(5, cancellation);
+        var source = await reader.IsDBNullAsync(5, cancellation) ? string.Empty : await reader.GetFieldValueAsync<string>(5, cancellation);
         var exceptionType = await reader.GetFieldValueAsync<string>(6, cancellation);
         var exceptionMessage = await reader.GetFieldValueAsync<string>(7, cancellation);
         var sentAt = await reader.GetFieldValueAsync<DateTimeOffset>(8, cancellation);
@@ -164,7 +164,7 @@ public static class DatabasePersistence
             builder.AddParameter(data),
             builder.AddParameter(envelope.MessageType ?? "unknown"),
             builder.AddParameter(envelope.Destination?.ToString()),
-            builder.AddParameter(envelope.Source),
+            builder.AddParameter(envelope.Source ?? "unknown"),
             builder.AddParameter(exception?.GetType().FullNameInCode()),
             builder.AddParameter(exception?.Message),
             builder.AddParameter(envelope.SentAt.ToUniversalTime()),
