@@ -93,6 +93,9 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
         _deadLetterQueueCounter = Meter.CreateCounter<int>(MetricsConstants.DeadLetterQueue, MetricsConstants.Messages,
             "Number of messages moved to dead letter queues");
 
+        _receivedCounter = Meter.CreateCounter<int>(MetricsConstants.MessagesReceived, MetricsConstants.Messages,
+            "Number of messages received from external transports");
+
         _effectiveTime = Meter.CreateHistogram<double>(MetricsConstants.EffectiveMessageTime,
             MetricsConstants.Milliseconds,
             "Effective time between a message being sent and being completely handled in milliseconds");

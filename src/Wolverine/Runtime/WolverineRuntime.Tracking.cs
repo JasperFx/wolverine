@@ -29,6 +29,7 @@ public sealed partial class WolverineRuntime : IMessageTracker
     private readonly Histogram<double> _effectiveTime;
     private readonly Histogram<long> _executionCounter;
     private readonly Counter<int> _failureCounter;
+    private readonly Counter<int> _receivedCounter;
     private readonly Counter<int> _sentCounter;
     private readonly Counter<int> _successCounter;
 
@@ -60,7 +61,16 @@ public sealed partial class WolverineRuntime : IMessageTracker
 
     public void Sent(Envelope envelope)
     {
-        _sentCounter.Add(1, envelope.ToMetricsHeaders());
+        var tags = envelope.ToMetricsHeaders();
+        tags.Add(MetricsConstants.SourceKey, _serviceName);
+        _sentCounter.Add(1, tags);
+
+        if (Options.Metrics.Mode != WolverineMetricsMode.SystemDiagnosticsMeter && envelope.MessageType.IsNotEmpty())
+        {
+            var accumulator = _accumulator.Value.FindAccumulator(envelope.MessageType, envelope.Destination);
+            accumulator.EntryPoint.Post(new RecordSent(envelope.TenantId, _serviceName));
+        }
+
         ActiveSession?.MaybeRecord(MessageEventType.Sent, envelope, _serviceName, _uniqueNodeId);
         _sent(Logger, envelope.CorrelationId!, envelope.GetMessageTypeName(), envelope.Id,
             envelope.Destination?.ToString() ?? string.Empty,
@@ -69,6 +79,23 @@ public sealed partial class WolverineRuntime : IMessageTracker
 
     public void Received(Envelope envelope)
     {
+        var isExternal = envelope.Destination != null
+                         && !envelope.Destination.Scheme.EqualsIgnoreCase("local")
+                         && !envelope.Destination.Scheme.EqualsIgnoreCase("stub");
+
+        if (isExternal)
+        {
+            var tags = envelope.ToMetricsHeaders();
+            tags.Add(MetricsConstants.SourceKey, _serviceName);
+            _receivedCounter.Add(1, tags);
+        }
+
+        if (isExternal && Options.Metrics.Mode != WolverineMetricsMode.SystemDiagnosticsMeter && envelope.MessageType.IsNotEmpty())
+        {
+            var accumulator = _accumulator.Value.FindAccumulator(envelope.MessageType, envelope.Destination);
+            accumulator.EntryPoint.Post(new RecordReceived(envelope.TenantId, _serviceName));
+        }
+
         ActiveSession?.Record(MessageEventType.Received, envelope, _serviceName, _uniqueNodeId);
         _received(Logger, envelope.CorrelationId!, envelope.GetMessageTypeName(), envelope.Id,
             envelope.Destination?.ToString() ?? string.Empty,
