@@ -1,7 +1,11 @@
 ﻿using Alba;
+using JasperFx.CommandLine;
+using JasperFx.Core.Reflection;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.Extensions.Hosting;
 using Shouldly;
 using System.Reflection;
+using Microsoft.Extensions.DependencyInjection;
 using Wolverine.Runtime;
 using Wolverine.Tracking;
 
@@ -9,63 +13,97 @@ namespace Wolverine.Http.Tests.Bugs;
 
 public class Bug_using_host_stop
 {
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task stops_wolverine_runtime(bool useWebApplicationBuilder)
+    public enum HostType
     {
-        await using var host = await CreateHostAsync(useWebApplicationBuilder);
-        var wolverineRuntime = host.GetRuntime();
-        var checkPoints = new bool[3];
+        WebApplicationBuilder,
+        AlbaHostWithWebApplicationBuilder,
+        AlbaHostWithFactory
+    }
 
-        checkPoints[0] = IsRunning(wolverineRuntime);
-        await host.StopAsync();
-        checkPoints[1] = IsRunning(wolverineRuntime);
-        await host.DisposeAsync();
-        checkPoints[2] = IsRunning(wolverineRuntime);
-
-        // Note WolverineRuntime is stopped when host.StopAsync() is called,
-        // which is expected as WolverineRuntime is IHostedService.
-        checkPoints.ShouldBe([true, false, false]);
+    private class HostTypeData : TheoryData<HostType>
+    {
+        public HostTypeData() => AddRange(Enum.GetValues<HostType>());
     }
 
     [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task wolverine_runtime_can_be_stopped_explicitly(bool useWebApplicationBuilder)
+    [ClassData(typeof(HostTypeData))]
+    public async Task wolverine_runtime_stops_when_host_is_stopped(HostType type)
     {
-        await using var host = await CreateHostAsync(useWebApplicationBuilder);
+        using var host = await CreateHostAsync(type);
         var wolverineRuntime = host.GetRuntime();
-        var checkPoints = new bool[3];
+        var checkPoints = new bool[2];
 
         checkPoints[0] = IsRunning(wolverineRuntime);
-        await wolverineRuntime.StopAsync(default); // can be stopped explicitly
         await host.StopAsync();
         checkPoints[1] = IsRunning(wolverineRuntime);
-        await host.DisposeAsync();
-        checkPoints[2] = IsRunning(wolverineRuntime);
 
-        checkPoints.ShouldBe([true, false, false]);
+        checkPoints.ShouldBe([true, false]);
+    }
+
+    [Theory]
+    [ClassData(typeof(HostTypeData))]
+    public async Task wolverine_runtime_stops_when_host_is_disposed(HostType type)
+    {
+        using var host = await CreateHostAsync(type);
+        var wolverineRuntime = host.GetRuntime();
+        var checkPoints = new bool[2];
+
+        checkPoints[0] = IsRunning(wolverineRuntime);
+        await host.As<IAsyncDisposable>().DisposeAsync();
+        checkPoints[1] = IsRunning(wolverineRuntime);
+
+        checkPoints.ShouldBe([true, false]);
     }
 
     static bool IsRunning(WolverineRuntime runtime)
     {
-        var field = typeof(WolverineRuntime).GetField("_hasStopped", BindingFlags.NonPublic | BindingFlags.Instance);
+        var field = typeof(WolverineRuntime).GetField("_hasStopped",
+            BindingFlags.NonPublic | BindingFlags.Instance);
         return (bool?)field?.GetValue(runtime) == false;
     }
 
-    static Task<IAlbaHost> CreateHostAsync(bool useWebApplicationBuilder)
-    {
-        if (useWebApplicationBuilder)
+    private static async Task<IHost> CreateHostAsync(HostType hostType) =>
+        hostType switch
         {
-            var builder = WebApplication.CreateBuilder([]);
-            builder.Services.DisableAllWolverineMessagePersistence();
-            builder.Services.DisableAllExternalWolverineTransports();
-            builder.Services.AddWolverine(_ => { });
+            HostType.WebApplicationBuilder =>
+                await CreateHostWithWebApplicationBuilder(),
 
-            return AlbaHost.For(builder, _ => { });
-        }
+            HostType.AlbaHostWithWebApplicationBuilder =>
+                await AlbaHost.For(CreateWebApplicationBuilder(), _ => { }),
 
-        return AlbaHost.For<WolverineWebApi.Program>(_ => { });
+            _ =>
+                await CreateAlbaHostWithWithFactory()
+        };
+
+    private static async Task<IHost> CreateAlbaHostWithWithFactory()
+    {
+        JasperFxEnvironment.AutoStartHost = true; // to start the underlying host
+
+        return await AlbaHost.For<WolverineWebApi.Program>(x =>
+            x.ConfigureServices(ConfigureWolverine));
+    }
+
+    private static async Task<IHost> CreateHostWithWebApplicationBuilder()
+    {
+        var builder = CreateWebApplicationBuilder();
+        var host = builder.Build();
+        await host.StartAsync();
+        return host;
+    }
+
+    private static WebApplicationBuilder CreateWebApplicationBuilder()
+    {
+        var builder = WebApplication.CreateBuilder([]);
+        ConfigureWolverine(builder.Services);
+        builder.Services.AddWolverine(_ => { });
+        return builder;
+    }
+
+    private static void ConfigureWolverine(IServiceCollection services)
+    {
+        services
+            .RunWolverineInSoloMode()
+            .DisableAllWolverineMessagePersistence()
+            .DisableAllExternalWolverineTransports();
     }
 }
