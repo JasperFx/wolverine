@@ -65,7 +65,9 @@ public sealed partial class WolverineRuntime : IMessageTracker
         tags.Add(MetricsConstants.SourceKey, _serviceName);
         _sentCounter.Add(1, tags);
 
-        if (Options.Metrics.Mode != WolverineMetricsMode.SystemDiagnosticsMeter && envelope.MessageType.IsNotEmpty())
+        if (Options.Metrics.Mode != WolverineMetricsMode.SystemDiagnosticsMeter
+            && envelope.MessageType.IsNotEmpty()
+            && !IsSystemEndpoint(envelope.Destination))
         {
             var accumulator = _accumulator.Value.FindAccumulator(envelope.MessageType, envelope.Destination);
             accumulator.EntryPoint.Post(new RecordSent(envelope.TenantId, _serviceName));
@@ -90,7 +92,9 @@ public sealed partial class WolverineRuntime : IMessageTracker
             _receivedCounter.Add(1, tags);
         }
 
-        if (isExternal && Options.Metrics.Mode != WolverineMetricsMode.SystemDiagnosticsMeter && envelope.MessageType.IsNotEmpty())
+        if (isExternal && Options.Metrics.Mode != WolverineMetricsMode.SystemDiagnosticsMeter
+            && envelope.MessageType.IsNotEmpty()
+            && !IsSystemEndpoint(envelope.Destination))
         {
             var accumulator = _accumulator.Value.FindAccumulator(envelope.MessageType, envelope.Destination);
             accumulator.EntryPoint.Post(new RecordReceived(envelope.TenantId, _serviceName));
@@ -168,7 +172,9 @@ public sealed partial class WolverineRuntime : IMessageTracker
         ActiveSession?.Record(MessageEventType.MovedToErrorQueue, envelope, _serviceName, _uniqueNodeId);
         _movedToErrorQueue(Logger, envelope, ex);
 
-        if (Options.Metrics.Mode != WolverineMetricsMode.SystemDiagnosticsMeter && envelope.MessageType.IsNotEmpty())
+        if (Options.Metrics.Mode != WolverineMetricsMode.SystemDiagnosticsMeter
+            && envelope.MessageType.IsNotEmpty()
+            && !IsSystemEndpoint(envelope.Destination))
         {
             var accumulator = _accumulator.Value.FindAccumulator(envelope.MessageType, envelope.Destination);
             accumulator.EntryPoint.Post(new RecordDeadLetter(ex.GetType().FullNameInCode(), envelope.TenantId));
@@ -198,5 +204,17 @@ public sealed partial class WolverineRuntime : IMessageTracker
     public void LogStatus(string message)
     {
         ActiveSession?.LogStatus(message);
+    }
+
+    /// <summary>
+    /// Returns true if the destination URI belongs to a Wolverine system endpoint
+    /// (e.g. wolverine.response reply queues or local:// queues) that should not
+    /// have metrics tracked in the CritterWatch accumulation pipeline.
+    /// </summary>
+    internal static bool IsSystemEndpoint(Uri? destination)
+    {
+        if (destination == null) return false;
+        return destination.ToString().Contains("wolverine.response", StringComparison.OrdinalIgnoreCase)
+               || destination.Scheme.EqualsIgnoreCase("local");
     }
 }
