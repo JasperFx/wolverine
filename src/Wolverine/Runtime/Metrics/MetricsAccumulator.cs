@@ -115,11 +115,7 @@ public class MetricsAccumulator : IAsyncDisposable
                         foreach (var accumulator in _accumulators)
                         {
                             var metrics = accumulator.TriggerExport(_runtime.DurabilitySettings.AssignedNodeNumber);
-
-                            if (metrics.PerTenant.Length > 0)
-                            {
-                                _runtime.Observer.MessageHandlingMetricsExported(metrics);
-                            }
+                            _runtime.Observer.MessageHandlingMetricsExported(metrics);
                         }
                     }
                     catch (Exception e)
