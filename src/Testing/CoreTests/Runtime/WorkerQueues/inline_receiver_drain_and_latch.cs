@@ -51,7 +51,7 @@ public class inline_receiver_drain_waits_for_in_flight
     }
 
     [Fact]
-    public async Task drain_waits_for_in_flight_message_to_complete()
+    public async Task drain_waits_for_in_flight_message_to_complete_when_latched()
     {
         var messageBlocking = new TaskCompletionSource();
 
@@ -69,7 +69,8 @@ public class inline_receiver_drain_waits_for_in_flight
 
         Assert.Equal(1, theReceiver.QueueCount);
 
-        // Start drain — should NOT complete yet because a message is in-flight
+        // Simulate shutdown: Latch() is called first, then DrainAsync()
+        theReceiver.Latch();
         var drainTask = theReceiver.DrainAsync().AsTask();
         await Task.Delay(50);
 
@@ -83,6 +84,35 @@ public class inline_receiver_drain_waits_for_in_flight
         await drainTask.WaitAsync(TimeSpan.FromSeconds(5));
 
         Assert.Equal(0, theReceiver.QueueCount);
+    }
+
+    [Fact]
+    public async Task drain_returns_immediately_without_prior_latch_to_avoid_deadlock()
+    {
+        var messageBlocking = new TaskCompletionSource();
+
+        // Make pipeline.InvokeAsync block until we release it
+        thePipeline.InvokeAsync(Arg.Any<Envelope>(), Arg.Any<IChannelCallback>(), Arg.Any<System.Diagnostics.Activity>())
+            .Returns(async _ => await messageBlocking.Task);
+
+        var envelope = ObjectMother.Envelope();
+
+        // Start receiving on a background task — it will block in InvokeAsync
+        var receiveTask = Task.Run(() => theReceiver.ReceivedAsync(theListener, envelope).AsTask());
+
+        // Give the receive task time to enter the pipeline
+        await Task.Delay(50);
+
+        Assert.Equal(1, theReceiver.QueueCount);
+
+        // Drain WITHOUT prior Latch() — simulates pause from within handler pipeline
+        // (e.g., PauseListenerContinuation). Must return immediately to avoid deadlock.
+        var drainTask = theReceiver.DrainAsync();
+        Assert.True(drainTask.IsCompleted, "DrainAsync should return immediately without prior Latch() to avoid deadlock");
+
+        // Clean up
+        messageBlocking.SetResult();
+        await receiveTask;
     }
 }
 
@@ -172,7 +202,8 @@ public class inline_receiver_drain_respects_timeout
         _ = Task.Run(() => theReceiver.ReceivedAsync(theListener, envelope).AsTask());
         await Task.Delay(50);
 
-        // DrainAsync should time out (throw TimeoutException) per DrainTimeout
+        // Simulate shutdown: Latch() first, then DrainAsync should time out
+        theReceiver.Latch();
         await Assert.ThrowsAsync<TimeoutException>(() => theReceiver.DrainAsync().AsTask());
     }
 }
@@ -213,7 +244,8 @@ public class inline_receiver_batch_drain_waits_for_all_messages
 
         Assert.Equal(3, theReceiver.QueueCount);
 
-        // Drain while the first message is still in-flight. This latches the receiver.
+        // Simulate shutdown: Latch() first, then DrainAsync while the first message is still in-flight.
+        theReceiver.Latch();
         var drainTask = theReceiver.DrainAsync().AsTask();
         await Task.Delay(50);
 

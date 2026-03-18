@@ -42,7 +42,20 @@ internal class InlineReceiver : IReceiver
 
     public ValueTask DrainAsync()
     {
+        // If _latched was already true, this drain was triggered during shutdown
+        // (after OnApplicationStopping called Latch()). Safe to wait for in-flight items.
+        // If _latched was false, this drain may have been triggered from within the handler
+        // pipeline (e.g., rate limiting pause via PauseListenerContinuation). Waiting for
+        // in-flight items to complete would deadlock because the current message's
+        // execute function is still on the call stack.
+        var waitForCompletion = _latched;
         _latched = true;
+
+        if (!waitForCompletion)
+        {
+            return ValueTask.CompletedTask;
+        }
+
         if (Volatile.Read(ref _inFlightCount) == 0)
         {
             _drainComplete.TrySetResult();
