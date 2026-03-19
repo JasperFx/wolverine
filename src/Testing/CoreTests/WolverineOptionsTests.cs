@@ -278,6 +278,28 @@ public class WolverineOptionsTests
         options.Metrics.SamplingPeriod.ShouldBe(5.Seconds());
     }
 
+    [Fact]
+    public void default_no_route_logging_is_log_information()
+    {
+        new WolverineOptions().NoRouteLogging.ShouldBe(NoRouteBehavior.LogInformation);
+    }
+
+    [Fact]
+    public void can_configure_no_route_logging_to_debug()
+    {
+        var options = new WolverineOptions();
+        options.NoRouteLogging = NoRouteBehavior.LogDebug;
+        options.NoRouteLogging.ShouldBe(NoRouteBehavior.LogDebug);
+    }
+
+    [Fact]
+    public void can_configure_no_route_logging_to_silent()
+    {
+        var options = new WolverineOptions();
+        options.NoRouteLogging = NoRouteBehavior.Silent;
+        options.NoRouteLogging.ShouldBe(NoRouteBehavior.Silent);
+    }
+
     public interface IFoo;
 
     public class Foo : IFoo;

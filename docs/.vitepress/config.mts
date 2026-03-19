@@ -238,7 +238,8 @@ const config: UserConfig<DefaultTheme.Config> = {
                         {text: 'Fluent Validation', link: '/guide/http/fluentvalidation'},
                         {text: 'Problem Details', link: '/guide/http/problemdetails'},
                         {text: 'Caching', link: '/guide/http/caching'},
-                        {text: 'HTTP Messaging Transport', link: '/guide/http/transport'}
+                        {text: 'HTTP Messaging Transport', link: '/guide/http/transport'},
+                        {text: 'gRPC Endpoints', link: '/guide/http/grpc'}
                     ]
                 },
                 {

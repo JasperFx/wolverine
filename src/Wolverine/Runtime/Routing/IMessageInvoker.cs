@@ -9,4 +9,8 @@ public interface IMessageInvoker
     Task InvokeAsync(object message, MessageBus bus,
         CancellationToken cancellation = default,
         TimeSpan? timeout = null, DeliveryOptions? options = null);
+
+    IAsyncEnumerable<TResponse> StreamAsync<TResponse>(object message, MessageBus bus,
+        CancellationToken cancellation = default,
+        TimeSpan? timeout = null, DeliveryOptions? options = null);
 }

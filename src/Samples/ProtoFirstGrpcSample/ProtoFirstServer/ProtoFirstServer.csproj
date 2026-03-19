@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+    <PropertyGroup>
+        <RootNamespace>ProtoFirstServer</RootNamespace>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <!--
+            Reference the shared contracts library that contains the proto-generated types
+            (HelloRequest, HelloReply, Greeter.GreeterBase).
+            In a real application this would be a PackageReference to a private NuGet package.
+        -->
+        <ProjectReference Include="..\ProtoContracts\ProtoContracts.csproj"/>
+
+        <!--
+            WolverineFx.Http.Grpc provides AddWolverineGrpc() + MapWolverineGrpcEndpoints()
+            and the [WolverineGrpcService] discovery attribute.
+        -->
+        <ProjectReference Include="..\..\..\..\src\Http\Wolverine.Http.Grpc\Wolverine.Http.Grpc.csproj"/>
+    </ItemGroup>
+
+</Project>

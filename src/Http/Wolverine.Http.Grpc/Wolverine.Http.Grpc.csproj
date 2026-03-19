@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <Description>gRPC middleware for Wolverine HTTP Endpoints</Description>
+        <PackageId>WolverineFx.Http.Grpc</PackageId>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <FrameworkReference Include="Microsoft.AspNetCore.App"/>
+        <ProjectReference Include="..\Wolverine.Http\Wolverine.Http.csproj"/>
+        <PackageReference Include="Grpc.AspNetCore"/>
+        <PackageReference Include="protobuf-net.Grpc.AspNetCore"/>
+        <PackageReference Include="protobuf-net.Grpc.ClientFactory"/>
+    </ItemGroup>
+
+</Project>

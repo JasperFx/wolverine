@@ -127,6 +127,8 @@ internal class SendingEnvelopeLifecycle : IEnvelopeLifecycle
 
     public ValueTask SendAsync<T>(T message, DeliveryOptions? options = null) => _bus.SendAsync(message, options);
     public ValueTask PublishAsync<T>(T message, DeliveryOptions? options = null) => _bus.PublishAsync(message, options);
+    public IAsyncEnumerable<TResponse> StreamAsync<TResponse>(object message, CancellationToken cancellationToken = default)
+        => _bus.StreamAsync<TResponse>(message, cancellationToken);
     public ValueTask BroadcastToTopicAsync(string topicName, object message, DeliveryOptions? options = null)
         => _bus.BroadcastToTopicAsync(topicName, message, options);
 }

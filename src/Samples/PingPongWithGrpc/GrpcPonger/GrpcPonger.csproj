@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+    <PropertyGroup>
+        <TargetFrameworks>net8.0;net9.0</TargetFrameworks>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\..\..\src\Http\Wolverine.Http.Grpc\Wolverine.Http.Grpc.csproj"/>
+        <ProjectReference Include="..\GrpcPingPongContracts\GrpcPingPongContracts.csproj" />
+    </ItemGroup>
+
+</Project>
