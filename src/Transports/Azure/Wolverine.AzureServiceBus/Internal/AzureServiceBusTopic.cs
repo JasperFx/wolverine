@@ -14,7 +14,7 @@ public class AzureServiceBusTopic : AzureServiceBusEndpoint
     private bool _hasInitialized;
 
     public AzureServiceBusTopic(AzureServiceBusTransport parent, string topicName) : base(parent,
-        new Uri($"{parent.Protocol}://topic/{topicName}"), EndpointRole.Application)
+        new Uri($"{parent.Protocol}://topic/{Uri.EscapeDataString(topicName)}"), EndpointRole.Application)
     {
         if (parent == null)
         {

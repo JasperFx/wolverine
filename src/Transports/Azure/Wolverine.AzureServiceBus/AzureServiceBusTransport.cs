@@ -254,10 +254,10 @@ public partial class AzureServiceBusTransport : BrokerTransport<AzureServiceBusE
         switch (uri.Host)
         {
             case "queue":
-                return Queues[uri.Segments[1]];
+                return Queues[Uri.UnescapeDataString(uri.Segments[1])];
 
             case "topic":
-                var topicName = uri.Segments[1].TrimEnd('/');
+                var topicName = Uri.UnescapeDataString(uri.Segments[1].TrimEnd('/'));
                 if (uri.Segments.Length == 3)
                 {
                     var subscription = Subscriptions.FirstOrDefault(x => x.Uri == uri);
@@ -266,7 +266,7 @@ public partial class AzureServiceBusTransport : BrokerTransport<AzureServiceBusE
                         return subscription;
                     }
 
-                    var subscriptionName = uri.Segments.Last().TrimEnd('/');
+                    var subscriptionName = Uri.UnescapeDataString(uri.Segments.Last().TrimEnd('/'));
                     var topic = Topics[topicName];
                     subscription = new AzureServiceBusSubscription(this, topic, subscriptionName);
                     Subscriptions.Add(subscription);

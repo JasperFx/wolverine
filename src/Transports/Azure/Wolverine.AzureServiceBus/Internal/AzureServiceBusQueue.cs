@@ -22,7 +22,7 @@ public class AzureServiceBusQueue : AzureServiceBusEndpoint, IBrokerQueue, IMass
 
     public AzureServiceBusQueue(AzureServiceBusTransport parent, string queueName,
         EndpointRole role = EndpointRole.Application) : base(parent,
-        new Uri($"{parent.Protocol}://queue/{queueName}"), role)
+        new Uri($"{parent.Protocol}://queue/{Uri.EscapeDataString(queueName)}"), role)
     {
         if (parent == null)
         {
