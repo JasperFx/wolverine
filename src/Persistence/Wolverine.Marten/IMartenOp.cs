@@ -10,6 +10,7 @@ using Marten.Events;
 using Marten.Internal.Sessions;
 using Wolverine.Configuration;
 using Wolverine.Marten.Persistence.Sagas;
+using Wolverine.Marten.Requirements;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
 
@@ -292,6 +293,21 @@ public static class MartenOps
     /// </summary>
     /// <returns></returns>
     public static NoOp Nothing() => new NoOp();
+    
+    public static CheckDocument<T> Document<T>() where T : class => new();
+}
+
+public class CheckDocument<TDoc> where TDoc : class
+{
+    public IMartenDataRequirement MustExist<TId>(TId id)
+    {
+        return new DocumentExists<TDoc, TId>(id);
+    }
+    
+    public IMartenDataRequirement MustNotExist<TId>(TId id)
+    {
+        return new DocumentDoesNotExist<TDoc, TId>(id);
+    }
 }
 
 /// <summary>
