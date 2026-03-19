@@ -53,6 +53,13 @@ public class TransactionalAttribute : ModifyChainAttribute
     }
     private TransactionMiddlewareMode _mode;
 
+    /// <summary>
+    /// Returns true if <see cref="Mode"/> was explicitly set on this attribute instance.
+    /// Used by persistence providers to resolve the effective mode even before
+    /// <see cref="Modify"/> has been called (e.g. when side effects are processed at startup).
+    /// </summary>
+    public bool IsModeExplicitlySet => _modeExplicitlySet;
+
     public TransactionalAttribute()
     {
     }

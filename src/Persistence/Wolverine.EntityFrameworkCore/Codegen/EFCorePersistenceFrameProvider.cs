@@ -1,3 +1,4 @@
+using System.Reflection;
 using ImTools;
 using JasperFx;
 using JasperFx.CodeGeneration;
@@ -8,6 +9,7 @@ using JasperFx.Core.Reflection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Wolverine.Attributes;
 using Wolverine.Configuration;
 using Wolverine.EntityFrameworkCore.Internals;
 using Wolverine.Persistence;
@@ -125,10 +127,7 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
 
         var dbContextType = DetermineDbContextType(chain, container);
 
-        // Resolve effective mode: per-chain override from [Transactional] attribute, or default
-        var mode = chain.Tags.TryGetValue(TransactionModeKey, out var modeObj)
-            ? (TransactionMiddlewareMode)modeObj
-            : DefaultMode;
+        var mode = ResolveEffectiveMode(chain);
 
         var runtime = container.Services.GetRequiredService<IWolverineRuntime>();
         if (runtime.Stores.HasAncillaryStoreFor(dbContextType))
@@ -170,6 +169,44 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         }
     }
 
+    /// <summary>
+    /// Resolves the effective transaction mode for a chain by checking (in order):
+    /// 1. The chain tag (set when TransactionalAttribute.Modify has already run)
+    /// 2. The [Transactional] attribute directly on handler methods/types (for when
+    ///    side effects are processed by SideEffectPolicy before the attribute's Modify runs)
+    /// 3. The configured DefaultMode
+    /// </summary>
+    internal TransactionMiddlewareMode ResolveEffectiveMode(IChain chain)
+    {
+        // Check the tag first (set by TransactionalAttribute.Modify when it has already run)
+        if (chain.Tags.TryGetValue(TransactionModeKey, out var modeObj))
+        {
+            return (TransactionMiddlewareMode)modeObj;
+        }
+
+        // Check handler method and type attributes directly for when SideEffectPolicy
+        // processes Storage return types before TransactionalAttribute.Modify has run
+        foreach (var call in chain.HandlerCalls())
+        {
+            var methodAttr = call.Method.GetCustomAttribute<TransactionalAttribute>();
+            if (methodAttr is { IsModeExplicitlySet: true })
+            {
+                // Cache it in the tag for subsequent calls
+                chain.Tags[TransactionModeKey] = methodAttr.Mode;
+                return methodAttr.Mode;
+            }
+
+            var typeAttr = call.HandlerType.GetCustomAttribute<TransactionalAttribute>();
+            if (typeAttr is { IsModeExplicitlySet: true })
+            {
+                chain.Tags[TransactionModeKey] = typeAttr.Mode;
+                return typeAttr.Mode;
+            }
+        }
+
+        return DefaultMode;
+    }
+
     private bool isMultiTenanted(IServiceContainer container, Type dbContextType)
     {
         return container.HasRegistrationFor(typeof(IDbContextBuilder<>).MakeGenericType(dbContextType));
@@ -182,10 +219,7 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
 
         var dbType = DetermineDbContextType(entityType, container);
 
-        // Resolve effective mode: per-chain override from [Transactional] attribute, or default
-        var mode = chain.Tags.TryGetValue(TransactionModeKey, out var modeObj)
-            ? (TransactionMiddlewareMode)modeObj
-            : DefaultMode;
+        var mode = ResolveEffectiveMode(chain);
 
         if (mode == TransactionMiddlewareMode.Eager)
         {

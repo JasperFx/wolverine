@@ -2,6 +2,7 @@ using IntegrationTests;
 using JasperFx.CodeGeneration.Frames;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Hosting;
+using SharedPersistenceModels.Items;
 using Shouldly;
 using Wolverine;
 using Wolverine.Attributes;
@@ -157,6 +158,69 @@ public class transaction_middleware_mode_tests
     }
 
     [Fact]
+    public async Task lightweight_attribute_with_storage_side_effects_should_not_add_transaction_frame()
+    {
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.Durability.Mode = DurabilityMode.Solo;
+
+                opts.Services.AddDbContextWithWolverineIntegration<CleanDbContext>(x =>
+                    x.UseSqlServer(Servers.SqlServerConnectionString));
+
+                opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString, "txmode");
+                opts.UseEntityFrameworkCoreTransactions(TransactionMiddlewareMode.Eager);
+                opts.Policies.AutoApplyTransactions();
+
+                opts.Discovery.DisableConventionalDiscovery()
+                    .IncludeType<LightweightStorageSideEffectHandler>();
+            }).StartAsync();
+
+        // Force compilation
+        host.GetRuntime().Handlers.HandlerFor<LightweightStorageSideEffectMessage>();
+        var chain = host.GetRuntime().Handlers.ChainFor<LightweightStorageSideEffectMessage>();
+
+        // The [Transactional(Mode = Lightweight)] should override even with Storage side effects
+        chain.Middleware.OfType<EnrollDbContextInTransaction>().ShouldBeEmpty();
+        chain.Middleware.OfType<StartDatabaseTransactionForDbContext>().ShouldBeEmpty();
+
+        chain.Postprocessors.OfType<MethodCall>()
+            .Any(x => x.Method.Name == nameof(DbContext.SaveChangesAsync))
+            .ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task eager_attribute_with_storage_side_effects_should_add_transaction_frame()
+    {
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.Durability.Mode = DurabilityMode.Solo;
+
+                opts.Services.AddDbContextWithWolverineIntegration<CleanDbContext>(x =>
+                    x.UseSqlServer(Servers.SqlServerConnectionString));
+
+                opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString, "txmode");
+                opts.UseEntityFrameworkCoreTransactions(TransactionMiddlewareMode.Lightweight);
+                opts.Policies.AutoApplyTransactions();
+
+                opts.Discovery.DisableConventionalDiscovery()
+                    .IncludeType<EagerStorageSideEffectHandler>();
+            }).StartAsync();
+
+        // Force compilation
+        host.GetRuntime().Handlers.HandlerFor<EagerStorageSideEffectMessage>();
+        var chain = host.GetRuntime().Handlers.ChainFor<EagerStorageSideEffectMessage>();
+
+        // The [Transactional(Mode = Eager)] should override the Lightweight default
+        chain.Middleware.OfType<EnrollDbContextInTransaction>().ShouldNotBeEmpty();
+
+        chain.Postprocessors.OfType<MethodCall>()
+            .Any(x => x.Method.Name == nameof(DbContext.SaveChangesAsync))
+            .ShouldBeTrue();
+    }
+
+    [Fact]
     public async Task default_mode_is_eager()
     {
         using var host = await Host.CreateDefaultBuilder()
@@ -250,6 +314,28 @@ public class LightweightAutoApplyHandler
 {
     public static void Handle(LightweightAutoApplyMessage message, CleanDbContext db)
     {
+    }
+}
+
+public record LightweightStorageSideEffectMessage;
+
+public class LightweightStorageSideEffectHandler
+{
+    [Transactional(Mode = TransactionMiddlewareMode.Lightweight)]
+    public static Insert<Item> Handle(LightweightStorageSideEffectMessage message)
+    {
+        return Storage.Insert(new Item { Id = Guid.NewGuid(), Name = "test" });
+    }
+}
+
+public record EagerStorageSideEffectMessage;
+
+public class EagerStorageSideEffectHandler
+{
+    [Transactional(Mode = TransactionMiddlewareMode.Eager)]
+    public static Insert<Item> Handle(EagerStorageSideEffectMessage message)
+    {
+        return Storage.Insert(new Item { Id = Guid.NewGuid(), Name = "test" });
     }
 }
 
