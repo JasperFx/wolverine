@@ -1,4 +1,5 @@
 using JasperFx.Blocks;
+using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Logging;
 using Wolverine.Logging;
@@ -39,7 +40,12 @@ public partial class WolverineRuntime
 
         public void Sent(Envelope envelope)
         {
-            // I think we'll have a different mechanism for this
+            if (envelope.MessageType.IsNotEmpty() && !IsSystemEndpoint(envelope.Destination))
+            {
+                _runtime._accumulator.Value.FindAccumulator(envelope.GetMessageTypeName(), envelope.Destination)
+                    .EntryPoint.Post(new RecordSent(envelope.TenantId, _serviceName));
+            }
+
             _runtime.ActiveSession?.MaybeRecord(MessageEventType.Sent, envelope, _serviceName, _uniqueNodeId);
             _sent(Logger, envelope.CorrelationId!, envelope.GetMessageTypeName(), envelope.Id,
                 envelope.Destination?.ToString() ?? string.Empty,
@@ -48,6 +54,16 @@ public partial class WolverineRuntime
 
         public void Received(Envelope envelope)
         {
+            var isExternal = envelope.Destination != null
+                             && !envelope.Destination.Scheme.EqualsIgnoreCase("local")
+                             && !envelope.Destination.Scheme.EqualsIgnoreCase("stub");
+
+            if (isExternal && envelope.MessageType.IsNotEmpty() && !IsSystemEndpoint(envelope.Destination))
+            {
+                _runtime._accumulator.Value.FindAccumulator(envelope.GetMessageTypeName(), envelope.Destination)
+                    .EntryPoint.Post(new RecordReceived(envelope.TenantId, _serviceName));
+            }
+
             _runtime.ActiveSession?.Record(MessageEventType.Received, envelope, _serviceName, _uniqueNodeId);
             _received(Logger, envelope.CorrelationId!, envelope.GetMessageTypeName(), envelope.Id,
                 envelope.Destination?.ToString() ?? string.Empty,

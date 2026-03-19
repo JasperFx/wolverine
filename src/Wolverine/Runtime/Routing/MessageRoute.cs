@@ -37,7 +37,8 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
         }
         else
         {
-            Sender = endpoint.Agent ?? throw new ArgumentOutOfRangeException(nameof(endpoint), $"Endpoint {endpoint.Uri} does not have an active sending agent. Message type: {messageType.FullNameInCode()}");
+            // Might need to force it to build out the sending agent if this is the first time it's been used
+            Sender = endpoint.Agent ?? runtime.Endpoints.GetOrBuildSendingAgent(endpoint.Uri) ?? throw new ArgumentOutOfRangeException(nameof(endpoint), $"Endpoint {endpoint.Uri} does not have an active sending agent. Message type: {messageType.FullNameInCode()}");
         }
 
         IsLocal = endpoint is LocalQueue;

@@ -46,3 +46,4 @@ using Wolverine.Attributes;
 [assembly: InternalsVisibleTo("Wolverine.Nats")]
 [assembly: InternalsVisibleTo("Wolverine.Redis")]
 [assembly: InternalsVisibleTo("Wolverine.Pubsub")]
+[assembly: InternalsVisibleTo("MetricsTests")]

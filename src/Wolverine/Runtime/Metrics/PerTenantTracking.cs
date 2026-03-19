@@ -46,6 +46,16 @@ public class PerTenantTracking
     public double TotalEffectiveTime { get; set; }
 
     /// <summary>
+    /// The number of messages sent. Incremented by <see cref="RecordSent"/>.
+    /// </summary>
+    public int Sent { get; set; }
+
+    /// <summary>
+    /// The number of messages received from external transports. Incremented by <see cref="RecordReceived"/>.
+    /// </summary>
+    public int Received { get; set; }
+
+    /// <summary>
     /// Dead-letter counts keyed by fully-qualified exception type name. Incremented
     /// by <see cref="RecordDeadLetter"/>.
     /// </summary>
@@ -79,7 +89,9 @@ public class PerTenantTracking
                 Failures.TryGetValue(exceptionType, out failures);
 
                 return new ExceptionCounts(exceptionType, failures, deadLetters);
-            }).ToArray()
+            }).ToArray(),
+            Sent,
+            Received
         );
 
         Clear();
@@ -96,6 +108,8 @@ public class PerTenantTracking
         TotalExecutionTime = 0;
         Completions = 0;
         TotalEffectiveTime = 0;
+        Sent = 0;
+        Received = 0;
         DeadLetterCounts.Clear();
         Failures.Clear();
     }
