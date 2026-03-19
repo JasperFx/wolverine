@@ -287,6 +287,7 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
     }
 
     private bool _appliedImpliedMiddleware;
+    private int _middlewareOutgoingCounter = 100;
     
     public void ApplyImpliedMiddlewareFromHandlers(GenerationRules generationRules)
     {
@@ -348,10 +349,9 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
         // TODO -- might generalize this a bit. Have a more generic mode of understanding return values
         // like the HTTP support has
         var outgoings = frame.Creates.Where(x => x.VariableType == typeof(OutgoingMessages)).ToArray();
-        int start = 100;
         foreach (var outgoing in outgoings)
         {
-            outgoing.OverrideName(outgoing.Usage + (++start));
+            outgoing.OverrideName(outgoing.Usage + (++_middlewareOutgoingCounter));
             Middleware.Add(new CaptureCascadingMessages(outgoing));
         }
 
