@@ -1,5 +1,4 @@
 using Azure.Messaging.ServiceBus.Administration;
-using IntegrationTests;
 
 namespace Wolverine.AzureServiceBus.Tests;
 
@@ -15,17 +14,16 @@ public static class AzureServiceBusTesting
             DeleteAllEmulatorObjectsAsync().GetAwaiter().GetResult();
         }
 
-        var config = options.UseAzureServiceBus(Servers.AzureServiceBusConnectionString);
+        var config = options.UseAzureServiceBus(ServiceBusContainerFixture.ConnectionString);
 
         var transport = options.Transports.GetOrCreate<AzureServiceBusTransport>();
-        transport.ManagementConnectionString = Servers.AzureServiceBusManagementConnectionString;
 
         return config.AutoProvision();
     }
 
     public static async Task DeleteAllEmulatorObjectsAsync()
     {
-        var client = new ServiceBusAdministrationClient(Servers.AzureServiceBusManagementConnectionString);
+        var client = new ServiceBusAdministrationClient(ServiceBusContainerFixture.ConnectionString);
 
         await foreach (var topic in client.GetTopicsAsync())
         {

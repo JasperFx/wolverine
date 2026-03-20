@@ -1,5 +1,4 @@
 using Azure.Messaging.ServiceBus.Administration;
-using IntegrationTests;
 using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
@@ -37,7 +36,7 @@ public class Bug_1933_multi_tenant_conventional_routing : IAsyncLifetime
 
     private static async Task DeleteTenantEmulatorObjectsAsync()
     {
-        var client = new ServiceBusAdministrationClient(Servers.AzureServiceBusTenantManagementConnectionString);
+        var client = new ServiceBusAdministrationClient(ServiceBusContainerFixture.ConnectionString);
 
         await foreach (var topic in client.GetTopicsAsync())
         {
@@ -62,13 +61,13 @@ public class Bug_1933_multi_tenant_conventional_routing : IAsyncLifetime
 
                 opts.UseAzureServiceBusTesting()
                     .AutoPurgeOnStartup()
-                    .AddTenantByConnectionString("test", Servers.AzureServiceBusTenantConnectionString)
+                    .AddTenantByConnectionString("test", ServiceBusContainerFixture.ConnectionString)
                     .UseConventionalRouting();
 
                 // Set the tenant's management connection string for the emulator
                 var transport = opts.Transports.GetOrCreate<AzureServiceBusTransport>();
                 transport.Tenants["test"].Transport.ManagementConnectionString =
-                    Servers.AzureServiceBusTenantManagementConnectionString;
+                    ServiceBusContainerFixture.ConnectionString;
             }).StartAsync();
 
         var message = new Bug1933Message("Hello from default namespace");

@@ -1,4 +1,3 @@
-using IntegrationTests;
 using JasperFx.Core;
 using JasperFx.Resources;
 using Microsoft.Extensions.Configuration;
@@ -58,7 +57,7 @@ public class end_to_end_with_named_broker : IAsyncLifetime
         var queueName = Guid.NewGuid().ToString();
         using var publisher = WolverineHost.For(opts =>
         {
-            opts.AddNamedAzureServiceBusBroker(theName, Servers.AzureServiceBusConnectionString).SystemQueuesAreEnabled(false).AutoProvision().AutoPurgeOnStartup();
+            opts.AddNamedAzureServiceBusBroker(theName, ServiceBusContainerFixture.ConnectionString).SystemQueuesAreEnabled(false).AutoProvision().AutoPurgeOnStartup();
 
             opts.PublishAllMessages()
                 .ToAzureServiceBusQueueOnNamedBroker(theName, queueName)
@@ -70,7 +69,7 @@ public class end_to_end_with_named_broker : IAsyncLifetime
 
         using var receiver = WolverineHost.For(opts =>
         {
-            opts.AddNamedAzureServiceBusBroker(theName, Servers.AzureServiceBusConnectionString).SystemQueuesAreEnabled(false).AutoProvision();
+            opts.AddNamedAzureServiceBusBroker(theName, ServiceBusContainerFixture.ConnectionString).SystemQueuesAreEnabled(false).AutoProvision();
 
             opts.ListenToAzureServiceBusQueueOnNamedBroker(theName, queueName).ProcessInline().Named(queueName);
             opts.Services.AddSingleton<ColorHistory>();
@@ -107,11 +106,11 @@ public class end_to_end_with_named_broker : IAsyncLifetime
             opts.ServiceName = "Publisher";
             opts.Discovery.DisableConventionalDiscovery();
 
-            opts.AddNamedAzureServiceBusBroker(theName, Servers.AzureServiceBusConnectionString)
+            opts.AddNamedAzureServiceBusBroker(theName, ServiceBusContainerFixture.ConnectionString)
                 .AutoProvision().AutoPurgeOnStartup();
 
             var namedTransport = opts.Transports.GetOrCreate<AzureServiceBusTransport>(theName);
-            namedTransport.ManagementConnectionString = Servers.AzureServiceBusManagementConnectionString;
+            namedTransport.ManagementConnectionString = ServiceBusContainerFixture.ConnectionString;
 
             opts.PublishAllMessages()
                 .ToAzureServiceBusQueueOnNamedBroker(theName, queueName)

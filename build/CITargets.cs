@@ -202,4 +202,28 @@ partial class Build
             RunSingleProjectOneClassAtATime(rabbitTests);
             RunSingleProjectOneClassAtATime(circuitTests);
         });
+
+    Target CICosmosDb => _ => _
+        .ProceedAfterFailure()
+        .Executes(() =>
+        {
+            var cosmosDbTests = RootDirectory / "src" / "Persistence" / "CosmosDbTests" / "CosmosDbTests.csproj";
+            var leaderElectionTests = RootDirectory / "src" / "Persistence" / "LeaderElection" / "CosmosDbTests.LeaderElection" / "CosmosDbTests.LeaderElection.csproj";
+
+            BuildTestProjects(cosmosDbTests, leaderElectionTests);
+
+            RunSingleProjectOneClassAtATime(cosmosDbTests);
+            RunSingleProjectOneClassAtATime(leaderElectionTests);
+        });
+
+    Target CIAzureServiceBus => _ => _
+        .ProceedAfterFailure()
+        .Executes(() =>
+        {
+            var tests = RootDirectory / "src" / "Transports" / "Azure" / "Wolverine.AzureServiceBus.Tests" / "Wolverine.AzureServiceBus.Tests.csproj";
+
+            BuildTestProjects(tests);
+
+            RunSingleProjectOneClassAtATime(tests);
+        });
 }
