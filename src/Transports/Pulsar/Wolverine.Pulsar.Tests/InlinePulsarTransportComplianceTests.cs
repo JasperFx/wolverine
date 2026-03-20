@@ -18,14 +18,14 @@ public class InlinePulsarTransportFixture : TransportComplianceFixture, IAsyncLi
 
         await ReceiverIs(opts =>
         {
-            opts.UsePulsar();
+            opts.UsePulsar(b => b.ServiceUrl(PulsarContainerFixture.ServiceUrl));
             opts.ListenToPulsarTopic(topicPath).ProcessInline();
         });
 
         await SenderIs(opts =>
         {
             var replyPath = $"persistent://public/default/replies-{topic}";
-            opts.UsePulsar();
+            opts.UsePulsar(b => b.ServiceUrl(PulsarContainerFixture.ServiceUrl));
             opts.ListenToPulsarTopic(replyPath).UseForReplies().ProcessInline();
             opts.PublishAllMessages().ToPulsarTopic(topicPath).SendInline();
         });

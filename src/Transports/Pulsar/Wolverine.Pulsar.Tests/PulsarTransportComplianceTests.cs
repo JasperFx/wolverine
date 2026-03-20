@@ -19,13 +19,13 @@ public class PulsarTransportFixture : TransportComplianceFixture, IAsyncLifetime
         await SenderIs(opts =>
         {
             var listener = $"persistent://public/default/replies{topic}";
-            opts.UsePulsar(e => { });
+            opts.UsePulsar(b => b.ServiceUrl(PulsarContainerFixture.ServiceUrl));
             opts.ListenToPulsarTopic(listener).UseForReplies();
         });
 
         await ReceiverIs(opts =>
         {
-            opts.UsePulsar();
+            opts.UsePulsar(b => b.ServiceUrl(PulsarContainerFixture.ServiceUrl));
             opts.ListenToPulsarTopic(topicPath);
         });
     }

@@ -30,7 +30,7 @@ public class PulsarNativeReliabilityTests : /*TransportComplianceFixture,*/ IAsy
 
                 opts.UsePulsar(b =>
                 {
-                    b.ServiceUrl(new Uri("pulsar://127.0.0.1:6650"));
+                    b.ServiceUrl(PulsarContainerFixture.ServiceUrl);
                 });
 
                 opts.IncludeType<SRMessageHandlers>();

@@ -15,7 +15,7 @@ public class endpoint_configuration : IDisposable
     {
         _host = Host.CreateDefaultBuilder().UseWolverine(opts =>
         {
-            opts.UsePulsar();
+            opts.UsePulsar(b => b.ServiceUrl(PulsarContainerFixture.ServiceUrl));
             opts.DisablePulsarRequeue();
             opts.UnsubscribePulsarOnClose(PulsarUnsubscribeOnClose.Disabled);
 

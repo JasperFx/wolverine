@@ -19,7 +19,7 @@ public class PulsarWithCloudEventsFixture : TransportComplianceFixture, IAsyncLi
         await SenderIs(opts =>
         {
             var listener = $"persistent://public/default/replies{topic}";
-            opts.UsePulsar(e => { });
+            opts.UsePulsar(b => b.ServiceUrl(PulsarContainerFixture.ServiceUrl));
             opts.Policies.UsePulsarWithCloudEvents();
             opts.ListenToPulsarTopic(listener).UseForReplies();
             opts.PublishMessage<FakeMessage>().ToPulsarTopic(topicPath);
@@ -27,7 +27,7 @@ public class PulsarWithCloudEventsFixture : TransportComplianceFixture, IAsyncLi
 
         await ReceiverIs(opts =>
         {
-            opts.UsePulsar();
+            opts.UsePulsar(b => b.ServiceUrl(PulsarContainerFixture.ServiceUrl));
             opts.Policies.UsePulsarWithCloudEvents();
             opts.ListenToPulsarTopic(topicPath);
         });
