@@ -105,7 +105,7 @@ public class compliance_using_table_partitioning : MessageStoreCompliance
         using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
         await conn.OpenAsync();
         await conn.CreateCommand(
-                $"update receiver.{DatabaseConstants.NodeRecordTableName} set timestamp = :time where node_number = 2")
+                $"update receiver_partitioned.{DatabaseConstants.NodeRecordTableName} set timestamp = :time where node_number = 2")
             .With("time", DateTimeOffset.UtcNow.Subtract(10.Days()))
             .ExecuteNonQueryAsync();
         await conn.CloseAsync();
