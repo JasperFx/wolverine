@@ -256,6 +256,7 @@ public class send_by_topics : IDisposable
     }
 }
 
+[Trait("Category", "Flaky")]
 public class send_by_topics_durable : IDisposable
 {
     private readonly IHost theGreenReceiver;

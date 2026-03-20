@@ -41,10 +41,37 @@ partial class Build
         // Wait for databases that were requested
         if (services.Contains("postgresql"))
             WaitForDatabaseToBeReady();
+        if (services.Contains("sqlserver"))
+            WaitForSqlServerToBeReady();
         if (services.Contains("mysql"))
             WaitForMySqlToBeReady();
         if (services.Contains("oracle"))
             WaitForOracleToBeReady();
+    }
+
+    void WaitForSqlServerToBeReady()
+    {
+        var attempt = 0;
+        while (attempt < 30)
+        {
+            try
+            {
+                using var conn = new Microsoft.Data.SqlClient.SqlConnection("Server=localhost,1434;User Id=sa;Password=P@55w0rd;Timeout=5;Encrypt=False");
+                conn.Open();
+                var cmd = conn.CreateCommand();
+                cmd.CommandText = "SELECT 1";
+                cmd.ExecuteNonQuery();
+                Log.Information("SQL Server is up and ready!");
+                return;
+            }
+            catch (Exception)
+            {
+                Thread.Sleep(2000);
+                attempt++;
+            }
+        }
+
+        Log.Warning("SQL Server did not become ready after 60 seconds");
     }
 
     void WaitForMySqlToBeReady()

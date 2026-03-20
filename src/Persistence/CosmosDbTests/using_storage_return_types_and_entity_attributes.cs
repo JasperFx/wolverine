@@ -10,6 +10,7 @@ using Wolverine.Tracking;
 namespace CosmosDbTests;
 
 [Collection("cosmosdb")]
+[Trait("Category", "Flaky")]
 public class using_storage_return_types_and_entity_attributes
 {
     private readonly AppFixture _fixture;
