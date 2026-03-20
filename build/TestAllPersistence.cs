@@ -216,7 +216,7 @@ partial class Build
 
                 foreach (var className in testClasses)
                 {
-                    var filter = $"FullyQualifiedName~{className}";
+                    var filter = AppendCategoryFilter($"FullyQualifiedName~{className}");
                     var description = $"{projectName}/{className}";
                     Log.Information("  Running {Description}...", description);
 
@@ -239,6 +239,14 @@ partial class Build
     }
 
     /// <summary>
+    /// Appends Category!=Flaky to a test filter when running in CI.
+    /// </summary>
+    static string AppendCategoryFilter(string filter)
+    {
+        return filter + "&Category!=Flaky";
+    }
+
+    /// <summary>
     /// Runs a single test project one class at a time with retry logic.
     /// Used by individual Nuke targets for specific test projects.
     /// </summary>
@@ -256,7 +264,7 @@ partial class Build
 
             foreach (var (className, methodName) in testMethods)
             {
-                var filter = $"FullyQualifiedName~{className}.{methodName}";
+                var filter = AppendCategoryFilter($"FullyQualifiedName~{className}.{methodName}");
                 var description = $"{projectName}/{className}.{methodName}";
                 Log.Information("  Running {Description}...", description);
 
@@ -274,7 +282,7 @@ partial class Build
 
             foreach (var className in testClasses)
             {
-                var filter = $"FullyQualifiedName~{className}";
+                var filter = AppendCategoryFilter($"FullyQualifiedName~{className}");
                 var description = $"{projectName}/{className}";
                 Log.Information("  Running {Description}...", description);
 

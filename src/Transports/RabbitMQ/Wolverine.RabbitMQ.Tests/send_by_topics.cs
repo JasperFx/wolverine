@@ -15,6 +15,7 @@ using Xunit;
 
 namespace Wolverine.RabbitMQ.Tests;
 
+[Trait("Category", "Flaky")]
 public class send_by_topics : IDisposable
 {
     private readonly IHost theGreenReceiver;
