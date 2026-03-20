@@ -36,9 +36,6 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
-      - name: Remove local NuGet sources for CI
-        run: sed -i '/<add key="polecat-local"/d' NuGet.config
-
       - name: Run Polecat Tests
         run: ./build.sh CIPolecat --framework net10.0
 
