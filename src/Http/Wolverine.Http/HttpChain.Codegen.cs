@@ -115,8 +115,8 @@ public partial class HttpChain
         {
             if (AuditedMembers.All(x => x.Member != identity))
             {
-                Audit(identity);
-            }    
+                Audit(identity!);
+            }
         }
         
         if (AuditedMembers.Count != 0)
@@ -186,7 +186,7 @@ public partial class HttpChain
 
     private string determineFileName()
     {
-        var parts = RoutePattern.RawText.Replace("{", "").Replace("*", "").Replace(".", "_").Replace("?", "").Replace("}", "").Split('/').Select(x => x.Split(':').First());
+        var parts = RoutePattern!.RawText!.Replace("{", "").Replace("*", "").Replace(".", "_").Replace("?", "").Replace("}", "").Split('/').Select(x => x.Split(':').First());
 
         char[] invalidPathChars = Path.GetInvalidPathChars();
         var fileName = _httpMethods.Select(x => x.ToUpper()).Concat(parts).Join("_").Replace('-', '_').Replace("__", "_");

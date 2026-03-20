@@ -78,7 +78,7 @@ public class NewtonsoftHttpSerialization
         jsonReader.ArrayPool = _jsonCharPool;
         jsonReader.CloseInput = false;
 
-        return (T)_serializer.Deserialize(jsonReader, targetType);
+        return (T)_serializer.Deserialize(jsonReader, targetType)!;
     }
 
     internal class JsonArrayPool<T> : IArrayPool<T>

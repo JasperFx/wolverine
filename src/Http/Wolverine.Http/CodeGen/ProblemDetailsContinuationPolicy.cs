@@ -136,7 +136,7 @@ public class MaybeEndHandlerWithProblemDetailsFrame : AsyncFrame, IMaybeEndWithP
     {
         writer.WriteComment("Evaluate whether the processing should stop if there are any problems");
         writer.Write($"BLOCK:if (!(ReferenceEquals({Details.Usage}, {typeof(WolverineContinue).FullNameInCode()}.{nameof(WolverineContinue.NoProblems)})))");
-        writer.Write($"{typeof(ProblemDetailsContinuationPolicy).FullNameInCode()}.{nameof(ProblemDetailsContinuationPolicy.WriteProblems)}({_logger.Usage}, {Details.Usage});");
+        writer.Write($"{typeof(ProblemDetailsContinuationPolicy).FullNameInCode()}.{nameof(ProblemDetailsContinuationPolicy.WriteProblems)}({_logger!.Usage}, {Details.Usage});");
         writer.Write("return;");
         writer.FinishBlock();
         writer.BlankLine();

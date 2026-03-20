@@ -48,7 +48,7 @@ internal class HttpAwarePolicy : IHttpPolicy
 internal class ApplyHttpAware : SyncFrame
 {
     private readonly Variable _target;
-    private Variable _httpContext;
+    private Variable? _httpContext;
 
     public ApplyHttpAware(Variable target)
     {

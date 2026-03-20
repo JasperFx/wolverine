@@ -10,7 +10,7 @@ namespace Wolverine.Http;
 
 public class DeadLetterEnvelopeIdsRequest
 {
-    public Guid[] Ids { get; set; }
+    public Guid[] Ids { get; set; } = [];
     public string? TenantId { get; set; }
 }
 

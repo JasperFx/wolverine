@@ -7,7 +7,7 @@ namespace Wolverine.Http.Policies;
 
 internal class WriteProblemDetailsIfNull : AsyncFrame
 {
-    private Variable _httpContext;
+    private Variable? _httpContext;
 
     public WriteProblemDetailsIfNull(Variable entity, Variable identity, string message, int statusCode = 400)
     {

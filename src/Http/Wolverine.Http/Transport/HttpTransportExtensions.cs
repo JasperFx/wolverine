@@ -43,7 +43,7 @@ public static class HttpTransportExtensions
         string url,
         bool supportsNativeScheduledSend = false,
         bool useCloudEvents = false,
-        JsonSerializerOptions options = null)
+        JsonSerializerOptions? options = null)
     {
         var transports =
             publishing.As<PublishingExpression>().Parent.Transports;

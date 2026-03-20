@@ -10,7 +10,7 @@ internal class DetectTenantIdFrame : AsyncFrame
 {
     private readonly TenantIdDetection _options;
     private readonly HttpChain _chain;
-    private Variable _httpContext;
+    private Variable? _httpContext;
 
     public DetectTenantIdFrame(TenantIdDetection options, HttpChain chain)
     {

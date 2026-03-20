@@ -104,7 +104,7 @@ internal class ParsedCollectionFormValue : SyncFrame, IReadHttpFrame
 
 internal class ParsedArrayFormValue : SyncFrame, IReadHttpFrame
 {
-    private string _property;
+    private string? _property;
 
     public ParsedArrayFormValue(Type parameterType, string parameterName) 
     {
@@ -137,8 +137,8 @@ internal class ParsedArrayFormValue : SyncFrame, IReadHttpFrame
         }
         else
         {
-            var collectionAlias = typeof(List<>).MakeGenericType(elementType).FullNameInCode();
-            var elementAlias = elementType.FullNameInCode();
+            var collectionAlias = typeof(List<>).MakeGenericType(elementType!).FullNameInCode();
+            var elementAlias = elementType!.FullNameInCode();
 
             writer.Write($"var {Variable.Usage}_List = new {collectionAlias}();");
             
