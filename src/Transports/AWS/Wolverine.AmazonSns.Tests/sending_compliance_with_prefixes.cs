@@ -24,7 +24,7 @@ public class PrefixedComplianceFixture : TransportComplianceFixture, IAsyncLifet
 
         await ReceiverIs(opts =>
         {
-            opts.UseAmazonSqsTransportLocally()
+            opts.UseAmazonSqsTransportLocally(LocalStackContainerFixture.Port)
                 .PrefixIdentifiers("foo")
                 .AutoProvision()
                 .AutoPurgeOnStartup();
@@ -36,14 +36,14 @@ public class PrefixedComplianceFixture : TransportComplianceFixture, IAsyncLifet
         
         await SenderIs(opts =>
         {
-            opts.UseAmazonSqsTransportLocally()
+            opts.UseAmazonSqsTransportLocally(LocalStackContainerFixture.Port)
                 .PrefixIdentifiers("foo")
                 .AutoProvision()
                 .AutoPurgeOnStartup();
 
             opts.ListenToSqsQueue("prefix-sender-" + number).Named("prefix-sender");
             
-            opts.UseAmazonSnsTransportLocally()
+            opts.UseAmazonSnsTransportLocally(LocalStackContainerFixture.Port)
                 .PrefixIdentifiers("boo")
                 .AutoProvision();
             

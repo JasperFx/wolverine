@@ -27,7 +27,7 @@ public class DurableComplianceFixture : TransportComplianceFixture, IAsyncLifeti
 
         await SenderIs(opts =>
         {
-            opts.UseAmazonSqsTransportLocally()
+            opts.UseAmazonSqsTransportLocally(LocalStackContainerFixture.Port)
                 .AutoProvision()
                 .AutoPurgeOnStartup()
                 .ConfigureListeners(x => x.UseDurableInbox())
@@ -46,7 +46,7 @@ public class DurableComplianceFixture : TransportComplianceFixture, IAsyncLifeti
 
         await ReceiverIs(opts =>
         {
-            opts.UseAmazonSqsTransportLocally()
+            opts.UseAmazonSqsTransportLocally(LocalStackContainerFixture.Port)
                 .AutoProvision()
                 .AutoPurgeOnStartup()
                 .ConfigureListeners(x => x.UseDurableInbox())

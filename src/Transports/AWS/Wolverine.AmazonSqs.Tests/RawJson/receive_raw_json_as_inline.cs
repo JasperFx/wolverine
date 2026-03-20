@@ -21,7 +21,7 @@ public class receive_raw_json_as_inline : IAsyncLifetime
             .UseWolverine(opts =>
             {
                 opts
-                    .UseAmazonSqsTransportLocally()
+                    .UseAmazonSqsTransportLocally(LocalStackContainerFixture.Port)
                     .ConfigureListeners(listeners =>
                     {
                         listeners.ReceiveRawJsonMessage(typeof(MyNativeJsonMessage));
@@ -37,7 +37,7 @@ public class receive_raw_json_as_inline : IAsyncLifetime
             .UseWolverine(opts =>
             {
                 opts
-                    .UseAmazonSqsTransportLocally();
+                    .UseAmazonSqsTransportLocally(LocalStackContainerFixture.Port);
 
                 opts.Policies.DisableConventionalLocalRouting();
                 opts.PublishAllMessages().ToSqsQueue(theQueueName).SendRawJsonMessage().SendInline();

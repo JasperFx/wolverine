@@ -21,7 +21,7 @@ namespace Wolverine.AmazonSqs.Tests.RawJson
                 .UseWolverine(opts =>
                 {
                     opts
-                        .UseAmazonSqsTransportLocally()
+                        .UseAmazonSqsTransportLocally(LocalStackContainerFixture.Port)
                         .ConfigureListeners(listeners =>
                         {
                             listeners.ReceiveRawJsonMessage(typeof(MyNativeJsonMessage));
@@ -37,7 +37,7 @@ namespace Wolverine.AmazonSqs.Tests.RawJson
                 .UseWolverine(opts =>
                 {
                     opts
-                        .UseAmazonSqsTransportLocally();
+                        .UseAmazonSqsTransportLocally(LocalStackContainerFixture.Port);
 
                     opts.Policies.DisableConventionalLocalRouting();
                     opts.PublishAllMessages().ToSqsQueue(theQueueName).SendRawJsonMessage().BufferedInMemory();

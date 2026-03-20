@@ -11,7 +11,7 @@ public class bootstrapping
     public async Task create_an_open_client()
     {
         using var host = await Host.CreateDefaultBuilder()
-            .UseWolverine(opts => { opts.UseAmazonSqsTransportLocally(); }).StartAsync();
+            .UseWolverine(opts => { opts.UseAmazonSqsTransportLocally(LocalStackContainerFixture.Port); }).StartAsync();
 
         var options = host.Services.GetRequiredService<WolverineOptions>();
         var transport = options.AmazonSqsTransport();
@@ -28,7 +28,7 @@ public class bootstrapping
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.UseAmazonSqsTransportLocally().AutoProvision();
+                opts.UseAmazonSqsTransportLocally(LocalStackContainerFixture.Port).AutoProvision();
 
                 opts.ListenToSqsQueue("wolverine-" + queueName);
             }).StartAsync();
@@ -53,7 +53,7 @@ public class bootstrapping
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.UseAmazonSqsTransportLocally().AutoPurgeOnStartup().AutoProvision();
+                opts.UseAmazonSqsTransportLocally(LocalStackContainerFixture.Port).AutoPurgeOnStartup().AutoProvision();
 
                 opts.ListenToSqsQueue("wolverine-" + queueName);
             }).StartAsync();
@@ -76,7 +76,7 @@ public class bootstrapping
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.UseAmazonSqsTransportLocally().AutoPurgeOnStartup().AutoProvision();
+                opts.UseAmazonSqsTransportLocally(LocalStackContainerFixture.Port).AutoPurgeOnStartup().AutoProvision();
 
                 opts.ListenToSqsQueue(queueName, e =>
                 {

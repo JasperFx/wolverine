@@ -19,7 +19,7 @@ public class disabling_dead_letter_queue
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.UseAmazonSqsTransportLocally()
+                opts.UseAmazonSqsTransportLocally(LocalStackContainerFixture.Port)
                     // Disable all native SQS dead letter queueing
                     .DisableAllNativeDeadLetterQueues()
                     .AutoProvision();
@@ -43,7 +43,7 @@ public class disabling_dead_letter_queue
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.UseAmazonSqsTransportLocally()
+                opts.UseAmazonSqsTransportLocally(LocalStackContainerFixture.Port)
                     .AutoProvision();
 
                 opts.PublishMessage<ProductCreated>()
@@ -67,7 +67,7 @@ public class disabling_dead_letter_queue
             .UseWolverine(options =>
             {
                 options.PersistMessagesWithPostgresql(Servers.PostgresConnectionString);
-                options.UseAmazonSqsTransportLocally().DisableAllNativeDeadLetterQueues().AutoProvision();
+                options.UseAmazonSqsTransportLocally(LocalStackContainerFixture.Port).DisableAllNativeDeadLetterQueues().AutoProvision();
 
                 options.Durability.Mode = DurabilityMode.Solo;
 

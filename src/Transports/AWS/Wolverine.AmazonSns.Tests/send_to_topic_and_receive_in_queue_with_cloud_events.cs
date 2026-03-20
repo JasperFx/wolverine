@@ -17,12 +17,12 @@ public class send_to_topic_and_receive_in_queue_with_cloud_events : IAsyncLifeti
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.UseAmazonSqsTransportLocally()
+                opts.UseAmazonSqsTransportLocally(LocalStackContainerFixture.Port)
                     .AutoProvision().AutoPurgeOnStartup();
                 
                 opts.ListenToSqsQueue("ce").InteropWithCloudEvents();
                 
-                opts.UseAmazonSnsTransportLocally()
+                opts.UseAmazonSnsTransportLocally(LocalStackContainerFixture.Port)
                     .AutoProvision();
 
                 opts.PublishMessage<SnsMessage>()

@@ -14,7 +14,7 @@ public class send_and_receive_with_CloudEvents : IAsyncLifetime
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.UseAmazonSqsTransportLocally()
+                opts.UseAmazonSqsTransportLocally(LocalStackContainerFixture.Port)
                     .AutoProvision().AutoPurgeOnStartup();
 
                 opts.ListenToSqsQueue("cloudevents").InteropWithCloudEvents();

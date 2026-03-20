@@ -17,12 +17,12 @@ public class send_to_topic_and_receive_in_queue_with_rawMessageDelivery : IAsync
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.UseAmazonSqsTransportLocally()
+                opts.UseAmazonSqsTransportLocally(LocalStackContainerFixture.Port)
                     .AutoProvision().AutoPurgeOnStartup();
                 
                 opts.ListenToSqsQueue("send_to_topic_and_receive_in_queue_raw");
                 
-                opts.UseAmazonSnsTransportLocally()
+                opts.UseAmazonSnsTransportLocally(LocalStackContainerFixture.Port)
                     .AutoProvision();
                 
                 opts.PublishMessage<SnsRawMessage>()

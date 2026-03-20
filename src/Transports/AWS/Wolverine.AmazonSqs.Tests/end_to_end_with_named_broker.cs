@@ -22,7 +22,7 @@ public class end_to_end_with_named_broker
         var queueName = Guid.NewGuid().ToString();
         using var publisher = WolverineHost.For(opts =>
         {
-            opts.UseAmazonSqsTransportLocallyAsNamedBroker(theName).AutoProvision().AutoPurgeOnStartup();
+            opts.UseAmazonSqsTransportLocallyAsNamedBroker(theName, LocalStackContainerFixture.Port).AutoProvision().AutoPurgeOnStartup();
 
             opts.PublishAllMessages()
                 .ToSqsQueueOnNamedBroker(theName, queueName)
@@ -32,7 +32,7 @@ public class end_to_end_with_named_broker
 
         using var receiver = WolverineHost.For(opts =>
         {
-            opts.UseAmazonSqsTransportLocallyAsNamedBroker(theName).AutoProvision();
+            opts.UseAmazonSqsTransportLocallyAsNamedBroker(theName, LocalStackContainerFixture.Port).AutoProvision();
 
             opts.ListenToSqsQueueOnNamedBroker(theName, queueName).ProcessInline().Named(queueName);
             opts.Services.AddSingleton<ColorHistory>();
