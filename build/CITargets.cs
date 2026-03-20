@@ -149,7 +149,7 @@ partial class Build
             var tests = RootDirectory / "src" / "Transports" / "NATS" / "Wolverine.Nats.Tests" / "Wolverine.Nats.Tests.csproj";
 
             BuildTestProjects(tests);
-            StartDockerServices("nats", "postgresql");
+            StartDockerServices("postgresql");
 
             RunSingleProjectOneClassAtATime(tests);
         });

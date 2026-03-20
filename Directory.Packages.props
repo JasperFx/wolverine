@@ -76,6 +76,11 @@
     <PackageVersion Include="Swashbuckle.AspNetCore.SwaggerGen" Version="9.0.1" />
     <PackageVersion Include="Swashbuckle.AspNetCore.SwaggerUI" Version="9.0.1" />
     <PackageVersion Include="System.ComponentModel" Version="4.3.0" />
+    <PackageVersion Include="Testcontainers" Version="4.11.0" />
+    <PackageVersion Include="Testcontainers.Kafka" Version="4.10.0" />
+    <PackageVersion Include="Testcontainers.Nats" Version="4.10.0" />
+    <PackageVersion Include="Testcontainers.Pulsar" Version="4.10.0" />
+    <PackageVersion Include="Testcontainers.Redis" Version="4.10.0" />
     <PackageVersion Include="Testcontainers.ServiceBus" Version="4.10.0" />
     <PackageVersion Include="System.Diagnostics.DiagnosticSource" Version="9.0.5" />
     <PackageVersion Include="System.Net.NameResolution" Version="4.3.0" />
