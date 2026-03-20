@@ -39,6 +39,7 @@
         "CINATS",
         "CIOracle",
         "CIPersistence",
+        "CIPolecat",
         "CIPulsar",
         "CIRabbitMQ",
         "CIRedis",
