@@ -37,7 +37,7 @@ jobs:
           dotnet-version: 10.0.x
 
       - name: Run Pulsar Tests
-        run: ./build.sh CIPulsar --framework net10.0
+        run: ./build.sh CIPulsar --framework net9.0
 
       - name: Stop containers
         if: always()

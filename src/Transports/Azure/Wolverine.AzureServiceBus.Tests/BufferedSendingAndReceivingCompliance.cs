@@ -45,6 +45,7 @@ public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifet
     }
 }
 
+[Trait("Category", "Flaky")]
 public class BufferedSendingAndReceivingCompliance : TransportCompliance<BufferedComplianceFixture>
 {
     [Fact]

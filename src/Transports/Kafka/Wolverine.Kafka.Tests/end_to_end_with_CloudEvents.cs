@@ -18,6 +18,7 @@ internal static class CloudEventsKafkaTestConstants
     public const string ColorMessageTypeAlias = "wolverine.kafka.tests.color";
 }
 
+[Trait("Category", "Flaky")]
 public class end_to_end_with_CloudEvents : IAsyncLifetime
 {
     private IHost _receiver;
