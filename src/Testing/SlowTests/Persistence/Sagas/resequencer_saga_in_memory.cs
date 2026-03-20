@@ -7,7 +7,7 @@ using Wolverine.Tracking;
 using Wolverine.Transports;
 using Xunit;
 
-namespace CoreTests.Persistence.Sagas;
+namespace SlowTests.Persistence.Sagas;
 
 public record StartSequencedSaga(Guid Id);
 
