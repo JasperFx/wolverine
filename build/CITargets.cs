@@ -71,21 +71,43 @@ partial class Build
         .Executes(() =>
         {
             var sqliteTests = RootDirectory / "src" / "Persistence" / "SqliteTests" / "SqliteTests.csproj";
-            var mySqlTests = RootDirectory / "src" / "Persistence" / "MySql" / "MySqlTests" / "MySqlTests.csproj";
             var persistenceTests = RootDirectory / "src" / "Persistence" / "PersistenceTests" / "PersistenceTests.csproj";
             var sqlServerTests = RootDirectory / "src" / "Persistence" / "SqlServerTests" / "SqlServerTests.csproj";
             var postgresqlTests = RootDirectory / "src" / "Persistence" / "PostgresqlTests" / "PostgresqlTests.csproj";
 
-            BuildTestProjects(sqliteTests, mySqlTests, sqlServerTests, postgresqlTests);
+            BuildTestProjects(sqliteTests, sqlServerTests, postgresqlTests);
             // PersistenceTests only targets net8.0/net9.0
             BuildTestProjectsWithFramework("net9.0", persistenceTests);
-            StartDockerServices("postgresql", "sqlserver", "mysql", "rabbitmq");
+            StartDockerServices("postgresql", "sqlserver", "rabbitmq");
 
             RunSingleProjectOneClassAtATime(sqliteTests);
-            RunSingleProjectOneClassAtATime(mySqlTests);
             RunSingleProjectOneClassAtATime(persistenceTests, frameworkOverride: "net9.0");
             RunSingleProjectOneClassAtATime(sqlServerTests);
             RunSingleProjectOneClassAtATime(postgresqlTests);
+        });
+
+    Target CIMySql => _ => _
+        .ProceedAfterFailure()
+        .Executes(() =>
+        {
+            var mySqlTests = RootDirectory / "src" / "Persistence" / "MySql" / "MySqlTests" / "MySqlTests.csproj";
+
+            BuildTestProjects(mySqlTests);
+            StartDockerServices("mysql");
+
+            RunSingleProjectOneClassAtATime(mySqlTests);
+        });
+
+    Target CIOracle => _ => _
+        .ProceedAfterFailure()
+        .Executes(() =>
+        {
+            var oracleTests = RootDirectory / "src" / "Persistence" / "Oracle" / "OracleTests" / "OracleTests.csproj";
+
+            BuildTestProjects(oracleTests);
+            StartDockerServices("oracle");
+
+            RunSingleProjectOneClassAtATime(oracleTests);
         });
 
     Target CIEfCore => _ => _
@@ -178,7 +200,6 @@ partial class Build
         });
 
     Target CIHttp => _ => _
-        .ProceedAfterFailure()
         .Executes(() =>
         {
             var tests = RootDirectory / "src" / "Http" / "Wolverine.Http.Tests" / "Wolverine.Http.Tests.csproj";
@@ -186,7 +207,12 @@ partial class Build
             BuildTestProjects(tests);
             StartDockerServices("postgresql");
 
-            RunSingleProjectOneClassAtATime(tests);
+            var framework = Framework;
+            DotNetTest(c => c
+                .SetProjectFile(tests)
+                .SetConfiguration(Configuration)
+                .SetFramework(framework)
+                .EnableNoBuild());
         });
 
     Target CIRabbitMQ => _ => _
@@ -197,7 +223,7 @@ partial class Build
             var circuitTests = RootDirectory / "src" / "Transports" / "RabbitMQ" / "CircuitBreakingTests" / "CircuitBreakingTests.csproj";
 
             BuildTestProjects(rabbitTests, circuitTests);
-            StartDockerServices("rabbitmq", "postgresql");
+            StartDockerServices("rabbitmq", "postgresql", "sqlserver");
 
             RunSingleProjectOneClassAtATime(rabbitTests);
             RunSingleProjectOneClassAtATime(circuitTests);

@@ -22,7 +22,7 @@ public static class CosmosDbContainerFixture
             .WithPortBinding(1234, true)
             .WithEnvironment("PROTOCOL", "https")
             .WithWaitStrategy(Wait.ForUnixContainer()
-                .UntilMessageIsLogged("Now listening on"))
+                .UntilMessageIsLogged("Gateway=OK"))
             .Build();
 
         _container.StartAsync().GetAwaiter().GetResult();

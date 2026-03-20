@@ -30,7 +30,7 @@ public class AppFixture : IAsyncLifetime
             .WithPortBinding(1234, true)
             .WithEnvironment("PROTOCOL", "https")
             .WithWaitStrategy(Wait.ForUnixContainer()
-                .UntilMessageIsLogged("Now listening on"))
+                .UntilMessageIsLogged("Gateway=OK"))
             .Build();
 
         await _cosmosContainer.StartAsync();
