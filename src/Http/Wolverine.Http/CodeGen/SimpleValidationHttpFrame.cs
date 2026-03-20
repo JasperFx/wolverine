@@ -7,6 +7,49 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Wolverine.Http.CodeGen;
 
+public static class SimpleValidationHttpFrameHelpers
+{
+    public static bool HasErrors(IEnumerable<string> validationMessages)
+    {
+        return validationMessages.Any();
+    }
+
+    public static ProblemDetails CreateProblemDetails(IEnumerable<string> validationMessages)
+    {
+        return new()
+        {
+            Status = 400,
+            Title = "Validation failed",
+            Extensions =
+            {
+                ["errors"] = validationMessages.ToArray()
+            }
+        };
+    }
+
+    public static bool HasErrors(ValidationOutcome outcome)
+    {
+        return !outcome.IsValid();
+    }
+
+    public static ProblemDetails CreateProblemDetails(ValidationOutcome outcome)
+    {
+        var errors = outcome
+            .Select(x => x.Key)
+            .Distinct()
+            .ToDictionary(
+                x => x,
+                x => outcome
+                    .Where(r => r.Key == x)
+                    .Select(r => r.ValidationMessage)
+                    .ToArray());
+        return new ValidationProblemDetails(errors)
+        {
+            Title = "Validation failed",
+        };
+    }
+}
+
 /// <summary>
 /// Frame that generates validation code for HTTP endpoints.
 /// Creates a ProblemDetails with status 400 and writes it to the response if validation messages exist.
@@ -33,18 +76,11 @@ internal class SimpleValidationHttpFrame : AsyncFrame
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
         writer.WriteComment("Check for any simple validation messages and abort with ProblemDetails if any exist");
+        
         writer.Write(
-            $"var validationMessages{_count} = {_variable.Usage}.ToArray();");
+            $"BLOCK:if ({typeof(SimpleValidationHttpFrameHelpers).FullNameInCode()}.{nameof(SimpleValidationHttpFrameHelpers.HasErrors)}({_variable.Usage}))");
         writer.Write(
-            $"BLOCK:if (validationMessages{_count}.Length > 0)");
-        writer.Write(
-            $"var problemDetails{_count} = new {typeof(ProblemDetails).FullNameInCode()}();");
-        writer.Write(
-            $"problemDetails{_count}.{nameof(ProblemDetails.Status)} = 400;");
-        writer.Write(
-            $"problemDetails{_count}.{nameof(ProblemDetails.Title)} = \"Validation failed\";");
-        writer.Write(
-            $"problemDetails{_count}.{nameof(ProblemDetails.Extensions)}[\"errors\"] = validationMessages{_count};");
+            $"var problemDetails{_count} = {typeof(SimpleValidationHttpFrameHelpers).FullNameInCode()}.{nameof(SimpleValidationHttpFrameHelpers.CreateProblemDetails)}({_variable.Usage});");
         writer.Write(
             $"await {nameof(HttpHandler.WriteProblems)}(problemDetails{_count}, {_context!.Usage}).ConfigureAwait(false);");
         writer.Write("return;");

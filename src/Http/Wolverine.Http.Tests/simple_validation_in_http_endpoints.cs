@@ -89,4 +89,24 @@ public class simple_validation_in_http_endpoints : IntegrationContext
             x.ContentTypeShouldBe("application/problem+json");
         });
     }
+
+    [Fact]
+    public async Task happy_path_with_validationoutcome_validate()
+    {
+        await Scenario(x =>
+        {
+            x.Post.Json(new SimpleValidateHttpValueTaskMessage(3)).ToUrl("/simple-validation/validationoutcome");
+        });
+    }
+
+    [Fact]
+    public async Task sad_path_with_validationoutcome_validate()
+    {
+        await Scenario(x =>
+        {
+            x.Post.Json(new SimpleValidateHttpValueTaskMessage(20)).ToUrl("/simple-validation/validationoutcome");
+            x.StatusCodeShouldBe(400);
+            x.ContentTypeShouldBe("application/problem+json");
+        });
+    }
 }
