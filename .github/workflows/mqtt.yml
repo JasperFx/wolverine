@@ -13,7 +13,7 @@ env:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
 
     steps:
       - name: Checkout
@@ -36,26 +36,8 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
-      - name: Start PostgreSQL
-        run: docker compose up -d postgresql
-
-      - name: Wait for PostgreSQL
-        run: |
-          echo "Waiting for PostgreSQL to be ready..."
-          for i in {1..30}; do
-            if nc -z localhost 5433 > /dev/null 2>&1; then
-              echo "PostgreSQL is ready"
-              break
-            fi
-            echo "Attempt $i: PostgreSQL not ready yet, waiting..."
-            sleep 2
-          done
-
-      - name: Build
-        run: dotnet build src/Transports/MQTT/Wolverine.MQTT.Tests/Wolverine.MQTT.Tests.csproj --configuration ${{ env.config }} --framework net10.0
-
-      - name: Test
-        run: dotnet test src/Transports/MQTT/Wolverine.MQTT.Tests/Wolverine.MQTT.Tests.csproj --configuration ${{ env.config }} --framework net10.0 --no-build --logger "GitHubActions;summary.includePassedTests=true;summary.includeSkippedTests=true"
+      - name: Run MQTT Tests
+        run: ./build.sh CIMQTT --framework net10.0
 
       - name: Stop containers
         if: always()
