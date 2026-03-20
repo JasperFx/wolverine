@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Wolverine;
 using Wolverine.Http;
 
 namespace WolverineWebApi;
@@ -85,6 +86,28 @@ public static class SimpleValidationHttpValueTaskEndpoint
 
     [WolverinePost("/simple-validation/valuetask")]
     public static string Post(SimpleValidateHttpValueTaskMessage message) => "Ok";
+}
+
+#endregion
+
+#region sample_simple_validation_validationoutcome
+
+public record SimpleValidateHttpValidationOutcomeMessage(int Number);
+
+public static class SimpleValidationHttpValidationOutcomeEndpoint
+{
+    public static ValidationOutcome ValidateAsync(SimpleValidateHttpValidationOutcomeMessage message)
+    {
+        if (message.Number > 10)
+        {
+            return [new(nameof(SimpleValidateHttpValidationOutcomeMessage.Number), "Number must be 10 or less")];
+        }
+
+        return [];
+    }
+
+    [WolverinePost("/simple-validation/validationoutcome")]
+    public static string Post(SimpleValidateHttpValidationOutcomeMessage message) => "Ok";
 }
 
 #endregion
