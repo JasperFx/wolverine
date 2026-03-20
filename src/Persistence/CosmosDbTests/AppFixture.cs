@@ -14,30 +14,47 @@ public class AppFixture : IAsyncLifetime
     public const string AccountKey = "C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==";
     public const string DatabaseName = "wolverine_tests";
 
-    private IContainer? _cosmosContainer;
+    // Static container shared across all AppFixture instances
+    private static IContainer? _sharedContainer;
+    private static string _sharedConnectionString = null!;
+    private static readonly SemaphoreSlim _lock = new(1, 1);
 
-    public string ConnectionString { get; private set; } =
-        "AccountEndpoint=https://localhost:8081/;AccountKey=C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==";
+    public string ConnectionString => _sharedConnectionString;
 
     public CosmosClient Client { get; private set; } = null!;
     public Container Container { get; private set; } = null!;
 
+    private static async Task EnsureContainerStarted()
+    {
+        await _lock.WaitAsync();
+        try
+        {
+            if (_sharedContainer != null) return;
+
+            _sharedContainer = new ContainerBuilder()
+                .WithImage("mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator:vnext-preview")
+                .WithPortBinding(8081, true)
+                .WithPortBinding(1234, true)
+                .WithEnvironment("PROTOCOL", "https")
+                .WithWaitStrategy(Wait.ForUnixContainer()
+                    .UntilMessageIsLogged("Gateway=OK"))
+                .Build();
+
+            await _sharedContainer.StartAsync();
+
+            var host = _sharedContainer.Hostname;
+            var port = _sharedContainer.GetMappedPublicPort(8081);
+            _sharedConnectionString = $"AccountEndpoint=https://{host}:{port}/;AccountKey={AccountKey}";
+        }
+        finally
+        {
+            _lock.Release();
+        }
+    }
+
     public async Task InitializeAsync()
     {
-        _cosmosContainer = new ContainerBuilder()
-            .WithImage("mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator:vnext-preview")
-            .WithPortBinding(8081, true)
-            .WithPortBinding(1234, true)
-            .WithEnvironment("PROTOCOL", "https")
-            .WithWaitStrategy(Wait.ForUnixContainer()
-                .UntilMessageIsLogged("Gateway=OK"))
-            .Build();
-
-        await _cosmosContainer.StartAsync();
-
-        var host = _cosmosContainer.Hostname;
-        var port = _cosmosContainer.GetMappedPublicPort(8081);
-        ConnectionString = $"AccountEndpoint=https://{host}:{port}/;AccountKey={AccountKey}";
+        await EnsureContainerStarted();
 
         var clientOptions = new CosmosClientOptions
         {
@@ -84,11 +101,7 @@ public class AppFixture : IAsyncLifetime
     public async Task DisposeAsync()
     {
         Client?.Dispose();
-
-        if (_cosmosContainer != null)
-        {
-            await _cosmosContainer.DisposeAsync();
-        }
+        // Container is shared - don't dispose it here; process exit handles cleanup
     }
 
     public CosmosDbMessageStore BuildMessageStore()
