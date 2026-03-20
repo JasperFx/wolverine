@@ -56,7 +56,7 @@ public class global_partitioned_sharded_processing
             .UseWolverine(opts =>
             {
                 opts.Durability.Mode = DurabilityMode.Solo;
-                opts.UseKafka("localhost:9092").AutoProvision();
+                opts.UseKafka(KafkaContainerFixture.ConnectionString).AutoProvision();
 
                 opts.Discovery.DisableConventionalDiscovery().IncludeType(typeof(GLetterMessageHandler));
 

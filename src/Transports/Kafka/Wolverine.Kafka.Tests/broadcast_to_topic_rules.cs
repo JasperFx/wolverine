@@ -29,7 +29,7 @@ public class broadcast_to_topic_rules : IAsyncLifetime
         _receiver = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.UseKafka("localhost:9092")
+                opts.UseKafka(KafkaContainerFixture.ConnectionString)
                     .AutoProvision()
                     .ConfigureConsumers(c => c.AutoOffsetReset = AutoOffsetReset.Earliest);
                 opts.ListenToKafkaTopic("red").ConfigureConsumer(c =>
@@ -53,7 +53,7 @@ public class broadcast_to_topic_rules : IAsyncLifetime
         _sender = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.UseKafka("localhost:9092").AutoProvision();
+                opts.UseKafka(KafkaContainerFixture.ConnectionString).AutoProvision();
                 opts.Policies.DisableConventionalLocalRouting();
 
                 opts.PublishAllMessages().ToKafkaTopics().SendInline();

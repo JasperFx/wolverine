@@ -112,7 +112,7 @@ partial class Build
             var snsTests = RootDirectory / "src" / "Transports" / "AWS" / "Wolverine.AmazonSns.Tests" / "Wolverine.AmazonSns.Tests.csproj";
 
             BuildTestProjects(sqsTests, snsTests);
-            StartDockerServices("localstack", "postgresql");
+            StartDockerServices("postgresql");
 
             RunSingleProjectOneClassAtATime(sqsTests);
             RunSingleProjectOneClassAtATime(snsTests);
@@ -125,7 +125,7 @@ partial class Build
             var tests = RootDirectory / "src" / "Transports" / "Kafka" / "Wolverine.Kafka.Tests" / "Wolverine.Kafka.Tests.csproj";
 
             BuildTestProjects(tests);
-            StartDockerServices("kafka", "postgresql");
+            StartDockerServices("postgresql");
 
             RunSingleProjectOneClassAtATime(tests);
         });
@@ -137,7 +137,7 @@ partial class Build
             var tests = RootDirectory / "src" / "Transports" / "MQTT" / "Wolverine.MQTT.Tests" / "Wolverine.MQTT.Tests.csproj";
 
             BuildTestProjects(tests);
-            StartDockerServices("mosquitto", "postgresql");
+            StartDockerServices("postgresql");
 
             RunSingleProjectOneClassAtATime(tests);
         });
@@ -161,7 +161,6 @@ partial class Build
             var tests = RootDirectory / "src" / "Transports" / "Pulsar" / "Wolverine.Pulsar.Tests" / "Wolverine.Pulsar.Tests.csproj";
 
             BuildTestProjects(tests);
-            StartDockerServices("pulsar");
 
             RunSingleProjectOneClassAtATime(tests);
         });

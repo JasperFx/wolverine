@@ -24,7 +24,7 @@ public class moving_unknown_cloudevents_type_to_dlq : IAsyncLifetime
         _receiver = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.UseKafka("localhost:9092")
+                opts.UseKafka(KafkaContainerFixture.ConnectionString)
                     .AutoProvision()
                     .ConfigureConsumers(c => c.AutoOffsetReset = AutoOffsetReset.Earliest);
 

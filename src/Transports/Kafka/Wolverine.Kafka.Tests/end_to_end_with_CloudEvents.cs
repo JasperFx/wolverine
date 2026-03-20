@@ -29,7 +29,7 @@ public class end_to_end_with_CloudEvents : IAsyncLifetime
             .UseWolverine(opts =>
             {
                 //opts.EnableAutomaticFailureAcks = false;
-                opts.UseKafka("localhost:9092").AutoProvision();
+                opts.UseKafka(KafkaContainerFixture.ConnectionString).AutoProvision();
                 opts.RegisterMessageType(typeof(ColorMessage), CloudEventsKafkaTestConstants.ColorMessageTypeAlias);
                 opts.ListenToKafkaTopic("cloudevents").InteropWithCloudEvents();
 
@@ -48,7 +48,7 @@ public class end_to_end_with_CloudEvents : IAsyncLifetime
         _sender = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.UseKafka("localhost:9092").AutoProvision();
+                opts.UseKafka(KafkaContainerFixture.ConnectionString).AutoProvision();
                 opts.Policies.DisableConventionalLocalRouting();
                 opts.RegisterMessageType(typeof(ColorMessage), CloudEventsKafkaTestConstants.ColorMessageTypeAlias);
 
@@ -90,7 +90,7 @@ public class inline_end_to_end_with_CloudEvents : IAsyncLifetime
         _receiver = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.UseKafka("localhost:9092").AutoProvision();
+                opts.UseKafka(KafkaContainerFixture.ConnectionString).AutoProvision();
                 opts.RegisterMessageType(typeof(ColorMessage), CloudEventsKafkaTestConstants.ColorMessageTypeAlias);
                 opts.ListenToKafkaTopic("cloudevents-inline")
                     .InteropWithCloudEvents()
@@ -103,7 +103,7 @@ public class inline_end_to_end_with_CloudEvents : IAsyncLifetime
         _sender = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.UseKafka("localhost:9092").AutoProvision();
+                opts.UseKafka(KafkaContainerFixture.ConnectionString).AutoProvision();
                 opts.Policies.DisableConventionalLocalRouting();
                 opts.RegisterMessageType(typeof(ColorMessage), CloudEventsKafkaTestConstants.ColorMessageTypeAlias);
 

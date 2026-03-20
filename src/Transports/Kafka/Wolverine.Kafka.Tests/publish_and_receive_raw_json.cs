@@ -24,7 +24,7 @@ public class publish_and_receive_raw_json : IAsyncLifetime
             .UseWolverine(opts =>
             {
                 //opts.EnableAutomaticFailureAcks = false;
-                opts.UseKafka("localhost:9092").AutoProvision();
+                opts.UseKafka(KafkaContainerFixture.ConnectionString).AutoProvision();
                 opts.ListenToKafkaTopic("json")
 
                     // You do have to tell Wolverine what the message type
@@ -47,7 +47,7 @@ public class publish_and_receive_raw_json : IAsyncLifetime
         _sender = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.UseKafka("localhost:9092").AutoProvision();
+                opts.UseKafka(KafkaContainerFixture.ConnectionString).AutoProvision();
                 opts.Policies.DisableConventionalLocalRouting();
 
                 opts.Services.AddResourceSetupOnStartup();

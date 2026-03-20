@@ -26,7 +26,7 @@ public class when_publishing_and_receiving_by_partition_key : IAsyncLifetime
         _sender = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.UseKafka("localhost:9092").AutoProvision();
+                opts.UseKafka(KafkaContainerFixture.ConnectionString).AutoProvision();
                 opts.Policies.DisableConventionalLocalRouting();
 
                 opts.Services.AddResourceSetupOnStartup();
@@ -40,7 +40,7 @@ public class when_publishing_and_receiving_by_partition_key : IAsyncLifetime
         _receiver = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.UseKafka("localhost:9092").AutoProvision();
+                opts.UseKafka(KafkaContainerFixture.ConnectionString).AutoProvision();
                 opts.ListenToKafkaTopic("colorswithkey")
                 .ProcessInline();
 

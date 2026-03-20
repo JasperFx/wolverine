@@ -26,7 +26,7 @@ public class end_to_end_with_named_broker
         var topicName = Guid.NewGuid().ToString();
         using var publisher = WolverineHost.For(opts =>
         {
-            opts.AddNamedKafkaBroker(theName, "localhost:9092").AutoProvision().AutoPurgeOnStartup();
+            opts.AddNamedKafkaBroker(theName, KafkaContainerFixture.ConnectionString).AutoProvision().AutoPurgeOnStartup();
 
             opts.PublishAllMessages()
                 .ToKafkaTopicOnNamedBroker(theName, topicName)
@@ -36,7 +36,7 @@ public class end_to_end_with_named_broker
 
         using var receiver = WolverineHost.For(opts =>
         {
-            opts.AddNamedKafkaBroker(theName, "localhost:9092").AutoProvision();
+            opts.AddNamedKafkaBroker(theName, KafkaContainerFixture.ConnectionString).AutoProvision();
 
             opts.ListenToKafkaTopicOnNamedBroker(theName, topicName).ProcessInline().Named(topicName);
             opts.Services.AddSingleton<ColorHistory>();

@@ -30,7 +30,7 @@ public class multi_topic_listening : IAsyncLifetime
         _receiver = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.UseKafka("localhost:9092")
+                opts.UseKafka(KafkaContainerFixture.ConnectionString)
                     .AutoProvision()
                     .ConfigureConsumers(c =>
                     {
@@ -53,7 +53,7 @@ public class multi_topic_listening : IAsyncLifetime
         _sender = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.UseKafka("localhost:9092").AutoProvision();
+                opts.UseKafka(KafkaContainerFixture.ConnectionString).AutoProvision();
                 opts.Policies.DisableConventionalLocalRouting();
 
                 opts.PublishAllMessages().ToKafkaTopics().SendInline();

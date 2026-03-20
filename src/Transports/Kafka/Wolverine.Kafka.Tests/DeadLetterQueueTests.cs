@@ -32,7 +32,7 @@ public class DeadLetterQueueTests : IAsyncLifetime
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.UseKafka("localhost:9092")
+                opts.UseKafka(KafkaContainerFixture.ConnectionString)
                     .AutoProvision()
                     .ConfigureConsumers(c => c.AutoOffsetReset = AutoOffsetReset.Earliest);
 
@@ -56,7 +56,7 @@ public class DeadLetterQueueTests : IAsyncLifetime
     {
         var config = new ConsumerConfig
         {
-            BootstrapServers = "localhost:9092",
+            BootstrapServers = KafkaContainerFixture.ConnectionString,
             GroupId = $"dlq-verify-{Guid.NewGuid():N}",
             AutoOffsetReset = AutoOffsetReset.Earliest,
             EnableAutoCommit = true
