@@ -12,8 +12,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="MySqlConnector" />
     <PackageReference Include="Npgsql" />
     <PackageReference Include="Nuke.Common" />
+    <PackageReference Include="Oracle.ManagedDataAccess.Core" />
   </ItemGroup>
 
 </Project>

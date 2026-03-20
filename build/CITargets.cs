@@ -41,6 +41,60 @@ partial class Build
         // Wait for databases that were requested
         if (services.Contains("postgresql"))
             WaitForDatabaseToBeReady();
+        if (services.Contains("mysql"))
+            WaitForMySqlToBeReady();
+        if (services.Contains("oracle"))
+            WaitForOracleToBeReady();
+    }
+
+    void WaitForMySqlToBeReady()
+    {
+        var attempt = 0;
+        while (attempt < 30)
+        {
+            try
+            {
+                using var conn = new MySqlConnector.MySqlConnection("Server=localhost;Port=3306;Database=wolverine;User=root;Password=P@55w0rd;");
+                conn.Open();
+                var cmd = conn.CreateCommand();
+                cmd.CommandText = "SELECT 1";
+                cmd.ExecuteNonQuery();
+                Log.Information("MySQL is up and ready!");
+                return;
+            }
+            catch (Exception)
+            {
+                Thread.Sleep(2000);
+                attempt++;
+            }
+        }
+
+        Log.Warning("MySQL did not become ready after 60 seconds");
+    }
+
+    void WaitForOracleToBeReady()
+    {
+        var attempt = 0;
+        while (attempt < 60)
+        {
+            try
+            {
+                using var conn = new Oracle.ManagedDataAccess.Client.OracleConnection("User Id=wolverine;Password=wolverine;Data Source=localhost:1521/FREEPDB1");
+                conn.Open();
+                var cmd = conn.CreateCommand();
+                cmd.CommandText = "SELECT 1 FROM DUAL";
+                cmd.ExecuteNonQuery();
+                Log.Information("Oracle is up and ready!");
+                return;
+            }
+            catch (Exception)
+            {
+                Thread.Sleep(2000);
+                attempt++;
+            }
+        }
+
+        Log.Warning("Oracle did not become ready after 120 seconds");
     }
 
     /// <summary>

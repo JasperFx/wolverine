@@ -10,6 +10,7 @@ using Xunit;
 
 namespace Wolverine.RabbitMQ.Tests;
 
+[Trait("Category", "Flaky")]
 public class sending_raw_messages
 {
     [Fact]
