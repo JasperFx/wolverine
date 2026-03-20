@@ -28,6 +28,12 @@ public class PolecatIntegration : IWolverineExtension, IEventForwarding
     /// </summary>
     public bool UseFastEventForwarding { get; set; }
 
+    /// <summary>
+    ///     Use Wolverine's agent framework to manage the distribution of Polecat event
+    ///     subscription processing across nodes in a cluster. Default is false.
+    /// </summary>
+    public bool UseWolverineManagedEventSubscriptionDistribution { get; set; }
+
     public void Configure(WolverineOptions options)
     {
         // Duplicate incoming messages - SQL Server uses unique constraint violations
@@ -59,6 +65,8 @@ public class PolecatIntegration : IWolverineExtension, IEventForwarding
         // SQL Server transport will be configured when the message store is built
 
         options.Policies.Add<PolecatOpPolicy>();
+
+        options.CodeGeneration.MethodPreCompilation.Add(new PolecatBatchingPolicy());
     }
 
     /// <summary>

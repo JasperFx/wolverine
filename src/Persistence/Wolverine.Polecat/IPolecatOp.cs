@@ -182,6 +182,12 @@ public class StartStream<T> : IStartStream where T : class
 
     public StartStream(string streamKey, params object[] events)
     {
+        if (string.IsNullOrEmpty(streamKey))
+        {
+            throw new InvalidOperationException(
+                "The stream key must not be null or empty when starting a new event stream");
+        }
+
         StreamKey = streamKey;
         Events.AddRange(events);
     }
@@ -194,6 +200,12 @@ public class StartStream<T> : IStartStream where T : class
 
     public StartStream(string streamKey, IList<object> events)
     {
+        if (string.IsNullOrEmpty(streamKey))
+        {
+            throw new InvalidOperationException(
+                "The stream key must not be null or empty when starting a new event stream");
+        }
+
         StreamKey = streamKey;
         Events.AddRange(events);
     }

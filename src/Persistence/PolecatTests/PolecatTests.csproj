@@ -21,10 +21,13 @@
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
             <PrivateAssets>all</PrivateAssets>
         </PackageReference>
+        <PackageReference Include="NSubstitute" />
+        <PackageReference Include="StronglyTypedId" />
     </ItemGroup>
 
     <ItemGroup>
         <ProjectReference Include="..\Wolverine.Polecat\Wolverine.Polecat.csproj"/>
+        <ProjectReference Include="..\..\Testing\Wolverine.ComplianceTests\Wolverine.ComplianceTests.csproj" />
     </ItemGroup>
     <ItemGroup>
         <Compile Include="..\..\Servers.cs">
