@@ -8,6 +8,7 @@ using Wolverine.Tracking;
 
 namespace Wolverine.Kafka.Tests;
 
+[Trait("Category", "Flaky")]
 public class when_publishing_and_receiving_by_partition_key : IAsyncLifetime
 {
     #region sample_publish_to_kafka_by_partition_key

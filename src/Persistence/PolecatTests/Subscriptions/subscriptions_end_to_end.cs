@@ -17,6 +17,7 @@ using Wolverine.Tracking;
 
 namespace PolecatTests.Subscriptions;
 
+[Trait("Category", "Flaky")]
 public class subscriptions_end_to_end
 {
     /// <summary>
