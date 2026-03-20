@@ -252,4 +252,16 @@ partial class Build
 
             RunSingleProjectOneClassAtATime(tests);
         });
+
+    Target CIPolecat => _ => _
+        .ProceedAfterFailure()
+        .Executes(() =>
+        {
+            var polecatTests = RootDirectory / "src" / "Persistence" / "PolecatTests" / "PolecatTests.csproj";
+
+            BuildTestProjectsWithFramework("net10.0", polecatTests);
+            StartDockerServices("sqlserver");
+
+            RunSingleProjectOneClassAtATime(polecatTests, frameworkOverride: "net10.0");
+        });
 }
