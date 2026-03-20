@@ -14,12 +14,6 @@ namespace Wolverine.Middleware;
 /// </summary>
 public class SimpleValidationContinuationPolicy : IContinuationStrategy
 {
-    private static readonly Type[] ValidReturnTypes =
-    [
-        typeof(IEnumerable<string>),
-        typeof(string[])
-    ];
-
     /// <summary>
     /// Helper used by generated code to log validation messages and return a boolean
     /// indicating whether there are any validation failures.
@@ -31,6 +25,22 @@ public class SimpleValidationContinuationPolicy : IContinuationStrategy
         {
             hasMessages = true;
             logger.LogWarning("Validation failure: {ValidationMessage}", message);
+        }
+
+        return hasMessages;
+    }
+
+    /// <summary>
+    /// Helper used by generated code to log validation messages and return a boolean
+    /// indicating whether there are any validation failures.
+    /// </summary>
+    public static bool LogValidationMessages(ILogger logger, ValidationOutcome outcome)
+    {
+        var hasMessages = false;
+        foreach (var validationResult in outcome)
+        {
+            hasMessages = true;
+            logger.LogWarning("Validation failure for {key}: {ValidationMessage}", validationResult.Key, validationResult.ValidationMessage);
         }
 
         return hasMessages;
@@ -60,7 +70,7 @@ public class SimpleValidationContinuationPolicy : IContinuationStrategy
     {
         foreach (var variable in call.Creates)
         {
-            if (IsStringEnumerable(variable.VariableType))
+            if (IsValidationResult(variable.VariableType))
             {
                 return variable;
             }
@@ -69,11 +79,12 @@ public class SimpleValidationContinuationPolicy : IContinuationStrategy
         return null;
     }
 
-    internal static bool IsStringEnumerable(Type type)
+    internal static bool IsValidationResult(Type type)
     {
         if (type == typeof(IEnumerable<string>)) return true;
         if (type == typeof(string[])) return true;
         if (type == typeof(List<string>)) return true;
+        if (type == typeof(ValidationOutcome)) return true;
 
         return false;
     }
