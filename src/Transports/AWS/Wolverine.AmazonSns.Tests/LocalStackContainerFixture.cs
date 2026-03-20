@@ -13,7 +13,8 @@ public static class LocalStackContainerFixture
     internal static void Initialize()
     {
         _container = new LocalStackBuilder()
-            .WithImage("localstack/localstack:latest")
+            .WithImage("localstack/localstack:4")
+            .WithEnvironment("SERVICES", "sqs,sns")
             .Build();
 
         _container.StartAsync().GetAwaiter().GetResult();

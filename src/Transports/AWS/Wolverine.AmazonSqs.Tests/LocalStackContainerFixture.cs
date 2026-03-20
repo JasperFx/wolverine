@@ -9,14 +9,18 @@ public static class LocalStackContainerFixture
 
     public static int Port { get; private set; } = 4566;
 
+    public static string ConnectionString { get; private set; } = "http://localhost:4566";
+
     [ModuleInitializer]
     internal static void Initialize()
     {
         _container = new LocalStackBuilder()
-            .WithImage("localstack/localstack:latest")
+            .WithImage("localstack/localstack:4")
+            .WithEnvironment("SERVICES", "sqs,sns")
             .Build();
 
         _container.StartAsync().GetAwaiter().GetResult();
+        ConnectionString = _container.GetConnectionString();
         Port = _container.GetMappedPublicPort(4566);
     }
 }
