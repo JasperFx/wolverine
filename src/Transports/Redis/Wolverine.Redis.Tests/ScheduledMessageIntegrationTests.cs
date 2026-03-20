@@ -34,7 +34,7 @@ public class ScheduledMessageIntegrationTests
                 opts.Durability.ScheduledJobFirstExecution = 50.Milliseconds();
                 opts.Durability.ScheduledJobPollingTime = 100.Milliseconds();
                 
-                opts.UseRedisTransport("localhost:6379").AutoProvision();
+                opts.UseRedisTransport(RedisContainerFixture.ConnectionString).AutoProvision();
                 
                 opts.PublishAllMessages().ToRedisStream(streamKey).SendInline();
                 opts.ListenToRedisStream(streamKey, "integration-test-group")
@@ -71,7 +71,7 @@ public class ScheduledMessageIntegrationTests
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.UseRedisTransport("localhost:6379").AutoProvision();
+                opts.UseRedisTransport(RedisContainerFixture.ConnectionString).AutoProvision();
                 opts.PublishAllMessages().ToRedisStream(streamKey).SendInline();
             }).StartAsync();
         
@@ -96,7 +96,7 @@ public class ScheduledMessageIntegrationTests
                 opts.Durability.ScheduledJobFirstExecution = 50.Milliseconds();
                 opts.Durability.ScheduledJobPollingTime = 100.Milliseconds();
                 
-                opts.UseRedisTransport("localhost:6379").AutoProvision();
+                opts.UseRedisTransport(RedisContainerFixture.ConnectionString).AutoProvision();
                 
                 opts.PublishAllMessages().ToRedisStream(streamKey).SendInline();
                 opts.ListenToRedisStream(streamKey, "integration-test-group")
@@ -146,7 +146,7 @@ public class ScheduledMessageIntegrationTests
                 opts.Durability.ScheduledJobFirstExecution = 50.Milliseconds();
                 opts.Durability.ScheduledJobPollingTime = 100.Milliseconds();
                 
-                opts.UseRedisTransport("localhost:6379").AutoProvision();
+                opts.UseRedisTransport(RedisContainerFixture.ConnectionString).AutoProvision();
                 
                 opts.PublishAllMessages().ToRedisStream(streamKey).SendInline();
                 opts.ListenToRedisStream(streamKey, "integration-test-group")

@@ -173,7 +173,7 @@ partial class Build
             var tests = RootDirectory / "src" / "Transports" / "Redis" / "Wolverine.Redis.Tests" / "Wolverine.Redis.Tests.csproj";
 
             BuildTestProjects(tests);
-            StartDockerServices("redis-server", "postgresql");
+            StartDockerServices("postgresql");
 
             RunSingleProjectOneClassAtATime(tests);
         });

@@ -19,7 +19,7 @@ public class RedisAutoClaimIntegrationTests
 {
     public record AutoClaimTestMessage(string Id);
 
-    private static async Task<IDatabase> ConnectAsync() => (await ConnectionMultiplexer.ConnectAsync("localhost:6379")).GetDatabase();
+    private static async Task<IDatabase> ConnectAsync() => (await ConnectionMultiplexer.ConnectAsync(RedisContainerFixture.ConnectionString)).GetDatabase();
 
     [Fact]
     public async Task autoclaim_integration_processes_pending_messages()
@@ -59,7 +59,7 @@ public class RedisAutoClaimIntegrationTests
             })
             .UseWolverine(opts =>
             {
-                opts.UseRedisTransport("localhost:6379").AutoProvision();
+                opts.UseRedisTransport(RedisContainerFixture.ConnectionString).AutoProvision();
                 opts
                     .ListenToRedisStream(streamKey, group)
                     .EnableAutoClaim(500.Milliseconds(), 100.Milliseconds())
@@ -96,7 +96,7 @@ public class RedisAutoClaimIntegrationTests
             })
             .UseWolverine(opts =>
             {
-                opts.UseRedisTransport("localhost:6379").AutoProvision();
+                opts.UseRedisTransport(RedisContainerFixture.ConnectionString).AutoProvision();
                 var expression = opts.ListenToRedisStream(streamKey, group).DefaultIncomingMessage<AutoClaimTestMessage>();
 
                 var endpoint = expression.Endpoint.As<RedisStreamEndpoint>();
@@ -113,7 +113,7 @@ public class RedisAutoClaimIntegrationTests
     [Fact]
     public void fluent_api_enables_autoclaim_with_custom_settings()
     {
-        var transport = new RedisTransport("localhost:6379");
+        var transport = new RedisTransport(RedisContainerFixture.ConnectionString);
         var endpoint = transport.StreamEndpoint("test");
         
         endpoint.AutoClaimEnabled.ShouldBeFalse(); // Default
@@ -130,7 +130,7 @@ public class RedisAutoClaimIntegrationTests
     [Fact]
     public void fluent_api_disables_autoclaim()
     {
-        var transport = new RedisTransport("localhost:6379");
+        var transport = new RedisTransport(RedisContainerFixture.ConnectionString);
         var endpoint = transport.StreamEndpoint("test");
 
         new RedisListenerConfiguration(endpoint).EnableAutoClaim().DisableAutoClaim();

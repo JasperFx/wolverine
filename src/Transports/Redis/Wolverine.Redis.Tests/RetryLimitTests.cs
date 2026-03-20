@@ -35,7 +35,7 @@ public class RetryLimitTests
                 opts.Durability.ScheduledJobFirstExecution = 100.Milliseconds();
                 opts.Durability.ScheduledJobPollingTime = 200.Milliseconds();
                 
-                opts.UseRedisTransport("localhost:6379").AutoProvision();
+                opts.UseRedisTransport(RedisContainerFixture.ConnectionString).AutoProvision();
                 
                 // Configure routing to our test stream
                 opts.PublishMessage<AlwaysFailingCommand>().ToRedisStream(streamKey);

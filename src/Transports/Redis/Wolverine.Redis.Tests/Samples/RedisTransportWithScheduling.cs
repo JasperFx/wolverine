@@ -3,6 +3,7 @@ using JasperFx.Resources;
 using Wolverine;
 using Wolverine.ErrorHandling;
 using Wolverine.Redis;
+using Wolverine.Redis.Tests;
 
 #region sample_using_dead_letter_queue_for_redis
 
@@ -10,7 +11,7 @@ var builder = Host.CreateDefaultBuilder();
 
 using var host = await builder.UseWolverine(opts =>
 {
-    opts.UseRedisTransport("localhost:6379").AutoProvision()
+    opts.UseRedisTransport(RedisContainerFixture.ConnectionString).AutoProvision()
         .SystemQueuesEnabled(false) // Disable reply queues
         .DeleteStreamEntryOnAck(true); // Clean up stream entries on ack
 

@@ -13,7 +13,7 @@ public class Bug_1970_issue_with_scheduling
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.UseRedisTransport("localhost:6379").AutoProvision()
+                opts.UseRedisTransport(RedisContainerFixture.ConnectionString).AutoProvision()
                     .ConfigureDefaultConsumerName((runtime, endpoint) =>
                         $"{runtime.Options.ServiceName}-test-{runtime.DurabilitySettings.AssignedNodeNumber}");
                 opts.PublishAllMessages().ToRedisStream("wolverine-messages");

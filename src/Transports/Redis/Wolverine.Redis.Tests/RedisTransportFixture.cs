@@ -5,7 +5,7 @@ namespace Wolverine.Redis.Tests;
 
 public class RedisTransportFixture : TransportComplianceFixture
 {
-    public RedisTransportFixture() : base(new Uri($"redis://localhost:6379?streamKey=wolverine-tests-{Guid.NewGuid():N}"))
+    public RedisTransportFixture() : base(new Uri($"redis://{RedisContainerFixture.ConnectionString}?streamKey=wolverine-tests-{Guid.NewGuid():N}"))
     {
     }
 
@@ -13,13 +13,13 @@ public class RedisTransportFixture : TransportComplianceFixture
     {
         await SenderIs(opts =>
         {
-            opts.UseRedisTransport("localhost:6379")
+            opts.UseRedisTransport(RedisContainerFixture.ConnectionString)
                 .AutoProvision();
         });
 
         await ReceiverIs(opts =>
         {
-            opts.UseRedisTransport("localhost:6379")
+            opts.UseRedisTransport(RedisContainerFixture.ConnectionString)
                 .AutoProvision();
                 
             opts.ListenToRedisStream("wolverine-tests", "test-consumer-group");
