@@ -16,7 +16,7 @@ namespace Wolverine.Kafka.Tests;
 public class DeadLetterQueueTests : IAsyncLifetime
 {
     private readonly ITestOutputHelper _output;
-    private IHost _host;
+    private IHost _host = null!;
     private readonly string _topicName;
     private readonly string _dlqTopicName;
 

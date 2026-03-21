@@ -21,8 +21,8 @@ internal static class CloudEventsKafkaTestConstants
 [Trait("Category", "Flaky")]
 public class end_to_end_with_CloudEvents : IAsyncLifetime
 {
-    private IHost _receiver;
-    private IHost _sender;
+    private IHost _receiver = null!;
+    private IHost _sender = null!;
 
     public async Task InitializeAsync()
     {
@@ -84,8 +84,8 @@ public class end_to_end_with_CloudEvents : IAsyncLifetime
 [Trait("Category", "Flaky")]
 public class inline_end_to_end_with_CloudEvents : IAsyncLifetime
 {
-    private IHost _receiver;
-    private IHost _sender;
+    private IHost _receiver = null!;
+    private IHost _sender = null!;
 
     public async Task InitializeAsync()
     {
@@ -148,7 +148,7 @@ internal class CloudEventsOnlyMapper : IKafkaEnvelopeMapper
 
     public void MapEnvelopeToOutgoing(Envelope envelope, Message<string, byte[]> outgoing)
     {
-        outgoing.Key = envelope.GroupId;
+        outgoing.Key = envelope.GroupId!;
         outgoing.Value = _cloudEvents.WriteToBytes(envelope);
     }
 

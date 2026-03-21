@@ -17,8 +17,8 @@ namespace Wolverine.Kafka.Tests;
 public class multi_topic_listening : IAsyncLifetime
 {
     private readonly ITestOutputHelper _output;
-    private IHost _sender;
-    private IHost _receiver;
+    private IHost _sender = null!;
+    private IHost _receiver = null!;
 
     public multi_topic_listening(ITestOutputHelper output)
     {

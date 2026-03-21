@@ -20,8 +20,8 @@ public class when_publishing_and_receiving_by_partition_key : IAsyncLifetime
 
     #endregion
     
-    private IHost _sender;
-    private IHost _receiver;
+    private IHost _sender = null!;
+    private IHost _receiver = null!;
     public async Task InitializeAsync()
     {
         _sender = await Host.CreateDefaultBuilder()

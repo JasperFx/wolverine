@@ -12,8 +12,8 @@ namespace Wolverine.Kafka.Tests;
 public class broadcast_to_topic_async : IAsyncLifetime
 {
     private readonly ITestOutputHelper _output;
-    private IHost _sender;
-    private IHost _receiver;
+    private IHost _sender = null!;
+    private IHost _receiver = null!;
 
     public broadcast_to_topic_async(ITestOutputHelper output)
     {
@@ -78,7 +78,7 @@ public class ColorMessage
         Color = color;
     }
 
-    public string Color { get; set; }
+    public string Color { get; set; } = null!;
 }
 
 public static class ColorMessageHandler

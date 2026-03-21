@@ -10,7 +10,7 @@ namespace Wolverine.Kafka.Tests;
 
 public class propagate_group_id_to_partition_key : IAsyncLifetime
 {
-    private IHost _host;
+    private IHost _host = null!;
 
     public async Task InitializeAsync()
     {

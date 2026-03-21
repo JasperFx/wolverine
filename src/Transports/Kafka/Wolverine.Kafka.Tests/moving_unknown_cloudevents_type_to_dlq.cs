@@ -15,7 +15,7 @@ namespace Wolverine.Kafka.Tests;
 
 public class moving_unknown_cloudevents_type_to_dlq : IAsyncLifetime
 {
-    private IHost _receiver;
+    private IHost _receiver = null!;
 
     private readonly string _topicName = $"cloudevents-dlq-{Guid.NewGuid():N}";
 

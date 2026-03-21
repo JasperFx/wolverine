@@ -13,8 +13,8 @@ namespace Wolverine.Kafka.Tests;
 
 public class publish_and_receive_raw_json : IAsyncLifetime
 {
-    private IHost _sender;
-    private IHost _receiver;
+    private IHost _sender = null!;
+    private IHost _receiver = null!;
 
     public async Task InitializeAsync()
     {

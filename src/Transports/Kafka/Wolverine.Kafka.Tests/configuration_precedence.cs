@@ -49,6 +49,6 @@ public class configuration_precedence
         general.Parent.ConsumerConfig.GroupId.ShouldBe("Conventional");
         
         var specific = runtime.Endpoints.EndpointFor("kafka://topic/ResponseMessages".ToUri()).ShouldBeOfType<KafkaTopic>();
-        specific.ConsumerConfig.GroupId.ShouldBe("Specific");
+        specific.ConsumerConfig!.GroupId.ShouldBe("Specific");
     }
 }
