@@ -11,8 +11,8 @@ namespace Wolverine.AzureServiceBus.Tests.ConventionalRouting;
 [Trait("Category", "Flaky")]
 public class end_to_end_with_conventional_routing : IAsyncLifetime
 {
-    private IHost _receiver;
-    private IHost _sender;
+    private IHost _receiver = null!;
+    private IHost _sender = null!;
 
     public async Task InitializeAsync()
     {
@@ -56,10 +56,10 @@ public class end_to_end_with_conventional_routing : IAsyncLifetime
 
         var received = session
             .AllRecordsInOrder()
-            .Where(x => x.Envelope.Message?.GetType() == typeof(RoutedMessage))
+            .Where(x => x.Envelope!.Message?.GetType() == typeof(RoutedMessage))
             .Single(x => x.MessageEventType == MessageEventType.Received);
 
-        received
+        received!
             .ServiceName.ShouldBe("Receiver");
     }
 }

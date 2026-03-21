@@ -32,7 +32,7 @@ public class TopicsWithCustomRuleComplianceFixture()
         });
     }
 
-    public Task DisposeAsync()
+    public new Task DisposeAsync()
     {
         return Task.CompletedTask;
     }

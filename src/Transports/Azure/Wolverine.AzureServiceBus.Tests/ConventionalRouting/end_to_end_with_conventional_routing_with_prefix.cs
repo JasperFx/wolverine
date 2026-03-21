@@ -10,8 +10,8 @@ namespace Wolverine.AzureServiceBus.Tests.ConventionalRouting;
 [Trait("Category", "Flaky")]
 public class end_to_end_with_conventional_routing_with_prefix : IAsyncLifetime
 {
-    private IHost _receiver;
-    private IHost _sender;
+    private IHost _receiver = null!;
+    private IHost _sender = null!;
 
     public Task InitializeAsync()
     {
@@ -55,13 +55,13 @@ public class end_to_end_with_conventional_routing_with_prefix : IAsyncLifetime
 
         var received = session
             .AllRecordsInOrder()
-            .Where(x => x.Envelope.Message?.GetType() == typeof(RoutedMessage))
+            .Where(x => x.Envelope!.Message?.GetType() == typeof(RoutedMessage))
             .Single(x => x.MessageEventType == MessageEventType.Received);
 
         received
             .ServiceName.ShouldBe("Receiver");
 
-        received.Envelope.Destination
+        received.Envelope!.Destination!
             .ShouldBe(new Uri("asb://queue/shazaam.routed"));
     }
 }

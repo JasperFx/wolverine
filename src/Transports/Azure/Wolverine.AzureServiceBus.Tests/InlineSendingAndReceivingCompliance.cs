@@ -36,7 +36,7 @@ public class InlineComplianceFixture : TransportComplianceFixture, IAsyncLifetim
         });
     }
 
-    public Task DisposeAsync()
+    public new Task DisposeAsync()
     {
         return Task.CompletedTask;
     }

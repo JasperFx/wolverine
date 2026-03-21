@@ -10,7 +10,7 @@ namespace Wolverine.AzureServiceBus.Tests;
 
 public class end_to_end_with_CloudEvents : IAsyncLifetime
 {
-    private IHost _host;
+    private IHost _host = null!;
 
     public async Task InitializeAsync()
     {

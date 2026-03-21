@@ -26,7 +26,7 @@ public class TopicsComplianceFixture : TransportComplianceFixture, IAsyncLifetim
         });
     }
 
-    public Task DisposeAsync()
+    public new Task DisposeAsync()
     {
         return Task.CompletedTask;
     }
