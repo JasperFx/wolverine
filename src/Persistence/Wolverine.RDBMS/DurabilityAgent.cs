@@ -24,10 +24,7 @@ internal class DurabilityAgent : IAgent
     private readonly IWolverineRuntime _runtime;
     private readonly DurabilitySettings _settings;
     private Timer? _expirationTimer;
-    private DateTimeOffset? _lastDeadLetterQueueCheck;
-
-    private DateTimeOffset? _lastNodeRecordPruneTime;
-    private PersistenceMetrics _metrics;
+    private PersistenceMetrics _metrics = null!;
     private Timer? _recoveryTimer;
     private Timer? _scheduledJobTimer;
 
@@ -154,6 +151,10 @@ internal class DurabilityAgent : IAgent
     {
         return new Uri($"{uri}{markerType.Name}");
     }
+
+#pragma warning disable CS0649 // Field is never assigned to
+    private DateTimeOffset? _lastNodeRecordPruneTime;
+#pragma warning restore CS0649
 
     private bool isTimeToPruneNodeEventRecords()
     {
