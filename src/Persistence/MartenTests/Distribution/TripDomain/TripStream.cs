@@ -68,7 +68,7 @@ public class TripStream
         }
     }
 
-    public string TenantId { get; set; }
+    public string TenantId { get; set; } = null!;
 
     public static List<TripStream> RandomStreams(int number)
     {

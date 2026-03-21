@@ -26,15 +26,14 @@ public abstract class MultiTenantContext : IAsyncLifetime
     private readonly List<IHost> _hosts = new();
     private readonly ITestOutputHelper _output;
 
-    private bool _hasStarted;
-    private DocumentStore _tenancyStore;
-    protected MasterTableTenancy tenancy;
-    protected string tenant1ConnectionString;
-    protected string tenant2ConnectionString;
-    protected string tenant3ConnectionString;
-    protected string tenant4ConnectionString;
-    protected IHost theOriginalHost;
-    internal EventSubscriptionAgentFamily theDistributor;
+    private DocumentStore _tenancyStore = null!;
+    protected MasterTableTenancy tenancy = null!;
+    protected string tenant1ConnectionString = null!;
+    protected string tenant2ConnectionString = null!;
+    protected string tenant3ConnectionString = null!;
+    protected string tenant4ConnectionString = null!;
+    protected IHost theOriginalHost = null!;
+    internal EventSubscriptionAgentFamily theDistributor = null!;
 
     protected MultiTenantContext(ITestOutputHelper output)
     {

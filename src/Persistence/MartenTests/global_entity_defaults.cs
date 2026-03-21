@@ -12,7 +12,7 @@ namespace MartenTests;
 
 public class global_entity_defaults : IAsyncLifetime
 {
-    private IHost _host;
+    private IHost _host = null!;
 
     public async Task InitializeAsync()
     {

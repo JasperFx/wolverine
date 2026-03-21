@@ -12,7 +12,7 @@ namespace MartenTests.MultiTenancy;
 
 public class conjoined_tenancy : PostgresqlContext, IAsyncLifetime
 {
-    private IHost _host;
+    private IHost _host = null!;
 
     public async Task InitializeAsync()
     {
@@ -63,21 +63,21 @@ public class conjoined_tenancy : PostgresqlContext, IAsyncLifetime
         using (var session = store.LightweightSession("one"))
         {
             var document = await session.LoadAsync<TenantedDocument>(id);
-            document.Location.ShouldBe("Andor");
+            document!.Location.ShouldBe("Andor");
         }
 
         // Check the second tenant
         using (var session = store.LightweightSession("two"))
         {
             var document = await session.LoadAsync<TenantedDocument>(id);
-            document.Location.ShouldBe("Tear");
+            document!.Location.ShouldBe("Tear");
         }
 
         // Check the third tenant
         using (var session = store.LightweightSession("three"))
         {
             var document = await session.LoadAsync<TenantedDocument>(id);
-            document.Location.ShouldBe("Illian");
+            document!.Location.ShouldBe("Illian");
         }
     }
 
@@ -93,8 +93,8 @@ public class TenantedDocument : ITenanted
 {
     public Guid Id { get; init; }
 
-    public string TenantId { get; set; }
-    public string Location { get; set; }
+    public string TenantId { get; set; } = null!;
+    public string Location { get; set; } = null!;
 }
 
 // A command to create a new document that's multi-tenanted

@@ -25,7 +25,7 @@ public class AggregateHandlerAttributeTests
     [Fact]
     public void determine_aggregate_by_second_parameter()
     {
-        var chain = HandlerChain.For<InvoiceHandler>(x => x.Handle(default(ApproveInvoice), default),
+        var chain = HandlerChain.For<InvoiceHandler>(x => x.Handle(default(ApproveInvoice)!, default!),
             new HandlerGraph());
         AggregateHandling.DetermineAggregateType(chain)
             .ShouldBe(typeof(Invoice));
@@ -34,7 +34,7 @@ public class AggregateHandlerAttributeTests
     [Fact]
     public void throw_if_aggregate_type_is_indeterminate()
     {
-        var chain = HandlerChain.For<InvoiceHandler>(x => x.Handle(default(ApproveInvoice)), new HandlerGraph());
+        var chain = HandlerChain.For<InvoiceHandler>(x => x.Handle(default(ApproveInvoice)!), new HandlerGraph());
         Should.Throw<InvalidOperationException>(() =>
         {
             AggregateHandling.DetermineAggregateType(chain);
@@ -44,7 +44,7 @@ public class AggregateHandlerAttributeTests
     [Fact]
     public void throw_if_return_is_void_and_does_not_take_in_stream()
     {
-        var chain = HandlerChain.For<InvoiceHandler>(x => x.Handle(default(Invalid1), default), new HandlerGraph());
+        var chain = HandlerChain.For<InvoiceHandler>(x => x.Handle(default(Invalid1)!, default!), new HandlerGraph());
         Should.Throw<InvalidOperationException>(() =>
         {
             new AggregateHandlerAttribute().Modify(chain, new GenerationRules(), ServiceContainer.Empty());
@@ -54,7 +54,7 @@ public class AggregateHandlerAttributeTests
     [Fact]
     public void throw_if_return_is_Task_and_does_not_take_in_stream()
     {
-        var chain = HandlerChain.For<InvoiceHandler>(x => x.Handle(default(Invalid2), default), new HandlerGraph());
+        var chain = HandlerChain.For<InvoiceHandler>(x => x.Handle(default(Invalid2)!, default!), new HandlerGraph());
         Should.Throw<InvalidOperationException>(() =>
         {
             new AggregateHandlerAttribute().Modify(chain, new GenerationRules(), ServiceContainer.Empty());
@@ -64,7 +64,7 @@ public class AggregateHandlerAttributeTests
     [Fact]
     public void determine_aggregate_id_from_command_type_in_aggregate_handler_attribute()
     {
-        var chain = HandlerChain.For<InvoiceHandler>(x => x.Handle(default(CreateInvoice)), new HandlerGraph());
+        var chain = HandlerChain.For<InvoiceHandler>(x => x.Handle(default(CreateInvoice)!), new HandlerGraph());
         new AggregateHandlerAttribute {AggregateType = typeof(Invoice) }.TryInferMessageIdentity(chain, out var property)
             .ShouldBe(true);
         property.Name.ShouldBe(nameof(CreateInvoice.Id));

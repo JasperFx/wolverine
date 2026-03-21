@@ -28,7 +28,7 @@ public class non_transactional_attribute_opt_out : PostgresqlContext
 
         // A handler that uses IDocumentSession but is decorated with [NonTransactional]
         // should NOT have transactional middleware applied
-        runtime.Handlers.ChainFor<NonTransactionalCommand>()
+        runtime.Handlers.ChainFor<NonTransactionalCommand>()!
             .IsTransactional.ShouldBeFalse();
     }
 
@@ -48,7 +48,7 @@ public class non_transactional_attribute_opt_out : PostgresqlContext
 
         // A normal handler that uses IDocumentSession should still get
         // transactional middleware from AutoApplyTransactions
-        runtime.Handlers.ChainFor<TransactionalCommand>()
+        runtime.Handlers.ChainFor<TransactionalCommand>()!
             .IsTransactional.ShouldBeTrue();
     }
 
@@ -67,7 +67,7 @@ public class non_transactional_attribute_opt_out : PostgresqlContext
         var runtime = host.GetRuntime();
 
         // [NonTransactional] on the handler class should also opt out
-        runtime.Handlers.ChainFor<NonTransactionalClassCommand>()
+        runtime.Handlers.ChainFor<NonTransactionalClassCommand>()!
             .IsTransactional.ShouldBeFalse();
     }
 }

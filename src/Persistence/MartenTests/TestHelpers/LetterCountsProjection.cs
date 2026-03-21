@@ -6,7 +6,7 @@ namespace MartenTests.TestHelpers;
 
 public class LetterCountsProjection: SingleStreamProjection<LetterCounts, Guid>
 {
-    public override LetterCounts Evolve(LetterCounts snapshot, Guid id, IEvent e)
+    public override LetterCounts Evolve(LetterCounts? snapshot, Guid id, IEvent e)
     {
 
         switch (e.Data)

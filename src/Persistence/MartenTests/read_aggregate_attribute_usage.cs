@@ -14,9 +14,8 @@ namespace MartenTests;
 
 public class read_aggregate_attribute_usage : PostgresqlContext, IAsyncLifetime
 {
-    private IHost theHost;
-    private IDocumentStore theStore;
-    private Guid theStreamId;
+    private IHost theHost = null!;
+    private IDocumentStore theStore = null!;
 
     public async Task InitializeAsync()
     {
