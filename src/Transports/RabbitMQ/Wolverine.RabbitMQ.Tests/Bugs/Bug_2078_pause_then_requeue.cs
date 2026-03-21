@@ -15,7 +15,7 @@ namespace Wolverine.RabbitMQ.Tests.Bugs;
 public class Bug_2078_pause_then_requeue : IAsyncLifetime
 {
     private readonly ITestOutputHelper _output;
-    private IHost _host;
+    private IHost _host = null!;
     private readonly string _queueName;
 
     public Bug_2078_pause_then_requeue(ITestOutputHelper output)
@@ -47,7 +47,7 @@ public class Bug_2078_pause_then_requeue : IAsyncLifetime
     {
         if (_host != null)
         {
-            _host.TeardownResources();
+            await _host.TeardownResources();
             await _host.StopAsync();
             _host.Dispose();
         }
