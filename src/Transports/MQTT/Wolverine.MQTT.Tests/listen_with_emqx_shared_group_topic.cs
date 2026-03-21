@@ -12,8 +12,8 @@ namespace Wolverine.MQTT.Tests;
 public class listen_with_emqx_shared_group_topic : IAsyncLifetime
 {
     private readonly ITestOutputHelper _output;
-    private IHost _sender;
-    private IHost _receiver;
+    private IHost _sender = null!;
+    private IHost _receiver = null!;
 
     public listen_with_emqx_shared_group_topic(ITestOutputHelper output)
     {
@@ -65,7 +65,7 @@ public class listen_with_emqx_shared_group_topic : IAsyncLifetime
         received.Color.ShouldBe("green");
     }
 
-    public LocalMqttBroker Broker { get; set; }
+    public LocalMqttBroker Broker { get; set; } = null!;
 
     public async Task DisposeAsync()
     {

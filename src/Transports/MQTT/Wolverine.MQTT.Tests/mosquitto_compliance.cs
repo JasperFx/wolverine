@@ -64,8 +64,8 @@ public class MosquittoBufferedCompliance : TransportCompliance<MosquittoBuffered
 public class mosquitto_shared_subscription_specific_topic : IAsyncLifetime
 {
     private readonly ITestOutputHelper _output;
-    private IHost _sender;
-    private IHost _receiver;
+    private IHost _sender = null!;
+    private IHost _receiver = null!;
 
     public mosquitto_shared_subscription_specific_topic(ITestOutputHelper output)
     {
@@ -124,8 +124,8 @@ public class mosquitto_shared_subscription_specific_topic : IAsyncLifetime
 public class mosquitto_shared_subscription_with_wildcard : IAsyncLifetime
 {
     private readonly ITestOutputHelper _output;
-    private IHost _sender;
-    private IHost _receiver;
+    private IHost _sender = null!;
+    private IHost _receiver = null!;
 
     public mosquitto_shared_subscription_with_wildcard(ITestOutputHelper output)
     {

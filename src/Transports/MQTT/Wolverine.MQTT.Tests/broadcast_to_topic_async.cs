@@ -13,8 +13,8 @@ namespace Wolverine.MQTT.Tests;
 public class broadcast_to_topic_async : IAsyncLifetime
 {
     private readonly ITestOutputHelper _output;
-    private IHost _sender;
-    private IHost _receiver;
+    private IHost _sender = null!;
+    private IHost _receiver = null!;
 
     public broadcast_to_topic_async(ITestOutputHelper output)
     {
@@ -60,7 +60,7 @@ public class broadcast_to_topic_async : IAsyncLifetime
         received.Color.ShouldBe("blue");
     }
 
-    public LocalMqttBroker Broker { get; set; }
+    public LocalMqttBroker Broker { get; set; } = null!;
 
     public async Task DisposeAsync()
     {
@@ -84,7 +84,7 @@ public class ColorMessage
         Color = color;
     }
 
-    public string Color { get; set; }
+    public string Color { get; set; } = null!;
 }
 
 public class SpecialColorMessage : ColorMessage;
