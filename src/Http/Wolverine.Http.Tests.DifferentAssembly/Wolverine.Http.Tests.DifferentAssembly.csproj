@@ -1,9 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-    <PropertyGroup>
-        <Nullable>disable</Nullable>
-    </PropertyGroup>
-
     <ItemGroup>
         <ProjectReference Include="..\Wolverine.Http\Wolverine.Http.csproj"/>
         <ProjectReference Include="..\Wolverine.Http.FluentValidation\Wolverine.Http.FluentValidation.csproj"/>
