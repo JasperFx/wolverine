@@ -78,7 +78,7 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollectionWithServ
         foreach (var chain in _chains)
         {
             var chainDescription = OptionsDescription.For(chain);
-            chainDescription.Title = chain.RoutePattern?.RawText;
+            chainDescription.Title = (chain.RoutePattern?.RawText)!;
             list.Rows.Add(chainDescription);
         }
 

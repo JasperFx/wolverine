@@ -9,7 +9,7 @@ namespace WolverineWebApi;
 public class HeaderUsingEndpoint
 {
     // For testing
-    public static string Day;
+    public static string Day = null!;
 
 
     #region sample_pushing_header_values_into_endpoint_methods
@@ -18,7 +18,7 @@ public class HeaderUsingEndpoint
     public static void Before([FromHeader(Name = "x-day")] string? day)
     {
         Debug.WriteLine($"Day header is {day}");
-        Day = day; // This is for testing
+        Day = day!; // This is for testing
     }
 
     [WolverineGet("/headers/simple")]
@@ -60,7 +60,7 @@ public class HeaderMiddlewareAttribute : ModifyHttpChainAttribute
 {
     public override void Modify(HttpChain chain, GenerationRules rules)
     {
-        chain.Middleware.Add(MethodCall.For<HeaderMiddleware>(x => x.Before(default)));
+        chain.Middleware.Add(MethodCall.For<HeaderMiddleware>(x => x.Before(default!)));
     }
 }
 

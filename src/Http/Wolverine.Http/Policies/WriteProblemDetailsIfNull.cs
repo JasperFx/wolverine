@@ -32,12 +32,12 @@ internal class WriteProblemDetailsIfNull : AsyncFrame
 
         if (Message.Contains("{0}"))
         {
-            writer.Write($"await {nameof(HttpHandler.WriteProblems)}({StatusCode}, string.Format(\"{Message}\", {Identity.Usage}), {_httpContext.Usage}, {Identity.Usage});");
+            writer.Write($"await {nameof(HttpHandler.WriteProblems)}({StatusCode}, string.Format(\"{Message}\", {Identity.Usage}), {_httpContext!.Usage}, {Identity.Usage});");
         }
         else
         {
             var constant = Constant.For(Message);
-            writer.Write($"await {nameof(HttpHandler.WriteProblems)}({StatusCode}, {constant.Usage}, {_httpContext.Usage}, {Identity.Usage});");
+            writer.Write($"await {nameof(HttpHandler.WriteProblems)}({StatusCode}, {constant.Usage}, {_httpContext!.Usage}, {Identity.Usage});");
         }
 
         writer.Write("return;");

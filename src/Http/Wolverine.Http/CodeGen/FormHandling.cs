@@ -144,7 +144,7 @@ internal class ParsedArrayFormValue : SyncFrame, IReadHttpFrame
             
             writer.Write($"BLOCK:foreach (var {Variable.Usage}Value in httpContext.Request.Form[\"{Variable.Usage}\"])");
 
-            if (elementType.IsEnum)
+            if (elementType!.IsEnum)
             {
                 writer.Write($"BLOCK:if ({elementAlias}.TryParse<{elementAlias}>({Variable.Usage}Value, out var {Variable.Usage}ValueParsed))");
             }

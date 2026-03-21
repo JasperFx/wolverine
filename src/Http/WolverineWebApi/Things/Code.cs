@@ -15,8 +15,8 @@ namespace WolverineWebApi.Things;
 
 public class Thing
 {
-    public string Id { get; set; }
-    public string Title { get; set; }
+    public string Id { get; set; } = null!;
+    public string Title { get; set; } = null!;
 }
 
 public class ThingProjection : SingleStreamProjection<Thing, string>

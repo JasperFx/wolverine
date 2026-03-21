@@ -141,12 +141,12 @@ public partial class HttpChain
 
     public override bool TryFindVariable(string valueName, ValueSource source, Type valueType, out Variable variable)
     {
-        if ((source == ValueSource.RouteValue || source == ValueSource.Anything) && FindRouteVariable(valueType, valueName, out variable))
+        if ((source == ValueSource.RouteValue || source == ValueSource.Anything) && FindRouteVariable(valueType, valueName, out variable!))
         {
             return true;
         }
-        
-        if ((source == ValueSource.FromQueryString || source == ValueSource.Anything) && FindQuerystringVariable(valueType, valueName, out variable))
+
+        if ((source == ValueSource.FromQueryString || source == ValueSource.Anything) && FindQuerystringVariable(valueType, valueName, out variable!))
         {
             return true;
         }
@@ -190,7 +190,7 @@ public partial class HttpChain
     }
     private void fillResponseTypes(ApiDescription apiDescription)
     {
-        var attributeMetadata = Endpoint.Metadata
+        var attributeMetadata = Endpoint!.Metadata
             .OfType<IApiResponseMetadataProvider>()
             .Select(x =>
             {

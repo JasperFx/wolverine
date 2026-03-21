@@ -27,5 +27,5 @@ public class SomeEndpoint
 
 public class SomeDocument
 {
-    public string Id { get; set; }
+    public string Id { get; set; } = null!;
 }
