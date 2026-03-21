@@ -47,6 +47,10 @@ partial class Build
             WaitForMySqlToBeReady();
         if (services.Contains("oracle"))
             WaitForOracleToBeReady();
+        if (services.Contains("localstack"))
+            WaitForLocalStackToBeReady();
+        if (services.Contains("asb-emulator"))
+            WaitForAzureServiceBusEmulatorToBeReady();
     }
 
     void WaitForSqlServerToBeReady()
@@ -122,6 +126,57 @@ partial class Build
         }
 
         Log.Warning("Oracle did not become ready after 120 seconds");
+    }
+
+    void WaitForLocalStackToBeReady()
+    {
+        var attempt = 0;
+        using var httpClient = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+        while (attempt < 30)
+        {
+            try
+            {
+                var response = httpClient.GetAsync("http://localhost:4566/_localstack/health").GetAwaiter().GetResult();
+                if (response.IsSuccessStatusCode)
+                {
+                    Log.Information("LocalStack is up and ready!");
+                    return;
+                }
+            }
+            catch (Exception)
+            {
+                // ignore connection errors
+            }
+
+            Thread.Sleep(2000);
+            attempt++;
+        }
+
+        Log.Warning("LocalStack did not become ready after 60 seconds");
+    }
+
+    void WaitForAzureServiceBusEmulatorToBeReady()
+    {
+        var attempt = 0;
+        while (attempt < 30)
+        {
+            try
+            {
+                using var tcpClient = new System.Net.Sockets.TcpClient();
+                tcpClient.Connect("localhost", 5673);
+                Log.Information("Azure Service Bus emulator is up and ready!");
+                return;
+            }
+            catch (Exception)
+            {
+                // ignore connection errors
+            }
+
+            Thread.Sleep(2000);
+            attempt++;
+        }
+
+        Log.Warning("Azure Service Bus emulator did not become ready after 60 seconds");
     }
 
     /// <summary>
@@ -215,7 +270,7 @@ partial class Build
             var snsTests = RootDirectory / "src" / "Transports" / "AWS" / "Wolverine.AmazonSns.Tests" / "Wolverine.AmazonSns.Tests.csproj";
 
             BuildTestProjects(sqsTests, snsTests);
-            StartDockerServices("postgresql");
+            StartDockerServices("localstack", "postgresql");
 
             RunSingleProjectOneClassAtATime(sqsTests);
             RunSingleProjectOneClassAtATime(snsTests);
@@ -330,6 +385,7 @@ partial class Build
             var tests = RootDirectory / "src" / "Transports" / "Azure" / "Wolverine.AzureServiceBus.Tests" / "Wolverine.AzureServiceBus.Tests.csproj";
 
             BuildTestProjects(tests);
+            StartDockerServices("asb-emulator");
 
             RunSingleProjectOneClassAtATime(tests);
         });
