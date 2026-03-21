@@ -19,7 +19,7 @@ namespace Wolverine.RabbitMQ.Tests;
 public class leader_pinned_listener : IAsyncDisposable
 {
     private readonly ITestOutputHelper _output;
-    private const string? LeaderPinnedListeners = "leader_pinned_listeners";
+    private const string LeaderPinnedListeners = "leader_pinned_listeners";
     private List<IHost> _hosts = new List<IHost>();
 
     public leader_pinned_listener(ITestOutputHelper output)
@@ -142,13 +142,13 @@ public class XUnitLogger : ILogger
         return logLevel != LogLevel.None;
     }
 
-    public IDisposable BeginScope<TState>(TState state)
+    public IDisposable BeginScope<TState>(TState state) where TState : notnull
     {
         return new Disposable();
     }
 
-    public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception exception,
-        Func<TState, Exception, string> formatter)
+    public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+        Func<TState, Exception?, string> formatter)
     {
         if (exception is DivideByZeroException)
         {

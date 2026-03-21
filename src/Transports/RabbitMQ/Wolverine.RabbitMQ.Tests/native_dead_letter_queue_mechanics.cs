@@ -17,8 +17,8 @@ namespace Wolverine.RabbitMQ.Tests;
 public class native_dead_letter_queue_mechanics : IDisposable
 {
     private readonly string QueueName = Guid.NewGuid().ToString();
-    private IHost _host;
-    private RabbitMqTransport theTransport;
+    private IHost _host = null!;
+    private RabbitMqTransport theTransport = null!;
 
     public async Task afterBootstrapping()
     {
@@ -178,7 +178,7 @@ public class native_dead_letter_queue_mechanics : IDisposable
 
         var channel = Substitute.For<IChannel>();
         channel.QueueDeclareAsync(Arg.Any<string>(), Arg.Any<bool>(), Arg.Any<bool>(), Arg.Any<bool>(),
-                Arg.Any<IDictionary<string, object>>())
+                Arg.Any<IDictionary<string, object?>>())
             .Returns(Task.FromResult(new QueueDeclareOk(queue.QueueName, 0, 0)));
 
         await queue.DeclareAsync(channel, NullLogger.Instance);
@@ -254,7 +254,7 @@ public class native_dead_letter_queue_mechanics : IDisposable
 
         var channel = Substitute.For<IChannel>();
         channel.QueueDeclareAsync(Arg.Any<string>(), Arg.Any<bool>(), Arg.Any<bool>(), Arg.Any<bool>(),
-                Arg.Any<IDictionary<string, object>>())
+                Arg.Any<IDictionary<string, object?>>())
             .Returns(Task.FromResult(new QueueDeclareOk(defaultQueue, 0, 0)));
 
         await defaultEndpoint.DeclareAsync(channel, NullLogger.Instance);

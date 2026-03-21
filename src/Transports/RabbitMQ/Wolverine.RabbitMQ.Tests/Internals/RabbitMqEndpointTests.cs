@@ -79,7 +79,7 @@ public class RabbitMqEndpointTests
 
         // With virtual host
 
-        transport.ConnectionFactory.VirtualHost = "v1";
+        transport.ConnectionFactory!.VirtualHost = "v1";
 
         endpoint.MassTransitUri().ShouldBe("rabbitmq://rabbitserver/v1/foo".ToUri());
     }
@@ -98,7 +98,7 @@ public class RabbitMqEndpointTests
 
         // With virtual host
 
-        transport.ConnectionFactory.VirtualHost = "v1";
+        transport.ConnectionFactory!.VirtualHost = "v1";
 
         endpoint.MassTransitUri().ShouldBe("rabbitmq://rabbitserver/v1/bar".ToUri());
     }

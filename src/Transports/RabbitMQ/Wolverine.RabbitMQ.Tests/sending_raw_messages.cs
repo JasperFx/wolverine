@@ -140,7 +140,7 @@ public class sending_raw_messages
 
         builder.UseWolverine(opts =>
         {
-            opts.UseRabbitMq(connectionString).AutoProvision();
+            opts.UseRabbitMq(connectionString!).AutoProvision();
 
             opts.ListenToRabbitQueue("batches")
 
