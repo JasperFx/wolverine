@@ -94,9 +94,9 @@ public class AmazonSnsSubscriberConfiguration : SubscriberConfiguration<AmazonSn
         add(e =>
         {
             e.DefaultSerializer = new NewtonsoftSerializer(new JsonSerializerSettings());
-            e.Mapper = new NServiceBusEnvelopeMapper(replyQueueName, e);
+            e.Mapper = new NServiceBusEnvelopeMapper(replyQueueName!, e);
         });
-        
+
         return this;
     }
 
@@ -106,7 +106,7 @@ public class AmazonSnsSubscriberConfiguration : SubscriberConfiguration<AmazonSn
     /// <returns></returns>
     public AmazonSnsSubscriberConfiguration UseMassTransitInterop()
     {
-        add(e => e.Mapper = new MassTransitMapper(Endpoint as IMassTransitInteropEndpoint));
+        add(e => e.Mapper = new MassTransitMapper((Endpoint as IMassTransitInteropEndpoint)!));
         return this;
     }
     

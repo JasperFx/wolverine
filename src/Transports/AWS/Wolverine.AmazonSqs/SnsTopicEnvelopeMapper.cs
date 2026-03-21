@@ -47,10 +47,10 @@ internal class SnsTopicEnvelopeMapper : ISqsEnvelopeMapper
     
     internal class SnsMessageMetadata
     {
-        public string Type { get; set; }
-        public string MessageId { get; set; }
-        public string TopicArn { get; set; }
-        public string Message { get; set; }
-        public string UnsubscribeURL { get; set; }
+        public string Type { get; set; } = null!;
+        public string MessageId { get; set; } = null!;
+        public string TopicArn { get; set; } = null!;
+        public string Message { get; set; } = null!;
+        public string UnsubscribeURL { get; set; } = null!;
     }
 }

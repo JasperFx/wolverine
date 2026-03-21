@@ -21,7 +21,7 @@ public partial class AzureServiceBusTransport : BrokerTransport<AzureServiceBusE
     private readonly Lazy<ServiceBusAdministrationClient> _managementClient;
 
     public readonly List<AzureServiceBusSubscription> Subscriptions = new();
-    private string _hostName;
+    private string _hostName = null!;
     public const string DeadLetterQueueName = DeadLetterQueueConstants.DefaultQueueName;
 
     public AzureServiceBusTransport() : this(ProtocolName)
@@ -210,7 +210,7 @@ public partial class AzureServiceBusTransport : BrokerTransport<AzureServiceBusE
         {
             if (_hostName == null)
             {
-                var parts = ConnectionString.Split(';');
+                var parts = ConnectionString!.Split(';');
                 foreach (var part in parts)
                 {
                     var split = part.Split('=');

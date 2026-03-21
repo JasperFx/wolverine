@@ -265,5 +265,5 @@ public class AmazonSqsTransport : BrokerTransport<AmazonSqsQueue>
         Config.ServiceURL = $"http://localhost:{port}";
     }
 
-    public string ServerHost => Config.ServiceURL?.ToUri().Host;
+    public string ServerHost => Config.ServiceURL?.ToUri().Host!;
 }
