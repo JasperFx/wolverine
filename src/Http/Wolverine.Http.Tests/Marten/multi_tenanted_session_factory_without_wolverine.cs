@@ -69,12 +69,12 @@ public class multi_tenanted_session_factory_without_wolverine
         }
 
         var blueDoc = await host.GetAsJson<ColorDoc>("/color?tenant=blue");
-        blueDoc.Number.ShouldBe(1);
-        
+        blueDoc!.Number.ShouldBe(1);
+
         var greenDoc = await host.GetAsJson<ColorDoc>("/color?tenant=green");
-        greenDoc.Number.ShouldBe(2);
+        greenDoc!.Number.ShouldBe(2);
     }
-    
+
     [Fact]
     public async Task can_do_the_tenancy_detection_with_custom_metadata()
     {
@@ -101,7 +101,7 @@ public class multi_tenanted_session_factory_without_wolverine
         });
 
         #endregion
-        
+
         // This is using Alba, which uses WebApplicationFactory under the covers
         await using var host = await AlbaHost.For(builder, app =>
         {
@@ -121,7 +121,7 @@ public class multi_tenanted_session_factory_without_wolverine
 
             await session.SaveChangesAsync();
         }
-        
+
         // Store the green doc
         using (var session = store.LightweightSession("green"))
         {
@@ -135,15 +135,15 @@ public class multi_tenanted_session_factory_without_wolverine
         }
 
         var blueDoc = await host.GetAsJson<ColorDoc>("/color?tenant=blue");
-        blueDoc.Number.ShouldBe(1);
-        
+        blueDoc!.Number.ShouldBe(1);
+
         var greenDoc = await host.GetAsJson<ColorDoc>("/color?tenant=green");
-        greenDoc.Number.ShouldBe(2);
+        greenDoc!.Number.ShouldBe(2);
     }
 }
 
 public class ColorDoc
 {
-    public string Id { get; set; }
+    public string Id { get; set; } = null!;
     public int Number { get; set; }
 }

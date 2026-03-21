@@ -137,8 +137,8 @@ public class asparameters_binding : IntegrationContext
 
         // First check this for OpenAPI generation
         var options = Host.Services.GetRequiredService<WolverineHttpOptions>();
-        var chain = options.Endpoints.ChainFor("POST", "/asp2/{id}/{number}");
-        chain.RequestType.ShouldBe(typeof(AsParameterBody));
+        var chain = options.Endpoints!.ChainFor("POST", "/asp2/{id}/{number}");
+        chain!.RequestType.ShouldBe(typeof(AsParameterBody));
 
         response.Body.Name.ShouldBe("Jeremy");
         response.Body.Direction.ShouldBe(Direction.East);

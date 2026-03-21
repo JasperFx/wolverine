@@ -38,10 +38,10 @@ public class using_storage_actions_and_entity_attribute : IntegrationContext
         });
 
         var todo = await Load(command.Id);
-        
-        todo.Name.ShouldBe("Write docs");
+
+        todo!.Name.ShouldBe("Write docs");
     }
-    
+
     [Fact]
     public async Task use_store_as_return_value()
     {
@@ -53,8 +53,8 @@ public class using_storage_actions_and_entity_attribute : IntegrationContext
         });
 
         var todo = await Load(command.Id);
-        
-        todo.Name.ShouldBe("Write docs");
+
+        todo!.Name.ShouldBe("Write docs");
     }
 
     [Fact]
@@ -70,9 +70,9 @@ public class using_storage_actions_and_entity_attribute : IntegrationContext
         });
 
         var todo = await Load(command.Id);
-        todo.Name.ShouldBe("New name");
+        todo!.Name.ShouldBe("New name");
     }
-    
+
     [Fact]
     public async Task use_entity_attribute_with_entity_id()
     {
@@ -86,9 +86,9 @@ public class using_storage_actions_and_entity_attribute : IntegrationContext
         });
 
         var todo = await Load(command.Id);
-        todo.Name.ShouldBe("New name2");
+        todo!.Name.ShouldBe("New name2");
     }
-    
+
     [Fact]
     public async Task use_entity_attribute_with_explicit_id()
     {
@@ -100,9 +100,9 @@ public class using_storage_actions_and_entity_attribute : IntegrationContext
             x.Post.Json(new RenameTodo3(command.Id, "New name3")).ToUrl("/api/todo/update3");
             x.StatusCodeShouldBe(204);
         });
-        
+
         var todo = await Load(command.Id);
-        todo.Name.ShouldBe("New name3");
+        todo!.Name.ShouldBe("New name3");
     }
 
     [Fact]
@@ -123,7 +123,7 @@ public class using_storage_actions_and_entity_attribute : IntegrationContext
             x.StatusCodeShouldBe(204);
         });
 
-        (await Load(shouldInsert.Id)).Name.ShouldBe("Pick up milk");
+        (await Load(shouldInsert.Id))!.Name.ShouldBe("Pick up milk");
         (await Load(shouldDoNothing.Id)).ShouldBeNull();
     }
 
@@ -170,7 +170,7 @@ public class using_storage_actions_and_entity_attribute : IntegrationContext
             x.StatusCodeShouldBe(204);
         });
         
-        (await Load(todoId)).IsComplete.ShouldBeTrue();
+        (await Load(todoId))!.IsComplete.ShouldBeTrue();
     }
 
     [Fact]
@@ -194,7 +194,7 @@ public class using_storage_actions_and_entity_attribute : IntegrationContext
             x.StatusCodeShouldBe(204);
         });
         
-        (await Load(todoId)).IsComplete.ShouldBeTrue();
+        (await Load(todoId))!.IsComplete.ShouldBeTrue();
     }
 
     [Fact]
@@ -211,7 +211,7 @@ public class using_storage_actions_and_entity_attribute : IntegrationContext
             x.StatusCodeShouldBe(204);
         });
         
-        (await Load(todoId)).IsComplete.ShouldBeTrue();
+        (await Load(todoId))!.IsComplete.ShouldBeTrue();
     }
 
     [Fact]

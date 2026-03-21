@@ -23,7 +23,7 @@ public class using_marten : IntegrationContext
 
         var result = await Host.GetAsJson<Data>($"/data/{data.Id}");
 
-        result.Name.ShouldBe("foo");
+        result!.Name.ShouldBe("foo");
     }
 
     [Fact]

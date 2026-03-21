@@ -35,9 +35,9 @@ public class using_policies_and_attributes_to_customize_handling : IntegrationCo
         endpoints.Any().ShouldBeTrue();
 
         var testEndpoints = endpoints.Select(x => x.Metadata.GetMetadata<HttpChain>())
-            .Where(x => x != null).Where(x => x.Method.HandlerType == typeof(TestEndpoints));
+            .Where(x => x != null).Where(x => x!.Method.HandlerType == typeof(TestEndpoints));
 
-        foreach (var endpoint in testEndpoints) endpoint.Middleware.OfType<CommentFrame>().Any().ShouldBeTrue();
+        foreach (var endpoint in testEndpoints) endpoint!.Middleware.OfType<CommentFrame>().Any().ShouldBeTrue();
     }
 
     [Fact]
@@ -49,8 +49,8 @@ public class using_policies_and_attributes_to_customize_handling : IntegrationCo
         endpoints.Any().ShouldBeTrue();
 
         var endpoint = endpoints.Select(x => x.Metadata.GetMetadata<HttpChain>())
-            .Where(x => x != null).Single(x => x.RoutePattern.RawText == "/data/{id}");
+            .Where(x => x != null).Single(x => x!.RoutePattern!.RawText == "/data/{id}");
 
-        endpoint.Middleware.OfType<CommentFrame>().Any().ShouldBeTrue();
+        endpoint!.Middleware.OfType<CommentFrame>().Any().ShouldBeTrue();
     }
 }

@@ -27,7 +27,7 @@ public class swashbuckle_integration : IntegrationContext
     [Fact]
     public void ignore_endpoint_methods_that_are_marked_with_ExcludeFromDescription()
     {
-        HttpChains.Chains.Any(x => x.RoutePattern.RawText == "/ignore").ShouldBeTrue();
+        HttpChains.Chains.Any(x => x.RoutePattern!.RawText == "/ignore").ShouldBeTrue();
 
         var generator = Host.Services.GetRequiredService<ISwaggerProvider>();
         var doc = generator.GetSwagger("v1");

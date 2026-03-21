@@ -19,7 +19,7 @@ public static class MultiTenancy
         var connectionString = builder.Configuration.GetConnectionString("postgres");
 
         builder.Services
-            .AddMarten(connectionString)
+            .AddMarten(connectionString!)
             .IntegrateWithWolverine();
 
         builder.Host.UseWolverine(opts =>

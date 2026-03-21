@@ -45,7 +45,7 @@ public class fluent_validation_middleware : IntegrationContext
     [Fact]
     public async Task one_validator_sad_path()
     {
-        var createCustomer = new CreateCustomer(null, "Humphrey", "11111");
+        var createCustomer = new CreateCustomer(null!, "Humphrey", "11111");
 
         var results = await Scenario(x =>
         {
@@ -58,7 +58,7 @@ public class fluent_validation_middleware : IntegrationContext
         // in the request
         var problems = results.ReadAsJson<HttpValidationProblemDetails>();
     }
-    
+
     [Fact]
     public async Task one_validator_happy_path_on_complex_query_string_argument()
     {
@@ -76,7 +76,7 @@ public class fluent_validation_middleware : IntegrationContext
     [Fact]
     public async Task one_validator_sad_path_on_complex_query_string_argument()
     {
-        var createCustomer = new CreateCustomer(null, "Humphrey", "11111");
+        var createCustomer = new CreateCustomer(null!, "Humphrey", "11111");
 
         var results = await Scenario(x =>
         {
@@ -96,7 +96,7 @@ public class fluent_validation_middleware : IntegrationContext
     [Fact]
     public async Task one_validator_sad_path_in_different_assembly()
     {
-        var createCustomer = new CreateCustomer2(null, "Humphrey", "11111");
+        var createCustomer = new CreateCustomer2(null!, "Humphrey", "11111");
 
         var results = await Scenario(x =>
         {
