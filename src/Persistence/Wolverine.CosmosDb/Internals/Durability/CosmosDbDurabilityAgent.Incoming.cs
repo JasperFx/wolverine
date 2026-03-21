@@ -36,7 +36,7 @@ public partial class CosmosDbDurabilityAgent
             {
                 var receivedAt = new Uri(listenerStr);
                 var circuit = _runtime.Endpoints.FindListenerCircuit(receivedAt);
-                if (circuit.Status != ListeningStatus.Accepting)
+                if (circuit!.Status != ListeningStatus.Accepting)
                 {
                     continue;
                 }
