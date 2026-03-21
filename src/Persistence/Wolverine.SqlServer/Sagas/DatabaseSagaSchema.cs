@@ -31,7 +31,7 @@ public class DatabaseSagaSchema<TId, TSaga> : IDatabaseSagaSchema<TId, TSaga> wh
 
         _deleteSql = $"delete from {settings.SchemaName}.{definition.TableName} where id = @id";
         
-        var table = new Table(new DbObjectName(settings.SchemaName, definition.TableName));
+        var table = new Table(new DbObjectName(settings.SchemaName!, definition.TableName));
         table.AddColumn<TId>("id").AsPrimaryKey();
         table.AddColumn(DatabaseConstants.Body, "varbinary(max)").NotNull();
         table.AddColumn(DatabaseConstants.Version, "int").DefaultValue(1).NotNull();
@@ -73,20 +73,20 @@ public class DatabaseSagaSchema<TId, TSaga> : IDatabaseSagaSchema<TId, TSaga> wh
         
         await ensureStorageExistsAsync(cancellationToken);
         await transaction.CreateCommand(_insertSql)
-            .With("id", id)
+            .With("id", id!)
             .With("body", JsonSerializer.SerializeToUtf8Bytes(saga))
             .ExecuteNonQueryAsync(cancellationToken);
 
         saga.Version = 1;
     }
-    
+
     public async Task UpdateAsync(TSaga saga, DbTransaction transaction, CancellationToken cancellationToken)
     {
         await ensureStorageExistsAsync(cancellationToken);
 
         var id = IdSource(saga);
         var count = await transaction.CreateCommand(_updateSql)
-            .With("id", id)
+            .With("id", id!)
             .With("body", JsonSerializer.SerializeToUtf8Bytes(saga))
             .With("version", saga.Version)
             .ExecuteNonQueryAsync(cancellationToken);
@@ -103,7 +103,7 @@ public class DatabaseSagaSchema<TId, TSaga> : IDatabaseSagaSchema<TId, TSaga> wh
         await ensureStorageExistsAsync(cancellationToken);
         await transaction
             .CreateCommand(_deleteSql)
-            .With("id", IdSource(saga))
+            .With("id", IdSource(saga)!)
             .ExecuteNonQueryAsync(cancellationToken);
     }
 
@@ -111,7 +111,7 @@ public class DatabaseSagaSchema<TId, TSaga> : IDatabaseSagaSchema<TId, TSaga> wh
     {
         await ensureStorageExistsAsync(cancellationToken);
         await using var reader = await tx.CreateCommand(_loadSql)
-            .With("id", id)
+            .With("id", id!)
             .ExecuteReaderAsync(cancellationToken);
 
         if (!await reader.ReadAsync(cancellationToken))

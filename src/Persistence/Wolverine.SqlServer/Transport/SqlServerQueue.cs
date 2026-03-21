@@ -142,13 +142,13 @@ public class SqlServerQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint
             // Multi-tenant mode - iterate over all tenant databases
             foreach (var database in Parent.Databases.ActiveDatabases().OfType<SqlServerMessageStore>())
             {
-                await action(database.Settings.ConnectionString, database.Identifier);
+                await action(database.Settings.ConnectionString!, database.Identifier);
             }
         }
         else
         {
             // Single-tenant mode - use the transport's connection string
-            await action(Parent.Settings.ConnectionString, Parent.Settings.SchemaName ?? "wolverine");
+            await action(Parent.Settings.ConnectionString!, Parent.Settings.SchemaName ?? "wolverine");
         }
     }
 
@@ -257,8 +257,8 @@ public class SqlServerQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint
 
             try
             {
-                count += (int)await conn.CreateCommand($"select count(*) from {QueueTable.Identifier}")
-                    .ExecuteScalarAsync();
+                count += (int)(await conn.CreateCommand($"select count(*) from {QueueTable.Identifier}")
+                    .ExecuteScalarAsync())!;
             }
             finally
             {
@@ -279,8 +279,8 @@ public class SqlServerQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint
 
             try
             {
-                count += (int)await conn.CreateCommand($"select count(*) from {ScheduledTable.Identifier}")
-                    .ExecuteScalarAsync();
+                count += (int)(await conn.CreateCommand($"select count(*) from {ScheduledTable.Identifier}")
+                    .ExecuteScalarAsync())!;
             }
             finally
             {
@@ -408,8 +408,8 @@ IF (@NOCOUNT = 'OFF') SET NOCOUNT OFF;";
                 await conn.CreateCommand(_writeDirectlyToQueueTableSql!)
                     .With("id", envelope.Id)
                     .With("body", EnvelopeSerializer.Serialize(envelope))
-                    .With("type", envelope.MessageType)
-                    .With("expires", envelope.DeliverBy)
+                    .With("type", envelope.MessageType!)
+                    .With("expires", envelope.DeliverBy!)
                     .ExecuteNonQueryAsync(cancellationToken);
                 await conn.CloseAsync();
             }
@@ -429,9 +429,9 @@ IF (@NOCOUNT = 'OFF') SET NOCOUNT OFF;";
         await conn.CreateCommand(_writeDirectlyToTheScheduledTable!)
             .With("id", envelope.Id)
             .With("body", EnvelopeSerializer.Serialize(envelope))
-            .With("type", envelope.MessageType)
-            .With("expires", envelope.DeliverBy)
-            .With("time", envelope.ScheduledTime)
+            .With("type", envelope.MessageType!)
+            .With("expires", envelope.DeliverBy!)
+            .With("time", envelope.ScheduledTime!)
             .ExecuteNonQueryAsync(cancellationToken);
         await conn.CloseAsync();
     }
