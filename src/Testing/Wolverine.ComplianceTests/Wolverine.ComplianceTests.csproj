@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
+    <Nullable>disable</Nullable>
         <Description>Compliance test harnesses for adding persistence and transport options to Wolverine</Description>
         <PackageId>WolverineFx.ComplianceTests</PackageId>
     </PropertyGroup>
