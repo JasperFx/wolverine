@@ -6,7 +6,7 @@ namespace Wolverine.Pulsar.Tests;
 
 public class InlinePulsarTransportFixture : TransportComplianceFixture, IAsyncLifetime
 {
-    public InlinePulsarTransportFixture() : base(null)
+    public InlinePulsarTransportFixture() : base(null!)
     {
     }
 
@@ -31,9 +31,9 @@ public class InlinePulsarTransportFixture : TransportComplianceFixture, IAsyncLi
         });
     }
 
-    public async Task DisposeAsync()
+    public new async Task DisposeAsync()
     {
-        await DisposeAsync();
+        await base.DisposeAsync();
     }
 
     public override void BeforeEach()

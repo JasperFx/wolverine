@@ -6,7 +6,7 @@ namespace Wolverine.Pulsar.Tests;
 
 public class PulsarTransportFixture : TransportComplianceFixture, IAsyncLifetime
 {
-    public PulsarTransportFixture() : base(null)
+    public PulsarTransportFixture() : base(null!)
     {
     }
 

@@ -6,7 +6,7 @@ namespace Wolverine.Pulsar.Tests;
 
 public class PulsarWithCloudEventsFixture : TransportComplianceFixture, IAsyncLifetime
 {
-    public PulsarWithCloudEventsFixture() : base(null)
+    public PulsarWithCloudEventsFixture() : base(null!)
     {
     }
 
