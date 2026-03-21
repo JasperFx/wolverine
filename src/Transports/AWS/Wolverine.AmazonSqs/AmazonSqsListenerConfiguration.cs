@@ -286,7 +286,7 @@ internal class NServiceBusEnvelopeMapper : ISqsEnvelopeMapper
                 ["NServiceBus.ReplyToAddress"] = _replyName,
                 ["NServiceBus.ContentType"] = "application/json",
                 ["NServiceBus.TimeSent"] = envelope.SentAt.ToString("yyyy-MM-dd HH:mm:ss:ffffff Z"),
-                ["NServiceBus.EnclosedMessageTypes"] = envelope.Message.GetType().ToMessageTypeName()
+                ["NServiceBus.EnclosedMessageTypes"] = envelope.Message!.GetType().ToMessageTypeName()
             }
         };
 

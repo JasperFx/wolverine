@@ -221,7 +221,7 @@ public partial class AzureServiceBusTransport : BrokerTransport<AzureServiceBusE
                 }
             }
 
-            return _hostName;
+            return _hostName!;
         }
     }
 

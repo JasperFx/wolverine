@@ -118,7 +118,7 @@ public class remote_invocation : IAsyncLifetime
         var send = session.FindEnvelopesWithMessageType<Request1>()
             .Single(x => x.MessageEventType == MessageEventType.Sent);
 
-        send!.Envelope.DeliverBy.ShouldNotBeNull();
+        send!.Envelope!.DeliverBy.ShouldNotBeNull();
 
         var envelope = session.Received.SingleEnvelope<Response1>();
         envelope.Source.ShouldBe("Receiver1");
@@ -155,7 +155,7 @@ public class remote_invocation : IAsyncLifetime
         var send = session.FindEnvelopesWithMessageType<Request1>()
             .Single(x => x.MessageEventType == MessageEventType.Sent);
 
-        send!.Envelope.DeliverBy.ShouldNotBeNull();
+        send!.Envelope!.DeliverBy.ShouldNotBeNull();
 
         var envelope = session.Received.SingleEnvelope<Response1>();
         envelope.Source.ShouldBe("Receiver2");
@@ -182,7 +182,7 @@ public class remote_invocation : IAsyncLifetime
         var send = session.FindEnvelopesWithMessageType<Request1>()
             .Single(x => x.MessageEventType == MessageEventType.Sent);
 
-        send!.Envelope.DeliverBy.ShouldNotBeNull();
+        send!.Envelope!.DeliverBy.ShouldNotBeNull();
 
         var envelope = session.Received.SingleEnvelope<Response1>();
         envelope.Source.ShouldBe("Receiver2");
@@ -204,7 +204,7 @@ public class remote_invocation : IAsyncLifetime
         var send = session.FindEnvelopesWithMessageType<Request2>()
             .Single(x => x.MessageEventType == MessageEventType.Sent);
 
-        send!.Envelope.DeliverBy.ShouldNotBeNull();
+        send!.Envelope!.DeliverBy.ShouldNotBeNull();
 
         var envelope = session.Received.SingleEnvelope<Acknowledgement>();
         envelope.Source.ShouldBe("Receiver2");
@@ -229,7 +229,7 @@ public class remote_invocation : IAsyncLifetime
         var send = session.FindEnvelopesWithMessageType<Request1>()
             .Single(x => x.MessageEventType == MessageEventType.Sent);
 
-        send!.Envelope.DeliverBy.ShouldNotBeNull();
+        send!.Envelope!.DeliverBy.ShouldNotBeNull();
 
         var envelope = session.Received.SingleEnvelope<Response1>();
         envelope.Source.ShouldBe("Receiver2");
@@ -280,7 +280,7 @@ public class remote_invocation : IAsyncLifetime
         var send = session.FindEnvelopesWithMessageType<Request2>()
             .Single(x => x.MessageEventType == MessageEventType.Sent);
 
-        send!.Envelope.DeliverBy.ShouldNotBeNull();
+        send!.Envelope!.DeliverBy.ShouldNotBeNull();
 
         var envelope = session.Received.SingleEnvelope<Acknowledgement>();
         envelope.Source.ShouldBe("Receiver1");
@@ -298,7 +298,7 @@ public class remote_invocation : IAsyncLifetime
         var send = session.FindEnvelopesWithMessageType<Request2>()
             .Single(x => x.MessageEventType == MessageEventType.Sent);
 
-        send!.Envelope.DeliverBy.ShouldNotBeNull();
+        send!.Envelope!.DeliverBy.ShouldNotBeNull();
 
         var envelope = session.Received.SingleEnvelope<Acknowledgement>();
         envelope.Source.ShouldBe("Receiver2");
@@ -318,7 +318,7 @@ public class remote_invocation : IAsyncLifetime
         var send = session.FindEnvelopesWithMessageType<Request2>()
             .Single(x => x.MessageEventType == MessageEventType.Sent);
 
-        send!.Envelope.DeliverBy.ShouldNotBeNull();
+        send!.Envelope!.DeliverBy.ShouldNotBeNull();
 
         var envelope = session.Received.SingleEnvelope<Acknowledgement>();
         envelope.Source.ShouldBe("Receiver2");

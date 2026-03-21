@@ -232,7 +232,7 @@ public static class KafkaTransportExtensions
         var message = new Message<string, byte[]>
         {
             Key = !string.IsNullOrEmpty(envelope.PartitionKey) ? envelope.PartitionKey : envelope.Id.ToString(),
-            Value = data,
+            Value = data!,
             Headers = new Headers()
         };
 

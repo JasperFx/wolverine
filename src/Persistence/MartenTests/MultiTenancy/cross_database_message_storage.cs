@@ -717,10 +717,10 @@ public class cross_database_message_storage : MultiTenancyContext, IAsyncLifetim
         var db2 = await Stores.GetDatabaseAsync("tenant2");
         var db3 = await Stores.GetDatabaseAsync("tenant3");
 
-        (await Stores.Main.DeadLetters.DeadLetterEnvelopeByIdAsync(fromMaster.Id)).ShouldNotBeNull();
-        (await db1!.DeadLetters.DeadLetterEnvelopeByIdAsync(from1.Id)).ShouldNotBeNull();
-        (await db2!.DeadLetters.DeadLetterEnvelopeByIdAsync(from2.Id)).ShouldNotBeNull();
-        (await db3!.DeadLetters.DeadLetterEnvelopeByIdAsync(from3.Id)).ShouldNotBeNull();
+        (await Stores.Main.DeadLetters.DeadLetterEnvelopeByIdAsync(fromMaster!.Id)).ShouldNotBeNull();
+        (await db1!.DeadLetters.DeadLetterEnvelopeByIdAsync(from1!.Id)).ShouldNotBeNull();
+        (await db2!.DeadLetters.DeadLetterEnvelopeByIdAsync(from2!.Id)).ShouldNotBeNull();
+        (await db3!.DeadLetters.DeadLetterEnvelopeByIdAsync(from3!.Id)).ShouldNotBeNull();
     }
 
     [Fact]

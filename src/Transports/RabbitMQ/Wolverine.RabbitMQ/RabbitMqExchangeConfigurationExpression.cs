@@ -28,7 +28,7 @@ public sealed class RabbitMqExchangeConfigurationExpression : IRabbitMqBindableE
         get => _exchange.AutoDelete;
         set => _exchange.AutoDelete = value;
     }
-    public IDictionary<string, object> Arguments => _exchange.Arguments;
+    public IDictionary<string, object?> Arguments => _exchange.Arguments;
     public TopicBindingExchange BindTopic(string topicPattern)
     {
         var queue = _transport.Queues[Name];

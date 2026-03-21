@@ -81,7 +81,7 @@ public class batch_processing : IAsyncLifetime
             .Handler!
             .ShouldBeOfType<BatchingProcessor<Item>>();
 
-        handler.Chain.MessageType.ShouldBe(typeof(Item[]));
+        handler!.Chain!.MessageType.ShouldBe(typeof(Item[]));
         handler.Queue!.Uri.ShouldBe(new Uri("local://items"));
     }
 
