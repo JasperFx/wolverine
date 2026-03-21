@@ -206,18 +206,27 @@ partial class Build
         .ProceedAfterFailure()
         .Executes(() =>
         {
-            var sqliteTests = RootDirectory / "src" / "Persistence" / "SqliteTests" / "SqliteTests.csproj";
             var persistenceTests = RootDirectory / "src" / "Persistence" / "PersistenceTests" / "PersistenceTests.csproj";
             var postgresqlTests = RootDirectory / "src" / "Persistence" / "PostgresqlTests" / "PostgresqlTests.csproj";
 
-            BuildTestProjects(sqliteTests, postgresqlTests);
+            BuildTestProjects(postgresqlTests);
             // PersistenceTests only targets net8.0/net9.0
             BuildTestProjectsWithFramework("net9.0", persistenceTests);
             StartDockerServices("postgresql", "sqlserver", "rabbitmq");
 
-            RunSingleProjectOneClassAtATime(sqliteTests);
             RunSingleProjectOneClassAtATime(persistenceTests, frameworkOverride: "net9.0");
             RunSingleProjectOneClassAtATime(postgresqlTests);
+        });
+
+    Target CISqlite => _ => _
+        .ProceedAfterFailure()
+        .Executes(() =>
+        {
+            var sqliteTests = RootDirectory / "src" / "Persistence" / "SqliteTests" / "SqliteTests.csproj";
+
+            BuildTestProjects(sqliteTests);
+
+            RunSingleProjectOneClassAtATime(sqliteTests);
         });
 
     Target CISqlServer => _ => _
