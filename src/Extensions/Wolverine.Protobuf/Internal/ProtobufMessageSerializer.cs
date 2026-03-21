@@ -6,6 +6,8 @@ namespace Wolverine.Protobuf.Internal;
 
 internal class ProtobufMessageSerializer(ProtobufSerializerOptions options) : IMessageSerializer
 {
+    // ReSharper disable once NotAccessedField.Local
+    private readonly ProtobufSerializerOptions _options = options;
     public string ContentType => "binary/protobuf";
 
     public object ReadFromData(Type messageType, Envelope envelope)
