@@ -6,6 +6,7 @@ using Wolverine.Tracking;
 
 namespace Wolverine.AmazonSqs.Tests.ConventionalRouting;
 
+[Trait("Category", "Flaky")]
 public class end_to_end_with_conventional_routing : IDisposable
 {
     private readonly IHost _receiver;

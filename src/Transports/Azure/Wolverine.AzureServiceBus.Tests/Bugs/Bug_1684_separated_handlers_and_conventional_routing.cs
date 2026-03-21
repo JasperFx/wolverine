@@ -10,6 +10,7 @@ using Xunit.Abstractions;
 
 namespace Wolverine.AzureServiceBus.Tests.Bugs;
 
+[Trait("Category", "Flaky")]
 public class Bug_1684_separated_handlers_and_conventional_routing(ITestOutputHelper Output) : IAsyncLifetime
 {
     public Task InitializeAsync() => Task.CompletedTask;
