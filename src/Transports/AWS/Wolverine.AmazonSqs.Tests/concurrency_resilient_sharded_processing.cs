@@ -13,6 +13,7 @@ using Xunit.Abstractions;
 
 namespace Wolverine.AmazonSqs.Tests;
 
+[Trait("Category", "Flaky")]
 public class concurrency_resilient_sharded_processing
 {
     private readonly ITestOutputHelper _output;

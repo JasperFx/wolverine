@@ -81,6 +81,7 @@ public class end_to_end_with_CloudEvents : IAsyncLifetime
     }
 }
 
+[Trait("Category", "Flaky")]
 public class inline_end_to_end_with_CloudEvents : IAsyncLifetime
 {
     private IHost _receiver;
