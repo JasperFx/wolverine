@@ -22,7 +22,7 @@ public class ScheduledMessageReceiver
 public abstract class ScheduledJobCompliance: IAsyncLifetime
 {
     private readonly ScheduledMessageReceiver theReceiver = new();
-    private IHost theHost;
+    private IHost theHost = null!;
     
     public abstract void ConfigurePersistence(WolverineOptions opts);
     

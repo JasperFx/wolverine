@@ -15,8 +15,8 @@ namespace Wolverine.ComplianceTests;
 
 public abstract class MessageStoreCompliance : IAsyncLifetime
 {
-    public IHost theHost { get; private set; }
-    protected IMessageStore thePersistence;
+    public IHost theHost { get; private set; } = null!;
+    protected IMessageStore thePersistence = null!;
     
     public abstract Task<IHost> BuildCleanHost();
     
@@ -135,7 +135,7 @@ public abstract class MessageStoreCompliance : IAsyncLifetime
         var stored = (await thePersistence.Admin.AllIncomingAsync()).Single();
         
         // This is the important part
-        stored.Data.Length.ShouldBe(0);
+        stored.Data!.Length.ShouldBe(0);
         stored.Destination.ShouldBe(envelope.Destination);
 
         stored.Id.ShouldBe(envelope.Id);

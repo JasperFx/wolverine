@@ -9,7 +9,7 @@ namespace Wolverine.ComplianceTests;
 
 public abstract class NodePersistenceCompliance : IAsyncLifetime
 {
-    private IMessageStore _database;
+    private IMessageStore _database = null!;
 
     public async Task InitializeAsync()
     {
@@ -148,7 +148,7 @@ public abstract class NodePersistenceCompliance : IAsyncLifetime
 
         var persisted = await _database.Nodes.LoadNodeAsync(node.NodeId, CancellationToken.None);
 
-        persisted.ActiveAgents.OrderBy(x => x.ToString()).ShouldBe([agent3, agent2, agent1]);
+        persisted!.ActiveAgents.OrderBy(x => x.ToString()).ShouldBe([agent3, agent2, agent1]);
     }
 
     [Fact]

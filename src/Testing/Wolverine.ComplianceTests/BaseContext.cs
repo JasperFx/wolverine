@@ -8,7 +8,7 @@ public abstract class BaseContext : IDisposable
     protected readonly IHostBuilder builder = Host.CreateDefaultBuilder();
 
 
-    private IHost _host;
+    private IHost _host = null!;
 
     protected BaseContext(bool shouldStart)
     {
