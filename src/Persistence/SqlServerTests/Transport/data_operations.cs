@@ -23,8 +23,8 @@ public class data_operations : IAsyncLifetime
     private IHost _host = null!;
     private SqlServerTransport theTransport = null!;
     private IStatefulResource? theResource;
-    private SqlServerQueue theQueue;
-    private IMessageStore theMessageStore;
+    private SqlServerQueue theQueue = null!;
+    private IMessageStore theMessageStore = null!;
 
     public async Task InitializeAsync()
     {
