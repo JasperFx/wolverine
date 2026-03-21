@@ -40,7 +40,7 @@ public class MonolithFixture : IAsyncLifetime
         ItemsTable.AddColumn<bool>("Approved");
     }
 
-    public IHost Host { get; private set; }
+    public IHost Host { get; private set; } = null!;
 
     public Table ItemsTable { get; }
 
@@ -239,11 +239,11 @@ public class end_to_end_modular_monolith : IClassFixture<MonolithFixture>, IAsyn
         var session = await theHost.SendMessageAndWaitAsync(message);
 
         var envelope = session.Sent.SingleEnvelope<ApproveItem1>();
-        envelope.Store.Uri.ShouldBe(new Uri("wolverinedb://sqlserver/localhost/master/wolverine"));
+        envelope.Store!.Uri.ShouldBe(new Uri("wolverinedb://sqlserver/localhost/master/wolverine"));
         var messageId = envelope.Id;
 
         // Message should have been deleted
-        var stored = await envelope.Store.Outbox.LoadOutgoingAsync(envelope.Destination);
+        var stored = await envelope.Store.Outbox.LoadOutgoingAsync(envelope.Destination!);
         stored.Any(x => x.Id == messageId).ShouldBeFalse();
     }
 
@@ -253,8 +253,8 @@ public class end_to_end_modular_monolith : IClassFixture<MonolithFixture>, IAsyn
         var message = new StartAndScheduleApproval(Guid.NewGuid(), "Rip in shirt");
         var session = await theHost.SendMessageAndWaitAsync(message);
         var scheduledEnvelope = session.Scheduled.SingleEnvelope<Envelope>();
-        
-        scheduledEnvelope.Store.Uri.ShouldBe(new Uri("wolverinedb://sqlserver/localhost/master/wolverine"));
+
+        scheduledEnvelope.Store!.Uri.ShouldBe(new Uri("wolverinedb://sqlserver/localhost/master/wolverine"));
 
         var stored = await scheduledEnvelope.Store.Admin.AllIncomingAsync();
         var persisted = stored.Where(x => x.MessageType == TransportConstants.ScheduledEnvelope).Single();
@@ -280,11 +280,11 @@ public class end_to_end_modular_monolith : IClassFixture<MonolithFixture>, IAsyn
         var session = await theHost.SendMessageAndWaitAsync(message);
 
         var envelope = session.Sent.SingleEnvelope<ApproveThing>();
-        envelope.Store.Uri.ShouldBe(new Uri("wolverinedb://postgresql/localhost/postgres/wolverine"));
+        envelope.Store!.Uri.ShouldBe(new Uri("wolverinedb://postgresql/localhost/postgres/wolverine"));
         var messageId = envelope.Id;
 
         // Message should have been deleted
-        var stored = await envelope.Store.Outbox.LoadOutgoingAsync(envelope.Destination);
+        var stored = await envelope.Store.Outbox.LoadOutgoingAsync(envelope.Destination!);
         stored.Any(x => x.Id == messageId).ShouldBeFalse();
     }
 
@@ -374,8 +374,8 @@ public class ItemsDbContext : DbContext
 public class Item
 {
     public Guid Id { get; set; }
-    public string Name { get; set; }
-    
+    public string Name { get; set; } = null!;
+
     public bool Approved { get; set; }
 }
 
@@ -387,7 +387,7 @@ public record ApproveThing(Guid Id);
 public class Thing
 {
     public Guid Id { get; set; }
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
 }
 
 

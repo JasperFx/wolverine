@@ -38,13 +38,13 @@ namespace PersistenceTests.ModularMonoliths;
  * 
  */
 
-public class registration_of_message_stores(ITestOutputHelper Output) : IAsyncLifetime
+public class registration_of_message_stores(ITestOutputHelper _) : IAsyncLifetime
 {
-    private IHost _host;
-    private string connectionString1;
-    private string connectionString2;
-    private string connectionString3;
-    private string connectionString4;
+    private IHost _host = null!;
+    private string connectionString1 = null!;
+    private string connectionString2 = null!;
+    private string connectionString3 = null!;
+    private string connectionString4 = null!;
 
     private async Task<string> CreateDatabaseIfNotExists(NpgsqlConnection conn, string databaseName)
     {
@@ -107,7 +107,7 @@ public class registration_of_message_stores(ITestOutputHelper Output) : IAsyncLi
 
         (await collection.FindDatabasesAsync([expected])).Single().Uri.ShouldBe(expected);
         
-        (await collection.FindDatabaseAsync(expected)).Uri.ShouldBe(expected);
+        (await collection.FindDatabaseAsync(expected))!.Uri.ShouldBe(expected);
 
         collection.Cardinality().ShouldBe(DatabaseCardinality.Single);
     }
@@ -145,8 +145,8 @@ public class registration_of_message_stores(ITestOutputHelper Output) : IAsyncLi
 
         (await collection.FindDatabasesAsync([expected])).Single().Uri.ShouldBe(expected);
         
-        (await collection.FindDatabaseAsync(expected)).Uri.ShouldBe(expected);
-        
+        (await collection.FindDatabaseAsync(expected))!.Uri.ShouldBe(expected);
+
         collection.Cardinality().ShouldBe(DatabaseCardinality.Single);
     }
 
@@ -189,8 +189,8 @@ public class registration_of_message_stores(ITestOutputHelper Output) : IAsyncLi
 
         (await collection.FindDatabasesAsync([first, main])).Select(x => x.Uri).ShouldBe([first, main]);
         
-        (await collection.FindDatabaseAsync(second)).Uri.ShouldBe(second);
-        
+        (await collection.FindDatabaseAsync(second))!.Uri.ShouldBe(second);
+
         collection.Cardinality().ShouldBe(DatabaseCardinality.Single);
     }
 
@@ -225,11 +225,11 @@ public class registration_of_message_stores(ITestOutputHelper Output) : IAsyncLi
         services.Select(x => x.Uri).OrderBy(x => x.ToString())
             .ShouldBe([db1, db2, db3, db4, main]);
         
-        (await collection.FindDatabaseAsync(db3)).Uri.ShouldBe(db3);
-        (await collection.FindDatabaseAsync(main)).Uri.ShouldBe(main);
+        (await collection.FindDatabaseAsync(db3))!.Uri.ShouldBe(db3);
+        (await collection.FindDatabaseAsync(main))!.Uri.ShouldBe(main);
 
         (await collection.FindDatabasesAsync([db1, main])).Select(x => x.Uri).ShouldBe([db1, main]);
-        
+
         collection.Cardinality().ShouldBe(DatabaseCardinality.StaticMultiple);
     }
     
@@ -268,8 +268,8 @@ public class registration_of_message_stores(ITestOutputHelper Output) : IAsyncLi
         services.Select(x => x.Uri).OrderBy(x => x.ToString())
             .ShouldBe([db1, db2, main]);
         
-        (await collection.FindDatabaseAsync(db2)).Uri.ShouldBe(db2);
-        (await collection.FindDatabaseAsync(main)).Uri.ShouldBe(main);
+        (await collection.FindDatabaseAsync(db2))!.Uri.ShouldBe(db2);
+        (await collection.FindDatabaseAsync(main))!.Uri.ShouldBe(main);
         
         await _host.AddTenantDatabaseAsync("t3", connectionString3);
         await _host.AddTenantDatabaseAsync("t4", connectionString4);
