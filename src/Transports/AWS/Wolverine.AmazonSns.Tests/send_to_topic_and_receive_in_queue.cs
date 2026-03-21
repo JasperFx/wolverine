@@ -17,12 +17,12 @@ public class send_to_topic_and_receive_in_queue : IAsyncLifetime
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.UseAmazonSqsTransportLocally(LocalStackContainerFixture.Port)
+                opts.UseAmazonSqsTransportLocally()
                     .AutoProvision().AutoPurgeOnStartup();
                 
                 opts.ListenToSqsQueue("send_to_topic_and_receive_in_queue").ReceiveSnsTopicMessage();
                 
-                opts.UseAmazonSnsTransportLocally(LocalStackContainerFixture.Port)
+                opts.UseAmazonSnsTransportLocally()
                     .AutoProvision();
 
                 opts.PublishMessage<SnsMessage>()

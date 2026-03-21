@@ -55,7 +55,7 @@ public class concurrency_resilient_sharded_processing
             .UseWolverine(opts =>
             {
                 opts.Durability.Mode = DurabilityMode.Solo;
-                opts.UseAmazonSqsTransportLocally(LocalStackContainerFixture.Port).AutoProvision().AutoPurgeOnStartup();
+                opts.UseAmazonSqsTransportLocally().AutoProvision().AutoPurgeOnStartup();
                 
                 opts.Discovery.DisableConventionalDiscovery().IncludeType(typeof(LetterMessageHandler));
                 

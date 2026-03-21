@@ -21,7 +21,7 @@ public class InlineComplianceFixture : TransportComplianceFixture, IAsyncLifetim
 
         await ReceiverIs(opts =>
         {
-            opts.UseAmazonSqsTransportLocally(LocalStackContainerFixture.Port)
+            opts.UseAmazonSqsTransportLocally()
                 .AutoProvision()
                 .AutoPurgeOnStartup();
             
@@ -31,13 +31,13 @@ public class InlineComplianceFixture : TransportComplianceFixture, IAsyncLifetim
         
         await SenderIs(opts =>
         {
-            opts.UseAmazonSqsTransportLocally(LocalStackContainerFixture.Port)
+            opts.UseAmazonSqsTransportLocally()
                 .AutoProvision()
                 .AutoPurgeOnStartup();
 
             opts.ListenToSqsQueue("sender-" + number).ReceiveSnsTopicMessage();
             
-            opts.UseAmazonSnsTransportLocally(LocalStackContainerFixture.Port)
+            opts.UseAmazonSnsTransportLocally()
                 .AutoProvision();
 
             opts.PublishAllMessages()

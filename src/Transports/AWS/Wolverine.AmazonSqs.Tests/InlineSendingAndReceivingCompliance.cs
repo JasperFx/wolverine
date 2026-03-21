@@ -23,7 +23,7 @@ public class InlineComplianceFixture : TransportComplianceFixture, IAsyncLifetim
 
         await SenderIs(opts =>
         {
-            opts.UseAmazonSqsTransportLocally(LocalStackContainerFixture.Port)
+            opts.UseAmazonSqsTransportLocally()
                 .AutoProvision()
                 .AutoPurgeOnStartup()
                 .EnableSystemQueues();
@@ -35,7 +35,7 @@ public class InlineComplianceFixture : TransportComplianceFixture, IAsyncLifetim
 
         await ReceiverIs(opts =>
         {
-            opts.UseAmazonSqsTransportLocally(LocalStackContainerFixture.Port)
+            opts.UseAmazonSqsTransportLocally()
                 .AutoProvision()
                 .AutoPurgeOnStartup()
                 .EnableSystemQueues();

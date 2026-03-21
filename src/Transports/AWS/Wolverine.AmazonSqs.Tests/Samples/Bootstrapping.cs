@@ -56,7 +56,7 @@ public class Bootstrapping
             {
                 // Connect to an SQS broker running locally
                 // through LocalStack
-                opts.UseAmazonSqsTransportLocally(LocalStackContainerFixture.Port);
+                opts.UseAmazonSqsTransportLocally();
             }).StartAsync();
 
         #endregion

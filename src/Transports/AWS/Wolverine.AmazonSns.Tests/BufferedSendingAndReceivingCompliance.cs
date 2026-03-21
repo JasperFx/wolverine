@@ -19,7 +19,7 @@ public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifet
 
         await ReceiverIs(opts =>
         {
-            opts.UseAmazonSqsTransportLocally(LocalStackContainerFixture.Port)
+            opts.UseAmazonSqsTransportLocally()
                 .AutoProvision().AutoPurgeOnStartup();
 
             opts.ListenToSqsQueue("receiver-" + number).Named("receiver")
@@ -28,12 +28,12 @@ public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifet
         
         await SenderIs(opts =>
         {
-            opts.UseAmazonSqsTransportLocally(LocalStackContainerFixture.Port)
+            opts.UseAmazonSqsTransportLocally()
                 .AutoProvision().AutoPurgeOnStartup();
 
             opts.ListenToSqsQueue("sender-" + number).ReceiveSnsTopicMessage();;
             
-            opts.UseAmazonSnsTransportLocally(LocalStackContainerFixture.Port)
+            opts.UseAmazonSnsTransportLocally()
                 .AutoProvision();
 
             opts.PublishAllMessages()

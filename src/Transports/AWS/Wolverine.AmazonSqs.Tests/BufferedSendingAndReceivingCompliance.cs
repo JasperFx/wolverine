@@ -21,7 +21,7 @@ public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifet
 
         await SenderIs(opts =>
         {
-            opts.UseAmazonSqsTransportLocally(LocalStackContainerFixture.Port)
+            opts.UseAmazonSqsTransportLocally()
                 .AutoProvision().AutoPurgeOnStartup()
                 .EnableSystemQueues();
 
@@ -30,7 +30,7 @@ public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifet
 
         await ReceiverIs(opts =>
         {
-            opts.UseAmazonSqsTransportLocally(LocalStackContainerFixture.Port)
+            opts.UseAmazonSqsTransportLocally()
                 .AutoProvision().AutoPurgeOnStartup()
                 .EnableSystemQueues();
 

@@ -11,7 +11,7 @@ public class bootstrapping
     public async Task create_an_open_client()
     {
         using var host = await Host.CreateDefaultBuilder()
-            .UseWolverine(opts => { opts.UseAmazonSnsTransportLocally(LocalStackContainerFixture.Port); }).StartAsync();
+            .UseWolverine(opts => { opts.UseAmazonSnsTransportLocally(); }).StartAsync();
 
         var options = host.Services.GetRequiredService<WolverineOptions>();
         var transport = options.AmazonSnsTransport();
@@ -28,7 +28,7 @@ public class bootstrapping
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.UseAmazonSnsTransportLocally(LocalStackContainerFixture.Port).AutoProvision();
+                opts.UseAmazonSnsTransportLocally().AutoProvision();
 
                 opts.PublishMessage<Message1>().ToSnsTopic(topicName);
             }).StartAsync();
@@ -53,7 +53,7 @@ public class bootstrapping
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.UseAmazonSnsTransportLocally(LocalStackContainerFixture.Port).AutoPurgeOnStartup().AutoProvision();
+                opts.UseAmazonSnsTransportLocally().AutoPurgeOnStartup().AutoProvision();
 
                 opts.PublishMessage<Message1>().ToSnsTopic(topicName);
             }).StartAsync();

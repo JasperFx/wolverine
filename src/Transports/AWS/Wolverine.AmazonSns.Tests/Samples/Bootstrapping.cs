@@ -15,7 +15,7 @@ public class Bootstrapping
             {
                 // Connect to an SNS broker running locally
                 // through LocalStack
-                opts.UseAmazonSnsTransportLocally(LocalStackContainerFixture.Port);
+                opts.UseAmazonSnsTransportLocally();
             }).StartAsync();
 
         #endregion
