@@ -37,6 +37,6 @@ public class LetterCountsProjection: SingleStreamProjection<LetterCounts, Guid>
                 break;
         }
 
-        return snapshot;
+        return snapshot!;
     }
 }

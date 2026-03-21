@@ -46,7 +46,7 @@ public class FakeEvent<T> : IEvent<T> where T : notnull
 
     public T Data { get; } = default!;
     public Guid StreamId { get; set; }
-    public string StreamKey { get; set; } = null!;
+    public string? StreamKey { get; set; }
     public DateTimeOffset Timestamp { get; set; }
     public string TenantId { get; set; } = null!;
     public Type EventType { get; } = null!;

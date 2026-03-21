@@ -93,7 +93,7 @@ public class TenantedDocument : ITenanted
 {
     public Guid Id { get; init; }
 
-    public string TenantId { get; set; } = null!;
+    public string? TenantId { get; set; }
     public string Location { get; set; } = null!;
 }
 

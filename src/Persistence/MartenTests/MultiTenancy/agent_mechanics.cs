@@ -32,10 +32,10 @@ public class agent_mechanics : MultiTenancyContext
         await Fixture.Host!.WaitUntilAssumesLeadershipAsync(20.Seconds());
 
         // Should be 4 agents, one for the master db, and 3 for the tenants
-        await Fixture.Host.WaitUntilAssignmentsChangeTo(w =>
+        await Fixture.Host!.WaitUntilAssignmentsChangeTo(w =>
         {
             w.AgentScheme = PersistenceConstants.AgentScheme;
-            w.ExpectRunningAgents(Fixture.Host, 4);
+            w.ExpectRunningAgents(Fixture.Host!, 4);
         }, 30.Seconds());
     }
 }

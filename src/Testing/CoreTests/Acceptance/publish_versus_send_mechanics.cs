@@ -35,13 +35,13 @@ public class publish_versus_send_mechanics : IntegrationContext
     [Fact]
     public async Task publish_with_known_subscribers()
     {
-        var session = await Host.ExecuteAndWaitAsync(async c =>
+        var session = (await Host.ExecuteAndWaitAsync(async c =>
         {
             await c.PublishAsync(new Message1());
             await c.PublishAsync(new Message2());
-        });
+        }))!;
 
-        session!
+        session
             .FindEnvelopesWithMessageType<Message1>(MessageEventType.Sent)
             .Single()
             .Envelope.Destination

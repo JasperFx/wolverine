@@ -128,7 +128,7 @@ public class when_building_a_handler_chain_for_sticky_handlers
 
     public when_building_a_handler_chain_for_sticky_handlers()
     {
-        theOptions.Transports.ForScheme("stub").TryGetEndpoint("stub://green".ToUri())!
+        theOptions.Transports.ForScheme("stub")!.TryGetEndpoint("stub://green".ToUri())!
             .EndpointName = "green";
         
         var blue = new HandlerCall(typeof(BlueStickyHandler), nameof(BlueStickyHandler.Handle));

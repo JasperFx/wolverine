@@ -50,7 +50,7 @@ public class ErrorHandlingContext : IDisposable
 
         return _session.AllRecordsInOrder().Where(x => !(x.Envelope!.Message is FailureAcknowledgement)).LastOrDefault(
             x =>
-                x.MessageEventType == MessageEventType.MessageSucceeded || x.MessageEventType == MessageEventType.MovedToErrorQueue);
+                x.MessageEventType == MessageEventType.MessageSucceeded || x.MessageEventType == MessageEventType.MovedToErrorQueue)!;
     }
 
     protected async Task shouldSucceedOnAttempt(int attempt)

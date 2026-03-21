@@ -182,7 +182,7 @@ public class LetterCountsProjectionWithSideEffects: SingleStreamProjection<Lette
                 break;
         }
 
-        return snapshot;
+        return snapshot!;
     }
 
     public override ValueTask RaiseSideEffects(IDocumentOperations operations, IEventSlice<LetterCounts> slice)
