@@ -38,7 +38,7 @@ public class PostgresqlMessageStore_DQL_expiration
         var runtime = host.GetRuntime();
         
         var dlq = await new DeadLettersTable(runtime.Options.Durability, "dlq_expiration").FetchExistingAsync(conn);
-        dlq.ColumnFor(DatabaseConstants.Expires).ShouldBeNull();
+        dlq!.ColumnFor(DatabaseConstants.Expires).ShouldBeNull();
     }
 
     [Fact]
