@@ -99,7 +99,7 @@ values (@id, @body, @type, @time)
         await conn.CreateCommand(_writeDirectlyToTheScheduledTable)
             .With("id", $"{envelope.Id:D}")
             .With("body", EnvelopeSerializer.Serialize(envelope))
-            .With("type", envelope.MessageType)
+            .With("type", envelope.MessageType!)
             .With("time", scheduledTime.UtcDateTime.ToString(SqliteDateTimeFormat))
             .ExecuteNonQueryAsync(cancellationToken);
     }
@@ -123,8 +123,8 @@ values (@id, @body, @type, @time)
         await conn.CreateCommand(_writeDirectlyToQueueTableSql)
             .With("id", $"{envelope.Id:D}")
             .With("body", EnvelopeSerializer.Serialize(envelope))
-            .With("type", envelope.MessageType)
-            .With("expires", envelope.DeliverBy?.UtcDateTime.ToString(SqliteDateTimeFormat))
+            .With("type", envelope.MessageType!)
+            .With("expires", (envelope.DeliverBy?.UtcDateTime.ToString(SqliteDateTimeFormat))!)
             .ExecuteNonQueryAsync(cancellation);
     }
 
@@ -135,7 +135,7 @@ values (@id, @body, @type, @time)
         await conn.CreateCommand(_deleteFromIncomingAndScheduleSql)
             .With("id", $"{envelope.Id:D}")
             .With("body", EnvelopeSerializer.Serialize(envelope))
-            .With("type", envelope.MessageType)
+            .With("type", envelope.MessageType!)
             .With("time", (envelope.ScheduledTime ?? DateTimeOffset.UtcNow).UtcDateTime.ToString(SqliteDateTimeFormat))
             .ExecuteNonQueryAsync(cancellationToken);
     }

@@ -21,7 +21,7 @@ public class DocumentationSamples
         {
             // Setting up SQLite-backed message storage
             // This requires a reference to Wolverine.Sqlite
-            opts.PersistMessagesWithSqlite(connectionString);
+            opts.PersistMessagesWithSqlite(connectionString!);
 
             // Other Wolverine configuration
         });
@@ -66,7 +66,7 @@ public class DocumentationSamples
         builder.UseWolverine(opts =>
         {
             var connectionString = builder.Configuration.GetConnectionString("sqlite");
-            opts.UseSqlitePersistenceAndTransport(connectionString)
+            opts.UseSqlitePersistenceAndTransport(connectionString!)
 
                 // Tell Wolverine to build out all necessary queue or scheduled message
                 // tables on demand as needed

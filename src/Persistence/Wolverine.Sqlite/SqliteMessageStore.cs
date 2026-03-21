@@ -64,12 +64,12 @@ internal class SqliteMessageStore : MessageDatabase<SqliteConnection>
 
         foreach (var sagaTableDefinition in sagaTypes)
         {
-            var storage = typeof(DatabaseSagaSchema<,>).CloseAndBuildAs<IDatabaseSagaSchema>(sagaTableDefinition, _settings, sagaTableDefinition.SagaType, sagaTableDefinition.IdMember.GetMemberType());
+            var storage = typeof(DatabaseSagaSchema<,>).CloseAndBuildAs<IDatabaseSagaSchema>(sagaTableDefinition, _settings, sagaTableDefinition.SagaType, sagaTableDefinition.IdMember.GetMemberType()!);
             _sagaStorage = _sagaStorage.AddOrUpdate(sagaTableDefinition.SagaType, storage);
         }
     }
 
-    public DbDataSource DataSource { get; }
+    public new DbDataSource DataSource { get; }
 
     public async Task<IReadOnlyList<DbObjectName>> SchemaTablesAsync(CancellationToken ct = default)
     {
@@ -379,7 +379,7 @@ internal class SqliteMessageStore : MessageDatabase<SqliteConnection>
 
         descriptor.TenantIds.AddRange(TenantIds);
 
-        descriptor.Properties.Add(new OptionsValue { Name = "DataSource", Value = builder.DataSource });
+        descriptor.Properties.Add(new OptionsValue { Name = "DataSource", Value = builder.DataSource! });
         descriptor.Properties.Add(new OptionsValue { Name = "Mode", Value = builder.Mode.ToString() });
         descriptor.Properties.Add(new OptionsValue { Name = "Cache", Value = builder.Cache.ToString() });
 
