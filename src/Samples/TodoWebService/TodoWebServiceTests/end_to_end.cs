@@ -12,7 +12,7 @@ namespace TodoWebServiceTests;
 
 public class end_to_end : IAsyncLifetime
 {
-    private IAlbaHost _host;
+    private IAlbaHost _host = null!;
 
     public async Task InitializeAsync()
     {
