@@ -266,7 +266,7 @@ public static class TestingExtensions
         private readonly Dictionary<Guid, IAgentRuntime> _runtimes = new();
         private readonly WolverineRuntime _leaderRuntime;
 
-        public string AgentScheme { get; set; }
+        public string AgentScheme { get; set; } = null!;
 
         public AssignmentWaiter(IHost leader)
         {

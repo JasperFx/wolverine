@@ -54,7 +54,7 @@ public class using_add_dbcontext_with_wolverine_integration : IAsyncLifetime
         SqlConnection.ClearAllPools();
     }
     
-    public Table ItemsTable { get; }
+    public Table ItemsTable { get; } = null!;
 
     [Fact]
     public void is_wolverine_enabled()
@@ -83,7 +83,7 @@ public class using_add_dbcontext_with_wolverine_integration : IAsyncLifetime
         await dbContext.Database.CurrentTransaction!.CommitAsync();
 
         var persisted = (await runtime.Storage.Admin.AllIncomingAsync()).Single(x => x.Id == envelope.Id);
-        persisted.Data.Length.ShouldBe(0);
+        persisted.Data!.Length.ShouldBe(0);
         persisted.Destination.ShouldBe(envelope.Destination);
         persisted.MessageType.ShouldBe(envelope.MessageType);
         persisted.Status.ShouldBe(EnvelopeStatus.Handled);
