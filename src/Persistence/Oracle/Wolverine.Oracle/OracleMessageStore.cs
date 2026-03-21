@@ -71,7 +71,7 @@ internal partial class OracleMessageStore : IMessageDatabase, IMessageInbox, IMe
         foreach (var sagaTableDefinition in sagaTypes)
         {
             var storage = typeof(OracleSagaSchema<,>).CloseAndBuildAs<IDatabaseSagaSchema>(sagaTableDefinition,
-                _settings, sagaTableDefinition.SagaType, sagaTableDefinition.IdMember.GetMemberType());
+                _settings, sagaTableDefinition.SagaType, sagaTableDefinition.IdMember.GetMemberType()!);
             _sagaStorage = _sagaStorage.AddOrUpdate(sagaTableDefinition.SagaType, storage);
         }
 
