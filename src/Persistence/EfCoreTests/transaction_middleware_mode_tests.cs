@@ -103,7 +103,7 @@ public class transaction_middleware_mode_tests
             }).StartAsync();
 
         // Verify the auto-applied handler uses the Eager default
-        var eagerChain = host.GetRuntime().Handlers.ChainFor<EagerAutoApplyMessage>();
+        var eagerChain = host.GetRuntime().Handlers.ChainFor<EagerAutoApplyMessage>()!;
         eagerChain.Middleware.OfType<EnrollDbContextInTransaction>().ShouldNotBeEmpty();
 
         // Force compilation of the [Transactional] chain by triggering HandlerFor
@@ -141,7 +141,7 @@ public class transaction_middleware_mode_tests
             }).StartAsync();
 
         // Verify the auto-applied handler uses the Lightweight default
-        var lightChain = host.GetRuntime().Handlers.ChainFor<LightweightAutoApplyMessage>();
+        var lightChain = host.GetRuntime().Handlers.ChainFor<LightweightAutoApplyMessage>()!;
         lightChain.Middleware.OfType<EnrollDbContextInTransaction>().ShouldBeEmpty();
 
         // Force compilation of the [Transactional] chain by triggering HandlerFor
