@@ -4,7 +4,7 @@ namespace Wolverine.Runtime.Agents;
 
 public partial class NodeAgentController
 {
-    private Task _soloCheckingTask;
+    private Task _soloCheckingTask = null!;
 
     public async Task StartSoloModeAsync()
     {

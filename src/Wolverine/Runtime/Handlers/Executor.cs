@@ -179,7 +179,7 @@ internal class Executor : IExecutor
         try
         {
             await Handler.HandleAsync(context, combined.Token);
-            if (context.Envelope.ReplyRequested.IsNotEmpty())
+            if (context.Envelope!.ReplyRequested.IsNotEmpty())
             {
                 await context.AssertAnyRequiredResponseWasGenerated();
             }
@@ -208,7 +208,7 @@ internal class Executor : IExecutor
         finally
         {
 
-            _executionFinished(_logger, envelope.CorrelationId, _messageTypeName, envelope.Id, null);
+            _executionFinished(_logger, envelope.CorrelationId!, _messageTypeName, envelope.Id, null);
         }
     }
 

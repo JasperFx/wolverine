@@ -8,8 +8,8 @@ public class LoadSagaOperation : AsyncFrame
 {
     private readonly Type _sagaType;
     private readonly Variable _sagaId;
-    private Variable _storage;
-    private Variable _cancellation;
+    private Variable _storage = null!;
+    private Variable _cancellation = null!;
 
     public LoadSagaOperation(Type sagaType, Variable sagaId)
     {

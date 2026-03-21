@@ -19,7 +19,7 @@ public class HandlerPipeline : IHandlerPipeline
     private readonly HandlerGraph _graph;
 
     private readonly WolverineRuntime _runtime;
-    private readonly Endpoint _endpoint;
+    private readonly Endpoint _endpoint = null!;
 
     internal HandlerPipeline(WolverineRuntime runtime, IExecutorFactory executorFactory)
     {

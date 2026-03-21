@@ -36,7 +36,7 @@ internal class ShardedExecutionBlock : BlockBase<Envelope>
             envelopeLifecycle.ReadEnvelope(e, channel);
             await continuation.ExecuteAsync(envelopeLifecycle, runtime, DateTimeOffset.UtcNow, Activity.Current);
 
-            return default;
+            return default!;
         });
     }
 

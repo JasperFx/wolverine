@@ -22,7 +22,7 @@ internal class TenantIdSource : IVariableSource
 internal class TenantIdResolutionFrame : SyncFrame
 {
     private bool _useRawTenantId = false;
-    private Variable _context;
+    private Variable _context = null!;
 
     public TenantIdResolutionFrame()
     {

@@ -103,7 +103,7 @@ public class InMemoryPersistenceFrameProvider : IPersistenceFrameProvider
 
     public Frame DetermineDeleteFrame(Variable variable, IServiceContainer container)
     {
-        return DetermineDeleteFrame(null, variable, container);
+        return DetermineDeleteFrame(null!, variable, container);
     }
 
     public Frame DetermineStorageActionFrame(Type entityType, Variable action, IServiceContainer container)
@@ -118,7 +118,7 @@ public class InMemoryPersistenceFrameProvider : IPersistenceFrameProvider
 
 internal class InMemorySagaPersistorStore<T> : MethodCall
 {
-    public InMemorySagaPersistorStore() : base(typeof(InMemorySagaPersistor), ReflectionHelper.GetMethod<InMemorySagaPersistor>(x => x.StoreAction(Storage.Nothing<T>())))
+    public InMemorySagaPersistorStore() : base(typeof(InMemorySagaPersistor), ReflectionHelper.GetMethod<InMemorySagaPersistor>(x => x.StoreAction(Storage.Nothing<T>()))!)
     {
     }
 }

@@ -42,8 +42,8 @@ public partial class WolverineRuntime
         {
             if (envelope.MessageType.IsNotEmpty() && !IsSystemEndpoint(envelope.Destination))
             {
-                _runtime._accumulator.Value.FindAccumulator(envelope.GetMessageTypeName(), envelope.Destination)
-                    .EntryPoint.Post(new RecordSent(envelope.TenantId, _serviceName));
+                _runtime._accumulator.Value.FindAccumulator(envelope.GetMessageTypeName(), envelope.Destination!)
+                    .EntryPoint.Post(new RecordSent(envelope.TenantId!, _serviceName));
             }
 
             _runtime.ActiveSession?.MaybeRecord(MessageEventType.Sent, envelope, _serviceName, _uniqueNodeId);
@@ -60,8 +60,8 @@ public partial class WolverineRuntime
 
             if (isExternal && envelope.MessageType.IsNotEmpty() && !IsSystemEndpoint(envelope.Destination))
             {
-                _runtime._accumulator.Value.FindAccumulator(envelope.GetMessageTypeName(), envelope.Destination)
-                    .EntryPoint.Post(new RecordReceived(envelope.TenantId, _serviceName));
+                _runtime._accumulator.Value.FindAccumulator(envelope.GetMessageTypeName(), envelope.Destination!)
+                    .EntryPoint.Post(new RecordReceived(envelope.TenantId!, _serviceName));
             }
 
             _runtime.ActiveSession?.Record(MessageEventType.Received, envelope, _serviceName, _uniqueNodeId);
@@ -80,7 +80,7 @@ public partial class WolverineRuntime
             var executionTime = envelope.StopTiming();
             if (executionTime > 0)
             {
-                _sink.Post(new RecordExecutionTime(executionTime, envelope.TenantId));
+                _sink.Post(new RecordExecutionTime(executionTime, envelope.TenantId!));
             }
 
             _runtime.ActiveSession?.Record(MessageEventType.ExecutionFinished, envelope, _serviceName, _uniqueNodeId);
@@ -89,22 +89,22 @@ public partial class WolverineRuntime
         public void ExecutionFinished(Envelope envelope, Exception exception)
         {
             ExecutionFinished(envelope);
-            _sink.Post(new RecordFailure(exception.GetType().FullNameInCode(), envelope.TenantId));
+            _sink.Post(new RecordFailure(exception.GetType().FullNameInCode(), envelope.TenantId!));
         }
 
         public void MessageSucceeded(Envelope envelope)
         {
             var time = DateTimeOffset.UtcNow.Subtract(envelope.SentAt.ToUniversalTime()).TotalMilliseconds;
-            _sink.Post(new RecordEffectiveTime(time, envelope.TenantId));
-            
+            _sink.Post(new RecordEffectiveTime(time, envelope.TenantId!));
+
             _runtime.ActiveSession?.Record(MessageEventType.MessageSucceeded, envelope, _serviceName, _uniqueNodeId);
         }
 
         public void MessageFailed(Envelope envelope, Exception ex)
         {
             var time = DateTimeOffset.UtcNow.Subtract(envelope.SentAt.ToUniversalTime()).TotalMilliseconds;
-            _sink.Post(new RecordEffectiveTime(time, envelope.TenantId));
-            _sink.Post(new RecordDeadLetter(ex.GetType().FullNameInCode(), envelope.TenantId));
+            _sink.Post(new RecordEffectiveTime(time, envelope.TenantId!));
+            _sink.Post(new RecordDeadLetter(ex.GetType().FullNameInCode(), envelope.TenantId!));
             
             _runtime.ActiveSession?.Record(MessageEventType.Sent, envelope, _serviceName, _uniqueNodeId, ex);
         }
@@ -123,7 +123,7 @@ public partial class WolverineRuntime
         {
             _runtime.ActiveSession?.Record(MessageEventType.MovedToErrorQueue, envelope, _serviceName, _uniqueNodeId);
             _movedToErrorQueue(Logger, envelope, ex);
-            _sink.Post(new RecordDeadLetter(ex.GetType().FullNameInCode(), envelope.TenantId));
+            _sink.Post(new RecordDeadLetter(ex.GetType().FullNameInCode(), envelope.TenantId!));
         }
 
         public void DiscardedEnvelope(Envelope envelope)

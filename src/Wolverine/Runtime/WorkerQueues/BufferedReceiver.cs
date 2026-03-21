@@ -71,7 +71,7 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
                 envelope.ContentType = EnvelopeConstants.JsonContentType;
             }
 
-            await Pipeline.InvokeAsync(envelope, this);
+            await Pipeline!.InvokeAsync(envelope, this);
         }
         catch (Exception? e)
         {
@@ -108,7 +108,7 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
         }
     }
 
-    public IHandlerPipeline? Pipeline { get; }
+    public IHandlerPipeline Pipeline { get; } = null!;
 
     public Uri Uri { get; }
 

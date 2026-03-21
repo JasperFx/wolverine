@@ -20,7 +20,7 @@ public class LoadEntityFrameBlock : Frame
 {
     private readonly Frame[] _guardFrames;
 
-    public LoadEntityFrameBlock(Variable entity, params Frame[] guardFrames) : base(entity.Creator.IsAsync || guardFrames.Any(x => x.IsAsync))
+    public LoadEntityFrameBlock(Variable entity, params Frame[] guardFrames) : base(entity.Creator!.IsAsync || guardFrames.Any(x => x.IsAsync))
     {
         _guardFrames = guardFrames;
         Mirror = new Variable(entity.VariableType, entity.Usage, this);
@@ -106,7 +106,7 @@ public class EntityAttribute : WolverineParameterAttribute, IDataRequirement
     /// </summary>
     public bool Required { get; set; } = true;
 
-    public string MissingMessage { get; set; }
+    public string MissingMessage { get; set; } = null!;
 
     public OnMissing OnMissing
     {
@@ -161,7 +161,7 @@ public class EntityAttribute : WolverineParameterAttribute, IDataRequirement
         var frame = provider.DetermineLoadFrame(container, parameter.ParameterType, identity);
 
         var entity = frame.Creates.First(x => x.VariableType == parameter.ParameterType);
-        entity.OverrideName(parameter.Name);
+        entity.OverrideName(parameter.Name!);
 
         if (MaybeSoftDeleted is false)
         {

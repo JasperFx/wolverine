@@ -13,7 +13,7 @@ public class EndpointDescriptor : OptionsDescription
         Uri = endpoint.Uri;
     }
     
-    public Uri Uri { get; set; }
+    public Uri Uri { get; set; } = null!;
 
     protected bool Equals(EndpointDescriptor other)
     {

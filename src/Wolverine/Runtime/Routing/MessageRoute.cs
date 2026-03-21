@@ -33,7 +33,7 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
 
         if (WolverineSystemPart.WithinDescription)
         {
-            Sender = endpoint.Agent;
+            Sender = endpoint.Agent!;
         }
         else
         {
@@ -49,7 +49,7 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
         }
         else if (WolverineSystemPart.WithinDescription)
         {
-            Serializer = endpoint.DefaultSerializer;
+            Serializer = endpoint.DefaultSerializer!;
         }
         else
         {
@@ -70,8 +70,8 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
 
     public bool IsLocal { get; }
 
-    public IMessageSerializer Serializer { get; }
-    public ISendingAgent Sender { get; }
+    public IMessageSerializer Serializer { get; } = null!;
+    public ISendingAgent Sender { get; } = null!;
 
     public IList<IEnvelopeRule> Rules { get; } = new List<IEnvelopeRule>();
 
@@ -96,7 +96,7 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
             envelope.Status = EnvelopeStatus.Incoming;
         }
 
-        if (options != null && options.ContentType.IsNotEmpty() && options.ContentType != Serializer.ContentType)
+        if (options != null && options.ContentType!.IsNotEmpty() && options.ContentType != Serializer.ContentType)
         {
             envelope.Serializer = runtime.Options.FindSerializer(options.ContentType);
             envelope.ContentType = envelope.Serializer.ContentType;

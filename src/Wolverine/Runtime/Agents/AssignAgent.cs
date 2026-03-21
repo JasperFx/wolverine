@@ -44,4 +44,9 @@ internal record AssignAgent(Uri AgentUri, NodeDestination Destination) : IAgentC
 
         return AgentUri.Equals(other.AgentUri) && Destination.NodeId.Equals(other.Destination.NodeId);
     }
+
+    public override int GetHashCode()
+    {
+        return HashCode.Combine(AgentUri, Destination.NodeId);
+    }
 }

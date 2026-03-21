@@ -66,7 +66,7 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
     
     public Dictionary<Type, Type> MappedGenericMessageTypes { get; } = new();
 
-    internal IServiceContainer Container { get; set; }
+    internal IServiceContainer Container { get; set; } = null!;
 
     public HandlerChain[] Chains => _chains.Enumerate().Select(x => x.Value).ToArray();
 
@@ -270,7 +270,7 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
 
                 if (chain.Handler == null)
                 {
-                    chain.InitializeSynchronously(Rules, this, Container.Services);
+                    chain.InitializeSynchronously(Rules, this, Container!.Services);
                     handler = chain.CreateHandler(Container!);
                 }
                 else
@@ -320,7 +320,7 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
 
         _hasCompiled = true;
 
-        var logger = (ILogger)container.Services.GetService<ILogger<HandlerDiscovery>>() ?? NullLogger.Instance;
+        var logger = (ILogger?)container.Services.GetService<ILogger<HandlerDiscovery>>() ?? NullLogger.Instance;
 
         Rules = options.CodeGeneration;
 

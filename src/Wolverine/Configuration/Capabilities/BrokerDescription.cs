@@ -17,7 +17,7 @@ public class BrokerDescription : OptionsDescription
         ReplyUri = subject.ReplyEndpoint()?.Uri;
     }
 
-    public string ProtocolName { get; set; }
-    public string Name { get; set; }
+    public string ProtocolName { get; set; } = null!;
+    public string Name { get; set; } = null!;
     public Uri? ReplyUri { get; set; }
 }

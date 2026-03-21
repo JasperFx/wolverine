@@ -294,7 +294,7 @@ public class ListenerConfiguration<TSelf, TEndpoint> : DelayedEndpointConfigurat
     public TSelf AddStickyHandler(Type handlerType)
     {
         // This needs to be done eagerly
-        _endpoint.StickyHandlers.Add(handlerType);
+        _endpoint!.StickyHandlers.Add(handlerType);
         return this.As<TSelf>();
     }
 

@@ -147,7 +147,7 @@ public partial class Envelope : IHasTenantId
             catch (Exception e)
             {
                 throw new WolverineSerializationException(
-                    $"Error trying to serialize message of type {Message.GetType().FullNameInCode()} with serializer {Serializer}", e);
+                    $"Error trying to serialize message of type {Message!.GetType().FullNameInCode()} with serializer {Serializer}", e);
             }
         }
 
@@ -176,7 +176,7 @@ public partial class Envelope : IHasTenantId
                     return _data;
                 }
 
-                throw new WolverineSerializationException($"No data or writer is known for this envelope of message type {_message.GetType().FullNameInCode()}");
+                throw new WolverineSerializationException($"No data or writer is known for this envelope of message type {_message!.GetType().FullNameInCode()}");
             }
 
             try
@@ -186,7 +186,7 @@ public partial class Envelope : IHasTenantId
             catch (Exception e)
             {
                 throw new WolverineSerializationException(
-                    $"Error trying to serialize message of type {Message.GetType().FullNameInCode()} with serializer {Serializer}", e);
+                    $"Error trying to serialize message of type {Message!.GetType().FullNameInCode()} with serializer {Serializer}", e);
             }
 
             return _data;

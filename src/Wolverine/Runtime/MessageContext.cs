@@ -116,7 +116,7 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
 
     public async Task PersistHandledAsync()
     {
-        var handled = Envelope.ForPersistedHandled(Envelope, DateTimeOffset.UtcNow, Runtime.Options.Durability);
+        var handled = Envelope.ForPersistedHandled(Envelope!, DateTimeOffset.UtcNow, Runtime.Options.Durability);
         try
         {
             await Runtime.Storage.Inbox.StoreIncomingAsync(handled);
@@ -235,7 +235,7 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         {
             if (isMissingRequestedReply())
             {
-                var failureDescription = $"No response was created for expected response '{Envelope.ReplyRequested}' back to reply-uri {Envelope.ReplyUri}. ";
+                var failureDescription = $"No response was created for expected response '{Envelope!.ReplyRequested}' back to reply-uri {Envelope.ReplyUri}. ";
                 if (_outstanding.Count > 0)
                 {
                     var types = new List<string>(_outstanding.Count + (_sent?.Count ?? 0));
@@ -256,7 +256,7 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
             }
             else
             {
-                Activity.Current?.SetTag("reply-uri", Envelope.ReplyUri.ToString());
+                Activity.Current?.SetTag("reply-uri", Envelope!.ReplyUri!.ToString());
                 Runtime.Logger.LogInformation("Sending requested reply of type {MessageType} to reply-uri {ReplyUri}", Envelope.ReplyRequested, Envelope.ReplyUri);
             }
         }

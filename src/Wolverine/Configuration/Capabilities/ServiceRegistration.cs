@@ -7,7 +7,7 @@ public class ServiceRegistration
     public Guid Id { get; set; }
 
     public string Name { get; set; } = "Critter Service";
-    public string Description { get; set; }
+    public string Description { get; set; } = null!;
     
     // This could be local?
     public Uri CritterWatchUri { get; set; } = new Uri("local://");
