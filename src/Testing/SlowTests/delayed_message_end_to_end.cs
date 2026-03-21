@@ -42,7 +42,7 @@ public record KickOffMessage(int Number);
 
 public class TimeoutHandler
 {
-    private static TaskCompletionSource<Envelope> _completion;
+    private static TaskCompletionSource<Envelope> _completion = null!;
 
     public static Task<Envelope> WaitForEnforcedTimeout(TimeSpan timeout)
     {

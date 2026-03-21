@@ -31,7 +31,7 @@ public class TestResequencerSaga : ResequencerSaga<SequencedCommand>
 
 public class resequencer_saga_in_memory : IAsyncLifetime
 {
-    private IHost _host;
+    private IHost _host = null!;
 
     public async Task InitializeAsync()
     {
