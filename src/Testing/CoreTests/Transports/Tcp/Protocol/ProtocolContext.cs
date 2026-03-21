@@ -84,13 +84,13 @@ public class StubReceiverCallback : IReceiver
 {
     public bool ThrowErrorOnReceived;
 
-    public Envelope[] MessagesReceived { get; set; }
+    public Envelope[] MessagesReceived { get; set; } = null!;
 
     public bool? WasAcknowledged { get; set; }
 
-    public Exception FailureException { get; set; }
+    public Exception FailureException { get; set; } = null!;
 
-    public Uri Address { get; }
+    public Uri Address { get; } = null!;
     public ListeningStatus Status { get; set; }
 
     public int QueueCount => 0;
@@ -100,7 +100,7 @@ public class StubReceiverCallback : IReceiver
         return ValueTask.CompletedTask;
     }
 
-    public IHandlerPipeline Pipeline => null;
+    public IHandlerPipeline Pipeline => null!;
 
     public void Dispose()
     {

@@ -14,15 +14,15 @@ namespace CoreTests.Acceptance;
 
 public class remote_invocation : IAsyncLifetime
 {
-    private IHost _receiver1;
+    private IHost _receiver1 = null!;
 
     private int _receiver1Port;
 
-    private IHost _receiver2;
+    private IHost _receiver2 = null!;
 
     private int _receiver2Port;
 
-    private IHost _sender;
+    private IHost _sender = null!;
 
     public async Task InitializeAsync()
     {
@@ -124,7 +124,7 @@ public class remote_invocation : IAsyncLifetime
         envelope.Source.ShouldBe("Receiver1");
         envelope.Message.ShouldBe(response);
 
-        response.Name.ShouldBe("Croaker");
+        response!.Name.ShouldBe("Croaker");
     }
 
     [Fact]
@@ -161,7 +161,7 @@ public class remote_invocation : IAsyncLifetime
         envelope.Source.ShouldBe("Receiver2");
         envelope.Message.ShouldBe(response);
 
-        response.Name.ShouldBe("Croaker");
+        response!.Name.ShouldBe("Croaker");
     }
 
     [Fact]
@@ -188,7 +188,7 @@ public class remote_invocation : IAsyncLifetime
         envelope.Source.ShouldBe("Receiver2");
         envelope.Message.ShouldBe(response);
         envelope.TenantId.ShouldBe("TheTenant");
-        response.Name.ShouldBe("Croaker");
+        response!.Name.ShouldBe("Croaker");
     }
 
     [Fact]
@@ -216,7 +216,7 @@ public class remote_invocation : IAsyncLifetime
     {
         var destination = new Uri("tcp://localhost:" + _receiver2Port);
 
-        Response1 response = default;
+        Response1 response = default!;
 
         Func<IMessageContext, Task> fetch = async c =>
             response = await c.EndpointFor(destination).InvokeAsync<Response1>(new Request1 { Name = "Croaker" });
@@ -235,7 +235,7 @@ public class remote_invocation : IAsyncLifetime
         envelope.Source.ShouldBe("Receiver2");
         envelope.Message.ShouldBe(response);
 
-        response.Name.ShouldBe("Croaker");
+        response!.Name.ShouldBe("Croaker");
     }
 
     [Fact]
@@ -426,44 +426,44 @@ public class remote_invocation : IAsyncLifetime
 
 public class Request1
 {
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
 }
 
 public class Request2
 {
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
 }
 
 public class Request3
 {
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
 }
 
 public class Request4
 {
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
 }
 
 public class RequestWithNoHandler;
 
 public class Response1
 {
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
 }
 
 public class Response3
 {
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
 }
 
 public class AlwaysPublishRequest
 {
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
 }
 
 public class AlwaysPublishResponse
 {
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
 }
 
 public static class AlwaysPublishResponseReceivedHandler

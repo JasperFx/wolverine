@@ -27,9 +27,9 @@ public class configuring_middleware
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts => { opts.Policies.AddMiddleware<T>(); }).StartAsync();
 
-        var chain = host.GetRuntime().Handlers.HandlerFor<MiddlewareMessage>().As<MessageHandler>().Chain;
+        var chain = host.GetRuntime().Handlers.HandlerFor<MiddlewareMessage>()!.As<MessageHandler>().Chain;
 
-        assertions(chain);
+        assertions(chain!);
     }
 
     [Fact]
@@ -72,8 +72,8 @@ public class configuring_middleware
             })
             .StartAsync();
 
-        var chain = host.GetRuntime().Handlers.HandlerFor<MiddlewareMessage>().As<MessageHandler>().Chain;
-        chain.Middleware[1].ShouldBeOfType<ConstructorFrame>().Variable.VariableType
+        var chain = host.GetRuntime().Handlers.HandlerFor<MiddlewareMessage>()!.As<MessageHandler>().Chain;
+        chain!.Middleware[1].ShouldBeOfType<ConstructorFrame>().Variable.VariableType
             .ShouldBe(typeof(MiddlewareWithMessage));
         chain.Middleware[2].ShouldBeCallWithMessageTo(typeof(MiddlewareWithMessage), "Before");
 

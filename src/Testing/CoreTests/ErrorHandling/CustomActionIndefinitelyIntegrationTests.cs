@@ -24,7 +24,7 @@ public class CustomActionIndefinitelyIntegrationTests : IAsyncLifetime
                     {
                         if (ex is SpecialExceptionForIntegration)
                         {
-                            if (lifecycle.Envelope.Attempts > 3)
+                            if (lifecycle.Envelope!.Attempts > 3)
                             {
                                 runtime.MessageTracking.DiscardedEnvelope(lifecycle.Envelope);
                                 await lifecycle.CompleteAsync();
@@ -48,17 +48,17 @@ public class CustomActionIndefinitelyIntegrationTests : IAsyncLifetime
                                 await lifecycle.MoveToDeadLetterQueueAsync(ex);
                                 // MoveToDeadLetterQueueAsync doesn't track MovedToErrorQueue,
                                 // so we need to call it manually (similar to MoveToErrorQueue continuation)
-                                runtime.MessageTracking.MovedToErrorQueue(lifecycle.Envelope, ex);
+                                runtime.MessageTracking.MovedToErrorQueue(lifecycle.Envelope!, ex);
                                 return;
                             }
 
                             // Otherwise requeue up to the specified max attempts
-                            if (lifecycle.Envelope.Attempts >= 5)
+                            if (lifecycle.Envelope!.Attempts >= 5)
                             {
                                 await lifecycle.MoveToDeadLetterQueueAsync(ex);
                                 // MoveToDeadLetterQueueAsync doesn't track MovedToErrorQueue,
                                 // so we need to call it manually (similar to MoveToErrorQueue continuation)
-                                runtime.MessageTracking.MovedToErrorQueue(lifecycle.Envelope, ex);
+                                runtime.MessageTracking.MovedToErrorQueue(lifecycle.Envelope!, ex);
                                 return;
                             }
 
@@ -164,7 +164,7 @@ public class WaitForDiscardedMessage<T> : ITrackedCondition
 
     public void Record(EnvelopeRecord record)
     {
-        if (record.Envelope.Message is T && record.MessageEventType == MessageEventType.Discarded)
+        if (record.Envelope!.Message is T && record.MessageEventType == MessageEventType.Discarded)
         {
             _found = true;
         }
@@ -182,7 +182,7 @@ public class WaitForDeadLetteredMessage<T> : ITrackedCondition
 
     public void Record(EnvelopeRecord record)
     {
-        if (record.Envelope.Message is T && record.MessageEventType == MessageEventType.MovedToErrorQueue)
+        if (record.Envelope!.Message is T && record.MessageEventType == MessageEventType.MovedToErrorQueue)
         {
             _found = true;
         }

@@ -12,8 +12,8 @@ namespace CoreTests.ErrorHandling;
 
 public class custom_error_action_raises_new_message_1 : IAsyncLifetime
 {
-    private IHost theReceiver;
-    private IHost theSender;
+    private IHost theReceiver = null!;
+    private IHost theSender = null!;
 
     public async Task InitializeAsync()
     {
@@ -84,7 +84,7 @@ public class ShippingOrderFailurePolicy : UserDefinedContinuation
     }
 
     public override async ValueTask ExecuteAsync(IEnvelopeLifecycle lifecycle, IWolverineRuntime runtime,
-        DateTimeOffset now, Activity activity)
+        DateTimeOffset now, Activity? activity)
     {
         if (lifecycle.Envelope?.Message is ShipOrder cmd)
         {
@@ -98,8 +98,8 @@ public class ShippingOrderFailurePolicy : UserDefinedContinuation
 
 public class custom_error_action_raises_new_message_2 : IAsyncLifetime
 {
-    private IHost theReceiver;
-    private IHost theSender;
+    private IHost theReceiver = null!;
+    private IHost theSender = null!;
 
     public async Task InitializeAsync()
     {

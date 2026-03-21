@@ -147,5 +147,5 @@ public class environment_sensitive_configuration
 
 public class RegisteredMarker
 {
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
 }

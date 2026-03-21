@@ -24,7 +24,7 @@ public class overriding_delivery_options_when_sending : SendingContext
         var envelope = theSendingRuntime.RoutingFor(typeof(MessageWithSpecialAttribute))
             .RouteForPublish(new MessageWithSpecialAttribute(), null).Single();
 
-        envelope.DeliverBy.Value.ShouldBeGreaterThan(DateTimeOffset.UtcNow);
+        envelope.DeliverBy!.Value.ShouldBeGreaterThan(DateTimeOffset.UtcNow);
     }
 
     [Fact]

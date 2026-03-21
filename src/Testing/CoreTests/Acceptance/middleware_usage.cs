@@ -339,7 +339,7 @@ public class middleware_usage
 
 public class MiddlewareActivity
 {
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
     public bool Finished { get; set; }
 }
 
@@ -377,7 +377,7 @@ public class SimpleBeforeAndAfter
 public class DisposableSpecialMiddleware : IDisposable
 {
     private readonly Recorder _recorder;
-    private DisposableThing _thing;
+    private DisposableThing _thing = null!;
 
     public DisposableSpecialMiddleware(Recorder recorder)
     {
@@ -587,12 +587,12 @@ public class StopIfGreaterThan5Async
 
 public class RunsScoredMessage : NumberedMessage
 {
-    public string Batter { get; set; }
+    public string Batter { get; set; } = null!;
 }
 
 public class StrikeoutsMessage : NumberedMessage
 {
-    public string Pitcher { get; set; }
+    public string Pitcher { get; set; } = null!;
 }
 
 public static class MessageMatchingMiddleware

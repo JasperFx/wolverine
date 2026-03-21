@@ -352,7 +352,7 @@ public class EnvelopeTests
             ScheduleDelay = 1.Days()
         };
 
-        envelope.ScheduledTime.Value.Date.ShouldBe(DateTime.UtcNow.AddDays(1).Date);
+        envelope.ScheduledTime!.Value.Date.ShouldBe(DateTime.UtcNow.AddDays(1).Date);
         envelope.ScheduleDelay.ShouldBe(1.Days());
     }
 
@@ -364,7 +364,7 @@ public class EnvelopeTests
             DeliverWithin = 1.Days()
         };
 
-        envelope.DeliverBy.Value.Date.ShouldBe(DateTime.UtcNow.AddDays(1).Date);
+        envelope.DeliverBy!.Value.Date.ShouldBe(DateTime.UtcNow.AddDays(1).Date);
         envelope.DeliverWithin.ShouldBe(1.Days());
     }
 
@@ -458,7 +458,7 @@ public class EnvelopeTests
         [Fact]
         public void ack_requested()
         {
-            theOptions.AckRequested.Value.ShouldBeTrue();
+            theOptions.AckRequested!.Value.ShouldBeTrue();
         }
 
         [Fact]
@@ -470,7 +470,7 @@ public class EnvelopeTests
         [Fact]
         public void deliver_by()
         {
-            theOptions.DeliverBy.Value.ShouldBe(theEnvelope.DeliverBy.Value);
+            theOptions.DeliverBy!.Value.ShouldBe(theEnvelope.DeliverBy!.Value);
         }
 
         [Fact]
@@ -500,7 +500,7 @@ public class EnvelopeTests
         [Fact]
         public void scheduled_time()
         {
-            theOptions.ScheduledTime.Value.ShouldBe(theEnvelope.ScheduledTime.Value);
+            theOptions.ScheduledTime!.Value.ShouldBe(theEnvelope.ScheduledTime!.Value);
         }
 
         [Fact]
@@ -600,7 +600,7 @@ public class EnvelopeTests
         [Fact]
         public void keep_until_should_be_set()
         {
-            theHandledEnvelope.KeepUntil.Value.ShouldBe(now.AddMinutes(5));
+            theHandledEnvelope.KeepUntil!.Value.ShouldBe(now.AddMinutes(5));
         }
 
         [Fact]

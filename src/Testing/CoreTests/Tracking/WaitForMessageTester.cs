@@ -21,7 +21,7 @@ public class WaitForMessageTester
 
         var message = Activator.CreateInstance(messageType);
 
-        waiter.Record(new EnvelopeRecord(eventType, new Envelope(message), 100, null));
+        waiter.Record(new EnvelopeRecord(eventType, new Envelope(message!), 100, null));
 
         waiter.IsCompleted().ShouldBe(isCompleted);
     }
@@ -51,7 +51,7 @@ public class WaitForMessageTester
 
         var message = Activator.CreateInstance(messageType);
 
-        waiter.Record(new EnvelopeRecord(eventType, new Envelope(message), 100, null)
+        waiter.Record(new EnvelopeRecord(eventType, new Envelope(message!), 100, null)
         {
             UniqueNodeId = guids[nodeId]
         });

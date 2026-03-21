@@ -19,7 +19,7 @@ public class TestingListeningAgent : IDisposable, IListener
     private readonly TcpListener _listener;
     private readonly IBlock<Socket> _socketHandling;
     private readonly Uri _uri;
-    private Task _receivingLoop;
+    private Task _receivingLoop = null!;
 
     public TestingListeningAgent(IReceiver callback, IPAddress ipaddr, int port, string protocol,
         CancellationToken cancellationToken)

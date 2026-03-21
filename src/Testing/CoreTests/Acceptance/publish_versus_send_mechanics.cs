@@ -41,7 +41,7 @@ public class publish_versus_send_mechanics : IntegrationContext
             await c.PublishAsync(new Message2());
         });
 
-        session
+        session!
             .FindEnvelopesWithMessageType<Message1>(MessageEventType.Sent)
             .Single()
             .Envelope.Destination
@@ -49,7 +49,7 @@ public class publish_versus_send_mechanics : IntegrationContext
 
         session
             .FindEnvelopesWithMessageType<Message2>(MessageEventType.Sent)
-            .Select(x => x.Envelope.Destination).OrderBy(x => x.ToString())
+            .Select(x => x.Envelope.Destination).OrderBy(x => x!.ToString())
             .ShouldHaveTheSameElementsAs("local://one".ToUri(), "local://two".ToUri());
     }
 

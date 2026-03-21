@@ -42,8 +42,8 @@ public class message_forwarding
 [MessageIdentity("versioned-message", Version = 1)]
 public class OriginalMessage : IForwardsTo<NewMessage>
 {
-    public string FirstName { get; set; }
-    public string LastName { get; set; }
+    public string FirstName { get; set; } = null!;
+    public string LastName { get; set; } = null!;
 
     public NewMessage Transform()
     {
@@ -54,7 +54,7 @@ public class OriginalMessage : IForwardsTo<NewMessage>
 [MessageIdentity("versioned-message", Version = 2)]
 public class NewMessage
 {
-    public string FullName { get; set; }
+    public string FullName { get; set; } = null!;
 }
 
 public class NewMessageHandler

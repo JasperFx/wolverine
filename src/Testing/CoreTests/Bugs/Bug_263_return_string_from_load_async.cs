@@ -32,5 +32,5 @@ public class StringUsingCommandHandler
         Recorded = $"{command.Name}:{text}";
     }
 
-    public static string Recorded { get; set; }
+    public static string Recorded { get; set; } = null!;
 }

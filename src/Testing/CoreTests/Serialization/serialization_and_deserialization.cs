@@ -8,7 +8,7 @@ namespace CoreTests.Serialization;
 public class serialization_and_deserialization_of_single_message
 {
     private readonly Envelope outgoing;
-    private Envelope _incoming;
+    private Envelope _incoming = null!;
 
     public serialization_and_deserialization_of_single_message()
     {
@@ -133,13 +133,13 @@ public class serialization_and_deserialization_of_single_message
     [Fact]
     public void data_comes_over()
     {
-        incoming.Data.ShouldHaveTheSameElementsAs(outgoing.Data);
+        incoming.Data!.ShouldHaveTheSameElementsAs(outgoing.Data!);
     }
 
     [Fact]
     public void deliver_by_with_value()
     {
-        incoming.DeliverBy.Value.ShouldBe(outgoing.DeliverBy.Value);
+        incoming.DeliverBy!.Value.ShouldBe(outgoing.DeliverBy!.Value);
     }
 
     [Fact]
@@ -241,6 +241,6 @@ public class serialization_and_deserialization_of_single_message
     [Fact]
     public void keep_until()
     {
-        incoming.KeepUntil.Value.ShouldBe(outgoing.KeepUntil.Value);
+        incoming.KeepUntil!.Value.ShouldBe(outgoing.KeepUntil!.Value);
     }
 }

@@ -30,7 +30,7 @@ public class Bug_1182_infinite_loop_codegen
         };
 
         var ex = Should.Throw<CodeGenerationException>(() => builder.GenerateAllCode());
-        ex.InnerException.InnerException.ShouldBeOfType<ArgumentOutOfRangeException>();
+        ex.InnerException!.InnerException!.ShouldBeOfType<ArgumentOutOfRangeException>();
 
     }
 }

@@ -117,7 +117,7 @@ public class WolverineOptionsTests
             .StartAsync();
 
         runtime.Services.GetRequiredService<IWolverineRuntime>()
-            .Endpoints.EndpointFor(TransportConstants.DurableLocalUri)
+            .Endpoints.EndpointFor(TransportConstants.DurableLocalUri)!
             .Mode.ShouldBe(EndpointMode.Durable);
     }
 
@@ -133,7 +133,7 @@ public class WolverineOptionsTests
         });
 
         var services = runtime.Get<IServiceContainer>();
-        services.DefaultFor<IFoo>().ImplementationType.ShouldBe(typeof(Foo));
+        services.DefaultFor<IFoo>()!.ImplementationType.ShouldBe(typeof(Foo));
     }
 
     [Fact]
@@ -221,13 +221,13 @@ public class WolverineOptionsTests
         var endpoint3333 = collection.Transports.TryGetEndpoint("stub://3333".ToUri());
         var endpoint4444 = collection.Transports.TryGetEndpoint("stub://4444".ToUri());
 
-        endpoint3333.Subscriptions[0]
+        endpoint3333!.Subscriptions[0]
             .ShouldBe(new Subscription { Scope = RoutingScope.Namespace, Match = "One" });
 
         endpoint3333.Subscriptions[1]
             .ShouldBe(new Subscription { Scope = RoutingScope.Namespace, Match = "Two" });
 
-        endpoint4444.Subscriptions[0]
+        endpoint4444!.Subscriptions[0]
             .ShouldBe(new Subscription { Scope = RoutingScope.Namespace, Match = "One" });
 
         endpoint4444.Subscriptions[1]
@@ -295,7 +295,7 @@ public class WolverineOptionsTests
         
         public bool TryBuildBrokerUsage(out BrokerDescription usage)
         {
-            usage = default;
+            usage = default!;
             return false;
         }
 
@@ -331,7 +331,7 @@ public class WolverineOptionsTests
 
         public bool TryBuildStatefulResource(IWolverineRuntime runtime, out IStatefulResource resource)
         {
-            resource = null;
+            resource = null!;
             return false;
         }
 

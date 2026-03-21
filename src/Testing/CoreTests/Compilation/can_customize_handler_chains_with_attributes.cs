@@ -19,14 +19,14 @@ public class can_customize_handler_chains_with_attributes
             opts.IncludeType<FakeHandler1>();
             opts.IncludeType<FakeHandler2>();
         });
-        var chain = runtime.Get<HandlerGraph>().HandlerFor<T>().As<MessageHandler>().Chain;
-        action(chain);
+        var chain = runtime.Get<HandlerGraph>().HandlerFor<T>()!.As<MessageHandler>().Chain;
+        action(chain!);
     }
 
     [Fact]
     public void apply_attribute_on_class()
     {
-        forMessage<Message2>(chain => chain.SourceCode.ShouldContain("// fake frame here"));
+        forMessage<Message2>(chain => chain.SourceCode!.ShouldContain("// fake frame here"));
     }
 
     [Fact]
@@ -34,7 +34,7 @@ public class can_customize_handler_chains_with_attributes
     {
         forMessage<ErrorHandledMessage>(chain =>
         {
-            chain.SourceCode.ShouldContain("// fake frame here");
+            chain.SourceCode!.ShouldContain("// fake frame here");
             chain.Failures.MaximumAttempts.ShouldBe(5);
         });
     }
@@ -42,7 +42,7 @@ public class can_customize_handler_chains_with_attributes
     [Fact]
     public void apply_attribute_on_method()
     {
-        forMessage<Message1>(chain => chain.SourceCode.ShouldContain("// fake frame here"));
+        forMessage<Message1>(chain => chain.SourceCode!.ShouldContain("// fake frame here"));
     }
 }
 
