@@ -192,7 +192,7 @@ public static class WolverineOptionsMartenExtensions
             AutoCreate = autoCreate ?? store.Options.AutoCreateSchemaObjects,
             Role = MessageStoreRole.Main,
             CommandQueuesEnabled = true,
-            DataSource = masterDataSource ?? NpgsqlDataSource.Create(masterDatabaseConnectionString)
+            DataSource = masterDataSource ?? NpgsqlDataSource.Create(masterDatabaseConnectionString!)
         };
 
         var dataSource = findMasterDataSource(store, runtime, masterSettings, serviceProvider);

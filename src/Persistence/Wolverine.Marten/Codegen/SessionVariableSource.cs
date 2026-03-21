@@ -36,7 +36,7 @@ internal class DocumentOperationsSource : IVariableSource
 
 internal class DocumentOperationsFrame : SyncFrame
 {
-    private Variable _session;
+    private Variable _session = null!;
 
     public DocumentOperationsFrame()
     {
@@ -74,7 +74,7 @@ internal class EventStoreOperationsSource : IVariableSource
 
 internal class EventStoreOperationsFrame : SyncFrame
 {
-    private Variable _session;
+    private Variable _session = null!;
 
     public EventStoreOperationsFrame()
     {

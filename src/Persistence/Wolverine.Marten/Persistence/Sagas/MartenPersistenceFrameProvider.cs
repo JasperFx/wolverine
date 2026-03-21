@@ -114,7 +114,7 @@ internal class MartenPersistenceFrameProvider : IPersistenceFrameProvider
 
     public Frame DetermineStorageActionFrame(Type entityType, Variable action, IServiceContainer container)
     {
-        var method = typeof(MartenStorageActionApplier).GetMethod("ApplyAction")
+        var method = typeof(MartenStorageActionApplier).GetMethod("ApplyAction")!
             .MakeGenericMethod(entityType);
 
         var call = new MethodCall(typeof(MartenStorageActionApplier), method);
@@ -132,8 +132,8 @@ internal class MartenPersistenceFrameProvider : IPersistenceFrameProvider
 internal class SetVariableToNullIfSoftDeletedFrame : AsyncFrame
 {
     private Variable _entity;
-    private Variable _documentSession;
-    private Variable _entityMetadata;
+    private Variable _documentSession = null!;
+    private Variable _entityMetadata = null!;
 
     public SetVariableToNullIfSoftDeletedFrame(Variable entity)
     {
@@ -168,7 +168,7 @@ internal class SetVariableToNullIfSoftDeletedFrame : AsyncFrame
 
 public static class MartenStorageActionApplier
 {
-    public static void ApplyAction<T>(IDocumentSession session, IStorageAction<T> action)
+    public static void ApplyAction<T>(IDocumentSession session, IStorageAction<T> action) where T : notnull
     {
         if (action.Entity == null) return;
         
@@ -193,7 +193,7 @@ public static class MartenStorageActionApplier
 
 internal class DocumentSessionSaveChanges : MethodCall
 {
-    public DocumentSessionSaveChanges() : base(typeof(IDocumentSession), ReflectionHelper.GetMethod<IDocumentSession>(x => x.SaveChangesAsync(default)))
+    public DocumentSessionSaveChanges() : base(typeof(IDocumentSession), ReflectionHelper.GetMethod<IDocumentSession>(x => x.SaveChangesAsync(default))!)
     {
         CommentText = "Save all pending changes to this Marten session";
     }

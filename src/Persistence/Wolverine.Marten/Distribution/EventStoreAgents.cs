@@ -33,7 +33,7 @@ internal class EventStoreAgents : IAsyncDisposable
                 await entry.Value.StopAllAsync();
                 entry.Value.SafeDispose();
             }
-            catch (Exception e)
+            catch (Exception)
             {
                 // TODO -- probably want to log this just in case
             }
