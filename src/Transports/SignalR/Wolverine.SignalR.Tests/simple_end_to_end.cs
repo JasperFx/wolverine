@@ -20,7 +20,7 @@ public class simple_end_to_end : WebSocketTestContext
 
         var record = tracked.Received.SingleRecord<FromFirst>();
         record.ServiceName.ShouldBe("Client");
-        record.Envelope.Message.ShouldBeOfType<FromFirst>()
+        record.Envelope!.Message.ShouldBeOfType<FromFirst>()
             .Name.ShouldBe("Xavier Worthy");
     }
 
@@ -43,7 +43,7 @@ public class simple_end_to_end : WebSocketTestContext
 
         var record = tracked.Received.SingleRecord<ToSecond>();
         record.ServiceName.ShouldBe("Server");
-        record.Envelope.Destination.ShouldBe(new Uri("signalr://wolverine"));
+        record.Envelope!.Destination.ShouldBe(new Uri("signalr://wolverine"));
         record.Message.ShouldBeOfType<ToSecond>()
             .Name.ShouldBe("Hollywood Brown");
 

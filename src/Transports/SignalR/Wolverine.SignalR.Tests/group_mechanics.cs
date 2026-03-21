@@ -48,7 +48,7 @@ public class group_mechanics : WebSocketTestContext
 
         var record = tracked.Executed.SingleRecord<MathAnswer>();
         record.ServiceName.ShouldBe("green");
-        record.Envelope.Message.ShouldBeOfType<MathAnswer>().Sum.ShouldBe(11);
+        record.Envelope!.Message.ShouldBeOfType<MathAnswer>().Sum.ShouldBe(11);
 
     }
 }
