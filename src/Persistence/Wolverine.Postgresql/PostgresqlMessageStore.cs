@@ -298,6 +298,18 @@ join pg_catalog.pg_namespace n on n.oid = c.relnamespace and n.nspname = '{Schem
         }
     }
 
+    protected override async Task afterTruncateEnvelopeDataAsync(DbConnection conn)
+    {
+        if (Durability.EnableInboxPartitioning)
+        {
+            // After deleting data from partitioned tables, PostgreSQL's pg_class.reltuples
+            // statistics become stale. FetchCountsAsync() uses these stats for fast partition
+            // estimates, so we must run ANALYZE to update them after bulk deletes.
+            await conn.CreateCommand($"ANALYZE {SchemaName}.{DatabaseConstants.IncomingTable}")
+                .ExecuteNonQueryAsync(_cancellation);
+        }
+    }
+
     public override async Task DiscardAndReassignOutgoingAsync(Envelope[] discards, Envelope[] reassigned, int nodeId)
     {
         await using var cmd = CreateCommand(_discardAndReassignOutgoingSql)

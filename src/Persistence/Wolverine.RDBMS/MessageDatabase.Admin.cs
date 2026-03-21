@@ -151,11 +151,22 @@ public abstract partial class MessageDatabase<T>
             }
 
             await tx.CommitAsync(_cancellation);
+
+            await afterTruncateEnvelopeDataAsync(conn);
         }
         catch (Exception e)
         {
             throw new InvalidOperationException(
                 "Failure trying to execute the statements to clear envelope storage", e);
         }
+    }
+
+    /// <summary>
+    /// Hook called after envelope data has been truncated and the transaction committed.
+    /// Override to perform provider-specific cleanup such as updating table statistics.
+    /// </summary>
+    protected virtual Task afterTruncateEnvelopeDataAsync(DbConnection conn)
+    {
+        return Task.CompletedTask;
     }
 }
