@@ -17,7 +17,7 @@ namespace MessageRoutingTests;
 
 public class MessageRoutingContext : IAsyncLifetime
 {
-    private IHost _host;
+    private IHost _host = null!;
 
     public async Task InitializeAsync()
     {
@@ -71,7 +71,7 @@ public class MessageRoutingContext : IAsyncLifetime
         var envelopes = messageRouter.RouteForPublish(new T(), null);
 
         var expected = uris.OrderBy(x => x).Select(x => new Uri(x)).ToArray();
-        var actual = envelopes.Select(x => x.Destination).OrderBy(x => x.ToString()).ToArray();
+        var actual = envelopes.Select(x => x.Destination!).OrderBy(x => x.ToString()).ToArray();
 
         actual.ShouldBe(expected);
     }
