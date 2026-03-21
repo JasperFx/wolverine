@@ -10,9 +10,9 @@ namespace Wolverine.AmazonSqs.Tests.RawJson;
 
 public class receive_raw_json_as_inline : IAsyncLifetime
 {
-    private IHost _host;
-    private IHost _sender;
-    private string theQueueName;
+    private IHost _host = null!;
+    private IHost _sender = null!;
+    private string theQueueName = null!;
 
     public async Task InitializeAsync()
     {

@@ -19,7 +19,7 @@ public class conventional_listener_discovery : ConventionalRoutingContext
         {
             if (t == typeof(PublishedMessage))
             {
-                return null; // should not be routed
+                return null!; // should not be routed
             }
 
             return t.ToMessageTypeName().Replace('.', '-');

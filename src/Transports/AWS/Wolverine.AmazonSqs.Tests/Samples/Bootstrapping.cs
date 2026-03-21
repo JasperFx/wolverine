@@ -389,7 +389,7 @@ public class CustomSqsMapper : ISqsEnvelopeMapper
     public string BuildMessageBody(Envelope envelope)
     {
         // Serialized data from the Wolverine message
-        return Encoding.Default.GetString(envelope.Data);
+        return Encoding.Default.GetString(envelope.Data!);
     }
 
     // Specify header values for the SQS message from the Wolverine envelope
