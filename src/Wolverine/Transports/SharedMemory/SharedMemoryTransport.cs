@@ -26,7 +26,7 @@ public class SharedMemoryTransport : TransportBase<SharedMemoryEndpoint>
     
     public override bool TryBuildBrokerUsage(out BrokerDescription description)
     {
-        description = default;
+        description = default!;
         return false;
     }
 

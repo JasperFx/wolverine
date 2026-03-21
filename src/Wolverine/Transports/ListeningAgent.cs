@@ -110,7 +110,7 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
         if (_receiver is BufferedReceiver)
         {
             // Agent is latched if listener is null
-            await _receiver.ReceivedAsync(new RetryOnInlineChannelCallback(Listener, _runtime), envelopes.ToArray());
+            await _receiver.ReceivedAsync(new RetryOnInlineChannelCallback(Listener!, _runtime), envelopes.ToArray());
         }
         else if (_receiver is ILocalQueue queue)
         {
@@ -124,7 +124,7 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
         else if (_receiver is InlineReceiver inline)
         {
             // Agent is latched if listener is null
-            await inline.ReceivedAsync(new RetryOnInlineChannelCallback(Listener, _runtime), envelopes.ToArray());
+            await inline.ReceivedAsync(new RetryOnInlineChannelCallback(Listener!, _runtime), envelopes.ToArray());
         }
         else
         {

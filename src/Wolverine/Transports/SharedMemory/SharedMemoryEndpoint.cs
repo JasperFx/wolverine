@@ -8,5 +8,5 @@ public abstract class SharedMemoryEndpoint : Endpoint
     {
     }
     
-    public Uri ReplyUri { get; set; }
+    public Uri ReplyUri { get; set; } = null!;
 }

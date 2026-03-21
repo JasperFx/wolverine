@@ -96,7 +96,7 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
             envelope.Status = EnvelopeStatus.Incoming;
         }
 
-        if (options != null && options.ContentType!.IsNotEmpty() && options.ContentType != Serializer.ContentType)
+        if (options != null && options.ContentType!.IsNotEmpty() && options.ContentType! != Serializer!.ContentType)
         {
             envelope.Serializer = runtime.Options.FindSerializer(options.ContentType);
             envelope.ContentType = envelope.Serializer.ContentType;

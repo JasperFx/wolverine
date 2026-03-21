@@ -132,22 +132,22 @@ public class CloudEventsMapper : IUnwrapsMetadataMessageSerializer
             envelope.TenantId = tenantid;
         }
 
-        if (node.TryGetValue<string>("traceid", out var traceId))
+        if (node!.TryGetValue<string>("traceid", out var traceId))
         {
             envelope.CorrelationId = traceId;
         }
 
-        if (node.TryGetValue<string>("source", out var source))
+        if (node!.TryGetValue<string>("source", out var source))
         {
             envelope.Source = source;
         }
 
-        if (node.TryGetValue<DateTimeOffset>("time", out var time))
+        if (node!.TryGetValue<DateTimeOffset>("time", out var time))
         {
             envelope.SentAt = time;
         }
 
-        if (node.TryGetValue<string>("id", out var raw))
+        if (node!.TryGetValue<string>("id", out var raw))
         {
             if (Guid.TryParse(raw, out var id))
             {
@@ -159,7 +159,7 @@ public class CloudEventsMapper : IUnwrapsMetadataMessageSerializer
             }
         }
 
-        if (node.TryGetValue<string>("type", out var cloudEventType))
+        if (node!.TryGetValue<string>("type", out var cloudEventType))
         {
             // Preserve the raw CloudEvent type on the envelope before resolution.
             // If resolution fails, the raw type survives for dead-letter persistence.
@@ -167,7 +167,7 @@ public class CloudEventsMapper : IUnwrapsMetadataMessageSerializer
 
             if (_handlers.TryFindMessageType(cloudEventType, out var messageType))
             {
-                var data = node["data"];
+                var data = node!["data"];
                 if (data != null)
                 {
                     envelope.Message = data.Deserialize(messageType, _options);
@@ -182,7 +182,7 @@ public class CloudEventsMapper : IUnwrapsMetadataMessageSerializer
             }
         }
 
-        if (node.TryGetValue<string>("datacontenttype", out var contentType))
+        if (node!.TryGetValue<string>("datacontenttype", out var contentType))
         {
             if (contentType.StartsWith("application/json"))
             {

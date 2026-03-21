@@ -38,9 +38,9 @@ public class LeaderPinnedListenerFamily : IStaticAgentFamily
     private readonly IWolverineRuntime _runtime;
     internal const string SchemeName = "wolverine-leader-listener";
 
-    #pragma warning disable CS0169
+    #pragma warning disable CS0414
     private readonly WolverineOptions _options = null!;
-    #pragma warning restore CS0169
+    #pragma warning restore CS0414
     private readonly Dictionary<Uri,LeaderPinnedListenerAgent> _agents;
 
     public LeaderPinnedListenerFamily(IWolverineRuntime runtime)

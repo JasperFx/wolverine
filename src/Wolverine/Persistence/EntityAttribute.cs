@@ -186,7 +186,7 @@ public class EntityAttribute : WolverineParameterAttribute, IDataRequirement
         }
 
         // Store deferred assignment for middleware methods added later (Before/After)
-        StoreDeferredMiddlewareVariable(chain, parameter.Name, returnVariable);
+        StoreDeferredMiddlewareVariable(chain, parameter.Name!, returnVariable);
 
         return returnVariable;
     }

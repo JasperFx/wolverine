@@ -238,7 +238,7 @@ public sealed partial class WolverineOptions
     public void AddMessageHandler<T>(MessageHandler<T> handler)
     {
         AddMessageHandler(typeof(T), handler);
-        handler.ConfigureChain(handler.Chain); // Yeah, this is 100% a tell, don't ask violation
+        handler.ConfigureChain(handler.Chain!); // Yeah, this is 100% a tell, don't ask violation
     }
 
     [IgnoreDescription]
@@ -324,7 +324,7 @@ public sealed partial class WolverineOptions
     /// <summary>
     ///     Descriptive name of the running service. Used in Wolverine diagnostics and testing support
     /// </summary>
-    public string ServiceName { get; set; }
+    public string ServiceName { get; set; } = null!;
 
     /// <summary>
     ///     This should probably *only* be used in development or testing

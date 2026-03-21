@@ -257,7 +257,7 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
             else
             {
                 Activity.Current?.SetTag("reply-uri", Envelope!.ReplyUri!.ToString());
-                Runtime.Logger.LogInformation("Sending requested reply of type {MessageType} to reply-uri {ReplyUri}", Envelope.ReplyRequested, Envelope.ReplyUri);
+                Runtime.Logger.LogInformation("Sending requested reply of type {MessageType} to reply-uri {ReplyUri}", Envelope!.ReplyRequested, Envelope.ReplyUri);
             }
         }
     }

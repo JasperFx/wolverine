@@ -150,7 +150,7 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
 
     async ValueTask IReceiver.DrainAsync()
     {
-        _receiver.Latch();
+        _receiver!.Latch();
         await _storeAndEnqueue.DrainAsync();
         await _receiver!.DrainAsync();
     }

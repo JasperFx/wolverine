@@ -92,7 +92,7 @@ public partial class WolverineOptions : IDescribeMyself
     public OptionsDescription ToDescription()
     {
         var description = new OptionsDescription(this);
-        description.AddValue("Version", GetType().Assembly.GetName().Version?.ToString());
+        description.AddValue("Version", GetType().Assembly.GetName().Version?.ToString()!);
 
         description.AddChildSet("Transports", Transports);
         description.AddChildSet("Endpoints", Transports.SelectMany(x => x.Endpoints()));

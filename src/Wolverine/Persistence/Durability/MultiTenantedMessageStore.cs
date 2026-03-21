@@ -631,23 +631,23 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
             return Main;
         }
 
-        if (tenantId.EqualsIgnoreCase(StorageConstants.Main))
+        if (tenantId!.EqualsIgnoreCase(StorageConstants.Main))
         {
             return Main;
         }
 
-        if (_byTenant.TryFind(tenantId, out var store))
+        if (_byTenant.TryFind(tenantId!, out var store))
         {
             return store;
         }
 
-        store = await Source.FindAsync(tenantId);
+        store = await Source.FindAsync(tenantId!);
         if (store != null && _runtime.Options.AutoBuildMessageStorageOnStartup != AutoCreate.None)
         {
             await store.Admin.MigrateAsync();
         }
 
-        _byTenant = _byTenant.AddOrUpdate(tenantId, store!);
+        _byTenant = _byTenant.AddOrUpdate(tenantId!, store!);
 
         return store!;
     }

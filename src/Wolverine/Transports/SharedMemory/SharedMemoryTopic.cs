@@ -7,7 +7,7 @@ namespace Wolverine.Transports.SharedMemory;
 
 public class SharedMemoryTopic : SharedMemoryEndpoint, ISender
 {
-    private Topic _topic;
+    private Topic _topic = null!;
     public string TopicName { get; }
     
     public Cache<string, SharedMemorySubscription> TopicSubscriptions { get; }
