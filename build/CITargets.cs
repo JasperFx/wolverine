@@ -208,18 +208,42 @@ partial class Build
         {
             var sqliteTests = RootDirectory / "src" / "Persistence" / "SqliteTests" / "SqliteTests.csproj";
             var persistenceTests = RootDirectory / "src" / "Persistence" / "PersistenceTests" / "PersistenceTests.csproj";
-            var sqlServerTests = RootDirectory / "src" / "Persistence" / "SqlServerTests" / "SqlServerTests.csproj";
             var postgresqlTests = RootDirectory / "src" / "Persistence" / "PostgresqlTests" / "PostgresqlTests.csproj";
 
-            BuildTestProjects(sqliteTests, sqlServerTests, postgresqlTests);
+            BuildTestProjects(sqliteTests, postgresqlTests);
             // PersistenceTests only targets net8.0/net9.0
             BuildTestProjectsWithFramework("net9.0", persistenceTests);
             StartDockerServices("postgresql", "sqlserver", "rabbitmq");
 
             RunSingleProjectOneClassAtATime(sqliteTests);
             RunSingleProjectOneClassAtATime(persistenceTests, frameworkOverride: "net9.0");
-            RunSingleProjectOneClassAtATime(sqlServerTests);
             RunSingleProjectOneClassAtATime(postgresqlTests);
+        });
+
+    Target CISqlServer => _ => _
+        .ProceedAfterFailure()
+        .Executes(() =>
+        {
+            var sqlServerTests = RootDirectory / "src" / "Persistence" / "SqlServerTests" / "SqlServerTests.csproj";
+
+            BuildTestProjects(sqlServerTests);
+            StartDockerServices("sqlserver");
+
+            RunSingleProjectOneClassAtATime(sqlServerTests);
+        });
+
+    Target CIMarten => _ => _
+        .ProceedAfterFailure()
+        .Executes(() =>
+        {
+            var martenTests = RootDirectory / "src" / "Persistence" / "MartenTests" / "MartenTests.csproj";
+            var martenSubscriptionTests = RootDirectory / "src" / "Persistence" / "MartenSubscriptionTests" / "MartenSubscriptionTests.csproj";
+
+            BuildTestProjects(martenTests, martenSubscriptionTests);
+            StartDockerServices("postgresql");
+
+            RunSingleProjectOneClassAtATime(martenTests);
+            RunSingleProjectOneClassAtATime(martenSubscriptionTests);
         });
 
     Target CIMySql => _ => _

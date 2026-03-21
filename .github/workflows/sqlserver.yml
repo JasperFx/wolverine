@@ -1,4 +1,4 @@
-name: persistence
+name: sqlserver
 
 on:
   push:
@@ -36,8 +36,8 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
-      - name: Run Persistence Tests
-        run: ./build.sh CIPersistence --framework net9.0
+      - name: Run SQL Server Tests
+        run: ./build.sh CISqlServer --framework net9.0
 
       - name: Stop containers
         if: always()
