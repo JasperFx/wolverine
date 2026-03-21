@@ -22,7 +22,7 @@ public partial class RavenDbDurabilityAgent
             foreach (var listener in listeners.Where(x => x.ReceivedAt != null))
             {
                 var receivedAt = listener.ReceivedAt!;
-                var circuit = _runtime.Endpoints.FindListenerCircuit(receivedAt);
+                var circuit = _runtime.Endpoints.FindListenerCircuit(receivedAt)!;
                 if (circuit.Status != ListeningStatus.Accepting)
                 {
                     continue;

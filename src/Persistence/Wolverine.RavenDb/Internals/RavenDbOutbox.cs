@@ -26,5 +26,5 @@ public class RavenDbOutbox : MessageContext, IRavenDbOutbox
         await FlushOutgoingMessagesAsync();
     }
 
-    public IAsyncDocumentSession Session { get; private set; }
+    public IAsyncDocumentSession Session { get; private set; } = null!;
 }

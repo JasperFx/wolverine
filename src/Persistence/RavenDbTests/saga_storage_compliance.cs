@@ -13,7 +13,7 @@ namespace RavenDbTests;
 
 public class RavenDbSagaHost : RavenTestDriver, ISagaHost
 {
-    private IDocumentStore _store;
+    private IDocumentStore _store = null!;
 
     public IHost BuildHost<TSaga>()
     {
@@ -25,7 +25,7 @@ public class RavenDbSagaHost : RavenTestDriver, ISagaHost
             {
                 opts.Durability.Mode = DurabilityMode.Solo;
 
-                opts.CodeGeneration.GeneratedCodeOutputPath = AppContext.BaseDirectory.ParentDirectory().ParentDirectory().ParentDirectory().AppendPath("Internal", "Generated");
+                opts.CodeGeneration.GeneratedCodeOutputPath = AppContext.BaseDirectory.ParentDirectory()!.ParentDirectory()!.ParentDirectory()!.AppendPath("Internal", "Generated");
                 opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
 
                 // Shouldn't be necessary, but apparently is. Type scanning is not working

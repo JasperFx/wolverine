@@ -24,12 +24,12 @@ public class ravendb_durability_end_to_end : RavenTestDriver, IAsyncLifetime
 {
     private const string SenderSchemaName = "sender";
     private const string ReceiverSchemaName = "receiver";
-    private Uri _listener;
-    private LightweightCache<string, IHost> _receivers;
+    private Uri _listener = null!;
+    private LightweightCache<string, IHost> _receivers = null!;
 
-    private LightweightCache<string, IHost> _senders;
-    private IDocumentStore _receiverStore;
-    private IDocumentStore _senderStore;
+    private LightweightCache<string, IHost> _senders = null!;
+    private IDocumentStore _receiverStore = null!;
+    private IDocumentStore _senderStore = null!;
 
     public async Task InitializeAsync()
     {
@@ -230,13 +230,13 @@ public class ravendb_durability_end_to_end : RavenTestDriver, IAsyncLifetime
 
 public class TraceDoc
 {
-    public string Id { get; set; }
-    public string Name { get; set; }
+    public string Id { get; set; } = null!;
+    public string Name { get; set; } = null!;
 }
 
 public class TraceMessage
 {
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
 }
 
 [WolverineIgnore]

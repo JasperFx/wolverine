@@ -21,7 +21,7 @@ internal class AsyncDocumentSessionSource : IVariableSource
 
 internal class BuildAsyncDocumentSession : MethodCall
 {
-    public BuildAsyncDocumentSession() : base(typeof(IDocumentStore), ReflectionHelper.GetMethod<IDocumentStore>(x => x.OpenAsyncSession()))
+    public BuildAsyncDocumentSession() : base(typeof(IDocumentStore), ReflectionHelper.GetMethod<IDocumentStore>(x => x.OpenAsyncSession())!)
     {
     }
 }
