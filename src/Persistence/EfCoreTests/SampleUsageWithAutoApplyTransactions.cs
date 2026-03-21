@@ -41,7 +41,7 @@ public class SampleUsageWithAutoApplyTransactions
 
         var builder = Host.CreateApplicationBuilder();
 
-        var connectionString = builder.Configuration.GetConnectionString("sqlserver");
+        var connectionString = builder.Configuration.GetConnectionString("sqlserver")!;
 
         // Register a DbContext or multiple DbContext types as normal
         builder.Services.AddDbContext<SampleDbContext>(
@@ -75,7 +75,7 @@ public class SampleUsageWithAutoApplyTransactions
 
         var builder = Host.CreateApplicationBuilder();
 
-        var connectionString = builder.Configuration.GetConnectionString("sqlserver");
+        var connectionString = builder.Configuration.GetConnectionString("sqlserver")!;
         
         builder.UseWolverine(opts =>
         {

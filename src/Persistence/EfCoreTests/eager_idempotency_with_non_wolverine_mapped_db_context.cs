@@ -48,7 +48,7 @@ public class eager_idempotency_with_non_wolverine_mapped_db_context : IClassFixt
         await dbContext.Database.CurrentTransaction!.CommitAsync();
 
         var persisted = (await runtime.Storage.Admin.AllIncomingAsync()).Single(x => x.Id == envelope.Id);
-        persisted.Data.Length.ShouldBe(0);
+        persisted.Data!.Length.ShouldBe(0);
         persisted.Destination.ShouldBe(envelope.Destination);
         persisted.MessageType.ShouldBe(envelope.MessageType);
         persisted.Status.ShouldBe(EnvelopeStatus.Handled);

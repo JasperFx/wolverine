@@ -61,7 +61,7 @@ public class Optimistic_concurrency_with_ef_core
         });
         await dbContext.SaveChangesAsync();
 
-        Should.ThrowAsync<SagaConcurrencyException>(() => host.InvokeMessageAndWaitAsync(new UpdateConcurrencyTestSaga(Guid.NewGuid(), "updated value")));
+        await Should.ThrowAsync<SagaConcurrencyException>(() => host.InvokeMessageAndWaitAsync(new UpdateConcurrencyTestSaga(Guid.NewGuid(), "updated value")));
     }
 }
 
@@ -86,7 +86,7 @@ public record UpdateConcurrencyTestSaga(Guid Id, string NewValue);
 public class ConcurrencyTestSaga : Saga
 {
     public Guid Id { get; set; }
-    public string Value { get; set; }
+    public string Value { get; set; } = null!;
     public void Handle(UpdateConcurrencyTestSaga order, OptConcurrencyDbContext ctx)
     {
         // Fake 999 updates of the saga while this event is being handled

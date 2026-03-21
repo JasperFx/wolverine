@@ -27,7 +27,7 @@ namespace EfCoreTests;
 [Collection("sqlserver")]
 public class using_add_dbcontext_with_wolverine_integration : IAsyncLifetime
 {
-    private IHost _host;
+    private IHost _host = null!;
 
     public async Task InitializeAsync()
     {

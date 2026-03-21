@@ -21,9 +21,9 @@ namespace EfCoreTests;
 [Collection("sqlserver")]
 public class persisting_envelopes_with_sqlserver : IAsyncLifetime
 {
-    private IHost _host;
-    private Envelope theIncomingEnvelope;
-    private Envelope theOutgoingEnvelope;
+    private IHost _host = null!;
+    private Envelope theIncomingEnvelope = null!;
+    private Envelope theOutgoingEnvelope = null!;
 
     public async Task InitializeAsync()
     {

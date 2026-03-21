@@ -111,7 +111,7 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
         var context = nested.ServiceProvider.GetRequiredService<ItemsDbContext>();
         var item = await context.Items.FindAsync(id);
 
-        return item;
+        return item!;
     }
 
     private async Task saveItem(Item item)
@@ -128,8 +128,8 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
     {
         var container = Host.Services.GetRequiredService<IServiceContainer>();
 
-        container.DefaultFor<IDbContextOutbox>().Lifetime.ShouldBe(ServiceLifetime.Scoped);
-        container.DefaultFor(typeof(IDbContextOutbox<>)).Lifetime.ShouldBe(ServiceLifetime.Scoped);
+        container.DefaultFor<IDbContextOutbox>()!.Lifetime.ShouldBe(ServiceLifetime.Scoped);
+        container.DefaultFor(typeof(IDbContextOutbox<>))!.Lifetime.ShouldBe(ServiceLifetime.Scoped);
     }
 
     [Fact]
@@ -213,7 +213,7 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
             var messaging = nested.ServiceProvider.GetRequiredService<IDbContextOutbox<ItemsDbContext>>()
                 .ShouldBeOfType<DbContextOutbox<ItemsDbContext>>();
 
-            await messaging.Transaction.PersistOutgoingAsync(envelope);
+            await messaging.Transaction!.PersistOutgoingAsync(envelope);
             messaging.DbContext.Items.Add(new Item { Id = Guid.NewGuid(), Name = Guid.NewGuid().ToString() });
 
             await messaging.SaveChangesAndFlushMessagesAsync();
@@ -256,7 +256,7 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
             var messaging = nested.ServiceProvider.GetRequiredService<IDbContextOutbox<SampleMappedDbContext>>()
                 .ShouldBeOfType<DbContextOutbox<SampleMappedDbContext>>();
 
-            await messaging.Transaction.PersistOutgoingAsync(envelope);
+            await messaging.Transaction!.PersistOutgoingAsync(envelope);
             messaging.DbContext.Items.Add(new Item { Id = Guid.NewGuid(), Name = Guid.NewGuid().ToString() });
 
             await messaging.SaveChangesAndFlushMessagesAsync();
@@ -426,7 +426,7 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
 
             messaging.Enroll(context);
 
-            await messaging.As<MessageContext>().Transaction.PersistIncomingAsync(envelope);
+            await messaging.As<MessageContext>().Transaction!.PersistIncomingAsync(envelope);
             await messaging.SaveChangesAndFlushMessagesAsync();
         }
 
@@ -471,7 +471,7 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
 
             messaging.Enroll(context);
 
-            await messaging.As<MessageContext>().Transaction.PersistIncomingAsync(envelope);
+            await messaging.As<MessageContext>().Transaction!.PersistIncomingAsync(envelope);
             await messaging.SaveChangesAndFlushMessagesAsync();
         }
 
@@ -520,8 +520,8 @@ public class PassHandler
 
 public class Pass
 {
-    public string From { get; set; }
-    public string To { get; set; }
+    public string From { get; set; } = null!;
+    public string To { get; set; } = null!;
 }
 
 
