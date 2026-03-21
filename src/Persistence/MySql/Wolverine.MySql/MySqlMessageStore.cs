@@ -57,7 +57,7 @@ internal class MySqlMessageStore : MessageDatabase<MySqlConnection>
         foreach (var sagaTableDefinition in sagaTypes)
         {
             var storage = typeof(DatabaseSagaSchema<,>).CloseAndBuildAs<IDatabaseSagaSchema>(sagaTableDefinition,
-                _settings, sagaTableDefinition.SagaType, sagaTableDefinition.IdMember.GetMemberType());
+                _settings, sagaTableDefinition.SagaType, sagaTableDefinition.IdMember.GetMemberType()!);
             _sagaStorage = _sagaStorage.AddOrUpdate(sagaTableDefinition.SagaType, storage);
         }
     }
