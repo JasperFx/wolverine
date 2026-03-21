@@ -295,7 +295,7 @@ public class end_to_end_modular_monolith : IClassFixture<MonolithFixture>, IAsyn
         var session = await theHost.SendMessageAndWaitAsync(message);
         var scheduledEnvelope = session.Scheduled.SingleEnvelope<Envelope>();
         
-        scheduledEnvelope.Store.Uri.ShouldBe(new Uri("wolverinedb://postgresql/localhost/postgres/wolverine"));
+        scheduledEnvelope.Store!.Uri.ShouldBe(new Uri("wolverinedb://postgresql/localhost/postgres/wolverine"));
 
         var stored = await scheduledEnvelope.Store.Admin.AllIncomingAsync();
         var persisted = stored.Where(x => x.MessageType == TransportConstants.ScheduledEnvelope).Single();

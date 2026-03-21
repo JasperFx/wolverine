@@ -20,7 +20,6 @@ using Wolverine.SqlServer;
 using Wolverine.SqlServer.Persistence;
 using Wolverine.Tracking;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace PersistenceTests.ModularMonoliths;
 
@@ -38,7 +37,7 @@ namespace PersistenceTests.ModularMonoliths;
  * 
  */
 
-public class registration_of_message_stores(ITestOutputHelper _) : IAsyncLifetime
+public class registration_of_message_stores : IAsyncLifetime
 {
     private IHost _host = null!;
     private string connectionString1 = null!;

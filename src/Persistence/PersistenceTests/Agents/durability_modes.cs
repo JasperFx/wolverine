@@ -99,7 +99,7 @@ public class durability_modes : PostgresqlContext, IAsyncDisposable
         // Should be listening on the control endpoint
         runtime.Endpoints
             .ActiveListeners()
-            .Any(x => x.Uri == runtime.Options.Transports.NodeControlEndpoint.Uri)
+            .Any(x => x.Uri == runtime.Options.Transports.NodeControlEndpoint!.Uri)
             .ShouldBeTrue();
 
         // Should start up the durable scheduled jobs
@@ -119,7 +119,7 @@ public class durability_modes : PostgresqlContext, IAsyncDisposable
             w.ExpectRunningAgents(_host!, 12);
         }, 30.Seconds());
 
-        await _host.WaitUntilAssumesLeadershipAsync(30.Seconds());
+        await _host!.WaitUntilAssumesLeadershipAsync(30.Seconds());
 
         // Deletes the current node on stop
         await stopAsync();
