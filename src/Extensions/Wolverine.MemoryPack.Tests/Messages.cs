@@ -5,7 +5,7 @@ namespace Wolverine.MemoryPack.Tests;
 [MemoryPackable]
 public partial class MemoryPackMessage
 {
-    public string Name;
+    public string Name = null!;
 }
 
 // fake handler
