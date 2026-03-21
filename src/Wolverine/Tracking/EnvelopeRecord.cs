@@ -56,7 +56,7 @@ public class EnvelopeRecord
     public override string ToString()
     {
         var prefix = $"{ServiceName} ({UniqueNodeId}) @{SessionTime}ms: ";
-        var message = $"{Message?.GetType().FullNameInCode()} ({Envelope.Id})";
+        var message = $"{Message?.GetType().FullNameInCode()} ({Envelope!.Id})";
 
         switch (MessageEventType)
         {
@@ -99,10 +99,10 @@ public class EnvelopeRecord
 
     internal void TryUseInnerFromScheduledEnvelope()
     {
-        if (Envelope.MessageType == TransportConstants.ScheduledEnvelope)
+        if (Envelope!.MessageType == TransportConstants.ScheduledEnvelope)
         {
             MessageEventType = MessageEventType.Scheduled;
-            Envelope = (Envelope)Envelope.Message;
+            Envelope = (Envelope)Envelope.Message!;
         }
     }
 }

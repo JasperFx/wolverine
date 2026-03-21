@@ -19,7 +19,7 @@ internal class EnvelopeHistory
         get
         {
             return _records
-                .FirstOrDefault(x => x.Envelope.Message != null)?.Envelope.Message;
+                .FirstOrDefault(x => x.Envelope!.Message != null)?.Envelope!.Message;
         }
     }
 
@@ -56,7 +56,7 @@ internal class EnvelopeHistory
             case MessageEventType.Sent:
                 // Not tracking anything outgoing
                 // when it's testing locally
-                if (record.Envelope.Destination?.Scheme != TransportConstants.Local ||
+                if (record.Envelope!.Destination?.Scheme != TransportConstants.Local ||
                     record.Envelope.MessageType == TransportConstants.ScheduledEnvelope)
                 {
                     record.IsComplete = true;
@@ -72,7 +72,7 @@ internal class EnvelopeHistory
                 break;
 
             case MessageEventType.Received:
-                if (record.Envelope.Destination?.Scheme == TransportConstants.Local)
+                if (record.Envelope!.Destination?.Scheme == TransportConstants.Local)
                 {
                     markLastCompleted(MessageEventType.Sent);
                 }
@@ -118,11 +118,11 @@ internal class EnvelopeHistory
         switch (record.MessageEventType)
         {
             case MessageEventType.Sent:
-                if (record.Envelope.Status == EnvelopeStatus.Scheduled)
+                if (record.Envelope!.Status == EnvelopeStatus.Scheduled)
                 {
                     record.WasScheduled = true;
                     record.IsComplete = true;
-                    
+
                     record.TryUseInnerFromScheduledEnvelope();
                 }
 
@@ -210,7 +210,7 @@ internal class EnvelopeHistory
     public object? MessageFor(MessageEventType eventType)
     {
         return _records.Where(x => x.MessageEventType == eventType)
-            .LastOrDefault(x => x.Envelope.Message != null)?.Envelope.Message;
+            .LastOrDefault(x => x.Envelope!.Message != null)?.Envelope!.Message;
     }
 
     public override string ToString()
