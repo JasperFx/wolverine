@@ -20,6 +20,7 @@ using Xunit.Abstractions;
 namespace EfCoreTests;
 
 [Collection("sqlserver")]
+[Trait("Category", "Flaky")]
 public class Optimistic_concurrency_with_ef_core
 {
     private readonly ITestOutputHelper _output;

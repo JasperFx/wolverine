@@ -10,6 +10,7 @@ using Xunit;
 
 namespace Wolverine.AzureServiceBus.Tests.Bugs;
 
+[Trait("Category", "Flaky")]
 public class Bug_2307_batching_with_conventional_routing : IAsyncLifetime
 {
     private IHost _host = null!;
