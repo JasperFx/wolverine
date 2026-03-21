@@ -75,7 +75,7 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
         
         foreach (var sagaTableDefinition in sagaTypes)
         {
-            var storage = typeof(DatabaseSagaSchema<,>).CloseAndBuildAs<IDatabaseSagaSchema>(sagaTableDefinition, _settings, sagaTableDefinition.SagaType, sagaTableDefinition.IdMember.GetMemberType());
+            var storage = typeof(DatabaseSagaSchema<,>).CloseAndBuildAs<IDatabaseSagaSchema>(sagaTableDefinition, _settings, sagaTableDefinition.SagaType, sagaTableDefinition.IdMember.GetMemberType()!);
             _sagaStorage = _sagaStorage.AddOrUpdate(sagaTableDefinition.SagaType, storage);
         }
     }
@@ -361,7 +361,7 @@ join pg_catalog.pg_namespace n on n.oid = c.relnamespace and n.nspname = '{Schem
                 .With("id", envelope.Id)
                 .ExecuteScalarAsync(cancellation);
 
-            return ((long)count) > 0;
+            return ((long)count!) > 0;
         }
         else
         {
@@ -369,10 +369,10 @@ join pg_catalog.pg_namespace n on n.oid = c.relnamespace and n.nspname = '{Schem
             var count = await conn
                 .CreateCommand($"select count(id) from {SchemaName}.{DatabaseConstants.IncomingTable} where id = :id and {DatabaseConstants.ReceivedAt} = :destination")
                 .With("id", envelope.Id)
-                .With("destination", envelope.Destination.ToString())
+                .With("destination", envelope.Destination!.ToString())
                 .ExecuteScalarAsync(cancellation);
 
-            return ((long)count) > 0;
+            return ((long)count!) > 0;
         }
     }
 
@@ -473,16 +473,16 @@ join pg_catalog.pg_namespace n on n.oid = c.relnamespace and n.nspname = '{Schem
         
         descriptor.TenantIds.AddRange(TenantIds);
 
-        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.Host));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.Host!));
         descriptor.Properties.Add(OptionsValue.Read(builder, x => x.Port));
-        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.Database));
-        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.Username));
-        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.ApplicationName));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.Database!));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.Username!));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.ApplicationName!));
         descriptor.Properties.Add(OptionsValue.Read(builder, x => x.Enlist));
-        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.SearchPath));
-        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.ClientEncoding));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.SearchPath!));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.ClientEncoding!));
         descriptor.Properties.Add(OptionsValue.Read(builder, x => x.Encoding));
-        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.Timezone));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.Timezone!));
         descriptor.Properties.Add(OptionsValue.Read(builder, x => x.SslMode));
         descriptor.Properties.Add(OptionsValue.Read(builder, x => x.SslNegotiation));
         descriptor.Properties.Add(OptionsValue.Read(builder, x => x.CheckCertificateRevocation));
@@ -501,7 +501,7 @@ join pg_catalog.pg_namespace n on n.oid = c.relnamespace and n.nspname = '{Schem
         descriptor.Properties.Add(OptionsValue.Read(builder, x => x.Timeout));
         descriptor.Properties.Add(OptionsValue.Read(builder, x => x.CommandTimeout));
         descriptor.Properties.Add(OptionsValue.Read(builder, x => x.CancellationTimeout));
-        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.TargetSessionAttributes));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.TargetSessionAttributes!));
         descriptor.Properties.Add(OptionsValue.Read(builder, x => x.LoadBalanceHosts));
         descriptor.Properties.Add(OptionsValue.Read(builder, x => x.HostRecheckSeconds));
         descriptor.Properties.Add(OptionsValue.Read(builder, x => x.KeepAlive));
@@ -515,7 +515,7 @@ join pg_catalog.pg_namespace n on n.oid = c.relnamespace and n.nspname = '{Schem
         descriptor.Properties.Add(OptionsValue.Read(builder, x => x.MaxAutoPrepare));
         descriptor.Properties.Add(OptionsValue.Read(builder, x => x.AutoPrepareMinUsages));
         descriptor.Properties.Add(OptionsValue.Read(builder, x => x.NoResetOnClose));
-        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.Options));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.Options!));
         descriptor.Properties.Add(OptionsValue.Read(builder, x => x.ArrayNullabilityMode));
         descriptor.Properties.Add(OptionsValue.Read(builder, x => x.Multiplexing));
         descriptor.Properties.Add(OptionsValue.Read(builder, x => x.WriteCoalescingBufferThresholdBytes));

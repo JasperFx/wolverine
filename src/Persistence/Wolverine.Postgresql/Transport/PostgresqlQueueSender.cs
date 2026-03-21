@@ -105,9 +105,9 @@ DO UPDATE SET {DatabaseConstants.Body} = :body, {DatabaseConstants.MessageType} 
         await conn.CreateCommand($"delete from {_queue.Parent.MessageStorageSchemaName}.{DatabaseConstants.IncomingTable} where id = :id;" + _writeDirectlyToTheScheduledTable)
             .With("id", envelope.Id)
             .With("body", EnvelopeSerializer.Serialize(envelope))
-            .With("type", envelope.MessageType)
-            .With("expires", envelope.DeliverBy)
-            .With("time", envelope.ScheduledTime)
+            .With("type", envelope.MessageType!)
+            .With("expires", envelope.DeliverBy!)
+            .With("time", envelope.ScheduledTime!)
             .ExecuteNonQueryAsync(cancellationToken);
 
 
@@ -216,8 +216,8 @@ DO UPDATE SET {DatabaseConstants.Body} = :body, {DatabaseConstants.MessageType} 
                     await conn.CreateCommand(_writeDirectlyToQueueTableSql)
                         .With("id", envelope.Id)
                         .With("body", EnvelopeSerializer.Serialize(envelope))
-                        .With("type", envelope.MessageType)
-                        .With("expires", envelope.DeliverBy)
+                        .With("type", envelope.MessageType!)
+                        .With("expires", envelope.DeliverBy!)
                         .ExecuteNonQueryAsync(cancellationToken);
                 }
                 catch (NpgsqlException e)
@@ -239,9 +239,9 @@ DO UPDATE SET {DatabaseConstants.Body} = :body, {DatabaseConstants.MessageType} 
         await conn.CreateCommand(_writeDirectlyToTheScheduledTable)
             .With("id", envelope.Id)
             .With("body", EnvelopeSerializer.Serialize(envelope))
-            .With("type", envelope.MessageType)
-            .With("expires", envelope.DeliverBy)
-            .With("time", envelope.ScheduledTime)
+            .With("type", envelope.MessageType!)
+            .With("expires", envelope.DeliverBy!)
+            .With("time", envelope.ScheduledTime!)
             .ExecuteNonQueryAsync(cancellationToken);
     }
 }

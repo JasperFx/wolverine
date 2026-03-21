@@ -379,7 +379,7 @@ internal class AdvisoryLock : IAdvisoryLock
     private readonly List<int> _locks = new();
     private readonly ILogger _logger;
     private readonly NpgsqlDataSource _source;
-    private NpgsqlConnection _conn;
+    private NpgsqlConnection? _conn;
 
     public AdvisoryLock(NpgsqlDataSource source, ILogger logger, string databaseName)
     {
