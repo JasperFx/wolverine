@@ -17,6 +17,7 @@ using Wolverine.Util;
 
 namespace MartenTests.Persistence;
 
+[Trait("Category", "Flaky")]
 public class marten_durability_end_to_end : IAsyncLifetime
 {
     private const string SenderSchemaName = "sender";

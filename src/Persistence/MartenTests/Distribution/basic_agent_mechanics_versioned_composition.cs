@@ -8,6 +8,7 @@ using Xunit.Abstractions;
 
 namespace MartenTests.Distribution;
 
+[Trait("Category", "Flaky")]
 public class basic_agent_mechanics_versioned_composition(ITestOutputHelper output) : MultiTenantContext(output)
 {
     [Fact]

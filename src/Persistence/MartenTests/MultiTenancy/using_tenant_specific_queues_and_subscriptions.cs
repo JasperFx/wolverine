@@ -20,6 +20,7 @@ using Wolverine.Tracking;
 
 namespace MartenTests.MultiTenancy;
 
+[Trait("Category", "Flaky")]
 public class using_tenant_specific_queues_and_subscriptions : PostgresqlContext, IAsyncLifetime
 {
     private readonly List<IHost> _receivers = new();
