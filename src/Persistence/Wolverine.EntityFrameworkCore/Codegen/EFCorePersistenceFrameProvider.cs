@@ -99,14 +99,14 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
 
     public Frame DetermineDeleteFrame(Variable variable, IServiceContainer container)
     {
-        return DetermineDeleteFrame(null, variable, container);
+        return DetermineDeleteFrame(null!, variable, container);
     }
 
     public Frame DetermineStorageActionFrame(Type entityType, Variable action, IServiceContainer container)
     {
         var dbContextType = DetermineDbContextType(entityType, container);
         
-        var method = typeof(EfCoreStorageActionApplier).GetMethod("ApplyAction")
+        var method = typeof(EfCoreStorageActionApplier).GetMethod("ApplyAction")!
             .MakeGenericMethod(entityType, dbContextType);
 
         var call = new MethodCall(typeof(EfCoreStorageActionApplier), method);
@@ -303,10 +303,10 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
 
         foreach (var candidate in candidates)
         {
-            var dbContext = (DbContext)nested.ServiceProvider.GetService(candidate);
+            var dbContext = (DbContext)nested.ServiceProvider.GetService(candidate)!;
             try
             {
-                if (dbContext.Model.FindEntityType(entityType) != null)
+                if (dbContext!.Model.FindEntityType(entityType) != null)
                 {
                     _dbContextTypes = _dbContextTypes.AddOrUpdate(entityType, candidate);
                     return candidate;

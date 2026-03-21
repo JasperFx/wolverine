@@ -67,7 +67,7 @@ public class TenantedDbContextBuilderByDbDataSource<T> : IDbContextBuilder<T> wh
 
         builder.UseApplicationServiceProvider(_serviceProvider);
         builder.ReplaceService<IModelCustomizer, WolverineModelCustomizer>();
-        _configuration(builder, dataSource, new TenantId(messaging.TenantId));
+        _configuration(builder, dataSource, new TenantId(messaging.TenantId!));
         
         var dbContext = _constructor(builder.Options);
 
@@ -183,7 +183,7 @@ public class TenantedDbContextBuilderByDbDataSource<T> : IDbContextBuilder<T> wh
         var builder = new DbContextOptionsBuilder<T>();
         builder.UseApplicationServiceProvider(_serviceProvider);
         builder.ReplaceService<IModelCustomizer, WolverineModelCustomizer>();
-        _configuration(builder, dataSource, new TenantId(StorageConstants.DefaultTenantId));
+        _configuration(builder, dataSource!, new TenantId(StorageConstants.DefaultTenantId));
         return builder.Options;
     }
 
@@ -247,7 +247,7 @@ public class TenantedDbContextBuilderByDbDataSource<T> : IDbContextBuilder<T> wh
             dataSource = databaseSettings.DataSource;
         }
 
-        _dataSources = _dataSources.AddOrUpdate(tenantId, dataSource);
+        _dataSources = _dataSources.AddOrUpdate(tenantId, dataSource!);
 
         return dataSource!;
     }
