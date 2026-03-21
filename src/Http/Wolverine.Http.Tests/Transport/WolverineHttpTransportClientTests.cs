@@ -42,8 +42,8 @@ public class WolverineHttpTransportClientTests
 
         _handler.LastRequest.ShouldNotBeNull();
         _handler.LastRequest.Method.ShouldBe(HttpMethod.Post);
-        _handler.LastRequest.RequestUri.ToString().ShouldBe(uri);
-        _handler.LastRequest.Content.Headers.ContentType.MediaType.ShouldBe(HttpTransport.EnvelopeContentType);
+        _handler.LastRequest.RequestUri!.ToString().ShouldBe(uri);
+        _handler.LastRequest.Content!.Headers.ContentType!.MediaType.ShouldBe(HttpTransport.EnvelopeContentType);
 
         var expectedData = EnvelopeSerializer.Serialize(envelope);
         _handler.LastContent.ShouldBe(expectedData);
@@ -68,8 +68,8 @@ public class WolverineHttpTransportClientTests
 
         _handler.LastRequest.ShouldNotBeNull();
         _handler.LastRequest.Method.ShouldBe(HttpMethod.Post);
-        _handler.LastRequest.RequestUri.ToString().ShouldBe("https://target-url/");
-        _handler.LastRequest.Content.Headers.ContentType.MediaType.ShouldBe(HttpTransport.EnvelopeBatchContentType);
+        _handler.LastRequest.RequestUri!.ToString().ShouldBe("https://target-url/");
+        _handler.LastRequest.Content!.Headers.ContentType!.MediaType.ShouldBe(HttpTransport.EnvelopeBatchContentType);
 
         var expectedData = EnvelopeSerializer.Serialize(envelopes);
         _handler.LastContent.ShouldBe(expectedData);
@@ -78,8 +78,8 @@ public class WolverineHttpTransportClientTests
 
 public class MockHttpMessageHandler : HttpMessageHandler
 {
-    public HttpRequestMessage LastRequest { get; private set; }
-    public byte[] LastContent { get; private set; }
+    public HttpRequestMessage LastRequest { get; private set; } = null!;
+    public byte[] LastContent { get; private set; } = null!;
 
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {

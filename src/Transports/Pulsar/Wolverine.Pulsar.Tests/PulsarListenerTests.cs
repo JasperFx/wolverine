@@ -14,7 +14,7 @@ public class PulsarListenerTests
     {
         var host = await Host.CreateDefaultBuilder().UseWolverine(opts =>
         {
-            opts.UsePulsar();
+            opts.UsePulsar(b => b.ServiceUrl(PulsarContainerFixture.ServiceUrl));
             opts.UnsubscribePulsarOnClose(PulsarUnsubscribeOnClose.Enabled);
 
             var topic = "persistent://public/default/test";
@@ -37,7 +37,7 @@ public class PulsarListenerTests
     {
         var host = await Host.CreateDefaultBuilder().UseWolverine(opts =>
         {
-            opts.UsePulsar();
+            opts.UsePulsar(b => b.ServiceUrl(PulsarContainerFixture.ServiceUrl));
             opts.UnsubscribePulsarOnClose(PulsarUnsubscribeOnClose.Disabled);
 
             var topic = "persistent://public/default/test";
@@ -59,7 +59,7 @@ public class PulsarListenerTests
     {
         using var httpClient = new HttpClient();
         var response =
-            await httpClient.GetAsync("http://localhost:8080/admin/v2/persistent/public/default/test/subscriptions");
+            await httpClient.GetAsync($"{PulsarContainerFixture.HttpServiceUrl}/admin/v2/persistent/public/default/test/subscriptions");
         var subscriptions = await response.Content.ReadFromJsonAsync<JsonValue[]>();
         return subscriptions != null && subscriptions.Length != 0;
     }

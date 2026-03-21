@@ -10,7 +10,7 @@ namespace Wolverine.AmazonSns.Tests;
 
 public class send_to_topic_and_receive_in_queue : IAsyncLifetime
 {
-    private IHost _host;
+    private IHost _host = null!;
 
     public async Task InitializeAsync()
     {
@@ -91,6 +91,6 @@ public static class SqsMessageHandler
     public static void Handle(SnsMessage message)
     {
         // nothing
-        var x = 2;
+        // intentionally empty
     }
 }

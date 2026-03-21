@@ -45,7 +45,7 @@ public class dataannotations_validation_middleware : IntegrationContext
     [Fact]
     public async Task one_validator_sad_path()
     {
-        var createCustomer = new CreateAccount(null, "123");
+        var createCustomer = new CreateAccount(null!, "123");
 
         var results = await Host.Scenario(x =>
         {

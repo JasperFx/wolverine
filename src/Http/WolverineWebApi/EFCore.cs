@@ -25,13 +25,13 @@ public class ItemsDbContext : DbContext
 
 public class Item
 {
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
     public Guid Id { get; set; }
 }
 
 public class CreateItemCommand
 {
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
 }
 
 public class ItemCreated

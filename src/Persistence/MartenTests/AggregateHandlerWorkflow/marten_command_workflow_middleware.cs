@@ -60,7 +60,7 @@ public class marten_command_workflow_middleware : PostgresqlContext, IDisposable
     internal async Task<LetterAggregate> LoadAggregate()
     {
         await using var session = theStore.LightweightSession();
-        return await session.LoadAsync<LetterAggregate>(theStreamId);
+        return (await session.LoadAsync<LetterAggregate>(theStreamId))!;
     }
 
     internal async Task OnAggregate(Action<LetterAggregate> assertions)
@@ -249,7 +249,7 @@ public class LetterAggregateHandler
     // No event returned
     public AEvent Handle(IncrementNone command, LetterAggregate aggregate)
     {
-        return null;
+        return null!;
     }
 
     // Synchronous, one event, no other services
@@ -307,13 +307,13 @@ public class LetterAggregateHandler
 
     public void Handle(IncrementC command, IEventStream<LetterAggregate> stream)
     {
-        command.LetterAggregateId.ShouldBe(stream.Aggregate.Id);
+        command.LetterAggregateId.ShouldBe(stream.Aggregate!.Id);
         stream.AppendOne(new CEvent());
     }
 
     public Task Handle(IncrementD command, IEventStream<LetterAggregate> stream)
     {
-        command.LetterAggregateId.ShouldBe(stream.Aggregate.Id);
+        command.LetterAggregateId.ShouldBe(stream.Aggregate!.Id);
         stream.AppendOne(new DEvent());
         return Task.CompletedTask;
     }

@@ -31,7 +31,7 @@ public class DatabaseSagaSchema<T, TId> : IDatabaseSagaSchema<TId, T> where T : 
 
         _deleteSql = $"delete from {settings.SchemaName}.{definition.TableName} where id = @id";
         
-        var table = new Table(new DbObjectName(settings.SchemaName, definition.TableName));
+        var table = new Table(new DbObjectName(settings.SchemaName!, definition.TableName));
         table.AddColumn<TId>("id").AsPrimaryKey();
         table.AddColumn(DatabaseConstants.Body, "jsonb").NotNull();
         table.AddColumn(DatabaseConstants.Version, "int").DefaultValue(1).NotNull();
@@ -73,13 +73,13 @@ public class DatabaseSagaSchema<T, TId> : IDatabaseSagaSchema<TId, T> where T : 
         
         await EnsureStorageExistsAsync(cancellationToken);
         await transaction.CreateCommand(_insertSql).As<NpgsqlCommand>()
-            .With("id", id)
+            .With("id", id!)
             .With("body", JsonSerializer.SerializeToUtf8Bytes(saga), NpgsqlDbType.Jsonb)
             .ExecuteNonQueryAsync(cancellationToken);
 
         saga.Version = 1;
     }
-    
+
     public async Task UpdateAsync(T saga, DbTransaction transaction, CancellationToken cancellationToken)
     {
         await EnsureStorageExistsAsync(cancellationToken);
@@ -87,7 +87,7 @@ public class DatabaseSagaSchema<T, TId> : IDatabaseSagaSchema<TId, T> where T : 
         var id = IdSource(saga);
         var count = await transaction.CreateCommand(_updateSql).As<NpgsqlCommand>()
             .With("body", JsonSerializer.SerializeToUtf8Bytes(saga), NpgsqlDbType.Jsonb)
-            .With("id", id)
+            .With("id", id!)
             .With("version", saga.Version)
             .ExecuteNonQueryAsync(cancellationToken);
 
@@ -103,7 +103,7 @@ public class DatabaseSagaSchema<T, TId> : IDatabaseSagaSchema<TId, T> where T : 
         await EnsureStorageExistsAsync(cancellationToken);
         await transaction
             .CreateCommand(_deleteSql)
-            .With("id", IdSource(saga))
+            .With("id", IdSource(saga)!)
             .ExecuteNonQueryAsync(cancellationToken);
     }
 
@@ -111,7 +111,7 @@ public class DatabaseSagaSchema<T, TId> : IDatabaseSagaSchema<TId, T> where T : 
     {
         await EnsureStorageExistsAsync(cancellationToken);
         await using var reader = await tx.CreateCommand(_loadSql)
-            .With("id", id)
+            .With("id", id!)
             .ExecuteReaderAsync(cancellationToken);
 
         if (!await reader.ReadAsync(cancellationToken))

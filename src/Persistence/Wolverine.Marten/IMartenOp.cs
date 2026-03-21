@@ -50,7 +50,7 @@ internal class MartenOpPolicy : IChainPolicy
 internal class ForEachMartenOpFrame : SyncFrame
 {
     private readonly Variable _collection;
-    private Variable _session;
+    private Variable _session = null!;
 
     public ForEachMartenOpFrame(Variable collection)
     {

@@ -20,7 +20,7 @@ public class MetricsAccumulator : IAsyncDisposable
     private readonly object _syncLock = new();
 
     private ImmutableArray<MessageTypeMetricsAccumulator> _accumulators = ImmutableArray<MessageTypeMetricsAccumulator>.Empty;
-    private Task _runner;
+    private Task _runner = null!;
 
     /// <summary>
     /// Creates a new metrics accumulator bound to the given runtime.
@@ -124,7 +124,7 @@ public class MetricsAccumulator : IAsyncDisposable
                     }
                 }
             }
-            catch (OperationCanceledException e)
+            catch (OperationCanceledException)
             {
                 // Nothing
             }

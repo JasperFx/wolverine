@@ -27,10 +27,10 @@ public class configuration_specs
         var container = host.Services.GetRequiredService<IServiceContainer>();
 
         // No args, this needs to be a singleton
-        container.DefaultFor<IValidator<Command1>>()
+        container.DefaultFor<IValidator<Command1>>()!
             .Lifetime.ShouldBe(ServiceLifetime.Singleton);
 
-        container.DefaultFor<IValidator<Command2>>()
+        container.DefaultFor<IValidator<Command2>>()!
             .Lifetime.ShouldBe(ServiceLifetime.Scoped);
     }
 
@@ -65,21 +65,21 @@ public class configuration_specs
 
         // Not proud of this code
         var handlers = (HandlerGraph)typeof(WolverineOptions)
-            .GetProperty(nameof(HandlerGraph), BindingFlags.NonPublic | BindingFlags.Instance)
-            .GetValue(wolverineOptions);
+            .GetProperty(nameof(HandlerGraph), BindingFlags.NonPublic | BindingFlags.Instance)!
+            .GetValue(wolverineOptions)!;
 
-        handlers.ChainFor<Command1>().Middleware.OfType<MethodCall>()
+        handlers.ChainFor<Command1>()!.Middleware.OfType<MethodCall>()
             .Any(x => x.HandlerType == typeof(FluentValidationExecutor) &&
                       x.Method.Name == nameof(FluentValidationExecutor.ExecuteMany))
             .ShouldBeTrue();
 
-        handlers.ChainFor<Command2>().Middleware.OfType<MethodCall>()
+        handlers.ChainFor<Command2>()!.Middleware.OfType<MethodCall>()
             .Any(x => x.HandlerType == typeof(FluentValidationExecutor) &&
                       x.Method.Name == nameof(FluentValidationExecutor.ExecuteOne))
             .ShouldBeTrue();
 
         // No validators here
-        handlers.ChainFor<Command3>().Middleware.OfType<MethodCall>()
+        handlers.ChainFor<Command3>()!.Middleware.OfType<MethodCall>()
             .Any(x => x.HandlerType == typeof(FluentValidationExecutor))
             .ShouldBeFalse();
     }
@@ -87,8 +87,8 @@ public class configuration_specs
 
 public class Command1
 {
-    public string Name { get; set; }
-    public string Color { get; set; }
+    public string Name { get; set; } = null!;
+    public string Color { get; set; } = null!;
 
     public int Number { get; set; }
 }
@@ -133,8 +133,8 @@ public class DataService : IDataService
 
 public class Command2
 {
-    public string Name { get; set; }
-    public string Color { get; set; }
+    public string Name { get; set; } = null!;
+    public string Color { get; set; } = null!;
 }
 
 public class FancyCommand2Validator : AbstractValidator<Command2>

@@ -252,7 +252,7 @@ public class PostgresqlQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint
 
             try
             {
-                count += (long)await conn.CreateCommand($"select count(*) from {QueueTable.Identifier}").ExecuteScalarAsync();
+                count += (long)(await conn.CreateCommand($"select count(*) from {QueueTable.Identifier}").ExecuteScalarAsync())!;
             }
             finally
             {
@@ -271,7 +271,7 @@ public class PostgresqlQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint
             await using var conn = await source.OpenConnectionAsync();
             try
             {
-                count += (long)await conn.CreateCommand($"select count(*) from {ScheduledTable.Identifier}").ExecuteScalarAsync();
+                count += (long)(await conn.CreateCommand($"select count(*) from {ScheduledTable.Identifier}").ExecuteScalarAsync())!;
             }
             finally
             {

@@ -170,7 +170,7 @@ internal class MartenMessageDatabaseSource : ITenantedMessageSource
             database.As<PostgresqlDatabase>().DataSource,
             _runtime.LoggerFactory.CreateLogger<PostgresqlMessageStore>())
         {
-            Name = database.Identifier ?? new NpgsqlConnectionStringBuilder(settings.ConnectionString).Database
+            Name = database.Identifier ?? new NpgsqlConnectionStringBuilder(settings.ConnectionString).Database!
         };
         
         store.TenantIds.AddRange(database.TenantIds.Distinct());

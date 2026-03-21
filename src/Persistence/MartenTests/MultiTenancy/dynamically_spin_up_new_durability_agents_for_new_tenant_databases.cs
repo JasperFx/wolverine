@@ -18,12 +18,12 @@ namespace MartenTests.MultiTenancy;
 
 public class dynamically_spin_up_new_durability_agents_for_new_tenant_databases : IAsyncLifetime
 {
-    private IHost _host;
-    private IDocumentStore theStore;
-    private string tenant1ConnectionString;
-    private string tenant2ConnectionString;
-    private string tenant3ConnectionString;
-    private string tenant4ConnectionString;
+    private IHost _host = null!;
+    private IDocumentStore theStore = null!;
+    private string tenant1ConnectionString = null!;
+    private string tenant2ConnectionString = null!;
+    private string tenant3ConnectionString = null!;
+    private string tenant4ConnectionString = null!;
 
     private async Task<string> CreateDatabaseIfNotExists(NpgsqlConnection conn, string databaseName)
     {

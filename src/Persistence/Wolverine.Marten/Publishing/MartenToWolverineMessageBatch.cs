@@ -6,7 +6,9 @@ using Wolverine.Runtime;
 
 namespace Wolverine.Marten.Publishing;
 
+#pragma warning disable CS9113 // Parameter is unread
 internal class MartenToWolverineMessageBatch(MessageContext Context, DocumentSessionBase Session) : IMessageBatch
+#pragma warning restore CS9113
 {
     public ValueTask PublishAsync<T>(T message, string tenantId)
     {

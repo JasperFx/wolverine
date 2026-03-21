@@ -6,7 +6,7 @@ namespace WolverineWebApi;
 
 public class HttpContextEndpoints
 {
-    public static ClaimsPrincipal User { get; set; }
+    public static ClaimsPrincipal User { get; set; } = null!;
 
     [WolverineGet("/http/context")]
     public void UseHttpContext(HttpContext context)

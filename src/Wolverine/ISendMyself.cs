@@ -300,6 +300,6 @@ public class RoutedToEndpointMessage<T> : ISendMyself
     {
         return EndpointName.IsNotEmpty()
             ? context.EndpointFor(EndpointName).SendAsync(Message, DeliveryOptions)
-            : context.EndpointFor(Destination).SendAsync(Message, DeliveryOptions);
+            : context.EndpointFor(Destination!).SendAsync(Message, DeliveryOptions);
     }
 }

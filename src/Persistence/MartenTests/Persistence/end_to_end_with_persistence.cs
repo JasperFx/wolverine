@@ -123,7 +123,7 @@ public class end_to_end_with_persistence : PostgresqlContext, IDisposable, IAsyn
                 item2 = await session.LoadAsync<ItemCreated>(item.Id);
             }
 
-            item2.Name.ShouldBe("Shoe");
+            item2!.Name.ShouldBe("Shoe");
         }
 
         var incoming = await theReceiver.Get<IMessageStore>().Admin.FetchCountsAsync();

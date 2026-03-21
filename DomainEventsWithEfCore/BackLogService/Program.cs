@@ -13,7 +13,7 @@ var connectionString = builder.Configuration.GetConnectionString("postgres");
 builder.UseWolverine(opts =>
 {
     opts.UseEntityFrameworkCoreTransactions();
-    opts.PersistMessagesWithPostgresql(connectionString, "wolverine");
+    opts.PersistMessagesWithPostgresql(connectionString!, "wolverine");
     
     opts.Policies.AutoApplyTransactions();
 });

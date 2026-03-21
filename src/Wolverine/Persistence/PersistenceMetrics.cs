@@ -15,7 +15,7 @@ public class PersistenceMetrics : IDisposable
     private readonly ObservableGauge<int> _outgoing;
     private readonly ObservableGauge<int> _scheduled;
     private CancellationTokenSource _cancellation;
-    private Task _task;
+    private Task _task = null!;
     private readonly IWolverineObserver _observer;
 
     public PersistenceMetrics(IWolverineRuntime runtime, DurabilitySettings settings, string? databaseName)

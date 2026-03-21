@@ -11,11 +11,11 @@ using Xunit.Abstractions;
 namespace Wolverine.MQTT.Tests;
 
 [Collection("acceptance")]
-public class connectivity
+public class Connectivity
 {
     private readonly ITestOutputHelper _output;
 
-    public connectivity(ITestOutputHelper output)
+    public Connectivity(ITestOutputHelper output)
     {
         _output = output;
     }

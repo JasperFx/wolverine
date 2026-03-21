@@ -5,7 +5,7 @@ namespace Module1;
 
 public class Module1Extension : IWolverineExtension
 {
-    public static WolverineOptions Options { get; set; }
+    public static WolverineOptions Options { get; set; } = null!;
 
     public void Configure(WolverineOptions options)
     {

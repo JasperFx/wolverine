@@ -14,10 +14,6 @@ namespace SqlServerTests.Transport;
 
 public class stateful_resource_smoke_tests : IAsyncLifetime
 {
-    private IHost _host;
-    private SqlServerTransport theTransport;
-    private IStatefulResource? theResource;
-
     public async Task InitializeAsync()
     {
         await using var conn = new SqlConnection(Servers.SqlServerConnectionString);

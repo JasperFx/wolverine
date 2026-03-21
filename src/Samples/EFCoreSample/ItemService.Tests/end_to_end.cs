@@ -97,6 +97,6 @@ public class end_to_end
         await context.SaveChangesAsync();
 
         var response = await host.GetAsJson<Item>("/api/item/" + id);
-        response.Name.ShouldBe(name);
+        response!.Name.ShouldBe(name);
     }
 }

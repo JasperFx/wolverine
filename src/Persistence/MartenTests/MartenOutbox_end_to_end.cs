@@ -11,7 +11,7 @@ namespace MartenTests;
 
 public class MartenOutbox_end_to_end : PostgresqlContext, IAsyncLifetime
 {
-    private IHost _host;
+    private IHost _host = null!;
 
     public async Task InitializeAsync()
     {
@@ -75,7 +75,7 @@ public record OutboxedMessage
 
 public class OutboxedMessageHandler
 {
-    private static TaskCompletionSource<OutboxedMessage> _source;
+    private static TaskCompletionSource<OutboxedMessage> _source = null!;
 
     public static Task<OutboxedMessage> WaitForNextMessage()
     {

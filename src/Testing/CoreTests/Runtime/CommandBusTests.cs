@@ -15,7 +15,7 @@ public class CommandBusTests
         try
         {
             var bus = new MessageBus(new MockWolverineRuntime());
-            bus.CorrelationId.ShouldBe(activity.RootId);
+            bus.CorrelationId.ShouldBe(activity!.RootId);
         }
         finally
         {

@@ -60,11 +60,11 @@ public class SqlServerMessageStore_with_IdAndDestination_Identity : MessageStore
         var runtime = theHost.GetRuntime();
 
         var incoming = await new IncomingEnvelopeTable(runtime.Options.Durability, "receiver2").FetchExistingAsync(conn);
-        incoming.PrimaryKeyColumns.ShouldContain(DatabaseConstants.Id);
+        incoming!.PrimaryKeyColumns.ShouldContain(DatabaseConstants.Id);
         incoming.PrimaryKeyColumns.ShouldContain(DatabaseConstants.ReceivedAt);
-        
+
         var dlq = await new DeadLettersTable(runtime.Options.Durability, "receiver2").FetchExistingAsync(conn);
-        dlq.PrimaryKeyColumns.ShouldContain(DatabaseConstants.Id);
+        dlq!.PrimaryKeyColumns.ShouldContain(DatabaseConstants.Id);
         dlq.PrimaryKeyColumns.ShouldContain(DatabaseConstants.ReceivedAt);
     }
 

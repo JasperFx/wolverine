@@ -331,13 +331,13 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
                 
             case OnMissing.ProblemDetailsWith400:
                 Metadata.Produces(400, contentType: "application/problem+json");
-                return [new WriteProblemDetailsIfNull(data, identity, message, 400)];
+                return [new WriteProblemDetailsIfNull(data, identity!, message, 400)];
             case OnMissing.ProblemDetailsWith404:
                 Metadata.Produces(404, contentType: "application/problem+json");
-                return [new WriteProblemDetailsIfNull(data, identity, message, 404)];
-                
+                return [new WriteProblemDetailsIfNull(data, identity!, message, 404)];
+
             default:
-                return [new ThrowRequiredDataMissingExceptionFrame(data, identity, message)];
+                return [new ThrowRequiredDataMissingExceptionFrame(data, identity!, message)];
         }
     }
 
@@ -351,7 +351,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
         var description = new OptionsDescription(this);
         description.AddValue(nameof(HttpMethods), HttpMethods.ToArray());
 
-        description.AddValue("Route", RoutePattern.RawText);
+        description.AddValue("Route", RoutePattern?.RawText ?? string.Empty);
 
         if (Tags.Any())
         {
@@ -420,7 +420,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
             key = att.Name;
         }
 
-        return TryFindOrCreateFormValue(parameterType, parameterName, key);
+        return TryFindOrCreateFormValue(parameterType, parameterName!, key);
     }
     
  public HttpElementVariable? TryFindOrCreateFormValue(Type parameterType, string parameterName, string? key = null){
@@ -452,7 +452,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
                 }
             }
             
-            if (parameterType.IsArray && RouteParameterStrategy.CanParse(parameterType.GetElementType()))
+            if (parameterType.IsArray && RouteParameterStrategy.CanParse(parameterType.GetElementType()!))
             {
                 variable = new ParsedArrayFormValue(parameterType, parameterName).Variable;
                 variable.Name = key;
@@ -510,7 +510,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
             key = att.Name;
         }
 
-        return TryFindOrCreateQuerystringValue(parameterType, parameterName, key);
+        return TryFindOrCreateQuerystringValue(parameterType, parameterName!, key);
     }
 
     public HttpElementVariable? TryFindOrCreateQuerystringValue(Type parameterType, string parameterName, string? key = null)
@@ -551,7 +551,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
                 }
             }
 
-            if (parameterType.IsArray && RouteParameterStrategy.CanParse(parameterType.GetElementType()))
+            if (parameterType.IsArray && RouteParameterStrategy.CanParse(parameterType.GetElementType()!))
             {
                 variable = new ParsedArrayQueryStringValue(parameterType, key).Variable;
                 variable.Name = key;
@@ -585,7 +585,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
     public bool FindRouteVariable(ParameterInfo parameter, [NotNullWhen(true)]out Variable? variable)
     {
         var existing = _routeVariables.FirstOrDefault(x =>
-            x.VariableType == parameter.ParameterType && x.Usage.EqualsIgnoreCase(parameter.Name));
+            x.VariableType == parameter.ParameterType && x.Usage.EqualsIgnoreCase(parameter.Name!));
 
         if (existing is not null)
         {
@@ -610,7 +610,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
                 var inner = parameter.ParameterType.GetInnerTypeFromNullable();
                 if (RouteParameterStrategy.CanParse(inner))
                 {
-                    variable = new ReadHttpFrame(BindingSource.RouteValue, parameter.ParameterType, parameter.Name, isOptional).Variable;
+                    variable = new ReadHttpFrame(BindingSource.RouteValue, parameter.ParameterType, parameter.Name!, isOptional).Variable;
                     _routeVariables.Add(variable);
                     return true;
                 }
@@ -618,7 +618,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
 
             if (RouteParameterStrategy.CanParse(parameter.ParameterType))
             {
-                variable = new ReadHttpFrame(BindingSource.RouteValue, parameter.ParameterType, parameter.Name, isOptional).Variable;
+                variable = new ReadHttpFrame(BindingSource.RouteValue, parameter.ParameterType, parameter.Name!, isOptional).Variable;
                 _routeVariables.Add(variable);
                 return true;
             }
@@ -668,9 +668,9 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
 
         if (existing != null) return existing;
 
-        var frame = new ReadHttpFrame(BindingSource.Header, parameter.ParameterType, parameter.Name)
+        var frame = new ReadHttpFrame(BindingSource.Header, parameter.ParameterType, parameter.Name!)
         {
-            Key = metadata.Name ?? parameter.Name
+            Key = metadata.Name ?? parameter.Name!
         };
         
         _headerVariables.Add(frame.Variable);

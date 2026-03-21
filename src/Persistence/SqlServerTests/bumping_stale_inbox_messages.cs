@@ -18,7 +18,7 @@ namespace SqlServerTests;
 
 public class bumping_stale_inbox_messages : IAsyncLifetime
 {
-    private IHost theHost;
+    private IHost theHost = null!;
 
     public async Task InitializeAsync()
     {
@@ -45,7 +45,7 @@ public class bumping_stale_inbox_messages : IAsyncLifetime
 
         var table = await new Table(new DbObjectName("stale_outbox", DatabaseConstants.IncomingTable)).FetchExistingAsync(conn);
         
-        table.HasColumn(DatabaseConstants.Timestamp).ShouldBeTrue();
+        table!.HasColumn(DatabaseConstants.Timestamp).ShouldBeTrue();
         
     }
 

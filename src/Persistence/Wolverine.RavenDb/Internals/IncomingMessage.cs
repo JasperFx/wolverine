@@ -24,7 +24,7 @@ public class IncomingMessage
 
     public Guid EnvelopeId { get; set; }
 
-    public string Id { get; set; }
+    public string Id { get; set; } = null!;
     public EnvelopeStatus Status { get; set; } = EnvelopeStatus.Incoming;
     public int OwnerId { get; set; }
     public DateTimeOffset? ExecutionTime { get; set; }

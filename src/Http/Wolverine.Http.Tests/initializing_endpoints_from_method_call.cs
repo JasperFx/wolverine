@@ -38,7 +38,7 @@ public class initializing_endpoints_from_method_call : IntegrationContext
     {
         var endpoint = HttpChain.ChainFor<FakeEndpoint>(x => x.SayHello());
 
-        endpoint.RoutePattern.RawText.ShouldBe("/fake/hello");
+        endpoint!.RoutePattern!.RawText.ShouldBe("/fake/hello");
         endpoint.RoutePattern.Parameters.Any().ShouldBeFalse();
     }
 
@@ -92,11 +92,11 @@ public class initializing_endpoints_from_method_call : IntegrationContext
         metadata.Length.ShouldBeGreaterThanOrEqualTo(2);
 
         var responseBody = metadata.FirstOrDefault(x => x.StatusCode == 200);
-        responseBody.Type.ShouldBe(typeof(ArithmeticResults));
+        responseBody!.Type.ShouldBe(typeof(ArithmeticResults));
         responseBody.ContentTypes.Single().ShouldBe("application/json");
 
         var noValue = metadata.FirstOrDefault(x => x.StatusCode == 404);
-        noValue.ContentTypes.Any().ShouldBeFalse();
+        noValue!.ContentTypes.Any().ShouldBeFalse();
         noValue.Type.ShouldBe(typeof(void));
     }
 
@@ -147,28 +147,28 @@ public class initializing_endpoints_from_method_call : IntegrationContext
     [Fact]
     public void must_use_outbox_when_using_message_bus()
     {
-        var chain = HttpChain.ChainFor<MaybeMessagingEndpoints>(x => x.Yes(null, null));
+        var chain = HttpChain.ChainFor<MaybeMessagingEndpoints>(x => x.Yes(null!, null!));
         chain.RequiresOutbox().ShouldBeTrue();
     }
 
     [Fact]
     public void does_not_use_outbox_when_not_using_message_bus()
     {
-        var chain = HttpChain.ChainFor<MaybeMessagingEndpoints>(x => x.No(null));
+        var chain = HttpChain.ChainFor<MaybeMessagingEndpoints>(x => x.No(null!));
         chain.RequiresOutbox().ShouldBeFalse();
     }
 
     [Fact]
     public void default_tenancy_is_null()
     {
-        var chain = HttpChain.ChainFor<MaybeMessagingEndpoints>(x => x.No(null));
+        var chain = HttpChain.ChainFor<MaybeMessagingEndpoints>(x => x.No(null!));
         chain.TenancyMode.ShouldBeNull();
     }
 
     [Fact]
     public void add_from_route_metadata()
     {
-        var chain = HttpChain.ChainFor<RoutedEndpoint>(x => x.Get(null));
+        var chain = HttpChain.ChainFor<RoutedEndpoint>(x => x.Get(null!));
     }
 }
 

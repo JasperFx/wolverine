@@ -10,7 +10,7 @@ public class ProviderShift
     public Guid BoardId { get; private set; }
     public Guid ProviderId { get; init; }
     public ProviderStatus Status { get; private set; }
-    public string Name { get; init; }
+    public string Name { get; init; } = null!;
     public Guid? AppointmentId { get; set; }
     
     // The Create & Apply methods are conventional targets
@@ -26,7 +26,7 @@ public class ProviderShift
 
         return new ProviderShift
         {
-            Name = $"{provider.FirstName} {provider.LastName}",
+            Name = $"{provider!.FirstName} {provider.LastName}",
             Status = ProviderStatus.Ready,
             ProviderId = joined.ProviderId,
             BoardId = joined.BoardId

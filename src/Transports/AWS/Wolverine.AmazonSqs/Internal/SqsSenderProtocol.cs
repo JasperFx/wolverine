@@ -58,7 +58,7 @@ internal class OutgoingSqsBatch
         {
             try
             {
-                var entry = new SendMessageBatchRequestEntry(envelope.Id.ToString(), queue.Mapper.BuildMessageBody(envelope));
+                var entry = new SendMessageBatchRequestEntry(envelope.Id.ToString(), queue.Mapper!.BuildMessageBody(envelope));
                 if (queue.IsFifoQueue)
                 {
                     if (envelope.GroupId.IsNotEmpty())
@@ -94,6 +94,6 @@ internal class OutgoingSqsBatch
 
     public bool TryGetEnvelope(string id, out Envelope envelope)
     {
-        return _envelopes.TryGetValue(id, out envelope);
+        return _envelopes.TryGetValue(id, out envelope!);
     }
 }

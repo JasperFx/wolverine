@@ -27,7 +27,7 @@ public partial class RavenDbDurabilityAgent : IAgent
 
     private readonly CancellationTokenSource _cancellation = new();
     private readonly CancellationTokenSource _combined;
-    private PersistenceMetrics _metrics;
+    private PersistenceMetrics _metrics = null!;
     
     public RavenDbDurabilityAgent(IDocumentStore store, IWolverineRuntime runtime, RavenDbMessageStore parent)
     {

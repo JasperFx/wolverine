@@ -15,8 +15,8 @@ namespace MartenTests.AggregateHandlerWorkflow;
 
 public class strong_named_identifiers : IAsyncLifetime
 {
-    private IHost theHost;
-    
+    private IHost theHost = null!;
+
     public async Task InitializeAsync()
     {
         theHost = await Host.CreateDefaultBuilder()
@@ -87,11 +87,11 @@ public class strong_named_identifiers : IAsyncLifetime
         await theHost.InvokeMessageAndWaitAsync(new IncrementBOnBoth(new LetterId(stream1Id), new LetterId(stream2Id)));
 
         var aggregate1 = await session.Events.FetchLatest<StrongLetterAggregate>(stream1Id);
-        aggregate1.BCount.ShouldBe(2);
-        
+        aggregate1!.BCount.ShouldBe(2);
+
         var aggregate2 = await session.Events.FetchLatest<StrongLetterAggregate>(stream2Id);
-        aggregate2.BCount.ShouldBe(3);
-        
+        aggregate2!.BCount.ShouldBe(3);
+
     }
 
     [Fact]
@@ -102,7 +102,7 @@ public class strong_named_identifiers : IAsyncLifetime
         using var session = theHost.DocumentStore().LightweightSession();
         session.Events.StartStream<StrongLetterAggregate>(stream1Id, new AEvent(), new BEvent(), new CEvent(),
             new CEvent());
-        
+
         session.Events.StartStream<StrongLetterAggregate>(stream2Id, new AEvent(), new BEvent(), new BEvent(),
             new AEvent(), new DEvent());
         await session.SaveChangesAsync();
@@ -110,12 +110,12 @@ public class strong_named_identifiers : IAsyncLifetime
         await theHost.InvokeMessageAndWaitAsync(new AddFrom(new LetterId(stream1Id), new LetterId(stream2Id)));
 
         var aggregate1 = await session.Events.FetchLatest<StrongLetterAggregate>(stream1Id);
-        aggregate1.BCount.ShouldBe(3);
+        aggregate1!.BCount.ShouldBe(3);
         aggregate1.ACount.ShouldBe(3);
         aggregate1.DCount.ShouldBe(1);
-        
+
         var aggregate2 = await session.Events.FetchLatest<StrongLetterAggregate>(stream2Id);
-        aggregate2.BCount.ShouldBe(2);
+        aggregate2!.BCount.ShouldBe(2);
     }
 
     

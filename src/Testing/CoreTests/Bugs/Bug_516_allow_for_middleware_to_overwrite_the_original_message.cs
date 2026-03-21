@@ -42,5 +42,5 @@ public static class ReplacedMessageHandler
         Handled = message;
     }
 
-    public static ReplacedMessage Handled { get; set; }
+    public static ReplacedMessage Handled { get; set; } = null!;
 }

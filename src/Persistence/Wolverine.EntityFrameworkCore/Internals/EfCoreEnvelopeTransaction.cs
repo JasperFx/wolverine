@@ -17,13 +17,13 @@ public class EfCoreEnvelopeTransaction : IEnvelopeTransaction
 {
     private readonly MessageContext _messaging;
     private readonly IDomainEventScraper[] _scrapers;
-    private readonly IMessageDatabase _database;
-    
+    private readonly IMessageDatabase _database = null!;
+
     public EfCoreEnvelopeTransaction(DbContext dbContext, MessageContext messaging, IEnumerable<IDomainEventScraper> scrapers)
     {
         _messaging = messaging;
         _scrapers = scrapers.ToArray();
-        if (!messaging.TryFindMessageDatabase(out _database))
+        if (!messaging.TryFindMessageDatabase(out _database!))
         {
             throw new InvalidOperationException(
                 "This Wolverine application is not using Database backed message persistence. Please configure the message persistence");

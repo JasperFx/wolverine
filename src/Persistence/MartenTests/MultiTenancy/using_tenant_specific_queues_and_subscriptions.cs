@@ -23,12 +23,12 @@ namespace MartenTests.MultiTenancy;
 public class using_tenant_specific_queues_and_subscriptions : PostgresqlContext, IAsyncLifetime
 {
     private readonly List<IHost> _receivers = new();
-    private IHost _sender;
-    private string tenant1ConnectionString;
-    private string tenant2ConnectionString;
-    private string tenant3ConnectionString;
-    private string tenant4ConnectionString;
-    private IDocumentStore theSenderStore;
+    private IHost _sender = null!;
+    private string tenant1ConnectionString = null!;
+    private string tenant2ConnectionString = null!;
+    private string tenant3ConnectionString = null!;
+    private string tenant4ConnectionString = null!;
+    private IDocumentStore theSenderStore = null!;
 
     public async Task InitializeAsync()
     {
@@ -324,9 +324,9 @@ public record ColorsUpdated(string Color, int Number);
 
 public class ColorSum
 {
-    private Queue<int> _numbers;
+    private Queue<int> _numbers = null!;
 
-    [Identity] public string Color { get; set; }
+    [Identity] public string Color { get; set; } = null!;
 
     public List<int> Numbers { get; set; } = new();
 
@@ -397,7 +397,7 @@ public static class UpdateColorCountsHandler
     public static async Task Handle(UpdateColorCounts counts, IDocumentSession session)
     {
         var updates = await session.LoadAsync<ColorUpdates>(counts.Id);
-        foreach (var pair in updates.Updates)
+        foreach (var pair in updates!.Updates)
         {
             var doc = await session.LoadAsync<ColorSum>(pair.Key);
             doc ??= new ColorSum { Color = pair.Key };

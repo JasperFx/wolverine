@@ -44,7 +44,7 @@ public class AgentRestrictionsTests
 
         var restrictions2 = JsonSerializer.Deserialize<AgentRestrictions>(json);
 
-        restrictions.Current.ShouldBe(restrictions2.Current);
+        restrictions.Current.ShouldBe(restrictions2!.Current);
     }
 
     [Fact]

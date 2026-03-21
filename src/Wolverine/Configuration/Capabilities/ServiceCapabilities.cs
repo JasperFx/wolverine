@@ -19,14 +19,14 @@ public class ServiceCapabilities : OptionsDescription
 
     public ServiceCapabilities(WolverineOptions options) : base(options)
     {
-        Version = (options.ApplicationAssembly ?? Assembly.GetEntryAssembly()).GetName().Version?.ToString();
+        Version = (options.ApplicationAssembly ?? Assembly.GetEntryAssembly())!.GetName().Version?.ToString()!;
         WolverineVersion = options.GetType().Assembly.GetName().Version?.ToString();
         DurabilitySettings = new DurabilitySettingsDescription(options.Durability);
     }
 
     public DateTimeOffset Evaluated { get; set; } = DateTimeOffset.UtcNow;
 
-    public string Version { get; set; }
+    public string Version { get; set; } = null!;
 
     public string? WolverineVersion { get; set; }
 

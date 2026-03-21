@@ -6,7 +6,7 @@ namespace Wolverine.Pulsar.Tests;
 
 public class InlinePulsarTransportFixture : TransportComplianceFixture, IAsyncLifetime
 {
-    public InlinePulsarTransportFixture() : base(null)
+    public InlinePulsarTransportFixture() : base(null!)
     {
     }
 
@@ -18,22 +18,22 @@ public class InlinePulsarTransportFixture : TransportComplianceFixture, IAsyncLi
 
         await ReceiverIs(opts =>
         {
-            opts.UsePulsar();
+            opts.UsePulsar(b => b.ServiceUrl(PulsarContainerFixture.ServiceUrl));
             opts.ListenToPulsarTopic(topicPath).ProcessInline();
         });
 
         await SenderIs(opts =>
         {
             var replyPath = $"persistent://public/default/replies-{topic}";
-            opts.UsePulsar();
+            opts.UsePulsar(b => b.ServiceUrl(PulsarContainerFixture.ServiceUrl));
             opts.ListenToPulsarTopic(replyPath).UseForReplies().ProcessInline();
             opts.PublishAllMessages().ToPulsarTopic(topicPath).SendInline();
         });
     }
 
-    public async Task DisposeAsync()
+    public new async Task DisposeAsync()
     {
-        await DisposeAsync();
+        await base.DisposeAsync();
     }
 
     public override void BeforeEach()

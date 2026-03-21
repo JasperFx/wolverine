@@ -14,7 +14,7 @@ namespace SqlServerTests.Sagas;
 
 public class SqlServerSagaHost : ISagaHost
 {
-    private IHost _host;
+    private IHost _host = null!;
 
     public IHost BuildHost<TSaga>()
     {
@@ -41,7 +41,7 @@ public class SqlServerSagaHost : ISagaHost
 
         var saga = await sagaStorage.LoadAsync(id, tx, CancellationToken.None);
         await conn.CloseAsync();
-        return saga;
+        return saga!;
     }
 
     public async Task<T> LoadState<T>(int id) where T : Saga
@@ -57,7 +57,7 @@ public class SqlServerSagaHost : ISagaHost
 
         var saga = await sagaStorage.LoadAsync(id, tx, CancellationToken.None);
         await conn.CloseAsync();
-        return saga;
+        return saga!;
     }
 
     public async Task<T> LoadState<T>(long id) where T : Saga
@@ -73,7 +73,7 @@ public class SqlServerSagaHost : ISagaHost
 
         var saga = await sagaStorage.LoadAsync(id, tx, CancellationToken.None);
         await conn.CloseAsync();
-        return saga;
+        return saga!;
     }
 
     public async Task<T> LoadState<T>(string id) where T : Saga
@@ -89,7 +89,7 @@ public class SqlServerSagaHost : ISagaHost
 
         var saga = await sagaStorage.LoadAsync(id, tx, CancellationToken.None);
         await conn.CloseAsync();
-        return saga;
+        return saga!;
     }
 }
 

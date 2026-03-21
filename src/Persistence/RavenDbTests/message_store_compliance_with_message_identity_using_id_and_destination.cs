@@ -17,7 +17,7 @@ namespace RavenDbTests;
 public class message_store_compliance_with_message_identity_using_id_and_destination : MessageStoreCompliance
 {
     private readonly DatabaseFixture _fixture;
-    private IDocumentStore _store;
+    private IDocumentStore _store = null!;
 
     public message_store_compliance_with_message_identity_using_id_and_destination(DatabaseFixture fixture)
     {

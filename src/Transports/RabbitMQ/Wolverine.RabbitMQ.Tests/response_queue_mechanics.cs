@@ -10,9 +10,9 @@ namespace Wolverine.RabbitMQ.Tests;
 
 public class response_queue_mechanics : IAsyncLifetime
 {
-    private IHost _host;
-    private RabbitMqQueue theEndpoint;
-    private string theExpectedResponseQueueName;
+    private IHost _host = null!;
+    private RabbitMqQueue theEndpoint = null!;
+    private string theExpectedResponseQueueName = null!;
 
     public async Task InitializeAsync()
     {

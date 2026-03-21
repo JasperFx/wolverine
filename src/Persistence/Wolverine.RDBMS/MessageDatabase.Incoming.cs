@@ -27,7 +27,7 @@ public abstract partial class MessageDatabase<T>
             builder.Append($" where {DatabaseConstants.Id} = ");
             builder.AppendParameter(envelope.Id);
             builder.Append($" and {DatabaseConstants.ReceivedAt} = ");
-            builder.AppendParameter(envelope.Destination.ToString());
+            builder.AppendParameter(envelope.Destination!.ToString());
             builder.Append(";");
         }
 
@@ -59,7 +59,7 @@ public abstract partial class MessageDatabase<T>
             builder.Append($"delete from {SchemaName}.{DatabaseConstants.IncomingTable} WHERE id = ");
             builder.AppendParameter(envelope.Id);
             builder.Append($" and {DatabaseConstants.ReceivedAt} = ");
-            builder.AppendParameter(envelope.Destination.ToString());
+            builder.AppendParameter(envelope.Destination!.ToString());
             builder.Append(';');
 
             DatabasePersistence.ConfigureDeadLetterCommands(Durability, envelope, exception, builder, this);
@@ -80,7 +80,7 @@ public abstract partial class MessageDatabase<T>
         return CreateCommand(_markEnvelopeAsHandledById)
             .With("id", envelope.Id)
             .With("keepUntil", keepUntil)
-            .With("uri", envelope.Destination.ToString())
+            .With("uri", envelope.Destination!.ToString())
             .ExecuteNonQueryAsync(_cancellation);
     }
 
@@ -99,7 +99,7 @@ public abstract partial class MessageDatabase<T>
             builder.Append(" and ");
             builder.Append(DatabaseConstants.ReceivedAt);
             builder.Append( " = ");
-            builder.AppendParameter(envelope.Destination.ToString());
+            builder.AppendParameter(envelope.Destination!.ToString());
             builder.Append(";");
         }
 
@@ -128,7 +128,7 @@ public abstract partial class MessageDatabase<T>
         return CreateCommand(_incrementIncomingEnvelopeAttempts)
             .With("attempts", envelope.Attempts)
             .With("id", envelope.Id)
-            .With("uri", envelope.Destination.ToString())
+            .With("uri", envelope.Destination!.ToString())
             .ExecuteNonQueryAsync(_cancellation);
     }
 

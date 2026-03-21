@@ -11,7 +11,7 @@ namespace MartenTests;
 
 public class strong_typed_identifiers : PostgresqlContext, IAsyncLifetime
 {
-    private IHost _host;
+    private IHost _host = null!;
 
     public async Task InitializeAsync()
     {
@@ -61,7 +61,7 @@ public readonly partial struct KnobId;
 public class Knob
 {
     public KnobId Id { get; set; }
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
 }
 
 public record TwistKnob(KnobId Id);

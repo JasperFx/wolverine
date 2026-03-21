@@ -41,13 +41,13 @@ public abstract class MessageHandler<T> : MessageHandler
 {
     public sealed override Task HandleAsync(MessageContext context, CancellationToken cancellation)
     {
-        if (context.Envelope.Message is T message)
+        if (context.Envelope!.Message is T message)
         {
             return HandleAsync(message, context, cancellation);
         }
 
         throw new ArgumentOutOfRangeException(nameof(context),
-            $"Wrong message type {context.Envelope.Message.GetType().FullNameInCode()}, expected {typeof(T).FullNameInCode()}");
+            $"Wrong message type {context.Envelope!.Message!.GetType().FullNameInCode()}, expected {typeof(T).FullNameInCode()}");
     }
 
     /// <summary>

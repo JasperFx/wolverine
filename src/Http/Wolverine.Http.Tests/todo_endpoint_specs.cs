@@ -31,7 +31,7 @@ public class todo_endpoint_specs : IntegrationContext
         });
 
         var changes = await session.LoadAsync<Todo>(todo.Id);
-        changes.IsComplete.ShouldBeTrue();
+        changes!.IsComplete.ShouldBeTrue();
         changes.Name.ShouldBe("Second");
     }
 
@@ -49,7 +49,7 @@ public class todo_endpoint_specs : IntegrationContext
         });
 
         var changes = await session.LoadAsync<Todo>(todo.Id);
-        changes.IsComplete.ShouldBeTrue();
+        changes!.IsComplete.ShouldBeTrue();
         changes.Name.ShouldBe("Second");
     }
 

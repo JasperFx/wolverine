@@ -16,7 +16,7 @@ public class RabbitMqExchangeBinding
     public string SourceExchangeName { get; }
     public string DestinationExchangeName { get; }
 
-    public IDictionary<string, object> Arguments { get; } = new Dictionary<string, object>();
+    public IDictionary<string, object?> Arguments { get; } = new Dictionary<string, object?>();
     public bool HasDeclared { get; private set; }
 
     internal async Task DeclareAsync(IChannel channel, ILogger logger)

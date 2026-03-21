@@ -10,8 +10,8 @@ namespace Wolverine.RabbitMQ.Tests;
 
 public class interoperability_specs : IAsyncLifetime
 {
-    private string theQueueName;
-    private IHost _host;
+    private string theQueueName = null!;
+    private IHost _host = null!;
 
     public async Task InitializeAsync()
     {
@@ -37,7 +37,6 @@ public class interoperability_specs : IAsyncLifetime
     public async Task send_raw_json_to_receiver()
     {
         var runtime = _host.GetRuntime();
-        var json = "{\"Number\": \"55\"}";
         var envelope = new Envelope(new NumberMessage(55));
         var data = new SystemTextJsonSerializer(new JsonSerializerOptions()).Write(envelope);
 

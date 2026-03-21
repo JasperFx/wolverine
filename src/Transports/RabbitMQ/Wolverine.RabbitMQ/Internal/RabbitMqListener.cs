@@ -239,7 +239,7 @@ internal class RabbitMqListener : RabbitMqChannelAgent, IListener, ISupportDeadL
     {
         if (!envelope.Acknowledged)
         {
-            await Channel.BasicNackAsync(envelope.DeliveryTag, false, false, _cancellation);
+            await Channel!.BasicNackAsync(envelope.DeliveryTag, false, false, _cancellation);
         }
 
         await _sender.Value.SendAsync(envelope);

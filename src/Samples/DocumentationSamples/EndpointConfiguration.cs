@@ -42,7 +42,7 @@ public class EndpointConfiguration
 
 public class CustomSerializer : IMessageSerializer
 {
-    public string ContentType { get; }
+    public string ContentType { get; } = null!;
 
     public byte[] Write(Envelope envelope)
     {

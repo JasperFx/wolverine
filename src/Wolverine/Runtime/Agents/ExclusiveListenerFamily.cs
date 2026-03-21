@@ -38,7 +38,9 @@ internal class ExclusiveListenerFamily : IStaticAgentFamily
     private readonly IWolverineRuntime _runtime;
     internal const string SchemeName = "wolverine-listener";
 
-    private readonly WolverineOptions _options;
+    #pragma warning disable CS0414
+    private readonly WolverineOptions _options = null!;
+    #pragma warning restore CS0414
     private readonly Dictionary<Uri,ExclusiveListenerAgent> _agents;
 
     public ExclusiveListenerFamily(IWolverineRuntime runtime)

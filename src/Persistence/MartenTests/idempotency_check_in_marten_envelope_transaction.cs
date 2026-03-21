@@ -19,7 +19,7 @@ namespace MartenTests;
 
 public class idempotency_check_in_marten_envelope_transaction : IAsyncLifetime
 {
-    private IHost _host;
+    private IHost _host = null!;
 
     public async Task InitializeAsync()
     {
@@ -57,7 +57,7 @@ public class idempotency_check_in_marten_envelope_transaction : IAsyncLifetime
         ok.ShouldBeTrue();
 
         var persisted = (await runtime.Storage.Admin.AllIncomingAsync()).Single(x => x.Id == envelope.Id);
-        persisted.Data.Length.ShouldBe(0);
+        persisted!.Data!.Length.ShouldBe(0);
         persisted.Destination.ShouldBe(envelope.Destination);
         persisted.MessageType.ShouldBe(envelope.MessageType);
         persisted.Status.ShouldBe(EnvelopeStatus.Handled);
@@ -118,7 +118,7 @@ public class idempotency_with_inline_or_buffered_endpoints_end_to_end
         var sentMessage = tracked1.Executed.SingleEnvelope<MaybeIdempotent>();
 
         var runtime = host.GetRuntime();
-        var circuit = runtime.Endpoints.FindListenerCircuit(sentMessage.Destination);
+        var circuit = runtime.Endpoints.FindListenerCircuit(sentMessage.Destination!);
 
         var tracked2 = await host.TrackActivity()
             .DoNotAssertOnExceptionsDetected()
@@ -126,7 +126,7 @@ public class idempotency_with_inline_or_buffered_endpoints_end_to_end
             {
                 sentMessage.WasPersistedInInbox = false;
                 sentMessage.Attempts = 0;
-                return circuit.EnqueueDirectlyAsync([sentMessage]);
+                return circuit!.EnqueueDirectlyAsync([sentMessage]);
             });
 
         tracked2.Discarded.SingleEnvelope<MaybeIdempotent>().ShouldNotBeNull();
@@ -161,7 +161,7 @@ public class idempotency_with_inline_or_buffered_endpoints_end_to_end
         var sentMessage = tracked1.Executed.SingleEnvelope<MaybeIdempotent>();
 
         var runtime = host.GetRuntime();
-        var circuit = runtime.Endpoints.FindListenerCircuit(sentMessage.Destination);
+        var circuit = runtime.Endpoints.FindListenerCircuit(sentMessage.Destination!);
 
         var tracked2 = await host.TrackActivity()
             .DoNotAssertOnExceptionsDetected()
@@ -169,7 +169,7 @@ public class idempotency_with_inline_or_buffered_endpoints_end_to_end
             {
                 sentMessage.WasPersistedInInbox = false;
                 sentMessage.Attempts = 0;
-                return circuit.EnqueueDirectlyAsync([sentMessage]);
+                return circuit!.EnqueueDirectlyAsync([sentMessage]);
             });
 
         tracked2.Discarded.SingleEnvelope<MaybeIdempotent>().ShouldNotBeNull();

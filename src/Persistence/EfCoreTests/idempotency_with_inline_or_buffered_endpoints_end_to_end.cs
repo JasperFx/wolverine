@@ -68,7 +68,7 @@ public class idempotency_with_inline_or_buffered_endpoints_end_to_end : IAsyncLi
         var sentMessage = tracked1.Executed.SingleEnvelope<MaybeIdempotent>();
 
         var runtime = host.GetRuntime();
-        var circuit = runtime.Endpoints.FindListenerCircuit(sentMessage.Destination);
+        var circuit = runtime.Endpoints.FindListenerCircuit(sentMessage.Destination!);
 
         var tracked2 = await host.TrackActivity()
             .DoNotAssertOnExceptionsDetected()
@@ -76,7 +76,7 @@ public class idempotency_with_inline_or_buffered_endpoints_end_to_end : IAsyncLi
             {
                 sentMessage.WasPersistedInInbox = false;
                 sentMessage.Attempts = 0;
-                return circuit.EnqueueDirectlyAsync([sentMessage]);
+                return circuit!.EnqueueDirectlyAsync([sentMessage]);
             });
 
         tracked2.Discarded.SingleEnvelope<MaybeIdempotent>().ShouldNotBeNull();
@@ -119,7 +119,7 @@ public class idempotency_with_inline_or_buffered_endpoints_end_to_end : IAsyncLi
         var sentMessage = tracked1.Executed.SingleEnvelope<MaybeIdempotent>();
 
         var runtime = host.GetRuntime();
-        var circuit = runtime.Endpoints.FindListenerCircuit(sentMessage.Destination);
+        var circuit = runtime.Endpoints.FindListenerCircuit(sentMessage.Destination!);
 
         var tracked2 = await host.TrackActivity()
             .DoNotAssertOnExceptionsDetected()
@@ -127,7 +127,7 @@ public class idempotency_with_inline_or_buffered_endpoints_end_to_end : IAsyncLi
             {
                 sentMessage.WasPersistedInInbox = false;
                 sentMessage.Attempts = 0;
-                return circuit.EnqueueDirectlyAsync([sentMessage]);
+                return circuit!.EnqueueDirectlyAsync([sentMessage]);
             });
 
         tracked2.Discarded.SingleEnvelope<MaybeIdempotent>().ShouldNotBeNull();
@@ -160,7 +160,7 @@ public class idempotency_with_inline_or_buffered_endpoints_end_to_end : IAsyncLi
 
         #endregion
 
-        var chain = host.GetRuntime().Handlers.ChainFor<MaybeIdempotentNotTransactional>();
+        var chain = host.GetRuntime().Handlers.ChainFor<MaybeIdempotentNotTransactional>()!;
         chain.IsTransactional.ShouldBeFalse();
         chain.Middleware.OfType<MethodCall>().Any(x => x.Method.Name == nameof(MessageContext.AssertEagerIdempotencyAsync)).ShouldBeTrue();
         chain.Postprocessors.OfType<MethodCall>().Any(x => x.Method.Name == nameof(MessageContext.PersistHandledAsync)).ShouldBeTrue();
@@ -172,7 +172,7 @@ public class idempotency_with_inline_or_buffered_endpoints_end_to_end : IAsyncLi
         var sentMessage = tracked1.Executed.SingleEnvelope<MaybeIdempotentNotTransactional>();
 
         var runtime = host.GetRuntime();
-        var circuit = runtime.Endpoints.FindListenerCircuit(sentMessage.Destination);
+        var circuit = runtime.Endpoints.FindListenerCircuit(sentMessage.Destination!);
 
         var tracked2 = await host.TrackActivity()
             .DoNotAssertOnExceptionsDetected()
@@ -181,7 +181,7 @@ public class idempotency_with_inline_or_buffered_endpoints_end_to_end : IAsyncLi
             {
                 sentMessage.WasPersistedInInbox = false;
                 sentMessage.Attempts = 0;
-                return circuit.EnqueueDirectlyAsync([sentMessage]);
+                return circuit!.EnqueueDirectlyAsync([sentMessage]);
             });
 
         tracked2.Discarded.SingleEnvelope<MaybeIdempotentNotTransactional>().ShouldNotBeNull();

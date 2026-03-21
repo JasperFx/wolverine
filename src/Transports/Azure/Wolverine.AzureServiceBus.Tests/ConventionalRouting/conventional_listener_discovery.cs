@@ -10,6 +10,7 @@ using Xunit;
 
 namespace Wolverine.AzureServiceBus.Tests.ConventionalRouting;
 
+[Trait("Category", "Flaky")]
 public class conventional_listener_discovery : ConventionalRoutingContext
 {
     [Fact]

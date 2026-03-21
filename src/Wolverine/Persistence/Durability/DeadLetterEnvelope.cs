@@ -54,9 +54,9 @@ public class DeadLetterEnvelope
     {
         if (runtime.Options.HandlerGraph.TryFindMessageType(MessageType, out var messageType))
         {
-            var endpoint = runtime.Endpoints.EndpointFor(Envelope.Destination);
+            var endpoint = runtime.Endpoints.EndpointFor(Envelope.Destination!);
             var serializer = endpoint?.TryFindSerializer(Envelope.ContentType) ??
-                             runtime.Options.TryFindSerializer(Envelope.ContentType);
+                             runtime.Options.TryFindSerializer(Envelope.ContentType!);
 
             if (serializer != null)
             {

@@ -36,7 +36,7 @@ public class transaction_middleware_mode_tests
                     .IncludeType<EagerModeHandler>();
             }).StartAsync();
 
-        var chain = host.GetRuntime().Handlers.ChainFor<EagerModeMessage>();
+        var chain = host.GetRuntime().Handlers.ChainFor<EagerModeMessage>()!;
 
         chain.Middleware.OfType<EnrollDbContextInTransaction>().ShouldNotBeEmpty();
 
@@ -72,7 +72,7 @@ public class transaction_middleware_mode_tests
 
         #endregion
 
-        var chain = host.GetRuntime().Handlers.ChainFor<LightweightModeMessage>();
+        var chain = host.GetRuntime().Handlers.ChainFor<LightweightModeMessage>()!;
 
         chain.Middleware.OfType<EnrollDbContextInTransaction>().ShouldBeEmpty();
         chain.Middleware.OfType<StartDatabaseTransactionForDbContext>().ShouldBeEmpty();
@@ -103,12 +103,12 @@ public class transaction_middleware_mode_tests
             }).StartAsync();
 
         // Verify the auto-applied handler uses the Eager default
-        var eagerChain = host.GetRuntime().Handlers.ChainFor<EagerAutoApplyMessage>();
+        var eagerChain = host.GetRuntime().Handlers.ChainFor<EagerAutoApplyMessage>()!;
         eagerChain.Middleware.OfType<EnrollDbContextInTransaction>().ShouldNotBeEmpty();
 
         // Force compilation of the [Transactional] chain by triggering HandlerFor
         host.GetRuntime().Handlers.HandlerFor<LightweightAttributeMessage>();
-        var chain = host.GetRuntime().Handlers.ChainFor<LightweightAttributeMessage>();
+        var chain = host.GetRuntime().Handlers.ChainFor<LightweightAttributeMessage>()!;
 
         // The attribute overrides to Lightweight, so no transaction frame
         chain.IsTransactional.ShouldBeTrue();
@@ -141,12 +141,12 @@ public class transaction_middleware_mode_tests
             }).StartAsync();
 
         // Verify the auto-applied handler uses the Lightweight default
-        var lightChain = host.GetRuntime().Handlers.ChainFor<LightweightAutoApplyMessage>();
+        var lightChain = host.GetRuntime().Handlers.ChainFor<LightweightAutoApplyMessage>()!;
         lightChain.Middleware.OfType<EnrollDbContextInTransaction>().ShouldBeEmpty();
 
         // Force compilation of the [Transactional] chain by triggering HandlerFor
         host.GetRuntime().Handlers.HandlerFor<EagerAttributeMessage>();
-        var chain = host.GetRuntime().Handlers.ChainFor<EagerAttributeMessage>();
+        var chain = host.GetRuntime().Handlers.ChainFor<EagerAttributeMessage>()!;
 
         // The attribute overrides to Eager, so transaction frame should be present
         chain.IsTransactional.ShouldBeTrue();
@@ -178,7 +178,7 @@ public class transaction_middleware_mode_tests
 
         // Force compilation
         host.GetRuntime().Handlers.HandlerFor<LightweightStorageSideEffectMessage>();
-        var chain = host.GetRuntime().Handlers.ChainFor<LightweightStorageSideEffectMessage>();
+        var chain = host.GetRuntime().Handlers.ChainFor<LightweightStorageSideEffectMessage>()!;
 
         // The [Transactional(Mode = Lightweight)] should override even with Storage side effects
         chain.Middleware.OfType<EnrollDbContextInTransaction>().ShouldBeEmpty();
@@ -210,7 +210,7 @@ public class transaction_middleware_mode_tests
 
         // Force compilation
         host.GetRuntime().Handlers.HandlerFor<EagerStorageSideEffectMessage>();
-        var chain = host.GetRuntime().Handlers.ChainFor<EagerStorageSideEffectMessage>();
+        var chain = host.GetRuntime().Handlers.ChainFor<EagerStorageSideEffectMessage>()!;
 
         // The [Transactional(Mode = Eager)] should override the Lightweight default
         chain.Middleware.OfType<EnrollDbContextInTransaction>().ShouldNotBeEmpty();
@@ -239,7 +239,7 @@ public class transaction_middleware_mode_tests
                     .IncludeType<DefaultModeHandler>();
             }).StartAsync();
 
-        var chain = host.GetRuntime().Handlers.ChainFor<DefaultModeMessage>();
+        var chain = host.GetRuntime().Handlers.ChainFor<DefaultModeMessage>()!;
 
         // Default should be Eager
         chain.Middleware.OfType<EnrollDbContextInTransaction>().ShouldNotBeEmpty();

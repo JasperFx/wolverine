@@ -48,7 +48,7 @@ public partial class WolverineRuntime
             var executionTime = envelope.StopTiming();
             if (executionTime > 0)
             {
-                _sink.Post(new RecordExecutionTime(executionTime, envelope.TenantId));
+                _sink.Post(new RecordExecutionTime(executionTime, envelope.TenantId!));
             }
 
             _runtime.ExecutionFinished(envelope);
@@ -57,13 +57,13 @@ public partial class WolverineRuntime
         public void ExecutionFinished(Envelope envelope, Exception exception)
         {
             _runtime.ExecutionFinished(envelope, exception);
-            _sink.Post(new RecordFailure(exception.GetType().FullNameInCode(), envelope.TenantId));
+            _sink.Post(new RecordFailure(exception.GetType().FullNameInCode(), envelope.TenantId!));
         }
 
         public void MessageSucceeded(Envelope envelope)
         {
             var time = DateTimeOffset.UtcNow.Subtract(envelope.SentAt.ToUniversalTime()).TotalMilliseconds;
-            _sink.Post(new RecordEffectiveTime(time, envelope.TenantId));
+            _sink.Post(new RecordEffectiveTime(time, envelope.TenantId!));
             
             _runtime.MessageSucceeded(envelope);
         }
@@ -71,9 +71,9 @@ public partial class WolverineRuntime
         public void MessageFailed(Envelope envelope, Exception ex)
         {
             var time = DateTimeOffset.UtcNow.Subtract(envelope.SentAt.ToUniversalTime()).TotalMilliseconds;
-            _sink.Post(new RecordEffectiveTime(time, envelope.TenantId));
-            _sink.Post(new RecordDeadLetter(ex.GetType().FullNameInCode(), envelope.TenantId));
-            
+            _sink.Post(new RecordEffectiveTime(time, envelope.TenantId!));
+            _sink.Post(new RecordDeadLetter(ex.GetType().FullNameInCode(), envelope.TenantId!));
+
             _runtime.MessageFailed(envelope, ex);
         }
 
@@ -90,7 +90,7 @@ public partial class WolverineRuntime
         public void MovedToErrorQueue(Envelope envelope, Exception ex)
         {
             _runtime.MovedToErrorQueue(envelope, ex);
-            _sink.Post(new RecordDeadLetter(ex.GetType().FullNameInCode(), envelope.TenantId));
+            _sink.Post(new RecordDeadLetter(ex.GetType().FullNameInCode(), envelope.TenantId!));
         }
 
         public void DiscardedEnvelope(Envelope envelope)

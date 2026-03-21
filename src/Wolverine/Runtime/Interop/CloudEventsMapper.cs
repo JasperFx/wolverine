@@ -26,39 +26,39 @@ internal class CloudEventsEnvelope
     {
         if (envelope.Message is null) throw new ArgumentNullException(nameof(envelope), "Message is null");
         
-        TenantId = envelope.TenantId;
+        TenantId = envelope.TenantId!;
         Data = envelope.Message;
-        
+
         // Doesn't always apply in Wolverine, so ¯\_(ツ)_/¯
-        Topic = envelope.TopicName ?? envelope.GroupId;
+        Topic = (envelope.TopicName ?? envelope.GroupId)!;
 
         Id = envelope.Id;
-        TraceId = envelope.CorrelationId;
-        Source = envelope.Source;
-        
+        TraceId = envelope.CorrelationId!;
+        Source = envelope.Source!;
+
         // This is the Wolverine string that aliases the message type
-        Type = envelope.MessageType;
+        Type = envelope.MessageType!;
 
         Time = envelope.SentAt.ToString("O");
 
-        TraceParent = envelope.ParentId;
+        TraceParent = envelope.ParentId!;
     }
     
     [JsonPropertyName("topic")]
-    public string Topic { get; set; }
-    
+    public string Topic { get; set; } = null!;
+
     [JsonPropertyName("tenantid")]
-    public string TenantId { get; set; }
-    
+    public string TenantId { get; set; } = null!;
+
     [JsonPropertyName("traceid")]
-    public string TraceId { get; set; }
-    
+    public string TraceId { get; set; } = null!;
+
     [JsonPropertyName("tracestate")]
-    public string TraceState { get; set; }
+    public string TraceState { get; set; } = null!;
 
     [JsonPropertyName("data")]
-    public object Data { get; set; }
-    
+    public object Data { get; set; } = null!;
+
     [JsonPropertyName("id")]
     public Guid Id { get; set; }
 
@@ -67,18 +67,18 @@ internal class CloudEventsEnvelope
 
     [JsonPropertyName("datacontenttype")]
     public string DataContentType { get; set; } = "application/json; charset=utf-8";
-    
+
     [JsonPropertyName("source")]
-    public string Source { get; set; }
-    
+    public string Source { get; set; } = null!;
+
     [JsonPropertyName("type")]
-    public string Type { get; set; }
-    
+    public string Type { get; set; } = null!;
+
     [JsonPropertyName("time")]
-    public string Time { get; set; }
-    
+    public string Time { get; set; } = null!;
+
     [JsonPropertyName("traceparent")]
-    public string TraceParent { get; set; }
+    public string TraceParent { get; set; } = null!;
 }
 
 public class CloudEventsMapper : IUnwrapsMetadataMessageSerializer
@@ -116,7 +116,7 @@ public class CloudEventsMapper : IUnwrapsMetadataMessageSerializer
         if (node["Message"] != null)
         {
             var message = node["Message"];
-            if (message.GetValueKind() == JsonValueKind.String)
+            if (message!.GetValueKind() == JsonValueKind.String)
             {
                 node = JsonNode.Parse(message.GetValue<string>());
             }
@@ -127,27 +127,27 @@ public class CloudEventsMapper : IUnwrapsMetadataMessageSerializer
             }
         }
 
-        if (node.TryGetValue<string>("tenantid", out var tenantid))
+        if (node!.TryGetValue<string>("tenantid", out var tenantid))
         {
             envelope.TenantId = tenantid;
         }
 
-        if (node.TryGetValue<string>("traceid", out var traceId))
+        if (node!.TryGetValue<string>("traceid", out var traceId))
         {
             envelope.CorrelationId = traceId;
         }
 
-        if (node.TryGetValue<string>("source", out var source))
+        if (node!.TryGetValue<string>("source", out var source))
         {
             envelope.Source = source;
         }
 
-        if (node.TryGetValue<DateTimeOffset>("time", out var time))
+        if (node!.TryGetValue<DateTimeOffset>("time", out var time))
         {
             envelope.SentAt = time;
         }
 
-        if (node.TryGetValue<string>("id", out var raw))
+        if (node!.TryGetValue<string>("id", out var raw))
         {
             if (Guid.TryParse(raw, out var id))
             {
@@ -159,7 +159,7 @@ public class CloudEventsMapper : IUnwrapsMetadataMessageSerializer
             }
         }
 
-        if (node.TryGetValue<string>("type", out var cloudEventType))
+        if (node!.TryGetValue<string>("type", out var cloudEventType))
         {
             // Preserve the raw CloudEvent type on the envelope before resolution.
             // If resolution fails, the raw type survives for dead-letter persistence.
@@ -167,7 +167,7 @@ public class CloudEventsMapper : IUnwrapsMetadataMessageSerializer
 
             if (_handlers.TryFindMessageType(cloudEventType, out var messageType))
             {
-                var data = node["data"];
+                var data = node!["data"];
                 if (data != null)
                 {
                     envelope.Message = data.Deserialize(messageType, _options);
@@ -182,7 +182,7 @@ public class CloudEventsMapper : IUnwrapsMetadataMessageSerializer
             }
         }
 
-        if (node.TryGetValue<string>("datacontenttype", out var contentType))
+        if (node!.TryGetValue<string>("datacontenttype", out var contentType))
         {
             if (contentType.StartsWith("application/json"))
             {
@@ -207,7 +207,7 @@ public class CloudEventsMapper : IUnwrapsMetadataMessageSerializer
         var node = JsonNode.Parse(envelope.Data);
         MapIncoming(envelope, node);
 
-        return envelope.Message;
+        return envelope.Message!;
     }
 
     public void Unwrap(Envelope envelope)
@@ -234,7 +234,7 @@ internal static class JsonNodeExtensions
         var child = node[nodeName];
         if (child == null)
         {
-            value = default;
+            value = default!;
             return false;
         }
 

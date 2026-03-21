@@ -17,7 +17,7 @@ namespace Wolverine.SignalR.Tests;
 
 public abstract class WebSocketTestContext : IAsyncLifetime
 {
-    protected WebApplication theWebApp;
+    protected WebApplication theWebApp = null!;
     protected readonly int Port = PortFinder.GetAvailablePort();
     protected readonly Uri clientUri;
 
@@ -117,7 +117,7 @@ public abstract class WebSocketTestContext : IAsyncLifetime
 
 public abstract class WebSocketTestContextWithCustomHub<THub> : IAsyncLifetime where THub : WolverineHub
 {
-    protected WebApplication theWebApp;
+    protected WebApplication theWebApp = null!;
     protected readonly int Port = PortFinder.GetAvailablePort();
     protected readonly Uri clientUri;
 

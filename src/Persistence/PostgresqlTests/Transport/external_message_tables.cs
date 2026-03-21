@@ -235,7 +235,7 @@ public static class Bootstrapping
         var builder = Host.CreateApplicationBuilder();
         builder.UseWolverine(opts =>
         {
-            opts.UsePostgresqlPersistenceAndTransport(builder.Configuration.GetConnectionString("postgres"));
+            opts.UsePostgresqlPersistenceAndTransport(builder.Configuration.GetConnectionString("postgres")!);
 
             // Or
             // opts.UseSqlServerPersistenceAndTransport(builder.Configuration.GetConnectionString("sqlserver"));
@@ -333,7 +333,7 @@ public static class BlowsUpMessageHandler
 
     public static Task WaiterForCall(bool shouldThrow)
     {
-        LastReceived = null;
+        LastReceived = null!;
         WillBlowUp = shouldThrow;
         Waiter = new TaskCompletionSource();
         return Waiter.Task;
@@ -350,5 +350,5 @@ public static class BlowsUpMessageHandler
         Waiter.SetResult();
     }
 
-    public static BlowsUpMessage LastReceived { get; set; }
+    public static BlowsUpMessage LastReceived { get; set; } = null!;
 }

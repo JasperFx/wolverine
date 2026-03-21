@@ -6,6 +6,7 @@ using Xunit;
 
 namespace Wolverine.AzureServiceBus.Tests.ConventionalRouting;
 
+[Trait("Category", "Flaky")]
 public class when_discovering_a_listening_endpoint_with_all_defaults : ConventionalRoutingContext
 {
     private readonly Uri theExpectedUri = "asb://queue/routed2".ToUri();

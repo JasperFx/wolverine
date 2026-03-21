@@ -10,10 +10,10 @@ namespace SqlServerTests.MultiTenancy;
 
 public abstract class MultiTenancyContext : SqlServerContext, IAsyncLifetime
 {
-    protected IHost theHost;
-    protected string tenant1ConnectionString;
-    protected string tenant2ConnectionString;
-    protected string tenant3ConnectionString;
+    protected IHost theHost = null!;
+    protected string tenant1ConnectionString = null!;
+    protected string tenant2ConnectionString = null!;
+    protected string tenant3ConnectionString = null!;
 
     public new async Task InitializeAsync()
     {

@@ -32,7 +32,7 @@ public abstract class DelayedEndpointConfiguration<TEndpoint> : IDelayedEndpoint
         _source = source;
     }
 
-    public Endpoint Endpoint => _endpoint;
+    public Endpoint Endpoint => _endpoint!;
 
     void IDelayedEndpointConfiguration.Apply()
     {

@@ -242,7 +242,7 @@ internal class OracleQueueSender : IOracleQueueSender
                     var cmd = conn.CreateCommand(_writeDirectlyToQueueTableSql);
                     cmd.With("id", envelope.Id);
                     cmd.Parameters.Add(new OracleParameter("body", OracleDbType.Blob) { Value = EnvelopeSerializer.Serialize(envelope) });
-                    cmd.With("type", envelope.MessageType);
+                    cmd.With("type", envelope.MessageType!);
                     cmd.Parameters.Add(new OracleParameter("expires", OracleDbType.TimeStampTZ) { Value = (object?)envelope.DeliverBy ?? DBNull.Value });
                     await cmd.ExecuteNonQueryAsync(cancellationToken);
                 }
@@ -264,7 +264,7 @@ internal class OracleQueueSender : IOracleQueueSender
         var cmd = conn.CreateCommand(_writeDirectlyToTheScheduledTable);
         cmd.With("id", envelope.Id);
         cmd.Parameters.Add(new OracleParameter("body", OracleDbType.Blob) { Value = EnvelopeSerializer.Serialize(envelope) });
-        cmd.With("type", envelope.MessageType);
+        cmd.With("type", envelope.MessageType!);
         cmd.Parameters.Add(new OracleParameter("expires", OracleDbType.TimeStampTZ) { Value = (object?)envelope.DeliverBy ?? DBNull.Value });
         cmd.Parameters.Add(new OracleParameter("time", OracleDbType.TimeStampTZ) { Value = (object?)envelope.ScheduledTime ?? DBNull.Value });
         await cmd.ExecuteNonQueryAsync(cancellationToken);

@@ -21,9 +21,9 @@ public class serialization_configuration
 
         var root = host.Services.GetRequiredService<IWolverineRuntime>();
 
-        root.Endpoints.EndpointFor("stub://one".ToUri())
+        root.Endpoints.EndpointFor("stub://one".ToUri())!
             .DefaultSerializer.ShouldBeOfType<SystemTextJsonSerializer>();
-        root.Endpoints.EndpointFor("stub://two".ToUri())
+        root.Endpoints.EndpointFor("stub://two".ToUri())!
             .DefaultSerializer.ShouldBeOfType<SystemTextJsonSerializer>();
     }
 
@@ -41,10 +41,10 @@ public class serialization_configuration
         }).StartAsync();
 
         var root = host.Services.GetRequiredService<IWolverineRuntime>();
-        root.Endpoints.EndpointFor("stub://one".ToUri())
+        root.Endpoints.EndpointFor("stub://one".ToUri())!
             .DefaultSerializer.ShouldBeOfType<SystemTextJsonSerializer>();
 
-        root.Endpoints.EndpointFor("stub://two".ToUri())
+        root.Endpoints.EndpointFor("stub://two".ToUri())!
             .DefaultSerializer.ShouldBeOfType<NewtonsoftSerializer>()
             .Settings.ShouldBeSameAs(customSettings);
     }
@@ -64,11 +64,11 @@ public class serialization_configuration
         }).StartAsync();
 
         var root = host.Services.GetRequiredService<IWolverineRuntime>();
-        root.Endpoints.EndpointFor("stub://one".ToUri())
+        root.Endpoints.EndpointFor("stub://one".ToUri())!
             .TryFindSerializer("text/foo")
             .ShouldBeOfType<FooSerializer>();
 
-        root.Endpoints.EndpointFor("stub://two".ToUri())
+        root.Endpoints.EndpointFor("stub://two".ToUri())!
             .TryFindSerializer("text/foo")
             .ShouldBeOfType<FooSerializer>();
     }
@@ -89,7 +89,7 @@ public class serialization_configuration
         }).StartAsync();
 
         var root = host.Services.GetRequiredService<IWolverineRuntime>();
-        root.Endpoints.EndpointFor("stub://one".ToUri())
+        root.Endpoints.EndpointFor("stub://one".ToUri())!
             .DefaultSerializer.ShouldBeSameAs(fooSerializer);
     }
 
@@ -107,10 +107,10 @@ public class serialization_configuration
         }).StartAsync();
 
         var root = host.Services.GetRequiredService<IWolverineRuntime>();
-        root.Endpoints.EndpointFor("stub://one".ToUri())
+        root.Endpoints.EndpointFor("stub://one".ToUri())!
             .DefaultSerializer.ShouldBeOfType<SystemTextJsonSerializer>();
 
-        root.Endpoints.EndpointFor("stub://two".ToUri())
+        root.Endpoints.EndpointFor("stub://two".ToUri())!
             .DefaultSerializer.ShouldBeOfType<NewtonsoftSerializer>()
             .Settings.ShouldBeSameAs(customSettings);
     }
@@ -129,10 +129,10 @@ public class serialization_configuration
         }).StartAsync();
 
         var root = host.Services.GetRequiredService<IWolverineRuntime>();
-        root.Endpoints.EndpointFor("stub://one".ToUri())
+        root.Endpoints.EndpointFor("stub://one".ToUri())!
             .DefaultSerializer.ShouldBeOfType<SystemTextJsonSerializer>();
 
-        root.Endpoints.EndpointFor("stub://two".ToUri())
+        root.Endpoints.EndpointFor("stub://two".ToUri())!
             .DefaultSerializer.ShouldBeSameAs(fooSerializer);
     }
 
@@ -150,18 +150,18 @@ public class serialization_configuration
         }).StartAsync();
 
         var root = host.Services.GetRequiredService<IWolverineRuntime>();
-        root.Endpoints.EndpointFor("stub://one".ToUri())
+        root.Endpoints.EndpointFor("stub://one".ToUri())!
             .DefaultSerializer.ShouldBe(fooSerializer);
 
-        root.Endpoints.EndpointFor("stub://two".ToUri())
+        root.Endpoints.EndpointFor("stub://two".ToUri())!
             .DefaultSerializer.ShouldBe(fooSerializer);
     }
 
     public class FooSerializer : IMessageSerializer
     {
-        public string? ContentType => "text/foo";
+        public string ContentType => "text/foo";
 
-        public object? ReadFromData(byte[]? data)
+        public object ReadFromData(byte[] data)
         {
             throw new NotImplementedException();
         }

@@ -18,24 +18,24 @@ public class DatabaseSagaStorage<TId, TSaga> : ISagaStorage<TId, TSaga> where TS
 
     public Task InsertAsync(TSaga saga, CancellationToken cancellationToken)
     {
-        return _schema.InsertAsync(saga, _tx, cancellationToken);
+        return _schema.InsertAsync(saga, _tx!, cancellationToken);
     }
 
     public Task UpdateAsync(TSaga saga, CancellationToken cancellationToken)
     {
-        return _schema.UpdateAsync(saga, _tx, cancellationToken);
+        return _schema.UpdateAsync(saga, _tx!, cancellationToken);
     }
 
     public Task DeleteAsync(TSaga saga, CancellationToken cancellationToken)
     {
-        return _schema.DeleteAsync(saga, _tx, cancellationToken);
+        return _schema.DeleteAsync(saga, _tx!, cancellationToken);
     }
 
     public async Task SaveChangesAsync(CancellationToken cancellationToken)
     {
         try
         {
-            await _tx.CommitAsync(cancellationToken);
+            await _tx!.CommitAsync(cancellationToken);
             _tx = null;
         }
         finally
@@ -56,6 +56,6 @@ public class DatabaseSagaStorage<TId, TSaga> : ISagaStorage<TId, TSaga> where TS
 
     public Task<TSaga?> LoadAsync(TId id, CancellationToken cancellationToken)
     {
-        return _schema.LoadAsync(id, _tx, cancellationToken);
+        return _schema.LoadAsync(id, _tx!, cancellationToken);
     }
 }

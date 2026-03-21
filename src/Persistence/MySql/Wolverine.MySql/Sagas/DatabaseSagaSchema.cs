@@ -33,7 +33,7 @@ public class DatabaseSagaSchema<T, TId> : IDatabaseSagaSchema<TId, T> where T : 
 
         _deleteSql = $"DELETE FROM {settings.SchemaName}.{definition.TableName} WHERE id = @id";
 
-        var table = new Table(new DbObjectName(settings.SchemaName, definition.TableName));
+        var table = new Table(new DbObjectName(settings.SchemaName!, definition.TableName));
         table.AddColumn<TId>("id").AsPrimaryKey();
         table.AddColumn(DatabaseConstants.Body, "JSON").NotNull();
         table.AddColumn(DatabaseConstants.Version, "INT").DefaultValue(1).NotNull();

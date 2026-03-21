@@ -158,7 +158,7 @@ public class StopwatchFrame : SyncFrame
 {
     private readonly IChain _chain;
     private readonly Variable _stopwatch;
-    private Variable _logger;
+    private Variable _logger = null!;
 
     public StopwatchFrame(IChain chain)
     {

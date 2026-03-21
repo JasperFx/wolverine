@@ -142,7 +142,7 @@ public class AncillaryMessageStoreApplication<T>
 
     public void Apply(MessageContext context)
     {
-        context.Storage = _store;
+        context.Storage = _store!;
     }
 }
 

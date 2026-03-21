@@ -37,8 +37,8 @@ public class AncillaryDoc2155
 
 public class Bug_2155_ancillary_store_inbox_persistence : IAsyncLifetime
 {
-    private IHost _host;
-    private string _queueName;
+    private IHost _host = null!;
+    private string _queueName = null!;
 
     public async Task InitializeAsync()
     {

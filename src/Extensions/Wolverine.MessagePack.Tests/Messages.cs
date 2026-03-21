@@ -6,13 +6,13 @@ namespace Wolverine.MessagePack.Tests;
 public class MessagePackMessage
 {
     [Key(0)]
-    public string Name;
+    public string Name = null!;
 }
 
 [MessagePackObject(keyAsPropertyName: true)]
 public class MessagePackKeylessMessage
 {
-    public string Name;
+    public string Name = null!;
 }
 
 [MessagePackObject]

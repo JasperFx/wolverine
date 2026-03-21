@@ -99,7 +99,7 @@ internal class HttpTransportExecutor
 
         envelope.Destination = $"http://localhost{httpContext.Request.Path}".ToUri();
         envelope.DoNotCascadeResponse = true;
-        envelope.Serializer = _runtime.Options.FindSerializer(envelope.ContentType);
+        envelope.Serializer = _runtime.Options.FindSerializer(envelope.ContentType!);
 
         var deserializeResult = await _runtime.Pipeline.TryDeserializeEnvelope(envelope);
 
@@ -132,11 +132,11 @@ internal class HttpTransportExecutor
         }
 
 
-        IExecutor executor = default;
+        IExecutor? executor = default;
 
         try
         {
-            executor = _runtime.FindInvoker(envelope.MessageType) as Executor;
+            executor = _runtime.FindInvoker(envelope.MessageType!) as Executor;
         }
         catch (Exception e)
         {
@@ -170,7 +170,7 @@ internal class HttpTransportExecutor
                 response.ContentType = response.Serializer.ContentType;
             }
 
-            response.Data = response.Serializer.WriteMessage(response.Message);
+            response.Data = response.Serializer.WriteMessage(response.Message!);
 
             httpContext.Response.ContentType = "binary/wolverine-envelope";
             var responseData = EnvelopeSerializer.Serialize(response);

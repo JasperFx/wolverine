@@ -12,8 +12,8 @@ namespace MartenTests;
 
 public class handler_actions_with_implied_marten_operations : PostgresqlContext, IAsyncLifetime
 {
-    private IHost _host;
-    private IDocumentStore _store;
+    private IHost _host = null!;
+    private IDocumentStore _store = null!;
 
     public async Task InitializeAsync()
     {
@@ -80,7 +80,7 @@ public class handler_actions_with_implied_marten_operations : PostgresqlContext,
 
         using var session = _store.LightweightSession();
         var doc = await session.LoadAsync<NamedDocument>("Max");
-        doc.Number.ShouldBe(10);
+        doc!.Number.ShouldBe(10);
 
 
     }
@@ -241,9 +241,9 @@ public class handler_actions_with_implied_marten_operations : PostgresqlContext,
 
         using var session = _store.LightweightSession();
         
-        (await session.LoadAsync<NamedDocument>("red")).Number.ShouldBe(1);
-        (await session.LoadAsync<NamedDocument>("blue")).Number.ShouldBe(2);
-        (await session.LoadAsync<NamedDocument>("green")).Number.ShouldBe(3);
+        (await session.LoadAsync<NamedDocument>("red"))!.Number.ShouldBe(1);
+        (await session.LoadAsync<NamedDocument>("blue"))!.Number.ShouldBe(2);
+        (await session.LoadAsync<NamedDocument>("green"))!.Number.ShouldBe(3);
     }
 }
 
@@ -293,7 +293,7 @@ public static class MartenCommandHandler
     {
         var doc = await session.LoadAsync<NamedDocument>(command.Name);
 
-        return MartenOps.Delete(doc);
+        return MartenOps.Delete(doc!);
     }
 
     public static IMartenOp Handle(DeleteMartenDocumentByIntId command)
@@ -356,7 +356,7 @@ public static class AppendManyNamedDocumentsHandler
 
 public class NamedDocument
 {
-    public string Id { get; set; }
+    public string Id { get; set; } = null!;
     public int Number { get; set; }
 }
 
@@ -374,5 +374,5 @@ public class GuidIdDocument
 }
 public class StringIdDocument
 {
-    public string Id { get; set; }
+    public string Id { get; set; } = null!;
 }

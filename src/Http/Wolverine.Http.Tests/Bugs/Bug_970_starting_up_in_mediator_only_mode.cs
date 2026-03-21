@@ -74,16 +74,16 @@ public class ProjectOverview
 {
     public Guid UserId { get; set; }
     public Guid Id { get; set; }
-    public string Name { get; set; }
-    public string Category { get; set; }
+    public string Name { get; set; } = null!;
+    public string Category { get; set; } = null!;
 }
 
 public class Project
 {
     public Guid Id { get; set; }
     public Guid UserId { get; set; }
-    public string Name { get; set; }
-    public string Category { get; set; }
+    public string Name { get; set; } = null!;
+    public string Category { get; set; } = null!;
 }
 
 public class GetProjectsHandler(IQuerySession session)

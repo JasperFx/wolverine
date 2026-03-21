@@ -105,6 +105,6 @@ public class GettingStarted
         var shift = await session.Events.AggregateStreamAsync<ProviderShift>(shiftId,
             timestamp: DateTime.Today.AddHours(13));
 
-        shift.Name.ShouldBe("Larry Bird");
+        shift!.Name.ShouldBe("Larry Bird");
     }
 }

@@ -526,7 +526,7 @@ public class RedisStreamListener : IListener, ISupportDeadLetterQueue
                     if (!removed) continue;
 
                     // Deserialize the envelope
-                    var envelope = EnvelopeSerializer.Deserialize(serializedEnvelope);
+                    var envelope = EnvelopeSerializer.Deserialize(serializedEnvelope!);
 
                     // Add it to the stream
                     _endpoint.EnvelopeMapper ??= _endpoint.BuildMapper(_runtime);
@@ -589,8 +589,8 @@ public class RedisStreamListener : IListener, ISupportDeadLetterQueue
             {
                 try
                 {
-                    var envelope = EnvelopeSerializer.Deserialize(serializedEnvelope);
-                    
+                    var envelope = EnvelopeSerializer.Deserialize(serializedEnvelope!);
+
                     // Check if the message has expired
                     if (envelope.DeliverBy.HasValue && envelope.DeliverBy.Value <= now)
                     {

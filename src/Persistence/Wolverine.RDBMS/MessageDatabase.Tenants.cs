@@ -48,7 +48,7 @@ public abstract partial class MessageDatabase<T>
             _hasAppliedDefaults = true;
         }
 
-        string value = null;
+        string? value = null;
         await using var conn = CreateConnection();
         await conn.OpenAsync(_cancellation);
 
@@ -67,7 +67,7 @@ public abstract partial class MessageDatabase<T>
 
             await reader.CloseAsync();
             
-            return value;
+            return value!;
         }
         finally
         {

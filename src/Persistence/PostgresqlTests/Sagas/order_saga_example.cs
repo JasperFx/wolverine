@@ -60,7 +60,7 @@ public class OrderTest : Saga
 
         IsStep2Completed = true;
 
-        return new CompleteOrder(Id);
+        return new CompleteOrder(Id!);
     }
 
     /// <summary>

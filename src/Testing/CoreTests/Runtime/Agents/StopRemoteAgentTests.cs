@@ -7,7 +7,7 @@ namespace CoreTests.Runtime.Agents;
 
 public class StopRemoteAgentTests : IAsyncLifetime
 {
-    private AgentCommands theCascadingMessages;
+    private AgentCommands theCascadingMessages = null!;
     private readonly StopRemoteAgent theCommand = new(new Uri("blue://one"), new NodeDestination(Guid.NewGuid(), new Uri("control://one")));
     private readonly MockWolverineRuntime theRuntime = new();
 

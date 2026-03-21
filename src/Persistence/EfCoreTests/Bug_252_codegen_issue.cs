@@ -95,9 +95,9 @@ public class Bug_252_codegen_issue
                 opt.Policies.AutoApplyTransactions();
             }).StartAsync();
 
-        var chain = host.Services.GetRequiredService<HandlerGraph>().HandlerFor<CreateOrder>().As<MessageHandler>().Chain;
-        
-        var lines = chain.SourceCode.ReadLines();
+        var chain = host.Services.GetRequiredService<HandlerGraph>().HandlerFor<CreateOrder>()!.As<MessageHandler>()!.Chain!;
+
+        var lines = chain.SourceCode!.ReadLines()!;
 
         // Just proving that the code generation did NOT opt to use a nested container
         // for creating the handler

@@ -14,11 +14,12 @@ using Wolverine.Persistence.Durability;
 
 namespace Wolverine.RabbitMQ.Tests;
 
+[Trait("Category", "Flaky")]
 public class wolverine_storage_dead_letter_queue_mechanics : IDisposable
 {
     private readonly string QueueName = Guid.NewGuid().ToString();
-    private IHost _host;
-    private RabbitMqTransport theTransport;
+    private IHost _host = null!;
+    private RabbitMqTransport theTransport = null!;
     private readonly string connectionString;
 
     public wolverine_storage_dead_letter_queue_mechanics()

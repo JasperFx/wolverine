@@ -185,7 +185,7 @@ public class MessagePartitioningRules
         {
             if (chain.TryInferMessageIdentity(out var property))
             {
-                ByMessage(chain.MessageType, property);
+                ByMessage(chain.MessageType, property!);
             }
 
             // For messages implementing SequencedMessage, use Order as the group id
@@ -210,13 +210,13 @@ internal class ExplicitGrouping : IGroupingRule
 
     public bool TryFindIdentity(Envelope envelope, out string groupId)
     {
-        if (_groupers.TryFind(envelope.Message.GetType(), out var grouper))
+        if (_groupers.TryFind(envelope.Message!.GetType(), out var grouper))
         {
             groupId = grouper.ToGroupId(envelope.Message);
             return true;
         }
         
-        groupId = default;
+        groupId = default!;
         return false;
     }
 

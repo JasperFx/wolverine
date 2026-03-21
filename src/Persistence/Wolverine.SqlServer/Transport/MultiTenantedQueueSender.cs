@@ -69,12 +69,12 @@ internal class MultiTenantedQueueSender : ISqlServerQueueSender, IAsyncDisposabl
             else
             {
                 var sqlServerStore = (SqlServerMessageStore)database;
-                sender = new SqlServerQueueSender(_queue, sqlServerStore.Settings.ConnectionString, database.Name);
+                sender = new SqlServerQueueSender(_queue, sqlServerStore.Settings.ConnectionString!, database.Name);
                 _byDatabase = _byDatabase.AddOrUpdate(database.Name, sender);
 
                 if (_queue.Parent.AutoProvision)
                 {
-                    await _queue.EnsureSchemaExists(database.Name, sqlServerStore.Settings.ConnectionString);
+                    await _queue.EnsureSchemaExists(database.Name, sqlServerStore.Settings.ConnectionString!);
                 }
             }
 

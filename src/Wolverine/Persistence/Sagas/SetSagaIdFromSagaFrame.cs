@@ -16,7 +16,7 @@ internal class SetSagaIdFromSagaFrame : SyncFrame
     private readonly Type _messageType;
     private readonly MemberInfo _sagaIdMember;
     private Variable? _context;
-    private Variable _message;
+    private Variable _message = null!;
 
     public SetSagaIdFromSagaFrame(Type messageType, MemberInfo sagaIdMember)
     {

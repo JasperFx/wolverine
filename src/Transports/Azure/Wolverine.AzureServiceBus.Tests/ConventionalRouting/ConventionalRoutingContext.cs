@@ -10,7 +10,7 @@ namespace Wolverine.AzureServiceBus.Tests.ConventionalRouting;
 
 public abstract class ConventionalRoutingContext : IAsyncLifetime
 {
-    private IHost _host;
+    private IHost _host = null!;
 
     internal IWolverineRuntime theRuntime
     {

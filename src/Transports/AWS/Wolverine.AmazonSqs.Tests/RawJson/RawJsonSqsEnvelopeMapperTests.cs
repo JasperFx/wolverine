@@ -42,7 +42,7 @@ namespace Wolverine.AmazonSqs.Tests.RawJson
 
             public string Status { get; set; } = string.Empty;
 
-            public DocumentLocation DocumentLocation { get; set; }
+            public DocumentLocation DocumentLocation { get; set; } = null!;
 
             public long Timestamp { get; set; } = -1;
 

@@ -10,7 +10,7 @@ namespace WolverineWebApi.Todos;
 [DocumentAlias("test_todo")]
 public class Todo2
 {
-    public string Id { get; set; }
+    public string Id { get; set; } = null!;
     public string? Name { get; set; }
     public bool IsComplete { get; set; }
 }

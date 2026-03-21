@@ -19,9 +19,9 @@ public class AgentAssignment
         AgentUri = agentUri;
     }
 
-    public Uri AgentUri { get; set; }
+    public Uri AgentUri { get; set; } = null!;
 
-    public string Id { get; set; }
+    public string Id { get; set; } = null!;
 
     public Guid NodeId { get; set; }
 }

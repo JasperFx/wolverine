@@ -9,7 +9,7 @@ public record OutboxedMessage
 
 public class OutboxedMessageHandler
 {
-    private static TaskCompletionSource<OutboxedMessage> _source;
+    private static TaskCompletionSource<OutboxedMessage> _source = null!;
 
     public static Task<OutboxedMessage> WaitForNextMessage()
     {

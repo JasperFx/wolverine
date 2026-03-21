@@ -58,7 +58,7 @@ public class override_of_event_metadata
             e.EventTypeName.ShouldNotBeNull();
         }
         
-        stream.OfType<Event<CEvent>>().Single().Headers["name"].ShouldBe("perrin");
+        stream.OfType<Event<CEvent>>().Single().Headers!["name"].ShouldBe("perrin");
     }
 }
 

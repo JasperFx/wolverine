@@ -38,7 +38,7 @@ public class WriteAggregateAttribute : WolverineParameterAttribute, IDataRequire
     private OnMissing? _onMissing;
 
     public bool Required { get; set; } = true;
-    public string MissingMessage { get; set; }
+    public string MissingMessage { get; set; } = null!;
 
     public OnMissing OnMissing
     {
@@ -223,7 +223,7 @@ public class WriteAggregateAttribute : WolverineParameterAttribute, IDataRequire
         var inputType = chain.InputType();
         if (inputType == null)
         {
-            property = default;
+            property = default!;
             return false;
         }
 
@@ -232,12 +232,12 @@ public class WriteAggregateAttribute : WolverineParameterAttribute, IDataRequire
         {
             if (handling.AggregateId is MemberAccessVariable mav)
             {
-                property = mav.Member as PropertyInfo;
+                property = (mav.Member as PropertyInfo)!;
                 return property != null;
             }
         }
 
-        property = null;
+        property = null!;
         return false;
     }
 }

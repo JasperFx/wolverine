@@ -209,7 +209,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
         await EnqueueAsync(envelope);
     }
 
-    public IHandlerPipeline? Pipeline { get; }
+    public IHandlerPipeline Pipeline { get; } = null!;
 
     public Uri Uri { get; set; }
 

@@ -12,7 +12,7 @@ namespace MartenTests;
 
 public class batch_querying_support : PostgresqlContext, IAsyncLifetime
 {
-    private IHost theHost;
+    private IHost theHost = null!;
 
     public async Task InitializeAsync()
     {
@@ -126,7 +126,7 @@ public class Doc2
 
 public class Doc3
 {
-    public string Id { get; set; }
+    public string Id { get; set; } = null!;
     public string Name { get; set; } = "Somebody";
 }
 

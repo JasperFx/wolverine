@@ -42,7 +42,7 @@ internal class LoadBoundaryFrame : AsyncFrame
     {
         writer.WriteComment("Loading DCB boundary model via FetchForWritingByTags");
         writer.WriteLine(
-            $"var {Boundary.Usage} = await {_session!.Usage}.Events.FetchForWritingByTags<{_aggregateType.FullNameInCode()}>({_query.Usage}, {_token!.Usage});");
+            $"var {Boundary.Usage} = await {_session!.Usage}.Events.FetchForWritingByTags<{_aggregateType.FullNameInCode()}>({_query!.Usage}, {_token!.Usage});");
 
         Next?.GenerateCode(method, writer);
     }

@@ -61,7 +61,7 @@ public class Requester
 
 public class DirectionRequest
 {
-    public string Direction { get; set; }
+    public string Direction { get; set; } = null!;
 }
 
 public class GoNorth;
@@ -83,7 +83,7 @@ public class ConditionalResponseHandler
         }
 
         // This does nothing
-        return null;
+        return null!;
     }
 }
 

@@ -17,10 +17,10 @@ public class logging_configuration : IntegrationContext
     [Fact]
     public void wolverine_logging_attribute_impacts_handler_chain()
     {
-        var chain = Handlers.HandlerFor<QuietMessage>().As<MessageHandler>()
+        var chain = Handlers.HandlerFor<QuietMessage>()!.As<MessageHandler>()
             .Chain;
 
-        chain.TelemetryEnabled.ShouldBeFalse();
+        chain!.TelemetryEnabled.ShouldBeFalse();
         chain.SuccessLogLevel.ShouldBe(LogLevel.None);
         chain.ProcessingLogLevel.ShouldBe(LogLevel.Trace);
     }

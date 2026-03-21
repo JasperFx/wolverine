@@ -25,7 +25,7 @@ namespace EfCoreTests.DomainEvents;
 [Collection("sqlserver")]
 public class configuration_of_domain_events_scrapers : IAsyncDisposable
 {
-    private IHost theHost;
+    private IHost theHost = null!;
 
     public configuration_of_domain_events_scrapers()
     {
@@ -82,7 +82,7 @@ public class configuration_of_domain_events_scrapers : IAsyncDisposable
         scope.ServiceProvider.GetRequiredService<OutgoingDomainEvents>().ShouldNotBeNull();
 
         var container = theHost.Services.GetRequiredService<IServiceContainer>();
-        container.DefaultFor<OutgoingDomainEvents>().Lifetime.ShouldBe(ServiceLifetime.Scoped);
+        container.DefaultFor<OutgoingDomainEvents>()!.Lifetime.ShouldBe(ServiceLifetime.Scoped);
 
         scope.ServiceProvider.GetServices<IDomainEventScraper>().Single().ShouldBeOfType<OutgoingDomainEventsScraper>();
     }

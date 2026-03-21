@@ -11,7 +11,7 @@ internal class AncillaryOutboxFactoryFrame : SyncFrame
 {
     private readonly Type _storeType;
     private readonly Type _factoryType;
-    private Variable _outerFactory;
+    private Variable _outerFactory = null!;
 
     public AncillaryOutboxFactoryFrame(Type storeType)
     {

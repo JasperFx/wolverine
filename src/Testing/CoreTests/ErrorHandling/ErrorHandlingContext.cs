@@ -10,8 +10,8 @@ public class ErrorHandlingContext : IDisposable
 {
     protected readonly ErrorCausingMessage theMessage = new();
 
-    private ITrackedSession _session;
-    private IHost _host;
+    private ITrackedSession _session = null!;
+    private IHost _host = null!;
 
     public ErrorHandlingContext()
     {
@@ -43,14 +43,14 @@ public class ErrorHandlingContext : IDisposable
             ConfigureOptions(_ => {});
         }
         
-        _session = await _host
+        _session = await _host!
             .TrackActivity()
             .DoNotAssertOnExceptionsDetected()
             .SendMessageAndWaitAsync(theMessage);
 
-        return _session.AllRecordsInOrder().Where(x => !(x.Envelope.Message is FailureAcknowledgement)).LastOrDefault(
+        return _session.AllRecordsInOrder().Where(x => !(x.Envelope!.Message is FailureAcknowledgement)).LastOrDefault(
             x =>
-                x.MessageEventType == MessageEventType.MessageSucceeded || x.MessageEventType == MessageEventType.MovedToErrorQueue);
+                x.MessageEventType == MessageEventType.MessageSucceeded || x.MessageEventType == MessageEventType.MovedToErrorQueue)!;
     }
 
     protected async Task shouldSucceedOnAttempt(int attempt)
@@ -60,12 +60,12 @@ public class ErrorHandlingContext : IDisposable
             ConfigureOptions(_ => {});
         }
         
-        var session = await _host
+        var session = await _host!
             .TrackActivity()
             .DoNotAssertOnExceptionsDetected()
             .SendMessageAndWaitAsync(theMessage);
 
-        var record = session.AllRecordsInOrder().Where(x => !(x.Envelope.Message is FailureAcknowledgement))
+        var record = session.AllRecordsInOrder().Where(x => !(x.Envelope!.Message is FailureAcknowledgement))
             .LastOrDefault(x =>
                 x.MessageEventType == MessageEventType.MessageSucceeded || x.MessageEventType == MessageEventType.MovedToErrorQueue);
 
@@ -101,12 +101,12 @@ public class ErrorHandlingContext : IDisposable
             ConfigureOptions(_ => {});
         }
         
-        var session = await _host
+        var session = await _host!
             .TrackActivity()
             .DoNotAssertOnExceptionsDetected()
             .SendMessageAndWaitAsync(theMessage);
 
-        var record = session.AllRecordsInOrder().Where(x => !(x.Envelope.Message is FailureAcknowledgement))
+        var record = session.AllRecordsInOrder().Where(x => !(x.Envelope!.Message is FailureAcknowledgement))
             .LastOrDefault(x =>
                 x.MessageEventType == MessageEventType.MessageSucceeded || x.MessageEventType == MessageEventType.MovedToErrorQueue);
 

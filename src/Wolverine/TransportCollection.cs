@@ -88,13 +88,13 @@ public class TransportCollection : IEnumerable<ITransport>, IAsyncDisposable
             var transport = _transports.Values.OfType<T>().FirstOrDefault(x => x.Protocol == name.Name);
             if (transport == null)
             {
-                transport = (T)Activator.CreateInstance(typeof(T), name.Name);
-                _transports[name.Name] = transport;
+                transport = (T)Activator.CreateInstance(typeof(T), name.Name)!;
+                _transports[name.Name] = transport!;
             }
 
-            return transport;
+            return transport!;
         }
-        
+
     }
 
     internal ITransport Find(Uri uri)

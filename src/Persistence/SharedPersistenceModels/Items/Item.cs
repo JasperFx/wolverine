@@ -3,8 +3,8 @@ namespace SharedPersistenceModels.Items;
 public class Item : Entity
 {
     public Guid Id { get; set; }
-    public string Name { get; set; }
-    
+    public string Name { get; set; } = null!;
+
     public bool Approved { get; set; }
 
     public void Approve()
@@ -25,7 +25,6 @@ public interface IEntity
 
 public abstract class Entity : IEntity
 {
-    private IReadOnlyList<IDomainEvent> _events;
     public List<object> Events { get; } = new();
 
     IReadOnlyList<IDomainEvent> IEntity.Events => Events.OfType<IDomainEvent>().ToList();

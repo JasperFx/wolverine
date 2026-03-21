@@ -153,7 +153,7 @@ SELECT message.{DatabaseConstants.Body} from message;
             batch.Connection = conn;
 
             count = (long)(await batch
-                .ExecuteScalarAsync(cancellationToken));
+                .ExecuteScalarAsync(cancellationToken))!;
         }
         finally
         {

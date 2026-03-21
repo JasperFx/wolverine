@@ -36,7 +36,7 @@ public class find_handlers_with_the_default_handler_discovery : IntegrationConte
     [Fact]
     public void does_not_find_handlers_that_do_not_match_the_type_naming_convention()
     {
-        chainFor<MovieAdded>().ShouldNotHaveHandler<MovieWatcher>(x => x.Handle(null));
+        chainFor<MovieAdded>().ShouldNotHaveHandler<MovieWatcher>(x => x.Handle(null!));
     }
 
     [Fact]
@@ -70,7 +70,7 @@ public class find_handlers_with_the_default_handler_discovery : IntegrationConte
     [Fact]
     public void will_find_methods_with_parameters_other_than_the_message()
     {
-        chainFor<MovieAdded>().ShouldHaveHandler<NetflixHandler>(x => x.Handle(null, null));
+        chainFor<MovieAdded>().ShouldHaveHandler<NetflixHandler>(x => x.Handle(null!, null!));
     }
 
     [Fact]
@@ -111,7 +111,7 @@ public class find_handlers_with_the_default_handler_discovery : IntegrationConte
     [Fact]
     public void finds_handlers_that_implement_IWolverineHandler()
     {
-        chainFor<MarkedMessage>().ShouldHaveHandler<MarkedWorker>(x => x.Handle(null));
+        chainFor<MarkedMessage>().ShouldHaveHandler<MarkedWorker>(x => x.Handle(null!));
     }
 }
 
@@ -134,7 +134,7 @@ public class customized_finding : IntegrationContext
     {
         withTypeDiscovery(x => x.Includes.WithNameSuffix("Watcher"));
 
-        chainFor<MovieAdded>().ShouldHaveHandler<MovieWatcher>(x => x.Handle(null));
+        chainFor<MovieAdded>().ShouldHaveHandler<MovieWatcher>(x => x.Handle(null!));
     }
 
     [Fact]
@@ -160,7 +160,7 @@ public class customized_finding : IntegrationContext
     [Fact]
     public void use_WolverineHandler_attribute_on_method()
     {
-        chainFor<DifferentNameMessage>().ShouldHaveHandler<DifferentNameMessageHandler>(x => x.DoWork(null));
+        chainFor<DifferentNameMessage>().ShouldHaveHandler<DifferentNameMessageHandler>(x => x.DoWork(null!));
     }
 
     [Fact]

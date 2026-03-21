@@ -13,7 +13,7 @@ using Xunit.Abstractions;
 public class reacting_to_required_attribute : IAsyncLifetime
 {
     private readonly ITestOutputHelper _output;
-    private IAlbaHost theHost;
+    private IAlbaHost theHost = null!;
 
     public reacting_to_required_attribute(ITestOutputHelper output)
     {

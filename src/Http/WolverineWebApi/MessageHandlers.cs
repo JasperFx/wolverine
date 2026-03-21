@@ -26,7 +26,7 @@ public class CustomResponse
     {
     }
 
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
 }
 
 public static class MessageHandler

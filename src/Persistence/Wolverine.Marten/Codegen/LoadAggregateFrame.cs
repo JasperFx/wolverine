@@ -60,21 +60,21 @@ internal class LoadAggregateFrame : AsyncFrame,  IBatchableFrame
     {
         if (_att.IsNaturalKey)
         {
-            writer.WriteLine($"var {_batchQueryItem.Usage} = {NaturalKeyFetchForWriting(_batchQuery!.Usage)};");
+            writer.WriteLine($"var {_batchQueryItem!.Usage} = {NaturalKeyFetchForWriting(_batchQuery!.Usage)};");
             return;
         }
 
         if (_att.LoadStyle == ConcurrencyStyle.Exclusive)
         {
-            writer.WriteLine($"var {_batchQueryItem.Usage} = {_batchQuery!.Usage}.Events.FetchForExclusiveWriting<{_att.AggregateType.FullNameInCode()}>({_rawIdentity.Usage});");
+            writer.WriteLine($"var {_batchQueryItem!.Usage} = {_batchQuery!.Usage}.Events.FetchForExclusiveWriting<{_att.AggregateType.FullNameInCode()}>({_rawIdentity.Usage});");
         }
         else if (_version == null)
         {
-            writer.WriteLine($"var {_batchQueryItem.Usage} = {_batchQuery!.Usage}.Events.FetchForWriting<{_att.AggregateType.FullNameInCode()}>({_rawIdentity.Usage});");
+            writer.WriteLine($"var {_batchQueryItem!.Usage} = {_batchQuery!.Usage}.Events.FetchForWriting<{_att.AggregateType.FullNameInCode()}>({_rawIdentity.Usage});");
         }
         else
         {
-            writer.WriteLine($"var {_batchQueryItem.Usage} = {_batchQuery!.Usage}.Events.FetchForWriting<{_att.AggregateType.FullNameInCode()}>({_rawIdentity.Usage}, {_version.Usage});");
+            writer.WriteLine($"var {_batchQueryItem!.Usage} = {_batchQuery!.Usage}.Events.FetchForWriting<{_att.AggregateType.FullNameInCode()}>({_rawIdentity.Usage}, {_version.Usage});");
         }
     }
 
@@ -113,15 +113,15 @@ internal class LoadAggregateFrame : AsyncFrame,  IBatchableFrame
             }
             else if (_att.LoadStyle == ConcurrencyStyle.Exclusive)
             {
-                writer.WriteLine($"var {Stream.Usage} = await {_session!.Usage}.Events.FetchForExclusiveWriting<{_att.AggregateType.FullNameInCode()}>({_rawIdentity.Usage}, {_token.Usage});");
+                writer.WriteLine($"var {Stream.Usage} = await {_session!.Usage}.Events.FetchForExclusiveWriting<{_att.AggregateType.FullNameInCode()}>({_rawIdentity.Usage}, {_token!.Usage});");
             }
             else if (_version == null)
             {
-                writer.WriteLine($"var {Stream.Usage} = await {_session!.Usage}.Events.FetchForWriting<{_att.AggregateType.FullNameInCode()}>({_rawIdentity.Usage}, {_token.Usage});");
+                writer.WriteLine($"var {Stream.Usage} = await {_session!.Usage}.Events.FetchForWriting<{_att.AggregateType.FullNameInCode()}>({_rawIdentity.Usage}, {_token!.Usage});");
             }
             else
             {
-                writer.WriteLine($"var {Stream.Usage} = await {_session!.Usage}.Events.FetchForWriting<{_att.AggregateType.FullNameInCode()}>({_rawIdentity.Usage}, {_version.Usage}, {_token.Usage});");
+                writer.WriteLine($"var {Stream.Usage} = await {_session!.Usage}.Events.FetchForWriting<{_att.AggregateType.FullNameInCode()}>({_rawIdentity.Usage}, {_version.Usage}, {_token!.Usage});");
             }
         }
         else

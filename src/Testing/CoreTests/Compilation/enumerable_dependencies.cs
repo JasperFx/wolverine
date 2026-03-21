@@ -22,7 +22,7 @@ public class enumerable_dependencies
                 opts.Services.AddScoped<IWidget, ServiceUsingWidget>();
 
                 opts.CodeGeneration.GeneratedCodeOutputPath = AppContext.BaseDirectory
-                    .ParentDirectory().ParentDirectory().ParentDirectory().AppendPath("Internal", "Generated");
+                    .ParentDirectory()!.ParentDirectory()!.ParentDirectory()!.AppendPath("Internal", "Generated");
                 opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
                 
                 

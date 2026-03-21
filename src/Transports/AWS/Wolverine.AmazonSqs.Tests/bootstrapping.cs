@@ -5,7 +5,7 @@ using Wolverine.AmazonSqs.Internal;
 
 namespace Wolverine.AmazonSqs.Tests;
 
-public class bootstrapping
+public class Bootstrapping
 {
     [Fact]
     public async Task create_an_open_client()
@@ -17,7 +17,7 @@ public class bootstrapping
         var transport = options.AmazonSqsTransport();
 
         // Just a smoke test on configuration here
-        var queueNames = await transport.Client.ListQueuesAsync("wolverine");
+        var queueNames = await transport.Client!.ListQueuesAsync("wolverine");
     }
 
     [Fact]
@@ -37,11 +37,11 @@ public class bootstrapping
         var transport = options.AmazonSqsTransport();
 
         // Just a smoke test on configuration here
-        var queueNames = await transport.Client.ListQueuesAsync("wolverine");
+        var queueNames = await transport.Client!.ListQueuesAsync("wolverine");
         var queueUrl = queueNames.QueueUrls.FirstOrDefault(x => x.Contains(queueName));
         queueUrl.ShouldNotBeNull();
 
-        await transport.Client.DeleteQueueAsync(queueUrl);
+        await transport.Client!.DeleteQueueAsync(queueUrl);
     }
 
     [Fact]
@@ -61,11 +61,11 @@ public class bootstrapping
         var options = host.Services.GetRequiredService<WolverineOptions>();
         var transport = options.AmazonSqsTransport();
 
-        var queueNames = await transport.Client.ListQueuesAsync("wolverine");
+        var queueNames = await transport.Client!.ListQueuesAsync("wolverine");
         var queueUrl = queueNames.QueueUrls.FirstOrDefault(x => x.Contains(queueName));
         queueUrl.ShouldNotBeNull();
 
-        await transport.Client.DeleteQueueAsync(queueUrl);
+        await transport.Client!.DeleteQueueAsync(queueUrl);
     }
 
     [Fact]

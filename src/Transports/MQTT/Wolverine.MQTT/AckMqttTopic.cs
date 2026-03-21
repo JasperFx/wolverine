@@ -13,7 +13,7 @@ public record AckMqttTopic() : ISendMyself, ISerializable
 {
     public async ValueTask ApplyAsync(IMessageContext context)
     {
-        var topicName = context.Envelope?.TopicName ?? MqttTransport.TopicForUri(context.Envelope?.Destination);
+        var topicName = context.Envelope?.TopicName ?? MqttTransport.TopicForUri(context.Envelope?.Destination!);
         if (topicName.IsEmpty())
         {
             throw new ArgumentOutOfRangeException(nameof(context), "Envelope.Topic cannot be empty or null");

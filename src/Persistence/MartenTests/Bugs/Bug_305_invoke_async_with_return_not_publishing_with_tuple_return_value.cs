@@ -24,7 +24,7 @@ public class Bug_305_invoke_async_with_return_not_publishing_with_tuple_return_v
 
         var (tracked, created) = await host.InvokeMessageAndWaitAsync<ItemCreated>(new CreateItemCommand { Name = "Trevor" });
 
-        created.Name.ShouldBe("Trevor");
+        created!.Name.ShouldBe("Trevor");
 
         tracked.Sent.SingleMessage<ItemCreated>().Name.ShouldBe("Trevor");
         tracked.Sent.SingleMessage<SecondItemCreated>().Name.ShouldBe("Trevor");

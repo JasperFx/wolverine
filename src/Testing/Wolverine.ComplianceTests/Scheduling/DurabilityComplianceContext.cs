@@ -17,8 +17,8 @@ namespace Wolverine.ComplianceTests.Scheduling;
 
 public abstract class DurabilityComplianceContext<TTriggerHandler, TItemCreatedHandler> : IAsyncLifetime
 {
-    private IHost theReceiver;
-    private IHost theSender;
+    private IHost theReceiver = null!;
+    private IHost theSender = null!;
 
     public async Task InitializeAsync()
     {
@@ -159,7 +159,7 @@ public abstract class DurabilityComplianceContext<TTriggerHandler, TItemCreatedH
 
         // Shutting it down
         theReceiver.Dispose();
-        theReceiver = null;
+        theReceiver = null!;
 
 
         var item = new ItemCreated
@@ -235,7 +235,7 @@ public abstract class DurabilityComplianceContext<TTriggerHandler, TItemCreatedH
 public class ItemCreated
 {
     public Guid Id;
-    public string Name;
+    public string Name = null!;
 }
 
 public class ScheduledMessage
@@ -247,9 +247,9 @@ public class ScheduledMessageHandler
 {
     public static readonly IList<ScheduledMessage> ReceivedMessages = new List<ScheduledMessage>();
 
-    private static TaskCompletionSource<ScheduledMessage> _source;
+    private static TaskCompletionSource<ScheduledMessage> _source = null!;
 
-    public static Task<ScheduledMessage> Received { get; private set; }
+    public static Task<ScheduledMessage> Received { get; private set; } = null!;
 
     public void Consume(ScheduledMessage message)
     {
@@ -267,7 +267,7 @@ public class ScheduledMessageHandler
 
 public class CascadedMessage
 {
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
 }
 
 public class CascadeReceiver
@@ -279,7 +279,7 @@ public class CascadeReceiver
 
 public class TriggerMessage
 {
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
 }
 
 public class QuestionHandler

@@ -31,15 +31,15 @@ public class MultiTenancyDocumentationSamples
         {
             // First, you do have to have a "main" PostgreSQL database for messaging persistence
             // that will store information about running nodes, agents, and non-tenanted operations
-            opts.PersistMessagesWithPostgresql(configuration.GetConnectionString("main"))
+            opts.PersistMessagesWithPostgresql(configuration.GetConnectionString("main")!)
 
                 // Add known tenants at bootstrapping time
                 .RegisterStaticTenants(tenants =>
                 {
                     // Add connection strings for the expected tenant ids
-                    tenants.Register("tenant1", configuration.GetConnectionString("tenant1"));
-                    tenants.Register("tenant2", configuration.GetConnectionString("tenant2"));
-                    tenants.Register("tenant3", configuration.GetConnectionString("tenant3"));
+                    tenants.Register("tenant1", configuration.GetConnectionString("tenant1")!);
+                    tenants.Register("tenant2", configuration.GetConnectionString("tenant2")!);
+                    tenants.Register("tenant3", configuration.GetConnectionString("tenant3")!);
                 });
             
             opts.Services.AddDbContextWithWolverineManagedMultiTenancy<ItemsDbContext>((builder, connectionString, _) =>
@@ -63,15 +63,15 @@ public class MultiTenancyDocumentationSamples
         {
             // First, you do have to have a "main" PostgreSQL database for messaging persistence
             // that will store information about running nodes, agents, and non-tenanted operations
-            opts.PersistMessagesWithSqlServer(configuration.GetConnectionString("main"))
+            opts.PersistMessagesWithSqlServer(configuration.GetConnectionString("main")!)
 
                 // Add known tenants at bootstrapping time
                 .RegisterStaticTenants(tenants =>
                 {
                     // Add connection strings for the expected tenant ids
-                    tenants.Register("tenant1", configuration.GetConnectionString("tenant1"));
-                    tenants.Register("tenant2", configuration.GetConnectionString("tenant2"));
-                    tenants.Register("tenant3", configuration.GetConnectionString("tenant3"));
+                    tenants.Register("tenant1", configuration.GetConnectionString("tenant1")!);
+                    tenants.Register("tenant2", configuration.GetConnectionString("tenant2")!);
+                    tenants.Register("tenant3", configuration.GetConnectionString("tenant3")!);
                 });
             
             // Just to show that you *can* use more than one DbContext
@@ -101,7 +101,7 @@ public class MultiTenancyDocumentationSamples
         {
             // You need a main database no matter what that will hold information about the Wolverine system itself
             // and..
-            opts.PersistMessagesWithPostgresql(configuration.GetConnectionString("wolverine"))
+            opts.PersistMessagesWithPostgresql(configuration.GetConnectionString("wolverine")!)
 
                 // ...also a table holding the tenant id to connection string information
                 .UseMasterTableTenancy(seed =>
@@ -109,9 +109,9 @@ public class MultiTenancyDocumentationSamples
                     // These registrations are 100% just to seed data for local development
                     // Maybe you want to omit this during production?
                     // Or do something programmatic by looping through data in the IConfiguration?
-                    seed.Register("tenant1", configuration.GetConnectionString("tenant1"));
-                    seed.Register("tenant2", configuration.GetConnectionString("tenant2"));
-                    seed.Register("tenant3", configuration.GetConnectionString("tenant3"));
+                    seed.Register("tenant1", configuration.GetConnectionString("tenant1")!);
+                    seed.Register("tenant2", configuration.GetConnectionString("tenant2")!);
+                    seed.Register("tenant3", configuration.GetConnectionString("tenant3")!);
                 });
 
         });
@@ -130,7 +130,7 @@ public class MultiTenancyDocumentationSamples
         {
             // You need a main database no matter what that will hold information about the Wolverine system itself
             // and..
-            opts.PersistMessagesWithSqlServer(configuration.GetConnectionString("wolverine"))
+            opts.PersistMessagesWithSqlServer(configuration.GetConnectionString("wolverine")!)
 
                 // ...also a table holding the tenant id to connection string information
                 .UseMasterTableTenancy(seed =>
@@ -138,9 +138,9 @@ public class MultiTenancyDocumentationSamples
                     // These registrations are 100% just to seed data for local development
                     // Maybe you want to omit this during production?
                     // Or do something programmatic by looping through data in the IConfiguration?
-                    seed.Register("tenant1", configuration.GetConnectionString("tenant1"));
-                    seed.Register("tenant2", configuration.GetConnectionString("tenant2"));
-                    seed.Register("tenant3", configuration.GetConnectionString("tenant3"));
+                    seed.Register("tenant1", configuration.GetConnectionString("tenant1")!);
+                    seed.Register("tenant2", configuration.GetConnectionString("tenant2")!);
+                    seed.Register("tenant3", configuration.GetConnectionString("tenant3")!);
                 });
         });
 

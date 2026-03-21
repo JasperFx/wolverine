@@ -27,7 +27,7 @@ public class BufferedSharedMemoryInlineFixture : TransportComplianceFixture, IAs
         });
     }
 
-    public Task DisposeAsync()
+    public new Task DisposeAsync()
     {
         return SharedMemoryQueueManager.ClearAllAsync();
     }

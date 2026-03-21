@@ -48,7 +48,7 @@ public class DefaultApp : IDisposable
     public void Dispose()
     {
         Host?.Dispose();
-        Host = null;
+        Host = null!;
     }
 
     public void RecycleIfNecessary()
@@ -61,7 +61,7 @@ public class DefaultApp : IDisposable
 
     public HandlerChain ChainFor<T>()
     {
-        return Host.Get<HandlerGraph>().HandlerFor<T>().As<MessageHandler>().Chain;
+        return Host.Get<HandlerGraph>().HandlerFor<T>()!.As<MessageHandler>().Chain!;
     }
 }
 
@@ -96,7 +96,7 @@ public class IntegrationContext : IDisposable, IClassFixture<DefaultApp>
 
     protected HandlerChain chainFor<T>()
     {
-        return Handlers.HandlerFor<T>().As<MessageHandler>().Chain;
+        return Handlers.HandlerFor<T>()!.As<MessageHandler>().Chain!;
     }
 }
 

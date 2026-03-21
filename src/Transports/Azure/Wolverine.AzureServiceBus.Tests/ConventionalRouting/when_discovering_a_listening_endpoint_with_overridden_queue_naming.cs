@@ -5,6 +5,7 @@ using Xunit;
 
 namespace Wolverine.AzureServiceBus.Tests.ConventionalRouting;
 
+[Trait("Category", "Flaky")]
 public class when_discovering_a_listening_endpoint_with_overridden_queue_naming : ConventionalRoutingContext
 {
     private readonly Uri theExpectedUri = "asb://queue/routedmessage2".ToUri();

@@ -30,11 +30,11 @@ public class basic_functionality : SqliteContext, IAsyncLifetime
         _connectionString = _database.ConnectionString;
     }
 
-    private IHost theHost;
-    private SqliteTransport theTransport;
-    private SqliteQueue theQueue;
-    private IMessageStore theMessageStore;
-    private WolverineRuntime theRuntime;
+    private IHost theHost = null!;
+    private SqliteTransport theTransport = null!;
+    private SqliteQueue theQueue = null!;
+    private IMessageStore theMessageStore = null!;
+    private WolverineRuntime theRuntime = null!;
 
     public async Task InitializeAsync()
     {

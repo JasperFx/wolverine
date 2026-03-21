@@ -94,7 +94,7 @@ public partial class NodeAgentController
 
         // This is important, some of the assignment logic depends on knowing what the leader is
         var self = nodes.FirstOrDefault(x => x.NodeId == _runtime.Options.UniqueNodeId);
-        self.AssignAgents([LeaderUri]);
+        self!.AssignAgents([LeaderUri]);
         
         return await EvaluateAssignmentsAsync(nodes, restrictions);
     }

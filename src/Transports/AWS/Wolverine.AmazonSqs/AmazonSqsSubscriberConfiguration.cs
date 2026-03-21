@@ -73,9 +73,9 @@ public class
         add(e =>
         {
             e.DefaultSerializer = new NewtonsoftSerializer(new JsonSerializerSettings());
-            e.Mapper = new NServiceBusEnvelopeMapper(replyQueueName, e);
+            e.Mapper = new NServiceBusEnvelopeMapper(replyQueueName!, e);
         });
-        
+
         return this;
     }
 
@@ -85,7 +85,7 @@ public class
     /// <returns></returns>
     public AmazonSqsSubscriberConfiguration UseMassTransitInterop()
     {
-        add(e => e.Mapper = new MassTransitMapper(Endpoint as IMassTransitInteropEndpoint));
+        add(e => e.Mapper = new MassTransitMapper((Endpoint as IMassTransitInteropEndpoint)!));
         return this;
     }
     

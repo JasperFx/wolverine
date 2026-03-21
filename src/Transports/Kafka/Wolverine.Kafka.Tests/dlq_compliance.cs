@@ -20,7 +20,7 @@ public class BufferedComplianceWithDlqFixture : TransportComplianceFixture, IAsy
 
         await ReceiverIs(opts =>
         {
-            opts.UseKafka("localhost:9092").AutoProvision();
+            opts.UseKafka(KafkaContainerFixture.ConnectionString).AutoProvision();
 
             opts.ListenToKafkaTopic(receiverTopic)
                 .Named("receiver")
@@ -32,7 +32,7 @@ public class BufferedComplianceWithDlqFixture : TransportComplianceFixture, IAsy
 
         await SenderIs(opts =>
         {
-            opts.UseKafka("localhost:9092")
+            opts.UseKafka(KafkaContainerFixture.ConnectionString)
                 .AutoProvision()
                 .ConfigureConsumers(x => x.EnableAutoCommit = false);
 

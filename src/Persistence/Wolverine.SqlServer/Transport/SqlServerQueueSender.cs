@@ -19,7 +19,7 @@ internal class SqlServerQueueSender : ISqlServerQueueSender
     private readonly string _deleteFromIncomingAndScheduleSql;
 
     // Strictly for testing
-    public SqlServerQueueSender(SqlServerQueue queue) : this(queue, queue.Parent.Settings.ConnectionString, null)
+    public SqlServerQueueSender(SqlServerQueue queue) : this(queue, queue.Parent.Settings.ConnectionString!, null)
     {
         Destination = queue.Uri;
     }
@@ -90,9 +90,9 @@ WHEN NOT MATCHED THEN INSERT  ({DatabaseConstants.Id}, {DatabaseConstants.Body},
             await conn.CreateCommand(_deleteFromIncomingAndScheduleSql)
                 .With("id", envelope.Id)
                 .With("body", EnvelopeSerializer.Serialize(envelope))
-                .With("type", envelope.MessageType)
-                .With("expires", envelope.DeliverBy)
-                .With("time", envelope.ScheduledTime)
+                .With("type", envelope.MessageType!)
+                .With("expires", envelope.DeliverBy!)
+                .With("time", envelope.ScheduledTime!)
                 .ExecuteNonQueryAsync(cancellationToken);
         }
         finally
@@ -200,8 +200,8 @@ WHEN NOT MATCHED THEN INSERT  ({DatabaseConstants.Id}, {DatabaseConstants.Body},
                     await conn.CreateCommand(_writeDirectlyToQueueTableSql)
                         .With("id", envelope.Id)
                         .With("body", EnvelopeSerializer.Serialize(envelope))
-                        .With("type", envelope.MessageType)
-                        .With("expires", envelope.DeliverBy)
+                        .With("type", envelope.MessageType!)
+                        .With("expires", envelope.DeliverBy!)
                         .ExecuteNonQueryAsync(cancellationToken);
                 }
                 catch (SqlException e)
@@ -224,9 +224,9 @@ WHEN NOT MATCHED THEN INSERT  ({DatabaseConstants.Id}, {DatabaseConstants.Body},
         await conn.CreateCommand(_writeDirectlyToTheScheduledTable)
             .With("id", envelope.Id)
             .With("body", EnvelopeSerializer.Serialize(envelope))
-            .With("type", envelope.MessageType)
-            .With("expires", envelope.DeliverBy)
-            .With("time", envelope.ScheduledTime)
+            .With("type", envelope.MessageType!)
+            .With("expires", envelope.DeliverBy!)
+            .With("time", envelope.ScheduledTime!)
             .ExecuteNonQueryAsync(cancellationToken);
     }
 }

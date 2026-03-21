@@ -5,7 +5,7 @@ using Wolverine.Runtime.Routing;
 
 namespace Wolverine.Marten.Subscriptions;
 
-internal class InnerDataInvoker<T> : IMessageInvoker
+internal class InnerDataInvoker<T> : IMessageInvoker where T : notnull
 {
     private readonly IMessageInvoker _inner;
 
@@ -27,7 +27,7 @@ internal class InnerDataInvoker<T> : IMessageInvoker
     {
         if (message is IEvent<T> e)
         {
-            return _inner.InvokeAsync(e.Data, bus, cancellation, timeout, options);
+            return _inner.InvokeAsync(e.Data!, bus, cancellation, timeout, options);
         }
 
         return Task.CompletedTask;

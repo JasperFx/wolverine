@@ -10,11 +10,11 @@ using Xunit.Abstractions;
 
 namespace RavenDbTests;
 
-public class playing
+public class Playing
 {
     private readonly ITestOutputHelper _output;
 
-    public playing(ITestOutputHelper output)
+    public Playing(ITestOutputHelper output)
     {
         _output = output;
     }
@@ -29,8 +29,6 @@ public class playing
         {
             ExpiresAt = DateTimeOffset.UtcNow + 5.Minutes()
         };
-
-        string lockId = "lock1";
 
         PrintWork(store);
         

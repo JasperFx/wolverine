@@ -8,8 +8,8 @@ namespace Wolverine.Persistence.Sagas;
 
 public class EnrollAndFetchSagaStorageFrame<TId, TSaga> : AsyncFrame, ISagaStorageFrame where TSaga : Saga
 {
-    private Variable _context;
-    private Variable _cancellation;
+    private Variable _context = null!;
+    private Variable _cancellation = null!;
 
     public EnrollAndFetchSagaStorageFrame()
     {

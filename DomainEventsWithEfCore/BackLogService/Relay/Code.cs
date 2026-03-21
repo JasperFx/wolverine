@@ -11,8 +11,8 @@ public class BacklogItem
 {
     public Guid Id { get; private set; }
 
-    public string Description { get; private set; }
-    public virtual Sprint Sprint { get; private set; }
+    public string Description { get; private set; } = null!;
+    public virtual Sprint Sprint { get; private set; } = null!;
     public DateTime CreatedAtUtc { get; private set; } = DateTime.UtcNow;
     
     // The exact return type isn't hugely important here

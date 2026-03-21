@@ -6,6 +6,7 @@ using Wolverine.Runtime.Routing;
 
 namespace Wolverine.AmazonSqs.Tests.ConventionalRouting;
 
+[Trait("Category", "Flaky")]
 public class when_discovering_a_sender_with_all_defaults : ConventionalRoutingContext
 {
     private readonly MessageRoute theRoute;

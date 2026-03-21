@@ -11,7 +11,7 @@ namespace CoreTests.Bugs;
 
 public class Bug_2056_saga_code_generation : IAsyncLifetime
 {
-    private IHost _host;
+    private IHost _host = null!;
 
     public async Task InitializeAsync()
     {

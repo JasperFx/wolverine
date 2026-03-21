@@ -10,7 +10,7 @@ public class HandlerChain_TryFindVariable
     [Fact]
     public void for_matching_member_name_on_name_and_type()
     {
-        var chain = HandlerChain.For<CreateThingHandler>(x => x.Handle(null), new HandlerGraph());
+        var chain = HandlerChain.For<CreateThingHandler>(x => x.Handle(null!), new HandlerGraph());
         
         chain.TryFindVariable(nameof(CreateThing.Id), ValueSource.InputMember, typeof(Guid), out var variable)
             .ShouldBeTrue();
@@ -22,7 +22,7 @@ public class HandlerChain_TryFindVariable
     [Fact]
     public void miss_on_type()
     {
-        var chain = HandlerChain.For<CreateThingHandler>(x => x.Handle(null), new HandlerGraph());
+        var chain = HandlerChain.For<CreateThingHandler>(x => x.Handle(null!), new HandlerGraph());
         
         chain.TryFindVariable(nameof(CreateThing.Id), ValueSource.InputMember, typeof(int), out var variable)
             .ShouldBeFalse();
@@ -31,7 +31,7 @@ public class HandlerChain_TryFindVariable
     [Fact]
     public void miss_on_member_name()
     {
-        var chain = HandlerChain.For<CreateThingHandler>(x => x.Handle(null), new HandlerGraph());
+        var chain = HandlerChain.For<CreateThingHandler>(x => x.Handle(null!), new HandlerGraph());
         
         chain.TryFindVariable("wrong", ValueSource.InputMember, typeof(Guid), out var variable)
             .ShouldBeFalse();
@@ -40,7 +40,7 @@ public class HandlerChain_TryFindVariable
     [Fact]
     public void for_matching_member_name_on_name_and_type_and_anything_is_the_source()
     {
-        var chain = HandlerChain.For<CreateThingHandler>(x => x.Handle(null), new HandlerGraph());
+        var chain = HandlerChain.For<CreateThingHandler>(x => x.Handle(null!), new HandlerGraph());
         
         chain.TryFindVariable(nameof(CreateThing.Id), ValueSource.Anything, typeof(Guid), out var variable)
             .ShouldBeTrue();
@@ -52,7 +52,7 @@ public class HandlerChain_TryFindVariable
     [Fact]
     public void miss_on_unsupported_value_sources()
     {
-        var chain = HandlerChain.For<CreateThingHandler>(x => x.Handle(null), new HandlerGraph());
+        var chain = HandlerChain.For<CreateThingHandler>(x => x.Handle(null!), new HandlerGraph());
         
         chain.TryFindVariable(nameof(CreateThing.Id), ValueSource.RouteValue, typeof(Guid), out var variable)
             .ShouldBeFalse();

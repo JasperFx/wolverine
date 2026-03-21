@@ -22,7 +22,7 @@ internal class FluentValidationPolicy : IHandlerPolicy
         var registered = container.RegistrationsFor(validatorInterface);
         if (registered.Count() == 1)
         {
-            var method = typeof(FluentValidationExecutor).GetMethod(nameof(FluentValidationExecutor.ExecuteOne))
+            var method = typeof(FluentValidationExecutor).GetMethod(nameof(FluentValidationExecutor.ExecuteOne))!
                 .MakeGenericMethod(chain.MessageType);
 
             var methodCall = new MethodCall(typeof(FluentValidationExecutor), method);
@@ -30,7 +30,7 @@ internal class FluentValidationPolicy : IHandlerPolicy
         }
         else if (registered.Count() > 1)
         {
-            var method = typeof(FluentValidationExecutor).GetMethod(nameof(FluentValidationExecutor.ExecuteMany))
+            var method = typeof(FluentValidationExecutor).GetMethod(nameof(FluentValidationExecutor.ExecuteMany))!
                 .MakeGenericMethod(chain.MessageType);
 
             var methodCall = new MethodCall(typeof(FluentValidationExecutor), method);

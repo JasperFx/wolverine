@@ -33,7 +33,7 @@ internal class SqlServerTenantedMessageStore : ITenantedMessageSource
         _runtime = runtime;
     }
 
-    public ITenantedSource<string> DataSource { get; set; }
+    public ITenantedSource<string> DataSource { get; set; } = null!;
 
     public DatabaseCardinality Cardinality => DataSource.Cardinality;
     public async ValueTask<IMessageStore> FindAsync(string tenantId)
@@ -90,9 +90,9 @@ internal class SqlServerTenantedMessageStore : ITenantedMessageSource
 
     public async Task RefreshAsync(bool withMigration)
     {
-        await _persistence.ConnectionStringTenancy.RefreshAsync();
+        await _persistence.ConnectionStringTenancy!.RefreshAsync();
 
-        foreach (var assignment in _persistence.ConnectionStringTenancy.AllActiveByTenant())
+        foreach (var assignment in _persistence.ConnectionStringTenancy!.AllActiveByTenant())
         {
             // TODO -- some idempotency
             if (!_stores.Contains(assignment.TenantId))

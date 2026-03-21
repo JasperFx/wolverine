@@ -13,7 +13,7 @@ namespace CoreTests.Configuration;
 public class configuring_return_value_actions
 {
     private readonly HandlerChain
-        theChain = HandlerChain.For<finding_service_dependencies_of_a_chain.FakeDudeWithAction>(x => x.Handle(null, null, null), null);
+        theChain = HandlerChain.For<finding_service_dependencies_of_a_chain.FakeDudeWithAction>(x => x.Handle(null!, null!, null!), null!);
 
 
     public class ReturnVariableActionTests
@@ -111,9 +111,9 @@ public class configuring_return_value_actions
 
         public when_calling_method_on_return_variable()
         {
-            theVariable.CallMethodOnReturnVariable<WriteFile>(x => x.Execute(null), "some description" );
+            theVariable.CallMethodOnReturnVariable<WriteFile>(x => x.Execute(null!), "some description" );
 
-            var chain = HandlerChain.For<FooHandler>(x => x.Handle(null), new HandlerGraph());
+            var chain = HandlerChain.For<FooHandler>(x => x.Handle(null!), new HandlerGraph());
             theVariableAction = theVariable.ReturnAction(chain);
         }
 
@@ -170,9 +170,9 @@ public class configuring_return_value_actions
 
         public when_calling_method_on_return_variable_if_not_null()
         {
-            theVariable.CallMethodOnReturnVariableIfNotNull<WriteFile>(x => x.Execute(null), "some description" );
+            theVariable.CallMethodOnReturnVariableIfNotNull<WriteFile>(x => x.Execute(null!), "some description" );
 
-            var chain = HandlerChain.For<FooHandler>(x => x.Handle(null), new HandlerGraph());
+            var chain = HandlerChain.For<FooHandler>(x => x.Handle(null!), new HandlerGraph());
             theVariableAction = theVariable.ReturnAction(chain);
 
             var wrapper = theVariableAction.ShouldBeOfType<CallMethodReturnVariableAction<WriteFile>>().Frames().Single().ShouldBeOfType<IfElseNullGuardFrame.IfNullGuardFrame>();

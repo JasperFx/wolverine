@@ -16,7 +16,7 @@ internal class WaitForMessage<T> : ITrackedCondition
             return;
         }
 
-        if (record.Envelope.Message is T)
+        if (record.Envelope!.Message is T)
         {
             if (UniqueNodeId != Guid.Empty && UniqueNodeId != record.UniqueNodeId)
             {

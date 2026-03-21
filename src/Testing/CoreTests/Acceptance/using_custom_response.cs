@@ -38,21 +38,21 @@ public class using_custom_response : IntegrationContext
     public async Task use_synchronous_response_expect_response()
     {
         var (session, message) = await Host.InvokeMessageAndWaitAsync<TaggedMessage>(new SendTag1("blue"));
-        message.Tag.ShouldBe("blue");
+        message!.Tag.ShouldBe("blue");
     }
 
     [Fact]
     public async Task use_response_that_returns_Task_expect_response()
     {
         var (session, message) = await Host.InvokeMessageAndWaitAsync<TaggedMessage>(new SendTag2("green"));
-        message.Tag.ShouldBe("green");
+        message!.Tag.ShouldBe("green");
     }
-    
+
     [Fact]
     public async Task use_response_that_returns_ValueTask_expect_response()
     {
         var (session, message) = await Host.InvokeMessageAndWaitAsync<TaggedMessage>(new SendTag3("purple"));
-        message.Tag.ShouldBe("purple");
+        message!.Tag.ShouldBe("purple");
     }
 }
 

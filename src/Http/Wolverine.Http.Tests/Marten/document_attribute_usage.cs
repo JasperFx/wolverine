@@ -68,7 +68,7 @@ public class document_attribute_usage : IntegrationContext
         });
 
         var loaded = await session.LoadAsync<Invoice>(invoice.Id);
-        loaded.Paid.ShouldBeTrue();
+        loaded!.Paid.ShouldBeTrue();
     }
 
     [Fact]
@@ -86,6 +86,6 @@ public class document_attribute_usage : IntegrationContext
         });
 
         var loaded = await session.LoadAsync<Invoice>(invoice.Id);
-        loaded.Approved.ShouldBeTrue();
+        loaded!.Approved.ShouldBeTrue();
     }
 }

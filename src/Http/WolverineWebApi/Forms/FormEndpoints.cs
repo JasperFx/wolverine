@@ -115,13 +115,13 @@ public static class FromFormEndpoints{
 
 public class FormWithFile
 {
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
     public IFormFile? File { get; set; }
 }
 
 public class FormWithFiles
 {
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
     public IFormFileCollection? Files { get; set; }
 }
 
@@ -143,10 +143,10 @@ public class AsParametersQuery{
     public Direction EnumNotUsed{get;set;}
 
     [FromQuery]
-    public string StringFromQuery { get; set; }
+    public string StringFromQuery { get; set; } = null!;
     [FromForm]
-    public string StringFromForm { get; set; }
-    public string StringNotUsed { get; set; }
+    public string StringFromForm { get; set; } = null!;
+    public string StringNotUsed { get; set; } = null!;
     [FromQuery]
     public int IntegerFromQuery { get; set; }
     [FromForm]
@@ -164,7 +164,7 @@ public class AsParametersQuery{
     public bool BooleanNotUsed { get; set; }
     
     [FromHeader(Name = "x-string")]
-    public string StringHeader { get; set; }
+    public string StringHeader { get; set; } = null!;
 
     [FromHeader(Name = "x-number")] public int NumberHeader { get; set; } = 5;
     
@@ -177,7 +177,7 @@ public class AsParametersQuery{
 
 public class AsParameterBody
 {
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
     public Direction Direction { get; set; }
     public int Distance { get; set; }
 }
@@ -186,13 +186,13 @@ public class AsParametersQuery2
 {
     // We do a check inside of an HTTP endpoint that this works correctly
     [FromServices, JsonIgnore]
-    public IDocumentStore Store { get; set; }
-    
+    public IDocumentStore Store { get; set; } = null!;
+
     [FromBody]
-    public AsParameterBody Body { get; set; }
-    
+    public AsParameterBody Body { get; set; } = null!;
+
     [FromRoute]
-    public string Id { get; set; }
+    public string Id { get; set; } = null!;
     
     [FromRoute]
     public int Number { get; set; }

@@ -135,7 +135,7 @@ internal class PersistenceWolverineObserver : IWolverineObserver
         {
             NodeNumber = _runtime.Options.Durability.AssignedNodeNumber,
             RecordType = NodeRecordType.AssignmentChanged,
-            Description = x.ToString()
+            Description = x.ToString()!
         }).ToArray();
 
         await _runtime.Storage.Nodes.LogRecordsAsync(records);

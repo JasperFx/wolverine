@@ -85,7 +85,7 @@ public class global_partitioned_sharded_processing
         var counts = envelopes.GroupBy(x => x.Destination);
         foreach (var count in counts)
         {
-            _output.WriteLine(count.Key.ToString() + " had " + count.Count());
+            _output.WriteLine(count.Key?.ToString() + " had " + count.Count());
         }
 
         // In single-node mode, global partitioning routes directly to companion local queues

@@ -11,8 +11,8 @@ namespace Wolverine.MessagePack.Tests;
 
 public class end_to_end : IAsyncLifetime
 {
-    private IHost _publishingHost;
-    private IHost _receivingHost;
+    private IHost _publishingHost = null!;
+    private IHost _receivingHost = null!;
 
     [Fact]
     public async Task end_to_end_message_send_using_messagepack()

@@ -41,7 +41,7 @@ public class ReadAggregateAttribute : WolverineParameterAttribute, IDataRequirem
     /// </summary>
     public bool Required { get; set; } = true;
 
-    public string MissingMessage { get; set; }
+    public string MissingMessage { get; set; } = null!;
 
     public OnMissing OnMissing
     {
@@ -71,7 +71,7 @@ public class ReadAggregateAttribute : WolverineParameterAttribute, IDataRequirem
         }
 
         var frame = new FetchLatestAggregateFrame(parameter.ParameterType, identity);
-        frame.Aggregate.OverrideName(parameter.Name);
+        frame.Aggregate.OverrideName(parameter.Name!);
 
         Variable returnVariable;
         if (Required)
@@ -90,7 +90,7 @@ public class ReadAggregateAttribute : WolverineParameterAttribute, IDataRequirem
         }
 
         // Store deferred assignment for middleware methods added later (Before/After)
-        AggregateHandling.StoreDeferredMiddlewareVariable(chain, parameter.Name, returnVariable);
+        AggregateHandling.StoreDeferredMiddlewareVariable(chain, parameter.Name!, returnVariable);
 
         return returnVariable;
     }
@@ -128,10 +128,10 @@ public class ReadAggregateAttribute : WolverineParameterAttribute, IDataRequirem
 internal class FetchLatestAggregateFrame : AsyncFrame, IBatchableFrame
 {
     private readonly Variable _identity;
-    private Variable _session;
-    private Variable _token;
-    private Variable _batchQuery;
-    private Variable _batchQueryItem;
+    private Variable _session = null!;
+    private Variable _token = null!;
+    private Variable _batchQuery = null!;
+    private Variable _batchQueryItem = null!;
 
     public FetchLatestAggregateFrame(Type aggregateType, Variable identity)
     {

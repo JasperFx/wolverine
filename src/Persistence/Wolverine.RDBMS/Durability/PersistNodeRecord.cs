@@ -24,7 +24,7 @@ public class PersistNodeRecord : IDatabaseOperation, IDoNotReturnData
         foreach (var @event in _events)
         {
             builder.Append("insert into ");
-            builder.Append(_settings.SchemaName);
+            builder.Append(_settings.SchemaName!);
             builder.Append('.');
             builder.Append(DatabaseConstants.NodeRecordTableName);
             builder.Append(" (node_number, event_name, description) values (");
@@ -32,7 +32,7 @@ public class PersistNodeRecord : IDatabaseOperation, IDoNotReturnData
             builder.Append(", ");
             builder.AppendParameter(@event.RecordType.ToString());
             builder.Append(", ");
-            builder.AppendParameter(@event.Description);
+            builder.AppendParameter(@event.Description!);
             builder.Append(");");
         }
     }

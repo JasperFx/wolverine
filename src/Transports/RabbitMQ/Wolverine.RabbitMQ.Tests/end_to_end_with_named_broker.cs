@@ -102,8 +102,8 @@ public class end_to_end_with_named_broker
         var (tracked, response) =
             await publisher.TrackActivity().AlsoTrack(receiver).InvokeAndWaitAsync<ResponseId>(request);
         
-        response.Id.ShouldBe(request.Id);
-        tracked.Received.SingleEnvelope<ResponseId>().Destination.Scheme.ShouldBe("other");
+        response!.Id.ShouldBe(request.Id);
+        tracked.Received.SingleEnvelope<ResponseId>().Destination!.Scheme.ShouldBe("other");
     }
 
 }
