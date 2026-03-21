@@ -15,7 +15,7 @@ public class Reservation
 {
     public Guid Id { get; set; }
     public DateTimeOffset Time { get; set; }
-    public string RestaurantName { get; set; }
+    public string RestaurantName { get; set; } = null!;
     public bool IsConfirmed { get; set; }
 }
 

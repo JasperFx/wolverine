@@ -15,9 +15,9 @@ public class BoardView
 
     public DateTimeOffset? Finished { get; set; }
 
-    public string CloseReason { get; set; }
+    public string CloseReason { get; set; } = null!;
 
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
 
     public Guid Id { get; set; }
 
@@ -58,7 +58,7 @@ public class BoardView
 public class BoardAppointment
 {
     public Guid AppointmentId { get; set; }
-    public string PatientName { get; set; }
+    public string PatientName { get; set; } = null!;
     public DateTimeOffset OriginalEstimatedTime { get; set; }
     public DateTimeOffset CurrentEstimatedTime { get; set; }
     public AppointmentStatus Status { get; set; }
@@ -69,7 +69,7 @@ public class BoardAppointment
 
 public class BoardProvider
 {
-    public Provider Provider { get; set; }
+    public Provider Provider { get; set; } = null!;
     public Guid ShiftId { get; set; }
     public ProviderStatus Status { get; set; }
 }

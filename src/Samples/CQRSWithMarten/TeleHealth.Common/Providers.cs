@@ -25,8 +25,8 @@ public enum ProviderStatus
 public class Provider
 {
     public Guid Id { get; set; }
-    public string FirstName { get; set; }
-    public string LastName { get; set; }
+    public string FirstName { get; set; } = null!;
+    public string LastName { get; set; } = null!;
 
     public bool CanJoin(Board board)
     {

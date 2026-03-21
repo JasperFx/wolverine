@@ -31,8 +31,8 @@ public class BacklogItem : Entity
 {
     public Guid Id { get; private set; }
 
-    public string Description { get; private set; }
-    public virtual Sprint Sprint { get; private set; }
+    public string Description { get; private set; } = null!;
+    public virtual Sprint Sprint { get; private set; } = null!;
     public DateTime CreatedAtUtc { get; private set; } = DateTime.UtcNow;
     
     public void CommitTo(Sprint sprint)
