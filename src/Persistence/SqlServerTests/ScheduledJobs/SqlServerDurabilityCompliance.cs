@@ -52,14 +52,14 @@ public class SqlServerDurabilityCompliance : DurabilityComplianceContext<Trigger
         await using var conn = new SqlConnection(Servers.SqlServerConnectionString);
         conn.Open();
 
-        var name = (string)(await conn
+        var name = (string?)(await conn
             .CreateCommand("select name from receiver.item_created where id = @id")
             .With("id", id)
             .ExecuteScalarAsync());
 
         if (name.IsEmpty())
         {
-            return null;
+            return null!;
         }
 
         return new ItemCreated
@@ -163,17 +163,17 @@ public class CreateItemHandler
 
     public class CreateItemCommand
     {
-        public string Name { get; set; }
+        public string Name { get; set; } = null!;
     }
 
     public class ItemCreatedEvent
     {
-        public Item Item { get; set; }
+        public Item Item { get; set; } = null!;
     }
 
     public class Item
     {
         public Guid Id;
-        public string Name;
+        public string Name = null!;
     }
 }

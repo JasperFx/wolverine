@@ -20,8 +20,8 @@ public class data_operations : IAsyncLifetime
 {
     public static int count = 0;
 
-    private IHost _host;
-    private SqlServerTransport theTransport;
+    private IHost _host = null!;
+    private SqlServerTransport theTransport = null!;
     private IStatefulResource? theResource;
     private SqlServerQueue theQueue;
     private IMessageStore theMessageStore;
@@ -65,7 +65,7 @@ public class data_operations : IAsyncLifetime
 
         theTransport.TryBuildStatefulResource(runtime, out theResource).ShouldBeTrue();
 
-        await theResource.Setup(CancellationToken.None);
+        await theResource!.Setup(CancellationToken.None);
         await theResource.ClearState(CancellationToken.None);
 
         theQueue = theTransport.Queues["one"];
