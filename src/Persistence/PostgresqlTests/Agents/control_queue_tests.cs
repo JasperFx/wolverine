@@ -80,10 +80,10 @@ public class control_queue_tests : PostgresqlContext, IAsyncLifetime
             //.WaitForMessageToBeReceivedAt<Command>(_receiver)
             .ExecuteAndWaitAsync(m => m.EndpointFor(_receiverUri).SendAsync(new Command(10)));
 
-        tracked.Sent.RecordsInOrder().Single(x => x.Envelope.Message!.GetType() == typeof(Command)).ServiceName
+        tracked.Sent.RecordsInOrder().Single(x => x.Envelope!.Message!.GetType() == typeof(Command)).ServiceName!
             .ShouldBe("Sender");
-        tracked.Received.RecordsInOrder().Single(x => x.Envelope.Message!.GetType() == typeof(Command))
-            .ServiceName
+        tracked.Received.RecordsInOrder().Single(x => x.Envelope!.Message!.GetType() == typeof(Command))
+            .ServiceName!
             .ShouldBe("Receiver");
     }
 
@@ -96,18 +96,18 @@ public class control_queue_tests : PostgresqlContext, IAsyncLifetime
             .WaitForMessageToBeReceivedAt<Result>(_sender)
             .InvokeAndWaitAsync<Result>(new Query(13), _receiverUri);
 
-        result.Number.ShouldBe(13);
+        result!.Number.ShouldBe(13);
 
 
-        tracked.Sent.RecordsInOrder().Single(x => x.Envelope.Message!.GetType() == typeof(Query)).ServiceName
+        tracked.Sent.RecordsInOrder().Single(x => x.Envelope!.Message!.GetType() == typeof(Query)).ServiceName!
             .ShouldBe("Sender");
-        tracked.Received.RecordsInOrder().Single(x => x.Envelope.Message!.GetType() == typeof(Query)).ServiceName
+        tracked.Received.RecordsInOrder().Single(x => x.Envelope!.Message!.GetType() == typeof(Query)).ServiceName!
             .ShouldBe("Receiver");
 
-        tracked.Sent.RecordsInOrder().Single(x => x.Envelope.Message!.GetType() == typeof(Result)).ServiceName
+        tracked.Sent.RecordsInOrder().Single(x => x.Envelope!.Message!.GetType() == typeof(Result)).ServiceName!
             .ShouldBe("Receiver");
-        tracked.Received.RecordsInOrder().Single(x => x.Envelope.Message!.GetType() == typeof(Result))
-            .ServiceName
+        tracked.Received.RecordsInOrder().Single(x => x.Envelope!.Message!.GetType() == typeof(Result))
+            .ServiceName!
             .ShouldBe("Sender");
     }
 }

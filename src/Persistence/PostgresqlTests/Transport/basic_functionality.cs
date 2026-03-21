@@ -27,11 +27,11 @@ public class basic_functionality : PostgresqlContext, IAsyncLifetime
         _output = output;
     }
 
-    private IHost theHost;
-    private PostgresqlTransport theTransport;
-    private PostgresqlQueue theQueue;
-    private IMessageStore theMessageStore;
-    private WolverineRuntime theRuntime;
+    private IHost theHost = null!;
+    private PostgresqlTransport theTransport = null!;
+    private PostgresqlQueue theQueue = null!;
+    private IMessageStore theMessageStore = null!;
+    private WolverineRuntime theRuntime = null!;
 
     public async Task InitializeAsync()
     {
