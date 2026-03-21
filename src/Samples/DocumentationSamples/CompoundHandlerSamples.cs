@@ -22,7 +22,7 @@ public class MissingOrderException : Exception
 public class Customer
 {
     public Guid Id { get; set; }
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
 }
 
 #region sample_ShipOrderHandler
@@ -40,7 +40,7 @@ public static class ShipOrderHandler
 
         var customer = await session.LoadAsync<Customer>(command.CustomerId);
 
-        return (order, customer);
+        return (order, customer!);
     }
 
     // By making this method completely synchronous and having it just receive the

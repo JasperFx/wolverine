@@ -7,24 +7,24 @@ namespace DocumentationSamples;
 
 public class HappyMealOrder
 {
-    public string Drink { get; set; }
-    public string Toy { get; set; }
-    public string SideDish { get; set; }
-    public string MainDish { get; set; }
+    public string Drink { get; set; } = null!;
+    public string Toy { get; set; } = null!;
+    public string SideDish { get; set; } = null!;
+    public string MainDish { get; set; } = null!;
 }
 
 #endregion
 
 public class FetchDrink
 {
-    public string DrinkName { get; set; }
+    public string DrinkName { get; set; } = null!;
 }
 
 public class FetchFries;
 
 public class FetchToy
 {
-    public string ToyName { get; set; }
+    public string ToyName { get; set; } = null!;
 }
 
 public class MakeHamburger;
@@ -50,7 +50,7 @@ public class HappyMealSaga : Saga
     // document have an "Id" property, but
     // that can be overridden
     public int Id { get; set; }
-    public HappyMealOrder Order { get; set; }
+    public HappyMealOrder Order { get; set; } = null!;
 
     public bool DrinkReady { get; set; }
     public bool ToyReady { get; set; }
@@ -101,7 +101,7 @@ public class HappyMealSagaNoTuple : Saga
     // document have an "Id" property, but
     // that can be overridden
     public int Id { get; set; }
-    public HappyMealOrder Order { get; set; }
+    public HappyMealOrder Order { get; set; } = null!;
 
     public bool DrinkReady { get; set; }
     public bool ToyReady { get; set; }
@@ -143,7 +143,7 @@ public class HappyMealSagaAllLocal : Saga
     // document have an "Id" property, but
     // that can be overridden
     public int Id { get; set; }
-    public HappyMealOrder Order { get; set; }
+    public HappyMealOrder Order { get; set; } = null!;
 
     public bool DrinkReady { get; set; }
     public bool ToyReady { get; set; }
@@ -204,7 +204,7 @@ public class HappyMealSaga2 : Saga
     // document have an "Id" property, but
     // that can be overridden
     public int Id { get; set; }
-    public HappyMealOrder Order { get; set; }
+    public HappyMealOrder Order { get; set; } = null!;
 
     public bool DrinkReady { get; set; }
     public bool ToyReady { get; set; }
@@ -273,7 +273,7 @@ public class HappyMealSaga3 : Saga
     // document have an "Id" property, but
     // that can be overridden
     public int Id { get; set; }
-    public HappyMealOrder Order { get; set; }
+    public HappyMealOrder Order { get; set; } = null!;
 
     public bool DrinkReady { get; set; }
     public bool ToyReady { get; set; }

@@ -14,8 +14,8 @@ namespace DocumentationSamples
 
         public class PersonBorn
         {
-            public string FirstName { get; set; }
-            public string LastName { get; set; }
+            public string FirstName { get; set; } = null!;
+            public string LastName { get; set; } = null!;
 
             // This is obviously a contrived example
             // so just let this go for now;)
@@ -49,8 +49,8 @@ namespace DocumentationSamples
         [MessageIdentity("person-born")]
         public class PersonBorn
         {
-            public string FirstName { get; set; }
-            public string LastName { get; set; }
+            public string FirstName { get; set; } = null!;
+            public string LastName { get; set; } = null!;
             public int Day { get; set; }
             public int Month { get; set; }
             public int Year { get; set; }
@@ -80,8 +80,8 @@ namespace DocumentationSamples
         [MessageIdentity("person-born", Version = 2)]
         public class PersonBornV2
         {
-            public string FirstName { get; set; }
-            public string LastName { get; set; }
+            public string FirstName { get; set; } = null!;
+            public string LastName { get; set; } = null!;
             public DateTime Birthday { get; set; }
         }
 
@@ -91,8 +91,8 @@ namespace DocumentationSamples
 
         public class PersonBorn : IForwardsTo<PersonBornV2>
         {
-            public string FirstName { get; set; }
-            public string LastName { get; set; }
+            public string FirstName { get; set; } = null!;
+            public string LastName { get; set; } = null!;
             public int Day { get; set; }
             public int Month { get; set; }
             public int Year { get; set; }
@@ -130,8 +130,8 @@ namespace DocumentationSamples
 
     public class MyCustomWriter : IMessageSerializer
     {
-        public Type DotNetType { get; }
-        public string? ContentType { get; }
+        public Type DotNetType { get; } = null!;
+        public string ContentType { get; } = null!;
 
         public byte[] Write(Envelope model)
         {
@@ -143,7 +143,7 @@ namespace DocumentationSamples
             throw new NotImplementedException();
         }
 
-        public object? ReadFromData(byte[]? data)
+        public object ReadFromData(byte[] data)
         {
             throw new NotImplementedException();
         }
