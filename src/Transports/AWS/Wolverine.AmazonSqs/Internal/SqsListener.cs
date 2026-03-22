@@ -18,6 +18,8 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue
     private readonly Task _task;
     private readonly AmazonSqsTransport _transport;
     private readonly ISqsEnvelopeMapper _mapper;
+    private readonly TimeSpan _drainTimeout;
+    private readonly ILogger _logger;
 
     public SqsListener(IWolverineRuntime runtime, AmazonSqsQueue queue, AmazonSqsTransport transport,
         IReceiver receiver)
@@ -29,7 +31,10 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue
 
         _mapper = queue.BuildMapper(runtime);
 
+        _drainTimeout = runtime.DurabilitySettings.DrainTimeout;
+
         var logger = runtime.LoggerFactory.CreateLogger<SqsListener>();
+        _logger = logger;
         _queue = queue;
         _transport = transport;
         _receiver = receiver;
@@ -157,19 +162,34 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue
 
     public ValueTask DisposeAsync()
     {
-        _requeueBlock.Dispose();
-        _cancellation.Cancel();
-        _deadLetterBlock?.Dispose();
+        if (!_cancellation.IsCancellationRequested)
+        {
+            _cancellation.Cancel();
+        }
 
+        _requeueBlock.Dispose();
+        _deadLetterBlock?.Dispose();
         _task.SafeDispose();
         return ValueTask.CompletedTask;
     }
 
     public Uri Address => _queue.Uri;
 
-    public ValueTask StopAsync()
+    public async ValueTask StopAsync()
     {
-        return DisposeAsync();
+        _cancellation.Cancel();
+
+        try
+        {
+            await _task.WaitAsync(_drainTimeout);
+        }
+        catch (Exception e)
+        {
+            if (e is not TaskCanceledException)
+            {
+                _logger.LogDebug(e, "Error waiting for SQS polling task to complete during shutdown for {Uri}", _queue.Uri);
+            }
+        }
     }
 
     public async Task<bool> TryRequeueAsync(Envelope envelope)
