@@ -63,6 +63,6 @@ public static class RecordTeamHandler
 
 public class Team
 {
-    public string Id { get; set; }
+    public string Id { get; set; } = null!;
     public int YearFounded { get; set; }
 }

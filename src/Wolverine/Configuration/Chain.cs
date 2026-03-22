@@ -224,7 +224,7 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
 
         if (type.IsArray)
         {
-            return isMaybeServiceDependency(type.GetElementType());
+            return isMaybeServiceDependency(type.GetElementType()!);
         }
 
         if (ServiceContainer.IsEnumerable(type))
@@ -384,7 +384,7 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
         if (!reports.Any()) return;
         
         var logger = services.GetLoggerOrDefault<ICodeFile>();
-        var options = services.GetService<WolverineOptions>() ?? new WolverineOptions();
+        var options = services!.GetService<WolverineOptions>() ?? new WolverineOptions();
 
         switch (options.ServiceLocationPolicy)
         {

@@ -17,10 +17,10 @@ namespace SqlServerTests.Persistence;
 
 public class SqlServerBackedMessageStoreTests : SqlServerContext, IAsyncLifetime
 {
-    private Envelope persisted;
-    private Envelope theEnvelope;
+    private Envelope persisted = null!;
+    private Envelope theEnvelope = null!;
 
-    private IHost theHost;
+    private IHost theHost = null!;
 
     public override async Task DisposeAsync()
     {
@@ -46,7 +46,7 @@ public class SqlServerBackedMessageStoreTests : SqlServerContext, IAsyncLifetime
         var persistor = theHost.GetRuntime().Storage.As<SqlServerMessageStore>();
 
         persisted = (await persistor.Admin.AllIncomingAsync())
-            .FirstOrDefault(x => x.Id == theEnvelope.Id);
+            .FirstOrDefault(x => x.Id == theEnvelope.Id)!;
     }
 
     [Fact]

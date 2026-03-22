@@ -67,7 +67,7 @@ public class MultiTenantedQueueListener : IListener
 
     private async Task startListening(SqlServerMessageStore store)
     {
-        var listener = new SqlServerQueueListener(_queue, _runtime, _receiver, store.Settings.ConnectionString, store.Name);
+        var listener = new SqlServerQueueListener(_queue, _runtime, _receiver, store.Settings.ConnectionString!, store.Name);
         _listeners = _listeners.AddOrUpdate(store.Name, listener);
         await listener.StartAsync();
 

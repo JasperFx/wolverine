@@ -62,7 +62,7 @@ public class TestCommandHandler
 
 public record TestCommand1(string message);
 
-public class TestCommand1Handler(IMessageContext messageBus)
+public class TestCommand1Handler
 {
     public void Handle(TestCommand1 command)
     {

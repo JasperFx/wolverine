@@ -39,7 +39,7 @@ public class AmazonSnsTransport : BrokerTransport<AmazonSnsTopic>
     public int LocalStackPort { get; set; }
 
     public bool UseLocalStackInDevelopment { get; set; }
-    internal AmazonSqsTransport SQS { get; set; }
+    internal AmazonSqsTransport SQS { get; set; } = null!;
 
     // TODO duplicated code in SqsTransport
     public static string SanitizeSnsName(string identifier)

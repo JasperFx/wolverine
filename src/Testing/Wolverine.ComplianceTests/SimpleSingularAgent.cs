@@ -8,7 +8,7 @@ namespace Wolverine.ComplianceTests;
 public class SimpleSingularAgent : SingularAgent
 {
     private CancellationTokenSource _cancellation = new();
-    private Timer _timer;
+    private Timer _timer = null!;
 
     // The scheme argument is meant to be descriptive and
     // your agent will have the Uri {scheme}:// in all diagnostics

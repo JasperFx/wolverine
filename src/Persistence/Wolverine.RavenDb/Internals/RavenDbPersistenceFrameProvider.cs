@@ -107,7 +107,7 @@ public class RavenDbPersistenceFrameProvider : IPersistenceFrameProvider
 
     public Frame DetermineStorageActionFrame(Type entityType, Variable action, IServiceContainer container)
     {
-        var method = typeof(RavenDbStorageActionApplier).GetMethod("ApplyAction")
+        var method = typeof(RavenDbStorageActionApplier).GetMethod("ApplyAction")!
             .MakeGenericMethod(entityType);
 
         var call = new MethodCall(typeof(RavenDbStorageActionApplier), method);
@@ -141,7 +141,7 @@ public static class RavenDbStorageActionApplier
 internal class DeleteDocumentFrame : SyncFrame
 {
     private readonly Variable _saga;
-    private Variable _session;
+    private Variable _session = null!;
 
     public DeleteDocumentFrame(Variable saga)
     {

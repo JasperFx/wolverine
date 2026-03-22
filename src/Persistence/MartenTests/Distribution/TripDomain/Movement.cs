@@ -16,7 +16,7 @@ public class Movement
         return $"{nameof(Direction)}: {Direction}, {nameof(Distance)}: {Distance}";
     }
 
-    public override bool Equals(object obj)
+    public override bool Equals(object? obj)
     {
         if (ReferenceEquals(null, obj))
         {

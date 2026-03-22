@@ -41,7 +41,7 @@ namespace Wolverine.RabbitMQ.Tests.Bugs;
 public class Bug_DLQ_NotSavedToDatabase : IDisposable
 {
     private readonly ITestOutputHelper _output;
-    private IHost _host;
+    private IHost _host = null!;
 
     public Bug_DLQ_NotSavedToDatabase(ITestOutputHelper output)
     {

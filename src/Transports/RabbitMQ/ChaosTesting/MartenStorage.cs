@@ -80,9 +80,9 @@ public class MartenStorageStrategy : IMessageStorageStrategy
 
 public class MultiDatabaseMartenStorageStrategy : IMessageStorageStrategy
 {
-    private string tenant1ConnectionString;
-    private string tenant2ConnectionString;
-    private string tenant3ConnectionString;
+    private string tenant1ConnectionString = null!;
+    private string tenant2ConnectionString = null!;
+    private string tenant3ConnectionString = null!;
 
     public async Task InitializeAsync()
     {

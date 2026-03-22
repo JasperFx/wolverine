@@ -10,7 +10,7 @@ public readonly partial struct ToyId;
 public class Toy
 {
     public ToyId Id { get; set; }
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
 }
 
 public static class ToyEndpoints

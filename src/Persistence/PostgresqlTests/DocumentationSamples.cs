@@ -16,7 +16,7 @@ public class DocumentationSamples
         {
             var connectionString = builder.Configuration.GetConnectionString("postgres");
             opts.UsePostgresqlPersistenceAndTransport(
-                    connectionString, 
+                    connectionString!,
                     
                     // This argument is the database schema for the envelope storage
                     // If separate logical services are targeting the same physical database,

@@ -53,8 +53,6 @@ public class MultiTenantedChaosSpecifications
         _output = output;
     }
 
-    private MultiTenantedMessageStore _store;
-
     protected async Task execute<TScript>(TransportConfiguration configuration)
         where TScript : ChaosScript, new()
     {

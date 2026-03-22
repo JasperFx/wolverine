@@ -83,15 +83,15 @@ public class from_query_binding : IntegrationContext
     public async Task nullable_bool_on_setter()
     {
         (await forQuerystring("name=Jones&number=95")).NullableFlag.ShouldBeNull();
-        (await forQuerystring("name=Jones&number=95&nullableFlag=true")).NullableFlag.Value.ShouldBeTrue();
-        (await forQuerystring("name=Jones&number=95&NullableFlag=false")).NullableFlag.Value.ShouldBeFalse();
+        (await forQuerystring("name=Jones&number=95&nullableFlag=true")).NullableFlag!.Value.ShouldBeTrue();
+        (await forQuerystring("name=Jones&number=95&NullableFlag=false")).NullableFlag!.Value.ShouldBeFalse();
     }
     
     [Fact]
     public async Task nullable_enum_on_setter()
     {
         (await forQuerystring("name=Jones&number=95")).NullableDirection.ShouldBeNull();
-        (await forQuerystring("name=Jones&number=95&nullableDirection=east")).NullableDirection.Value.ShouldBe(Direction.East);
+        (await forQuerystring("name=Jones&number=95&nullableDirection=east")).NullableDirection!.Value.ShouldBe(Direction.East);
     }
 
     [Fact]

@@ -15,7 +15,7 @@ internal class RabbitMqSender : RabbitMqChannelAgent, ISender
     private readonly IWolverineRuntime _runtime;
     private readonly CachedString _exchangeName;
     private readonly bool _isDurable;
-    private readonly CachedString _routingKey;
+    private readonly CachedString _routingKey = null!;
     private readonly IRabbitMqEnvelopeMapper _mapper;
 
     public RabbitMqSender(RabbitMqEndpoint endpoint, RabbitMqTransport transport,

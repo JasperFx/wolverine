@@ -14,7 +14,7 @@ public class AppointmentProjection : SingleStreamProjection<Appointment, Guid>
     {
         var patient = await session.LoadAsync<Patient>(requested.PatientId);
 
-        return new Appointment(patient.FirstName, patient.LastName)
+        return new Appointment(patient!.FirstName, patient.LastName)
         {
             Status = AppointmentStatus.Requested
         };
@@ -29,7 +29,7 @@ public class AppointmentProjection : SingleStreamProjection<Appointment, Guid>
     public async Task Apply(AppointmentScheduled scheduled, Appointment appointment, IQuerySession session)
     {
         var provider = await session.LoadAsync<Provider>(scheduled.ProviderId);
-        appointment.ProviderName = $"{provider.FirstName} {provider.LastName}";
+        appointment.ProviderName = $"{provider!.FirstName} {provider.LastName}";
         appointment.Status = AppointmentStatus.Scheduled;
         appointment.EstimatedTime = scheduled.EstimatedTime;
     }

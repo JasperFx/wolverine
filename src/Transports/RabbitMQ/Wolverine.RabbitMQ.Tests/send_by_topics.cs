@@ -15,6 +15,7 @@ using Xunit;
 
 namespace Wolverine.RabbitMQ.Tests;
 
+[Trait("Category", "Flaky")]
 public class send_by_topics : IDisposable
 {
     private readonly IHost theGreenReceiver;
@@ -232,7 +233,7 @@ public class send_by_topics : IDisposable
 
         var record = session.Received.RecordsInOrder().Single(x => x.ServiceName == "Blue");
 
-        record.Envelope.Message.ShouldBeOfType<RoutedMessage>()
+        record.Envelope!.Message.ShouldBeOfType<RoutedMessage>()
             .Id.ShouldBe(routed.Id);
     }
 
@@ -250,11 +251,12 @@ public class send_by_topics : IDisposable
             .SendMessageAndWaitAsync(routed, new DeliveryOptions{ScheduleDelay = 3.Seconds()});
 
         var record = session.Received.RecordsInOrder().Single(x => x.ServiceName == "Blue");
-         record.Envelope.Message.ShouldBeOfType<RoutedMessage>()
+         record.Envelope!.Message.ShouldBeOfType<RoutedMessage>()
             .Id.ShouldBe(routed.Id);
     }
 }
 
+[Trait("Category", "Flaky")]
 public class send_by_topics_durable : IDisposable
 {
     private readonly IHost theGreenReceiver;
@@ -415,7 +417,7 @@ public class send_by_topics_durable : IDisposable
 
         var record = session.Received.RecordsInOrder().Single(x => x.ServiceName == "Blue");
 
-        record.Envelope.Message.ShouldBeOfType<RoutedMessage>()
+        record.Envelope!.Message.ShouldBeOfType<RoutedMessage>()
             .Id.ShouldBe(routed.Id);
     }
 
@@ -434,7 +436,7 @@ public class send_by_topics_durable : IDisposable
 
         var record = session.Received.RecordsInOrder().Single(x => x.ServiceName == "Blue");
 
-        record.Envelope.Message.ShouldBeOfType<RoutedMessage>()
+        record.Envelope!.Message.ShouldBeOfType<RoutedMessage>()
             .Id.ShouldBe(routed.Id);
     }
 }
@@ -458,7 +460,7 @@ public class ThirdMessage : FirstMessage;
 
 public class RoutedMessage
 {
-    public string TopicName { get; set; }
+    public string TopicName { get; set; } = null!;
     public Guid Id { get; set; } = Guid.NewGuid();
 }
 

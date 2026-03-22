@@ -27,7 +27,7 @@ namespace Wolverine.Http.Tests.MultiTenancy;
 public class multi_tenancy_detection_and_integration : IAsyncDisposable, IDisposable
 {
     private readonly ITestOutputHelper _output;
-    private IAlbaHost theHost;
+    private IAlbaHost theHost = null!;
 
     public multi_tenancy_detection_and_integration(ITestOutputHelper output)
     {
@@ -90,7 +90,7 @@ public class multi_tenancy_detection_and_integration : IAsyncDisposable, IDispos
             app.MapWolverineEndpoints(configure);
         }, securityStub);
 
-        var graph = theHost.Services.GetRequiredService<WolverineHttpOptions>().Endpoints;
+        var graph = theHost.Services.GetRequiredService<WolverineHttpOptions>().Endpoints!;
         foreach (var chain in graph.Chains.OrderBy(x => x.Description))
         {
             _output.WriteLine(chain.Description);
@@ -374,10 +374,10 @@ public class multi_tenancy_detection_and_integration : IAsyncDisposable, IDispos
         
 
 
-        var chain = theHost.Services.GetRequiredService<WolverineHttpOptions>().Endpoints
+        var chain = theHost.Services.GetRequiredService<WolverineHttpOptions>().Endpoints!
             .ChainFor("POST", "/tenant/{tenant}/formdata");
-        
-        chain.IsFormData.ShouldBeTrue();
+
+        chain!.IsFormData.ShouldBeTrue();
 
         var formData = new Dictionary<string, string> { { "value", "blue" } };
         var result = await theHost.Scenario(x =>
@@ -415,7 +415,7 @@ public static class TenantedEndpoints
     public static string GetTenantIdFromRoute(IMessageBus bus, TenantId tenantId)
     {
         tenantId.Value.ShouldBe(bus.TenantId);
-        return bus.TenantId;
+        return bus.TenantId!;
     }
 
     [Authorize]
@@ -423,10 +423,10 @@ public static class TenantedEndpoints
     public static string GetTenantIdFromWhatever(IMessageBus bus, HttpContext httpContext, TenantId tenantId)
     {
         // IHttpActivityFeature.Activity is set to null after the request, so to access the
-        // Activity in the test we capture the Activity into a custom Feature 
+        // Activity in the test we capture the Activity into a custom Feature
         httpContext.Features.Set(CustomActivityFeature.FromHttpContext(httpContext));
         tenantId.Value.ShouldBe(bus.TenantId);
-        return bus.TenantId;
+        return bus.TenantId!;
     }
 
     [WolverineGet("/todo/{id}")]
@@ -451,21 +451,21 @@ public static class TenantedEndpoints
     public static string GetTenantWithArgs1(IMessageBus bus, TenantId tenantId)
     {
         tenantId.Value.ShouldBe(bus.TenantId);
-        return bus.TenantId;
+        return bus.TenantId!;
     }
 
     [WolverineGet("/tenant/context/{tenant}")]
     public static string GetTenantWithArgs1(IMessageContext context, TenantId tenantId)
     {
         tenantId.Value.ShouldBe(context.TenantId);
-        return context.TenantId;
+        return context.TenantId!;
     }
 
     [WolverineGet("/tenant/both/{tenant}")]
     public static string GetTenantWithArgs1(IMessageContext context, IMessageBus bus, TenantId tenantId)
     {
         bus.TenantId.ShouldBe(context.TenantId);
-        return context.TenantId;
+        return context.TenantId!;
     }
     
     // in this combination, TenantId needs the [FromServices] attribute, otherwise codegen tries to 
@@ -512,9 +512,9 @@ public record CreateTodo(string Id, string Description);
 
 public class TenantTodo : ITenanted
 {
-    public string Id { get; set; }
-    public string Description { get; set; }
-    public string TenantId { get; set; }
+    public string Id { get; set; } = null!;
+    public string Description { get; set; } = null!;
+    public string? TenantId { get; set; }
 }
 
 // Custom HttpContext Feature used to capture the Activity

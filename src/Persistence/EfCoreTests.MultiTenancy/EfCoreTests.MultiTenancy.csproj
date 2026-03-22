@@ -4,6 +4,7 @@
         <IsPackable>false</IsPackable>
         <IsTestProject>true</IsTestProject>
         <TargetFrameworks>net9.0</TargetFrameworks>
+        <NoWarn>$(NoWarn);CS0436</NoWarn>
     </PropertyGroup>
 
     <ItemGroup>

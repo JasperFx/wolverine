@@ -14,7 +14,7 @@ namespace MartenTests;
 // with Marten, so it's here.
 public class missing_data_handling_with_entity_attributes : IAsyncLifetime
 {
-    private IHost _host;
+    private IHost _host = null!;
 
     public async Task InitializeAsync()
     {

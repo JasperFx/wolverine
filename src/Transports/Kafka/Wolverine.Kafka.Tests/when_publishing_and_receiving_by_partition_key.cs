@@ -8,6 +8,7 @@ using Wolverine.Tracking;
 
 namespace Wolverine.Kafka.Tests;
 
+[Trait("Category", "Flaky")]
 public class when_publishing_and_receiving_by_partition_key : IAsyncLifetime
 {
     #region sample_publish_to_kafka_by_partition_key
@@ -19,14 +20,14 @@ public class when_publishing_and_receiving_by_partition_key : IAsyncLifetime
 
     #endregion
     
-    private IHost _sender;
-    private IHost _receiver;
+    private IHost _sender = null!;
+    private IHost _receiver = null!;
     public async Task InitializeAsync()
     {
         _sender = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.UseKafka("localhost:9092").AutoProvision();
+                opts.UseKafka(KafkaContainerFixture.ConnectionString).AutoProvision();
                 opts.Policies.DisableConventionalLocalRouting();
 
                 opts.Services.AddResourceSetupOnStartup();
@@ -40,7 +41,7 @@ public class when_publishing_and_receiving_by_partition_key : IAsyncLifetime
         _receiver = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.UseKafka("localhost:9092").AutoProvision();
+                opts.UseKafka(KafkaContainerFixture.ConnectionString).AutoProvision();
                 opts.ListenToKafkaTopic("colorswithkey")
                 .ProcessInline();
 

@@ -10,7 +10,7 @@ namespace Wolverine.Kafka.Tests;
 
 public class propagate_group_id_to_partition_key : IAsyncLifetime
 {
-    private IHost _host;
+    private IHost _host = null!;
 
     public async Task InitializeAsync()
     {
@@ -19,7 +19,7 @@ public class propagate_group_id_to_partition_key : IAsyncLifetime
             {
                 opts.ServiceName = "PropagateGroupIdTests";
 
-                opts.UseKafka("localhost:9092").AutoProvision();
+                opts.UseKafka(KafkaContainerFixture.ConnectionString).AutoProvision();
 
                 // Enable the feature under test
                 opts.Policies.PropagateGroupIdToPartitionKey();

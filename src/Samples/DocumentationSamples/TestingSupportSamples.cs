@@ -106,7 +106,7 @@ public class AccountHandlerTests
         messages
             .ShouldHaveMessageOfType<LowBalanceDetected>(delivery =>
             {
-                delivery.ScheduleDelay.Value.ShouldNotBe(TimeSpan.Zero);
+                delivery!.ScheduleDelay!.Value.ShouldNotBe(TimeSpan.Zero);
             })
             .AccountId.ShouldBe(account.Id);
 
@@ -250,7 +250,7 @@ public class RandomFileChange
 
 public class When_message_is_sent : IAsyncLifetime
 {
-    private IHost _host;
+    private IHost _host = null!;
 
     public async Task InitializeAsync()
     {

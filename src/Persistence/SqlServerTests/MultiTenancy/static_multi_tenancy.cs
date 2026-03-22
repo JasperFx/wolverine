@@ -149,11 +149,11 @@ wolverinedb://sqlserver/localhost/db2/static_multi_tenancy2
 public class RedSaga : Saga
 {
     public Guid Id { get; set; }
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
 }
 
 public class BlueSaga : Saga
 {
     public Guid Id { get; set; }
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
 }

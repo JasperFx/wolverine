@@ -100,7 +100,7 @@ internal class LocalRouting : IMessageRouteSource
         }
 
         var endpoint = options.Transports.GetOrCreate<LocalTransport>()
-            .QueueFor(batching.LocalExecutionQueueName);
+            .QueueFor(batching.LocalExecutionQueueName!);
 
         return [new MessageRoute(messageType, endpoint, runtime)];
 

@@ -9,6 +9,7 @@ using Wolverine.Util;
 
 namespace Wolverine.AmazonSqs.Tests.ConventionalRouting;
 
+[Trait("Category", "Flaky")]
 public class conventional_listener_discovery : ConventionalRoutingContext
 {
     [Fact]
@@ -18,7 +19,7 @@ public class conventional_listener_discovery : ConventionalRoutingContext
         {
             if (t == typeof(PublishedMessage))
             {
-                return null; // should not be routed
+                return null!; // should not be routed
             }
 
             return t.ToMessageTypeName().Replace('.', '-');

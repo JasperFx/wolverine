@@ -13,7 +13,7 @@ public class TopicMessage1;
 
 public class ColorMessagee
 {
-    public string Color { get; set; }
+    public string Color { get; set; } = null!;
 }
 
 [MessageIdentity("one")]

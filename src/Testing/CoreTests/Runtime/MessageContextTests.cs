@@ -136,7 +136,7 @@ public class MessageContextTests
         theEnvelope.TenantId.ShouldBe(theContext.TenantId);
 
         theEnvelope.SagaId.ShouldBe("some saga");
-        theEnvelope.ConversationId.ShouldBe(theContext.Envelope.ConversationId);
+        theEnvelope.ConversationId.ShouldBe(theContext.Envelope!.ConversationId);
 
         theEnvelope.Source.ShouldBe("MyService");
         theEnvelope.CorrelationId.ShouldBe(theContext.CorrelationId);
@@ -320,7 +320,7 @@ public class MessageContextTests
     [Fact]
     public void correlation_id_should_be_same_as_original_envelope()
     {
-        theContext.CorrelationId.ShouldBe(theContext.Envelope.CorrelationId);
+        theContext.CorrelationId.ShouldBe(theContext.Envelope!.CorrelationId);
     }
 
     [Fact]

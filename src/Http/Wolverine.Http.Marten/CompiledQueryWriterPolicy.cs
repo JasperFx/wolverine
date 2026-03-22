@@ -37,7 +37,7 @@ public class CompiledQueryWriterPolicy : IResourceWriterPolicy
         {
             // This call runs the query
             var queryCall =
-                typeof(MartenQueryMethodCall<,>).CloseAndBuildAs<MethodCall>(result, arguments);
+                typeof(MartenQueryMethodCall<,>).CloseAndBuildAs<MethodCall>(result!, arguments);
             chain.Postprocessors.Add(queryCall);
 
             // This call writes the response directly to the HttpContext as a string
@@ -50,7 +50,7 @@ public class CompiledQueryWriterPolicy : IResourceWriterPolicy
         {
 
             var writeJsonCall =
-                typeof(MartenWriteJsonToStreamMethodCall<,>).CloseAndBuildAs<MethodCall>(result,
+                typeof(MartenWriteJsonToStreamMethodCall<,>).CloseAndBuildAs<MethodCall>(result!,
                     (_responseType, _successStatusCode), arguments);
             chain.Postprocessors.Add(writeJsonCall);
         }
@@ -59,7 +59,7 @@ public class CompiledQueryWriterPolicy : IResourceWriterPolicy
     }
 }
 
-public class MartenQueryMethodCall<TDoc, TOut> : MethodCall
+public class MartenQueryMethodCall<TDoc, TOut> : MethodCall where TDoc : notnull
 {
     public MartenQueryMethodCall(Variable resultVariable) : base(typeof(IDocumentSession), FindMethod())
     {
@@ -73,7 +73,7 @@ public class MartenQueryMethodCall<TDoc, TOut> : MethodCall
     }
 }
 
-public class MartenWriteJsonToStreamMethodCall<TDoc, TOut> : MethodCall
+public class MartenWriteJsonToStreamMethodCall<TDoc, TOut> : MethodCall where TDoc : notnull
 {
     public MartenWriteJsonToStreamMethodCall(Variable resultVariable, (string responseType, int successStatusCode) options) : base(typeof(QueryableExtensions), FindMethod(resultVariable))
     {

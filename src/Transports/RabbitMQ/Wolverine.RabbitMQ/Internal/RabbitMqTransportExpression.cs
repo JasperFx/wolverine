@@ -89,7 +89,7 @@ public class RabbitMqTransportExpression : BrokerExpression<RabbitMqTransport, R
             throw new ArgumentNullException(nameof(configure));
         }
 
-        configure(Transport.ConnectionFactory);
+        configure(Transport.ConnectionFactory!);
 
         return this;
     }

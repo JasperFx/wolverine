@@ -21,9 +21,9 @@ public class LocalPostgresqlBackedFixture : TransportComplianceFixture, IAsyncLi
         });
     }
 
-    public async Task DisposeAsync()
+    public new async Task DisposeAsync()
     {
-        await DisposeAsync();
+        await base.DisposeAsync();
     }
 }
 

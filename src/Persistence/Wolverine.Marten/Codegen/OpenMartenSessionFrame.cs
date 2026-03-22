@@ -14,7 +14,7 @@ internal class OpenMartenSessionFrame : AsyncFrame
     private Variable? _context;
     private Variable? _factory;
     private Variable? _martenFactory;
-    private Variable _tenantId;
+    private Variable _tenantId = null!;
     private bool _justCast;
 
     public OpenMartenSessionFrame(Type sessionType)

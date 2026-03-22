@@ -83,7 +83,7 @@ internal partial class TrackedSession : ITrackedSession
     public T FindSingleTrackedMessageOfType<T>()
     {
         var messages = AllRecordsInOrder()
-            .Select(x => x.Envelope.Message).Where(x => x != null)
+            .Select(x => x.Envelope!.Message).Where(x => x != null)
             .OfType<T>()
             .Distinct().ToArray();
 
@@ -107,7 +107,7 @@ internal partial class TrackedSession : ITrackedSession
     {
         var messages = AllRecordsInOrder()
             .Where(x => x.MessageEventType == eventType)
-            .Select(x => x.Envelope.Message)
+            .Select(x => x.Envelope!.Message)
             .Where(x => x != null)
             .OfType<T>()
             .Distinct().ToArray();
@@ -129,7 +129,7 @@ internal partial class TrackedSession : ITrackedSession
         return _envelopes
             .SelectMany(x => x.Records)
             .Where(x => x.MessageEventType == eventType)
-            .Where(x => x.Envelope.Message is T)
+            .Where(x => x.Envelope!.Message is T)
             .ToArray();
     }
 
@@ -137,7 +137,7 @@ internal partial class TrackedSession : ITrackedSession
     {
         return _envelopes
             .SelectMany(x => x.Records)
-            .Where(x => x.Envelope.Message is T)
+            .Where(x => x.Envelope!.Message is T)
             .ToArray();
     }
 
@@ -174,7 +174,7 @@ internal partial class TrackedSession : ITrackedSession
     public Task<ITrackedSession> PlayScheduledMessagesAsync(TimeSpan timeout)
     {
         var serviceName = _primaryHost.GetRuntime().Options.ServiceName;
-        var recordsInOrder = _envelopes.SelectMany(x => x.Records).Where(x => x.MessageEventType == MessageEventType.Scheduled || x.Envelope.Status == EnvelopeStatus.Scheduled || x.WasScheduled).ToArray();
+        var recordsInOrder = _envelopes.SelectMany(x => x.Records).Where(x => x.MessageEventType == MessageEventType.Scheduled || x.Envelope!.Status == EnvelopeStatus.Scheduled || x.WasScheduled).ToArray();
         var records = recordsInOrder.Where(x => x.ServiceName == serviceName).ToArray();
         if (!records.Any())
         {
@@ -194,13 +194,13 @@ internal partial class TrackedSession : ITrackedSession
 
     internal async Task ReplayAll(IMessageContext context, EnvelopeRecord[] records)
     {
-        var envelopes = records.Select(x => x.Envelope).Distinct().ToArray();
-        
+        var envelopes = records.Select(x => x.Envelope!).Distinct().ToArray();
+
         foreach (var envelope in envelopes)
         {
-            if (envelope.Destination.Scheme == TransportConstants.Local)
+            if (envelope!.Destination!.Scheme == TransportConstants.Local)
             {
-                await context.InvokeAsync(envelope.Message);
+                await context.InvokeAsync(envelope.Message!);
             }
             else
             {
@@ -342,7 +342,7 @@ internal partial class TrackedSession : ITrackedSession
             writer.WriteLine($"Configure the tracked activity with {nameof(TrackedSessionConfiguration.IgnoreFailureAcks)}() to ignore these failure acks in the test.");
             foreach (EnvelopeRecord record in records)
             {
-                writer.WriteLine(record.Message.As<FailureAcknowledgement>().Message);
+                writer.WriteLine(record.Message!.As<FailureAcknowledgement>().Message);
             }
 
             throw new Exception(writer.ToString());
@@ -387,7 +387,7 @@ internal partial class TrackedSession : ITrackedSession
 
         // Ignore these
         var messageType = envelope.Message?.GetType();
-        if (_ignoreMessageRules.Any(x => x(messageType)))
+        if (_ignoreMessageRules.Any(x => x(messageType!)))
         {
             return;
         }

@@ -58,7 +58,7 @@ public class using_an_aggregate_that_handles_commands : PostgresqlContext, IDisp
     internal async Task<SelfLetteredAggregate> LoadAggregate()
     {
         await using var session = theStore.LightweightSession();
-        return await session.LoadAsync<SelfLetteredAggregate>(theStreamId);
+        return (await session.LoadAsync<SelfLetteredAggregate>(theStreamId))!;
     }
 
     internal async Task OnAggregate(Action<SelfLetteredAggregate> assertions)

@@ -28,7 +28,7 @@ public record FromQueryAggregateHandlerEvent(Guid Id, string Something);
     public class FromQueryAggregateHandlerAggregate
     {
         public Guid Id { get; set; }
-        public string Something{get;set;}
+        public string Something{get;set;} = null!;
 
         public void Apply(FromQueryAggregateHandlerEvent e){
             this.Id = e.Id;

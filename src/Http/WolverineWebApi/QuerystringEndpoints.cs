@@ -118,11 +118,11 @@ public record AliasedIntArrayQuery([FromQuery(Name = "n")] int[] Numbers);
 
 public class BigQuery
 {
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
     public int Number { get; set; }
     public Direction Direction { get; set; }
-    public string[] Values { get; set; }
-    public int[] Numbers { get; set; }
+    public string[] Values { get; set; } = null!;
+    public int[] Numbers { get; set; } = null!;
 
     public bool Flag { get; set; }
 
@@ -137,15 +137,15 @@ public class BigQuery
     public List<string> ListValues { get; set; } = new();
     public List<Direction> EnumListValues { get; set; } = new();
 
-    public List<int> IntList { get; set; }
+    public List<int> IntList { get; set; } = null!;
 
     [FromQuery(Name = "v")]
     [FromForm(Name = "v")]
-    public string[] AliasedValues { get; set; }
+    public string[] AliasedValues { get; set; } = null!;
 
     [FromQuery(Name = "n")]
     [FromForm(Name = "n")]
-    public int[] AliasedNumbers { get; set; }
+    public int[] AliasedNumbers { get; set; } = null!;
 
     [FromQuery(Name = "d")]
     [FromForm(Name = "d")]

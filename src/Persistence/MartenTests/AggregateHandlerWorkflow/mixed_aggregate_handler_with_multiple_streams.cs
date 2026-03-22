@@ -34,7 +34,7 @@ public class mixed_aggregate_handler_with_multiple_streams
         await session.SaveChangesAsync();
 
         var (tracked, account) = await host.InvokeMessageAndWaitAsync<XAccount>(new MakePurchase(accountId, inventoryId, 30));
-        account.Balance.ShouldBe(1700);
+        account!.Balance.ShouldBe(1700);
         
     }
 }
@@ -67,7 +67,7 @@ public record Drawdown(int Quantity);
 public class Inventory
 {
     public Guid Id { get; set; }
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
     public int Quantity { get; set; }
     public double UnitPrice { get; set; }
 
@@ -98,8 +98,8 @@ public static class MakePurchaseHandler
 
         [WriteAggregate] IEventStream<Inventory> inventory)
     {
-        if (command.Number > inventory.Aggregate.Quantity ||
-            (command.Number * inventory.Aggregate.UnitPrice) > account.Aggregate.Balance)
+        if (command.Number > inventory.Aggregate!.Quantity ||
+            (command.Number * inventory.Aggregate.UnitPrice) > account.Aggregate!.Balance)
         {
             // Do Nothing!
             return new UpdatedAggregate<XAccount>();

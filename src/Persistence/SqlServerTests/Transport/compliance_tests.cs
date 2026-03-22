@@ -43,9 +43,9 @@ public class SqlTransportDurableFixture : TransportComplianceFixture, IAsyncLife
         });
     }
 
-    public async Task DisposeAsync()
+    public new async Task DisposeAsync()
     {
-        await DisposeAsync();
+        await base.DisposeAsync();
     }
 }
 
@@ -91,9 +91,9 @@ public class SqlTransportBufferedFixture : TransportComplianceFixture, IAsyncLif
         });
     }
 
-    public async Task DisposeAsync()
+    public new async Task DisposeAsync()
     {
-        await DisposeAsync();
+        await base.DisposeAsync();
     }
 }
 

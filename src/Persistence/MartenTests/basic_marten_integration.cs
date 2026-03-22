@@ -20,7 +20,7 @@ namespace MartenTests;
 
 public class basic_marten_integration : PostgresqlContext, IAsyncLifetime
 {
-    private IHost theHost;
+    private IHost theHost = null!;
 
     public async Task InitializeAsync()
     {

@@ -50,7 +50,7 @@ public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifet
         });
     }
 
-    public LocalMqttBroker Broker { get; private set; }
+    public LocalMqttBroker Broker { get; private set; } = null!;
 
     public new async Task DisposeAsync()
     {

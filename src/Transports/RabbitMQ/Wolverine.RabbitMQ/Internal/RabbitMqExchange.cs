@@ -57,7 +57,7 @@ public class RabbitMqExchange : RabbitMqEndpoint, IRabbitMqExchange
     public ExchangeType ExchangeType { get; set; } = ExchangeType.Fanout;
     public bool AutoDelete { get; set; } = false;
 
-    public IDictionary<string, object> Arguments { get; } = new Dictionary<string, object>();
+    public IDictionary<string, object?> Arguments { get; } = new Dictionary<string, object?>();
     
     internal bool HasExchangeBindings => _exchangeBindings.Count > 0;
 
@@ -87,7 +87,7 @@ public class RabbitMqExchange : RabbitMqEndpoint, IRabbitMqExchange
         {
             foreach (var argument in arguments)
             {
-                binding.Arguments.Add(argument);
+                binding.Arguments.Add(argument.Key, argument.Value);
             }
         }
         _exchangeBindings.Add(binding);

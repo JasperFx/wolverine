@@ -39,7 +39,7 @@ public class open_api_generation : IntegrationContext
     {
         var opType = Enum.Parse<OperationType>(chain.HttpMethods.Single(), true);
 
-        var (item, op) = FindOpenApiDocument(opType, chain.RoutePattern.RawText);
+        var (item, op) = FindOpenApiDocument(opType, chain.RoutePattern!.RawText!);
 
         item.ShouldNotBeNull();
         op.ShouldNotBeNull();

@@ -12,7 +12,7 @@ namespace CoreTests.Acceptance;
 public class multi_tenancy : IAsyncLifetime
 {
     private TenantedMessageTracker theTracker = new TenantedMessageTracker();
-    private IHost _host;
+    private IHost _host = null!;
 
     public async Task InitializeAsync()
     {
@@ -94,23 +94,23 @@ public static class TenantedHandler
     {
         tenantId.Value.ShouldBe(envelope.TenantId);
         
-        tracker.TrackedOne[message.Id] = envelope.TenantId;
-        return (new TenantedResult(envelope.TenantId), new TenantedMessage2(message.Id));
+        tracker.TrackedOne[message.Id] = envelope.TenantId!;
+        return (new TenantedResult(envelope.TenantId!), new TenantedMessage2(message.Id));
     }
 
     public static TenantedMessage3 Handle(TenantedMessage2 message, Envelope envelope, TenantedMessageTracker tracker, TenantId tenantId)
     {
         tenantId.Value.ShouldBe(envelope.TenantId);
-        
-        tracker.TrackedTwo[message.Id] = envelope.TenantId;
+
+        tracker.TrackedTwo[message.Id] = envelope.TenantId!;
         return new TenantedMessage3(message.Id);
     }
 
     public static void Handle(TenantedMessage3 message, Envelope envelope, TenantedMessageTracker tracker, TenantId tenantId)
     {
         tenantId.Value.ShouldBe(envelope.TenantId);
-        
-        tracker.TrackedThree[message.Id] = envelope.TenantId;
+
+        tracker.TrackedThree[message.Id] = envelope.TenantId!;
     }
 
     public static void Handle(TenantedResult result) => Debug.WriteLine("Got a tracked result");

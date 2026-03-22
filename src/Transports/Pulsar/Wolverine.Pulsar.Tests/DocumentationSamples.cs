@@ -17,7 +17,7 @@ public static class DocumentationSamples
             opts.UsePulsar(c =>
             {
                 var pulsarUri = builder.Configuration.GetValue<Uri>("pulsar");
-                c.ServiceUrl(pulsarUri);
+                c.ServiceUrl(pulsarUri!);
                 
                 // Any other configuration you want to apply to your
                 // Pulsar client
@@ -60,7 +60,7 @@ public static class DocumentationSamples
             opts.UsePulsar(c =>
             {
                 var pulsarUri = builder.Configuration.GetValue<Uri>("pulsar");
-                c.ServiceUrl(pulsarUri);
+                c.ServiceUrl(pulsarUri!);
             });
 
             // Listen for incoming messages from a Pulsar topic
@@ -91,7 +91,7 @@ public static class DocumentationSamples
             opts.UsePulsar(c =>
             {
                 var pulsarUri = builder.Configuration.GetValue<Uri>("pulsar");
-                c.ServiceUrl(pulsarUri);
+                c.ServiceUrl(pulsarUri!);
             });
 
             // Disable unsubscribe on close for all Pulsar endpoints

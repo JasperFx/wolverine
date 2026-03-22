@@ -36,10 +36,10 @@ public class MessageConsumer
 
 public class Request
 {
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
 }
 
 public class Response
 {
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
 }

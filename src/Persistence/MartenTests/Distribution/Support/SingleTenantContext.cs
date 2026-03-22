@@ -26,8 +26,8 @@ public abstract class SingleTenantContext : IAsyncLifetime
 {
     private readonly List<IHost> _hosts = new();
     private readonly ITestOutputHelper _output;
-    protected IHost theOriginalHost;
-    internal EventSubscriptionAgentFamily theProjectionAgents;
+    protected IHost theOriginalHost = null!;
+    internal EventSubscriptionAgentFamily theProjectionAgents = null!;
 
     public SingleTenantContext(ITestOutputHelper output)
     {

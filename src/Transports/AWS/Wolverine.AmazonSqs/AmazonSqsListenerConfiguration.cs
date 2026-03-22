@@ -147,7 +147,7 @@ public class AmazonSqsListenerConfiguration : ListenerConfiguration<AmazonSqsLis
         add(e =>
         {
             e.DefaultSerializer = new NewtonsoftSerializer(new JsonSerializerSettings());
-            e.Mapper = new NServiceBusEnvelopeMapper(replyQueueName, e);
+            e.Mapper = new NServiceBusEnvelopeMapper(replyQueueName!, e);
         });
 
         return this;
@@ -155,7 +155,7 @@ public class AmazonSqsListenerConfiguration : ListenerConfiguration<AmazonSqsLis
 
     public AmazonSqsListenerConfiguration UseMassTransitInterop(Action<IMassTransitInterop>? configure = null)
     {
-        add(e => e.Mapper = new MassTransitMapper(Endpoint as IMassTransitInteropEndpoint));
+        add(e => e.Mapper = new MassTransitMapper((Endpoint as IMassTransitInteropEndpoint)!));
         return this;
     }
     
@@ -261,7 +261,7 @@ internal class NServiceBusEnvelopeMapper : ISqsEnvelopeMapper
 
         if (sqs.Headers.TryGetValue("NServiceBus.EnclosedMessageTypes", out var messageTypeName))
         {
-            Type messageType = Type.GetType(messageTypeName);
+            Type? messageType = Type.GetType(messageTypeName);
             if (messageType != null)
             {
                 envelope.MessageType = messageType.ToMessageTypeName();
@@ -275,18 +275,18 @@ internal class NServiceBusEnvelopeMapper : ISqsEnvelopeMapper
     
     public string BuildMessageBody(Envelope envelope)
     {
-        var data = Convert.ToBase64String(_serializer.WriteMessage(envelope.Message));
+        var data = Convert.ToBase64String(_serializer.WriteMessage(envelope.Message!));
         var sqs = new SqsEnvelope(data, new())
         {
             Headers =
             {
                 ["NServiceBus.MessageId"] = envelope.Id.ToString(),
                 ["NServiceBus.ConversationId"] = envelope.ConversationId.ToString(),
-                ["NServiceBus.CorrelationId"] = envelope.CorrelationId,
+                ["NServiceBus.CorrelationId"] = envelope.CorrelationId!,
                 ["NServiceBus.ReplyToAddress"] = _replyName,
                 ["NServiceBus.ContentType"] = "application/json",
                 ["NServiceBus.TimeSent"] = envelope.SentAt.ToString("yyyy-MM-dd HH:mm:ss:ffffff Z"),
-                ["NServiceBus.EnclosedMessageTypes"] = envelope.Message.GetType().ToMessageTypeName()
+                ["NServiceBus.EnclosedMessageTypes"] = envelope.Message!.GetType().ToMessageTypeName()
             }
         };
 

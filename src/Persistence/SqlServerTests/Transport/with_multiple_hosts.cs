@@ -13,8 +13,8 @@ namespace SqlServerTests.Transport;
 
 public class with_multiple_hosts : IAsyncLifetime
 {
-    private IHost _sender;
-    private IHost _listener;
+    private IHost _sender = null!;
+    private IHost _listener = null!;
 
     public async Task InitializeAsync()
     {

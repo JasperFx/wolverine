@@ -535,6 +535,6 @@ public class using_form_parameters : IntegrationContext
         var parameter = method.Method.GetParameters().Single();
 
         var variable = chain.TryFindOrCreateFormValue(parameter);
-        variable.Creator.ShouldBeOfType<ParsedArrayFormValue>();
+        variable!.Creator.ShouldBeOfType<ParsedArrayFormValue>();
     }
 }

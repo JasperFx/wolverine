@@ -35,7 +35,7 @@ public class SagaTableDefinition
         var parts = new List<string> { nameToAlias.ToLower() };
         if (documentType.IsNested)
         {
-            parts.Insert(0, documentType.DeclaringType.Name.ToLower());
+            parts.Insert(0, documentType.DeclaringType!.Name.ToLower());
         }
 
         return string.Join("_", parts);

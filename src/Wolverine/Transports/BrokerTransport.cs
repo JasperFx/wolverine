@@ -91,7 +91,9 @@ public abstract class BrokerTransport<TEndpoint> : TransportBase<TEndpoint>, IBr
 
         tryBuildSystemEndpoints(runtime);
 
+        #pragma warning disable CS0219
         var attempts = 1;
+        #pragma warning restore CS0219
 
         for (int i = 0; i < 20; i++)
         {

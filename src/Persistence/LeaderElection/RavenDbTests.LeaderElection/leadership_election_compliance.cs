@@ -24,7 +24,7 @@ public class DatabaseCollection : ICollectionFixture<DatabaseFixture>
 public class leadership_election_compliance : LeadershipElectionCompliance
 {
     private readonly DatabaseFixture _fixture;
-    private IDocumentStore _store;
+    private IDocumentStore _store = null!;
 
     public leadership_election_compliance(ITestOutputHelper output, DatabaseFixture fixture) : base(output)
     {

@@ -62,12 +62,12 @@ public partial class HttpChain
         var apiDescription = new ApiDescription
         {
             HttpMethod = httpMethod,
-            GroupName = Endpoint.Metadata.GetMetadata<IEndpointGroupNameMetadata>()?.EndpointGroupName,
-            RelativePath = Endpoint.RoutePattern.RawText?.TrimStart('/'),
+            GroupName = Endpoint!.Metadata.GetMetadata<IEndpointGroupNameMetadata>()?.EndpointGroupName,
+            RelativePath = Endpoint!.RoutePattern.RawText?.TrimStart('/'),
             ActionDescriptor = new WolverineActionDescriptor(this)
         };
         
-        foreach (var routeParameter in RoutePattern.Parameters)
+        foreach (var routeParameter in RoutePattern!.Parameters)
         {
             var parameter = buildParameterDescription(routeParameter);
 
@@ -88,12 +88,12 @@ public partial class HttpChain
         {
             var parameterDescription = new ApiParameterDescription
             {
-                Name = parameter.Name,
+                Name = parameter.Name!,
                 ModelMetadata = new EndpointModelMetadata(parameter.ParameterType),
                 Source = BindingSource.FormFile,
                 ParameterDescriptor = new ParameterDescriptor
                 {
-                    Name = parameter.Name,
+                    Name = parameter.Name!,
                     ParameterType = parameter.ParameterType
                 },
                 Type = parameter.ParameterType,
@@ -107,12 +107,12 @@ public partial class HttpChain
         {
             var parameterDescription = new ApiParameterDescription
             {
-                Name = formMetadata.Name,
+                Name = formMetadata.Name!,
                 ModelMetadata = new EndpointModelMetadata(typeof(IFormFile)),
                 Source = BindingSource.Form,
                 ParameterDescriptor = new ParameterDescriptor
                 {
-                    Name = formMetadata.Name,
+                    Name = formMetadata.Name!,
                     ParameterType = typeof(IFormFile)
                 },
                 Type = typeof(IFormFile),
@@ -141,22 +141,22 @@ public partial class HttpChain
 
     public override bool TryFindVariable(string valueName, ValueSource source, Type valueType, out Variable variable)
     {
-        if ((source == ValueSource.RouteValue || source == ValueSource.Anything) && FindRouteVariable(valueType, valueName, out variable))
+        if ((source == ValueSource.RouteValue || source == ValueSource.Anything) && FindRouteVariable(valueType, valueName, out variable!))
         {
             return true;
         }
-        
-        if ((source == ValueSource.FromQueryString || source == ValueSource.Anything) && FindQuerystringVariable(valueType, valueName, out variable))
+
+        if ((source == ValueSource.FromQueryString || source == ValueSource.Anything) && FindQuerystringVariable(valueType, valueName, out variable!))
         {
             return true;
         }
         
         if (HasRequestType)
         {
-            var requestType = InputType();
+            var requestType = InputType()!;
             var member = requestType.GetProperties()
                              .FirstOrDefault(x => x.Name.EqualsIgnoreCase(valueName) && x.PropertyType == valueType)
-                         ?? (MemberInfo)requestType.GetFields()
+                         ?? (MemberInfo?)requestType.GetFields()
                              .FirstOrDefault(x => x.Name.EqualsIgnoreCase(valueName) && x.FieldType == valueType);
 
             if (member != null)
@@ -241,7 +241,7 @@ public partial class HttpChain
 
             apiDescription.ParameterDescriptions.Add(parameterDescription);
 
-            foreach (var metadata in Endpoint.Metadata.OfType<IAcceptsMetadata>())
+            foreach (var metadata in Endpoint!.Metadata.OfType<IAcceptsMetadata>())
             {
                 foreach (var contentType in metadata.ContentTypes)
                 {

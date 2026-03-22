@@ -10,7 +10,7 @@ namespace Wolverine.Http.Policies;
 internal class SetStatusCodeAndReturnIfEntityIsNullFrame : SyncFrame
 {
     private readonly Type _entityType;
-    private Variable _httpResponse;
+    private Variable? _httpResponse;
     private Variable? _entity;
 
     public SetStatusCodeAndReturnIfEntityIsNullFrame(Type entityType)
@@ -33,8 +33,8 @@ internal class SetStatusCodeAndReturnIfEntityIsNullFrame : SyncFrame
         if (problemDetailsVariable != null)
             writer.WriteComment($"Take no action if {problemDetailsVariable.Inner.Usage}.Status == 404");
         writer.Write(
-            $"BLOCK:if ({_entity.Usage} == null{(problemDetailsVariable == null ? "" : $" && {problemDetailsVariable.Inner.Usage}.Status != 404")})");
-        writer.Write($"{_httpResponse.Usage}.{nameof(HttpResponse.StatusCode)} = 404;");
+            $"BLOCK:if ({_entity!.Usage} == null{(problemDetailsVariable == null ? "" : $" && {problemDetailsVariable.Inner.Usage}.Status != 404")})");
+        writer.Write($"{_httpResponse!.Usage}.{nameof(HttpResponse.StatusCode)} = 404;");
         if (method.AsyncMode == AsyncMode.ReturnCompletedTask)
             writer.Write($"return {typeof(Task).FullNameInCode()}.{nameof(Task.CompletedTask)};");
         else

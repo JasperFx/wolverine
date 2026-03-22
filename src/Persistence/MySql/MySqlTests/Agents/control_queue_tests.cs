@@ -15,9 +15,9 @@ namespace MySqlTests.Agents;
 [Collection("mysql")]
 public class control_queue_tests : MySqlContext, IAsyncLifetime
 {
-    private static IHost _sender;
-    private static IHost _receiver;
-    private static Uri _receiverUri;
+    private static IHost _sender = null!;
+    private static IHost _receiver = null!;
+    private static Uri _receiverUri = null!;
 
     public async Task InitializeAsync()
     {
@@ -93,9 +93,9 @@ public class control_queue_tests : MySqlContext, IAsyncLifetime
             .Timeout(10.Seconds())
             .ExecuteAndWaitAsync(m => m.EndpointFor(_receiverUri).SendAsync(new MySqlCommand(10)));
 
-        tracked.Sent.RecordsInOrder().Single(x => x.Envelope.Message?.GetType() == typeof(MySqlCommand)).ServiceName
+        tracked.Sent.RecordsInOrder().Single(x => x.Envelope?.Message?.GetType() == typeof(MySqlCommand)).ServiceName
             .ShouldBe("Sender");
-        tracked.Received.RecordsInOrder().Single(x => x.Envelope.Message?.GetType() == typeof(MySqlCommand))
+        tracked.Received.RecordsInOrder().Single(x => x.Envelope?.Message?.GetType() == typeof(MySqlCommand))
             .ServiceName
             .ShouldBe("Receiver");
     }
@@ -108,17 +108,17 @@ public class control_queue_tests : MySqlContext, IAsyncLifetime
             .Timeout(120.Seconds())
             .InvokeAndWaitAsync<MySqlResult>(new MySqlQuery(13), _receiverUri);
 
-        result.Number.ShouldBe(13);
+        result!.Number.ShouldBe(13);
 
 
-        tracked.Sent.RecordsInOrder().Single(x => x.Envelope.Message.GetType() == typeof(MySqlQuery)).ServiceName
+        tracked.Sent.RecordsInOrder().Single(x => x.Envelope?.Message?.GetType() == typeof(MySqlQuery)).ServiceName
             .ShouldBe("Sender");
-        tracked.Received.RecordsInOrder().Single(x => x.Envelope.Message.GetType() == typeof(MySqlQuery)).ServiceName
+        tracked.Received.RecordsInOrder().Single(x => x.Envelope?.Message?.GetType() == typeof(MySqlQuery)).ServiceName
             .ShouldBe("Receiver");
 
-        tracked.Sent.RecordsInOrder().Single(x => x.Envelope.Message.GetType() == typeof(MySqlResult)).ServiceName
+        tracked.Sent.RecordsInOrder().Single(x => x.Envelope?.Message?.GetType() == typeof(MySqlResult)).ServiceName
             .ShouldBe("Receiver");
-        tracked.Received.RecordsInOrder().Single(x => x.Envelope.Message.GetType() == typeof(MySqlResult))
+        tracked.Received.RecordsInOrder().Single(x => x.Envelope?.Message?.GetType() == typeof(MySqlResult))
             .ServiceName
             .ShouldBe("Sender");
     }

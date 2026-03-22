@@ -126,9 +126,9 @@ public partial class WolverineRuntime : IAgentRuntime
     public bool TryFindActiveAgent<T>(Uri agentUri, out T agent) where T : class
     {
         agent = default!;
-        if (NodeController.Agents.TryGetValue(agentUri, out var raw))
+        if (NodeController!.Agents.TryGetValue(agentUri, out var raw))
         {
-            agent = raw as T;
+            agent = (raw as T)!;
             return agent != null;
         }
 

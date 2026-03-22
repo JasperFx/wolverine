@@ -39,7 +39,7 @@ builder.Host.UseWolverine(opts =>
 {
     // Setting up Sql Server-backed message storage
     // This requires a reference to Wolverine.SqlServer
-    opts.PersistMessagesWithSqlServer(connectionString, "wolverine");
+    opts.PersistMessagesWithSqlServer(connectionString!, "wolverine");
 
     // Set up Entity Framework Core as the support
     // for Wolverine's transactional middleware

@@ -20,8 +20,8 @@ public class multi_tenancy_internals
         var tenant = new RabbitMqTenant("one", "one");
         var tenantTransport = tenant.Compile(parent);
         
-        tenantTransport.ConnectionFactory.VirtualHost.ShouldBe("one");
-        tenantTransport.ConnectionFactory.Port.ShouldBe(5673);
+        tenantTransport.ConnectionFactory!.VirtualHost.ShouldBe("one");
+        tenantTransport.ConnectionFactory!.Port.ShouldBe(5673);
     }
 
     [Fact]
@@ -58,7 +58,7 @@ public class multi_tenancy_internals
         var expression = new RabbitMqTransportExpression(transport, new WolverineOptions());
         expression.AddTenant("one", new Uri("amqp://server1"));
         
-        transport.Tenants["one"].Transport.ConnectionFactory.HostName.ShouldBe("server1");
+        transport.Tenants["one"].Transport!.ConnectionFactory!.HostName.ShouldBe("server1");
     }
 
     [Fact]
@@ -68,7 +68,7 @@ public class multi_tenancy_internals
         var expression = new RabbitMqTransportExpression(transport, new WolverineOptions());
         expression.AddTenant("one", c => c.HostName = "server2");
 
-        transport.Tenants["one"].Transport.ConnectionFactory.HostName.ShouldBe("server2");
+        transport.Tenants["one"].Transport!.ConnectionFactory!.HostName.ShouldBe("server2");
     }
 
     [Fact]

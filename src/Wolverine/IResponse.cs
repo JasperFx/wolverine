@@ -47,7 +47,7 @@ internal class ResponsePolicy : IHandlerPolicy
                         CommentText = $"Placed by Wolverine's {nameof(IResponse)} policy"
                     };
                     
-                    buildResponse.ReturnVariable.OverrideName("response_of_" + buildResponse.ReturnVariable.Usage);
+                    buildResponse.ReturnVariable!.OverrideName("response_of_" + buildResponse.ReturnVariable.Usage);
 
                     var captureAsCascading = new CaptureCascadingMessages(buildResponse.ReturnVariable);
                     
@@ -66,7 +66,7 @@ internal class ResponsePolicy : IHandlerPolicy
                 BindingFlags.Public | BindingFlags.FlattenHierarchy | BindingFlags.Instance)
             ?? responseType.GetMethod(AsyncMethod,
                 BindingFlags.Public | BindingFlags.FlattenHierarchy | BindingFlags.Instance)
-            ?? responseType.GetInterfaces().FirstValue(findMethod);
+            ?? responseType.GetInterfaces().FirstValue(findMethod)!;
     }
 }
 

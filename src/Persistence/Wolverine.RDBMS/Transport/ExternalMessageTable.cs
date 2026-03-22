@@ -47,7 +47,7 @@ public class ExternalMessageTable : Endpoint, IExternalMessageTable
     public DbObjectName TableName { get; init; }
     public string IdColumnName { get; set; } = "id";
     public string JsonBodyColumnName { get; set; } = "body";
-    public string MessageTypeColumnName { get; set; } = null;
+    public string MessageTypeColumnName { get; set; } = null!;
     public string TimestampColumnName { get; set; } = "timestamp";
 
     public bool AllowWolverineControl { get; set; } = true;

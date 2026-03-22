@@ -15,7 +15,7 @@ namespace MultiTenantedTodoWebService.Tests;
 
 public class end_to_end : IAsyncLifetime
 {
-    private IAlbaHost _host;
+    private IAlbaHost _host = null!;
 
     private async Task createDatabaseIfNotExists(NpgsqlConnection conn, string databaseName)
     {

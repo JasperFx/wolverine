@@ -67,7 +67,7 @@ public class RecordCollection
                     _parent.BuildActivityMessage($"No messages of type {typeof(T).FullNameInCode()} were received"));
 
             case 1:
-                return records.Single().Envelope;
+                return records.Single().Envelope!;
 
             default:
                 throw new Exception(_parent.BuildActivityMessage(
@@ -92,7 +92,7 @@ public class RecordCollection
 
     public IEnumerable<Envelope> Envelopes()
     {
-        return RecordsInOrder().Select(x => x.Envelope);
+        return RecordsInOrder().Select(x => x.Envelope!);
     }
 }
 

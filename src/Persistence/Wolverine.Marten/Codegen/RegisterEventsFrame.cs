@@ -6,7 +6,7 @@ using Marten.Events;
 
 namespace Wolverine.Marten.Codegen;
 
-internal class RegisterEventsFrame<T> : MethodCall
+internal class RegisterEventsFrame<T> : MethodCall where T : notnull
 {
     public RegisterEventsFrame(Variable returnVariable) : base(typeof(IEventStream<T>),
         FindMethod(returnVariable.VariableType))
@@ -19,6 +19,6 @@ internal class RegisterEventsFrame<T> : MethodCall
     {
         return responseType.CanBeCastTo<IEnumerable<object>>()
             ? ReflectionHelper.GetMethod<IEventStream<T>>(x => x.AppendMany(new List<object>()))!
-            : ReflectionHelper.GetMethod<IEventStream<T>>(x => x.AppendOne(null))!;
+            : ReflectionHelper.GetMethod<IEventStream<T>>(x => x.AppendOne(null!))!;
     }
 }

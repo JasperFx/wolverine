@@ -9,7 +9,7 @@ public class PulsarEndpointTests
     [Fact]
     public void reject_uri_that_is_not_pulsar()
     {
-        Should.Throw<InvalidPulsarUriException>(() => { new PulsarEndpoint("tcp://server:5000".ToUri(), null); });
+        Should.Throw<InvalidPulsarUriException>(() => { new PulsarEndpoint("tcp://server:5000".ToUri(), null!); });
     }
 
     [Fact]
@@ -17,12 +17,12 @@ public class PulsarEndpointTests
     {
         Should.Throw<InvalidPulsarUriException>(() =>
         {
-            new PulsarEndpoint("pulsar://persistent/public/default".ToUri(), null);
+            new PulsarEndpoint("pulsar://persistent/public/default".ToUri(), null!);
         });
 
         Should.Throw<InvalidPulsarUriException>(() =>
         {
-            new PulsarEndpoint("pulsar://persistent/public/default/topica/more".ToUri(), null);
+            new PulsarEndpoint("pulsar://persistent/public/default/topica/more".ToUri(), null!);
         });
     }
 
@@ -31,14 +31,14 @@ public class PulsarEndpointTests
     {
         Should.Throw<InvalidPulsarUriException>(() =>
         {
-            new PulsarEndpoint("pulsar://wrong/public/default/aaa".ToUri(), null);
+            new PulsarEndpoint("pulsar://wrong/public/default/aaa".ToUri(), null!);
         });
     }
 
     [Fact]
     public void parse_acceptable_persistent_uri()
     {
-        var endpoint = new PulsarEndpoint("pulsar://persistent/public/default/aaa".ToUri(), null);
+        var endpoint = new PulsarEndpoint("pulsar://persistent/public/default/aaa".ToUri(), null!);
         endpoint.Persistence.ShouldBe(PulsarEndpoint.Persistent);
         endpoint.Tenant.ShouldBe("public");
         endpoint.Namespace.ShouldBe("default");
@@ -48,7 +48,7 @@ public class PulsarEndpointTests
     [Fact]
     public void parse_acceptable_nonpersistent_uri()
     {
-        var endpoint = new PulsarEndpoint("pulsar://non-persistent/public/default/aaa".ToUri(), null);
+        var endpoint = new PulsarEndpoint("pulsar://non-persistent/public/default/aaa".ToUri(), null!);
         endpoint.Persistence.ShouldBe(PulsarEndpoint.NonPersistent);
         endpoint.Tenant.ShouldBe("public");
         endpoint.Namespace.ShouldBe("default");
@@ -74,7 +74,7 @@ public class PulsarEndpointTests
     {
         var topicPath = "persistent://t1/ns1/aaa";
         var uri = PulsarEndpoint.UriFor(topicPath);
-        var endpoint = new PulsarEndpoint(uri, null);
+        var endpoint = new PulsarEndpoint(uri, null!);
 
         endpoint.Persistence.ShouldBe(PulsarEndpoint.Persistent);
         endpoint.Namespace.ShouldBe("ns1");

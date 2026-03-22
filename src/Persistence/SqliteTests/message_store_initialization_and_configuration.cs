@@ -18,7 +18,7 @@ namespace SqliteTests;
 
 public class message_store_initialization_and_configuration : SqliteContext, IAsyncLifetime
 {
-    private IHost _host;
+    private IHost _host = null!;
     private readonly string _connectionString;
     private readonly SqliteTestDatabase _database;
 
@@ -91,7 +91,7 @@ public class message_store_initialization_and_configuration : SqliteContext, IAs
         var current = nodes.Single();
 
         current.NodeId.ShouldBe(runtime.Options.UniqueNodeId);
-        current.ControlUri.ShouldBe(runtime.Options.Transports.NodeControlEndpoint.Uri);
+        current.ControlUri.ShouldBe(runtime.Options.Transports.NodeControlEndpoint!.Uri);
     }
 
     [Fact]
@@ -99,7 +99,7 @@ public class message_store_initialization_and_configuration : SqliteContext, IAs
     {
         await _host.StopAsync();
         _host.Dispose();
-        _host = null;
+        _host = null!;
 
         var settings = new DatabaseSettings
         {

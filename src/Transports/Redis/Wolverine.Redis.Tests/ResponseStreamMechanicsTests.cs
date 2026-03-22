@@ -24,7 +24,7 @@ public class ResponseStreamMechanics : IAsyncLifetime
             .UseWolverine(opts =>
             {
                 opts.ServiceName = "MyApp";
-                opts.UseRedisTransport("localhost:6379").AutoProvision();
+                opts.UseRedisTransport(RedisContainerFixture.ConnectionString).AutoProvision();
             }).StartAsync();
 
         var runtime = _host.GetRuntime();
@@ -89,7 +89,7 @@ public class ResponseStreamDisabling : IAsyncLifetime
             .UseWolverine(opts =>
             {
                 var t = opts
-                    .UseRedisTransport("localhost:6379")
+                    .UseRedisTransport(RedisContainerFixture.ConnectionString)
                     .AutoProvision()
                     .SystemQueuesEnabled(false);
             }).StartAsync();

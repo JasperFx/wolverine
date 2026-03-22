@@ -131,7 +131,7 @@ public class SenderConfigurationTests
 
     public class ColorMessage
     {
-        public string Color { get; set; }
+        public string Color { get; set; } = null!;
     }
 }
 

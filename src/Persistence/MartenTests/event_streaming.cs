@@ -25,8 +25,8 @@ namespace MartenTests;
 public class event_streaming : PostgresqlContext, IAsyncLifetime
 {
     private readonly ITestOutputHelper _output;
-    private IHost theReceiver;
-    private IHost theSender;
+    private IHost theReceiver = null!;
+    private IHost theSender = null!;
 
     public event_streaming(ITestOutputHelper output)
     {
@@ -235,8 +235,8 @@ public class TestOutputMartenLogger : IMartenLogger, IMartenSessionLogger, ILogg
         _output = output ?? _noopTestOutputHelper;
     }
 
-    public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception exception,
-        Func<TState, Exception, string> formatter)
+    public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+        Func<TState, Exception?, string> formatter)
     {
         if (logLevel == LogLevel.Error)
         {
@@ -249,7 +249,7 @@ public class TestOutputMartenLogger : IMartenLogger, IMartenSessionLogger, ILogg
         return true;
     }
 
-    public IDisposable BeginScope<TState>(TState state)
+    public IDisposable BeginScope<TState>(TState state) where TState : notnull
     {
         throw new NotImplementedException();
     }

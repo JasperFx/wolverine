@@ -16,7 +16,7 @@ namespace Wolverine.Http.Tests.Persistence;
 public class reacting_to_entity_attributes : IAsyncLifetime
 {
     private readonly ITestOutputHelper _output;
-    private IAlbaHost theHost;
+    private IAlbaHost theHost = null!;
 
     public reacting_to_entity_attributes(ITestOutputHelper output)
     {
@@ -106,9 +106,9 @@ public class reacting_to_entity_attributes : IAsyncLifetime
         });
 
         var text = tracked.ReadAsText();
-        text.ShouldContain(typeof(RequiredDataMissingException).FullName);
+        text.ShouldContain(typeof(RequiredDataMissingException).FullName!);
     }
-    
+
     [Fact]
     public async Task problem_details_400_on_missing_with_custom_message()
     {
@@ -147,7 +147,7 @@ public class reacting_to_entity_attributes : IAsyncLifetime
         });
 
         var text = tracked.ReadAsText();
-        text.ShouldContain(typeof(RequiredDataMissingException).FullName);
+        text.ShouldContain(typeof(RequiredDataMissingException).FullName!);
         text.ShouldContain("Id 'nonexistent' is wrong!");
     }
     

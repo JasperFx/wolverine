@@ -51,11 +51,11 @@ public class Bug_581_complex_dependency_graph_transactional_middleware_applicati
 
         var martenPersistenceFrameProvider = new MartenPersistenceFrameProvider();
         martenPersistenceFrameProvider
-            .CanApply(handlers.HandlerFor<CreateUser>().As<MessageHandler>().Chain, host.Services.GetRequiredService<IServiceContainer>()).ShouldBeTrue();
+            .CanApply(handlers.HandlerFor<CreateUser>()!.As<MessageHandler>().Chain!, host.Services.GetRequiredService<IServiceContainer>()).ShouldBeTrue();
 
         // For middleware too
         martenPersistenceFrameProvider
-            .CanApply(handlers.HandlerFor<CreateUser2>().As<MessageHandler>().Chain, host.Services.GetRequiredService<IServiceContainer>()).ShouldBeTrue();
+            .CanApply(handlers.HandlerFor<CreateUser2>()!.As<MessageHandler>().Chain!, host.Services.GetRequiredService<IServiceContainer>()).ShouldBeTrue();
 
     }
 }
@@ -125,7 +125,7 @@ public class UserService : IUserService
 public class User
 {
     public Guid Id { get; set; }
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
 }
 
 public interface IUserRepository

@@ -75,7 +75,7 @@ public class WolverineTenantDetectedSessionFactory : SessionFactoryBase
         
         var tenantId = _options.TryDetectTenantIdSynchronously(_contextAccessor.HttpContext);
 
-        return _store.QuerySession(tenantId);
+        return _store.QuerySession(tenantId!);
     }
 
     public override SessionOptions BuildOptions()
@@ -83,7 +83,7 @@ public class WolverineTenantDetectedSessionFactory : SessionFactoryBase
         var tenantId = _contextAccessor.HttpContext == null ? null : _options.TryDetectTenantIdSynchronously(_contextAccessor.HttpContext);
         var options = new SessionOptions
         {
-            TenantId = tenantId,
+            TenantId = tenantId!,
             Tracking = DocumentTracking.None
         };
 

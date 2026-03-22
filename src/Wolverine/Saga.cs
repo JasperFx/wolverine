@@ -95,7 +95,7 @@ public abstract class ResequencerSaga<T> : Saga where T : SequencedMessage
             }
 
             Pending.Remove(next);
-            LastSequence = next.Order.Value;
+            LastSequence = next.Order!.Value;
 
             // This doesn't actually go out until the original message completes
             await bus.PublishAsync(next);

@@ -75,7 +75,7 @@ public class WolverineMessageNamingTests
 
 public class ConcreteMessage : IInterfaceMessage
 {
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
 }
 
 [MessageIdentity(typeof(AliasedMessage))]

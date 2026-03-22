@@ -20,11 +20,11 @@ namespace MartenTests.AncillaryStores;
 
 public class ancillary_stores_use_different_databases : IAsyncLifetime
 {
-    private IHost theHost;
+    private IHost theHost = null!;
 
-    private string playersConnectionString;
-    private string thingsConnectionString;
-    private IAgentFamily theStores;
+    private string playersConnectionString = null!;
+    private string thingsConnectionString = null!;
+    private IAgentFamily theStores = null!;
     
     public async Task InitializeAsync()
     {

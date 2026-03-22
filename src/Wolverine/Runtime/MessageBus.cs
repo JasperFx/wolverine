@@ -65,7 +65,7 @@ public partial class MessageBus : IMessageBus, IMessageContext
     public string? TenantId
     {
         get => _tenantId;
-        set => _tenantId = Runtime.Options.Durability.TenantIdStyle.MaybeCorrectTenantId(value);
+        set => _tenantId = Runtime.Options.Durability.TenantIdStyle.MaybeCorrectTenantId(value!);
     }
 
     public IDestinationEndpoint EndpointFor(string endpointName)

@@ -55,6 +55,6 @@ public class OrderPlacedHandler
 
         var order = await session.LoadAsync<PurchaseOrder>(orderId);
 
-        return [order, orderPlaced];
+        return [order!, orderPlaced];
     }
 }

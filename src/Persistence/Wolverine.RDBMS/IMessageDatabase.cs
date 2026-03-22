@@ -40,7 +40,7 @@ public static class MessageDatabaseExtensions
                 return true;
             }
 
-            database = tenantedMessageStore.Source.FindAsync(context.TenantId).GetAwaiter().GetResult() as IMessageDatabase;
+            database = tenantedMessageStore.Source.FindAsync(context.TenantId!).GetAwaiter().GetResult() as IMessageDatabase;
             return database != null;
         }
 

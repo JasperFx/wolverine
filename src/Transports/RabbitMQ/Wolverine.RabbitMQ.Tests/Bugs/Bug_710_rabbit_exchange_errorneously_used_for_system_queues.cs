@@ -33,6 +33,6 @@ public class Bug_710_rabbit_exchange_errorneously_used_for_system_queues
 
         var options = host.Services.GetRequiredService<IWolverineRuntime>().Options;
 
-        options.Transports.NodeControlEndpoint.Uri.Scheme.ShouldBe("dbcontrol");
+        options.Transports.NodeControlEndpoint!.Uri.Scheme.ShouldBe("dbcontrol");
     }
 }

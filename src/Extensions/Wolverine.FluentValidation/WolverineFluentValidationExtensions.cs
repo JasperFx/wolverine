@@ -49,7 +49,7 @@ public static class WolverineFluentValidationExtensions
                 {
                     using var provider = options.Services.BuildServiceProvider();
                     var jasperFxOptions = provider.GetService<IOptions<JasperFxOptions>>();
-                    if (jasperFxOptions.Value != null)
+                    if (jasperFxOptions?.Value != null)
                     {
                         options.ApplicationAssembly = jasperFxOptions.Value.ApplicationAssembly;
                     }

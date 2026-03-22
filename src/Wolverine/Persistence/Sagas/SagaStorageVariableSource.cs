@@ -15,6 +15,6 @@ public class SagaStorageVariableSource : IVariableSource
         var sagaType = type.GetGenericArguments().Last();
         var idType = SagaChain.DetermineSagaIdMember(sagaType, sagaType)?.GetRawMemberType();
 
-        return typeof(EnrollAndFetchSagaStorageFrame<,>).CloseAndBuildAs<ISagaStorageFrame>(idType, sagaType).SimpleVariable;
+        return typeof(EnrollAndFetchSagaStorageFrame<,>).CloseAndBuildAs<ISagaStorageFrame>(idType!, sagaType).SimpleVariable;
     }
 }

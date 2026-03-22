@@ -63,7 +63,7 @@ public class EfCoreCompilationScenarios
 
 public class CreateItem
 {
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
 }
 
 public class CreateItemHandler

@@ -25,7 +25,7 @@ public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifet
 
         await ReceiverIs(opts =>
         {
-            opts.UseKafka("localhost:9092");
+            opts.UseKafka(KafkaContainerFixture.ConnectionString);
 
             opts.ListenToKafkaTopic(receiverTopic).Named("receiver").BufferedInMemory();
 
@@ -34,7 +34,7 @@ public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifet
         
         await SenderIs(opts =>
         {
-            opts.UseKafka("localhost:9092").ConfigureConsumers(x => x.EnableAutoCommit = false);
+            opts.UseKafka(KafkaContainerFixture.ConnectionString).ConfigureConsumers(x => x.EnableAutoCommit = false);
 
             opts.ListenToKafkaTopic(senderTopic);
 
@@ -69,7 +69,7 @@ public class InlineComplianceFixture : TransportComplianceFixture, IAsyncLifetim
 
         await SenderIs(opts =>
         {
-            opts.UseKafka("localhost:9092").AutoProvision();
+            opts.UseKafka(KafkaContainerFixture.ConnectionString).AutoProvision();
 
             opts.ListenToKafkaTopic(senderTopic).UseForReplies().ConfigureConsumer(consumer =>
             {
@@ -84,7 +84,7 @@ public class InlineComplianceFixture : TransportComplianceFixture, IAsyncLifetim
 
         await ReceiverIs(opts =>
         {
-            opts.UseKafka("localhost:9092").AutoProvision();
+            opts.UseKafka(KafkaContainerFixture.ConnectionString).AutoProvision();
 
             opts.ListenToKafkaTopic(receiverTopic).Named("receiver").ProcessInline();
 

@@ -29,7 +29,7 @@ internal class SqlServerQueueListener : IListener
     private readonly string _deleteExpiredSql;
 
     public SqlServerQueueListener(SqlServerQueue queue, IWolverineRuntime runtime, IReceiver receiver)
-        : this(queue, runtime, receiver, queue.Parent.Settings.ConnectionString, null)
+        : this(queue, runtime, receiver, queue.Parent.Settings.ConnectionString!, null)
     {
     }
 

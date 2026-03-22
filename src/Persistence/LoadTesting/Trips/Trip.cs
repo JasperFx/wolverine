@@ -11,7 +11,7 @@ public class Trip : Activity
 
     public double Traveled { get; set; }
 
-    public string State { get; set; }
+    public string State { get; set; } = null!;
 
     public bool Active { get; set; }
 
@@ -23,7 +23,7 @@ public class Trip : Activity
         return Id.Equals(other.Id) && EndedOn == other.EndedOn && Traveled.Equals(other.Traveled) && State == other.State && Active == other.Active && StartedOn == other.StartedOn;
     }
 
-    public override bool Equals(object obj)
+    public override bool Equals(object? obj)
     {
         if (ReferenceEquals(null, obj)) return false;
         if (ReferenceEquals(this, obj)) return true;

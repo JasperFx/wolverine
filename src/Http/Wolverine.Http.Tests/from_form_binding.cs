@@ -94,15 +94,15 @@ public class from_form_binding : IntegrationContext
     public async Task nullable_bool_on_setter()
     {
         (await forForm([new("name", "Jones"), new("number", "95")])).NullableFlag.ShouldBeNull();
-        (await forForm([new("name", "Jones"), new("number", "95"), new("nullableFlag", "true")])).NullableFlag.Value.ShouldBeTrue();
-        (await forForm([new("name", "Jones"), new("number", "95"), new("NullableFlag", "false")])).NullableFlag.Value.ShouldBeFalse();
+        (await forForm([new("name", "Jones"), new("number", "95"), new("nullableFlag", "true")])).NullableFlag!.Value.ShouldBeTrue();
+        (await forForm([new("name", "Jones"), new("number", "95"), new("NullableFlag", "false")])).NullableFlag!.Value.ShouldBeFalse();
     }
     
     [Fact]
     public async Task nullable_enum_on_setter()
     {
         (await forForm([new("name", "Jones"), new("number", "95")])).NullableDirection.ShouldBeNull();
-        (await forForm([new("name", "Jones"), new("number", "95"), new("nullableDirection", "east")])).NullableDirection.Value.ShouldBe(Direction.East);
+        (await forForm([new("name", "Jones"), new("number", "95"), new("nullableDirection", "east")])).NullableDirection!.Value.ShouldBe(Direction.East);
     }
 
     [Fact(Skip = "Alba doesnt support multiple values in form data")]

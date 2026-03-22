@@ -38,7 +38,7 @@ public class using_ISendMyself_as_cascading_message : IntegrationContext
             .Distinct()
             .Single().Envelope;
 
-        envelope.Status.ShouldBe(EnvelopeStatus.Scheduled);
+        envelope!.Status.ShouldBe(EnvelopeStatus.Scheduled);
     }
 
     [Fact]
@@ -68,8 +68,8 @@ public class using_ISendMyself_as_cascading_message : IntegrationContext
         envelope.Message.ShouldBeOfType<TriggeredResponse>()
             .Number.ShouldBe(58);
 
-        envelope.Source.ShouldBe("Receiver");
-        envelope.Destination.Port.ShouldBe(senderPort);
+        envelope!.Source.ShouldBe("Receiver");
+        envelope.Destination!.Port.ShouldBe(senderPort);
     }
 }
 

@@ -9,7 +9,7 @@ namespace MetricsTests;
 
 public class MessagePump : IAsyncDisposable
 {
-    private IHost _host;
+    private IHost _host = null!;
 
     public async Task StartHostAsync(WolverineMetricsMode mode)
     {
@@ -37,7 +37,7 @@ public class MessagePump : IAsyncDisposable
 
         while (stopwatch.ElapsedMilliseconds < duration.TotalMilliseconds)
         {
-            var bus = _host.MessageBus();
+            var bus = _host!.MessageBus();
             for (int i = 0; i < 100; i++)
             {
                 for (int j = 0; j < Random.Shared.Next(1, 5); j++)

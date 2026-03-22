@@ -16,7 +16,7 @@ public abstract partial class MessageDatabase<T>
             .With("time", envelope.ScheduledTime!.Value)
             .With("attempts", envelope.Attempts)
             .With("id", envelope.Id)
-            .With("uri", envelope.Destination.ToString())
+            .With("uri", envelope.Destination!.ToString())
             .ExecuteNonQueryAsync(_cancellation);
     }
 

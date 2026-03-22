@@ -8,7 +8,7 @@ namespace Wolverine.MQTT;
 
 public class LocalMqttBroker : IAsyncDisposable, IMqttNetLogger
 {
-    private MqttServer _mqttServer;
+    private MqttServer _mqttServer = null!;
     private readonly MqttServerOptions _mqttServerOptions;
 
     public LocalMqttBroker()

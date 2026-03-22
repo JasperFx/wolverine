@@ -44,7 +44,7 @@ public class BoardViewProjection : MultiStreamProjection<BoardView, Guid>
         var patient = await session.LoadAsync<Patient>(routed.PatientId);
         var appointment = new BoardAppointment
         {
-            PatientName = $"{patient.FirstName} {patient.LastName}",
+            PatientName = $"{patient!.FirstName} {patient.LastName}",
             OriginalEstimatedTime = routed.EstimatedTime,
             CurrentEstimatedTime = routed.EstimatedTime,
             Status = AppointmentStatus.Requested,
@@ -90,7 +90,7 @@ public class BoardViewProjection : MultiStreamProjection<BoardView, Guid>
         var provider = await session.LoadAsync<Provider>(joined.Data.ProviderId);
         var boardProvider = new BoardProvider
         {
-            Provider = provider,
+            Provider = provider!,
             ShiftId = joined.StreamId,
             Status = ProviderStatus.Ready
         };

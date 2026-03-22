@@ -23,9 +23,9 @@ namespace PersistenceTests;
 
 public class application_of_transaction_middleware : IAsyncLifetime
 {
-    private IHost _host;
-    private IServiceContainer theContainer;
-    private HandlerGraph theHandlers;
+    private IHost _host = null!;
+    private IServiceContainer theContainer = null!;
+    private HandlerGraph theHandlers = null!;
 
     public async Task InitializeAsync()
     {
@@ -71,7 +71,7 @@ public class application_of_transaction_middleware : IAsyncLifetime
         var provider = new MartenPersistenceFrameProvider();
         var chain = theHandlers.ChainFor(messageType);
 
-        provider.CanApply(chain, theContainer).ShouldBe(expected);
+        provider.CanApply(chain!, theContainer).ShouldBe(expected);
     }
 
     [Theory]

@@ -15,7 +15,7 @@ public class DocumentationSamples
         builder.UseWolverine(opts =>
         {
             var connectionString = builder.Configuration.GetConnectionString("sqlserver");
-            opts.UseSqlServerPersistenceAndTransport(connectionString, "myapp")
+            opts.UseSqlServerPersistenceAndTransport(connectionString!, "myapp")
 
                 // Tell Wolverine to build out all necessary queue or scheduled message
                 // tables on demand as needed

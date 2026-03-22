@@ -125,9 +125,11 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
 
     internal void ApplyIdempotencyCheck()
     {
+        #pragma warning disable CS4014
         Middleware.Insert(0, MethodCall.For<MessageContext>(x => x.AssertEagerIdempotencyAsync(CancellationToken.None)));
-            
+
         Postprocessors.Add(MethodCall.For<MessageContext>(x => x.PersistHandledAsync()));
+        #pragma warning restore CS4014
     }
 
     protected virtual void validateAgainstInvalidSagaMethods(IGrouping<Type, HandlerCall> grouping)
@@ -282,7 +284,7 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
             return false;
         }
 
-        var container = services.GetRequiredService<IServiceContainer>();
+        var container = services!.GetRequiredService<IServiceContainer>();
         applyCustomizations(rules, container);
 
         Handler = (MessageHandler)container.QuickBuild(_handlerType);
@@ -369,7 +371,7 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
 
     public override void UseForResponse(MethodCall methodCall)
     {
-        var response = methodCall.ReturnVariable;
+        var response = methodCall.ReturnVariable!;
         response.OverrideName("response_of_" + response.Usage);
 
         Postprocessors.Add(methodCall);
@@ -382,9 +384,9 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
     {
         if (source == ValueSource.InputMember || source == ValueSource.Anything)
         {
-            var member = MessageType.GetProperties()
+            var member = (MemberInfo?)MessageType.GetProperties()
                              .FirstOrDefault(x => x.Name.EqualsIgnoreCase(valueName) && x.PropertyType == valueType)
-                         ?? (MemberInfo)MessageType.GetFields()
+                         ?? MessageType.GetFields()
                              .FirstOrDefault(x => x.Name.EqualsIgnoreCase(valueName) && x.FieldType == valueType);
 
             if (member != null)
@@ -394,7 +396,7 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
             }
         }
 
-        variable = default;
+        variable = default!;
         return false;
     }
 
@@ -419,7 +421,7 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
                 
             default:
                 var message = requirement.MissingMessage ?? $"Unknown {data.VariableType.NameInCode()} with identity {{Id}}";
-                return [new ThrowRequiredDataMissingExceptionFrame(data, identity, message)];
+                return [new ThrowRequiredDataMissingExceptionFrame(data, identity!, message)];
         }
     }
 
@@ -517,7 +519,7 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         {
             if (AuditedMembers.All(x => x.Member != identity))
             {
-                Audit(identity);
+                Audit(identity!);
             }    
         }
 

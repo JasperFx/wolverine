@@ -46,7 +46,7 @@ public class MassTransitEnvelopeTests
         mtEnvelope.ConversationId.ShouldBe(envelope.ConversationId.ToString());
         mtEnvelope.SentTime.ShouldNotBeNull();
 
-        mtEnvelope.ExpirationTime.Value.ShouldBe(envelope.DeliverBy.Value.DateTime);
+        mtEnvelope.ExpirationTime!.Value.ShouldBe(envelope.DeliverBy!.Value.DateTime);
     }
 
     [Fact]
@@ -59,7 +59,7 @@ public class MassTransitEnvelopeTests
     [Fact]
     public void map_the_message_id()
     {
-        theEnvelope.Id.ShouldBe(Guid.Parse(theMassTransitEnvelope.MessageId));
+        theEnvelope.Id.ShouldBe(Guid.Parse(theMassTransitEnvelope.MessageId!));
     }
 
     [Fact]
@@ -71,7 +71,7 @@ public class MassTransitEnvelopeTests
     [Fact]
     public void map_the_conversation_id()
     {
-        theEnvelope.ConversationId.ShouldBe(Guid.Parse(theMassTransitEnvelope.ConversationId));
+        theEnvelope.ConversationId.ShouldBe(Guid.Parse(theMassTransitEnvelope.ConversationId!));
     }
 
     [Fact]

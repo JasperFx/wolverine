@@ -12,7 +12,7 @@ var builder = WebApplication.CreateBuilder(args);
 // Adding Marten for persistence
 builder.Services.AddMarten(opts =>
     {
-        opts.Connection(builder.Configuration.GetConnectionString("Marten"));
+        opts.Connection(builder.Configuration.GetConnectionString("Marten")!);
         opts.DatabaseSchemaName = "todo";
     })
     .IntegrateWithWolverine();

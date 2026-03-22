@@ -213,7 +213,7 @@ internal class PostgresqlBackedPersistence : IPostgresqlBackedPersistence, IWolv
 
         var sagaTables = runtime.Services.GetServices<SagaTableDefinition>().ToArray();
         
-        var mainSource = DataSource ?? NpgsqlDataSource.Create(ConnectionString);
+        var mainSource = DataSource ?? NpgsqlDataSource.Create(ConnectionString!);
         var logger = runtime.LoggerFactory.CreateLogger<PostgresqlMessageStore>();
 
         if (UseMasterTableTenancy)

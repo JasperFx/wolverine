@@ -10,11 +10,12 @@ using Xunit;
 
 namespace Wolverine.RabbitMQ.Tests;
 
+[Trait("Category", "Flaky")]
 public class interop_friendly_dead_letter_queue_mechanics: IDisposable
 {
     private readonly string QueueName = Guid.NewGuid().ToString();
-    private IHost _host;
-    private RabbitMqTransport theTransport;
+    private IHost _host = null!;
+    private RabbitMqTransport theTransport = null!;
     private readonly string deadLetterQueueName;
 
     public interop_friendly_dead_letter_queue_mechanics()

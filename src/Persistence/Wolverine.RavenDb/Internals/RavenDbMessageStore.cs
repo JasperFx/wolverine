@@ -14,13 +14,13 @@ public partial class RavenDbMessageStore : IMessageStoreWithAgentSupport
 {
     private readonly IDocumentStore _store;
     private readonly WolverineOptions _options;
-    private readonly Func<Envelope, string> _identity = e => $"{e.Id}/{e.Destination.ToString().Replace(":/", "")}";
+    private readonly Func<Envelope, string> _identity = e => $"{e.Id}/{e.Destination!.ToString().Replace(":/", "")}";
 
     public RavenDbMessageStore(IDocumentStore store, WolverineOptions options)
     {
         _identity = options.Durability.MessageIdentity == MessageIdentity.IdOnly
             ? e => e.Id.ToString()
-            : e => $"{e.Id}/{e.Destination.ToString().Replace(":/", "").TrimEnd('/')}";
+            : e => $"{e.Id}/{e.Destination!.ToString().Replace(":/", "").TrimEnd('/')}";
 
         _store = store;
         _options = options;

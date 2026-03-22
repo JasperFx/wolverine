@@ -13,7 +13,7 @@ namespace Wolverine.Transports.Stub;
 
 internal class StubTransport : TransportBase<StubEndpoint>, IStubHandlers, IMessageRouteSource, IExecutorFactory
 {
-    private WolverineRuntime _runtime;
+    private WolverineRuntime _runtime = null!;
     
     private readonly Dictionary<Type, IMessageHandler> _stubs = new();
 

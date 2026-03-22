@@ -43,7 +43,7 @@ public class end_to_end_with_conventional_routing : IDisposable
 
         var received = session
             .AllRecordsInOrder()
-            .Where(x => x.Envelope.Message?.GetType() == typeof(ConventionallyRoutedMessage))
+            .Where(x => x.Envelope?.Message?.GetType() == typeof(ConventionallyRoutedMessage))
             .Single(x => x.MessageEventType == MessageEventType.Received);
 
         received

@@ -174,7 +174,7 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue, IMassTransitInteropEndpoin
     Uri? IMassTransitInteropEndpoint.MassTransitReplyUri()
     {
         var reply = _parent.ReplyEndpoint();
-        return reply.As<IMassTransitInteropEndpoint>().MassTransitUri();
+        return reply!.As<IMassTransitInteropEndpoint>().MassTransitUri();
     }
 
     Uri? IMassTransitInteropEndpoint.TranslateMassTransitToWolverineUri(Uri uri)

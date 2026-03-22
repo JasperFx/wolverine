@@ -4,8 +4,8 @@ namespace Wolverine.ComplianceTests.Sagas;
 
 public abstract class Start<T>
 {
-    public T Id { get; set; }
-    public string Name { get; set; }
+    public T Id { get; set; } = default!;
+    public string Name { get; set; } = null!;
 }
 
 public class GuidStart : Start<Guid>;
@@ -18,7 +18,7 @@ public class StringStart : Start<string>;
 
 public abstract class CompleteThree<T>
 {
-    public T SagaId { get; set; }
+    public T SagaId { get; set; } = default!;
 }
 
 public class GuidCompleteThree : CompleteThree<Guid>;
@@ -39,22 +39,22 @@ public class FinishItAll;
 
 public class WildcardStart
 {
-    public string Id { get; set; }
-    public string Name { get; set; }
+    public string Id { get; set; } = null!;
+    public string Name { get; set; } = null!;
 }
 
 public class BasicWorkflow<TStart, TCompleteThree, TId> : Saga
     where TCompleteThree : CompleteThree<TId>
     where TStart : Start<TId>
 {
-    public TId Id { get; set; }
+    public TId Id { get; set; } = default!;
 
     public bool OneCompleted { get; set; }
     public bool TwoCompleted { get; set; }
     public bool ThreeCompleted { get; set; }
     public bool FourCompleted { get; set; }
 
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
 
     public void Start(TStart starting)
     {

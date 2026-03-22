@@ -66,7 +66,7 @@ public class TenantedDbContextBuilderByConnectionString<T> : IDbContextBuilder<T
         builder.UseApplicationServiceProvider(_serviceProvider);
         
         builder.ReplaceService<IModelCustomizer, WolverineModelCustomizer>();
-        _configuration(builder, new ConnectionString(connectionString), new TenantId(messaging.TenantId));
+        _configuration(builder, new ConnectionString(connectionString), new TenantId(messaging.TenantId!));
         var dbContext = _constructor(builder.Options);
 
         var transaction = new EfCoreEnvelopeTransaction(dbContext, messaging, _domainScrapers);
@@ -178,7 +178,7 @@ public class TenantedDbContextBuilderByConnectionString<T> : IDbContextBuilder<T
             connectionString = databaseSettings.ConnectionString ?? databaseSettings.DataSource?.ConnectionString;
         }
 
-        _connectionStrings = _connectionStrings.AddOrUpdate(tenantId, connectionString);
+        _connectionStrings = _connectionStrings.AddOrUpdate(tenantId, connectionString!);
 
         return connectionString!;
     }
@@ -195,7 +195,7 @@ public class TenantedDbContextBuilderByConnectionString<T> : IDbContextBuilder<T
         var builder = new DbContextOptionsBuilder<T>();
         builder.UseApplicationServiceProvider(_serviceProvider);
         builder.ReplaceService<IModelCustomizer, WolverineModelCustomizer>();
-        _configuration(builder, new ConnectionString(connectionString), new TenantId(StorageConstants.DefaultTenantId));
+        _configuration(builder, new ConnectionString(connectionString!), new TenantId(StorageConstants.DefaultTenantId));
         return builder.Options;
     }
 

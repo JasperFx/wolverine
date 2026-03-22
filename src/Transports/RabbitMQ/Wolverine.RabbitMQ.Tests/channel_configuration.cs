@@ -16,7 +16,7 @@ public class channel_configuration
         builder.UseWolverine(opts =>
         {
             opts
-                .UseRabbitMq(builder.Configuration.GetConnectionString("rabbitmq"))
+                .UseRabbitMq(builder.Configuration.GetConnectionString("rabbitmq")!)
 
                 // Fine tune how the underlying Rabbit MQ channels from
                 // this application will behave

@@ -19,10 +19,10 @@ public class CircuitBreakerTests
         PauseTime = 5.Minutes()
     };
 
-    private CircuitBreaker _breaker;
+    private CircuitBreaker _breaker = null!;
 
     internal IExceptionMatch theExceptionMatch = new AlwaysMatches();
-    private DateTimeOffset theStartingTime;
+    private readonly DateTimeOffset theStartingTime = DateTimeOffset.UtcNow;
 
     internal CircuitBreaker theBreaker
     {

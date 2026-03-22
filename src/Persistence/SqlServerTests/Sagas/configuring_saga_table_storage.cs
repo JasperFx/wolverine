@@ -52,11 +52,11 @@ public class configuring_saga_table_storage : SqlServerContext
 public class RedSaga : Saga
 {
     public Guid Id { get; set; }
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
 }
 
 public class BlueSaga : Saga
 {
     public Guid Id { get; set; }
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
 }

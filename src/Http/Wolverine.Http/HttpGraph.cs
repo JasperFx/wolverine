@@ -78,7 +78,7 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollectionWithServ
         foreach (var chain in _chains)
         {
             var chainDescription = OptionsDescription.For(chain);
-            chainDescription.Title = chain.RoutePattern.RawText;
+            chainDescription.Title = (chain.RoutePattern?.RawText)!;
             list.Rows.Add(chainDescription);
         }
 
@@ -92,7 +92,7 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollectionWithServ
 
         var calls = source.FindActions();
         logger.LogInformation("Found {Count} Wolverine HTTP endpoints in assemblies {Assemblies}", calls.Length,
-            _options.Assemblies.Select(x => x.GetName().Name).Join(", "));
+            _options.Assemblies.Select(x => x.GetName().Name!).Join(", "));
         if (calls.Length == 0)
         {
             logger.LogWarning(

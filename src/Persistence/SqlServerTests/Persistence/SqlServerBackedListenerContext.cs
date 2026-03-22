@@ -19,7 +19,7 @@ public class SqlServerBackedListenerContext : SqlServerContext
     protected readonly IList<Envelope> theEnvelopes = new List<Envelope>();
     private readonly IHandlerPipeline thePipeline = Substitute.For<IHandlerPipeline>();
     protected readonly Uri theUri = "tcp://localhost:1111".ToUri();
-    protected IMessageDatabase thePersistence;
+    protected new IMessageDatabase thePersistence;
     internal DurableReceiver theReceiver;
     protected DurabilitySettings theSettings;
 

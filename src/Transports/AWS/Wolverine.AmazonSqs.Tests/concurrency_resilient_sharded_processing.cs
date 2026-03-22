@@ -13,6 +13,7 @@ using Xunit.Abstractions;
 
 namespace Wolverine.AmazonSqs.Tests;
 
+[Trait("Category", "Flaky")]
 public class concurrency_resilient_sharded_processing
 {
     private readonly ITestOutputHelper _output;
@@ -98,7 +99,7 @@ public class concurrency_resilient_sharded_processing
         var counts = envelopes.GroupBy(x => x.Destination);
         foreach (var count in counts)
         {
-            _output.WriteLine(count.Key.ToString() + " had " + count.Count());
+            _output.WriteLine(count.Key!.ToString() + " had " + count.Count());
         }
         
         envelopes.Any(x => x.Destination == new Uri("sqs://letters1")).ShouldBeTrue();

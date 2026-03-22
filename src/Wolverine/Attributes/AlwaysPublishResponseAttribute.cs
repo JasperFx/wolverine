@@ -20,7 +20,7 @@ public class AlwaysPublishResponseAttribute : ModifyHandlerChainAttribute
 
 internal class AlwaysPublishResponseFrame : SyncFrame
 {
-    private Variable _envelope;
+    private Variable _envelope = null!;
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {

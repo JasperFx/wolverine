@@ -21,7 +21,7 @@ public class SubscriptionTester
     {
         var rule = new Subscription
         {
-            Match = typeof(RandomClass).Namespace,
+            Match = typeof(RandomClass).Namespace!,
             Scope = RoutingScope.Namespace
         };
         rule.ToString().ShouldBe("Message type is within namespace CoreTests.Runtime");
@@ -67,7 +67,7 @@ public class SubscriptionTester
         var rule = new Subscription
         {
             Scope = RoutingScope.Namespace,
-            Match = typeof(RedMessage1).Namespace
+            Match = typeof(RedMessage1).Namespace!
         };
 
         rule.Matches(typeof(GreenMessage1)).ShouldBeFalse();
@@ -91,7 +91,7 @@ public class SubscriptionTester
         var rule = new Subscription
         {
             Scope = RoutingScope.Namespace,
-            Match = typeof(RedMessage1).Namespace
+            Match = typeof(RedMessage1).Namespace!
         };
 
         rule.Matches(typeof(RedMessage1)).ShouldBeTrue();

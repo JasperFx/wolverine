@@ -54,8 +54,8 @@ public class InMemorySagaPersistor
         {
             case StorageAction.Delete:
                 var idProp = typeof(T).GetProperty("Id");
-                var id = idProp.GetValue(action.Entity);
-                Delete<T>(id);
+                var id = idProp!.GetValue(action.Entity);
+                Delete<T>(id!);
                 break;
             
             case StorageAction.Insert:

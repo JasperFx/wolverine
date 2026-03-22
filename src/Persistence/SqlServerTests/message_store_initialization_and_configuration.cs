@@ -21,9 +21,9 @@ namespace SqlServerTests;
 
 public class message_store_initialization_and_configuration : SqlServerContext, IAsyncLifetime
 {
-    private IHost _host;
+    private IHost _host = null!;
 
-    public async Task InitializeAsync()
+    public new async Task InitializeAsync()
     {
         await dropSchema();
 
@@ -44,7 +44,7 @@ public class message_store_initialization_and_configuration : SqlServerContext, 
         await conn.CloseAsync();
     }
 
-    public async Task DisposeAsync()
+    public override async Task DisposeAsync()
     {
         if (_host != null)
         {
@@ -95,7 +95,7 @@ public class message_store_initialization_and_configuration : SqlServerContext, 
         var current = nodes.Single();
 
         current.NodeId.ShouldBe(runtime.Options.UniqueNodeId);
-        current.ControlUri.ShouldBe(runtime.Options.Transports.NodeControlEndpoint.Uri);
+        current.ControlUri.ShouldBe(runtime.Options.Transports.NodeControlEndpoint!.Uri);
 
     }
 
@@ -104,7 +104,7 @@ public class message_store_initialization_and_configuration : SqlServerContext, 
     {
         await _host.StopAsync();
         _host.Dispose();
-        _host = null;
+        _host = null!;
 
         var settings = new DatabaseSettings
         {

@@ -5,9 +5,9 @@ namespace CircuitBreakingTests;
 public static class Recorder
 {
     public static int Received;
-    private static TaskCompletionSource<int> _completion;
+    private static TaskCompletionSource<int> _completion = null!;
     private static int _expected;
-    private static ITestOutputHelper _output;
+    private static ITestOutputHelper _output = null!;
     public static bool NeverFail { get; set; }
 
     public static Task WaitForMessagesToBeProcessed(ITestOutputHelper output, int number, TimeSpan timeout)

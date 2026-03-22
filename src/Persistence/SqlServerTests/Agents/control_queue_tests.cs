@@ -15,16 +15,16 @@ namespace SqlServerTests.Agents;
 
 public class control_queue_tests : SqlServerContext, IAsyncLifetime
 {
-    private static IHost _sender;
-    private static IHost _receiver;
-    private static Uri _receiverUri;
+    private static IHost _sender = null!;
+    private static IHost _receiver = null!;
+    private static Uri _receiverUri = null!;
 
-    public async Task InitializeAsync()
+    public new async Task InitializeAsync()
     {
         await dropControlSchema();
     }
 
-    public async Task DisposeAsync()
+    public new async Task DisposeAsync()
     {
         await _sender.StopAsync();
         _sender.Dispose();
@@ -80,10 +80,10 @@ public class control_queue_tests : SqlServerContext, IAsyncLifetime
             .Timeout(10.Seconds())
             .ExecuteAndWaitAsync(m => m.EndpointFor(_receiverUri).SendAsync(new Command(10)));
 
-        tracked.Sent.RecordsInOrder().Single(x => x.Envelope.Message?.GetType() == typeof(Command)).ServiceName
+        tracked.Sent.RecordsInOrder().Single(x => x.Envelope!.Message?.GetType() == typeof(Command)).ServiceName!
             .ShouldBe("Sender");
-        tracked.Received.RecordsInOrder().Single(x => x.Envelope.Message?.GetType() == typeof(Command))
-            .ServiceName
+        tracked.Received.RecordsInOrder().Single(x => x.Envelope!.Message?.GetType() == typeof(Command))
+            .ServiceName!
             .ShouldBe("Receiver");
     }
 
@@ -95,18 +95,18 @@ public class control_queue_tests : SqlServerContext, IAsyncLifetime
             .Timeout(120.Seconds())
             .InvokeAndWaitAsync<Result>(new Query(13), _receiverUri);
 
-        result.Number.ShouldBe(13);
+        result!.Number.ShouldBe(13);
 
 
-        tracked.Sent.RecordsInOrder().Single(x => x.Envelope.Message.GetType() == typeof(Query)).ServiceName
+        tracked.Sent.RecordsInOrder().Single(x => x.Envelope!.Message!.GetType() == typeof(Query)).ServiceName!
             .ShouldBe("Sender");
-        tracked.Received.RecordsInOrder().Single(x => x.Envelope.Message.GetType() == typeof(Query)).ServiceName
+        tracked.Received.RecordsInOrder().Single(x => x.Envelope!.Message!.GetType() == typeof(Query)).ServiceName!
             .ShouldBe("Receiver");
 
-        tracked.Sent.RecordsInOrder().Single(x => x.Envelope.Message.GetType() == typeof(Result)).ServiceName
+        tracked.Sent.RecordsInOrder().Single(x => x.Envelope!.Message!.GetType() == typeof(Result)).ServiceName!
             .ShouldBe("Receiver");
-        tracked.Received.RecordsInOrder().Single(x => x.Envelope.Message.GetType() == typeof(Result))
-            .ServiceName
+        tracked.Received.RecordsInOrder().Single(x => x.Envelope!.Message!.GetType() == typeof(Result))
+            .ServiceName!
             .ShouldBe("Sender");
     }
 }

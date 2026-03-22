@@ -15,8 +15,8 @@ namespace MartenTests;
 
 public class handler_actions_with_returned_StartStream : PostgresqlContext, IAsyncLifetime
 {
-    private IHost _host;
-    private IDocumentStore _store;
+    private IHost _host = null!;
+    private IDocumentStore _store = null!;
 
     public async Task InitializeAsync()
     {
@@ -60,8 +60,8 @@ public class handler_actions_with_returned_StartStream : PostgresqlContext, IAsy
 
 public class start_stream_by_string_from_return_value : PostgresqlContext, IAsyncLifetime
 {
-    private IHost _host;
-    private IDocumentStore _store;
+    private IHost _host = null!;
+    private IDocumentStore _store = null!;
 
     public async Task InitializeAsync()
     {

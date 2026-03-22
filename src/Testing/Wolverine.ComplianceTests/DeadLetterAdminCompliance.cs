@@ -23,24 +23,24 @@ public abstract class DeadLetterAdminCompliance : IAsyncLifetime
         ["Red", "Blue", "Orange", "Yellow", "Purple", "Green", "Black", "White", "Gray", "Pink"];
 
     private readonly ITestOutputHelper _output;
-    private DeadLetterEnvelopeResults allEnvelopes;
+    private DeadLetterEnvelopeResults allEnvelopes = null!;
     private DateTimeOffset EightHoursAgo;
 
     private DateTimeOffset FiveHoursAgo;
     private DateTimeOffset FourHoursAgo;
     private DateTimeOffset SevenHoursAgo;
     private DateTimeOffset SixHoursAgo;
-    protected IDeadLetters theDeadLetters;
-    protected EnvelopeGenerator theGenerator;
-    protected IMessageStore thePersistence;
-    private IReadOnlyList<DeadLetterQueueCount> theSummaries;
+    protected IDeadLetters theDeadLetters = null!;
+    protected EnvelopeGenerator theGenerator = null!;
+    protected IMessageStore thePersistence = null!;
+    private IReadOnlyList<DeadLetterQueueCount> theSummaries = null!;
 
     protected DeadLetterAdminCompliance(ITestOutputHelper output)
     {
         _output = output;
     }
 
-    public IHost theHost { get; private set; }
+    public IHost theHost { get; private set; } = null!;
 
     public async Task InitializeAsync()
     {
@@ -143,7 +143,7 @@ public abstract class DeadLetterAdminCompliance : IAsyncLifetime
     }
 
     private DeadLetterQueueCount summaryCount<TMessage, TException>(int expected, Uri? receivedAt = null,
-        Uri databaseIdentifier = null)
+        Uri? databaseIdentifier = null)
     {
         var uri = receivedAt ?? theGenerator.ReceivedAt;
         var messageType = typeof(TMessage).ToMessageTypeName();

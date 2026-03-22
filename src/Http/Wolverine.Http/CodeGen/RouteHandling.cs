@@ -73,7 +73,7 @@ internal class RouteParameterStrategy : IParameterStrategy
                 var parameter = call.Method.GetParameters()[i];
                 if (parameter.ParameterType == typeof(string) || CanParse(parameter.ParameterType))
                 {
-                    if (chain.FindRouteVariable(parameter.ParameterType, parameter.Name, out var variable))
+                    if (chain.FindRouteVariable(parameter.ParameterType, parameter.Name!, out var variable))
                     {
                         call.Arguments[i] = variable;
                     }

@@ -18,8 +18,8 @@ namespace MartenTests.Saga;
 
 public class using_revisioned_sagas : IAsyncLifetime
 {
-    private IHost theHost;
-    
+    private IHost theHost = null!;
+
     public async Task InitializeAsync()
     {
         theHost = await Host.CreateDefaultBuilder()
@@ -42,7 +42,7 @@ public class using_revisioned_sagas : IAsyncLifetime
         var runtime = theHost.GetRuntime();
         runtime.As<IExecutorFactory>().BuildFor(typeof(StartNewRevisionedSaga));
         var chain = runtime.Handlers.ChainFor<StartNewRevisionedSaga>();
-        chain.SuccessLogLevel.ShouldBe(LogLevel.None);
+        chain!.SuccessLogLevel.ShouldBe(LogLevel.None);
         chain.ProcessingLogLevel.ShouldBe(LogLevel.None);
     }
 
@@ -97,7 +97,7 @@ public class RevisionedSaga : Wolverine.Saga
     
     public Guid Id { get; set; }
     
-    public int Version { get; set; }
+    public new int Version { get; set; }
     
     public bool One { get; set; }
     public bool Two { get; set; }

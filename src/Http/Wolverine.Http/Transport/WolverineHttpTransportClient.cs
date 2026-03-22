@@ -16,7 +16,7 @@ public class WolverineHttpTransportClient(IHttpClientFactory clientFactory) : IW
         await client.PostAsync(client.BaseAddress, content);
     }
     
-    public async Task SendAsync(string uri, Envelope envelope, JsonSerializerOptions options = null)
+    public async Task SendAsync(string uri, Envelope envelope, JsonSerializerOptions? options = null)
     {
         var client = clientFactory.CreateClient(uri);
         var content = new ByteArrayContent(EnvelopeSerializer.Serialize(envelope));
@@ -35,7 +35,7 @@ public class WolverineHttpTransportClientCloudEvents(IHttpClientFactory clientFa
         await client.PostAsync(client.BaseAddress, content);
     }
     
-    public async Task SendAsync(string uri, Envelope envelope, JsonSerializerOptions options = null)
+    public async Task SendAsync(string uri, Envelope envelope, JsonSerializerOptions? options = null)
     {
         var client = clientFactory.CreateClient(uri);
         var ce = new CloudEventsEnvelope(envelope);

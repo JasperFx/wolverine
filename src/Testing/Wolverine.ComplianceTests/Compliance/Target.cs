@@ -25,7 +25,7 @@ public class Target
 
     public float Float;
 
-    public string StringField;
+    public string StringField = null!;
 
     public Target()
     {
@@ -37,12 +37,12 @@ public class Target
 
     public int Number { get; set; }
     public long Long { get; set; }
-    public string String { get; set; }
-    public string AnotherString { get; set; }
+    public string String { get; set; } = null!;
+    public string AnotherString { get; set; } = null!;
 
     public Guid OtherGuid { get; set; }
 
-    public Target Inner { get; set; }
+    public Target Inner { get; set; } = null!;
 
     public Colors Color { get; set; }
 
@@ -53,9 +53,9 @@ public class Target
     public DateTime Date { get; set; }
     public DateTimeOffset DateOffset { get; set; }
 
-    public int[] NumberArray { get; set; }
+    public int[] NumberArray { get; set; } = null!;
 
-    public Target[] Children { get; set; }
+    public Target[] Children { get; set; } = null!;
 
     public int? NullableNumber { get; set; }
     public DateTime? NullableDateTime { get; set; }

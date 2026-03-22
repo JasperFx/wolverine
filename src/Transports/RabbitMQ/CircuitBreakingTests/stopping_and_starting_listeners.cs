@@ -77,7 +77,7 @@ public class stopping_and_starting_listeners : IDisposable
     public void find_listener_by_name()
     {
         var runtime = theListener.GetRuntime();
-        runtime.Endpoints.FindListeningAgent("one")
+        runtime.Endpoints.FindListeningAgent("one")!
             .Uri.ShouldBe($"tcp://localhost:{_port1}".ToUri());
 
         runtime.Endpoints.FindListeningAgent("wrong")
@@ -93,9 +93,9 @@ public class stopping_and_starting_listeners : IDisposable
 
         var runtime = theListener.GetRuntime();
 
-        runtime.Endpoints.FindListeningAgent(uri1).Status.ShouldBe(ListeningStatus.Accepting);
-        runtime.Endpoints.FindListeningAgent(uri2).Status.ShouldBe(ListeningStatus.Accepting);
-        runtime.Endpoints.FindListeningAgent(uri3).Status.ShouldBe(ListeningStatus.Accepting);
+        runtime.Endpoints.FindListeningAgent(uri1)!.Status.ShouldBe(ListeningStatus.Accepting);
+        runtime.Endpoints.FindListeningAgent(uri2)!.Status.ShouldBe(ListeningStatus.Accepting);
+        runtime.Endpoints.FindListeningAgent(uri3)!.Status.ShouldBe(ListeningStatus.Accepting);
     }
 
     [Fact]
@@ -108,7 +108,7 @@ public class stopping_and_starting_listeners : IDisposable
     [Fact]
     public async Task stop_with_no_restart()
     {
-        var agent = theListener.GetRuntime().Endpoints.FindListeningAgent("one");
+        var agent = theListener.GetRuntime().Endpoints.FindListeningAgent("one")!;
         await agent.StopAndDrainAsync();
 
         agent.Status.ShouldBe(ListeningStatus.Stopped);
@@ -121,7 +121,7 @@ public class stopping_and_starting_listeners : IDisposable
     [Fact]
     public async Task pause()
     {
-        var agent = theListener.GetRuntime().Endpoints.FindListeningAgent("one");
+        var agent = theListener.GetRuntime().Endpoints.FindListeningAgent("one")!;
         await agent.PauseAsync(3.Seconds());
 
         agent.Status.ShouldBe(ListeningStatus.Stopped);
@@ -144,7 +144,7 @@ public class stopping_and_starting_listeners : IDisposable
     [Fact]
     public async Task pause_repeatedly()
     {
-        var agent = theListener.GetRuntime().Endpoints.FindListeningAgent("one");
+        var agent = theListener.GetRuntime().Endpoints.FindListeningAgent("one")!;
         await agent.PauseAsync(1.Seconds());
         await agent.PauseAsync(1.Seconds());
         await agent.PauseAsync(3.Seconds());
@@ -188,7 +188,7 @@ public class stopping_and_starting_listeners : IDisposable
 
         await stopWaiter;
 
-        var agent = runtime.Endpoints.FindListeningAgent("one");
+        var agent = runtime.Endpoints.FindListeningAgent("one")!;
         agent.Status.ShouldBe(ListeningStatus.Stopped);
 
         // should restart

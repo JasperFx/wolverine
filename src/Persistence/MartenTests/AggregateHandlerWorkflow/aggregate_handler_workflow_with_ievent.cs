@@ -67,7 +67,7 @@ public class aggregate_handler_workflow_with_ievent
         tracked.Executed.SingleEnvelope<IEvent<AEvent>>().ShouldNotBeNull();
 
         var doc = await session.LoadAsync<LetterAggregate>(streamId);
-        doc.DCount.ShouldBe(1);
+        doc!.DCount.ShouldBe(1);
     }
 
     [Fact]
@@ -110,7 +110,7 @@ public class aggregate_handler_workflow_with_ievent
         tracked.Executed.SingleEnvelope<IEvent<AEvent>>().ShouldNotBeNull();
 
         var doc = await session.LoadAsync<LetterCountsByString>(streamKey);
-        doc.DCount.ShouldBe(1);
+        doc!.DCount.ShouldBe(1);
     }
     
 
@@ -129,7 +129,7 @@ public static class AEventHandler
 
 public class LetterCountsByString: IRevisioned
 {
-    public string Id { get; set; }
+    public string Id { get; set; } = null!;
     public int ACount { get; set; }
     public int BCount { get; set; }
     public int CCount { get; set; }
@@ -156,7 +156,7 @@ public static class StringIdentifiedHandler
 
 public class LetterCountsByStringProjection: SingleStreamProjection<LetterCountsByString, string>
 {
-    public override LetterCountsByString Evolve(LetterCountsByString snapshot, string id, IEvent e)
+    public override LetterCountsByString Evolve(LetterCountsByString? snapshot, string id, IEvent e)
     {
         snapshot ??= new LetterCountsByString { Id = id };
 

@@ -33,7 +33,7 @@ public static class StartProviderShiftEndpoint
         var board = await session.LoadAsync<Board>(command.BoardId);
         var provider = await session.LoadAsync<Provider>(command.ProviderId);
 
-        if (board == null || provider == null) return (board, provider, Results.BadRequest());
+        if (board == null || provider == null) return (board!, provider!, Results.BadRequest());
 
         // This just means "full speed ahead"
         return (board, provider, WolverineContinue.Result());
@@ -146,8 +146,8 @@ var stream = await session
         HttpContext.RequestAborted);
 
         // The current state
-        var shift = stream.Aggregate;
-        
+        var shift = stream.Aggregate!;
+
         if (shift.Status != ProviderStatus.Charting)
         {
             // Obviously do something smarter in your app, but you 

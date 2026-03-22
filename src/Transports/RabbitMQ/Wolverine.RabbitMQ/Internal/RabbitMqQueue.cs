@@ -201,7 +201,7 @@ public partial class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQu
     ///     Arguments for Rabbit MQ queue declarations. See the Rabbit MQ .NET client documentation at
     ///     https://www.rabbitmq.com/dotnet.html
     /// </summary>
-    public IDictionary<string, object> Arguments { get; } = new Dictionary<string, object>();
+    public IDictionary<string, object?> Arguments { get; } = new Dictionary<string, object?>();
 
     /// <summary>
     ///     Arguments for Rabbit MQ channel consume operations

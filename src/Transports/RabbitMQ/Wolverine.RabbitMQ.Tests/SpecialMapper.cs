@@ -25,7 +25,7 @@ public class SpecialMapper : IRabbitMqEnvelopeMapper
 
         if (envelope.TenantId.IsNotEmpty())
         {
-            outgoing.Headers ??= new Dictionary<string, object>();
+            outgoing.Headers ??= new Dictionary<string, object?>();
             outgoing.Headers["tenant-id"] = envelope.TenantId;
         }
     }
@@ -47,7 +47,7 @@ public class SpecialMapper : IRabbitMqEnvelopeMapper
         {
             // Watch this in real life, some systems will send header values as
             // byte arrays
-            envelope.TenantId = (string)tenantId;
+            envelope.TenantId = (string)tenantId!;
         }
     }
 }

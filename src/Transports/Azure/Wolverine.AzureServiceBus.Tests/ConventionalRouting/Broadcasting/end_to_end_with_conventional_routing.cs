@@ -7,10 +7,11 @@ using Xunit;
 
 namespace Wolverine.AzureServiceBus.Tests.ConventionalRouting.Broadcasting;
 
+[Trait("Category", "Flaky")]
 public class end_to_end_with_conventional_routing : IAsyncLifetime
 {
-    private IHost _receiver;
-    private IHost _sender;
+    private IHost _receiver = null!;
+    private IHost _sender = null!;
 
     public Task InitializeAsync()
     {
@@ -76,10 +77,10 @@ public class end_to_end_with_conventional_routing : IAsyncLifetime
 
         var received = session
             .AllRecordsInOrder()
-            .Where(x => x.Envelope.Message?.GetType() == typeof(Routed2Message))
+            .Where(x => x.Envelope!.Message?.GetType() == typeof(Routed2Message))
             .Single(x => x.MessageEventType == MessageEventType.Received);
 
-        received
+        received!
             .ServiceName.ShouldBe("Receiver");
     }
 }

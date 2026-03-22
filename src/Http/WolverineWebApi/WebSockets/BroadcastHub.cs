@@ -96,7 +96,9 @@ public class BroadcastClientMessages : IChainPolicy
             {
                 messages.UseReturnAction(v =>
                 {
+#pragma warning disable CS4014
                     var call = MethodCall.For<Broadcaster>(x => x.PostMany(null!));
+#pragma warning restore CS4014
                     call.Arguments[0] = messages;
 
                     return call;

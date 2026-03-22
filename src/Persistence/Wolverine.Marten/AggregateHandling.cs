@@ -26,8 +26,8 @@ internal record AggregateHandling(IDataRequirement Requirement)
 {
     private static readonly Type _versioningBaseType = typeof(AggregateVersioning<>);
 
-    public Type AggregateType { get; init; }
-    public Variable AggregateId { get; init; }
+    public Type AggregateType { get; init; } = null!;
+    public Variable AggregateId { get; init; } = null!;
 
     public ConcurrencyStyle LoadStyle { get; init; }
     public Variable? Version { get; init; }
@@ -103,7 +103,7 @@ internal record AggregateHandling(IDataRequirement Requirement)
             }
         }
 
-        handling = default;
+        handling = default!;
         return false;
     }
     
@@ -119,12 +119,12 @@ internal record AggregateHandling(IDataRequirement Requirement)
 
             if (raw is List<AggregateHandling> list)
             {
-                handling = list.FirstOrDefault(x => x.AggregateType == typeof(T));
+                handling = list.FirstOrDefault(x => x.AggregateType == typeof(T))!;
                 return handling != null;
             }
         }
 
-        handling = default;
+        handling = default!;
         return false;
     }
 
@@ -275,7 +275,7 @@ internal record AggregateHandling(IDataRequirement Requirement)
         Type aggregateType)
     {
         Variable aggregateVariable = new MemberAccessVariable(eventStream,
-            typeof(IEventStream<>).MakeGenericType(aggregateType).GetProperty(nameof(IEventStream<string>.Aggregate)));
+            typeof(IEventStream<>).MakeGenericType(aggregateType).GetProperty(nameof(IEventStream<string>.Aggregate))!);
         
 
         if (Requirement.Required)
@@ -303,7 +303,7 @@ internal record AggregateHandling(IDataRequirement Requirement)
         else if (Parameter != null)
         {
             // Use name-based matching to avoid accidentally setting the wrong same-type parameter
-            firstCall.TrySetArgument(Parameter.Name, aggregateVariable);
+            firstCall.TrySetArgument(Parameter.Name!, aggregateVariable);
         }
         else
         {
@@ -313,7 +313,7 @@ internal record AggregateHandling(IDataRequirement Requirement)
         // Store deferred assignment for middleware methods added later (Before/After)
         if (Parameter != null)
         {
-            StoreDeferredMiddlewareVariable(chain, Parameter.Name, aggregateVariable);
+            StoreDeferredMiddlewareVariable(chain, Parameter.Name!, aggregateVariable);
         }
 
         // Also do immediate relay for any middleware already present
@@ -321,7 +321,7 @@ internal record AggregateHandling(IDataRequirement Requirement)
         {
             if (Parameter != null)
             {
-                if (!methodCall.TrySetArgument(Parameter.Name, aggregateVariable))
+                if (!methodCall.TrySetArgument(Parameter.Name!, aggregateVariable))
                 {
                     methodCall.TrySetArgument(aggregateVariable);
                 }
@@ -367,7 +367,7 @@ internal record AggregateHandling(IDataRequirement Requirement)
         // The first arg doesn't matter
         var versioning =
             _versioningBaseType.CloseAndBuildAs<IAggregateVersioning>(AggregationScope.SingleStream, aggregateType);
-        return versioning.VersionMember;
+        return versioning.VersionMember!;
     }
 
     internal static void StoreDeferredMiddlewareVariable(IChain chain, string parameterName, Variable variable)

@@ -20,7 +20,7 @@ public class OrderSagaWorkflow : Wolverine.Saga
 {
     public OrderSagaId Id { get; set; }
 
-    public string CustomerName { get; set; }
+    public string CustomerName { get; set; } = null!;
     public bool ItemsPicked { get; set; }
     public bool PaymentProcessed { get; set; }
     public bool Shipped { get; set; }
@@ -83,7 +83,7 @@ public class CompleteOrderStep
 
 public class strong_typed_id_saga : PostgresqlContext, IAsyncLifetime
 {
-    private IHost _host;
+    private IHost _host = null!;
 
     public async Task InitializeAsync()
     {

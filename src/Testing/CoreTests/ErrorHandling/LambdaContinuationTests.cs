@@ -76,10 +76,8 @@ public class LambdaContinuationTests
     [Fact]
     public void source_mechanics_passes_along_invoke_usage()
     {
-        var wasCalled = false;
         var source = new UserDefinedContinuationSource((_, _, _) =>
         {
-            wasCalled = true;
             return new ValueTask();
         })
         {

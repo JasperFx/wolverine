@@ -46,7 +46,7 @@ public abstract class StorageActionCompliance : IAsyncLifetime
     }
 
 
-    public IHost Host { get; set; }
+    public IHost Host { get; set; } = null!;
 
     // These two methods will be changed
     public abstract Task<Todo?> Load(string id);
@@ -63,8 +63,8 @@ public abstract class StorageActionCompliance : IAsyncLifetime
         tracked.NoRoutes.Envelopes().Any().ShouldBeFalse();
 
         var todo = await Load(command.Id);
-        
-        todo.Name.ShouldBe("Write docs");
+
+        todo!.Name.ShouldBe("Write docs");
     }
 
     [Fact]
@@ -76,9 +76,9 @@ public abstract class StorageActionCompliance : IAsyncLifetime
         await Host.InvokeMessageAndWaitAsync(new RenameTodo(command.Id, "New name"));
 
         var todo = await Load(command.Id);
-        todo.Name.ShouldBe("New name");
+        todo!.Name.ShouldBe("New name");
     }
-    
+
     [Fact]
     public async Task use_entity_attribute_with_entity_id()
     {
@@ -88,9 +88,9 @@ public abstract class StorageActionCompliance : IAsyncLifetime
         await Host.InvokeMessageAndWaitAsync(new RenameTodo2(command.Id, "New name2"));
 
         var todo = await Load(command.Id);
-        todo.Name.ShouldBe("New name2");
+        todo!.Name.ShouldBe("New name2");
     }
-    
+
     [Fact]
     public async Task use_entity_attribute_with_explicit_id()
     {
@@ -98,9 +98,9 @@ public abstract class StorageActionCompliance : IAsyncLifetime
         await Host.InvokeMessageAndWaitAsync(command);
 
         await Host.InvokeMessageAndWaitAsync(new RenameTodo3(command.Id, "New name3"));
-        
+
         var todo = await Load(command.Id);
-        todo.Name.ShouldBe("New name3");
+        todo!.Name.ShouldBe("New name3");
     }
     
         
@@ -130,7 +130,7 @@ public abstract class StorageActionCompliance : IAsyncLifetime
         await Host.InvokeMessageAndWaitAsync(shouldInsert);
         await Host.InvokeMessageAndWaitAsync(shouldDoNothing);
 
-        (await Load(shouldInsert.Id)).Name.ShouldBe("Pick up milk");
+        (await Load(shouldInsert.Id))!.Name.ShouldBe("Pick up milk");
         (await Load(shouldDoNothing.Id)).ShouldBeNull();
     }
 
@@ -153,9 +153,9 @@ public abstract class StorageActionCompliance : IAsyncLifetime
 
         await Host.InvokeMessageAndWaitAsync(new AlterTodo(command.Id, "New text", StorageAction.Update));
 
-        (await Load(command.Id)).Name.ShouldBe("New text");
+        (await Load(command.Id))!.Name.ShouldBe("New text");
     }
-    
+
     [Fact]
     public async Task use_generic_action_as_store()
     {
@@ -164,7 +164,7 @@ public abstract class StorageActionCompliance : IAsyncLifetime
 
         await Host.InvokeMessageAndWaitAsync(new AlterTodo(command.Id, "New text", StorageAction.Store));
 
-        (await Load(command.Id)).Name.ShouldBe("New text");
+        (await Load(command.Id))!.Name.ShouldBe("New text");
     }
 
     [Fact]
@@ -175,7 +175,7 @@ public abstract class StorageActionCompliance : IAsyncLifetime
 
         await Host.InvokeMessageAndWaitAsync(new AlterTodo(command.Id, "New text", StorageAction.Nothing));
 
-        (await Load(command.Id)).Name.ShouldBe("Write docs");
+        (await Load(command.Id))!.Name.ShouldBe("Write docs");
     }
 
     [Fact]
@@ -206,9 +206,9 @@ public abstract class StorageActionCompliance : IAsyncLifetime
         // This should be fine
         await Host.InvokeMessageAndWaitAsync(new CompleteTodo(todoId));
         
-        (await Load(todoId)).IsComplete.ShouldBeTrue();
+        (await Load(todoId))!.IsComplete.ShouldBeTrue();
     }
-    
+
     [Fact]
     public async Task handler_not_required_entity_attributes()
     {
@@ -217,11 +217,11 @@ public abstract class StorageActionCompliance : IAsyncLifetime
 
         var todoId = Guid.NewGuid().ToString();
         await Host.InvokeMessageAndWaitAsync(new CreateTodo(todoId, "Write docs"));
-        
+
         // This should be fine
         await Host.InvokeMessageAndWaitAsync(new MaybeCompleteTodo(todoId));
-        
-        (await Load(todoId)).IsComplete.ShouldBeTrue();
+
+        (await Load(todoId))!.IsComplete.ShouldBeTrue();
     }
 
     [Fact]
@@ -229,11 +229,11 @@ public abstract class StorageActionCompliance : IAsyncLifetime
     {
         var todoId = Guid.NewGuid().ToString();
         await Host.InvokeMessageAndWaitAsync(new CreateTodo(todoId, "Write docs"));
-        
+
         // This should be fine
         await Host.InvokeMessageAndWaitAsync(new MarkTaskCompleteWithBeforeUsage(todoId));
-        
-        (await Load(todoId)).IsComplete.ShouldBeTrue();
+
+        (await Load(todoId))!.IsComplete.ShouldBeTrue();
     }
 
     [Fact]
@@ -271,7 +271,7 @@ public abstract class StorageActionCompliance : IAsyncLifetime
 
 public class Todo
 {
-    public string Id { get; set; }
+    public string Id { get; set; } = null!;
     public string? Name { get; set; }
     public bool IsComplete { get; set; }
 }

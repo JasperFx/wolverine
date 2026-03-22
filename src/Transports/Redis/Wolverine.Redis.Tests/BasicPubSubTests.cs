@@ -36,7 +36,7 @@ public class BasicPubSubTests
             })
             .UseWolverine(opts =>
             {
-                opts.UseRedisTransport("localhost:6379").AutoProvision();
+                opts.UseRedisTransport(RedisContainerFixture.ConnectionString).AutoProvision();
                 var endpoint = opts.ListenToRedisStream(streamKey, "g1")
                     .DefaultIncomingMessage<PubMessage>()
                     .BlockTimeout(100.Milliseconds())

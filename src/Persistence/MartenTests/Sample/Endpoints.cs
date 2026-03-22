@@ -19,7 +19,7 @@ public class MartenUsingEndpoint
     public Task<User> get_user_id(string id)
     {
         _logger.LogDebug("I loaded a user");
-        return _session.LoadAsync<User>(id);
+        return _session.LoadAsync<User>(id)!;
     }
 }
 
@@ -39,7 +39,7 @@ public static class MartenStaticEndpoint
         ILogger<User> logger)
     {
         logger.LogDebug("I loaded a user");
-        return session.LoadAsync<User>(id);
+        return session.LoadAsync<User>(id)!;
     }
 }
 

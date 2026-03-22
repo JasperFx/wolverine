@@ -23,7 +23,7 @@ public class MessageHandlerDescriptor : OptionsDescription
     }
 
     // TODO -- use this later to retrieve a preview of the source code
-    public string CodeFileName { get; set; }
+    public string CodeFileName { get; set; } = null!;
     public Uri[] StickyEndpoints { get; set; } = [];
 
     public List<HandlerMethod> Handlers { get; set; } = new();
