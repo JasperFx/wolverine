@@ -145,15 +145,18 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
     /// </summary>
     public void LatchReceiver()
     {
-        if (_receiver is DurableReceiver dr)
+        var actual = _receiver is ReceiverWithRules rwr ? rwr.Inner : _receiver;
+        if (actual is DurableReceiver dr)
         {
             dr.Latch();
         }
-        // BufferedReceiver latches via its _latched field in DrainAsync,
-        // but we need an immediate latch here too
-        else if (_receiver is BufferedReceiver br)
+        else if (actual is BufferedReceiver br)
         {
             br.Latch();
+        }
+        else if (actual is InlineReceiver ir)
+        {
+            ir.Latch();
         }
     }
 
