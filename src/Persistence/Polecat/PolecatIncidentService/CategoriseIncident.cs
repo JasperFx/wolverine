@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
-using Polecat;
 using Wolverine.Http;
+using Wolverine.Http.Polecat;
 
 namespace PolecatIncidentService;
 
@@ -14,29 +14,20 @@ public record CategoriseIncident(
 
 public static class CategoriseIncidentEndpoint
 {
-    // NOTE: There is no Wolverine.Http.Polecat equivalent of [Aggregate] yet.
-    // For now, we load the aggregate manually via IDocumentSession.
-    // This is a known gap — see the missing features report.
-    [WolverinePost("/api/incidents/{incidentId:guid}/category")]
-    public static async Task<IResult> Post(
-        Guid incidentId,
-        CategoriseIncident command,
-        IDocumentSession session,
-        CancellationToken token)
+    public static ProblemDetails Validate(Incident incident)
     {
-        var stream = await session.Events.FetchForWriting<Incident>(incidentId, command.Version, token);
-        var incident = stream.Aggregate;
+        return incident.Status == IncidentStatus.Closed
+            ? new ProblemDetails { Detail = "Incident is already closed" }
+            : WolverineContinue.NoProblems;
+    }
 
-        if (incident == null)
-            return Results.NotFound();
-
-        if (incident.Status == IncidentStatus.Closed)
-            return Results.Problem(detail: "Incident is already closed");
-
-        stream.AppendOne(new IncidentCategorised(incident.Id, command.Category, command.CategorisedBy));
-        await session.SaveChangesAsync(token);
-
-        return Results.NoContent();
+    [EmptyResponse]
+    [WolverinePost("/api/incidents/{incidentId:guid}/category")]
+    public static IncidentCategorised Post(
+        CategoriseIncident command,
+        [Aggregate("incidentId")] Incident incident)
+    {
+        return new IncidentCategorised(incident.Id, command.Category, command.CategorisedBy);
     }
 }
 

@@ -1,7 +1,8 @@
 using JasperFx.Core;
-using Polecat;
 using Wolverine;
 using Wolverine.Http;
+using Wolverine.Http.Polecat;
+using Wolverine.Polecat;
 
 namespace PolecatIncidentService;
 
@@ -12,39 +13,20 @@ public record CloseIncident(
 
 public static class CloseIncidentEndpoint
 {
-    // NOTE: No [Aggregate] attribute available for Polecat HTTP endpoints yet.
-    // Using manual aggregate loading via IDocumentSession.
     [WolverinePost("/api/incidents/close/{id}")]
-    public static async Task<IResult> Handle(
-        Guid id,
+    public static (UpdatedAggregate, Events, OutgoingMessages) Handle(
         CloseIncident command,
-        IDocumentSession session,
-        IMessageBus bus,
-        CancellationToken token)
+        [Aggregate]
+        Incident incident)
     {
-        var stream = await session.Events.FetchForWriting<Incident>(id, command.Version, token);
-        var incident = stream.Aggregate;
-
-        if (incident == null)
-            return Results.NotFound();
-
         if (incident.Status == IncidentStatus.Closed)
         {
-            // Idempotent — already closed
-            var current = await session.Events.FetchLatest<Incident>(id, token);
-            return Results.Ok(current);
+            return (new UpdatedAggregate(), [], []);
         }
 
-        stream.AppendOne(new IncidentClosed(command.ClosedBy));
-        await session.SaveChangesAsync(token);
-
-        // Schedule the archive command for 3 days from now
-        await bus.PublishAsync(new ArchiveIncident(id), new DeliveryOptions
-        {
-            ScheduleDelay = 3.Days()
-        });
-
-        var updated = await session.Events.FetchLatest<Incident>(id, token);
-        return Results.Ok(updated);
+        return (
+            new UpdatedAggregate(),
+            [new IncidentClosed(command.ClosedBy)],
+            [new ArchiveIncident(incident.Id).DelayedFor(3.Days())]);
     }
 }

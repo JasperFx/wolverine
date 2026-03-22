@@ -11,8 +11,7 @@
     </ItemGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\..\..\Http\Wolverine.Http\Wolverine.Http.csproj" />
-      <ProjectReference Include="..\..\Wolverine.Polecat\Wolverine.Polecat.csproj" />
+      <ProjectReference Include="..\..\..\Http\Wolverine.Http.Polecat\Wolverine.Http.Polecat.csproj" />
     </ItemGroup>
 
 </Project>
