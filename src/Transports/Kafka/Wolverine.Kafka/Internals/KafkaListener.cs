@@ -47,7 +47,6 @@ public class KafkaListener : IListener, IDisposable, ISupportDeadLetterQueue
                         var envelope = mapper!.CreateEnvelope(result.Topic, message);
                         envelope.Offset = result.Offset.Value;
                         envelope.MessageType ??= _messageTypeName;
-                        envelope.GroupId = config.GroupId;
 
                         await receiver.ReceivedAsync(this, envelope);
                     }
