@@ -88,6 +88,7 @@ public class Incident
     }
 
     public void Apply(IncidentLogged _) { }
+    public void Apply(IncidentCategorised e) => Category = e.Category;
     public void Apply(AgentRespondedToIncident _) => HasOutstandingResponseToCustomer = false;
 
     public void Apply(CustomerRespondedToIncident _) => HasOutstandingResponseToCustomer = true;
