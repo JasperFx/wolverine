@@ -231,9 +231,9 @@ public static ValueTask publish_by_partition_key(IMessageBus bus)
 
 ## Propagating GroupId to PartitionKey <Badge type="tip" text="5.17" />
 
-When consuming from a Kafka topic, the incoming envelope's `GroupId` is automatically set from the Kafka consumer's
-configured `GroupId`. If your handler produces cascaded messages that should land on the same partition, you can
-enable automatic propagation of the originating `GroupId` to the outgoing `PartitionKey`:
+By default, Wolverine stamps the Kafka consumer's configured `GroupId` onto the `GroupId` property of every incoming
+envelope. If your handler produces cascaded messages that should land on the same partition, you can enable automatic
+propagation of the originating `GroupId` to the outgoing `PartitionKey`:
 
 ```csharp
 opts.Policies.PropagateGroupIdToPartitionKey();
@@ -242,6 +242,35 @@ opts.Policies.PropagateGroupIdToPartitionKey();
 This eliminates the need to manually set `DeliveryOptions.PartitionKey` on every outgoing message from your handlers.
 The rule will never override an explicitly set `PartitionKey`. See the [Partitioned Sequential Messaging](/guide/messaging/partitioning#propagating-groupid-to-partitionkey)
 documentation for more details and a code sample.
+
+::: warning
+When using `PropagateGroupIdToPartitionKey()` together with business-level partition key derivation (e.g.
+`UseInferredMessageGrouping().ByPropertyNamed(...)`), you should disable consumer group ID stamping on your listeners.
+Otherwise the consumer group name (e.g. `"my-application-name"`) will be written to `envelope.GroupId` and may
+pollute the partition key derivation for cascaded messages:
+
+```csharp
+opts.ListenToKafkaTopic("my-topic")
+    .DisableConsumerGroupIdStamping()
+    .ConfigureConsumer(config =>
+    {
+        config.GroupId = "my-application-name";
+    });
+```
+:::
+
+### Disabling Consumer Group ID Stamping
+
+If you do not want the Kafka consumer group name written to `envelope.GroupId` at all, call
+`DisableConsumerGroupIdStamping()` on the listener:
+
+```csharp
+opts.ListenToKafkaTopic("orders")
+    .ProcessInline()
+    .DisableConsumerGroupIdStamping();
+```
+
+The same method is available on `ListenToKafkaTopics()` (multi-topic listeners).
 
 ## Interoperability
 

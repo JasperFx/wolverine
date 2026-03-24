@@ -27,6 +27,18 @@ public class KafkaTopicGroupListenerConfiguration : ListenerConfiguration<KafkaT
     }
 
     /// <summary>
+    /// Disables stamping of the Kafka consumer group ID onto the GroupId property
+    /// of each incoming envelope. Use this when the consumer group name is not
+    /// meaningful as envelope metadata (e.g. when using PropagateGroupIdToPartitionKey).
+    /// </summary>
+    /// <returns></returns>
+    public KafkaTopicGroupListenerConfiguration DisableConsumerGroupIdStamping()
+    {
+        add(group => group.StampConsumerGroupIdOnEnvelope = false);
+        return this;
+    }
+
+    /// <summary>
     /// Enable native dead letter queue support for this listener group.
     /// </summary>
     /// <returns></returns>
