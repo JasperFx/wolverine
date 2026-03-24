@@ -228,6 +228,16 @@ public static class KafkaTransportExtensions
 
     internal static async ValueTask<Message<string, byte[]>> CreateMessage(this IKafkaEnvelopeMapper mapper, Envelope envelope)
     {
+        if (envelope.Message is KafkaTombstone tombstone)
+        {
+            return new Message<string, byte[]>
+            {
+                Key = tombstone.Key,
+                Value = null,
+                Headers = new Headers()
+            };
+        }
+
         var data = await envelope.GetDataAsync();
         var message = new Message<string, byte[]>
         {
