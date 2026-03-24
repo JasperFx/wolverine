@@ -45,6 +45,7 @@ partial class Build : NukeBuild
 
     Target Compile => _ => _
         .DependsOn(Restore)
+        .ProceedAfterFailure()
         .Executes(() =>
         {
             DotNetBuild(s => s
