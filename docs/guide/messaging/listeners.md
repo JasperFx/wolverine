@@ -66,6 +66,30 @@ without having to use any kind of message persistence.
 To improve throughput, you can direct Wolverine to use a number of parallel listeners, but the default is
 just 1 per listening endpoint.
 
+### Processing Inline While Draining
+
+By default, when Wolverine begins draining an inline listener during graceful shutdown, any messages still queued
+in the receiver are immediately deferred back to the transport broker. If you'd prefer that already-ingested messages
+continue processing to completion before the receiver shuts down, you can enable the `ProcessInlineWhileDraining` option:
+
+```cs
+opts.ListenToRabbitQueue("inline")
+    .ProcessInline()
+
+    // Allow messages already received by the listener to finish
+    // processing during graceful shutdown instead of being deferred
+    // back to the broker immediately.
+    .ProcessInlineWhileDraining();
+```
+
+With this flag enabled:
+
+* Messages that have already been received by the listener will continue to be processed through the handler pipeline
+  while the drain is in progress.
+* Once the drain completes, any new messages that arrive will be deferred as usual.
+
+This is useful when deferring partially-processed batches could lead to latency outliers.
+
 ## Buffered Endpoints
 
 ::: tip
