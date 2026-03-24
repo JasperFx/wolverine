@@ -133,6 +133,28 @@ ListeningAgent-->CircuitBreaker: potentially stops the listening
 * `ListeningAgent` is a controller within Wolverine that governs the listener lifecycle including pauses and restarts depending
   on load or error conditions
 
+## Maximum Parallel Messages
+
+::: tip
+Wolverine defaults the maximum number of parallel messages per endpoint to the greater of `Environment.ProcessorCount`
+or 5. This ensures reasonable throughput even on low-core environments like containers or CI runners where `ProcessorCount`
+may be as low as 1 or 2.
+:::
+
+You can override the default parallelism per endpoint:
+
+```csharp
+opts.ListenToRabbitQueue("high-throughput")
+    .BufferedInMemory()
+    .MaximumParallelMessages(20);
+```
+
+Or set a global default for all listening endpoints using a policy:
+
+```csharp
+opts.Policies.AllListeners(x => x.MaximumParallelMessages = 5);
+```
+
 ## Strictly Ordered Listeners <Badge type="tip" text="2.3" />
 
 In the case where you need messages from a single endpoint to be processed in strict, global order across the entire application,
