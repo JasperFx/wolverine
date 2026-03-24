@@ -1,5 +1,3 @@
-using JasperFx;
-using JasperFx.Events.Daemon;
 using Polecat;
 using Polecat.Projections;
 using PolecatIncidentService;
@@ -12,23 +10,23 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddOpenApi();
 
 builder.Services.AddPolecat(opts =>
-{
-    var connectionString = builder.Configuration.GetConnectionString("SqlServer")
-        ?? "Server=localhost,1434;User Id=sa;Password=P@55w0rd;Timeout=5;MultipleActiveResultSets=True;Initial Catalog=master;Encrypt=False";
+    {
+        var connectionString = builder.Configuration.GetConnectionString("SqlServer")
+                               ??
+                               "Server=localhost,1434;User Id=sa;Password=P@55w0rd;Timeout=5;MultipleActiveResultSets=True;Initial Catalog=master;Encrypt=False";
 
-    opts.ConnectionString = connectionString;
-    opts.DatabaseSchemaName = "incidents";
+        opts.ConnectionString = connectionString;
+        opts.DatabaseSchemaName = "incidents";
 
-    opts.Projections.Snapshot<Incident>(SnapshotLifecycle.Inline);
-})
-.UseLightweightSessions()
-.AddAsyncDaemon(DaemonMode.HotCold)
-.IntegrateWithWolverine();
+        // We'll talk about this soon...
+        opts.Projections.Snapshot<Incident>(SnapshotLifecycle.Inline);
+    })
 
-builder.Host.UseWolverine(opts =>
-{
-    opts.Policies.AutoApplyTransactions();
-});
+// For Marten users, *this* is the default for Polecat!
+//.UseLightweightSessions()
+    .IntegrateWithWolverine(x => x.UseWolverineManagedEventSubscriptionDistribution = true);
+
+builder.Host.UseWolverine(opts => { opts.Policies.AutoApplyTransactions(); });
 
 builder.Services.AddWolverineHttp();
 
@@ -39,9 +37,16 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
+// Adding Wolverine.HTTP
 app.MapWolverineEndpoints();
 
+// This gets you a lot of CLI goodness from the 
+// greater JasperFx / Critter Stack ecosystem
+// and will soon feed quite a bit of AI assisted development as well
 return await app.RunJasperFxCommands(args);
 
-// For test bootstrapping
-public partial class Program{}
+// For test bootstrapping in case you want to work w/
+// more than one system at a time
+public partial class Program
+{
+}

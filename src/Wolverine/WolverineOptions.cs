@@ -148,6 +148,7 @@ public sealed partial class WolverineOptions
         InternalRouteSources.Insert(0, Transports.GetOrCreate<StubTransport>());
     }
 
+    [ChildDescription]
     public MetricsOptions Metrics { get; } = new();
 
     /// <summary>
