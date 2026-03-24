@@ -126,6 +126,14 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
             // Agent is latched if listener is null
             await inline.ReceivedAsync(new RetryOnInlineChannelCallback(Listener!, _runtime), envelopes.ToArray());
         }
+        else if (_receiver is GlobalPartitionedReceiverBridge bridge)
+        {
+            // Forward to the companion local queue for sequential processing
+            foreach (var envelope in envelopes)
+            {
+                await bridge.ReceivedAsync(Listener!, envelope);
+            }
+        }
         else
         {
             throw new InvalidOperationException("There is no active, local queue for this listening endpoint at " +

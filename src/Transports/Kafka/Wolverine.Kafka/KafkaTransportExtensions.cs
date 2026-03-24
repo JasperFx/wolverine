@@ -292,6 +292,7 @@ public static class KafkaTransportExtensions
         {
             var t = new PartitionedMessageTopologyWithTopics(opts, PartitionSlots.Five, baseName, numberOfEndpoints);
             t.ConfigureListening(x => {});
+
             configure?.Invoke(t);
             return t;
         }, baseName);
