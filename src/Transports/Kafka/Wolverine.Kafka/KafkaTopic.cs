@@ -58,6 +58,14 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
     /// </summary>
     public bool NativeDeadLetterQueueEnabled { get; set; }
 
+    /// <summary>
+    /// When true, the Kafka consumer group ID will be stamped onto the incoming
+    /// envelope's GroupId property. Useful when you want the consumer group name
+    /// to be available as envelope metadata for routing or correlation purposes.
+    /// Default is true.
+    /// </summary>
+    public bool StampConsumerGroupIdOnEnvelope { get; set; } = true;
+
     public static string TopicNameForUri(Uri uri)
     {
         return uri.Segments.Last().Trim('/');

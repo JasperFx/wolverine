@@ -105,6 +105,18 @@ public class KafkaListenerConfiguration : InteroperableListenerConfiguration<Kaf
     }
 
     /// <summary>
+    /// Disables stamping of the Kafka consumer group ID onto the GroupId property
+    /// of each incoming envelope. Use this when the consumer group name is not
+    /// meaningful as envelope metadata (e.g. when using PropagateGroupIdToPartitionKey).
+    /// </summary>
+    /// <returns></returns>
+    public KafkaListenerConfiguration DisableConsumerGroupIdStamping()
+    {
+        add(topic => topic.StampConsumerGroupIdOnEnvelope = false);
+        return this;
+    }
+
+    /// <summary>
     /// Configure the consumer config for only this topic. This overrides the default
     /// settings at the transport level. This is not combinatorial with the parent configuration
     /// and overwrites all ConsumerConfig from the parent

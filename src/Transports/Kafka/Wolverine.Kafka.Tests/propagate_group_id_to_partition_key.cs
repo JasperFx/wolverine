@@ -29,6 +29,7 @@ public class propagate_group_id_to_partition_key : IAsyncLifetime
                 // Listen to source topic with an explicit GroupId
                 opts.ListenToKafkaTopic("groupid-source")
                     .ProcessInline()
+                    .DisableConsumerGroupIdStamping()
                     .ConfigureConsumer(config =>
                     {
                         config.GroupId = "source-group-123";
@@ -122,6 +123,7 @@ public class propagate_group_id_via_property_name : IAsyncLifetime
 
                 opts.ListenToKafkaTopic("groupid-property-source")
                     .ProcessInline()
+                    .DisableConsumerGroupIdStamping()
                     .ConfigureConsumer(config =>
                     {
                         config.GroupId = "my-application-name";
