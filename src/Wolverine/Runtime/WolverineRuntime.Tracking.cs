@@ -139,6 +139,14 @@ public sealed partial class WolverineRuntime : IMessageTracker
 
         _successCounter.Add(1, tags);
 
+        if (Options.Metrics.Mode != WolverineMetricsMode.SystemDiagnosticsMeter
+            && envelope.MessageType.IsNotEmpty()
+            && !IsSystemEndpoint(envelope.Destination))
+        {
+            var accumulator = _accumulator.Value.FindAccumulator(envelope.MessageType!, envelope.Destination!);
+            accumulator.EntryPoint.Post(new RecordEffectiveTime(time, envelope.TenantId!));
+        }
+
         ActiveSession?.Record(MessageEventType.MessageSucceeded, envelope, _serviceName, _uniqueNodeId);
     }
 
@@ -149,6 +157,14 @@ public sealed partial class WolverineRuntime : IMessageTracker
         _effectiveTime.Record(time, tags);
 
         _deadLetterQueueCounter.Add(1, tags);
+
+        if (Options.Metrics.Mode != WolverineMetricsMode.SystemDiagnosticsMeter
+            && envelope.MessageType.IsNotEmpty()
+            && !IsSystemEndpoint(envelope.Destination))
+        {
+            var accumulator = _accumulator.Value.FindAccumulator(envelope.MessageType!, envelope.Destination!);
+            accumulator.EntryPoint.Post(new RecordEffectiveTime(time, envelope.TenantId!));
+        }
 
         ActiveSession?.Record(MessageEventType.Sent, envelope, _serviceName, _uniqueNodeId, ex);
     }
