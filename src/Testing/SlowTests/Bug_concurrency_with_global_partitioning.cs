@@ -9,13 +9,15 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Shouldly;
+using Wolverine;
 using Wolverine.ErrorHandling;
+using Wolverine.Kafka;
 using Wolverine.Marten;
 using Wolverine.Runtime.Partitioning;
 using Xunit;
 using Xunit.Abstractions;
 
-namespace Wolverine.Kafka.Tests;
+namespace SlowTests;
 
 public class Bug_concurrency_with_global_partitioning
 {
@@ -36,7 +38,7 @@ public class Bug_concurrency_with_global_partitioning
                 opts.ServiceName = serviceName;
                 opts.Durability.Mode = DurabilityMode.Balanced;
 
-                opts.UseKafka(KafkaContainerFixture.ConnectionString).AutoProvision();
+                opts.UseKafka("localhost:9092").AutoProvision();
 
                 opts.Discovery.DisableConventionalDiscovery()
                     .IncludeType(typeof(SoccerEventTypeOneHandler))
