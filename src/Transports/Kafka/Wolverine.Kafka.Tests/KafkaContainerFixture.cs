@@ -12,11 +12,18 @@ public static class KafkaContainerFixture
     [ModuleInitializer]
     internal static void Initialize()
     {
-        _container = new KafkaBuilder()
-            .WithImage("confluentinc/cp-kafka:7.6.1")
-            .Build();
+        try
+        {
+            _container = new KafkaBuilder()
+                .WithImage("confluentinc/cp-kafka:7.6.1")
+                .Build();
 
-        _container.StartAsync().GetAwaiter().GetResult();
-        ConnectionString = _container.GetBootstrapAddress();
+            _container.StartAsync().GetAwaiter().GetResult();
+            ConnectionString = _container.GetBootstrapAddress();
+        }
+        catch
+        {
+            // Fall back to docker-compose Kafka on localhost:9092
+        }
     }
 }
