@@ -35,7 +35,7 @@ public class send_kafka_tombstone : IAsyncLifetime
         var topicName = "tombstone-test-" + Guid.NewGuid().ToString("N")[..8];
         var tombstoneKey = "record-to-delete";
 
-        var bus = _sender.Services.GetRequiredService<IMessageBus>();
+        var bus = _sender.MessageBus();
         await bus.BroadcastToTopicAsync(topicName, new KafkaTombstone(tombstoneKey));
 
         // Give the batched sender time to flush
