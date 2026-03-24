@@ -344,6 +344,7 @@ partial class Build : NukeBuild
                 Solution.Http.Wolverine_Http,
                 Solution.Http.Wolverine_Http_FluentValidation,
                 Solution.Http.Wolverine_Http_Marten,
+                Solution.Persistence.Polecat.Wolverine_Http_Polecat,
                 Solution.Testing.Wolverine_ComplianceTests,
                 Solution.Transports.Redis.Wolverine_Redis,
                 Solution.Transports.SignalR.Wolverine_SignalR,
