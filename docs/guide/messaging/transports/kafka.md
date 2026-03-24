@@ -510,3 +510,18 @@ using var host = await Host.CreateDefaultBuilder()
 ```
 
 This creates Kafka topics named `orders1` through `orders4` with companion local queues `global-orders1` through `global-orders4`. Messages are routed to the correct shard based on their group id, and Wolverine handles the coordination between nodes automatically.
+
+## Sending Tombstone Messages <Badge type="tip" text="5.22" />
+
+Wolverine supports sending [Kafka tombstone messages](https://medium.com/@damienthomlutz/deleting-records-in-kafka-aka-tombstones-651114655a16) — messages with a non-null key and a null value — which are used to delete records from log-compacted Kafka topics.
+
+To send a tombstone, broadcast a `KafkaTombstone` to the target topic:
+
+```cs
+// Delete a record by key from a log-compacted topic
+await bus.BroadcastToTopicAsync("my-topic", new KafkaTombstone("record-key-to-delete"));
+```
+
+When Wolverine encounters a `KafkaTombstone` message, it produces a Kafka message with the specified key and a `null` value. This signals to Kafka's log compaction process that the record with that key should be removed during the next compaction cycle.
+
+This is useful when your Kafka topics use [log compaction](https://docs.confluent.io/platform/current/kafka/design.html#log-compaction) to maintain a key-value snapshot of the latest state. Publishing a tombstone ensures that deleted records are eventually cleaned up from the topic.

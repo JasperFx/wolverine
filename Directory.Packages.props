@@ -78,7 +78,6 @@
     <PackageVersion Include="Swashbuckle.AspNetCore.SwaggerUI" Version="9.0.1" />
     <PackageVersion Include="System.ComponentModel" Version="4.3.0" />
     <PackageVersion Include="Testcontainers" Version="4.11.0" />
-    <PackageVersion Include="Testcontainers.Kafka" Version="4.10.0" />
     <PackageVersion Include="Testcontainers.LocalStack" Version="4.11.0" />
     <PackageVersion Include="Testcontainers.MsSql" Version="4.11.0" />
     <PackageVersion Include="Testcontainers.Nats" Version="4.10.0" />

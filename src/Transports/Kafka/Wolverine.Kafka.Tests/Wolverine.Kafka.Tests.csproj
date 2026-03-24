@@ -19,7 +19,6 @@
         </PackageReference>
         <PackageReference Include="Alba" />
         <PackageReference Include="GitHubActionsTestLogger" PrivateAssets="All" />
-        <PackageReference Include="Testcontainers.Kafka" />
     </ItemGroup>
 
     <ItemGroup>

@@ -1,16 +1,22 @@
 using Confluent.Kafka;
 using JasperFx.Core;
 using JasperFx.Resources;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
-using Wolverine.Tracking;
+using Xunit.Abstractions;
 
 namespace Wolverine.Kafka.Tests;
 
-[Trait("Category", "Flaky")]
 public class send_kafka_tombstone : IAsyncLifetime
 {
+    private readonly ITestOutputHelper _output;
     private IHost _sender = null!;
+
+    public send_kafka_tombstone(ITestOutputHelper output)
+    {
+        _output = output;
+    }
 
     public async Task InitializeAsync()
     {
@@ -29,9 +35,11 @@ public class send_kafka_tombstone : IAsyncLifetime
         var topicName = "tombstone-test-" + Guid.NewGuid().ToString("N")[..8];
         var tombstoneKey = "record-to-delete";
 
-        await _sender.TrackActivity()
-            .Timeout(30.Seconds())
-            .ExecuteAndWaitAsync(m => m.BroadcastToTopicAsync(topicName, new KafkaTombstone(tombstoneKey)));
+        var bus = _sender.Services.GetRequiredService<IMessageBus>();
+        await bus.BroadcastToTopicAsync(topicName, new KafkaTombstone(tombstoneKey));
+
+        // Give the batched sender time to flush
+        await Task.Delay(5.Seconds());
 
         var consumerConfig = new ConsumerConfig
         {
@@ -47,7 +55,7 @@ public class send_kafka_tombstone : IAsyncLifetime
 
         consumer.Close();
 
-        result.ShouldNotBeNull();
+        result.ShouldNotBeNull("Tombstone message was not found on the Kafka topic");
         result.Message.Key.ShouldBe(tombstoneKey);
         result.Message.Value.ShouldBeNull();
     }
