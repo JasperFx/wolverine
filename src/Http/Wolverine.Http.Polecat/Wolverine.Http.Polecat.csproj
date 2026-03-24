@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFrameworks>net10.0</TargetFrameworks>
+        <TargetFrameworks>net9.0;net10.0</TargetFrameworks>
         <NoWarn>$(NoWarn);NU1202;NETSDK1005</NoWarn>
         <Description>Polecat middleware and other helpers for Wolverine HTTP Endpoints</Description>
         <PackageId>WolverineFx.Http.Polecat</PackageId>

@@ -2,7 +2,7 @@
     <PropertyGroup>
         <Description>Polecat-backed Persistence for Wolverine Applications</Description>
         <PackageId>WolverineFx.Polecat</PackageId>
-        <TargetFrameworks>net10.0</TargetFrameworks>
+        <TargetFrameworks>net9.0;net10.0</TargetFrameworks>
         <NoWarn>$(NoWarn);NU1202;NETSDK1005</NoWarn>
         <GenerateAssemblyProductAttribute>false</GenerateAssemblyProductAttribute>
         <GenerateAssemblyCopyrightAttribute>false</GenerateAssemblyCopyrightAttribute>
