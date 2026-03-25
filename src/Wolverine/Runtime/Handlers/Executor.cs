@@ -16,12 +16,12 @@ public enum InvokeResult
     /// The message is successful
     /// </summary>
     Success,
-
+    
     /// <summary>
     /// The message should be retried
     /// </summary>
     TryAgain,
-
+    
     /// <summary>
     /// The message should not be retried
     /// </summary>
@@ -95,6 +95,7 @@ internal class Executor : IExecutor
         using var activity = Handler.TelemetryEnabled ? WolverineTracing.StartExecuting(envelope) : null;
 
         _tracker.ExecutionStarted(envelope);
+        _executionStarted(_logger, envelope!.CorrelationId!, _messageTypeName, envelope.Id, null);
 
         var context = _contextPool.Get();
         context.ReadEnvelope(envelope, InvocationCallback.Instance);
@@ -111,11 +112,13 @@ internal class Executor : IExecutor
             await context.FlushOutgoingMessagesAsync();
             activity?.SetStatus(ActivityStatusCode.Ok);
             _tracker.ExecutionFinished(envelope);
+            _messageSucceeded(_logger, _messageTypeName, envelope.Id,  envelope.Destination!.ToString(), null);
         }
         catch (Exception e)
         {
             activity?.SetStatus(ActivityStatusCode.Error, e.GetType().Name);
             _tracker.ExecutionFinished(envelope, e);
+            _messageFailed(_logger, _messageTypeName, envelope.Id, envelope.Destination!.ToString(), e);
             throw;
         }
         finally
@@ -136,7 +139,7 @@ internal class Executor : IExecutor
             TenantId = options?.TenantId ?? bus.TenantId,
             DoNotCascadeResponse = true
         };
-
+        
         options?.Override(envelope);
 
         bus.TrackEnvelopeCorrelation(envelope, Activity.Current);
@@ -158,7 +161,7 @@ internal class Executor : IExecutor
         {
             TenantId = options?.TenantId ?? bus.TenantId
         };
-
+        
         options?.Override(envelope);
 
         bus.TrackEnvelopeCorrelation(envelope, Activity.Current);
@@ -183,7 +186,7 @@ internal class Executor : IExecutor
             {
                 await context.AssertAnyRequiredResponseWasGenerated();
             }
-
+            
             Activity.Current?.SetStatus(ActivityStatusCode.Ok);
 
             _messageSucceeded(_logger, _messageTypeName, envelope.Id,
@@ -219,10 +222,6 @@ internal class Executor : IExecutor
             throw new ArgumentOutOfRangeException(nameof(context.Envelope));
         }
 
-        var envelope = context.Envelope;
-        _tracker.ExecutionStarted(envelope!);
-        _executionStarted(_logger, envelope!.CorrelationId!, _messageTypeName, envelope.Id, null);
-
         try
         {
             await Handler.HandleAsync(context, cancellation);
@@ -230,38 +229,22 @@ internal class Executor : IExecutor
             {
                 await context.AssertAnyRequiredResponseWasGenerated();
             }
-
-            Activity.Current?.SetStatus(ActivityStatusCode.Ok);
-
-            _messageSucceeded(_logger, _messageTypeName, envelope.Id,
-                envelope.Destination!.ToString(), null);
-
-            _tracker.ExecutionFinished(envelope);
-
+            
             return InvokeResult.Success;
         }
         catch (Exception e)
         {
-            //_logger.LogError(e, "Invocation of {Message} failed!", context.Envelope.Message);
-            _messageFailed(_logger, _messageTypeName, envelope.Id, envelope.Destination!.ToString(), e);
-
-            _tracker
-                .ExecutionFinished(envelope, e); // Need to do this to make the MessageHistory complete?
+            _logger.LogError(e, "Invocation of {Message} failed!", context.Envelope.Message);
 
             var retry = _rules.TryFindInlineContinuation(e, context.Envelope);
             if (retry == null)
             {
-                Activity.Current?.SetStatus(ActivityStatusCode.Error, e.GetType().Name);
                 throw;
             }
 
             return await retry
                 .ExecuteInlineAsync(context, context.Runtime, DateTimeOffset.UtcNow, Activity.Current, cancellation)
                 .ConfigureAwait(false);
-        }
-        finally
-        {
-            _executionFinished(_logger, envelope.CorrelationId!, _messageTypeName, envelope.Id, null);
         }
     }
 
@@ -275,7 +258,7 @@ internal class Executor : IExecutor
         HandlerGraph handlerGraph, Type messageType)
     {
         var handler = handlerGraph.HandlerFor(messageType);
-        if (handler == null)
+        if (handler == null )
         {
             var batching = runtime.Options.BatchDefinitions.FirstOrDefault(x => x.ElementType == messageType);
             if (batching != null)
@@ -283,7 +266,7 @@ internal class Executor : IExecutor
                 handler = batching.BuildHandler((WolverineRuntime)runtime);
             }
         }
-
+        
         if (handler == null)
         {
             return new NoHandlerExecutor(messageType, (WolverineRuntime)runtime);
@@ -304,7 +287,7 @@ internal class Executor : IExecutor
         var rules = chain?.Failures.CombineRules(handlerGraph.Failures) ?? handlerGraph.Failures;
 
         var logger = runtime.LoggerFactory.CreateLogger(handler.MessageType);
-
+        
         return new Executor(contextPool, logger, handler, tracker, rules, timeoutSpan);
     }
 }
