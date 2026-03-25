@@ -149,6 +149,11 @@ _listener = await Host.CreateDefaultBuilder()
 
 See the details on [Lightweight Saga Storage](/guide/durability/sagas.html#lightweight-saga-storage) for more information.
 
+If you are using string-identified sagas with the lightweight storage, be aware that the default `varchar(100)`
+identity column can cause performance issues due to SQL Server's implicit `varchar`/`nvarchar` conversion on
+query parameters. See [SQL Server String Identity and nvarchar](/guide/durability/sagas.html#sql-server-string-identity-and-nvarchar)
+for the opt-in fix.
+
 ## Multi-Tenancy <Badge type="tip" text="4.0" />
 
 You can utilize multi-tenancy through separate databases for each tenant with SQL Server and Wolverine. If utilizing the SQL Server transport 
