@@ -6,7 +6,7 @@ using ISubscriptionAgent = JasperFx.Events.Daemon.ISubscriptionAgent;
 
 namespace Wolverine.Marten.Distribution;
 
-public class EventSubscriptionAgent : IAgent
+public class EventSubscriptionAgent : IEventSubscriptionAgent
 {
     private readonly ShardName _shardName;
     private readonly IProjectionDaemon _daemon;
