@@ -42,8 +42,7 @@ public class DocumentationSamples
                 // fetch into the listener at any one time
                 .MaximumMessagesToReceive(50)
 
-                // Override how often to poll for new messages when the
-                // queue is idle. Defaults to DurabilitySettings.ScheduledJobPollingTime (5s).
+                // Override how often to poll for new messages when the queue is idle.
                 .PollingInterval(1.Seconds());
         });
 
