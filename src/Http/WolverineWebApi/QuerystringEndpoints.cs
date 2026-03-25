@@ -74,6 +74,25 @@ public static class QuerystringEndpoints
     }
 }
 
+public static class DottedFromQueryEndpoints
+{
+    [WolverineGet("/querystring/dotted")]
+    public static string HandleDottedQueryNames(
+        [FromQuery(Name = "hub.mode")] string hubMode,
+        [FromQuery(Name = "hub.challenge")] string hubChallenge,
+        [FromQuery(Name = "hub.verify_token")] string hubVerifyToken)
+    {
+        return $"{hubMode}|{hubChallenge}|{hubVerifyToken}";
+    }
+
+    [WolverineGet("/querystring/dotted-int")]
+    public static string HandleDottedIntQueryName(
+        [FromQuery(Name = "page.number")] int pageNumber)
+    {
+        return $"page {pageNumber}";
+    }
+}
+
 public static class FromQueryEndpoints
 {
     [WolverineGet("/api/fromquery1")]
