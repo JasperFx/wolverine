@@ -2,6 +2,7 @@ using JasperFx.Descriptors;
 using Weasel.Core.Migrations;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
+using Wolverine.Transports;
 
 namespace Wolverine.RDBMS.MultiTenancy;
 
@@ -44,9 +45,17 @@ public class MessageDatabaseDiscovery : IDatabaseSource
         return usage;
     }
 
-    public ValueTask<IReadOnlyList<IDatabase>> BuildDatabases()
+    public async ValueTask<IReadOnlyList<IDatabase>> BuildDatabases()
     {
-        return _runtime.Stores.FindAllAsync<IDatabase>();
+        if (!_runtime.Options.ExternalTransportsAreStubbed)
+        {
+            foreach (var transport in _runtime.Options.Transports.OfType<ITransportConfiguresRuntime>().ToArray())
+            {
+                await transport.ConfigureAsync(_runtime);
+            }
+        }
+        
+        return await _runtime.Stores.FindAllAsync<IDatabase>();
     }
 
     public DatabaseCardinality Cardinality => _runtime.Stores.Cardinality();
