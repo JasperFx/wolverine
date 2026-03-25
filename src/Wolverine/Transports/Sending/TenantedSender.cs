@@ -49,14 +49,14 @@ internal class InvalidTenantSender : ISender
 public class TenantedSender : ISender, ISenderRequiresCallback, IAsyncDisposable
 {
     public TenantedIdBehavior TenantedIdBehavior { get; }
-    private readonly ISender _defaultSender;
+    private readonly ISender _defaultSender = null!;
     private ImHashMap<string, ISender> _senders = ImHashMap<string, ISender>.Empty;
 
     public TenantedSender(Uri destination, TenantedIdBehavior tenantedIdBehavior, ISender? defaultSender)
     {
         Destination = destination;
         TenantedIdBehavior = tenantedIdBehavior;
-        _defaultSender = defaultSender;
+        _defaultSender = defaultSender!;
 
         if (tenantedIdBehavior == TenantedIdBehavior.FallbackToDefault && _defaultSender == null)
         {
@@ -102,7 +102,7 @@ public class TenantedSender : ISender, ISenderRequiresCallback, IAsyncDisposable
 
     public ValueTask SendAsync(Envelope envelope)
     {
-        return senderForTenantId(envelope.TenantId).SendAsync(envelope);
+        return senderForTenantId(envelope.TenantId!).SendAsync(envelope);
     }
 
     private ISender senderForTenantId(string tenantId)

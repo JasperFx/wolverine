@@ -39,8 +39,8 @@ public class using_multiple_storage_actions : IntegrationContext
         await Host.InvokeMessageAndWaitAsync(command);
 
         var persistor = Host.Services.GetRequiredService<InMemorySagaPersistor>();
-        persistor.Load<Team>(command.Id).Name.ShouldBe(command.TeamName);
-        persistor.Load<Player>(command.Id).Name.ShouldBe(command.PlayerName);
+        persistor.Load<Team>(command.Id)!.Name.ShouldBe(command.TeamName);
+        persistor.Load<Player>(command.Id)!.Name.ShouldBe(command.PlayerName);
     }
 
     [Fact]
@@ -58,13 +58,13 @@ public class using_multiple_storage_actions : IntegrationContext
 public class Team
 {
     public Guid Id { get; set; }
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
 }
 
 public class Player
 {
     public Guid Id { get; set; }
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
 }
 
 public record CreateTeamAndPlayer(Guid Id, string TeamName, string PlayerName);
@@ -73,7 +73,7 @@ public record CreateMultiplePositions(string First, string Second);
 
 public class Position
 {
-    public string Id { get; set; }
+    public string Id { get; set; } = null!;
 }
 
 public static class CreateMultiplePositionsHandler

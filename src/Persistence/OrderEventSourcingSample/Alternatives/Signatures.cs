@@ -14,7 +14,7 @@ public class MarkItemReady
     // Order aggregate
     [Identity] public Guid Id { get; init; }
 
-    public string ItemName { get; init; }
+    public string ItemName { get; init; } = null!;
 }
 
 #endregion
@@ -28,7 +28,7 @@ public static class MarkItemReadyHandler
     [AggregateHandler]
     public static void Handle(OrderEventSourcingSample.MarkItemReady command, IEventStream<Order> stream)
     {
-        var order = stream.Aggregate;
+        var order = stream.Aggregate!;
 
         if (order.Items.TryGetValue(command.ItemName, out var item))
         {

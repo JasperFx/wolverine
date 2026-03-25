@@ -36,7 +36,7 @@ public class AzureServiceBusTopicBroadcastingRoutingConvention : MessageRoutingC
     {
         var topic = transport.Topics[topicName];
         
-        var subscriptionName = _subscriptionNameSource == null ? transport.MaybeCorrectName(handlerType.FullName) : _subscriptionNameSource(handlerType);
+        var subscriptionName = _subscriptionNameSource == null ? transport.MaybeCorrectName(handlerType.FullName!) : _subscriptionNameSource(handlerType);
 
         var subscription =
             transport.Subscriptions.FirstOrDefault(x =>

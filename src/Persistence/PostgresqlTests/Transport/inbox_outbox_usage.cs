@@ -15,7 +15,7 @@ namespace PostgresqlTests.Transport;
 [Collection("Postgresql")]
 public class inbox_outbox_usage : IAsyncLifetime
 {
-    private IHost _host;
+    private IHost _host = null!;
 
     public async Task InitializeAsync()
     {

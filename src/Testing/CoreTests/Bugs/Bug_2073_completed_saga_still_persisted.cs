@@ -9,7 +9,7 @@ namespace CoreTests.Bugs;
 
 public class Bug_2073_completed_saga_still_persisted : IAsyncLifetime
 {
-    private IHost _host;
+    private IHost _host = null!;
 
     public async Task InitializeAsync()
     {

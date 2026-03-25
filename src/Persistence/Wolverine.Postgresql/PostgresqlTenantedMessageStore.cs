@@ -29,7 +29,7 @@ internal class PostgresqlTenantedMessageStore : ITenantedMessageSource
     }
 
     public DatabaseCardinality Cardinality => _persistence.DataSourceTenancy?.Cardinality ??
-                                              _persistence.ConnectionStringTenancy.Cardinality;
+                                              _persistence.ConnectionStringTenancy!.Cardinality;
     public async ValueTask<IMessageStore> FindAsync(string tenantId)
     {
         if (_stores.TryFind(tenantId, out var store))
@@ -44,7 +44,7 @@ internal class PostgresqlTenantedMessageStore : ITenantedMessageSource
         }
         else
         {
-            var connectionString = await _persistence.ConnectionStringTenancy.FindAsync(tenantId);
+            var connectionString = await _persistence.ConnectionStringTenancy!.FindAsync(tenantId);
             store = buildTenantStoreForConnectionString(connectionString);
         }
         

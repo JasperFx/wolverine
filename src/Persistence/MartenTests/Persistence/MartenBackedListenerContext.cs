@@ -54,8 +54,8 @@ public class MartenBackedListenerContext : PostgresqlContext, IDisposable, IAsyn
     private readonly IHandlerPipeline thePipeline = Substitute.For<IHandlerPipeline>();
     protected readonly DocumentStore theStore;
     protected readonly Uri theUri = "tcp://localhost:1111".ToUri();
-    internal DurableReceiver theReceiver;
-    protected DurabilitySettings theSettings;
+    internal DurableReceiver theReceiver = null!;
+    protected DurabilitySettings theSettings = null!;
 
 
     public MartenBackedListenerContext()

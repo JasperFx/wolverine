@@ -27,7 +27,7 @@ public abstract class WolverineParameterAttribute : Attribute
         ArgumentName = argumentName;
     }
 
-    public string ArgumentName { get; set; }
+    public string ArgumentName { get; set; } = null!;
     
     /// <summary>
     /// Where should the identity value for resolving this parameter come from?
@@ -79,7 +79,7 @@ public abstract class WolverineParameterAttribute : Attribute
             return true;
         }
 
-        variable = default;
+        variable = default!;
         return false;
     }
 }

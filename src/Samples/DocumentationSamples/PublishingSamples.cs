@@ -242,9 +242,9 @@ public class PublishingSamples
     public class InvoiceCreated
     {
         public DateTimeOffset Time { get; set; }
-        public string Purchaser { get; set; }
+        public string Purchaser { get; set; } = null!;
         public double Amount { get; set; }
-        public string Item { get; set; }
+        public string Item { get; set; } = null!;
     }
 
     public class SomeMessage;
@@ -280,7 +280,7 @@ public class PublishingSamples
 
     public class Customer
     {
-        public string Id { get; set; }
+        public string Id { get; set; } = null!;
         public bool PremiumMembership { get; set; }
     }
 
@@ -288,15 +288,13 @@ public class PublishingSamples
     {
         public Guid Id { get; set; }
 
-        public string CustomerId { get; set; }
+        public string CustomerId { get; set; } = null!;
 
         public Task Handle(ImageGenerated generated)
         {
             // look up the customer, figure out how to send the
             // image to their client.
             throw new NotImplementedException("Not done yet:)");
-
-            MarkCompleted();
         }
     }
 
@@ -309,7 +307,7 @@ public class PublishingSamples
             IDocumentSession session,
             CancellationToken cancellationToken)
         {
-            return session.LoadAsync<Customer>(request.CustomerId, cancellationToken);
+            return session.LoadAsync<Customer>(request.CustomerId, cancellationToken)!;
         }
 
         public static (RoutedToEndpointMessage<GenerateImage>, ImageSaga) Handle(

@@ -76,7 +76,7 @@ internal class CustomJsonConverterForType : JsonConverter<Type>
         JsonSerializerOptions options
         )
     {
-        string assemblyQualifiedName = value.AssemblyQualifiedName;
+        string assemblyQualifiedName = value.AssemblyQualifiedName!;
         // Use this with caution, since you are disclosing type information.
         writer.WriteStringValue(assemblyQualifiedName);
     }

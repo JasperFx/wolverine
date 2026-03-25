@@ -45,7 +45,7 @@ public static class TransferMoneyHandler
         [WriteAggregate(nameof(TransferMoney.ToId))] IEventStream<Account> toAccount)
     {
         // Would already 404 if either referenced account does not exist
-        if (fromAccount.Aggregate.Amount >= command.Amount)
+        if (fromAccount.Aggregate!.Amount >= command.Amount)
         {
             fromAccount.AppendOne(new Withdrawn(command.Amount));
             toAccount.AppendOne(new Debited(command.Amount));
@@ -66,7 +66,7 @@ public static class TransferMoneyHandler2
         [WriteAggregate(nameof(TransferMoney.ToId))] IEventStream<Account> toAccount)
     {
         // Would already 404 if either referenced account does not exist
-        if (fromAccount.Aggregate.Amount >= command.Amount)
+        if (fromAccount.Aggregate!.Amount >= command.Amount)
         {
             fromAccount.AppendOne(new Withdrawn(command.Amount));
             toAccount.AppendOne(new Debited(command.Amount));
@@ -87,7 +87,7 @@ public static class TransferMoneyHandler3
         [WriteAggregate(nameof(TransferMoney.ToId))] IEventStream<Account> toAccount)
     {
         // Would already 404 if either referenced account does not exist
-        if (fromAccount.Aggregate.Amount >= command.Amount)
+        if (fromAccount.Aggregate!.Amount >= command.Amount)
         {
             fromAccount.AppendOne(new Withdrawn(command.Amount));
             toAccount.AppendOne(new Debited(command.Amount));
@@ -104,9 +104,9 @@ public static class TransferMoneyEndpointWithBefore
         To = toAccount;
     }
 
-    public static Account To { get; set; }
+    public static Account To { get; set; } = null!;
 
-    public static Account From { get; set; }
+    public static Account From { get; set; } = null!;
 
     [WolverinePost("/accounts/transfer4")]
     public static void Handle(
@@ -117,7 +117,7 @@ public static class TransferMoneyEndpointWithBefore
         [WriteAggregate(nameof(TransferMoney.ToId))] IEventStream<Account> toAccount)
     {
         // Would already 404 if either referenced account does not exist
-        if (fromAccount.Aggregate.Amount >= command.Amount)
+        if (fromAccount.Aggregate!.Amount >= command.Amount)
         {
             fromAccount.AppendOne(new Withdrawn(command.Amount));
             toAccount.AppendOne(new Debited(command.Amount));
@@ -133,9 +133,9 @@ public static class TransferMoneyEndpointWithBeforeAggregate
         To = toAccount;
     }
 
-    public static Account To { get; set; }
+    public static Account To { get; set; } = null!;
 
-    public static Account From { get; set; }
+    public static Account From { get; set; } = null!;
 
     [WolverinePost("/accounts/transfer5")]
     public static void Handle(
@@ -145,7 +145,7 @@ public static class TransferMoneyEndpointWithBeforeAggregate
 
         [Aggregate(nameof(TransferMoney.ToId))] IEventStream<Account> toAccount)
     {
-        if (fromAccount.Aggregate.Amount >= command.Amount)
+        if (fromAccount.Aggregate!.Amount >= command.Amount)
         {
             fromAccount.AppendOne(new Withdrawn(command.Amount));
             toAccount.AppendOne(new Debited(command.Amount));
@@ -161,9 +161,9 @@ public static class TransferMoneyEndpointWithBeforeMixed
         To = toAccount;
     }
 
-    public static Account To { get; set; }
+    public static Account To { get; set; } = null!;
 
-    public static Account From { get; set; }
+    public static Account From { get; set; } = null!;
 
     [WolverinePost("/accounts/transfer6")]
     public static void Handle(
@@ -173,7 +173,7 @@ public static class TransferMoneyEndpointWithBeforeMixed
 
         [ReadAggregate(nameof(TransferMoney.ToId))] Account toAccount)
     {
-        if (fromAccount.Aggregate.Amount >= command.Amount)
+        if (fromAccount.Aggregate!.Amount >= command.Amount)
         {
             fromAccount.AppendOne(new Withdrawn(command.Amount));
         }

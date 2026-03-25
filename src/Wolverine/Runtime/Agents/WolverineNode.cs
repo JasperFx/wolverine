@@ -35,7 +35,7 @@ public class WolverineNode
 
         return new WolverineNode
         {
-            Version = options.Version,
+            Version = options.Version!,
             NodeId = options.UniqueNodeId,
             ControlUri = options.Transports.NodeControlEndpoint?.Uri,
             LastHealthCheck = DateTimeOffset.UtcNow

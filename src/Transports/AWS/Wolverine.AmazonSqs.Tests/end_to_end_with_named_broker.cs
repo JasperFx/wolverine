@@ -41,7 +41,7 @@ public class end_to_end_with_named_broker
 
         ColorHandler.Received = new();
 
-        Task.Run(async () =>
+        _ = Task.Run(async () =>
         {
             for (int i = 0; i < 10000; i++)
             {

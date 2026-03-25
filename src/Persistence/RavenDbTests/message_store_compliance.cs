@@ -65,7 +65,7 @@ public class DatabaseCollection : ICollectionFixture<DatabaseFixture>
 public class message_store_compliance : MessageStoreCompliance
 {
     private readonly DatabaseFixture _fixture;
-    private IDocumentStore _store;
+    private IDocumentStore _store = null!;
 
     public message_store_compliance(DatabaseFixture fixture)
     {

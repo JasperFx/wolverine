@@ -13,8 +13,8 @@ namespace Wolverine.MQTT.Tests;
 public class broadcast_to_topic_rules : IAsyncLifetime
 {
     private readonly ITestOutputHelper _output;
-    private IHost _sender;
-    private IHost _receiver;
+    private IHost _sender = null!;
+    private IHost _receiver = null!;
 
     public broadcast_to_topic_rules(ITestOutputHelper output)
     {
@@ -84,7 +84,7 @@ public class broadcast_to_topic_rules : IAsyncLifetime
             .Destination.ShouldBe(new Uri("mqtt://topic/green"));
     }
 
-    public LocalMqttBroker Broker { get; set; }
+    public LocalMqttBroker Broker { get; set; } = null!;
 
     public async Task DisposeAsync()
     {

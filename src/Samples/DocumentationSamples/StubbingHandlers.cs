@@ -17,7 +17,7 @@ public class StubbingHandlers
         builder.UseWolverine(opts =>
         {
             opts
-                .UseRabbitMq(builder.Configuration.GetConnectionString("rabbit"))
+                .UseRabbitMq(builder.Configuration.GetConnectionString("rabbit")!)
                 .AutoProvision();
 
             // Just showing that EstimateDelivery is handled by

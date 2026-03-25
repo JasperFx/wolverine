@@ -28,10 +28,10 @@ public class end_to_end_with_named_broker : IAsyncLifetime
         var builder = Host.CreateApplicationBuilder();
         builder.UseWolverine(opts =>
         {
-            var connectionString1 = builder.Configuration.GetConnectionString("azureservicebus1");
+            var connectionString1 = builder.Configuration.GetConnectionString("azureservicebus1")!;
             opts.AddNamedAzureServiceBusBroker(new BrokerName("one"), connectionString1);
-            
-            var connectionString2 = builder.Configuration.GetConnectionString("azureservicebus2");
+
+            var connectionString2 = builder.Configuration.GetConnectionString("azureservicebus2")!;
             opts.AddNamedAzureServiceBusBroker(new BrokerName("two"), connectionString2);
 
             opts.PublishAllMessages().ToAzureServiceBusQueueOnNamedBroker(new BrokerName("one"), "queue1");
@@ -139,8 +139,8 @@ public class end_to_end_with_named_broker : IAsyncLifetime
         var (tracked, response) =
             await publisher.TrackActivity().AlsoTrack(receiver).InvokeAndWaitAsync<ResponseId>(request);
         
-        response.Id.ShouldBe(request.Id);
-        tracked.Received.SingleEnvelope<ResponseId>().Destination.Scheme.ShouldBe("other");
+        response!.Id.ShouldBe(request.Id);
+        tracked.Received.SingleEnvelope<ResponseId>().Destination!.Scheme.ShouldBe("other");
     }
 
 }

@@ -88,7 +88,7 @@ internal class NServiceBusEnvelopeMapper : ISnsEnvelopeMapper
 
         if (sqs.Headers.TryGetValue("NServiceBus.EnclosedMessageTypes", out var messageTypeName))
         {
-            Type messageType = Type.GetType(messageTypeName);
+            Type? messageType = Type.GetType(messageTypeName);
             if (messageType != null)
             {
                 envelope.MessageType = messageType.ToMessageTypeName();
@@ -105,18 +105,18 @@ internal class NServiceBusEnvelopeMapper : ISnsEnvelopeMapper
     
     public string BuildMessageBody(Envelope envelope)
     {
-        var data = Convert.ToBase64String(_serializer.WriteMessage(envelope.Message));
+        var data = Convert.ToBase64String(_serializer.WriteMessage(envelope.Message!));
         var sqs = new SnsEnvelope(data, new())
         {
             Headers =
             {
                 ["NServiceBus.MessageId"] = envelope.Id.ToString(),
                 ["NServiceBus.ConversationId"] = envelope.ConversationId.ToString(),
-                ["NServiceBus.CorrelationId"] = envelope.CorrelationId,
+                ["NServiceBus.CorrelationId"] = envelope.CorrelationId!,
                 ["NServiceBus.ReplyToAddress"] = _replyName,
                 ["NServiceBus.ContentType"] = "application/json",
                 ["NServiceBus.TimeSent"] = envelope.SentAt.ToString("yyyy-MM-dd HH:mm:ss:ffffff Z"),
-                ["NServiceBus.EnclosedMessageTypes"] = envelope.Message.GetType().ToMessageTypeName()
+                ["NServiceBus.EnclosedMessageTypes"] = envelope.Message!.GetType().ToMessageTypeName()
             }
         };
 

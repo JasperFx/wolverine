@@ -32,9 +32,9 @@ public class PubsubEnvelopeMapper : EnvelopeMapper<PubsubMessage, PubsubMessage>
             }
         );
 
-        MapPropertyToHeader(x => x.GroupId, "group-id");
-        MapPropertyToHeader(x => x.DeduplicationId, "deduplication-id");
-        MapPropertyToHeader(x => x.PartitionKey, "partition-key");
+        MapPropertyToHeader(x => x.GroupId!, "group-id");
+        MapPropertyToHeader(x => x.DeduplicationId!, "deduplication-id");
+        MapPropertyToHeader(x => x.PartitionKey!, "partition-key");
     }
 
     public void MapOutgoingToMessage(OutgoingMessageBatch outgoing, PubsubMessage message)

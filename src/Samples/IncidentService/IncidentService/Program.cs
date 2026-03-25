@@ -20,7 +20,7 @@ builder.Services.AddSwaggerGen();
 builder.Services.AddMarten(opts =>
 {
     var connectionString = builder.Configuration.GetConnectionString("Marten");
-    opts.Connection(connectionString);
+    opts.Connection(connectionString!);
     opts.DatabaseSchemaName = "incidents";
     
     opts.Projections.Snapshot<Incident>(SnapshotLifecycle.Inline);

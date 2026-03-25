@@ -13,7 +13,7 @@ public class using_create_response_and_metadata_derived_from_response_type : Int
     [Fact]
     public void read_metadata_from_IEndpointMetadataProvider()
     {
-        var chain = HttpChain.ChainFor<CreateEndpoint>(x => x.Create(null));
+        var chain = HttpChain.ChainFor<CreateEndpoint>(x => x.Create(null!));
 
         var endpoint = chain.BuildEndpoint(RouteWarmup.Lazy);
 

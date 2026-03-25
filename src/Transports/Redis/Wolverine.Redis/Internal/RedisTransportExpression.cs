@@ -78,48 +78,48 @@ public class RedisListenerConfiguration : ListenerConfiguration<RedisListenerCon
     /// </summary>
     public RedisListenerConfiguration BatchSize(int batchSize)
     {
-        _endpoint.BatchSize = batchSize;
+        _endpoint!.BatchSize = batchSize;
         return this;
     }
-    
+
     /// <summary>
     /// Configure the consumer name for this endpoint
     /// </summary>
     public RedisListenerConfiguration ConsumerName(string consumerName)
     {
-        _endpoint.ConsumerName = consumerName;
+        _endpoint!.ConsumerName = consumerName;
         return this;
     }
-    
+
     /// <summary>
     /// Configure the block timeout when reading from Redis streams
     /// </summary>
     public RedisListenerConfiguration BlockTimeout(TimeSpan timeout)
     {
-        _endpoint.BlockTimeoutMilliseconds = (int)timeout.TotalMilliseconds;
+        _endpoint!.BlockTimeoutMilliseconds = (int)timeout.TotalMilliseconds;
         return this;
     }
-    
+
     /// <summary>
     /// Configure the consumer group to start consuming from the beginning of the stream,
     /// including any existing messages (equivalent to Redis "0-0" position)
     /// </summary>
     public RedisListenerConfiguration StartFromBeginning()
     {
-        _endpoint.StartFrom = StartFrom.Beginning;
+        _endpoint!.StartFrom = StartFrom.Beginning;
         return this;
     }
-    
+
     /// <summary>
     /// Configure the consumer group to start consuming only new messages added after
     /// group creation (equivalent to Redis "$" position). This is the default behavior.
     /// </summary>
     public RedisListenerConfiguration StartFromNewMessages()
     {
-        _endpoint.StartFrom = StartFrom.NewMessages;
+        _endpoint!.StartFrom = StartFrom.NewMessages;
         return this;
     }
-    
+
     /// <summary>
     /// Enable auto-claiming of pending entries within the consumer loop every specified period
     /// </summary>
@@ -129,7 +129,7 @@ public class RedisListenerConfiguration : ListenerConfiguration<RedisListenerCon
     /// <returns>This endpoint for method chaining</returns>
     public RedisListenerConfiguration EnableAutoClaim(TimeSpan? period = null, TimeSpan? minIdle = null)
     {
-        _endpoint.AutoClaimEnabled = true;
+        _endpoint!.AutoClaimEnabled = true;
         if (period.HasValue) _endpoint.AutoClaimPeriod = period.Value;
         if (minIdle.HasValue) _endpoint.AutoClaimMinIdle = minIdle.Value;
         return this;
@@ -141,10 +141,10 @@ public class RedisListenerConfiguration : ListenerConfiguration<RedisListenerCon
     /// <returns>This endpoint for method chaining</returns>
     public RedisListenerConfiguration DisableAutoClaim()
     {
-        _endpoint.AutoClaimEnabled = false;
+        _endpoint!.AutoClaimEnabled = false;
         return this;
     }
-    
+
     /// <summary>
     /// Enable native dead letter queue support for this endpoint.
     /// Failed messages will be moved to a dead letter stream: {StreamKey}:dead-letter
@@ -152,10 +152,10 @@ public class RedisListenerConfiguration : ListenerConfiguration<RedisListenerCon
     /// <returns>This endpoint for method chaining</returns>
     public RedisListenerConfiguration EnableNativeDeadLetterQueue()
     {
-        _endpoint.NativeDeadLetterQueueEnabled = true;
+        _endpoint!.NativeDeadLetterQueueEnabled = true;
         return this;
     }
-    
+
     /// <summary>
     /// Disable native dead letter queue support for this endpoint.
     /// Failed messages will use Wolverine's default dead letter handling (database persistence).
@@ -163,7 +163,7 @@ public class RedisListenerConfiguration : ListenerConfiguration<RedisListenerCon
     /// <returns>This endpoint for method chaining</returns>
     public RedisListenerConfiguration DisableNativeDeadLetterQueue()
     {
-        _endpoint.NativeDeadLetterQueueEnabled = false;
+        _endpoint!.NativeDeadLetterQueueEnabled = false;
         return this;
     }
 }
@@ -173,31 +173,31 @@ public class RedisSubscriberConfiguration : SubscriberConfiguration<RedisSubscri
     internal RedisSubscriberConfiguration(RedisStreamEndpoint endpoint) : base(endpoint)
     {
     }
-    
+
     /// <summary>
     /// Configure the batch size for reading messages from Redis streams
     /// </summary>
     public RedisSubscriberConfiguration BatchSize(int batchSize)
     {
-        _endpoint.BatchSize = batchSize;
+        _endpoint!.BatchSize = batchSize;
         return this;
     }
-    
+
     /// <summary>
     /// Configure the consumer name for this endpoint
     /// </summary>
     public RedisSubscriberConfiguration ConsumerName(string consumerName)
     {
-        _endpoint.ConsumerName = consumerName;
+        _endpoint!.ConsumerName = consumerName;
         return this;
     }
-    
+
     /// <summary>
     /// Configure the block timeout when reading from Redis streams
     /// </summary>
     public RedisSubscriberConfiguration BlockTimeout(TimeSpan timeout)
     {
-        _endpoint.BlockTimeoutMilliseconds = (int)timeout.TotalMilliseconds;
+        _endpoint!.BlockTimeoutMilliseconds = (int)timeout.TotalMilliseconds;
         return this;
     }
 }

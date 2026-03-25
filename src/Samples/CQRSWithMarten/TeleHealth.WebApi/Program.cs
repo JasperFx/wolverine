@@ -65,7 +65,7 @@ builder.Services.AddMarten(opts =>
             .Configuration
             .GetConnectionString("marten");
 
-        opts.Connection(connString);
+        opts.Connection(connString!);
 
         // There will be more here later...
 

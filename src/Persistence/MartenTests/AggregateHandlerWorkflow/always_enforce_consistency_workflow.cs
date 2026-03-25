@@ -16,8 +16,8 @@ namespace MartenTests.AggregateHandlerWorkflow;
 
 public class always_enforce_consistency_workflow : PostgresqlContext, IAsyncLifetime
 {
-    private IHost theHost;
-    private IDocumentStore theStore;
+    private IHost theHost = null!;
+    private IDocumentStore theStore = null!;
     private Guid theStreamId;
 
     public async Task InitializeAsync()
@@ -59,7 +59,7 @@ public class always_enforce_consistency_workflow : PostgresqlContext, IAsyncLife
     private async Task<ConsistencyAggregate> LoadAggregate()
     {
         await using var session = theStore.LightweightSession();
-        return await session.LoadAsync<ConsistencyAggregate>(theStreamId);
+        return (await session.LoadAsync<ConsistencyAggregate>(theStreamId))!;
     }
 
     [Fact]

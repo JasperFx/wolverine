@@ -15,10 +15,6 @@ namespace PostgresqlTests.Transport;
 [Collection("sqlserver")]
 public class stateful_resource_smoke_tests : IAsyncLifetime
 {
-    private IHost _host;
-    private IStatefulResource? theResource;
-    private PostgresqlTransport theTransport;
-
     public async Task InitializeAsync()
     {
         await using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);

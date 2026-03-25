@@ -44,8 +44,8 @@ public class Order : Saga
 {
     // Just use this for the identity
     // of RavenDb backed sagas
-    public string Id { get; set; }
-    
+    public string Id { get; set; } = null!;
+
     // Handle and Start methods...
 }
 

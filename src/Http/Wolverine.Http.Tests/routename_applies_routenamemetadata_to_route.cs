@@ -13,6 +13,6 @@ public class routename_applies_routenamemetadata_to_route : IntegrationContext
     public void routename_applies_routenamemetadata()
     {
         var chain = HttpChains.ChainFor("POST", "/named/route");
-        chain.Endpoint.Metadata.Any(m => m is RouteNameMetadata { RouteName: "NamedRoute"}).ShouldBeTrue();
+        chain!.Endpoint!.Metadata.Any(m => m is RouteNameMetadata { RouteName: "NamedRoute"}).ShouldBeTrue();
     }
 }

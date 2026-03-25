@@ -228,11 +228,21 @@ public static class KafkaTransportExtensions
 
     internal static async ValueTask<Message<string, byte[]>> CreateMessage(this IKafkaEnvelopeMapper mapper, Envelope envelope)
     {
+        if (envelope.Message is KafkaTombstone tombstone)
+        {
+            return new Message<string, byte[]>
+            {
+                Key = tombstone.Key,
+                Value = null,
+                Headers = new Headers()
+            };
+        }
+
         var data = await envelope.GetDataAsync();
         var message = new Message<string, byte[]>
         {
             Key = !string.IsNullOrEmpty(envelope.PartitionKey) ? envelope.PartitionKey : envelope.Id.ToString(),
-            Value = data,
+            Value = data!,
             Headers = new Headers()
         };
 
@@ -282,6 +292,7 @@ public static class KafkaTransportExtensions
         {
             var t = new PartitionedMessageTopologyWithTopics(opts, PartitionSlots.Five, baseName, numberOfEndpoints);
             t.ConfigureListening(x => {});
+
             configure?.Invoke(t);
             return t;
         }, baseName);

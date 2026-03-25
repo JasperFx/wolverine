@@ -31,7 +31,7 @@ public class DatabaseBackedEndpointTests
             .UseWolverine(opts =>
             {
                 opts.ServiceName = "DatabaseBackedEndpointTest";
-                opts.UseRedisTransport("localhost:6379").AutoProvision();
+                opts.UseRedisTransport(RedisContainerFixture.ConnectionString).AutoProvision();
                 opts.PublishMessage<TestMessage>().ToRedisStream(streamKey).SendInline();
                 opts.ListenToRedisStream(streamKey, "dbe-test-group").StartFromBeginning();
             }).StartAsync();
@@ -54,7 +54,7 @@ public class DatabaseBackedEndpointTests
             .UseWolverine(opts =>
             {
                 opts.ServiceName = "DatabaseBackedEndpointTest";
-                opts.UseRedisTransport("localhost:6379").AutoProvision();
+                opts.UseRedisTransport(RedisContainerFixture.ConnectionString).AutoProvision();
                 opts.PublishMessage<TestMessage>().ToRedisStream(streamKey).SendInline();
                 opts.ListenToRedisStream(streamKey, "dbe-test-group").StartFromBeginning();
             }).StartAsync();
@@ -118,7 +118,7 @@ public class DatabaseBackedEndpointTests
             .UseWolverine(opts =>
             {
                 opts.ServiceName = "DatabaseBackedEndpointTest";
-                opts.UseRedisTransport("localhost:6379").AutoProvision();
+                opts.UseRedisTransport(RedisContainerFixture.ConnectionString).AutoProvision();
                 opts.PublishMessage<TestMessage>().ToRedisStream(streamKey).SendInline();
                 opts.ListenToRedisStream(streamKey, "dbe-test-group").StartFromBeginning();
             }).StartAsync();
@@ -178,7 +178,7 @@ public class DatabaseBackedEndpointTests
                 opts.Durability.ScheduledJobFirstExecution = 50.Milliseconds();
                 opts.Durability.ScheduledJobPollingTime = 100.Milliseconds();
                 
-                opts.UseRedisTransport("localhost:6379").AutoProvision();
+                opts.UseRedisTransport(RedisContainerFixture.ConnectionString).AutoProvision();
                 opts.PublishMessage<TestMessage>().ToRedisStream(streamKey).SendInline();
                 opts.ListenToRedisStream(streamKey, "dbe-test-group").StartFromBeginning();
             }).StartAsync();

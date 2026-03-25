@@ -26,7 +26,7 @@ public class handler_with_optional_side_effect
         var graph = host.Services.GetRequiredService<HandlerGraph>();
         var chain = graph.ChainFor<SomeCommand>();
 
-        _output.WriteLine(chain.SourceCode);
+        _output.WriteLine(chain!.SourceCode);
     }
 
     [Fact]
@@ -40,7 +40,7 @@ public class handler_with_optional_side_effect
         var graph = host.Services.GetRequiredService<HandlerGraph>();
         var chain = graph.ChainFor<SomeOtherCommand>();
 
-        _output.WriteLine(chain.SourceCode);
+        _output.WriteLine(chain!.SourceCode);
     }
 }
 

@@ -20,7 +20,7 @@ public class configure_consumers_and_publishers : IAsyncLifetime
         _output = output;
     }
 
-    private IHost _host;
+    private IHost _host = null!;
 
     public async Task InitializeAsync()
     {
@@ -29,7 +29,7 @@ public class configure_consumers_and_publishers : IAsyncLifetime
             {
                 opts.ServiceName = "Wolverine.Kafka.Tests";
 
-                opts.UseKafka("localhost:9092")
+                opts.UseKafka(KafkaContainerFixture.ConnectionString)
                     .AutoProvision()
                     .ConfigureConsumers(consumer =>
                     {

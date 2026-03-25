@@ -28,7 +28,7 @@ public class FakeTransactionAttribute : ModifyHandlerChainAttribute
 public class FakeTransaction : Frame
 {
     private readonly Variable _session;
-    private Variable _store;
+    private Variable _store = null!;
 
     public FakeTransaction() : base(false)
     {

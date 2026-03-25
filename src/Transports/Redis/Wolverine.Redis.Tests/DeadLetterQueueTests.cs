@@ -33,7 +33,7 @@ public class DeadLetterQueueTests
                 // Disable automatic local queue processing
                 opts.Durability.Mode = DurabilityMode.Solo;
                 
-                opts.UseRedisTransport("localhost:6379").AutoProvision();
+                opts.UseRedisTransport(RedisContainerFixture.ConnectionString).AutoProvision();
                 
                 // Configure routing to our test stream
                 opts.PublishMessage<FailingCommand>().ToRedisStream(streamKey).SendInline();

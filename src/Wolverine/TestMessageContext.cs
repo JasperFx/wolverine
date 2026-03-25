@@ -89,7 +89,7 @@ public class TestMessageContext : IMessageContext
         /// <param name="response"></param>
         public void RespondWith<TResponse>(TResponse response)
         {
-            var expectation = new ExpectedResponse<T>(_match, response, _destination, _endpointName);
+            var expectation = new ExpectedResponse<T>(_match, response!, _destination, _endpointName);
             _parent.Expectations.Add(expectation);
         }
     }

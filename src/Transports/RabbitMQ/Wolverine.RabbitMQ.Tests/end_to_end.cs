@@ -38,6 +38,7 @@ public static class RabbitTesting
     }
 }
 
+[Trait("Category", "Flaky")]
 public class end_to_end
 {
     private readonly ITestOutputHelper _output;
@@ -891,13 +892,13 @@ public class ColorHandler
 
 public class ColorHistory
 {
-    public string Name { get; set; }
-    public Envelope Envelope { get; set; }
+    public string Name { get; set; } = null!;
+    public Envelope Envelope { get; set; } = null!;
 }
 
 public class ColorChosen
 {
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
 }
 
 [MessageIdentity("A")]

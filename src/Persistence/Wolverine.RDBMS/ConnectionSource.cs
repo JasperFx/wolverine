@@ -26,7 +26,7 @@ public static class ConnectionSource<T> where T : DbConnection
             }
             else
             {
-                var store = await tenantedStore.Source.FindAsync(context.TenantId);
+                var store = await tenantedStore.Source.FindAsync(context.TenantId!);
                 if (store is IConnectionSource<T> s3) return s3.CreateConnection();
             }
         }

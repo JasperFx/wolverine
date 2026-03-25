@@ -39,16 +39,16 @@ public class configuration_specs
 
         // Not proud of this code
         var handlers = (HandlerGraph)typeof(WolverineOptions)
-            .GetProperty(nameof(HandlerGraph), BindingFlags.NonPublic | BindingFlags.Instance)
-            .GetValue(wolverineOptions);
+            .GetProperty(nameof(HandlerGraph), BindingFlags.NonPublic | BindingFlags.Instance)!
+            .GetValue(wolverineOptions)!;
 
-        handlers.ChainFor<Command1>().Middleware.OfType<MethodCall>()
+        handlers.ChainFor<Command1>()!.Middleware.OfType<MethodCall>()
             .Any(x => x.HandlerType == typeof(DataAnnotationsValidationExecutor) &&
                       x.Method.Name == nameof(DataAnnotationsValidationExecutor.Validate))
             .ShouldBeTrue();
-        
+
         // No validators here, but the middleware will always be applied
-        handlers.ChainFor<Command3>().Middleware.OfType<MethodCall>()
+        handlers.ChainFor<Command3>()!.Middleware.OfType<MethodCall>()
             .Any(x => x.HandlerType == typeof(DataAnnotationsValidationExecutor))
             .ShouldBeTrue();
     }
@@ -57,17 +57,17 @@ public class configuration_specs
 public class Command1
 {
     [Required]
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
     [Required]
-    public string Color { get; set; }
+    public string Color { get; set; } = null!;
     [Range(3, int.MaxValue)]
     public int Number { get; set; }
 }
 
 public class Command2 : IValidatableObject
 {
-    public string Name { get; set; }
-    public string Color { get; set; }
+    public string Name { get; set; } = null!;
+    public string Color { get; set; } = null!;
 
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
     {

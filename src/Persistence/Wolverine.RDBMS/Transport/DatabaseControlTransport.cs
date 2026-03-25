@@ -41,7 +41,7 @@ internal class DatabaseControlTransport : ITransport, IAsyncDisposable
     
     public bool TryBuildBrokerUsage(out BrokerDescription description)
     {
-        description = default;
+        description = default!;
         return false;
     }
 

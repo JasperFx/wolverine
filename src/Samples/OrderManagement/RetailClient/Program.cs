@@ -1,4 +1,5 @@
-﻿// See https://aka.ms/new-console-template for more information
+﻿#pragma warning disable CS0436 // Type conflicts with imported type
+// See https://aka.ms/new-console-template for more information
 
 using IntegrationTests;
 using JasperFx.Events;

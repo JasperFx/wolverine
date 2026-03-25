@@ -12,7 +12,7 @@ public static class HandlerChainSpecificationExtensions
         chain.ShouldNotBeNull();
 
         var method = ReflectionHelper.GetMethod(expression);
-        chain.Handlers.Any(x => x.Method.Name == method.Name).ShouldBeTrue();
+        chain.Handlers.Any(x => x.Method.Name == method!.Name).ShouldBeTrue();
     }
 
     public static void ShouldHaveHandler<T>(this HandlerChain chain, string methodName)

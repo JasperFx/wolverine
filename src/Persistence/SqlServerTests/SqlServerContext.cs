@@ -9,7 +9,7 @@ namespace SqlServerTests;
 
 public abstract class SqlServerContext : IAsyncLifetime
 {
-    protected SqlServerMessageStore thePersistence;
+    protected SqlServerMessageStore thePersistence = null!;
 
     public async Task InitializeAsync()
     {

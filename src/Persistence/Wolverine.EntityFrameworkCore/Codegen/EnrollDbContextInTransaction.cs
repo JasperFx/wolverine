@@ -12,11 +12,11 @@ internal class EnrollDbContextInTransaction : AsyncFrame
 {
     private readonly Type _dbContextType;
     private readonly IdempotencyStyle _idempotencyStyle;
-    private Variable _dbContext;
-    private Variable _cancellation;
+    private Variable _dbContext = null!;
+    private Variable _cancellation = null!;
     private Variable _envelopeTransaction;
     private Variable? _context;
-    private Variable _scrapers;
+    private Variable _scrapers = null!;
 
     public EnrollDbContextInTransaction(Type dbContextType, IdempotencyStyle idempotencyStyle)
     {
@@ -31,7 +31,7 @@ internal class EnrollDbContextInTransaction : AsyncFrame
         writer.WriteLine("");
         writer.WriteComment(
             "Enroll the DbContext & IMessagingContext in the outgoing Wolverine outbox transaction");
-        writer.Write($"var {_envelopeTransaction.Usage} = new {typeof(EfCoreEnvelopeTransaction).FullNameInCode()}({_dbContext.Usage}, {_context.Usage}, {_scrapers.Usage});");
+        writer.Write($"var {_envelopeTransaction.Usage} = new {typeof(EfCoreEnvelopeTransaction).FullNameInCode()}({_dbContext.Usage}, {_context!.Usage}, {_scrapers.Usage});");
         writer.Write(
             $"await {_context.Usage}.{nameof(MessageContext.EnlistInOutboxAsync)}({_envelopeTransaction.Usage}).ConfigureAwait(false);");
 

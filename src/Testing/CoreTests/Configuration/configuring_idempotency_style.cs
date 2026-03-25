@@ -27,12 +27,12 @@ public class configuring_idempotency_style
 
         
         var runtime = host.GetRuntime();
-        runtime.Handlers.ChainFor<DoSomething>().Idempotency.ShouldBe(IdempotencyStyle.Eager);
-        runtime.Handlers.ChainFor<TM4>().Idempotency.ShouldBe(IdempotencyStyle.Optimistic);
+        runtime.Handlers.ChainFor<DoSomething>()!.Idempotency.ShouldBe(IdempotencyStyle.Eager);
+        runtime.Handlers.ChainFor<TM4>()!.Idempotency.ShouldBe(IdempotencyStyle.Optimistic);
         
-        runtime.Handlers.ChainFor<TM1>().Idempotency.ShouldBe(IdempotencyStyle.None);
-        runtime.Handlers.ChainFor<TM2>().Idempotency.ShouldBe(IdempotencyStyle.None);
-        runtime.Handlers.ChainFor<TM3>().Idempotency.ShouldBe(IdempotencyStyle.None);
+        runtime.Handlers.ChainFor<TM1>()!.Idempotency.ShouldBe(IdempotencyStyle.None);
+        runtime.Handlers.ChainFor<TM2>()!.Idempotency.ShouldBe(IdempotencyStyle.None);
+        runtime.Handlers.ChainFor<TM3>()!.Idempotency.ShouldBe(IdempotencyStyle.None);
     }
 
     [Fact]
@@ -60,16 +60,16 @@ public class configuring_idempotency_style
         var runtime = host.GetRuntime();
         
         // Just seeing that this caught
-        runtime.Handlers.ChainFor<DoSomething>().IsTransactional.ShouldBeTrue();
+        runtime.Handlers.ChainFor<DoSomething>()!.IsTransactional.ShouldBeTrue();
         
-        runtime.Handlers.ChainFor<DoSomething>().Idempotency.ShouldBe(IdempotencyStyle.Eager);
+        runtime.Handlers.ChainFor<DoSomething>()!.Idempotency.ShouldBe(IdempotencyStyle.Eager);
         
         // Override by transactional attribute!
-        runtime.Handlers.ChainFor<TM4>().Idempotency.ShouldBe(IdempotencyStyle.Optimistic);
+        runtime.Handlers.ChainFor<TM4>()!.Idempotency.ShouldBe(IdempotencyStyle.Optimistic);
         
-        runtime.Handlers.ChainFor<TM1>().Idempotency.ShouldBe(IdempotencyStyle.Eager);
-        runtime.Handlers.ChainFor<TM2>().Idempotency.ShouldBe(IdempotencyStyle.Eager);
-        runtime.Handlers.ChainFor<TM3>().Idempotency.ShouldBe(IdempotencyStyle.Eager);
+        runtime.Handlers.ChainFor<TM1>()!.Idempotency.ShouldBe(IdempotencyStyle.Eager);
+        runtime.Handlers.ChainFor<TM2>()!.Idempotency.ShouldBe(IdempotencyStyle.Eager);
+        runtime.Handlers.ChainFor<TM3>()!.Idempotency.ShouldBe(IdempotencyStyle.Eager);
     }
     
     
@@ -92,14 +92,14 @@ public class configuring_idempotency_style
         await host.InvokeAsync(new TM4(Guid.NewGuid()));
         
         var runtime = host.GetRuntime();
-        runtime.Handlers.ChainFor<DoSomething>().Idempotency.ShouldBe(IdempotencyStyle.Eager);
+        runtime.Handlers.ChainFor<DoSomething>()!.Idempotency.ShouldBe(IdempotencyStyle.Eager);
         
         // Override by transactional attribute!
-        runtime.Handlers.ChainFor<TM4>().Idempotency.ShouldBe(IdempotencyStyle.Optimistic);
+        runtime.Handlers.ChainFor<TM4>()!.Idempotency.ShouldBe(IdempotencyStyle.Optimistic);
         
-        runtime.Handlers.ChainFor<TM1>().Idempotency.ShouldBe(IdempotencyStyle.Optimistic);
-        runtime.Handlers.ChainFor<TM2>().Idempotency.ShouldBe(IdempotencyStyle.Optimistic);
-        runtime.Handlers.ChainFor<TM3>().Idempotency.ShouldBe(IdempotencyStyle.Optimistic);
+        runtime.Handlers.ChainFor<TM1>()!.Idempotency.ShouldBe(IdempotencyStyle.Optimistic);
+        runtime.Handlers.ChainFor<TM2>()!.Idempotency.ShouldBe(IdempotencyStyle.Optimistic);
+        runtime.Handlers.ChainFor<TM3>()!.Idempotency.ShouldBe(IdempotencyStyle.Optimistic);
     }
 }
 

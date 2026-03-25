@@ -18,7 +18,7 @@ public abstract class LeadershipElectionCompliance : IAsyncLifetime
 {
     private readonly List<IHost> _hosts = new();
     private readonly ITestOutputHelper _output;
-    private IHost _originalHost;
+    private IHost _originalHost = null!;
     
     // TODO -- rename this after combining
     protected abstract Task beforeBuildingHost();
@@ -63,7 +63,7 @@ public abstract class LeadershipElectionCompliance : IAsyncLifetime
     {
         if (_originalHost.RunningAgents().Contains(agentUri)) return _originalHost;
 
-        return _hosts.FirstOrDefault(x => x.RunningAgents().Contains(agentUri));
+        return _hosts.FirstOrDefault(x => x.RunningAgents().Contains(agentUri))!;
     }
 
     public IHost OriginalHost => _originalHost;

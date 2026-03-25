@@ -111,10 +111,10 @@ public class TripStream
 
     public bool TryCheckoutCommand(out object command)
     {
-        return (Messages.TryDequeue(out command));
+        return (Messages.TryDequeue(out command!));
     }
 
 
-    public string TenantId { get; set; }
+    public string TenantId { get; set; } = null!;
 
 }

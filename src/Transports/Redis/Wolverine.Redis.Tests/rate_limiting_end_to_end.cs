@@ -30,7 +30,7 @@ public class rate_limiting_end_to_end(ITestOutputHelper output) : IAsyncLifetime
                 opts.ApplicationAssembly = typeof(rate_limiting_end_to_end).Assembly;
                 opts.Services.AddSingleton(_tracker);
 
-                opts.UseRedisTransport("localhost:6379").AutoProvision();
+                opts.UseRedisTransport(RedisContainerFixture.ConnectionString).AutoProvision();
                 opts.PublishAllMessages().ToRedisStream(streamKey);
                 opts.ListenToRedisStream(streamKey, groupName)
                     .UseDurableInbox()

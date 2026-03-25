@@ -34,7 +34,7 @@ public class AzureServiceBusEnvelopeMapper : EnvelopeMapper<ServiceBusReceivedMe
             }
         });
 
-        MapProperty(x => x.GroupId, (e, m) => e.GroupId = m.SessionId, (e, m) => m.SessionId = e.GroupId);
+        MapProperty(x => x.GroupId!, (e, m) => e.GroupId = m.SessionId!, (e, m) => m.SessionId = e.GroupId);
 
     }
 

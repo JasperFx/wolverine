@@ -44,7 +44,7 @@ public class EnvelopeGenerator
             Source = SourceServiceName
         };
         
-        envelope.Data = envelope.Serializer.WriteMessage(envelope.Message);
+        envelope.Data = envelope.Serializer.WriteMessage(envelope.Message!);
         
         if (Random.Shared.Next(0, 10) < 2)
         {

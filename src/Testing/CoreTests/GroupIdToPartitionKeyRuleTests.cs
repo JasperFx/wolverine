@@ -72,4 +72,72 @@ public class GroupIdToPartitionKeyRuleTests
 
         outgoing.PartitionKey.ShouldBeNull();
     }
+
+    [Fact]
+    public void prefers_outgoing_group_id_over_originator_group_id()
+    {
+        // Simulates: ByPropertyNamed has set outgoing.GroupId from the message property,
+        // while the originator (a Kafka consumer) has GroupId = consumer group name.
+        var rule = new GroupIdToPartitionKeyRule();
+        var originator = Substitute.For<IMessageContext>();
+        var originatingEnvelope = ObjectMother.Envelope();
+        originatingEnvelope.GroupId = "my-application-name"; // Kafka consumer group
+        originator.Envelope.Returns(originatingEnvelope);
+
+        var outgoing = ObjectMother.Envelope();
+        outgoing.PartitionKey = null;
+        outgoing.GroupId = "fixture-abc"; // set by ByPropertyNamed
+
+        rule.ApplyCorrelation(originator, outgoing);
+
+        outgoing.PartitionKey.ShouldBe("fixture-abc");
+    }
+
+    [Fact]
+    public void falls_back_to_originator_partition_key_when_outgoing_has_no_group_id()
+    {
+        // Simulates: no ByPropertyNamed, but originator has a PartitionKey (e.g. from Kafka message key)
+        var rule = new GroupIdToPartitionKeyRule();
+        var originator = Substitute.For<IMessageContext>();
+        var originatingEnvelope = ObjectMother.Envelope();
+        originatingEnvelope.PartitionKey = "fixture-xyz";
+        originatingEnvelope.GroupId = null;
+        originator.Envelope.Returns(originatingEnvelope);
+
+        var outgoing = ObjectMother.Envelope();
+        outgoing.PartitionKey = null;
+        outgoing.GroupId = null;
+
+        rule.ApplyCorrelation(originator, outgoing);
+
+        outgoing.PartitionKey.ShouldBe("fixture-xyz");
+    }
+
+    [Fact]
+    public void modify_promotes_group_id_to_partition_key_when_no_originator()
+    {
+        // Simulates: published outside a handler context (background service etc.)
+        // ByPropertyNamed has set GroupId; Modify should promote it to PartitionKey.
+        var rule = new GroupIdToPartitionKeyRule();
+        var envelope = ObjectMother.Envelope();
+        envelope.GroupId = "fixture-abc";
+        envelope.PartitionKey = null;
+
+        rule.Modify(envelope);
+
+        envelope.PartitionKey.ShouldBe("fixture-abc");
+    }
+
+    [Fact]
+    public void modify_does_not_override_explicit_partition_key()
+    {
+        var rule = new GroupIdToPartitionKeyRule();
+        var envelope = ObjectMother.Envelope();
+        envelope.GroupId = "fixture-abc";
+        envelope.PartitionKey = "explicit-key";
+
+        rule.Modify(envelope);
+
+        envelope.PartitionKey.ShouldBe("explicit-key");
+    }
 }

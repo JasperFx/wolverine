@@ -7,8 +7,8 @@ namespace Wolverine.Transports.SharedMemory;
 
 public class SharedMemorySubscription : SharedMemoryEndpoint, IListener, ISender
 {
-    private Subscription _subscription;
-    private Block<Envelope> _receiver;
+    private Subscription _subscription = null!;
+    private Block<Envelope> _receiver = null!;
     public SharedMemoryTopic Parent { get; }
     public string Name { get; }
 

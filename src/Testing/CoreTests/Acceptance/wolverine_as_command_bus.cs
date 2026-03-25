@@ -36,7 +36,7 @@ public class wolverine_as_command_bus : IntegrationContext, ILogger<WolverineRun
         return true;
     }
 
-    public IDisposable BeginScope<TState>(TState state)
+    public IDisposable BeginScope<TState>(TState state) where TState : notnull
     {
         return Substitute.For<IDisposable>();
     }
@@ -195,7 +195,7 @@ public class WorkTracker
 {
     private readonly TaskCompletionSource<Message1> _message1 = new();
     private readonly TaskCompletionSource<Message2> _message2 = new();
-    public Message5 LastMessage;
+    public Message5 LastMessage = null!;
 
     public Task<Message1> Message1 => _message1.Task;
     public Task<Message2> Message2 => _message2.Task;

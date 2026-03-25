@@ -16,7 +16,7 @@ public class local_invoke_does_not_publish_the_return_value
         var name = "Chris Jones";
         var (tracked, response) = await host.InvokeMessageAndWaitAsync<CommandInvoked>(new InvokeCommand(name));
 
-        response.Name.ShouldBe(name);
+        response!.Name.ShouldBe(name);
 
         tracked.Sent.MessagesOf<CommandInvoked>().Any().ShouldBeFalse();
     }

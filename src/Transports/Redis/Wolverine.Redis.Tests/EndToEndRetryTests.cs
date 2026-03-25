@@ -37,7 +37,7 @@ public class EndToEndRetryTests(ITestOutputHelper output): IAsyncLifetime
                 opts.Durability.ScheduledJobFirstExecution = 100.Milliseconds();
                 opts.Durability.ScheduledJobPollingTime = 200.Milliseconds();
 
-                opts.UseRedisTransport("localhost:6379").AutoProvision();
+                opts.UseRedisTransport(RedisContainerFixture.ConnectionString).AutoProvision();
 
                 // Configure routing to our test stream (without SendInline to ensure durable processing)
                 opts.PublishMessage<E2EFailingCommand>().ToRedisStream(_streamKey);

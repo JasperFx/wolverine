@@ -22,7 +22,7 @@ namespace EfCoreTests.Migrations;
 [Collection("sqlserver")]
 public class with_one_sqlserver_context : IAsyncLifetime
 {
-    private IHost _host;
+    private IHost _host = null!;
 
     public async Task InitializeAsync()
     {
@@ -109,9 +109,9 @@ public class Blog
     public int BlogId { get; set; }
     
     [Column("url")]
-    public string Url { get; set; }
+    public string Url { get; set; } = null!;
     // Navigation property for related posts
-    public List<Post> Posts { get; set; }
+    public List<Post> Posts { get; set; } = null!;
 }
 
 public class Post
@@ -120,15 +120,15 @@ public class Post
     public int PostId { get; set; }
     
     [Column("title")]
-    public string Title { get; set; }
-    
+    public string Title { get; set; } = null!;
+
     [Column("content")]
-    public string Content { get; set; }
+    public string Content { get; set; } = null!;
     // Foreign key to the Blog
     [Column("blog_id")]
     public int BlogId { get; set; }
     // Navigation property for the related blog
-    public Blog Blog { get; set; }
+    public Blog Blog { get; set; } = null!;
 }
 
 public class BloggingContext : DbContext

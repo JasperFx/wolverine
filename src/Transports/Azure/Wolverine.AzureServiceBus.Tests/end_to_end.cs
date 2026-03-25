@@ -9,9 +9,10 @@ using Xunit;
 
 namespace Wolverine.AzureServiceBus.Tests;
 
+[Trait("Category", "Flaky")]
 public class end_to_end : IAsyncLifetime
 {
-    private IHost _host;
+    private IHost _host = null!;
 
     public async Task InitializeAsync()
     {

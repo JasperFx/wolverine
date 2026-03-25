@@ -22,7 +22,7 @@ public class MultiTenancyContext : IClassFixture<MultiTenancyFixture>
     public MultiTenancyContext(MultiTenancyFixture fixture)
     {
         Fixture = fixture;
-        Runtime = fixture.Host.GetRuntime();
+        Runtime = fixture.Host!.GetRuntime();
         Stores = Runtime.Stores.MultiTenanted.Single();
     }
 

@@ -55,7 +55,7 @@ public class LookupHandler
 
         //await session.SaveChangesAsync(cancellationToken);
 
-        return await session.LoadAsync<Bug215Data>(lookup.Id, cancellationToken);
+        return (await session.LoadAsync<Bug215Data>(lookup.Id, cancellationToken))!;
     }
 }
 

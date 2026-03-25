@@ -120,7 +120,7 @@ internal static class TopicRouting
             throw new ArgumentNullException(nameof(envelope),
                 $"{nameof(envelope.Message)} is null, making this operation invalid");
 
-        return envelope.TopicName ?? DetermineTopicName(envelope.Message?.GetType());
+        return envelope.TopicName ?? DetermineTopicName(envelope.Message?.GetType()!);
     }
 }
 

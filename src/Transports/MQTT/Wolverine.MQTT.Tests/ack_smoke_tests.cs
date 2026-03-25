@@ -11,9 +11,9 @@ namespace Wolverine.MQTT.Tests;
 public class ack_smoke_tests : IAsyncLifetime
 {
     private readonly ITestOutputHelper _output;
-    private IHost _sender;
-    private IHost _receiver;
-    private LocalMqttBroker Broker;
+    private IHost _sender = null!;
+    private IHost _receiver = null!;
+    private LocalMqttBroker Broker = null!;
 
     public ack_smoke_tests(ITestOutputHelper output)
     {

@@ -18,7 +18,7 @@ public class using_additive_local_routing_and_external_conventions : MessageRout
             var rabbitConnectionString = builder
                 .Configuration.GetConnectionString("rabbitmq");
 
-            opts.UseRabbitMq(rabbitConnectionString)
+            opts.UseRabbitMq(rabbitConnectionString!)
                 .AutoProvision()
 
                 // Using the built in, default Rabbit MQ message routing conventions

@@ -6,11 +6,11 @@ namespace Wolverine.RavenDb.Internals;
 // TODO -- harden all locking methods
 public partial class RavenDbMessageStore
 {
-    private string _leaderLockId;
-    private string _scheduledLockId;
+    private string _leaderLockId = null!;
+    private string _scheduledLockId = null!;
     private long _lastScheduledLockIndex = 0;
     private DistributedLock? _scheduledLock;
-    private IWolverineRuntime _runtime;
+    private IWolverineRuntime _runtime = null!;
 
     private DistributedLock? _leaderLock;
     private long _lastLockIndex = 0;

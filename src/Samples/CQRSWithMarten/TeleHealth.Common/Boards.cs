@@ -22,13 +22,13 @@ public class Board
     }
 
     public Guid Id { get; set; }
-    public string Name { get; }
+    public string Name { get; } = null!;
     public DateTimeOffset Activated { get; set; }
     public DateTimeOffset? Finished { get; set; }
     public DateOnly Date { get; set; }
     public DateTimeOffset? Closed { get; set; }
 
-    public string CloseReason { get; private set; }
+    public string CloseReason { get; private set; } = null!;
 
     public void Apply(BoardFinished finished)
     {

@@ -20,7 +20,7 @@ public class DocumentationSamples
             // connection string out of configuration
             var azureServiceBusConnectionString = builder
                 .Configuration
-                .GetConnectionString("azure-service-bus");
+                .GetConnectionString("azure-service-bus")!;
 
             // Connect to the broker in the simplest possible way
             opts.UseAzureServiceBus(azureServiceBusConnectionString)
@@ -55,7 +55,7 @@ public class DocumentationSamples
             // connection string out of configuration
             var azureServiceBusConnectionString = builder
                 .Configuration
-                .GetConnectionString("azure-service-bus");
+                .GetConnectionString("azure-service-bus")!;
 
             // Connect to the broker in the simplest possible way
             opts.UseAzureServiceBus(azureServiceBusConnectionString).AutoProvision()
@@ -95,7 +95,7 @@ public class DocumentationSamples
             // connection string out of configuration
             var azureServiceBusConnectionString = builder
                 .Configuration
-                .GetConnectionString("azure-service-bus");
+                .GetConnectionString("azure-service-bus")!;
 
             // Connect to the broker in the simplest possible way
             opts.UseAzureServiceBus(azureServiceBusConnectionString).AutoProvision();
@@ -131,7 +131,7 @@ public class DocumentationSamples
             // connection string out of configuration
             var azureServiceBusConnectionString = builder
                 .Configuration
-                .GetConnectionString("azure-service-bus");
+                .GetConnectionString("azure-service-bus")!;
 
             // Connect to the broker in the simplest possible way
             opts.UseAzureServiceBus(azureServiceBusConnectionString).AutoProvision();
@@ -228,7 +228,7 @@ public class DocumentationSamples
             // connection string out of configuration
             var azureServiceBusConnectionString = builder
                 .Configuration
-                .GetConnectionString("azure-service-bus");
+                .GetConnectionString("azure-service-bus")!;
 
             // Connect to the broker in the simplest possible way
             opts.UseAzureServiceBus(azureServiceBusConnectionString).AutoProvision();
@@ -261,7 +261,7 @@ opts.ListenToAzureServiceBusQueue("incoming")
             // connection string out of configuration
             var azureServiceBusConnectionString = builder
                 .Configuration
-                .GetConnectionString("azure-service-bus");
+                .GetConnectionString("azure-service-bus")!;
 
             // Connect to the broker in the simplest possible way
             opts.UseAzureServiceBus(azureServiceBusConnectionString).AutoProvision();
@@ -290,7 +290,7 @@ opts.ListenToAzureServiceBusQueue("incoming")
             // connection string out of configuration
             var azureServiceBusConnectionString = builder
                 .Configuration
-                .GetConnectionString("azure-service-bus");
+                .GetConnectionString("azure-service-bus")!;
 
             // Connect to the broker in the simplest possible way
             opts.UseAzureServiceBus(azureServiceBusConnectionString).AutoProvision();
@@ -322,7 +322,7 @@ opts.ListenToAzureServiceBusQueue("incoming")
             // connection string out of configuration
             var azureServiceBusConnectionString = builder
                 .Configuration
-                .GetConnectionString("azure-service-bus");
+                .GetConnectionString("azure-service-bus")!;
 
             // Connect to the broker in the simplest possible way
             opts.UseAzureServiceBus(azureServiceBusConnectionString).AutoProvision()
@@ -349,7 +349,7 @@ opts.ListenToAzureServiceBusQueue("incoming")
             // connection string out of configuration
             var azureServiceBusConnectionString = builder
                 .Configuration
-                .GetConnectionString("azure-service-bus");
+                .GetConnectionString("azure-service-bus")!;
 
             // Connect to the broker in the simplest possible way
             opts.UseAzureServiceBus(azureServiceBusConnectionString).AutoProvision()
@@ -381,7 +381,7 @@ opts.ListenToAzureServiceBusQueue("incoming")
             // connection string out of configuration
             var azureServiceBusConnectionString = builder
                 .Configuration
-                .GetConnectionString("azure-service-bus");
+                .GetConnectionString("azure-service-bus")!;
 
             // Connect to the broker in the simplest possible way
             opts.UseAzureServiceBus(azureServiceBusConnectionString).AutoProvision()
@@ -405,7 +405,7 @@ opts.ListenToAzureServiceBusQueue("incoming")
             // connection string out of configuration
             var azureServiceBusConnectionString = builder
                 .Configuration
-                .GetConnectionString("azure-service-bus");
+                .GetConnectionString("azure-service-bus")!;
 
             // Connect to the broker in the simplest possible way
             opts.UseAzureServiceBus(azureServiceBusConnectionString).AutoProvision()
@@ -472,7 +472,7 @@ opts.ListenToAzureServiceBusQueue("incoming")
             // connection string out of configuration
             var azureServiceBusConnectionString = builder
                 .Configuration
-                .GetConnectionString("azure-service-bus");
+                .GetConnectionString("azure-service-bus")!;
 
             // Connect to the broker in the simplest possible way
             opts.UseAzureServiceBus(azureServiceBusConnectionString).AutoProvision();
@@ -484,13 +484,13 @@ opts.ListenToAzureServiceBusQueue("incoming")
                 {
                     // Not sure how useful this would be, but we can start from
                     // the baseline Wolverine mapping and just override a few mappings
-                    mapper.MapPropertyToHeader(x => x.ContentType, "OtherTool.ContentType");
-                    mapper.MapPropertyToHeader(x => x.CorrelationId, "OtherTool.CorrelationId");
+                    mapper.MapPropertyToHeader(x => x.ContentType!, "OtherTool.ContentType");
+                    mapper.MapPropertyToHeader(x => x.CorrelationId!, "OtherTool.CorrelationId");
                     // and more
                     
                     // or a little uglier where you might be mapping and transforming data between
                     // the transport's model and the Wolverine Envelope
-                    mapper.MapProperty(x => x.ReplyUri, 
+                    mapper.MapProperty(x => x.ReplyUri!,
                         (e, msg) => e.ReplyUri = new Uri($"asb://queue/{msg.ReplyTo}"),
                         (e, msg) => msg.ReplyTo = "response");
                     
@@ -515,7 +515,7 @@ opts.ListenToAzureServiceBusQueue("incoming")
             // connection string out of configuration
             var azureServiceBusConnectionString = builder
                 .Configuration
-                .GetConnectionString("azure-service-bus");
+                .GetConnectionString("azure-service-bus")!;
 
             // Connect to the broker in the simplest possible way
             opts.UseAzureServiceBus(azureServiceBusConnectionString).AutoProvision();

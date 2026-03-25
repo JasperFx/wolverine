@@ -38,7 +38,7 @@ public class MeasuredEndpoint
         chain.Middleware.Add(MethodCall.For<StopwatchMiddleware>(x => x.Before()));
 
         // Call this method after the normal endpoint
-        chain.Postprocessors.Add(MethodCall.For<StopwatchMiddleware>(x => x.Finally(null, null)));
+        chain.Postprocessors.Add(MethodCall.For<StopwatchMiddleware>(x => x.Finally(null!, null!)));
     }
 
     [WolverineGet("/timed")]

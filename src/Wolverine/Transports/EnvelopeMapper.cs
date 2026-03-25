@@ -120,7 +120,7 @@ public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIn
             var serializer = new MassTransitJsonSerializer(e);
             configure?.Invoke(serializer);
             
-            MapPropertyToHeader(x => x.MessageType, MassTransitHeaders.MessageType);
+            MapPropertyToHeader(x => x.MessageType!, MassTransitHeaders.MessageType);
         
             _endpoint.DefaultSerializer = serializer;
             

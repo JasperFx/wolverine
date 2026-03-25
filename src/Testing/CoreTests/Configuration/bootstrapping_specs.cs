@@ -30,7 +30,7 @@ public class bootstrapping_specs : IntegrationContext
         with(_ => {});
 
         var container = Host.Services.GetRequiredService<IServiceContainer>();
-        container.DefaultFor<WolverineSupplementalCodeFiles>()
+        container.DefaultFor<WolverineSupplementalCodeFiles>()!
             .Lifetime.ShouldBe(ServiceLifetime.Singleton);
 
         container.GetAllInstances<ICodeFileCollection>()
@@ -58,7 +58,7 @@ public class bootstrapping_specs : IntegrationContext
 
 
         chainFor<Message1>()
-            .ShouldHaveHandler<SpecialServiceUsingThing>(x => x.Handle(null, null));
+            .ShouldHaveHandler<SpecialServiceUsingThing>(x => x.Handle(null!, null!));
     }
 
     [Fact]
@@ -93,13 +93,13 @@ public class bootstrapping_specs : IntegrationContext
                 opts.Services.AddScoped<IModuleService, AppsModuleService>();
             }).Start();
 
-        host.Services.GetRequiredService<IServiceContainer>().DefaultFor<IModuleService>().ImplementationType.ShouldBe(typeof(AppsModuleService));
+        host.Services.GetRequiredService<IServiceContainer>().DefaultFor<IModuleService>()!.ImplementationType.ShouldBe(typeof(AppsModuleService));
     }
 
     [Fact]
     public void handler_classes_are_scoped()
     {
-        Host.Get<IServiceContainer>().DefaultFor<SomeHandler>()
+        Host.Get<IServiceContainer>().DefaultFor<SomeHandler>()!
             .Lifetime.ShouldBe(ServiceLifetime.Scoped);
     }
 

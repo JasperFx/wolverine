@@ -7,7 +7,7 @@ namespace Wolverine.Runtime.Batching;
 
 public class BatchingOptions(Type elementType) : IAsyncDisposable
 {
-    private IMessageHandler _handler;
+    private IMessageHandler _handler = null!;
     
     /// <summary>
     /// The message type to be batched up
@@ -61,7 +61,7 @@ public class BatchingOptions(Type elementType) : IAsyncDisposable
                     $"This Wolverine application has a configuration for batching messages of type {typeof(T).FullNameInCode()}, but there is no known handler for {typeof(T).FullNameInCode()}[]");
             }
 
-            var localQueue = (ILocalQueue)runtime.Endpoints.AgentForLocalQueue(options.LocalExecutionQueueName);
+            var localQueue = (ILocalQueue)runtime.Endpoints.AgentForLocalQueue(options.LocalExecutionQueueName!);
 
             return new BatchingProcessor<T>(parentChain, batcher, options, localQueue,
                 runtime.DurabilitySettings);

@@ -30,7 +30,7 @@ internal class MoveToErrorQueue : IContinuation
         DateTimeOffset now, Activity? activity)
     {
         // TODO -- at some point, we need a more systematic way of doing this
-        var scheme = lifecycle.Envelope.Destination.Scheme;
+        var scheme = lifecycle.Envelope!.Destination!.Scheme;
         if (runtime.Options.EnableAutomaticFailureAcks && scheme != TransportConstants.Local && scheme != "external-table")
         {
             await lifecycle.SendFailureAcknowledgementAsync(

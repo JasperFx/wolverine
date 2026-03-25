@@ -212,7 +212,7 @@ public class MyMqttEnvelopeMapper : IMqttEnvelopeMapper
     public void MapEnvelopeToOutgoing(Envelope envelope, MqttApplicationMessage outgoing)
     {
         // This is the only absolutely mandatory item
-        outgoing.PayloadSegment = envelope.Data;
+        outgoing.PayloadSegment = envelope.Data!;
 
         // Maybe enrich this more?
         outgoing.ContentType = envelope.ContentType;

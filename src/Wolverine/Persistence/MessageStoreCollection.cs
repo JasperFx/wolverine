@@ -313,7 +313,7 @@ public class MessageStoreCollection : IAgentFamily, IAsyncDisposable
 
     public bool TryFindMultiTenantedForMainStore(IMessageStore store, out MultiTenantedMessageStore multiTenanted)
     {
-        multiTenanted = _multiTenanted.FirstOrDefault(x => x.Main.Uri == store.Uri);
+        multiTenanted = _multiTenanted.FirstOrDefault(x => x.Main.Uri == store.Uri)!;
         return multiTenanted != null;
     }
 

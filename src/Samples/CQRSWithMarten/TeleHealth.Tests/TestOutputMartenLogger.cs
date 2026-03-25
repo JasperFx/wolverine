@@ -17,8 +17,8 @@ public class TestOutputMartenLogger : IMartenLogger, IMartenSessionLogger, ILogg
         _output = output ?? _noopTestOutputHelper;
     }
 
-    public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception exception,
-        Func<TState, Exception, string> formatter)
+    public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+        Func<TState, Exception?, string> formatter)
     {
         if (logLevel == LogLevel.Error)
         {
@@ -31,7 +31,7 @@ public class TestOutputMartenLogger : IMartenLogger, IMartenSessionLogger, ILogg
         return true;
     }
 
-    public IDisposable BeginScope<TState>(TState state)
+    public IDisposable BeginScope<TState>(TState state) where TState : notnull
     {
         throw new NotImplementedException();
     }

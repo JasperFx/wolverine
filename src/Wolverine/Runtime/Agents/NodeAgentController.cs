@@ -22,7 +22,9 @@ public partial class NodeAgentController
     private readonly IWolverineRuntime _runtime;
 
     // May be valuable later
+    #pragma warning disable CS0169
     private DateTimeOffset? _lastAssignmentCheck;
+    #pragma warning restore CS0169
     private readonly IWolverineObserver _observer;
     private DateTimeOffset? _lastNodeAssignmentHealthCheckTrace;
 

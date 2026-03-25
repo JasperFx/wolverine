@@ -41,7 +41,7 @@ internal class AgentCommandHandledTypeRule : IHandledTypeRule
             return true;
         }
 
-        handlerType = default;
+        handlerType = default!;
         return false;
     }
 }

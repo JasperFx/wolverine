@@ -63,7 +63,7 @@ public class EnqueueSamples
 
                     // Or you can customize the usage of queues
                     // per message type
-                    .Named(type => type.Namespace)
+                    .Named(type => type.Namespace!)
 
                     // Optionally configure the local queues
                     .CustomizeQueues((type, listener) => { listener.Sequential(); });

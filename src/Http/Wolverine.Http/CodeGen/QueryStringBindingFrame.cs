@@ -55,7 +55,7 @@ internal class QueryStringBindingFrame : SyncFrame
         foreach (var parameter in _constructor.GetParameters())
         {
             var queryStringVariable = chain.TryFindOrCreateQuerystringValue(parameter);
-            _parameters.Add(queryStringVariable);
+            _parameters.Add(queryStringVariable!);
         }
 
         // Here's the limitation, either it's all ctor args, or all settable props
@@ -70,9 +70,9 @@ internal class QueryStringBindingFrame : SyncFrame
                 }
                 
                 var queryStringVariable =
-                    chain.TryFindOrCreateQuerystringValue(propertyInfo.PropertyType, queryStringName);
+                    chain.TryFindOrCreateQuerystringValue(propertyInfo.PropertyType, queryStringName!);
 
-                if (queryStringVariable.Creator is IReadHttpFrame frame)
+                if (queryStringVariable?.Creator is IReadHttpFrame frame)
                 {
                     frame.AssignToProperty($"{Variable.Usage}.{propertyInfo.Name}");
                     _props.Add(frame);

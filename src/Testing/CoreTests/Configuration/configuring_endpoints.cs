@@ -82,7 +82,7 @@ public class configuring_endpoints : IDisposable
         var endpoint = theOptions.Transports
             .TryGetEndpoint(uri.ToUri());
 
-        endpoint.Compile(theRuntime);
+        endpoint!.Compile(theRuntime);
 
         return endpoint;
     }
@@ -102,7 +102,7 @@ public class configuring_endpoints : IDisposable
     {
         var allEndpoints = theOptions.Transports.AllEndpoints();
         var endpoint = allEndpoints.FirstOrDefault(x => x.EndpointName == "sender");
-        endpoint.MessageBatchSize.ShouldBe(111);
+        endpoint!.MessageBatchSize.ShouldBe(111);
     }
 
     [Fact]
@@ -253,7 +253,7 @@ public class configuring_endpoints : IDisposable
 
         theOptions.PublishAllMessages().ToPort(3333);
 
-        theTcpTransport.ReplyEndpoint()
+        theTcpTransport.ReplyEndpoint()!
             .Uri.ShouldBe("tcp://localhost:2222".ToUri());
     }
 
@@ -265,7 +265,7 @@ public class configuring_endpoints : IDisposable
         theOptions.ListenAtPort(5555);
         theOptions.PublishAllMessages().ToPort(3333);
 
-        theTcpTransport.ReplyEndpoint()
+        theTcpTransport.ReplyEndpoint()!
             .Uri.ShouldBe("tcp://localhost:4444".ToUri());
     }
 

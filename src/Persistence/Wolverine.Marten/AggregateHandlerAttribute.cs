@@ -119,25 +119,25 @@ public class AggregateHandlerAttribute : ModifyChainAttribute, IDataRequirement,
         {
             if (AggregateHandling.TryLoad(chain, out var handling))
             {
-                property = handling.AggregateId.VariableType == typeof(string)
-                    ? inputType.GetProperty(nameof(IEvent.StreamKey))
-                    : inputType.GetProperty(nameof(IEvent.StreamId));
-                
+                property = handling.AggregateId!.VariableType == typeof(string)
+                    ? inputType!.GetProperty(nameof(IEvent.StreamKey))!
+                    : inputType!.GetProperty(nameof(IEvent.StreamId))!;
+
             }
-            
+
             return property != null;
         }
-        
+
         var aggregateType = AggregateType ?? AggregateHandling.DetermineAggregateType(chain);
-        var idMember = AggregateHandling.DetermineAggregateIdMember(aggregateType, inputType);
-        property = idMember as PropertyInfo;
+        var idMember = AggregateHandling.DetermineAggregateIdMember(aggregateType, inputType!);
+        property = (idMember as PropertyInfo)!;
         return property != null;
     }
 
     private OnMissing? _onMissing;
 
     public bool Required { get; set; }
-    public string MissingMessage { get; set; }
+    public string MissingMessage { get; set; } = null!;
 
     public OnMissing OnMissing
     {
@@ -146,7 +146,7 @@ public class AggregateHandlerAttribute : ModifyChainAttribute, IDataRequirement,
     }
 }
 
-internal class ApplyEventsFromAsyncEnumerableFrame<T> : AsyncFrame, IReturnVariableAction
+internal class ApplyEventsFromAsyncEnumerableFrame<T> : AsyncFrame, IReturnVariableAction where T : notnull
 {
     private readonly Variable _returnValue;
     private Variable? _stream;

@@ -74,11 +74,11 @@ public class PostgresqlMessageStore_with_IdAndDestination_Identity : MessageStor
         var runtime = theHost.GetRuntime();
 
         var incoming = await new IncomingEnvelopeTable(runtime.Options.Durability, "receiver").FetchExistingAsync(conn);
-        incoming.PrimaryKeyColumns.ShouldContain(DatabaseConstants.Id);
+        incoming!.PrimaryKeyColumns.ShouldContain(DatabaseConstants.Id);
         incoming.PrimaryKeyColumns.ShouldContain(DatabaseConstants.ReceivedAt);
-        
+
         var dlq = await new DeadLettersTable(runtime.Options.Durability, "receiver").FetchExistingAsync(conn);
-        dlq.PrimaryKeyColumns.ShouldContain(DatabaseConstants.Id);
+        dlq!.PrimaryKeyColumns.ShouldContain(DatabaseConstants.Id);
         dlq.PrimaryKeyColumns.ShouldContain(DatabaseConstants.ReceivedAt);
         
     }

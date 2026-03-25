@@ -41,7 +41,7 @@ public class Bug_582_erroneous_faliure_ack
 
 public class CreateItemCommand
 {
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
 }
 
 public class ItemCreated
@@ -52,7 +52,7 @@ public class ItemCreated
 public class ItemDocument
 {
     public Guid Id { get; set; }
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
 }
 
 public class ItemHandler

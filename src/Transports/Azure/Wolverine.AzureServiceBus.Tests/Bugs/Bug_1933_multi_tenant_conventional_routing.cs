@@ -17,6 +17,7 @@ public static class Bug1933MessageHandler
     }
 }
 
+[Trait("Category", "Flaky")]
 public class Bug_1933_multi_tenant_conventional_routing : IAsyncLifetime
 {
     public Task InitializeAsync() => Task.CompletedTask;
@@ -37,7 +38,7 @@ public class Bug_1933_multi_tenant_conventional_routing : IAsyncLifetime
 
     private static async Task DeleteTenantEmulatorObjectsAsync()
     {
-        var client = new ServiceBusAdministrationClient(Servers.AzureServiceBusTenantManagementConnectionString);
+        var client = new ServiceBusAdministrationClient(Servers.AzureServiceBusConnectionString);
 
         await foreach (var topic in client.GetTopicsAsync())
         {
@@ -62,13 +63,13 @@ public class Bug_1933_multi_tenant_conventional_routing : IAsyncLifetime
 
                 opts.UseAzureServiceBusTesting()
                     .AutoPurgeOnStartup()
-                    .AddTenantByConnectionString("test", Servers.AzureServiceBusTenantConnectionString)
+                    .AddTenantByConnectionString("test", Servers.AzureServiceBusConnectionString)
                     .UseConventionalRouting();
 
                 // Set the tenant's management connection string for the emulator
                 var transport = opts.Transports.GetOrCreate<AzureServiceBusTransport>();
                 transport.Tenants["test"].Transport.ManagementConnectionString =
-                    Servers.AzureServiceBusTenantManagementConnectionString;
+                    Servers.AzureServiceBusConnectionString;
             }).StartAsync();
 
         var message = new Bug1933Message("Hello from default namespace");

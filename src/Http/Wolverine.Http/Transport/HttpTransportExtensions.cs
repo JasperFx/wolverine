@@ -43,7 +43,7 @@ public static class HttpTransportExtensions
         string url,
         bool supportsNativeScheduledSend = false,
         bool useCloudEvents = false,
-        JsonSerializerOptions options = null)
+        JsonSerializerOptions? options = null)
     {
         var transports =
             publishing.As<PublishingExpression>().Parent.Transports;
@@ -52,7 +52,7 @@ public static class HttpTransportExtensions
         var endpoint = transport.EndpointFor(url);
         if (useCloudEvents)
         {
-            endpoint.SerializerOptions = options;
+            endpoint.SerializerOptions = options!;
         }
 
         // This is necessary unfortunately to hook up the subscription rules

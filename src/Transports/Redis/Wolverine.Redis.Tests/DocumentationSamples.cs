@@ -21,7 +21,7 @@ public class DocumentationSamples
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.UseRedisTransport("localhost:6379")
+                opts.UseRedisTransport(RedisContainerFixture.ConnectionString)
                     
                     // Auto-create streams and consumer groups
                     .AutoProvision()
@@ -87,7 +87,7 @@ public class DocumentationSamples
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.UseRedisTransport("localhost:6379");
+                opts.UseRedisTransport(RedisContainerFixture.ConnectionString);
 
                 // Configure streams on different databases
                 opts.PublishMessage<OrderCreated>()
@@ -122,7 +122,7 @@ public class DocumentationSamples
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.UseRedisTransport("localhost:6379");
+                opts.UseRedisTransport(RedisContainerFixture.ConnectionString);
                 
                 // Configure endpoints to listen and publish
                 opts.ListenToRedisStream("orders", "order-processors", databaseId: 1);
@@ -143,7 +143,7 @@ public class DocumentationSamples
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.UseRedisTransport("localhost:6379").AutoProvision();
+                opts.UseRedisTransport(RedisContainerFixture.ConnectionString).AutoProvision();
 
                 // Different message types on different databases for isolation
                 

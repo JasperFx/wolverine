@@ -15,7 +15,7 @@ public class MyCustomActionForMissingHandlers : IMissingHandler
     {
         var bus = new MessageBus(root);
         return bus.PublishAsync(new PostInSlack("Incidents",
-            $"Got an unknown message with type '{context.Envelope.MessageType}' and id {context.Envelope.Id}"));
+            $"Got an unknown message with type '{context.Envelope!.MessageType}' and id {context.Envelope.Id}"));
     }
 }
 

@@ -10,7 +10,7 @@ namespace WebApiWithMarten;
 public class Order
 {
     public Guid Id { get; set; }
-    public string Description { get; set; }
+    public string Description { get; set; } = null!;
 }
 
 public record CreateOrder(string Description);

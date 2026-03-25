@@ -75,7 +75,7 @@ public class end_to_end_with_conventional_routing_custom_exchange : IDisposable
 
         var received = session
             .AllRecordsInOrder()
-            .Where(x => x.Envelope.Message?.GetType() == typeof(HeadersMessage))
+            .Where(x => x.Envelope?.Message?.GetType() == typeof(HeadersMessage))
             .Single(x => x.MessageEventType == MessageEventType.Received);
 
         received

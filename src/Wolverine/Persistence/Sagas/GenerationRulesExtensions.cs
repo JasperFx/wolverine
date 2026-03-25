@@ -61,7 +61,7 @@ public static class GenerationRulesExtensions
     public static bool TryFindPersistenceFrameProvider(this GenerationRules rules, IServiceContainer container, Type entityType,
         out IPersistenceFrameProvider provider)
     {
-        provider = default;
+        provider = default!;
         var providers = rules.PersistenceProviders();
         if (providers.Any())
         {

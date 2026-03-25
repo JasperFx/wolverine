@@ -20,7 +20,7 @@ public class MqttEnvelopeMapper : IMqttEnvelopeMapper
         message.ResponseTopic = _topic.Parent.ResponseTopic;
         message.Retain = _topic.Retain;
         message.QualityOfServiceLevel = _topic.QualityOfServiceLevel;
-        message.PayloadSegment = envelope.Data;
+        message.PayloadSegment = envelope.Data!;
         message.Topic = envelope.TopicName ?? _topic.TopicName; // Don't override so that user supplied topics can work!
 
         message.UserProperties =
@@ -64,7 +64,7 @@ public class MqttEnvelopeMapper : IMqttEnvelopeMapper
 
         if (envelope.AcceptedContentTypes != null)
         {
-            var accepted = new MqttUserProperty(EnvelopeConstants.AcceptedContentTypesKey, envelope.AcceptedContentTypes.Join(","));
+            var accepted = new MqttUserProperty(EnvelopeConstants.AcceptedContentTypesKey, envelope.AcceptedContentTypes!.Join(",")!);
             message.UserProperties.Add(accepted);
         }
 

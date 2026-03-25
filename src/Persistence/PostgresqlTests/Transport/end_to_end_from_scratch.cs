@@ -44,8 +44,8 @@ public class end_to_end_from_scratch : IAsyncLifetime
             }).StartAsync();
     }
 
-    public IHost Api { get; private set;}
-    public IHost UI { get; private set;}
+    public IHost Api { get; private set;} = null!;
+    public IHost UI { get; private set;} = null!;
 
     public async Task DisposeAsync()
     {

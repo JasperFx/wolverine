@@ -14,7 +14,7 @@ namespace MartenTests.TestHelpers;
 
 public class reset_data_first : IAsyncLifetime
 {
-    private IHost _host;
+    private IHost _host = null!;
 
     public async Task InitializeAsync()
     {

@@ -11,12 +11,12 @@ namespace Wolverine.RabbitMQ.Tests.ConventionalRouting;
 
 public class when_discovering_a_sender_with_all_defaults : ConventionalRoutingContext
 {
-    private readonly MessageRoute theRoute;
+    private readonly MessageRoute theRoute = null!;
     public when_discovering_a_sender_with_all_defaults()
     {
         DisableListenerDiscovery = true;
         ConfigureConventions(x=> x.IncludeTypes(ConventionalRoutingTestDefaults.RoutingMessageOnly));
-        theRoute = PublishingRoutesFor<ConventionallyRoutedMessage>().Single() as MessageRoute;
+        theRoute = (PublishingRoutesFor<ConventionallyRoutedMessage>().Single() as MessageRoute)!;
     }
 
     [Fact]

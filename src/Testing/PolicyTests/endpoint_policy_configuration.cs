@@ -22,7 +22,7 @@ namespace PolicyTests;
 
 public class endpoint_policy_configuration : IAsyncDisposable
 {
-    private IHost _host;
+    private IHost _host = null!;
 
     public async ValueTask DisposeAsync()
     {
@@ -254,21 +254,21 @@ public class endpoint_policy_configuration : IAsyncDisposable
         var runtime = _host.Services.GetRequiredService<IWolverineRuntime>()
             .ShouldBeOfType<WolverineRuntime>();
 
-        var endpoint1 = runtime.DetermineLocalSendingAgent(typeof(Message1))
+        var endpoint1 = runtime.DetermineLocalSendingAgent(typeof(Message1))!
             .Endpoint.ShouldBeOfType<LocalQueue>();
         endpoint1.EndpointName.ShouldBe(typeof(Message1).ToMessageTypeName().ToLowerInvariant());
         endpoint1.Mode.ShouldBe(EndpointMode.Durable);
 
-        var endpoint2 = runtime.DetermineLocalSendingAgent(typeof(Message2))
+        var endpoint2 = runtime.DetermineLocalSendingAgent(typeof(Message2))!
             .Endpoint.ShouldBeOfType<LocalQueue>();
         endpoint2.EndpointName.ShouldBe(typeof(Message2).ToMessageTypeName().ToLowerInvariant());
         endpoint2.Mode.ShouldBe(EndpointMode.Durable);
 
-        runtime.DetermineLocalSendingAgent(typeof(Message3))
+        runtime.DetermineLocalSendingAgent(typeof(Message3))!
             .Endpoint.ShouldBeOfType<LocalQueue>().EndpointName
             .ShouldBe(typeof(Message3).ToMessageTypeName().ToLowerInvariant());
 
-        runtime.DetermineLocalSendingAgent(typeof(Message4))
+        runtime.DetermineLocalSendingAgent(typeof(Message4))!
             .Endpoint.ShouldBeOfType<LocalQueue>().EndpointName
             .ShouldBe(typeof(Message4).ToMessageTypeName().ToLowerInvariant());
     }
@@ -286,21 +286,21 @@ public class endpoint_policy_configuration : IAsyncDisposable
         var runtime = _host.Services.GetRequiredService<IWolverineRuntime>()
             .ShouldBeOfType<WolverineRuntime>();
 
-        var endpoint1 = runtime.DetermineLocalSendingAgent(typeof(Message1))
+        var endpoint1 = runtime.DetermineLocalSendingAgent(typeof(Message1))!
             .Endpoint.ShouldBeOfType<LocalQueue>();
         endpoint1.EndpointName.ShouldBe(typeof(Message1).ToMessageTypeName().ToLowerInvariant() + "_more");
         endpoint1.Mode.ShouldBe(EndpointMode.Durable);
 
-        var endpoint2 = runtime.DetermineLocalSendingAgent(typeof(Message2))
+        var endpoint2 = runtime.DetermineLocalSendingAgent(typeof(Message2))!
             .Endpoint.ShouldBeOfType<LocalQueue>();
         endpoint2.EndpointName.ShouldBe(typeof(Message2).ToMessageTypeName().ToLowerInvariant() + "_more");
         endpoint2.Mode.ShouldBe(EndpointMode.Durable);
 
-        runtime.DetermineLocalSendingAgent(typeof(Message3))
+        runtime.DetermineLocalSendingAgent(typeof(Message3))!
             .Endpoint.ShouldBeOfType<LocalQueue>().EndpointName
             .ShouldBe(typeof(Message3).ToMessageTypeName().ToLowerInvariant() + "_more");
 
-        runtime.DetermineLocalSendingAgent(typeof(Message4))
+        runtime.DetermineLocalSendingAgent(typeof(Message4))!
             .Endpoint.ShouldBeOfType<LocalQueue>().EndpointName
             .ShouldBe(typeof(Message4).ToMessageTypeName().ToLowerInvariant() + "_more");
     }

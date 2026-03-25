@@ -11,7 +11,7 @@ namespace Wolverine.RabbitMQ.Tests;
 
 public class exchange_queue_binding_model_setup_and_teardown_smoke_tests
 {
-    private readonly IStatefulResource theResource;
+    private readonly IStatefulResource theResource = null!;
     private readonly RabbitMqTransport theTransport = new();
 
     public exchange_queue_binding_model_setup_and_teardown_smoke_tests()
@@ -47,7 +47,7 @@ public class exchange_queue_binding_model_setup_and_teardown_smoke_tests
         var wolverineRuntime = new MockWolverineRuntime();
         theTransport.TryBuildStatefulResource(wolverineRuntime, out var resource);
 
-        theResource = resource;
+        theResource = resource!;
     }
 
     [Fact]

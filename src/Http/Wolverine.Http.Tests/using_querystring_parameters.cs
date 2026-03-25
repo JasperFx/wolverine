@@ -497,6 +497,6 @@ public class using_querystring_parameters : IntegrationContext
         var parameter = method.Method.GetParameters().Single();
 
         var variable = chain.TryFindOrCreateQuerystringValue(parameter);
-        variable.Creator.ShouldBeOfType<ParsedArrayQueryStringValue>();
+        variable!.Creator.ShouldBeOfType<ParsedArrayQueryStringValue>();
     }
 }

@@ -139,7 +139,7 @@ public class DocumentationSamples
         {
             // Setting up Sql Server-backed message storage
             // This requires a reference to Wolverine.SqlServer
-            opts.PersistMessagesWithSqlServer(connectionString);
+            opts.PersistMessagesWithSqlServer(connectionString!);
 
             // Other Wolverine configuration
         });
@@ -170,7 +170,7 @@ public class DocumentationSamples
         {
             // Setting up Postgresql-backed message storage
             // This requires a reference to Wolverine.Postgresql
-            opts.PersistMessagesWithPostgresql(connectionString);
+            opts.PersistMessagesWithPostgresql(connectionString!);
 
             // Other Wolverine configuration
         });
@@ -241,7 +241,7 @@ public class DocumentationSamples
         builder.Services.AddMarten(opts =>
             {
                 var connectionString = builder.Configuration.GetConnectionString("marten");
-                opts.Connection(connectionString);
+                opts.Connection(connectionString!);
             })
             
             // This line of code is adding a PostgreSQL backed transactional inbox/outbox 

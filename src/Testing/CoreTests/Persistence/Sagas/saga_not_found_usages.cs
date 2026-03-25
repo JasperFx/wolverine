@@ -32,7 +32,7 @@ public class saga_not_found_usages : SagaTestHarness<SteppedSaga>
     {
         withApplication();
 
-        SteppedSaga.NotFoundCommand = null;
+        SteppedSaga.NotFoundCommand = null!;
 
         var id = Guid.NewGuid();
         await send(new GuidStart { Id = id });
@@ -85,7 +85,7 @@ public class SteppedSaga : Saga
     public bool ThreeCompleted { get; set; }
     public bool FourCompleted { get; set; }
 
-    public static CompleteOne NotFoundCommand { get; set; }
+    public static CompleteOne NotFoundCommand { get; set; } = null!;
 
     public void Start(GuidStart start)
     {
@@ -106,7 +106,7 @@ public class SteppedSaga : Saga
 
     public CompleteFour StartOrHandle(CompleteTwo two, Envelope envelope)
     {
-        Id = Guid.Parse(envelope.SagaId);
+        Id = Guid.Parse(envelope.SagaId!);
         TwoCompleted = true;
         return new CompleteFour();
     }

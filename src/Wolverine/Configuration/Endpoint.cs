@@ -184,11 +184,11 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
     }
 
     /// <summary>
-    /// Controls the maximum number of messages that could be processed at one time
-    /// Default is the Environment.ProcessorCount. Setting this to 1 makes this listening endpoint
-    /// be ordered in its processing
+    /// Controls the maximum number of messages that could be processed at one time.
+    /// Default is the greater of Environment.ProcessorCount or 5. Setting this to 1 makes this listening endpoint
+    /// be ordered in its processing.
     /// </summary>
-    public int MaxDegreeOfParallelism { get; set; } = Environment.ProcessorCount;
+    public int MaxDegreeOfParallelism { get; set; } = Math.Max(Environment.ProcessorCount, 5);
     
     /// <summary>
     /// If specified, directs this endpoint to use by GroupId sharding in processing.

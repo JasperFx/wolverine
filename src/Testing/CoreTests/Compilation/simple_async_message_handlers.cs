@@ -51,10 +51,10 @@ public class simple_async_message_handlers : CompilationContext
 
 public class AsyncHandler
 {
-    public static Message1 LastMessage1;
-    public static Message2 LastMessage2;
-    public static Envelope LastEnvelope;
-    public static IMessageContext LastContext;
+    public static Message1 LastMessage1 = null!;
+    public static Message2 LastMessage2 = null!;
+    public static Envelope LastEnvelope = null!;
+    public static IMessageContext LastContext = null!;
 
     public static Task Handle(Message1 message)
     {

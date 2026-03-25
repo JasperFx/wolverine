@@ -17,15 +17,16 @@ using Wolverine.Util;
 
 namespace MartenTests.Persistence;
 
+[Trait("Category", "Flaky")]
 public class marten_durability_end_to_end : IAsyncLifetime
 {
     private const string SenderSchemaName = "sender";
     private const string ReceiverSchemaName = "receiver";
-    private Uri _listener;
-    private LightweightCache<string, IHost> _receivers;
-    private DocumentStore _receiverStore;
-    private LightweightCache<string, IHost> _senders;
-    private DocumentStore _sendingStore;
+    private Uri _listener = null!;
+    private LightweightCache<string, IHost> _receivers = null!;
+    private DocumentStore _receiverStore = null!;
+    private LightweightCache<string, IHost> _senders = null!;
+    private DocumentStore _sendingStore = null!;
 
     public async Task InitializeAsync()
     {
@@ -133,9 +134,9 @@ public class marten_durability_end_to_end : IAsyncLifetime
         _senders.Clear();
 
         _receiverStore.Dispose();
-        _receiverStore = null;
+        _receiverStore = null!;
         _sendingStore.Dispose();
-        _sendingStore = null;
+        _sendingStore = null!;
     }
 
     protected void StartReceiver(string name)
@@ -198,7 +199,7 @@ public class marten_durability_end_to_end : IAsyncLifetime
 
         return (long)conn.CreateCommand(
                 $"select count(*) from receiver.{DatabaseConstants.IncomingTable} where {DatabaseConstants.Status} = '{EnvelopeStatus.Incoming}'")
-            .ExecuteScalar();
+            .ExecuteScalar()!;
     }
 
     protected long PersistedOutgoingCount()
@@ -208,7 +209,7 @@ public class marten_durability_end_to_end : IAsyncLifetime
 
         return (long)conn.CreateCommand(
                 $"select count(*) from sender.{DatabaseConstants.OutgoingTable}")
-            .ExecuteScalar();
+            .ExecuteScalar()!;
     }
 
     protected async Task StopReceiver(string name)
@@ -258,12 +259,12 @@ public class marten_durability_end_to_end : IAsyncLifetime
 public class TraceDoc
 {
     public Guid Id { get; set; } = Guid.NewGuid();
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
 }
 
 public class TraceMessage
 {
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
 }
 
 [WolverineIgnore]

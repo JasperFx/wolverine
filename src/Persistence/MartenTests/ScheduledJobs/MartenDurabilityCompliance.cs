@@ -34,7 +34,7 @@ public class MartenDurabilityCompliance : DurabilityComplianceContext<TriggerMes
     protected override async Task<ItemCreated> loadItemAsync(IHost receiver, Guid id)
     {
         await using var session = receiver.Get<IDocumentStore>().QuerySession();
-        return await session.LoadAsync<ItemCreated>(id);
+        return (await session.LoadAsync<ItemCreated>(id))!;
     }
 
     protected override async Task withContext(IHost sender, MessageContext context,
@@ -45,7 +45,7 @@ public class MartenDurabilityCompliance : DurabilityComplianceContext<TriggerMes
 
         await action(context);
 
-        await outbox.Session.SaveChangesAsync();
+        await outbox.Session!.SaveChangesAsync();
     }
 
     protected override IReadOnlyList<Envelope> loadAllOutgoingEnvelopes(IHost sender)

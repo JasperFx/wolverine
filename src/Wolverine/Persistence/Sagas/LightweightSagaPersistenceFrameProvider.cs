@@ -26,7 +26,7 @@ public class LightweightSagaPersistenceFrameProvider : IPersistenceFrameProvider
             var idType = member.GetRawMemberType();
 
             var enrollFrame =
-                typeof(EnrollAndFetchSagaStorageFrame<,>).CloseAndBuildAs<Frame>(idType, sagaChain.SagaType);
+                typeof(EnrollAndFetchSagaStorageFrame<,>).CloseAndBuildAs<Frame>(idType!, sagaChain.SagaType);
             
             sagaChain.Middleware.Add(enrollFrame);
         }
@@ -49,7 +49,7 @@ public class LightweightSagaPersistenceFrameProvider : IPersistenceFrameProvider
             var idType = SagaChain.DetermineSagaIdMember(entityType, entityType)?.GetRawMemberType();
             if (idType == null)
             {
-                persistenceService = default;
+                persistenceService = default!;
                 return false;
             }
             

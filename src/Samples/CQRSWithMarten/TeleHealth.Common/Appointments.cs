@@ -9,8 +9,8 @@ namespace TeleHealth.Common;
 public class Patient
 {
     public Guid Id { get; set; }
-    public string FirstName { get; set; }
-    public string LastName { get; set; }
+    public string FirstName { get; set; } = null!;
+    public string LastName { get; set; } = null!;
 }
 
 public record AppointmentRequested(Guid PatientId);
@@ -91,7 +91,7 @@ public class Appointment
     public string LastName { get; }
 
     public AppointmentStatus Status { get; set; }
-    public string ProviderName { get; set; }
+    public string ProviderName { get; set; } = null!;
     public DateTimeOffset? EstimatedTime { get; set; }
     public Guid BoardId { get; set; }
 }

@@ -384,7 +384,7 @@ public class Samples
                         x.ExchangeNameForSending(type => type.Name + "Exchange");
 
                         // Customize the naming convention for incoming queues
-                        x.QueueNameForListener(type => type.FullName.Replace('.', '-'));
+                        x.QueueNameForListener(type => type.FullName!.Replace('.', '-'));
 
                         // Or maybe you want to conditionally configure listening endpoints
                         x.ConfigureListeners((listener, context) =>
@@ -494,7 +494,7 @@ public class Samples
         {
             var rabbitMqConnectionString = builder.Configuration.GetConnectionString("rabbit");
 
-            opts.UseRabbitMq(rabbitMqConnectionString);
+            opts.UseRabbitMq(rabbitMqConnectionString!);
 
             opts.ListenToRabbitQueue("emails")
                 // Tell Wolverine to assume that all messages
@@ -519,7 +519,7 @@ public class Samples
         {
             var rabbitMqConnectionString = builder.Configuration.GetConnectionString("rabbit");
 
-            opts.UseRabbitMq(rabbitMqConnectionString);
+            opts.UseRabbitMq(rabbitMqConnectionString!);
 
             opts.ListenToRabbitQueue("emails")
                 // Apply your custom interoperability strategy here
@@ -570,7 +570,7 @@ public class Samples
         builder.UseWolverine(opts =>
         {
             opts
-                .UseRabbitMq(builder.Configuration.GetConnectionString("rabbit"))
+                .UseRabbitMq(builder.Configuration.GetConnectionString("rabbit")!)
                 
                 // You can configure the queue type for declaration with this
                 // usage as well
@@ -677,7 +677,7 @@ public static class AdditionalBrokers
         builder.UseWolverine(opts =>
         {
             // Connect to the "main" Rabbit MQ broker for this application
-            opts.UseRabbitMq(builder.Configuration.GetConnectionString("internal-rabbit-mq"));
+            opts.UseRabbitMq(builder.Configuration.GetConnectionString("internal-rabbit-mq")!);
 
             // Listen for incoming messages on the main broker at the queue named "incoming"
             opts.ListenToRabbitQueue("incoming");
@@ -689,7 +689,7 @@ public static class AdditionalBrokers
             // BUT! Let's also use a second broker
             opts.AddNamedRabbitMqBroker(external, factory =>
             {
-                factory.Uri = new Uri(builder.Configuration.GetConnectionString("external-rabbit-mq"));
+                factory.Uri = new Uri(builder.Configuration.GetConnectionString("external-rabbit-mq")!);
             });
 
             // Listen to a queue on the named, secondary broker

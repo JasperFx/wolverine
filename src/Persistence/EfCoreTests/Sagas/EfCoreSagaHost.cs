@@ -14,7 +14,7 @@ namespace EfCoreTests.Sagas;
 
 public class EfCoreSagaHost : ISagaHost
 {
-    private IHost _host;
+    private IHost _host = null!;
 
     public IHost BuildHost<TSaga>()
     {
@@ -42,7 +42,7 @@ public class EfCoreSagaHost : ISagaHost
         using var scope = _host.Services.CreateScope();
         
         var session = scope.ServiceProvider.GetRequiredService<SagaDbContext>();
-        return await session.FindAsync<T>(id);
+        return (await session.FindAsync<T>(id))!;
     }
 
     public async Task<T> LoadState<T>(int id) where T : Saga
@@ -50,7 +50,7 @@ public class EfCoreSagaHost : ISagaHost
         using var scope = _host.Services.CreateScope();
         
         var session = scope.ServiceProvider.GetRequiredService<SagaDbContext>();
-        return await session.FindAsync<T>(id);
+        return (await session.FindAsync<T>(id))!;
     }
 
     public async Task<T> LoadState<T>(long id) where T : Saga
@@ -58,7 +58,7 @@ public class EfCoreSagaHost : ISagaHost
         using var scope = _host.Services.CreateScope();
         
         var session = scope.ServiceProvider.GetRequiredService<SagaDbContext>();
-        return await session.FindAsync<T>(id);
+        return (await session.FindAsync<T>(id))!;
     }
 
     public async Task<T> LoadState<T>(string id) where T : Saga
@@ -66,7 +66,7 @@ public class EfCoreSagaHost : ISagaHost
         using var scope = _host.Services.CreateScope();
         
         var session = scope.ServiceProvider.GetRequiredService<SagaDbContext>();
-        return await session.FindAsync<T>(id);
+        return (await session.FindAsync<T>(id))!;
     }
 
 }

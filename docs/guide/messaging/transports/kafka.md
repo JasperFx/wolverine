@@ -231,9 +231,9 @@ public static ValueTask publish_by_partition_key(IMessageBus bus)
 
 ## Propagating GroupId to PartitionKey <Badge type="tip" text="5.17" />
 
-When consuming from a Kafka topic, the incoming envelope's `GroupId` is automatically set from the Kafka consumer's
-configured `GroupId`. If your handler produces cascaded messages that should land on the same partition, you can
-enable automatic propagation of the originating `GroupId` to the outgoing `PartitionKey`:
+By default, Wolverine stamps the Kafka consumer's configured `GroupId` onto the `GroupId` property of every incoming
+envelope. If your handler produces cascaded messages that should land on the same partition, you can enable automatic
+propagation of the originating `GroupId` to the outgoing `PartitionKey`:
 
 ```csharp
 opts.Policies.PropagateGroupIdToPartitionKey();
@@ -242,6 +242,35 @@ opts.Policies.PropagateGroupIdToPartitionKey();
 This eliminates the need to manually set `DeliveryOptions.PartitionKey` on every outgoing message from your handlers.
 The rule will never override an explicitly set `PartitionKey`. See the [Partitioned Sequential Messaging](/guide/messaging/partitioning#propagating-groupid-to-partitionkey)
 documentation for more details and a code sample.
+
+::: warning
+When using `PropagateGroupIdToPartitionKey()` together with business-level partition key derivation (e.g.
+`UseInferredMessageGrouping().ByPropertyNamed(...)`), you should disable consumer group ID stamping on your listeners.
+Otherwise the consumer group name (e.g. `"my-application-name"`) will be written to `envelope.GroupId` and may
+pollute the partition key derivation for cascaded messages:
+
+```csharp
+opts.ListenToKafkaTopic("my-topic")
+    .DisableConsumerGroupIdStamping()
+    .ConfigureConsumer(config =>
+    {
+        config.GroupId = "my-application-name";
+    });
+```
+:::
+
+### Disabling Consumer Group ID Stamping
+
+If you do not want the Kafka consumer group name written to `envelope.GroupId` at all, call
+`DisableConsumerGroupIdStamping()` on the listener:
+
+```csharp
+opts.ListenToKafkaTopic("orders")
+    .ProcessInline()
+    .DisableConsumerGroupIdStamping();
+```
+
+The same method is available on `ListenToKafkaTopics()` (multi-topic listeners).
 
 ## Interoperability
 
@@ -510,3 +539,18 @@ using var host = await Host.CreateDefaultBuilder()
 ```
 
 This creates Kafka topics named `orders1` through `orders4` with companion local queues `global-orders1` through `global-orders4`. Messages are routed to the correct shard based on their group id, and Wolverine handles the coordination between nodes automatically.
+
+## Sending Tombstone Messages <Badge type="tip" text="5.22" />
+
+Wolverine supports sending [Kafka tombstone messages](https://medium.com/@damienthomlutz/deleting-records-in-kafka-aka-tombstones-651114655a16) — messages with a non-null key and a null value — which are used to delete records from log-compacted Kafka topics.
+
+To send a tombstone, broadcast a `KafkaTombstone` to the target topic:
+
+```cs
+// Delete a record by key from a log-compacted topic
+await bus.BroadcastToTopicAsync("my-topic", new KafkaTombstone("record-key-to-delete"));
+```
+
+When Wolverine encounters a `KafkaTombstone` message, it produces a Kafka message with the specified key and a `null` value. This signals to Kafka's log compaction process that the record with that key should be removed during the next compaction cycle.
+
+This is useful when your Kafka topics use [log compaction](https://docs.confluent.io/platform/current/kafka/design.html#log-compaction) to maintain a key-value snapshot of the latest state. Publishing a tombstone ensures that deleted records are eventually cleaned up from the topic.

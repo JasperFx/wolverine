@@ -15,7 +15,7 @@ public class endpoint_configuration : IDisposable
     {
         _host = Host.CreateDefaultBuilder().UseWolverine(opts =>
         {
-            opts.UsePulsar();
+            opts.UsePulsar(b => b.ServiceUrl(PulsarContainerFixture.ServiceUrl));
             opts.DisablePulsarRequeue();
             opts.UnsubscribePulsarOnClose(PulsarUnsubscribeOnClose.Disabled);
 
@@ -42,7 +42,7 @@ public class endpoint_configuration : IDisposable
         var uri = PulsarEndpoint.UriFor("persistent://public/default/one");
         var endpoint = theRuntime.Endpoints.EndpointFor(uri)?.As<PulsarEndpoint>();
 
-        endpoint.EnableRequeue.ShouldBeFalse();
+        endpoint!.EnableRequeue.ShouldBeFalse();
     }
 
     [Fact]
@@ -51,6 +51,6 @@ public class endpoint_configuration : IDisposable
         var uri = PulsarEndpoint.UriFor("persistent://public/default/one");
         var endpoint = theRuntime.Endpoints.EndpointFor(uri)?.As<PulsarEndpoint>();
 
-        endpoint.UnsubscribeOnClose.ShouldBeFalse();
+        endpoint!.UnsubscribeOnClose.ShouldBeFalse();
     }
 }

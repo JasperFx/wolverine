@@ -32,13 +32,13 @@ public class MultiTenantedAzureServiceBusFixture : IAsyncLifetime
     public const string Tenant2ConnectionString = "CHANGE ME TO A REAL THING";
     public const string Tenant3ConnectionString = "CHANGE ME TO A REAL THING";
 
-    public IHost Three { get; set; }
+    public IHost Three { get; set; } = null!;
 
-    public IHost Two { get; set; }
+    public IHost Two { get; set; } = null!;
 
-    public IHost One { get; set; }
+    public IHost One { get; set; } = null!;
 
-    public IHost Main { get; private set; }
+    public IHost Main { get; private set; } = null!;
 
     public async Task InitializeAsync()
     {
@@ -141,8 +141,8 @@ public class multi_tenancy_through_separate_namespaces : IClassFixture<MultiTena
         response.ServiceName.ShouldBe("main");
 
         // Label the envelope as tenant id = "two" because it was received at that point
-        response.Envelope.TenantId.ShouldBe("two");
-        response.Envelope.Message.ShouldBeOfType<MultiTenantResponse>()
+        response.Envelope!.TenantId.ShouldBe("two");
+        response.Envelope!.Message!.ShouldBeOfType<MultiTenantResponse>()
             .Id.ShouldBe(message.Id);
     }
 

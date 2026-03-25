@@ -13,6 +13,7 @@ using Xunit.Abstractions;
 
 namespace Wolverine.RabbitMQ.Tests;
 
+[Trait("Category", "Flaky")]
 public class rate_limiting_end_to_end
 {
     private readonly ITestOutputHelper _output;

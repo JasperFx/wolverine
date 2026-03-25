@@ -128,7 +128,7 @@ public class when_building_a_handler_chain_for_sticky_handlers
 
     public when_building_a_handler_chain_for_sticky_handlers()
     {
-        theOptions.Transports.ForScheme("stub").TryGetEndpoint("stub://green".ToUri())
+        theOptions.Transports.ForScheme("stub")!.TryGetEndpoint("stub://green".ToUri())!
             .EndpointName = "green";
         
         var blue = new HandlerCall(typeof(BlueStickyHandler), nameof(BlueStickyHandler.Handle));
@@ -244,7 +244,7 @@ public class StickyMessage;
     {
         public static StickyMessageResponse Handle(StickyMessage message, Envelope envelope)
         {
-            return new StickyMessageResponse("blue", message, envelope.Destination);
+            return new StickyMessageResponse("blue", message, envelope.Destination!);
         }
     }
 
@@ -253,7 +253,7 @@ public class StickyMessage;
     {
         public static StickyMessageResponse Handle(StickyMessage message, Envelope envelope)
         {
-            return new StickyMessageResponse("green", message, envelope.Destination);
+            return new StickyMessageResponse("green", message, envelope.Destination!);
         }
     }
 
@@ -285,7 +285,7 @@ public static class BlueSticky2Handler
 {
     public static StickyMessageResponse Handle(StickyMessage2 message, Envelope envelope)
     {
-        return new StickyMessageResponse("blue", message, envelope.Destination);
+        return new StickyMessageResponse("blue", message, envelope.Destination!);
     }
 }
 
@@ -293,7 +293,7 @@ public static class GreenSticky2Handler
 {
     public static StickyMessageResponse Handle(StickyMessage2 message, Envelope envelope)
     {
-        return new StickyMessageResponse("green", message, envelope.Destination);
+        return new StickyMessageResponse("green", message, envelope.Destination!);
     }
 }
 

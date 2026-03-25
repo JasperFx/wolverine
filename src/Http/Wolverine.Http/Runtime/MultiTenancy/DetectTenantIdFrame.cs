@@ -10,7 +10,7 @@ internal class DetectTenantIdFrame : AsyncFrame
 {
     private readonly TenantIdDetection _options;
     private readonly HttpChain _chain;
-    private Variable _httpContext;
+    private Variable? _httpContext;
 
     public DetectTenantIdFrame(TenantIdDetection options, HttpChain chain)
     {
@@ -37,7 +37,7 @@ internal class DetectTenantIdFrame : AsyncFrame
             writer.WriteComment($"{i + 1}. {_options.Strategies[i]}");
         }
 
-        writer.Write($"var {TenantId.Usage} = await {nameof(HttpHandler.TryDetectTenantId)}({_httpContext.Usage});");
+        writer.Write($"var {TenantId.Usage} = await {nameof(HttpHandler.TryDetectTenantId)}({_httpContext!.Usage});");
 
         if (_options.ShouldAssertTenantIdExists(_chain))
         {

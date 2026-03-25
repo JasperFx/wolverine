@@ -62,7 +62,7 @@ internal class TransactionalFrame : Frame
             writer.WriteComment("message context to support the outbox functionality");
             writer.Write(
                 $"using var {Session!.Usage} = {_store!.Usage}.{nameof(IDocumentStore.OpenAsyncSession)}();");
-            writer.Write($"{_context.Usage}.{nameof(MessageContext.EnlistInOutbox)}(new {typeof(RavenDbEnvelopeTransaction).FullName}({Session!.Usage}, {_context.Usage}));");
+            writer.Write($"{_context!.Usage}.{nameof(MessageContext.EnlistInOutbox)}(new {typeof(RavenDbEnvelopeTransaction).FullName}({Session!.Usage}, {_context.Usage}));");
 
             if (_chain is SagaChain)
             {

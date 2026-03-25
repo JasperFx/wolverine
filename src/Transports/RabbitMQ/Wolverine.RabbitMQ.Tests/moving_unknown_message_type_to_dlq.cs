@@ -15,8 +15,8 @@ namespace Wolverine.RabbitMQ.Tests;
 
 public class moving_unknown_message_type_to_dlq : IAsyncLifetime
 {
-    private IHost _sender;
-    private IHost _receiver;
+    private IHost _sender = null!;
+    private IHost _receiver = null!;
 
     public static async Task TestSample()
     {
@@ -26,7 +26,7 @@ public class moving_unknown_message_type_to_dlq : IAsyncLifetime
         builder.UseWolverine(opts =>
         {
             var connectionString = builder.Configuration.GetConnectionString("rabbit");
-            opts.UseRabbitMq(connectionString).UseConventionalRouting();
+            opts.UseRabbitMq(connectionString!).UseConventionalRouting();
 
             // All unknown message types received should be placed into 
             // the proper dead letter queue mechanism

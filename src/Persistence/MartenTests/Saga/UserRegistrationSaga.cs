@@ -28,7 +28,7 @@ public class UserRegistrationSaga : Wolverine.Saga, IRevisioned
         NotFoundSubscribed = subscribed;
     }
 
-    public static Subscribed NotFoundSubscribed { get; set; }
+    public static Subscribed NotFoundSubscribed { get; set; } = null!;
 }
 
 public record Subscribed(

@@ -6,6 +6,7 @@ using Wolverine.Tracking;
 
 namespace Wolverine.AmazonSqs.Tests.ConventionalRouting;
 
+[Trait("Category", "Flaky")]
 public class end_to_end_with_conventional_routing : IDisposable
 {
     private readonly IHost _receiver;
@@ -44,7 +45,7 @@ public class end_to_end_with_conventional_routing : IDisposable
 
         var received = session
             .AllRecordsInOrder()
-            .Where(x => x.Envelope.Message?.GetType() == typeof(RoutedMessage))
+            .Where(x => x.Envelope!.Message!.GetType() == typeof(RoutedMessage))
             .Single(x => x.MessageEventType == MessageEventType.Received);
 
         received

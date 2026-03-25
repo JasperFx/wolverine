@@ -71,7 +71,7 @@ public class LocalQueueTests
 
         endpoint.Compile(new MockWolverineRuntime());
 
-        endpoint.CircuitBreakerOptions.PauseTime.ShouldBe(23.Minutes());
+        endpoint.CircuitBreakerOptions!.PauseTime.ShouldBe(23.Minutes());
 
         endpoint.CircuitBreakerOptions.ShouldNotBeNull();
     }

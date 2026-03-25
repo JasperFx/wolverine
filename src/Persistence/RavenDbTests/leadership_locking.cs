@@ -13,8 +13,8 @@ namespace RavenDbTests;
 public class leadership_locking : IAsyncLifetime
 {
     private readonly DatabaseFixture _fixture;
-    private IDocumentStore _store;
-    private IHost _host;
+    private IDocumentStore _store = null!;
+    private IHost _host = null!;
 
     public leadership_locking(DatabaseFixture fixture)
     {
@@ -49,16 +49,16 @@ public class leadership_locking : IAsyncLifetime
     [Fact]
     public async Task try_to_lock_happy_path()
     {
-        var store = _host.Services.GetService<IMessageStore>();
+        var store = _host.Services.GetService<IMessageStore>()!;
         store.Nodes.HasLeadershipLock().ShouldBeFalse();
-        
+
         var gotLock = await store.Nodes.TryAttainLeadershipLockAsync(CancellationToken.None);
         gotLock.ShouldBeTrue();
-        
+
         store.Nodes.HasLeadershipLock().ShouldBeTrue();
 
         await store.Nodes.ReleaseLeadershipLockAsync();
-        
+
         store.Nodes.HasLeadershipLock().ShouldBeFalse();
     }
 
@@ -66,16 +66,16 @@ public class leadership_locking : IAsyncLifetime
     public async Task lock_is_exclusive()
     {
         using var host2 = await buildHost();
-        var store2 = host2.Services.GetService<IMessageStore>();
-        
-        var store = _host.Services.GetService<IMessageStore>();
+        var store2 = host2.Services.GetService<IMessageStore>()!;
+
+        var store = _host.Services.GetService<IMessageStore>()!;
         store.Nodes.HasLeadershipLock().ShouldBeFalse();
-        
+
         var gotLock = await store.Nodes.TryAttainLeadershipLockAsync(CancellationToken.None);
         gotLock.ShouldBeTrue();
-        
+
         store.Nodes.HasLeadershipLock().ShouldBeTrue();
-        
+
         (await store2.Nodes.TryAttainLeadershipLockAsync(CancellationToken.None))
             .ShouldBeFalse();
         store2.Nodes.HasLeadershipLock().ShouldBeFalse();

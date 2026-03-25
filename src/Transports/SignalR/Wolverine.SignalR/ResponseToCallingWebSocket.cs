@@ -16,7 +16,7 @@ public record ResponseToCallingWebSocket<T>(T Message) : ISendMyself
         {
             // This gets us back to the same SignalR Hub
             return context
-                .EndpointFor(se.Destination)
+                .EndpointFor(se.Destination!)
                 .SendAsync(Message, new DeliveryOptions { RoutingInformation = new WebSocketRouting.Connection(se.ConnectionId) });
         }
 

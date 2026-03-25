@@ -30,8 +30,8 @@ public class message_timeout_mechanics
     {
         using var host = WolverineHost.Basic();
         var handlers = host.Services.GetRequiredService<HandlerGraph>();
-        var chain = handlers.HandlerFor(typeof(PotentiallySlowMessage)).As<MessageHandler>().Chain;
-        chain.ExecutionTimeoutInSeconds.ShouldBe(1); // coming from the attribute
+        var chain = handlers.HandlerFor(typeof(PotentiallySlowMessage))!.As<MessageHandler>().Chain;
+        chain!.ExecutionTimeoutInSeconds.ShouldBe(1); // coming from the attribute
     }
 
     [Fact]

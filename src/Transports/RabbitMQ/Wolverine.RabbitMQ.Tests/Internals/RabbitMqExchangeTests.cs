@@ -51,12 +51,12 @@ public class configuration_model_specs
 
         await exchange.DeclareAsync(channel, NullLogger.Instance);
 
-        await channel.Received().ExchangeDeclareAsync("foo", "fanout", false, true, exchange.Arguments);
+        await channel.Received().ExchangeDeclareAsync("foo", "fanout", false, true, (IDictionary<string, object?>)exchange.Arguments);
 
         exchange.HasDeclared.ShouldBeTrue();
     }
-    
-    
+
+
     [Fact]
     public async Task exchange_declare_headers()
     {
@@ -70,7 +70,7 @@ public class configuration_model_specs
 
         await exchange.DeclareAsync(channel, NullLogger.Instance);
 
-        await channel.Received().ExchangeDeclareAsync("foo", "headers", false, true, exchange.Arguments);
+        await channel.Received().ExchangeDeclareAsync("foo", "headers", false, true, (IDictionary<string, object?>)exchange.Arguments);
 
         exchange.HasDeclared.ShouldBeTrue();
     }

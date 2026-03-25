@@ -19,16 +19,16 @@ public partial class WolverineRuntime : IExecutorFactory
 
     IExecutor IExecutorFactory.BuildFor(Type messageType, Endpoint endpoint)
     {
-        IMessageHandler handler = null;
+        IMessageHandler? handler = null;
         if (Options.MessagePartitioning.TryFindTopology(messageType, out var topology))
         {
-            if (!topology.Slots.Contains(endpoint))
+            if (!topology!.Slots.Contains(endpoint))
             {
                 handler = new PartitionedMessageReRouter(topology, messageType);
             }
         }
         
-        handler ??= Handlers.HandlerFor(messageType, endpoint);
+        handler ??= (IMessageHandler?)Handlers.HandlerFor(messageType, endpoint);
         if (handler == null )
         {
             var batching = Options.BatchDefinitions.FirstOrDefault(x => x.ElementType == messageType);

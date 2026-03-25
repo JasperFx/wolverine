@@ -62,7 +62,7 @@ public class RequestIpMiddleware
 
 public class IpRequest
 {
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
     public int Age { get; set; }
 }
 

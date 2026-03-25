@@ -27,7 +27,7 @@ public class EventWrapperForwarderTests
     }
 }
 
-public class FakeEvent<T> : IEvent<T>
+public class FakeEvent<T> : IEvent<T> where T : notnull
 {
     public void SetHeader(string key, object value)
     {
@@ -42,21 +42,21 @@ public class FakeEvent<T> : IEvent<T>
     public Guid Id { get; set; }
     public long Version { get; set; }
     public long Sequence { get; set; }
-    object IEvent.Data => Data;
+    object IEvent.Data => Data!;
 
-    public T Data { get; }
+    public T Data { get; } = default!;
     public Guid StreamId { get; set; }
-    public string StreamKey { get; set; }
+    public string? StreamKey { get; set; }
     public DateTimeOffset Timestamp { get; set; }
-    public string TenantId { get; set; }
-    public Type EventType { get; }
-    public string EventTypeName { get; set; }
-    public string DotNetTypeName { get; set; }
-    public string CausationId { get; set; }
-    public string CorrelationId { get; set; }
-    public Dictionary<string, object> Headers { get; set; }
+    public string TenantId { get; set; } = null!;
+    public Type EventType { get; } = null!;
+    public string EventTypeName { get; set; } = null!;
+    public string DotNetTypeName { get; set; } = null!;
+    public string? CausationId { get; set; }
+    public string? CorrelationId { get; set; }
+    public Dictionary<string, object>? Headers { get; set; }
     public bool IsArchived { get; set; }
-    public string AggregateTypeName { get; set; }
+    public string? AggregateTypeName { get; set; }
     public string? UserName { get; set; }
     public bool IsSkipped { get; set; }
     public IReadOnlyList<JasperFx.Events.EventTag>? Tags => null;

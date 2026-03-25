@@ -51,7 +51,7 @@ public class CloudEventsHttpTransportTests
 
         _handler.LastRequest.ShouldNotBeNull();
         _handler.LastRequest.Method.ShouldBe(HttpMethod.Post);
-        _handler.LastRequest.Content.Headers.ContentType.MediaType.ShouldBe(HttpTransport.CloudEventsContentType);
+        _handler.LastRequest.Content!.Headers.ContentType!.MediaType.ShouldBe(HttpTransport.CloudEventsContentType);
 
         // Verify the body contains a CloudEvents formatted JSON
         var content = Encoding.UTF8.GetString(_handler.LastContent);
@@ -120,7 +120,7 @@ public class CloudEventsHttpTransportTests
 
         _handler.LastRequest.ShouldNotBeNull();
         // Note: CloudEvents client uses EnvelopeBatchContentType for batches
-        _handler.LastRequest.Content.Headers.ContentType.MediaType.ShouldBe(HttpTransport.EnvelopeBatchContentType);
+        _handler.LastRequest.Content!.Headers.ContentType!.MediaType.ShouldBe(HttpTransport.EnvelopeBatchContentType);
     }
 
     [Fact]
@@ -143,13 +143,13 @@ public class CloudEventsHttpTransportTests
         await _client.SendAsync(uri, envelope, null);
 
         _handler.LastRequest.ShouldNotBeNull();
-        _handler.LastRequest.Content.Headers.ContentType.MediaType.ShouldBe(HttpTransport.CloudEventsContentType);
+        _handler.LastRequest.Content!.Headers.ContentType!.MediaType.ShouldBe(HttpTransport.CloudEventsContentType);
     }
 }
 
 public class TestMessage
 {
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
 }
 
 public class CloudEventsTestCommand

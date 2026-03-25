@@ -17,16 +17,31 @@ public class ServiceCapabilities : OptionsDescription
     {
     }
 
-    public ServiceCapabilities(WolverineOptions options) : base(options)
+    public ServiceCapabilities(WolverineOptions options)
     {
-        Version = (options.ApplicationAssembly ?? Assembly.GetEntryAssembly()).GetName().Version?.ToString();
+        // Explicitly select only properties useful for CritterWatch monitoring —
+        // no Reflection, no noise from WolverineOptions internal plumbing
+        Subject = "Wolverine.WolverineOptions";
+
+        Version = (options.ApplicationAssembly ?? Assembly.GetEntryAssembly())!.GetName().Version?.ToString()!;
         WolverineVersion = options.GetType().Assembly.GetName().Version?.ToString();
-        DurabilitySettings = new DurabilitySettingsDescription(options.Durability);
+        DurabilitySettings = options.Durability.ToDescription();
+
+        AddValue(nameof(options.ServiceName), options.ServiceName);
+        AddValue(nameof(options.DefaultExecutionTimeout), options.DefaultExecutionTimeout);
+        AddValue(nameof(options.DefaultRemoteInvocationTimeout), options.DefaultRemoteInvocationTimeout);
+        AddValue(nameof(options.DisableAllExternalListeners), options.DisableAllExternalListeners);
+        AddValue(nameof(options.EnableRemoteInvocation), options.EnableRemoteInvocation);
+        AddValue(nameof(options.EnableAutomaticFailureAcks), options.EnableAutomaticFailureAcks);
+        AddValue(nameof(options.EnableRelayOfUserName), options.EnableRelayOfUserName);
+        AddValue(nameof(options.ServiceLocationPolicy), options.ServiceLocationPolicy);
+        AddValue("MetricsMode", options.Metrics.Mode);
+        AddValue("MetricsSamplingPeriod", options.Metrics.SamplingPeriod);
     }
 
     public DateTimeOffset Evaluated { get; set; } = DateTimeOffset.UtcNow;
 
-    public string Version { get; set; }
+    public string Version { get; set; } = null!;
 
     public string? WolverineVersion { get; set; }
 
@@ -42,7 +57,7 @@ public class ServiceCapabilities : OptionsDescription
 
     public List<BrokerDescription> Brokers { get; set; } = [];
 
-    public DurabilitySettingsDescription? DurabilitySettings { get; set; }
+    public OptionsDescription? DurabilitySettings { get; set; }
 
     /// <summary>
     ///     Uri for sending command messages to this service

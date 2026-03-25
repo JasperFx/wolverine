@@ -19,7 +19,7 @@ namespace PostgresqlTests;
 
 public class message_store_initialization_and_configuration : PostgresqlContext, IAsyncLifetime
 {
-    private IHost _host;
+    private IHost _host = null!;
 
     public async Task InitializeAsync()
     {
@@ -93,7 +93,7 @@ public class message_store_initialization_and_configuration : PostgresqlContext,
         var current = nodes.Single();
 
         current.NodeId.ShouldBe(runtime.Options.UniqueNodeId);
-        current.ControlUri.ShouldBe(runtime.Options.Transports.NodeControlEndpoint.Uri);
+        current.ControlUri.ShouldBe(runtime.Options.Transports.NodeControlEndpoint!.Uri);
 
     }
 
@@ -102,7 +102,7 @@ public class message_store_initialization_and_configuration : PostgresqlContext,
     {
         await _host.StopAsync();
         _host.Dispose();
-        _host = null;
+        _host = null!;
 
         var settings = new DatabaseSettings
         {

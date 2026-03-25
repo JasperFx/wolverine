@@ -14,7 +14,7 @@ namespace MartenTests.Sample;
 
 public class MessageInvocationTests : PostgresqlContext, IAsyncLifetime
 {
-    private IHost theHost;
+    private IHost theHost = null!;
 
     public async Task InitializeAsync()
     {
@@ -91,12 +91,12 @@ public class UserHandler
 
 public class CreateUser
 {
-    public string Name;
+    public string Name = null!;
 }
 
 public class UserCreated
 {
-    public string UserName;
+    public string UserName = null!;
 }
 
 public class UserNames
@@ -106,5 +106,5 @@ public class UserNames
 
 public class User
 {
-    [Identity] public string Name;
+    [Identity] public string Name = null!;
 }

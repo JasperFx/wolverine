@@ -19,7 +19,7 @@ internal class PartitionedMessageReRouter : IMessageHandler
     {
         // Knock it out of being scheduled just in case
         // From https://github.com/JasperFx/wolverine/issues/2026
-        context.Envelope.ClearAnyScheduling();
+        context.Envelope!.ClearAnyScheduling();
         
         var endpoint = _topology.SelectSlot(context.Envelope);
 

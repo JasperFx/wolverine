@@ -18,10 +18,11 @@ internal static class CloudEventsKafkaTestConstants
     public const string ColorMessageTypeAlias = "wolverine.kafka.tests.color";
 }
 
+[Trait("Category", "Flaky")]
 public class end_to_end_with_CloudEvents : IAsyncLifetime
 {
-    private IHost _receiver;
-    private IHost _sender;
+    private IHost _receiver = null!;
+    private IHost _sender = null!;
 
     public async Task InitializeAsync()
     {
@@ -29,7 +30,7 @@ public class end_to_end_with_CloudEvents : IAsyncLifetime
             .UseWolverine(opts =>
             {
                 //opts.EnableAutomaticFailureAcks = false;
-                opts.UseKafka("localhost:9092").AutoProvision();
+                opts.UseKafka(KafkaContainerFixture.ConnectionString).AutoProvision();
                 opts.RegisterMessageType(typeof(ColorMessage), CloudEventsKafkaTestConstants.ColorMessageTypeAlias);
                 opts.ListenToKafkaTopic("cloudevents").InteropWithCloudEvents();
 
@@ -48,7 +49,7 @@ public class end_to_end_with_CloudEvents : IAsyncLifetime
         _sender = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.UseKafka("localhost:9092").AutoProvision();
+                opts.UseKafka(KafkaContainerFixture.ConnectionString).AutoProvision();
                 opts.Policies.DisableConventionalLocalRouting();
                 opts.RegisterMessageType(typeof(ColorMessage), CloudEventsKafkaTestConstants.ColorMessageTypeAlias);
 
@@ -80,17 +81,18 @@ public class end_to_end_with_CloudEvents : IAsyncLifetime
     }
 }
 
+[Trait("Category", "Flaky")]
 public class inline_end_to_end_with_CloudEvents : IAsyncLifetime
 {
-    private IHost _receiver;
-    private IHost _sender;
+    private IHost _receiver = null!;
+    private IHost _sender = null!;
 
     public async Task InitializeAsync()
     {
         _receiver = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.UseKafka("localhost:9092").AutoProvision();
+                opts.UseKafka(KafkaContainerFixture.ConnectionString).AutoProvision();
                 opts.RegisterMessageType(typeof(ColorMessage), CloudEventsKafkaTestConstants.ColorMessageTypeAlias);
                 opts.ListenToKafkaTopic("cloudevents-inline")
                     .InteropWithCloudEvents()
@@ -103,7 +105,7 @@ public class inline_end_to_end_with_CloudEvents : IAsyncLifetime
         _sender = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.UseKafka("localhost:9092").AutoProvision();
+                opts.UseKafka(KafkaContainerFixture.ConnectionString).AutoProvision();
                 opts.Policies.DisableConventionalLocalRouting();
                 opts.RegisterMessageType(typeof(ColorMessage), CloudEventsKafkaTestConstants.ColorMessageTypeAlias);
 
@@ -146,7 +148,7 @@ internal class CloudEventsOnlyMapper : IKafkaEnvelopeMapper
 
     public void MapEnvelopeToOutgoing(Envelope envelope, Message<string, byte[]> outgoing)
     {
-        outgoing.Key = envelope.GroupId;
+        outgoing.Key = envelope.GroupId!;
         outgoing.Value = _cloudEvents.WriteToBytes(envelope);
     }
 

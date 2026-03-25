@@ -7,6 +7,7 @@ using Wolverine.Tracking;
 
 namespace Wolverine.Kafka.Tests;
 
+[Trait("Category", "Flaky")]
 public class batch_processing_with_kafka
 {
     [Fact]

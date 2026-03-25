@@ -9,7 +9,7 @@ namespace CoreTests.Persistence.Sagas;
 
 public class InMemorySagaHost : ISagaHost
 {
-    private IHost _host;
+    private IHost _host = null!;
 
     public IHost BuildHost<TSaga>()
     {
@@ -26,25 +26,25 @@ public class InMemorySagaHost : ISagaHost
     public Task<T> LoadState<T>(Guid id) where T : Saga
     {
         var loadState = _host.Services.GetRequiredService<InMemorySagaPersistor>().Load<T>(id);
-        return Task.FromResult(loadState);
+        return Task.FromResult(loadState)!;
     }
 
     public Task<T> LoadState<T>(int id) where T : Saga
     {
         var loadState = _host.Services.GetRequiredService<InMemorySagaPersistor>().Load<T>(id);
-        return Task.FromResult(loadState);
+        return Task.FromResult(loadState)!;
     }
 
     public Task<T> LoadState<T>(long id) where T : Saga
     {
         var loadState = _host.Services.GetRequiredService<InMemorySagaPersistor>().Load<T>(id);
-        return Task.FromResult(loadState);
+        return Task.FromResult(loadState)!;
     }
 
     public Task<T> LoadState<T>(string id) where T : Saga
     {
         var loadState = _host.Services.GetRequiredService<InMemorySagaPersistor>().Load<T>(id);
-        return Task.FromResult(loadState);
+        return Task.FromResult(loadState)!;
     }
 }
 

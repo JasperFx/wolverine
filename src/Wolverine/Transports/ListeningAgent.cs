@@ -110,7 +110,7 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
         if (_receiver is BufferedReceiver)
         {
             // Agent is latched if listener is null
-            await _receiver.ReceivedAsync(new RetryOnInlineChannelCallback(Listener, _runtime), envelopes.ToArray());
+            await _receiver.ReceivedAsync(new RetryOnInlineChannelCallback(Listener!, _runtime), envelopes.ToArray());
         }
         else if (_receiver is ILocalQueue queue)
         {
@@ -124,7 +124,15 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
         else if (_receiver is InlineReceiver inline)
         {
             // Agent is latched if listener is null
-            await inline.ReceivedAsync(new RetryOnInlineChannelCallback(Listener, _runtime), envelopes.ToArray());
+            await inline.ReceivedAsync(new RetryOnInlineChannelCallback(Listener!, _runtime), envelopes.ToArray());
+        }
+        else if (_receiver is GlobalPartitionedReceiverBridge bridge)
+        {
+            // Forward to the companion local queue for sequential processing
+            foreach (var envelope in envelopes)
+            {
+                await bridge.ReceivedAsync(Listener!, envelope);
+            }
         }
         else
         {
@@ -145,15 +153,18 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
     /// </summary>
     public void LatchReceiver()
     {
-        if (_receiver is DurableReceiver dr)
+        var actual = _receiver is ReceiverWithRules rwr ? rwr.Inner : _receiver;
+        if (actual is DurableReceiver dr)
         {
             dr.Latch();
         }
-        // BufferedReceiver latches via its _latched field in DrainAsync,
-        // but we need an immediate latch here too
-        else if (_receiver is BufferedReceiver br)
+        else if (actual is BufferedReceiver br)
         {
             br.Latch();
+        }
+        else if (actual is InlineReceiver ir)
+        {
+            ir.Latch();
         }
     }
 

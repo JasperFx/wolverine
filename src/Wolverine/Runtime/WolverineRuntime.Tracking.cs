@@ -69,8 +69,8 @@ public sealed partial class WolverineRuntime : IMessageTracker
             && envelope.MessageType.IsNotEmpty()
             && !IsSystemEndpoint(envelope.Destination))
         {
-            var accumulator = _accumulator.Value.FindAccumulator(envelope.MessageType, envelope.Destination);
-            accumulator.EntryPoint.Post(new RecordSent(envelope.TenantId, _serviceName));
+            var accumulator = _accumulator.Value.FindAccumulator(envelope.MessageType!, envelope.Destination!);
+            accumulator.EntryPoint.Post(new RecordSent(envelope.TenantId!, _serviceName));
         }
 
         ActiveSession?.MaybeRecord(MessageEventType.Sent, envelope, _serviceName, _uniqueNodeId);
@@ -96,8 +96,8 @@ public sealed partial class WolverineRuntime : IMessageTracker
             && envelope.MessageType.IsNotEmpty()
             && !IsSystemEndpoint(envelope.Destination))
         {
-            var accumulator = _accumulator.Value.FindAccumulator(envelope.MessageType, envelope.Destination);
-            accumulator.EntryPoint.Post(new RecordReceived(envelope.TenantId, _serviceName));
+            var accumulator = _accumulator.Value.FindAccumulator(envelope.MessageType!, envelope.Destination!);
+            accumulator.EntryPoint.Post(new RecordReceived(envelope.TenantId!, _serviceName));
         }
 
         ActiveSession?.Record(MessageEventType.Received, envelope, _serviceName, _uniqueNodeId);
@@ -176,8 +176,8 @@ public sealed partial class WolverineRuntime : IMessageTracker
             && envelope.MessageType.IsNotEmpty()
             && !IsSystemEndpoint(envelope.Destination))
         {
-            var accumulator = _accumulator.Value.FindAccumulator(envelope.MessageType, envelope.Destination);
-            accumulator.EntryPoint.Post(new RecordDeadLetter(ex.GetType().FullNameInCode(), envelope.TenantId));
+            var accumulator = _accumulator.Value.FindAccumulator(envelope.MessageType!, envelope.Destination!);
+            accumulator.EntryPoint.Post(new RecordDeadLetter(ex.GetType().FullNameInCode(), envelope.TenantId!));
         }
     }
 

@@ -45,7 +45,7 @@ public class missing_handlers
 
         public ValueTask HandleAsync(IEnvelopeLifecycle context, IWolverineRuntime root)
         {
-            Recorded.Add(context.Envelope);
+            Recorded.Add(context.Envelope!);
 
             root.ShouldNotBeNull();
 
@@ -59,7 +59,7 @@ public class missing_handlers
 
         public ValueTask HandleAsync(IEnvelopeLifecycle context, IWolverineRuntime root)
         {
-            Recorded.Add(context.Envelope);
+            Recorded.Add(context.Envelope!);
 
             root.ShouldNotBeNull();
 
@@ -73,7 +73,7 @@ public class missing_handlers
 
         public ValueTask HandleAsync(IEnvelopeLifecycle context, IWolverineRuntime root)
         {
-            Recorded.Add(context.Envelope);
+            Recorded.Add(context.Envelope!);
 
             root.ShouldNotBeNull();
 

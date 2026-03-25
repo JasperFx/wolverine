@@ -7,8 +7,8 @@ namespace CoreTests.Runtime.Stubs;
 
 public class using_stubs_end_to_end : IAsyncLifetime
 {
-    private IHost theSender;
-    private IHost theReceiver;
+    private IHost theSender = null!;
+    private IHost theReceiver = null!;
 
     public async Task InitializeAsync()
     {

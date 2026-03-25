@@ -13,7 +13,7 @@ public class SignalREnvelope : Envelope
         UserName = context.UserIdentifier;
     }
 
-    public string? UserName { get; set; }
+    public new string? UserName { get; set; }
 
     public string ConnectionId { get; set; }
 }

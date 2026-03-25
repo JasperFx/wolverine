@@ -118,7 +118,7 @@ public class RabbitMqListenerConfiguration : InteroperableListenerConfiguration<
     /// </summary>
     /// <param name="mapper"></param>
     /// <returns></returns>
-    public RabbitMqListenerConfiguration UseInterop(IRabbitMqEnvelopeMapper mapper)
+    public new RabbitMqListenerConfiguration UseInterop(IRabbitMqEnvelopeMapper mapper)
     {
         add(e => e.EnvelopeMapper = mapper);
         return this;

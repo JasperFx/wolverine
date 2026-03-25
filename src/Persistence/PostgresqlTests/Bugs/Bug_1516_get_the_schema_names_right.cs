@@ -35,7 +35,7 @@ public class Bug_1516_get_the_schema_names_right : PostgresqlContext
 
 public class TraceMessage
 {
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
 }
 
 public class TraceHandler

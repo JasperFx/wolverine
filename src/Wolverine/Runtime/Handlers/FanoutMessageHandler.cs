@@ -23,9 +23,16 @@ internal class FanoutMessageHandler<T> : MessageHandler<T>
             }
         }
 
+        // Safety net: deduplicate target URIs to prevent double delivery
+        // when the same sticky handler queue is reachable via multiple paths.
+        // See https://github.com/JasperFx/wolverine/issues/2303
+        var sent = new HashSet<Uri>();
         foreach (var uri in _localQueueUris)
         {
-            await context.EndpointFor(uri).SendAsync(message, options);
+            if (sent.Add(uri))
+            {
+                await context.EndpointFor(uri).SendAsync(message, options);
+            }
         }
     }
 }

@@ -171,7 +171,7 @@ internal class ReadHttpFrame : SyncFrame, IReadHttpFrame
     }
 
 
-    private string _property;
+    private string? _property;
     private readonly bool _isOptional;
     private readonly bool _isNullable;
     private readonly Type _rawType;

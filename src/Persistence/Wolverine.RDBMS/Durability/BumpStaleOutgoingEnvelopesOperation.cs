@@ -16,7 +16,7 @@ internal class BumpStaleOutgoingEnvelopesOperation : IDatabaseOperation, IDoNotR
     {
         _outgoingTable = outgoingTable;
         _durability = durability;
-        _timestamp = utcNow.Subtract(_durability.OutboxStaleTime.Value);
+        _timestamp = utcNow.Subtract(_durability.OutboxStaleTime!.Value);
     }
 
     public string Description => "Bump stale or stuck outbox messages to be picked up by other nodes";

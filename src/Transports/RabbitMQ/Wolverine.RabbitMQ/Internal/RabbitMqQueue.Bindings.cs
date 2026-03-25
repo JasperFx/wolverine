@@ -25,7 +25,7 @@ public partial class RabbitMqQueue
         {
             foreach (var argument in arguments)
             {
-                binding.Arguments.Add(argument);
+                binding.Arguments.Add(argument.Key, argument.Value);
             }
         }
         _bindings.Add(binding);

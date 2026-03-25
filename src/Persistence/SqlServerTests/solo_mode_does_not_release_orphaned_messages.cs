@@ -14,8 +14,8 @@ namespace SqlServerTests;
 
 public class solo_mode_does_not_release_orphaned_messages : IAsyncLifetime
 {
-    private IHost theSoloHost;
-    private IHost theBalancedHost;
+    private IHost theSoloHost = null!;
+    private IHost theBalancedHost = null!;
     private const string SoloSchema = "solo_orphan";
     private const string BalancedSchema = "balanced_orphan";
 

@@ -23,7 +23,7 @@ public class StringBasicWorkflow : BasicWorkflow<StringStart, StringCompleteThre
 
 public class StringDoThree
 {
-    [SagaIdentity] public string TheSagaId { get; set; }
+    [SagaIdentity] public string TheSagaId { get; set; } = null!;
 }
 
 public class StringIdentifiedSagaComplianceSpecs<T> : SagaTestHarness<StringBasicWorkflow> where T : ISagaHost, new()

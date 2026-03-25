@@ -30,7 +30,7 @@ public class RecordingEventPublisher : OutgoingMessages, IEventPublisher
 {
     public void Publish<T>(T @event)
     {
-        Add(@event);
+        Add(@event!);
     }
 }
 
@@ -79,7 +79,7 @@ public class BatchItemRepository : IBatchItemRepository
             item.Publisher = _publisher;
         }
 
-        return item;
+        return item!;
     }
 }
 
@@ -109,11 +109,11 @@ public class BacklogItem : Entity
 {
     public Guid Id { get; private set; } = Guid.CreateVersion7();
 
-    public string Description { get; private set; }
-    
+    public string Description { get; private set; } = null!;
+
     // ZOMG, I forgot how annoying ORMs are. Use a document database
     // and stop worrying about making things virtual just for lazy loading
-    public virtual Sprint Sprint { get; private set; }
+    public virtual Sprint Sprint { get; private set; } = null!;
 
     public void CommitTo(Sprint sprint)
     {
@@ -144,6 +144,6 @@ public static class CommitToSprintHandler
         // This method would cause an event to be published within
         // the BacklogItem object here that we need to gather up and
         // relay to Wolverine later
-        item.CommitTo(sprint);
+        item.CommitTo(sprint!);
     }
 }

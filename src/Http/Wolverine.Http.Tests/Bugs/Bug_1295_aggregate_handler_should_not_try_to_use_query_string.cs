@@ -87,7 +87,7 @@ public record TestInput(string Id);
 
 public class TestAggregate
 {
-    public string Id { get; set; }
+    public string Id { get; set; } = null!;
 
     public void Apply(TestEvent _) => Debug.WriteLine("okay");
 

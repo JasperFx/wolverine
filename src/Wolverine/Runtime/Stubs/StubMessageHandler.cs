@@ -28,7 +28,7 @@ public class StubMessageHandler<T> : IMessageHandler
     public bool TelemetryEnabled => false;
     public Task HandleAsync(MessageContext context, CancellationToken cancellation)
     {
-        var message = (T)context.Envelope.Message;
-        return Func(message, context, _services, cancellation);
+        var message = (T)context.Envelope!.Message!;
+        return Func(message!, context, _services, cancellation);
     }
 }

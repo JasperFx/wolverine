@@ -13,6 +13,13 @@ internal class GlobalPartitionedRoute : IMessageRoute
     private readonly IMessageRoute[] _localSlots;
     private readonly Endpoint[] _externalEndpoints;
 
+    /// <summary>
+    /// The set of local queue URIs that sticky handler fanout will deliver to.
+    /// Used by MessageRouter to deduplicate explicit routes to these same queues.
+    /// See https://github.com/JasperFx/wolverine/issues/2303
+    /// </summary>
+    internal HashSet<Uri> StickyHandlerFanoutUris { get; } = new();
+
     public GlobalPartitionedRoute(Uri uri, MessagePartitioningRules partitioning,
         IMessageRoute[] externalSlots, IMessageRoute[] localSlots, Endpoint[] externalEndpoints)
     {

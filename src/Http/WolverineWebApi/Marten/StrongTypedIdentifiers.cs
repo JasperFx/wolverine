@@ -11,8 +11,8 @@ public static class StrongLetterHandler
     #region sample_using_strong_typed_id_as_route_argument
 
     [WolverineGet("/sti/aggregate/longhand/{id}")]
-    public static ValueTask<StrongLetterAggregate> Handle2(LetterId id, IDocumentSession session) =>
-        session.Events.FetchLatest<StrongLetterAggregate>(id.Value);
+    public static async ValueTask<StrongLetterAggregate> Handle2(LetterId id, IDocumentSession session) =>
+        (await session.Events.FetchLatest<StrongLetterAggregate>(id.Value))!;
     
     // This is an equivalent to the endpoint above 
     [WolverineGet("/sti/aggregate/{id}")]

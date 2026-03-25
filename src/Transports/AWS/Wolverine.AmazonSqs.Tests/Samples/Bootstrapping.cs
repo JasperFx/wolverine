@@ -10,6 +10,7 @@ using Wolverine.ComplianceTests.Compliance;
 
 namespace Wolverine.AmazonSqs.Tests.Samples;
 
+[Trait("Category", "Flaky")]
 public class Bootstrapping
 {
     public static async Task use_named_brokers()
@@ -388,7 +389,7 @@ public class CustomSqsMapper : ISqsEnvelopeMapper
     public string BuildMessageBody(Envelope envelope)
     {
         // Serialized data from the Wolverine message
-        return Encoding.Default.GetString(envelope.Data);
+        return Encoding.Default.GetString(envelope.Data!);
     }
 
     // Specify header values for the SQS message from the Wolverine envelope

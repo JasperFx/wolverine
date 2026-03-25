@@ -6,7 +6,7 @@ namespace Wolverine.RabbitMQ.Tests;
 
 public class response_queue_disabling : IAsyncLifetime
 {
-    private IHost _host;
+    private IHost _host = null!;
 
     [Fact]
     public void reply_queue_should_not_be_declared()

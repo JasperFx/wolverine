@@ -8,8 +8,8 @@ public class HandlerCallTester
     [Fact]
     public void could_handle()
     {
-        var handler1 = HandlerCall.For<SomeHandler>(x => x.Interface(null));
-        var handler2 = HandlerCall.For<SomeHandler>(x => x.BaseClass(null));
+        var handler1 = HandlerCall.For<SomeHandler>(x => x.Interface(null!));
+        var handler2 = HandlerCall.For<SomeHandler>(x => x.BaseClass(null!));
 
         handler1.CouldHandleOtherMessageType(typeof(Input1)).ShouldBeTrue();
         handler2.CouldHandleOtherMessageType(typeof(Input1)).ShouldBeTrue();
@@ -21,7 +21,7 @@ public class HandlerCallTester
     [Fact]
     public void could_handle_is_false_for_its_own_input_type()
     {
-        var handler = HandlerCall.For<ITargetHandler>(x => x.OneInOneOut(null));
+        var handler = HandlerCall.For<ITargetHandler>(x => x.OneInOneOut(null!));
         handler.CouldHandleOtherMessageType(typeof(Input)).ShouldBeFalse();
     }
 

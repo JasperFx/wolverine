@@ -17,8 +17,8 @@ namespace MartenTests.Dcb;
 
 public class boundary_model_workflow_tests : PostgresqlContext, IAsyncLifetime
 {
-    private IHost theHost;
-    private IDocumentStore theStore;
+    private IHost theHost = null!;
+    private IDocumentStore theStore = null!;
 
     public async Task InitializeAsync()
     {

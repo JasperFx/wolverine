@@ -29,7 +29,7 @@ public class MosquittoBufferedComplianceFixture : TransportComplianceFixture, IA
         {
             opts.UseMqtt(mqtt =>
             {
-                mqtt.WithClientOptions(client => client.WithTcpServer("localhost", 1883));
+                mqtt.WithClientOptions(client => client.WithTcpServer(MosquittoContainerFixture.Host, MosquittoContainerFixture.Port));
             });
 
             opts.ListenToMqttTopic(senderTopic).RetainMessages();
@@ -40,7 +40,7 @@ public class MosquittoBufferedComplianceFixture : TransportComplianceFixture, IA
         {
             opts.UseMqtt(mqtt =>
             {
-                mqtt.WithClientOptions(client => client.WithTcpServer("localhost", 1883));
+                mqtt.WithClientOptions(client => client.WithTcpServer(MosquittoContainerFixture.Host, MosquittoContainerFixture.Port));
             });
 
             opts.ListenToMqttTopic(receiverTopic).Named("receiver").RetainMessages().BufferedInMemory();
@@ -64,8 +64,8 @@ public class MosquittoBufferedCompliance : TransportCompliance<MosquittoBuffered
 public class mosquitto_shared_subscription_specific_topic : IAsyncLifetime
 {
     private readonly ITestOutputHelper _output;
-    private IHost _sender;
-    private IHost _receiver;
+    private IHost _sender = null!;
+    private IHost _receiver = null!;
 
     public mosquitto_shared_subscription_specific_topic(ITestOutputHelper output)
     {
@@ -79,7 +79,7 @@ public class mosquitto_shared_subscription_specific_topic : IAsyncLifetime
             {
                 opts.UseMqtt(mqtt =>
                 {
-                    mqtt.WithClientOptions(client => client.WithTcpServer("localhost", 1883));
+                    mqtt.WithClientOptions(client => client.WithTcpServer(MosquittoContainerFixture.Host, MosquittoContainerFixture.Port));
                 });
                 opts.Policies.DisableConventionalLocalRouting();
             }).StartAsync();
@@ -89,7 +89,7 @@ public class mosquitto_shared_subscription_specific_topic : IAsyncLifetime
             {
                 opts.UseMqtt(mqtt =>
                 {
-                    mqtt.WithClientOptions(client => client.WithTcpServer("localhost", 1883));
+                    mqtt.WithClientOptions(client => client.WithTcpServer(MosquittoContainerFixture.Host, MosquittoContainerFixture.Port));
                 });
                 opts.ListenToMqttTopic("incoming/one", "group1").RetainMessages();
             }).StartAsync();
@@ -124,8 +124,8 @@ public class mosquitto_shared_subscription_specific_topic : IAsyncLifetime
 public class mosquitto_shared_subscription_with_wildcard : IAsyncLifetime
 {
     private readonly ITestOutputHelper _output;
-    private IHost _sender;
-    private IHost _receiver;
+    private IHost _sender = null!;
+    private IHost _receiver = null!;
 
     public mosquitto_shared_subscription_with_wildcard(ITestOutputHelper output)
     {
@@ -139,7 +139,7 @@ public class mosquitto_shared_subscription_with_wildcard : IAsyncLifetime
             {
                 opts.UseMqtt(mqtt =>
                 {
-                    mqtt.WithClientOptions(client => client.WithTcpServer("localhost", 1883));
+                    mqtt.WithClientOptions(client => client.WithTcpServer(MosquittoContainerFixture.Host, MosquittoContainerFixture.Port));
                 });
                 opts.Policies.DisableConventionalLocalRouting();
             }).StartAsync();
@@ -149,7 +149,7 @@ public class mosquitto_shared_subscription_with_wildcard : IAsyncLifetime
             {
                 opts.UseMqtt(mqtt =>
                 {
-                    mqtt.WithClientOptions(client => client.WithTcpServer("localhost", 1883));
+                    mqtt.WithClientOptions(client => client.WithTcpServer(MosquittoContainerFixture.Host, MosquittoContainerFixture.Port));
                 });
                 // GH-2213: shared subscription with wildcard
                 opts.ListenToMqttTopic("incoming/+", "workers").RetainMessages();

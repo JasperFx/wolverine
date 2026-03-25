@@ -29,8 +29,8 @@ public class TransportConfiguration
 
     public string Description { get; }
 
-    public Action<WolverineOptions> ConfigureReceiver { get; init; }
-    public Action<WolverineOptions> ConfigureSender { get; init; }
+    public Action<WolverineOptions> ConfigureReceiver { get; init; } = null!;
+    public Action<WolverineOptions> ConfigureSender { get; init; } = null!;
 
     public override string ToString()
     {
@@ -186,7 +186,7 @@ public class ChaosDriver : IAsyncDisposable, IDisposable
 
         var receiver = _receivers.Values.FirstOrDefault();
 
-        var count = await _storage.FindOutstandingMessageCount(receiver.Services, CancellationToken.None);
+        var count = await _storage.FindOutstandingMessageCount(receiver!.Services, CancellationToken.None);
         var attempts = 0;
 
         while (attempts < 20)
@@ -246,7 +246,7 @@ public class ChaosDriver : IAsyncDisposable, IDisposable
         {
             var runtime = sender.Services.GetRequiredService<IWolverineRuntime>();
             var sendingQueue = runtime.Endpoints.LocalQueueForMessageType(typeof(SendMessages));
-            while (!cancellation.Token.IsCancellationRequested && sendingQueue.MessageCount > 0)
+            while (!cancellation.Token.IsCancellationRequested && sendingQueue!.MessageCount > 0)
             {
                 await Task.Delay(100.Milliseconds(), cancellation.Token);
             }
