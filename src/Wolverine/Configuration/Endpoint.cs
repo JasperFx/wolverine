@@ -219,6 +219,14 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
     public bool TelemetryEnabled { get; set; } = true;
 
     /// <summary>
+    /// When using <see cref="EndpointMode.Inline"/>, setting this to <c>true</c> will allow
+    /// already-ingested messages to continue processing while the receiver is draining, only
+    /// deferring messages after the drain has fully completed. When <c>false</c> (the default),
+    /// messages are deferred as soon as the drain begins.
+    /// </summary>
+    public bool ProcessInlineWhileDraining { get; set; }
+
+    /// <summary>
     ///     Is the endpoint controlled and configured by the application or Wolverine itself?
     /// </summary>
     public EndpointRole Role { get; internal set; }

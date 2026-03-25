@@ -120,6 +120,14 @@ public interface IListenerConfiguration<T> : IEndpointConfiguration<T>
     T UseForReplies();
 
     /// <summary>
+    /// When using inline processing, allow already-ingested messages to continue processing
+    /// while the receiver is draining. Messages will only be deferred after the drain has
+    /// fully completed rather than as soon as it begins.
+    /// </summary>
+    /// <returns></returns>
+    T ProcessInlineWhileDraining();
+
+    /// <summary>
     /// Direct Wolverine to use the specified handler type for its messages on
     /// only this listening endpoint. This is helpful to create "sticky" handlers for the
     /// same message type on multiple queues

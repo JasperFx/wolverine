@@ -326,6 +326,12 @@ public class ListenerConfiguration<TSelf, TEndpoint> : DelayedEndpointConfigurat
         return this.As<TSelf>();
     }
 
+    public TSelf ProcessInlineWhileDraining()
+    {
+        add(e => e.ProcessInlineWhileDraining = true);
+        return this.As<TSelf>();
+    }
+
     public TSelf Named(string name)
     {
         add(e => e.EndpointName = name);

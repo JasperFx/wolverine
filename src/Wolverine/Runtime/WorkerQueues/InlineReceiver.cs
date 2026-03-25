@@ -99,7 +99,7 @@ internal class InlineReceiver : IReceiver
 
     private async ValueTask ProcessMessageAsync(IListener listener, Envelope envelope)
     {
-        if (_latched)
+        if (_latched && (!_endpoint.ProcessInlineWhileDraining || _drainComplete.Task.IsCompleted))
         {
             try
             {
