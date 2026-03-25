@@ -165,6 +165,7 @@ public static class AncillaryWolverineOptionsMartenExtensions
             runtime.LoggerFactory.CreateLogger<PostgresqlMessageStore>())
         {
             Name = "Master",
+            SubjectUri = new Uri($"wolverine://messages/{typeof(T).Name.ToLowerInvariant()}")
         };
 
         var source = new MartenMessageDatabaseSource<T>(schemaName, autoCreate ?? store.Options.AutoCreateSchemaObjects, store.As<T>(), runtime);
@@ -191,7 +192,10 @@ public static class AncillaryWolverineOptionsMartenExtensions
 
         var dataSource = store.Storage.Database.As<PostgresqlDatabase>().DataSource;
 
-        return new(typeof(T), new PostgresqlMessageStore(settings, runtime.Options.Durability, dataSource, logger)) ;
+        var messageStore = new PostgresqlMessageStore(settings, runtime.Options.Durability, dataSource, logger);
+        messageStore.SubjectUri = new Uri($"wolverine://messages/{typeof(T).Name.ToLowerInvariant()}");
+
+        return new(typeof(T), messageStore);
     }
 
     /// <summary>
