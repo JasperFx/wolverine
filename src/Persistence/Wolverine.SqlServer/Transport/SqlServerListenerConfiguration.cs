@@ -24,6 +24,16 @@ public class SqlServerListenerConfiguration : ListenerConfiguration<SqlServerLis
     }
 
     /// <summary>
+    ///     Configure how often to poll for new messages when the queue is idle.
+    ///     If not set, falls back to DurabilitySettings.ScheduledJobPollingTime (default 5s).
+    /// </summary>
+    public SqlServerListenerConfiguration PollingInterval(TimeSpan interval)
+    {
+        add(e => e.PollingInterval = interval);
+        return this;
+    }
+
+    /// <summary>
     ///     Add circuit breaker exception handling to this listener
     /// </summary>
     /// <param name="configure"></param>

@@ -28,6 +28,7 @@ internal class OracleQueueListener : IListener
     private readonly string _queueName;
     private readonly string _schemaName;
     private readonly string _scheduledTableName;
+    private readonly TimeSpan _pollingInterval;
 
     public OracleQueueListener(OracleQueue queue, IWolverineRuntime runtime, IReceiver receiver,
         OracleDataSource dataSource, string? databaseName)
@@ -39,6 +40,7 @@ internal class OracleQueueListener : IListener
         _databaseName = databaseName;
         _logger = runtime.LoggerFactory.CreateLogger<OracleQueueListener>();
         _settings = runtime.DurabilitySettings;
+        _pollingInterval = queue.PollingInterval ?? _settings.ScheduledJobPollingTime;
 
         _sender = new OracleQueueSender(queue, _dataSource, databaseName);
 
@@ -105,7 +107,7 @@ internal class OracleQueueListener : IListener
 
                 failedCount = 0;
 
-                await Task.Delay(_settings.ScheduledJobPollingTime);
+                await Task.Delay(_pollingInterval);
             }
             catch (Exception e)
             {
@@ -226,12 +228,12 @@ internal class OracleQueueListener : IListener
                     }
                     else
                     {
-                        await Task.Delay(_settings.ScheduledJobPollingTime);
+                        await Task.Delay(_pollingInterval);
                     }
                 }
                 else
                 {
-                    await Task.Delay(_settings.ScheduledJobPollingTime);
+                    await Task.Delay(_pollingInterval);
                 }
             }
             catch (Exception e)
