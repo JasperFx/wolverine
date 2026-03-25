@@ -1,3 +1,4 @@
+using JasperFx.Core;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Wolverine;
@@ -40,7 +41,11 @@ public class DocumentationSamples
 
                 // Optionally specify how many messages to
                 // fetch into the listener at any one time
-                .MaximumMessagesToReceive(50);
+                .MaximumMessagesToReceive(50)
+
+                // Override how often to poll for new messages when the
+                // queue is idle. Defaults to DurabilitySettings.ScheduledJobPollingTime (5s).
+                .PollingInterval(1.Seconds());
         });
 
         using var host = builder.Build();

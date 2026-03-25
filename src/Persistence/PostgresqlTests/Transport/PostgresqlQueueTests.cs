@@ -1,3 +1,4 @@
+using JasperFx.Core;
 using Shouldly;
 using Wolverine.Configuration;
 using Wolverine.Postgresql.Transport;
@@ -47,4 +48,12 @@ public class PostgresqlQueueTests
             queue.Mode = EndpointMode.Inline;
         });
     }
+
+    [Fact]
+    public void polling_interval_defaults_to_null()
+    {
+        var queue = new PostgresqlQueue("one", theTransport);
+        queue.PollingInterval.ShouldBeNull();
+    }
+
 }
