@@ -50,7 +50,7 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
 
         if (endpoint.CircuitBreakerOptions != null)
         {
-            _circuitBreaker = new CircuitBreaker(endpoint.CircuitBreakerOptions, this);
+            _circuitBreaker = new CircuitBreaker(endpoint.CircuitBreakerOptions, this, runtime.Observer);
             _pipeline = new HandlerPipeline(runtime,
                 new CircuitBreakerTrackedExecutorFactory(_circuitBreaker,
                     new CircuitBreakerTrackedExecutorFactory(_circuitBreaker, runtime)), endpoint)
