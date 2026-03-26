@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using RabbitMQ.Client;
 using Wolverine.Configuration;
 using Wolverine.Transports;
@@ -194,6 +195,21 @@ public class RabbitMqTransportExpression : BrokerExpression<RabbitMqTransport, R
         Transport.DeadLetterQueue.Mode = DeadLetterQueueMode.WolverineStorage;
         Transport.Exchanges.Remove(Transport.DeadLetterQueue.ExchangeName);
 
+        return this;
+    }
+
+    /// <summary>
+    /// Enable a background listener on the RabbitMQ dead letter queue that recovers
+    /// dead-lettered messages into Wolverine's persistent dead letter storage (database).
+    /// This bridges RabbitMQ's native DLX with Wolverine's database-backed DLQ management,
+    /// enabling tools like CritterWatch to query, replay, and discard dead letters.
+    /// Use this when you want native RabbitMQ dead lettering AND database-backed DLQ visibility.
+    /// </summary>
+    public RabbitMqTransportExpression EnableDeadLetterQueueRecovery()
+    {
+        Transport.EnableDeadLetterQueueRecovery = true;
+        Options.Services.AddHostedService<DeadLetterQueueListener>();
+        Options.Services.AddSingleton(Transport);
         return this;
     }
 
