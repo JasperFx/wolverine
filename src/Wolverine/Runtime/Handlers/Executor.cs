@@ -95,6 +95,7 @@ internal class Executor : IExecutor
         using var activity = Handler.TelemetryEnabled ? WolverineTracing.StartExecuting(envelope) : null;
 
         _tracker.ExecutionStarted(envelope);
+        _executionStarted(_logger, envelope!.CorrelationId!, _messageTypeName, envelope.Id, null);
 
         var context = _contextPool.Get();
         context.ReadEnvelope(envelope, InvocationCallback.Instance);
@@ -111,11 +112,13 @@ internal class Executor : IExecutor
             await context.FlushOutgoingMessagesAsync();
             activity?.SetStatus(ActivityStatusCode.Ok);
             _tracker.ExecutionFinished(envelope);
+            _messageSucceeded(_logger, _messageTypeName, envelope.Id,  envelope.Destination!.ToString(), null);
         }
         catch (Exception e)
         {
             activity?.SetStatus(ActivityStatusCode.Error, e.GetType().Name);
             _tracker.ExecutionFinished(envelope, e);
+            _messageFailed(_logger, _messageTypeName, envelope.Id, envelope.Destination!.ToString(), e);
             throw;
         }
         finally
