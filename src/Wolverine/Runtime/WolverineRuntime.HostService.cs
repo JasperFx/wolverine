@@ -298,6 +298,18 @@ public partial class WolverineRuntime
         
         discoverListenersFromConventions();
 
+        // Pre-compute message type names for global partitioning interceptor
+        // This handles MessagesImplementing<T>(), namespace, and assembly scopes
+        // that can't be resolved from a string alone
+        if (Options.MessagePartitioning.GlobalPartitionedTopologies.Count > 0)
+        {
+            var knownMessageTypes = Handlers.Chains.Select(x => x.MessageType).ToList();
+            foreach (var topology in Options.MessagePartitioning.GlobalPartitionedTopologies)
+            {
+                topology.ResolveMessageTypeNames(knownMessageTypes);
+            }
+        }
+
         // No local queues if running in Serverless
         if (Options.Durability.Mode == DurabilityMode.Serverless)
         {
