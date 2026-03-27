@@ -112,6 +112,22 @@ public static class MartenOps
     }
 
     /// <summary>
+    /// Return a side effect of storing an enumerable of potentially mixed documents in Marten
+    /// </summary>
+    /// <param name="documents"></param>
+    /// <returns></returns>
+    /// <exception cref="ArgumentNullException"></exception>
+    public static StoreObjects StoreObjects(params object[] documents)
+    {
+        if (documents == null)
+        {
+            throw new ArgumentNullException(nameof(documents));
+        }
+
+        return new StoreObjects(documents);
+    }
+
+    /// <summary>
     /// Return a side effect of inserting the specified document in Marten
     /// </summary>
     /// <param name="document"></param>
@@ -408,18 +424,49 @@ public class StoreDoc<T> : DocumentOp where T : notnull
 
 public class StoreManyDocs<T> : DocumentsOp where T : notnull
 {
-    private readonly T[] _documents;
-
-    public StoreManyDocs(params T[] documents) : base(documents.Cast<object>().ToArray())
-    {
-        _documents = documents;
-    }
+    public StoreManyDocs(params T[] documents) : base(documents.Cast<object>().ToArray()) { }
 
     public StoreManyDocs(IList<T> documents) : this(documents.ToArray()) { }
 
+    public StoreManyDocs<T> With(T[] documents)
+    {
+        Documents.AddRange(documents.Cast<object>());
+        return this;
+    }
+
+    public StoreManyDocs<T> With(T document)
+    {
+        Documents.Add(document);
+        return this;
+    }
+
     public override void Execute(IDocumentSession session)
     {
-        session.Store(_documents);
+        session.Store(Documents.Cast<T>());
+    }
+}
+
+public class StoreObjects : DocumentsOp
+{
+    public StoreObjects(params object[] documents) : base(documents) { }
+
+    public StoreObjects(IList<object> documents) : this(documents.ToArray()) { }
+
+    public StoreObjects With(object[] documents)
+    {
+        Documents.AddRange(documents);
+        return this;
+    }
+
+    public StoreObjects With(object document)
+    {
+        Documents.Add(document);
+        return this;
+    }
+
+    public override void Execute(IDocumentSession session)
+    {
+        session.StoreObjects(Documents);
     }
 }
 
@@ -527,14 +574,21 @@ public abstract class DocumentOp : IMartenOp
     public abstract void Execute(IDocumentSession session);
 }
 
-public abstract class DocumentsOp : IMartenOp
+public interface IDocumentsOp : IMartenOp
 {
-    public object[] Documents { get; }
+    IReadOnlyList<object> Documents { get; }
+}
+
+public abstract class DocumentsOp : IDocumentsOp
+{
+    public List<object> Documents { get; } = new();
 
     protected DocumentsOp(params object[] documents)
     {
-        Documents = documents;
+        Documents.AddRange(documents);
     }
 
     public abstract void Execute(IDocumentSession session);
+
+    IReadOnlyList<object> IDocumentsOp.Documents => Documents;
 }
