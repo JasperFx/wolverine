@@ -15,11 +15,15 @@ public static class SagaConfigurationExtensions
     /// </summary>
     /// <param name="options"></param>
     /// <param name="tableName"></param>
+    /// <param name="useNVarCharForStringId">
+    /// Opt in to a SQL Server schema change for string saga ids from the default inferred
+    /// varchar(100) to nvarchar(100). This only applies to Wolverine's lightweight SQL Server saga storage.
+    /// </param>
     /// <typeparam name="T"></typeparam>
     /// <returns></returns>
-    public static WolverineOptions AddSagaType<T>(this WolverineOptions options, string? tableName = null) where T : Saga
+    public static WolverineOptions AddSagaType<T>(this WolverineOptions options, string? tableName = null, bool useNVarCharForStringId = false) where T : Saga
     {
-        var storage = new SagaTableDefinition(typeof(T), tableName);
+        var storage = new SagaTableDefinition(typeof(T), tableName, useNVarCharForStringId);
         options.Services.AddSingleton(storage);
         return options;
     }
@@ -33,9 +37,13 @@ public static class SagaConfigurationExtensions
     /// </summary>
     /// <param name="options"></param>
     /// <param name="tableName"></param>
+    /// <param name="useNVarCharForStringId">
+    /// Opt in to a SQL Server schema change for string saga ids from the default inferred
+    /// varchar(100) to nvarchar(100). This only applies to Wolverine's lightweight SQL Server saga storage.
+    /// </param>
     /// <typeparam name="T"></typeparam>
     /// <returns></returns>
-    public static WolverineOptions AddSagaType(this WolverineOptions options, Type sagaType, string? tableName = null)
+    public static WolverineOptions AddSagaType(this WolverineOptions options, Type sagaType, string? tableName = null, bool useNVarCharForStringId = false)
     {
         if (!sagaType.CanBeCastTo<Saga>())
         {
@@ -43,7 +51,7 @@ public static class SagaConfigurationExtensions
                 $"Type {sagaType.FullNameInCode()} does not inherit from {typeof(Saga).FullNameInCode()}");
         }
         
-        var storage = new SagaTableDefinition(sagaType, tableName);
+        var storage = new SagaTableDefinition(sagaType, tableName, useNVarCharForStringId);
         options.Services.AddSingleton(storage);
         return options;
     }

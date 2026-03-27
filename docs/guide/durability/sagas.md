@@ -566,6 +566,31 @@ using var host = await Host.CreateDefaultBuilder()
 Note that this manual registration is not necessary at development time or if you're content to just let Wolverine
 handle database migrations at runtime.
 
+### SQL Server String Identity and nvarchar
+
+By default, Wolverine's lightweight saga storage uses Weasel's inferred column type for the saga identity column.
+For `string` identities on SQL Server, this results in a `varchar(100)` primary key column. However, ADO.NET's
+`SqlClient` binds .NET `string` parameters as `nvarchar` (unicode) by default. This mismatch between a `varchar`
+column and `nvarchar` query parameters forces SQL Server to perform implicit conversions, which prevents index
+seeks and can cause significant performance degradation.
+
+To fix this, you can opt in to an `nvarchar(100)` identity column when registering a saga type:
+
+```cs
+opts.AddSagaType<MySaga>(useNVarCharForStringId: true);
+
+// or with a custom table name
+opts.AddSagaType<MySaga>("my_saga_table", useNVarCharForStringId: true);
+```
+
+This only affects string-identified sagas using Wolverine's lightweight SQL Server saga storage. It has no effect
+on Guid/int/long identities, and does not apply to Marten, EF Core, or PostgreSQL saga persistence.
+
+::: warning
+Enabling this option on an existing database will trigger a schema migration from `varchar(100)` to `nvarchar(100)`
+on the saga table's primary key column.
+:::
+
 ## Overriding Logging
 
 We recently had a question about how to turn down logging levels for `Saga` message processing when the log
