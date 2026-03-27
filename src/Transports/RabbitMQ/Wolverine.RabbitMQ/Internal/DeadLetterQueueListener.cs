@@ -9,7 +9,16 @@ using Wolverine.Transports;
 namespace Wolverine.RabbitMQ.Internal;
 
 /// <summary>
-/// Background service that listens to the RabbitMQ dead letter queue and recovers
+/// Configuration holder for dead letter queue recovery. Registered as a singleton
+/// so the listener can discover which queues to subscribe to.
+/// </summary>
+public class DeadLetterQueueRecoverySettings
+{
+    public List<string> QueueNames { get; } = new();
+}
+
+/// <summary>
+/// Background service that listens to one or more RabbitMQ dead letter queues and recovers
 /// messages into Wolverine's persistent dead letter storage (wolverine_dead_letters table).
 /// This bridges the gap between RabbitMQ's native DLX mechanism and Wolverine's database-backed
 /// dead letter management, enabling CritterWatch to query, replay, and discard dead letters.
@@ -18,21 +27,25 @@ public class DeadLetterQueueListener : BackgroundService
 {
     private readonly RabbitMqTransport _transport;
     private readonly IWolverineRuntime _runtime;
+    private readonly DeadLetterQueueRecoverySettings _settings;
     private readonly ILogger<DeadLetterQueueListener> _logger;
     private IChannel? _channel;
     private IConnection? _connection;
 
     public DeadLetterQueueListener(RabbitMqTransport transport, IWolverineRuntime runtime,
-        ILogger<DeadLetterQueueListener> logger)
+        DeadLetterQueueRecoverySettings settings, ILogger<DeadLetterQueueListener> logger)
     {
         _transport = transport;
         _runtime = runtime;
+        _settings = settings;
         _logger = logger;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        var queueName = _transport.DeadLetterQueue.QueueName;
+        var queueNames = _settings.QueueNames.Count > 0
+            ? _settings.QueueNames
+            : new List<string> { _transport.DeadLetterQueue.QueueName };
 
         try
         {
@@ -58,11 +71,13 @@ public class DeadLetterQueueListener : BackgroundService
                 }
             };
 
-            await _channel.BasicConsumeAsync(queueName, false, consumer, stoppingToken);
-
-            _logger.LogInformation(
-                "Dead letter queue listener started on queue '{QueueName}'. Messages will be recovered to database storage.",
-                queueName);
+            foreach (var queueName in queueNames)
+            {
+                await _channel.BasicConsumeAsync(queueName, false, consumer, stoppingToken);
+                _logger.LogInformation(
+                    "Dead letter queue listener started on queue '{QueueName}'. Messages will be recovered to database storage.",
+                    queueName);
+            }
 
             // Keep running until cancellation
             await Task.Delay(Timeout.Infinite, stoppingToken);
@@ -73,7 +88,7 @@ public class DeadLetterQueueListener : BackgroundService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Dead letter queue listener failed on queue '{QueueName}'", queueName);
+            _logger.LogError(ex, "Dead letter queue listener failed");
         }
     }
 
@@ -135,10 +150,22 @@ public class DeadLetterQueueListener : BackgroundService
             exceptionMessage = string.Join(", ", parts);
         }
 
-        // Reconstruct source info
+        // Reconstruct source and destination info
         if (!string.IsNullOrEmpty(originalQueue))
         {
             envelope.Source = $"rabbitmq://queue/{originalQueue}";
+            envelope.Destination = new Uri($"rabbitmq://queue/{originalQueue}");
+        }
+        else
+        {
+            // Fallback — use the DLQ queue name itself
+            envelope.Destination = new Uri($"rabbitmq://queue/{args.Exchange ?? "unknown"}");
+        }
+
+        // Ensure SentAt is set (needed for dead letter storage)
+        if (envelope.SentAt == default)
+        {
+            envelope.SentAt = DateTimeOffset.UtcNow;
         }
 
         // Create a synthetic exception to pass to the dead letter storage
