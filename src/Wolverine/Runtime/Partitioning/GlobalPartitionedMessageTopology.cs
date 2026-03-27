@@ -1,6 +1,7 @@
 using System.Reflection;
 using Wolverine.Configuration;
 using Wolverine.Runtime.Routing;
+using Wolverine.Util;
 
 namespace Wolverine.Runtime.Partitioning;
 
@@ -8,6 +9,7 @@ public class GlobalPartitionedMessageTopology
 {
     private readonly WolverineOptions _options;
     private readonly List<Subscription> _subscriptions = new();
+    private readonly HashSet<string> _messageTypeNames = new(StringComparer.OrdinalIgnoreCase);
     private PartitionedMessageTopology? _externalTopology;
     private LocalPartitionedMessageTopology? _localTopology;
 
@@ -79,6 +81,7 @@ public class GlobalPartitionedMessageTopology
     public void Message(Type type)
     {
         _subscriptions.Add(Subscription.ForType(type));
+        _messageTypeNames.Add(type.ToMessageTypeName());
     }
 
     /// <summary>
@@ -163,6 +166,31 @@ public class GlobalPartitionedMessageTopology
     internal bool Matches(Type messageType)
     {
         return _subscriptions.Any(x => x.Matches(messageType));
+    }
+
+    /// <summary>
+    /// Check if a message type name (from envelope metadata) matches this topology's subscriptions.
+    /// This is used by the interceptor when the message hasn't been deserialized yet (e.g. Kafka).
+    /// </summary>
+    internal bool MatchesByMessageTypeName(string? messageTypeName)
+    {
+        return messageTypeName != null && _messageTypeNames.Contains(messageTypeName);
+    }
+
+    /// <summary>
+    /// Pre-compute message type names for subscription scopes that can't be resolved from
+    /// a string alone (e.g. MessagesImplementing, namespace, assembly).
+    /// Called during startup with the set of known handler message types.
+    /// </summary>
+    internal void ResolveMessageTypeNames(IEnumerable<Type> knownMessageTypes)
+    {
+        foreach (var type in knownMessageTypes)
+        {
+            if (Matches(type))
+            {
+                _messageTypeNames.Add(type.ToMessageTypeName());
+            }
+        }
     }
 
     internal bool TryMatch(Type messageType, IWolverineRuntime runtime, out IMessageRoute? route)

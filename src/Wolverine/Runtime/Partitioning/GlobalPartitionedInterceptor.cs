@@ -33,22 +33,11 @@ internal class GlobalPartitionedInterceptor : IReceiver
 
         foreach (var envelope in messages)
         {
-            if (envelope.Message != null && ShouldIntercept(envelope.Message.GetType()))
+            if (ShouldIntercept(envelope))
             {
-                // Re-route through Wolverine's routing which will hit GlobalPartitionedRoute
-                try
+                if (!await TryReRouteAsync(listener, envelope))
                 {
-                    await _messageBus.PublishAsync(envelope.Message, new DeliveryOptions
-                    {
-                        GroupId = envelope.GroupId,
-                        TenantId = envelope.TenantId
-                    });
-                    await listener.CompleteAsync(envelope);
-                }
-                catch (Exception e)
-                {
-                    _logger.LogError(e, "Error re-routing globally partitioned message {MessageType}", envelope.Message.GetType().Name);
-                    await listener.DeferAsync(envelope);
+                    passThrough.Add(envelope);
                 }
             }
             else
@@ -65,33 +54,69 @@ internal class GlobalPartitionedInterceptor : IReceiver
 
     public async ValueTask ReceivedAsync(IListener listener, Envelope envelope)
     {
-        if (envelope.Message != null && ShouldIntercept(envelope.Message.GetType()))
+        if (ShouldIntercept(envelope))
         {
-            try
+            if (await TryReRouteAsync(listener, envelope))
             {
-                await _messageBus.PublishAsync(envelope.Message, new DeliveryOptions
-                {
-                    GroupId = envelope.GroupId,
-                    TenantId = envelope.TenantId
-                });
-                await listener.CompleteAsync(envelope);
+                return;
             }
-            catch (Exception e)
-            {
-                _logger.LogError(e, "Error re-routing globally partitioned message {MessageType}", envelope.Message.GetType().Name);
-                await listener.DeferAsync(envelope);
-            }
-            return;
         }
 
         await _inner.ReceivedAsync(listener, envelope);
     }
 
+    private async Task<bool> TryReRouteAsync(IListener listener, Envelope envelope)
+    {
+        try
+        {
+            // Ensure message is deserialized before re-publishing
+            if (envelope.Message == null)
+            {
+                var result = await Pipeline.TryDeserializeEnvelope(envelope);
+                if (result is not NullContinuation)
+                {
+                    // Deserialization failed, let the inner receiver handle it
+                    // (it will apply normal error handling)
+                    return false;
+                }
+            }
+
+            // Re-route through Wolverine's routing which will hit GlobalPartitionedRoute
+            await _messageBus.PublishAsync(envelope.Message!, new DeliveryOptions
+            {
+                GroupId = envelope.GroupId,
+                TenantId = envelope.TenantId
+            });
+            await listener.CompleteAsync(envelope);
+            return true;
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Error re-routing globally partitioned message {MessageType}",
+                envelope.MessageType ?? envelope.Message?.GetType().Name ?? "unknown");
+            await listener.DeferAsync(envelope);
+            return true;
+        }
+    }
+
     public ValueTask DrainAsync() => _inner.DrainAsync();
     public void Dispose() => _inner.Dispose();
 
-    private bool ShouldIntercept(Type messageType)
+    private bool ShouldIntercept(Envelope envelope)
     {
-        return _topologies.Any(t => t.Matches(messageType));
+        // If message is already deserialized, check the Type directly
+        if (envelope.Message != null)
+        {
+            return _topologies.Any(t => t.Matches(envelope.Message.GetType()));
+        }
+
+        // For transports that haven't deserialized yet (e.g. Kafka),
+        // check by message type name from envelope metadata/headers
+        if (envelope.MessageType != null)
+        {
+            return _topologies.Any(t => t.MatchesByMessageTypeName(envelope.MessageType));
+        }
+
+        return false;
     }
 }
