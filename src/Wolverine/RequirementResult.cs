@@ -5,4 +5,8 @@ namespace Wolverine;
 /// </summary>
 /// <param name="Continue"></param>
 /// <param name="Messages"></param>
-public record RequirementResult(HandlerContinuation Branch, string[] Messages);
+public record RequirementResult(HandlerContinuation Branch, string[] Messages)
+{
+    public static RequirementResult AllGood() =>
+        new RequirementResult(HandlerContinuation.Continue, []);
+}

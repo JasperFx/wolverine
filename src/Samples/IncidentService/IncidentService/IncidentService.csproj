@@ -7,7 +7,7 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="Marten.AspNetCore" />
+        <ProjectReference Include="$(HOME)/code/marten/src/Marten.AspNetCore/Marten.AspNetCore.csproj" />
         <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
         <PackageReference Include="Swashbuckle.AspNetCore.Swagger" />
         <PackageReference Include="Swashbuckle.AspNetCore.SwaggerGen" />
