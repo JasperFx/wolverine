@@ -106,6 +106,34 @@ public class simple_validation_handlers
     }
 
     [Fact]
+    public async Task sad_path_with_validationoutcome_validate()
+    {
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine()
+            .StartAsync();
+
+        SimpleValidationValidationOutcomeHandler.Handled = false;
+
+        await host.InvokeMessageAndWaitAsync(new SimpleValidateValidationOutcomeMessage(20));
+
+        SimpleValidationValidationOutcomeHandler.Handled.ShouldBeFalse();
+    }
+
+    [Fact] 
+    public async Task happy_path_with_validationoutcome_validate()
+    {
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine()
+            .StartAsync();
+
+        SimpleValidationValidationOutcomeHandler.Handled = false;
+
+        await host.InvokeMessageAndWaitAsync(new SimpleValidateValidationOutcomeMessage(3));
+
+        SimpleValidationValidationOutcomeHandler.Handled.ShouldBeTrue();
+    }
+
+    [Fact]
     public async Task sad_path_with_valuetask_string_array_validate()
     {
         using var host = await Host.CreateDefaultBuilder()
@@ -224,4 +252,29 @@ public static class SimpleValidationValueTaskHandler
     public static bool Handled { get; set; }
 }
 
+#endregion
+
+#region sample_simple_validation_ValidationOutcome
+public record SimpleValidateValidationOutcomeMessage(int Number);
+
+public static class SimpleValidationValidationOutcomeHandler
+{
+    public static ValidationOutcome ValidateAsync(SimpleValidateValidationOutcomeMessage message)
+    {
+        if (message.Number > 10)
+        {
+            return [new(nameof(SimpleValidateValidationOutcomeMessage.Number), "Number must be 10 or less")];
+        }
+
+        return [];
+    }
+
+    public static void Handle(SimpleValidateValidationOutcomeMessage message)
+    {
+        Debug.WriteLine("Handled " + message);
+        Handled = true;
+    }
+
+    public static bool Handled { get; set; }
+}
 #endregion
