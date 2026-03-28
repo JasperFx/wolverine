@@ -53,4 +53,11 @@ public class SqlServerQueueTests
             queue.Mode = EndpointMode.Inline;
         });
     }
+
+    [Fact]
+    public void polling_interval_defaults_to_null()
+    {
+        var queue = new SqlServerQueue("one", theTransport);
+        queue.PollingInterval.ShouldBeNull();
+    }
 }
