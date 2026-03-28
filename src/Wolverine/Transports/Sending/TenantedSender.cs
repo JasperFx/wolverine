@@ -46,7 +46,19 @@ internal class InvalidTenantSender : ISender
     }
 }
 
-public class TenantedSender : ISender, ISenderRequiresCallback, IAsyncDisposable
+/// <summary>
+/// Routes messages to tenant-specific senders based on envelope TenantId.
+///
+/// IMPORTANT: This class intentionally does NOT implement ISenderRequiresCallback.
+/// When it did, SendingAgent chose the sendWithCallbackHandlingAsync path which
+/// assumes the inner sender calls back on success. But transport senders like
+/// RabbitMqSender are simple fire-and-forget (not ISenderRequiresCallback), so
+/// MarkSuccessfulAsync was never called and outbox entries were never deleted.
+/// Without ISenderRequiresCallback, SendingAgent uses sendWithExplicitHandlingAsync
+/// which explicitly calls MarkSuccessfulAsync after a successful send.
+/// See https://github.com/JasperFx/wolverine/issues/2361
+/// </summary>
+public class TenantedSender : ISender, IDisposable, IAsyncDisposable
 {
     public TenantedIdBehavior TenantedIdBehavior { get; }
     private readonly ISender _defaultSender = null!;
@@ -68,22 +80,6 @@ public class TenantedSender : ISender, ISenderRequiresCallback, IAsyncDisposable
     public void RegisterSender(string tenantId, ISender sender)
     {
         _senders = _senders.AddOrUpdate(tenantId, sender);
-    }
-
-    public void RegisterCallback(ISenderCallback senderCallback)
-    {
-        if (_defaultSender is ISenderRequiresCallback defaultCallback)
-        {
-            defaultCallback.RegisterCallback(senderCallback);
-        }
-
-        foreach (var entry in _senders.Enumerate())
-        {
-            if (entry.Value is ISenderRequiresCallback tenantCallback)
-            {
-                tenantCallback.RegisterCallback(senderCallback);
-            }
-        }
     }
 
     public bool SupportsNativeScheduledSend => _defaultSender.SupportsNativeScheduledSend;
@@ -128,10 +124,10 @@ public class TenantedSender : ISender, ISenderRequiresCallback, IAsyncDisposable
             case TenantedIdBehavior.FallbackToDefault:
                 _senders = _senders.AddOrUpdate(tenantId, _defaultSender);
                 return _defaultSender;
-            
+
             case TenantedIdBehavior.IgnoreUnknownTenants:
                 return new NullSender(Destination);
-            
+
             case TenantedIdBehavior.TenantIdRequired:
                 var invalid = new InvalidTenantSender(Destination, tenantId);
                 _senders = _senders.AddOrUpdate(tenantId, invalid);
@@ -143,16 +139,16 @@ public class TenantedSender : ISender, ISenderRequiresCallback, IAsyncDisposable
 
     public void Dispose()
     {
-        if (_defaultSender is ISenderRequiresCallback defaultDisposable)
+        if (_defaultSender is IDisposable defaultDisposable)
         {
-            defaultDisposable.Dispose();
+            defaultDisposable.SafeDispose();
         }
 
         foreach (var entry in _senders.Enumerate())
         {
-            if (entry.Value is ISenderRequiresCallback tenantDisposable)
+            if (entry.Value is IDisposable tenantDisposable)
             {
-                tenantDisposable.Dispose();
+                tenantDisposable.SafeDispose();
             }
         }
     }
