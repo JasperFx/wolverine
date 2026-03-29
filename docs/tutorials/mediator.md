@@ -258,3 +258,21 @@ Using the `IMessageBus.Invoke<T>(message)` overload, the returned `ItemCreated` 
 of the message handler is returned from the `Invoke()` message. To be perfectly clear, this only
 works if the message handler method returns a cascading message of the exact same type of the
 designated `T` parameter.
+
+## Full Tracing for InvokeAsync <Badge type="tip" text="5.25" />
+
+By default, `InvokeAsync()` uses lightweight tracking without emitting detailed log messages. When using
+Wolverine purely as an in-process mediator, you may want full observability for every message invocation.
+You can opt into full tracing mode to emit the same structured log messages that transport-received messages produce:
+
+```csharp
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        // Emit the same structured log messages for InvokeAsync()
+        // as Wolverine does for transport-received messages
+        opts.InvokeTracing = InvokeTracingMode.Full;
+    }).StartAsync();
+```
+
+See [Instrumentation and Metrics](/guide/logging) for more details on Wolverine's logging capabilities.

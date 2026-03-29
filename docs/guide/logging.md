@@ -71,6 +71,33 @@ public static void Configure(HandlerChain chain)
 
 will be called by Wolverine to apply message type specific overrides to Wolverine's message handling.
 
+## Full Tracing for InvokeAsync <Badge type="tip" text="5.25" />
+
+By default, messages processed via `InvokeAsync()` (Wolverine's in-process mediator) use lightweight tracking
+without emitting the same structured log messages that transport-received messages produce. If you need full
+observability for inline invocations — for example, when using Wolverine purely as a mediator within an HTTP
+application — you can opt into full tracing:
+
+```csharp
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        // Emit the same structured log messages for InvokeAsync()
+        // as Wolverine does for transport-received messages
+        opts.InvokeTracing = InvokeTracingMode.Full;
+    }).StartAsync();
+```
+
+When `InvokeTracingMode.Full` is enabled, `InvokeAsync()` will emit:
+- **Execution started** — logged at the configured `MessageExecutionLogLevel` (default `Debug`)
+- **Message succeeded** — logged at the configured `MessageSuccessLogLevel` (default `Information`)
+- **Message failed** — logged at `Error` level with the exception
+- **Execution finished** — logged at the configured `MessageExecutionLogLevel`
+
+These are the same log messages and event IDs that Wolverine already uses for messages received from
+external transports like RabbitMQ, Kafka, or Azure Service Bus. This makes it easy to use a single
+log query to observe all message processing regardless of how messages enter the system.
+
 ## Configuring Health Check Tracing
 
 Wolverine's node agent controller performs health checks periodically (every 10 seconds by default) to maintain node assignments and cluster state. By default, these health checks emit Open Telemetry traces named `wolverine_node_assignments`, which can result in high trace volumes in observability platforms.
