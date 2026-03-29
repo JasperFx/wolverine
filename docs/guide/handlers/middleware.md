@@ -641,3 +641,49 @@ public static class MaybeBadThing4Handler
 And any objects in the `OutgoingMessages` return value from the middleware method will be sent as cascaded
 messages. Wolverine will also apply a "maybe stop" frame from the `IHandlerContinuation` as well.
 
+## Parameter Value Sources <Badge type="tip" text="5.25" />
+
+When using `WolverineParameterAttribute` subclasses (like `[Aggregate]`, `[WriteAggregate]`), you can control
+where parameter values are resolved from using the `ValueSource` property or the convenience shorthand properties.
+
+### From an Envelope Header
+
+Use `FromHeader` to resolve a value from the message envelope's headers:
+
+```cs
+public void Handle(
+    ProcessOrder command,
+    [WriteAggregate(FromHeader = "X-Tenant-Id")] TenantAggregate tenant)
+{
+    // tenant loaded using the value from the "X-Tenant-Id" envelope header
+}
+```
+
+### From a Static Method
+
+Use `FromMethod` to resolve a value from a static method on the handler class. The method's parameters
+are resolved via method injection:
+
+```cs
+public class ProcessOrderHandler
+{
+    public static Guid ResolveTenantId(IMessageContext context)
+    {
+        context.Envelope!.TryGetHeader("X-Tenant-Id", out var tenantId);
+        return Guid.Parse(tenantId!);
+    }
+
+    public void Handle(
+        ProcessOrder command,
+        [WriteAggregate(FromMethod = "ResolveTenantId")] TenantAggregate tenant)
+    {
+        // tenant loaded using the Guid returned by ResolveTenantId()
+    }
+}
+```
+
+::: warning
+`FromClaim` is only supported in HTTP endpoints and will throw an `InvalidOperationException` if
+used in a message handler.
+:::
+

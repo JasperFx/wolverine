@@ -150,7 +150,22 @@ public partial class HttpChain
         {
             return true;
         }
-        
+
+        if (source == ValueSource.Header && FindHeaderVariable(valueType, valueName, out variable!))
+        {
+            return true;
+        }
+
+        if (source == ValueSource.Claim && FindClaimVariable(valueType, valueName, out variable!))
+        {
+            return true;
+        }
+
+        if (source == ValueSource.Method)
+        {
+            return tryFindMethodVariable(valueName, valueType, out variable!);
+        }
+
         if (HasRequestType)
         {
             var requestType = InputType()!;
@@ -164,14 +179,55 @@ public partial class HttpChain
                 if (RequestBodyVariable == null)
                     throw new InvalidOperationException(
                         "Requesting member access to the request body, but the request body is not (yet) set.");
-                
+
                 variable = new MemberAccessVariable(RequestBodyVariable, member);
                 return true;
             }
         }
-        
+
         variable = default!;
         return false;
+    }
+
+    internal bool FindHeaderVariable(Type valueType, string headerName, out Variable variable)
+    {
+        var frame = new CodeGen.ReadHttpFrame(CodeGen.BindingSource.Header, valueType, headerName.Replace("-", "_"))
+        {
+            Key = headerName
+        };
+        Middleware.Add(frame);
+        variable = frame.Variable;
+        return true;
+    }
+
+    internal bool FindClaimVariable(Type valueType, string claimType, out Variable variable)
+    {
+        var frame = new CodeGen.ReadClaimFrame(valueType, claimType);
+        Middleware.Add(frame);
+        variable = frame.Variable;
+        return true;
+    }
+
+    private bool tryFindMethodVariable(string methodName, Type returnType, out Variable variable)
+    {
+        var handlerTypes = HandlerCalls().Select(h => h.HandlerType).Distinct();
+        foreach (var type in handlerTypes)
+        {
+            var method = type
+                .GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.FlattenHierarchy)
+                .FirstOrDefault(m => m.Name.EqualsIgnoreCase(methodName) && m.ReturnType == returnType);
+
+            if (method != null)
+            {
+                var call = new MethodCall(type, method);
+                Middleware.Add(call);
+                variable = call.ReturnVariable!;
+                return true;
+            }
+        }
+
+        throw new InvalidOperationException(
+            $"Could not find a public static method '{methodName}' returning {returnType.FullNameInCode()} on endpoint types: {handlerTypes.Select(t => t.FullNameInCode()).Join(", ")}");
     }
 
     private sealed record NormalizedResponseMetadata(int StatusCode, Type? Type, IEnumerable<string> ContentTypes)
