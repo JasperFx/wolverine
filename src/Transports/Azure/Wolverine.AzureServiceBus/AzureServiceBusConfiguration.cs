@@ -107,6 +107,27 @@ public class AzureServiceBusConfiguration : BrokerExpression<AzureServiceBusTran
     }
 
     /// <summary>
+    /// Opt into using conventional message routing using topics and topic
+    /// subscriptions with the specified naming source.
+    /// Using <see cref="NamingSource.FromHandlerType"/> is appropriate for modular monolith
+    /// scenarios where you have more than one handler for a given message type.
+    /// </summary>
+    /// <param name="namingSource"></param>
+    /// <param name="configure"></param>
+    /// <returns></returns>
+    public AzureServiceBusConfiguration UseTopicAndSubscriptionConventionalRouting(NamingSource namingSource,
+        Action<AzureServiceBusTopicBroadcastingRoutingConvention>? configure = null)
+    {
+        var routing = new AzureServiceBusTopicBroadcastingRoutingConvention();
+        routing.UseNaming(namingSource);
+        configure?.Invoke(routing);
+
+        Options.RouteWith(routing);
+
+        return this;
+    }
+
+    /// <summary>
     /// Opt into using conventional message routing using
     /// queues based on message type names
     /// </summary>
@@ -116,6 +137,27 @@ public class AzureServiceBusConfiguration : BrokerExpression<AzureServiceBusTran
         Action<AzureServiceBusMessageRoutingConvention>? configure = null)
     {
         var routing = new AzureServiceBusMessageRoutingConvention();
+        configure?.Invoke(routing);
+
+        Options.RouteWith(routing);
+
+        return this;
+    }
+
+    /// <summary>
+    /// Opt into using conventional message routing using
+    /// queues with the specified naming source.
+    /// Using <see cref="NamingSource.FromHandlerType"/> is appropriate for modular monolith
+    /// scenarios where you have more than one handler for a given message type.
+    /// </summary>
+    /// <param name="namingSource"></param>
+    /// <param name="configure"></param>
+    /// <returns></returns>
+    public AzureServiceBusConfiguration UseConventionalRouting(NamingSource namingSource,
+        Action<AzureServiceBusMessageRoutingConvention>? configure = null)
+    {
+        var routing = new AzureServiceBusMessageRoutingConvention();
+        routing.UseNaming(namingSource);
         configure?.Invoke(routing);
 
         Options.RouteWith(routing);

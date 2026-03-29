@@ -22,6 +22,7 @@ public abstract class MessageRoutingConvention<TTransport, TListener, TSubscribe
     private Action<TSubscriber, MessageRoutingContext> _configureSending = (_, _) => { };
     protected Func<Type, string?> _identifierForSender = t => t.ToMessageTypeName();
     protected Func<Type, string?> _queueNameForListener = t => t.ToMessageTypeName();
+    private NamingSource _namingSource = NamingSource.FromMessageType;
 
     void IMessageRoutingConvention.DiscoverListeners(IWolverineRuntime runtime, IReadOnlyList<Type> handledMessageTypes)
     {
@@ -51,7 +52,19 @@ public abstract class MessageRoutingConvention<TTransport, TListener, TSubscribe
                 continue;
             }
 
-            if (runtime.Options.MultipleHandlerBehavior == MultipleHandlerBehavior.ClassicCombineIntoOneLogicalHandler && chain.Handlers.Any())
+            if (_namingSource == NamingSource.FromHandlerType && chain.Handlers.Any())
+            {
+                foreach (var handler in chain.Handlers)
+                {
+                    var handlerType = handler.HandlerType;
+                    var endpoint = maybeCreateListenerForMessageOrHandlerType(transport, handlerType, runtime);
+                    if (endpoint != null)
+                    {
+                        endpoint.StickyHandlers.Add(handlerType);
+                    }
+                }
+            }
+            else if (runtime.Options.MultipleHandlerBehavior == MultipleHandlerBehavior.ClassicCombineIntoOneLogicalHandler && chain.Handlers.Any())
             {
                 maybeCreateListenerForMessageOrHandlerType(transport, messageType, runtime);
             }
@@ -230,6 +243,20 @@ public abstract class MessageRoutingConvention<TTransport, TListener, TSubscribe
     protected abstract (TSubscriber, Endpoint) FindOrCreateSubscriber(string identifier, TTransport transport);
 
     protected virtual void ApplyListenerRoutingDefaults(string listenerIdentifier, TTransport transport, Type messageType) {}
+
+    /// <summary>
+    ///     Control whether conventional routing names queues/topics after the message type (default)
+    ///     or the handler type. Using <see cref="NamingSource.FromHandlerType"/> is appropriate for
+    ///     modular monolith scenarios where you have more than one handler for a given message type
+    ///     and want each handler to receive messages on its own dedicated queue.
+    /// </summary>
+    /// <param name="source"></param>
+    /// <returns></returns>
+    public TSelf UseNaming(NamingSource source)
+    {
+        _namingSource = source;
+        return this.As<TSelf>();
+    }
 
     /// <summary>
     ///     Override the convention for determining the queue name for receiving incoming messages of the message type.

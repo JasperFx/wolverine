@@ -125,6 +125,40 @@ var receiver = WolverineHost.For(opts =>
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L598-L636' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conventional_routing_exchange_conventions' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Handler Type Naming <Badge type="tip" text="5.25" />
+
+By default, conventional routing names queues after the **message type**. In modular monolith scenarios where you have
+more than one handler for a given message type and want each handler to receive messages on its own dedicated queue,
+you can opt into naming queues after the **handler type** instead:
+
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.UseRabbitMq()
+            // Name listener queues after the handler type instead of the message type
+            .UseConventionalRouting(NamingSource.FromHandlerType);
+    }).StartAsync();
+```
+
+With `NamingSource.FromHandlerType`, each handler class gets its own dedicated queue named after the handler type
+(e.g., `MyApp.Handlers.OrderCreatedHandler`), with a binding from the message type exchange to that queue. This
+ensures that each handler independently receives a copy of every message. Outgoing exchanges are still named after
+the message type.
+
+You can also combine this with the configuration callback:
+
+```cs
+opts.UseRabbitMq()
+    .UseConventionalRouting(NamingSource.FromHandlerType, x =>
+    {
+        x.ConfigureListeners((listener, context) =>
+        {
+            listener.UseDurableInbox();
+        });
+    });
+```
+
 ## Separated Handler Behavior <Badge type="tip" text="4.12" />
 
 In the case of using the `MultipleHandlerBehavior.Separated` mode, this convention will create an exchange
