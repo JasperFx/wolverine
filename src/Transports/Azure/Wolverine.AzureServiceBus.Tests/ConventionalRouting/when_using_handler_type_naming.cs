@@ -35,17 +35,18 @@ public class when_using_handler_type_naming : IAsyncLifetime
     [Fact]
     public void listener_endpoint_should_be_named_after_handler_type()
     {
-        var expectedName = typeof(AsbHandlerTypeNamingHandler).ToMessageTypeName();
+        // Azure SB sanitizes names by lowercasing
+        var expectedName = typeof(AsbHandlerTypeNamingHandler).ToMessageTypeName().ToLowerInvariant();
         var transport = _runtime.Options.Transports.GetOrCreate<AzureServiceBusTransport>();
 
         transport.Queues.Any(q => q.QueueName == expectedName)
-            .ShouldBeTrue($"Expected queue named '{expectedName}' for handler type");
+            .ShouldBeTrue($"Expected queue named '{expectedName}' for handler type, but found: {string.Join(", ", transport.Queues.Select(q => q.QueueName))}");
     }
 
     [Fact]
     public void listener_should_be_active()
     {
-        var expectedName = typeof(AsbHandlerTypeNamingHandler).ToMessageTypeName();
+        var expectedName = typeof(AsbHandlerTypeNamingHandler).ToMessageTypeName().ToLowerInvariant();
 
         _runtime.Endpoints.ActiveListeners().Any(x => x.Uri.ToString().Contains(expectedName))
             .ShouldBeTrue($"Expected active listener containing '{expectedName}'");

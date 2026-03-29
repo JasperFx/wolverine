@@ -34,19 +34,20 @@ public class when_using_handler_type_naming : IDisposable
     [Fact]
     public void listener_endpoint_should_be_named_after_handler_type()
     {
-        var expectedName = typeof(SqsHandlerTypeNamingHandler).ToMessageTypeName();
+        // SQS sanitizes names by replacing dots with hyphens
+        var expectedName = AmazonSqsTransport.SanitizeSqsName(typeof(SqsHandlerTypeNamingHandler).ToMessageTypeName());
         var transport = _runtime.Options.Transports.GetOrCreate<AmazonSqsTransport>();
 
         transport.Queues.Any(q => q.QueueName == expectedName)
-            .ShouldBeTrue($"Expected queue named '{expectedName}' for handler type");
+            .ShouldBeTrue($"Expected queue named '{expectedName}' for handler type, but found: {string.Join(", ", transport.Queues.Select(q => q.QueueName))}");
     }
 
     [Fact]
     public void listener_should_be_active()
     {
-        var expectedName = typeof(SqsHandlerTypeNamingHandler).ToMessageTypeName();
+        var expectedName = AmazonSqsTransport.SanitizeSqsName(typeof(SqsHandlerTypeNamingHandler).ToMessageTypeName());
 
-        _runtime.Endpoints.ActiveListeners().Any(x => x.Uri.ToString().Contains(expectedName))
+        _runtime.Endpoints.ActiveListeners().Any(x => x.Uri.ToString().Contains(expectedName, StringComparison.OrdinalIgnoreCase))
             .ShouldBeTrue($"Expected active listener containing '{expectedName}'");
     }
 
