@@ -148,6 +148,14 @@ builder.UseWolverine(opts =>
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqliteTests/DocumentationSamples.cs#L160-L175' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sqlite_polling_configuration' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+You can also override the polling interval for a specific queue:
+
+```cs
+opts.ListenToSqliteQueue("inbound").PollingInterval(2.Seconds());
+```
+
+When not set, the queue falls back to the global `DurabilitySettings.ScheduledJobPollingTime`.
+
 ::: info Control queue
 Wolverine has an internal control queue (`dbcontrol`) used for internal operations.
 This queue is hardcoded to poll every second and should not be changed to ensure the stability of the application.

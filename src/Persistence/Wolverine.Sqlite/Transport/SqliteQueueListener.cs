@@ -26,6 +26,7 @@ internal class SqliteQueueListener : IListener
     private readonly string _queueTableName;
     private readonly string _queueName;
     private readonly string _scheduledTableName;
+    private readonly TimeSpan _pollingInterval;
 
     public SqliteQueueListener(SqliteQueue queue, IWolverineRuntime runtime, IReceiver receiver,
         DbDataSource dataSource, string? databaseName)
@@ -37,6 +38,7 @@ internal class SqliteQueueListener : IListener
         _databaseName = databaseName;
         _logger = runtime.LoggerFactory.CreateLogger<SqliteQueueListener>();
         _settings = runtime.DurabilitySettings;
+        _pollingInterval = queue.PollingInterval ?? _settings.ScheduledJobPollingTime;
 
         _sender = new SqliteQueueSender(queue, _dataSource, databaseName);
 
@@ -99,7 +101,7 @@ internal class SqliteQueueListener : IListener
 
                 failedCount = 0;
 
-                await Task.Delay(_settings.ScheduledJobPollingTime);
+                await Task.Delay(_pollingInterval);
             }
             catch (Exception e)
             {
@@ -242,7 +244,7 @@ internal class SqliteQueueListener : IListener
                         // This keeps delayed delivery responsive even if the background scheduler is delayed.
                         await MoveScheduledToReadyQueueAsync(_cancellation.Token);
 
-                        await Task.Delay(250.Milliseconds(), _cancellation.Token);
+                        await Task.Delay(_pollingInterval, _cancellation.Token);
                     }
                 }
                 finally

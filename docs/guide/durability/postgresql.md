@@ -161,8 +161,16 @@ builder.UseWolverine(opts =>
 }
 ```
 
-::: info Control queue  
-Wolverine has an internal control queue (`dbcontrol`) used for internal operations.  
+You can also override the polling interval for a specific queue:
+
+```cs
+opts.ListenToPostgresqlQueue("inbound").PollingInterval(2.Seconds());
+```
+
+When not set, the queue falls back to the global `DurabilitySettings.ScheduledJobPollingTime`.
+
+::: info Control queue
+Wolverine has an internal control queue (`dbcontrol`) used for internal operations.
 This queue is hardcoded to poll every second and should not be changed to ensure the stability of the application.
 :::
 

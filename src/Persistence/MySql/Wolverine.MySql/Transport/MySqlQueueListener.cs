@@ -27,6 +27,7 @@ internal class MySqlQueueListener : IListener
     private readonly string _queueName;
     private readonly string _schemaName;
     private readonly string _scheduledTableName;
+    private readonly TimeSpan _pollingInterval;
 
     public MySqlQueueListener(MySqlQueue queue, IWolverineRuntime runtime, IReceiver receiver,
         MySqlDataSource dataSource, string? databaseName)
@@ -38,6 +39,7 @@ internal class MySqlQueueListener : IListener
         _databaseName = databaseName;
         _logger = runtime.LoggerFactory.CreateLogger<MySqlQueueListener>();
         _settings = runtime.DurabilitySettings;
+        _pollingInterval = queue.PollingInterval ?? _settings.ScheduledJobPollingTime;
 
         _sender = new MySqlQueueSender(queue, _dataSource, databaseName);
 
@@ -108,7 +110,7 @@ ORDER BY timestamp LIMIT @count FOR UPDATE SKIP LOCKED
 
                 failedCount = 0;
 
-                await Task.Delay(_settings.ScheduledJobPollingTime);
+                await Task.Delay(_pollingInterval);
             }
             catch (Exception e)
             {
@@ -223,13 +225,13 @@ WHERE id IN (SELECT id FROM temp_move_{_queueName})")
                     }
                     else
                     {
-                        await Task.Delay(_settings.ScheduledJobPollingTime);
+                        await Task.Delay(_pollingInterval);
                     }
                 }
                 else
                 {
                     // Slow down if this is a periodically used queue
-                    await Task.Delay(_settings.ScheduledJobPollingTime);
+                    await Task.Delay(_pollingInterval);
                 }
             }
             catch (Exception e)

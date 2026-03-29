@@ -67,6 +67,12 @@ public class SqlServerQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint
     /// </summary>
     public int MaximumMessagesToReceive { get; set; } = 20;
 
+    /// <summary>
+    ///     How often to poll for new messages when the queue is idle.
+    ///     If null, falls back to DurabilitySettings.ScheduledJobPollingTime (default 5s).
+    /// </summary>
+    public TimeSpan? PollingInterval { get; set; }
+
     public override async ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
     {
         if (Parent.AutoProvision)

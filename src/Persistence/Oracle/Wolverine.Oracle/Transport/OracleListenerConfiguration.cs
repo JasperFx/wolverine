@@ -24,6 +24,16 @@ public class OracleListenerConfiguration : ListenerConfiguration<OracleListenerC
     }
 
     /// <summary>
+    ///     Configure how often to poll for new messages when the queue is idle.
+    ///     If not set, falls back to DurabilitySettings.ScheduledJobPollingTime (default 5s).
+    /// </summary>
+    public OracleListenerConfiguration PollingInterval(TimeSpan interval)
+    {
+        add(e => e.PollingInterval = interval);
+        return this;
+    }
+
+    /// <summary>
     ///     Add circuit breaker exception handling to this listener
     /// </summary>
     public OracleListenerConfiguration CircuitBreaker(Action<CircuitBreakerOptions>? configure = null)
