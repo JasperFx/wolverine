@@ -74,6 +74,12 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IAsy
 
     public DeadLetterQueue DeadLetterQueue { get; } = new(DeadLetterQueueName);
 
+    /// <summary>
+    /// When true, a background listener recovers messages from the RabbitMQ dead letter queue
+    /// into Wolverine's persistent dead letter storage (database).
+    /// </summary>
+    public bool EnableDeadLetterQueueRecovery { get; set; }
+
     internal RabbitMqChannelCallback? Callback { get; private set; }
 
     internal ConnectionMonitor ListeningConnection => _listenerConnection ?? throw new InvalidOperationException("The listening connection has not been created yet or is disabled!");
