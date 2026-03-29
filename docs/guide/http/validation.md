@@ -419,6 +419,55 @@ public class ValidatedQuery
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Forms/FormEndpoints.cs#L230-L257' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_fluent_validation_with_asparameters' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+### AsParameters with [FromBody] <Badge type="tip" text="5.25" />
+
+When using `[AsParameters]` with a `[FromBody]` property, the Fluent Validation middleware will validate
+**both** the `[FromBody]` type (if it has a validator) and the `[AsParameters]` type itself. This ensures
+that validation rules on the `[AsParameters]` type are always applied, even when a `[FromBody]` property
+is present:
+
+<!-- snippet: sample_using_fluent_validation_with_AsParameters_and_FromBody -->
+<a id='snippet-sample_using_fluent_validation_with_asparameters_and_frombody'></a>
+```cs
+public static class ValidatedAsParametersWithFromBodyEndpoint
+{
+    [WolverinePost("/asparameters/validated_with_from_body")]
+    public static string Post([AsParameters] ValidatedWithFromBody query)
+    {
+        return $"{query.Name} has dog: {query.Body?.HasDog}, has cat: {query.Body?.HasCat}";
+    }
+}
+
+public class ValidatedWithFromBody
+{
+    [FromQuery]
+    public string? Name { get; set; }
+
+    [FromQuery]
+    public int Age { get; set; }
+
+    [FromBody]
+    public ValidatedQueryBody? Body { get; set; }
+
+    public class ValidatedWithFromBodyValidator : AbstractValidator<ValidatedWithFromBody>
+    {
+        public ValidatedWithFromBodyValidator()
+        {
+            RuleFor(x => x.Name).NotNull();
+            RuleFor(x => x.Body).NotNull();
+        }
+    }
+
+    public class ValidatedQueryBody
+    {
+        public bool HasDog { get; set; }
+        public bool HasCat { get; set; }
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Forms/FormEndpoints.cs' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_fluent_validation_with_asparameters_and_frombody' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
 ## QueryString Binding <Badge type="tip" text="5.0" />
 
 Wolverine.HTTP can apply the Fluent Validation middleware to complex types that are bound by the `[FromQuery]` behavior:

@@ -256,3 +256,43 @@ public class ValidatedQuery
 
 #endregion
 
+#region sample_using_fluent_validation_with_AsParameters_and_FromBody
+
+public static class ValidatedAsParametersWithFromBodyEndpoint
+{
+    [WolverinePost("/asparameters/validated_with_from_body")]
+    public static string Post([AsParameters] ValidatedWithFromBody query)
+    {
+        return $"{query.Name} has dog: {query.Body?.HasDog}, has cat: {query.Body?.HasCat}";
+    }
+}
+
+public class ValidatedWithFromBody
+{
+    [FromQuery]
+    public string? Name { get; set; }
+
+    [FromQuery]
+    public int Age { get; set; }
+
+    [FromBody]
+    public ValidatedQueryBody? Body { get; set; }
+
+    public class ValidatedWithFromBodyValidator : AbstractValidator<ValidatedWithFromBody>
+    {
+        public ValidatedWithFromBodyValidator()
+        {
+            RuleFor(x => x.Name).NotNull();
+            RuleFor(x => x.Body).NotNull();
+        }
+    }
+
+    public class ValidatedQueryBody
+    {
+        public bool HasDog { get; set; }
+        public bool HasCat { get; set; }
+    }
+}
+
+#endregion
+

@@ -22,7 +22,20 @@ internal class HttpChainFluentValidationPolicy : IHttpPolicy
     {
         var validatedType = chain.HasRequestType ? chain.RequestType : chain.ComplexQueryStringType;
         if (validatedType == null) return;
-        
+
+        addValidationMiddleware(chain, container, validatedType);
+
+        // When using [AsParameters] with a [FromBody] property, the RequestType gets
+        // overwritten to the body property type. We still want to validate the
+        // AsParameters type itself if it has a validator registered.
+        if (chain.AsParametersType != null && chain.AsParametersType != validatedType)
+        {
+            addValidationMiddleware(chain, container, chain.AsParametersType);
+        }
+    }
+
+    private static void addValidationMiddleware(HttpChain chain, IServiceContainer container, Type validatedType)
+    {
         var validatorInterface = typeof(IValidator<>).MakeGenericType(validatedType);
 
         var registered = container.RegistrationsFor(validatorInterface);

@@ -184,4 +184,45 @@ public class asparameters_binding : IntegrationContext
             x.ContentTypeShouldBe("application/problem+json");
         });
     }
+
+    [Fact]
+    public async Task using_FluentValidation_with_AsParameters_and_FromBody_happy_path()
+    {
+        await Scenario(x =>
+        {
+            x.Post.Json(new WolverineWebApi.Forms.ValidatedWithFromBody.ValidatedQueryBody { HasDog = true, HasCat = false })
+                .ToUrl("/asparameters/validated_with_from_body")
+                .QueryString("Name", "Jeremy")
+                .QueryString("Age", "51");
+        });
+    }
+
+    [Fact]
+    public async Task using_FluentValidation_with_AsParameters_and_FromBody_should_validate_asparameters_type()
+    {
+        // Missing Name (required by the ValidatedWithFromBody validator)
+        await Scenario(x =>
+        {
+            x.Post.Json(new WolverineWebApi.Forms.ValidatedWithFromBody.ValidatedQueryBody { HasDog = true, HasCat = false })
+                .ToUrl("/asparameters/validated_with_from_body")
+                .QueryString("Age", "51");
+
+            x.StatusCodeShouldBe(400);
+            x.ContentTypeShouldBe("application/problem+json");
+        });
+    }
+
+    [Fact]
+    public async Task using_FluentValidation_with_AsParameters_and_FromBody_missing_body_should_fail()
+    {
+        // No body at all (required by the ValidatedWithFromBody validator)
+        await Scenario(x =>
+        {
+            x.Post.Url("/asparameters/validated_with_from_body")
+                .QueryString("Name", "Jeremy")
+                .QueryString("Age", "51");
+
+            x.StatusCodeShouldBe(400);
+        });
+    }
 }
