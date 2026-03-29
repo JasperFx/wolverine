@@ -24,6 +24,7 @@ internal class AsParamatersAttributeUsage : IParameterStrategy
         if (IsClassOrNullableClassNotCollection(parameter.ParameterType))
         {
             chain.RequestType = parameter.ParameterType;
+            chain.AsParametersType = parameter.ParameterType;
             chain.IsFormData = true;
             variable = new AsParametersBindingFrame(parameter.ParameterType, chain, container).Variable;
             return true;

@@ -706,6 +706,13 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
 
     public bool IsFormData { get; internal set; }
     public Type? ComplexQueryStringType { get; set; }
+
+    /// <summary>
+    /// When using [AsParameters], this tracks the original AsParameters type even when
+    /// RequestType is overwritten by a [FromBody] property. This allows middleware like
+    /// FluentValidation to also validate the AsParameters type itself.
+    /// </summary>
+    public Type? AsParametersType { get; internal set; }
     public ServiceProviderSource ServiceProviderSource { get; set; } = ServiceProviderSource.IsolatedAndScoped;
 
     internal Variable BuildJsonDeserializationVariable()
