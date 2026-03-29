@@ -85,6 +85,29 @@ opts.UseAzureServiceBusTesting()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/ConventionalRouting/Broadcasting/end_to_end_with_conventional_routing.cs#L32-L51' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_topic_and_subscription_conventional_routing_with_azure_service_bus' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Handler Type Naming <Badge type="tip" text="5.25" />
+
+By default, conventional routing names queues after the **message type**. In modular monolith scenarios where you have
+more than one handler for a given message type and want each handler to receive messages on its own dedicated queue,
+you can opt into naming queues after the **handler type** instead:
+
+```cs
+opts.UseAzureServiceBus(connectionString)
+    // Name listener queues after the handler type instead of the message type
+    .UseConventionalRouting(NamingSource.FromHandlerType);
+```
+
+This also works with the topic/subscription variant:
+
+```cs
+opts.UseAzureServiceBus(connectionString)
+    .UseTopicAndSubscriptionConventionalRouting(NamingSource.FromHandlerType);
+```
+
+With `NamingSource.FromHandlerType`, each handler class gets its own dedicated queue or subscription named after the
+handler type. This ensures that each handler independently receives a copy of every message. Outgoing queue/topic
+names are still derived from the message type.
+
 ## Separated Handler Behavior <Badge type="tip" text="4.12" />
 
 In the case of using the `MultipleHandlerBehavior.Separated` mode, this convention will create a subscription

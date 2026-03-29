@@ -46,3 +46,24 @@ var host = await Host.CreateDefaultBuilder()
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/DocumentationSamples.cs#L135-L170' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conventional_routing_for_pubsub' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+
+## Handler Type Naming <Badge type="tip" text="5.25" />
+
+By default, conventional routing names topics/subscriptions after the **message type**. In modular monolith scenarios
+where you have more than one handler for a given message type and want each handler to receive messages on its own
+dedicated subscription, you can opt into naming after the **handler type** instead:
+
+```cs
+var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.UsePubsub("your-project-id")
+            // Name listener subscriptions after the handler type instead of the message type
+            .UseConventionalRouting(NamingSource.FromHandlerType);
+    }).StartAsync();
+```
+
+With `NamingSource.FromHandlerType`, each handler class gets its own dedicated topic/subscription named after the
+handler type. This ensures that each handler independently receives a copy of every message. Outgoing topic names
+are still derived from the message type.
+

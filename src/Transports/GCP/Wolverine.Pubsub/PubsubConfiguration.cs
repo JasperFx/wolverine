@@ -53,6 +53,28 @@ public class PubsubConfiguration : BrokerExpression<
     }
 
     /// <summary>
+    ///     Opt into using conventional message routing with the specified naming source.
+    ///     Using <see cref="NamingSource.FromHandlerType"/> is appropriate for modular monolith
+    ///     scenarios where you have more than one handler for a given message type.
+    /// </summary>
+    /// <param name="namingSource"></param>
+    /// <param name="configure"></param>
+    /// <returns></returns>
+    public PubsubConfiguration UseConventionalRouting(NamingSource namingSource,
+        Action<PubsubMessageRoutingConvention>? configure = null
+    )
+    {
+        var routing = new PubsubMessageRoutingConvention();
+        routing.UseNaming(namingSource);
+
+        configure?.Invoke(routing);
+
+        Options.RouteWith(routing);
+
+        return this;
+    }
+
+    /// <summary>
     ///     Enable Wolverine to create system endpoints automatically for responses and retries. This
     ///     should probably be set if the application does have permissions to create topcis and subscriptions
     /// </summary>

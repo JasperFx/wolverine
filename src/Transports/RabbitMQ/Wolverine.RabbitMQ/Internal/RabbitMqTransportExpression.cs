@@ -144,6 +144,25 @@ public class RabbitMqTransportExpression : BrokerExpression<RabbitMqTransport, R
     }
 
     /// <summary>
+    ///     Opt into using conventional Rabbit MQ routing with the specified naming source.
+    ///     Using <see cref="NamingSource.FromHandlerType"/> is appropriate for modular monolith
+    ///     scenarios where you have more than one handler for a given message type.
+    /// </summary>
+    /// <param name="namingSource"></param>
+    /// <param name="configure"></param>
+    /// <returns></returns>
+    public RabbitMqTransportExpression UseConventionalRouting(NamingSource namingSource,
+        Action<RabbitMqMessageRoutingConvention>? configure = null)
+    {
+        var convention = new RabbitMqMessageRoutingConvention();
+        convention.UseNaming(namingSource);
+        configure?.Invoke(convention);
+        Options.RoutingConventions.Add(convention);
+
+        return this;
+    }
+
+    /// <summary>
     ///     Declare a new exchange without impacting message routing or listening. The default exchange type is "fan out". This
     ///     does not respect identifier prefixes!
     /// </summary>

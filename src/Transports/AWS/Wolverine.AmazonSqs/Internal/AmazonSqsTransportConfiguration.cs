@@ -75,6 +75,26 @@ public class AmazonSqsTransportConfiguration : BrokerExpression<AmazonSqsTranspo
     }
 
     /// <summary>
+    ///     Apply a conventional routing topology with the specified naming source.
+    ///     Using <see cref="NamingSource.FromHandlerType"/> is appropriate for modular monolith
+    ///     scenarios where you have more than one handler for a given message type.
+    /// </summary>
+    /// <param name="namingSource"></param>
+    /// <param name="configure"></param>
+    /// <returns></returns>
+    public AmazonSqsTransportConfiguration UseConventionalRouting(NamingSource namingSource,
+        Action<AmazonSqsMessageRoutingConvention>? configure = null)
+    {
+        var routing = new AmazonSqsMessageRoutingConvention();
+        routing.UseNaming(namingSource);
+        configure?.Invoke(routing);
+
+        Options.RouteWith(routing);
+
+        return this;
+    }
+
+    /// <summary>
     /// Globally disable all native dead letter queueing with AWS SQS queues within this entire
     /// application
     /// </summary>
