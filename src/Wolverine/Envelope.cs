@@ -62,6 +62,21 @@ public partial class Envelope : IHasTenantId
         internal set => _headers = value;
     }
 
+    /// <summary>
+    /// Try to read a header value by key without forcing dictionary allocation.
+    /// Returns true if the header exists and has a non-null value.
+    /// </summary>
+    public bool TryGetHeader(string key, out string? value)
+    {
+        if (_headers != null && _headers.TryGetValue(key, out value))
+        {
+            return value != null;
+        }
+
+        value = null;
+        return false;
+    }
+
     #region sample_envelope_deliver_by_property
 
     /// <summary>

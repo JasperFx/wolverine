@@ -419,6 +419,86 @@ public static OrderShipped Ship(
 See [Overriding Version Discovery](/guide/durability/marten/event-sourcing.html#overriding-version-discovery) in the
 aggregate handler workflow documentation for more details and multi-stream examples.
 
+## Custom Identity Resolution <Badge type="tip" text="5.25" />
+
+By default, the `[Aggregate]` attribute resolves the stream identity from route arguments, query string parameters,
+or request body properties. Starting in 5.25, you can use additional value sources to resolve the aggregate identity from
+headers, claims, or computed methods. These same properties are available on all `WolverineParameterAttribute` subclasses
+(`[Aggregate]`, `[WriteAggregate]`, `[ReadAggregate]`, etc.).
+
+### From a Request Header
+
+Use `FromHeader` to resolve the identity from an HTTP request header:
+
+```cs
+[WolverinePost("/orders/ship")]
+[EmptyResponse]
+public static OrderShipped Ship(
+    ShipOrder command,
+    [Aggregate(FromHeader = "X-Order-Id")] Order order)
+{
+    return new OrderShipped();
+}
+```
+
+In message handlers, `FromHeader` reads from `Envelope.Headers` instead.
+
+### From a Claim
+
+Use `FromClaim` to resolve the identity from the authenticated user's claims. This is only
+supported in HTTP endpoints:
+
+```cs
+[WolverinePost("/profile/update")]
+[EmptyResponse]
+public static ProfileUpdated UpdateProfile(
+    UpdateProfile command,
+    [Aggregate(FromClaim = "profile-id")] UserProfile profile)
+{
+    return new ProfileUpdated();
+}
+```
+
+### From a Static Method
+
+Use `FromMethod` to resolve the identity from a static method on the endpoint class. The method's
+parameters are resolved via method injection (services, `ClaimsPrincipal`, etc.):
+
+```cs
+public static class UpdateAccountConfigEndpoint
+{
+    // Wolverine discovers this method and calls it to resolve the aggregate ID
+    public static Guid ResolveId(ClaimsPrincipal user)
+    {
+        return AccountConfig.CompositeId(user.FindFirst("tenant")?.Value);
+    }
+
+    [WolverinePost("/account/config/update")]
+    [EmptyResponse]
+    public static AccountConfigUpdated Handle(
+        UpdateAccountConfig command,
+        [Aggregate(FromMethod = "ResolveId")] AccountConfig config)
+    {
+        return new AccountConfigUpdated();
+    }
+}
+```
+
+### From a Route Argument
+
+Use `FromRoute` as a more explicit alternative to the constructor parameter:
+
+```cs
+[WolverinePost("/orders/{orderId}/ship")]
+[EmptyResponse]
+public static OrderShipped Ship(
+    ShipOrder command,
+    [Aggregate(FromRoute = "orderId")] Order order)
+{
+    return new OrderShipped();
+}
+```
+
 ## Reading the Latest Version of an Aggregate
 
 ::: info
