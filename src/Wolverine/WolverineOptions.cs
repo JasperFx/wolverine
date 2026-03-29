@@ -77,6 +77,27 @@ public enum UnknownMessageBehavior
     DeadLetterQueue
 }
 
+/// <summary>
+/// Controls how much tracing and logging is applied to InvokeAsync() calls.
+/// By default, InvokeAsync uses lightweight tracking without detailed log messages.
+/// </summary>
+public enum InvokeTracingMode
+{
+    /// <summary>
+    /// Default behavior. InvokeAsync() uses lightweight tracking without
+    /// emitting log messages for execution start/finish/success/failure.
+    /// </summary>
+    Lightweight,
+
+    /// <summary>
+    /// InvokeAsync() will emit the same structured log messages as transport-received
+    /// messages, including execution started, execution finished, message succeeded,
+    /// and message failed log entries. Use this mode when you need full observability
+    /// for messages invoked as an in-process mediator.
+    /// </summary>
+    Full
+}
+
 public class MetricsOptions
 {
     /// <summary>
@@ -171,6 +192,15 @@ public sealed partial class WolverineOptions
     /// on outgoing envelopes and into Marten's IDocumentSession.LastModifiedBy
     /// </summary>
     public bool EnableRelayOfUserName { get; set; }
+
+    /// <summary>
+    /// Controls how much tracing and logging is applied to InvokeAsync() calls.
+    /// Default is <see cref="InvokeTracingMode.Lightweight"/> which uses minimal tracking.
+    /// Set to <see cref="InvokeTracingMode.Full"/> to emit the same structured log messages
+    /// as transport-received messages, useful for full observability when using Wolverine
+    /// as an in-process mediator.
+    /// </summary>
+    public InvokeTracingMode InvokeTracing { get; set; } = InvokeTracingMode.Lightweight;
 
     /// <summary>
     /// What is the policy within this application for whether or not it is valid to allow Service Location within

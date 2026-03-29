@@ -52,5 +52,21 @@ With this mechanism, Wolverine is able to optimize the runtime function for Mini
 and some internal dictionary lookups compared to the "classic mediator" approach at the top.
 
 This approach is potentially valuable for cases where you want to process a command or event message both through messaging
-or direct invocation and also want to execute the same message through an HTTP endpoint. 
+or direct invocation and also want to execute the same message through an HTTP endpoint.
 
+## Full Tracing for InvokeAsync <Badge type="tip" text="5.25" />
+
+When using Wolverine as a mediator behind HTTP endpoints, `InvokeAsync()` does not emit detailed log messages
+by default. You can opt into full tracing to get the same structured logs as transport-received messages:
+
+```csharp
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        // Emit the same structured log messages for InvokeAsync()
+        // as Wolverine does for transport-received messages
+        opts.InvokeTracing = InvokeTracingMode.Full;
+    }).StartAsync();
+```
+
+See [Instrumentation and Metrics](/guide/logging) for more details on Wolverine's logging capabilities.
