@@ -12,7 +12,7 @@ public interface IReplyTracker : IDisposable
 #pragma warning restore VSTHRD200
         ;
 
-    void Complete(Envelope response);
+    bool Complete(Envelope response);
     int AssignedNodeNumber { get; set; }
 }
 
@@ -48,7 +48,7 @@ internal class ReplyTracker : IReplyTracker
         _listeners.Clear();
     }
 
-    public void Complete(Envelope response)
+    public bool Complete(Envelope response)
     {
         try
         {
@@ -56,16 +56,17 @@ internal class ReplyTracker : IReplyTracker
             {
                 listener.Complete(response);
                 _logger.LogDebug("Successfully completed a reply listener for conversation id {ReplyId} with message type {MessageTypeName} on Node {NodeNumber}", response.ConversationId, response.MessageType, AssignedNodeNumber);
+                return true;
             }
-            else
-            {
-                _logger.LogError("Unable to find a registered reply listener for conversation id {ReplyId} with message type {MessageType} on Node {NodeNumber} at endpoint {EndpointUri}. The listener may have previously timed out or this reply may have been sent to the wrong reply-uri", response.ConversationId, response.MessageType, AssignedNodeNumber, response.Destination);
-            }
+
+            _logger.LogDebug("No registered reply listener for conversation id {ReplyId} with message type {MessageType} on Node {NodeNumber} at endpoint {EndpointUri}. Falling through to normal handler execution", response.ConversationId, response.MessageType, AssignedNodeNumber, response.Destination);
+            return false;
         }
         catch (Exception e)
         {
             _logger.LogError(e, "Error while trying to complete a response for envelope conversation id {ReplyId}",
                 response.ConversationId);
+            return false;
         }
     }
 

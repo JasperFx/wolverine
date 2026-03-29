@@ -191,8 +191,13 @@ public class HandlerPipeline : IHandlerPipeline
 
         if (envelope.IsResponse)
         {
-            _runtime.Replies.Complete(envelope);
-            return MessageSucceededContinuation.Instance;
+            // If a reply listener is registered (from InvokeAsync), complete it directly.
+            // If not (from PublishAsync + RequireResponse), fall through to normal handler execution
+            // so the response can be handled by a registered message handler.
+            if (_runtime.Replies.Complete(envelope))
+            {
+                return MessageSucceededContinuation.Instance;
+            }
         }
 
         var executor = _executors[envelope.Message!.GetType()];
