@@ -48,6 +48,13 @@ public interface IWolverineTypeLoader
     bool HasPreGeneratedHandlers { get; }
 
     /// <summary>
+    /// A dictionary mapping handler chain TypeName to the pre-generated Type,
+    /// enabling O(1) lookup instead of O(N) assembly scanning in AttachTypesSynchronously.
+    /// Returns null if no pre-generated handler types are available.
+    /// </summary>
+    IReadOnlyDictionary<string, Type>? PreGeneratedHandlerTypes { get; }
+
+    /// <summary>
     /// Look up a pre-generated handler type by its generated class name.
     /// Returns null if the type name is not in the pre-generated manifest.
     /// This replaces the O(N) scan of assembly.ExportedTypes with an O(1) dictionary lookup.

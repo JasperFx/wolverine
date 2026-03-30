@@ -11,9 +11,10 @@ using Microsoft.CodeAnalysis.Text;
 namespace Wolverine.SourceGeneration
 {
     /// <summary>
-    /// Roslyn incremental source generator that discovers Wolverine handler types
-    /// and message types at compile time, emitting an IWolverineTypeLoader implementation
-    /// that eliminates runtime assembly scanning during startup.
+    /// Roslyn incremental source generator that discovers Wolverine handler types,
+    /// message types, pre-generated handler code, and extension types at compile time,
+    /// emitting an IWolverineTypeLoader implementation that eliminates runtime assembly
+    /// scanning during startup.
     /// </summary>
     [Generator]
     public class WolverineTypeManifestGenerator : IIncrementalGenerator
@@ -29,6 +30,14 @@ namespace Wolverine.SourceGeneration
         private const string IWolverineHandlerFullName = "Wolverine.IWolverineHandler";
         private const string SagaFullName = "Wolverine.Saga";
         private const string IMessageFullName = "Wolverine.IMessage";
+
+        // Phase D: Pre-generated handler types
+        private const string MessageHandlerFullName = "Wolverine.Runtime.Handlers.MessageHandler";
+        internal const string WolverineHandlersNamespaceConst = "WolverineHandlers";
+
+        // Phase E: Extension discovery
+        private const string IWolverineExtensionFullName = "Wolverine.IWolverineExtension";
+        private const string WolverineModuleAttributeFullName = "Wolverine.Attributes.WolverineModuleAttribute";
 
         // Valid handler method names (matching HandlerChain and SagaChain constants)
         private static readonly HashSet<string> ValidMethodNames = new HashSet<string>(StringComparer.Ordinal)
@@ -345,18 +354,66 @@ namespace Wolverine.SourceGeneration
                 }
             }
 
-            // Don't emit if we found nothing
-            if (handlerTypes.Count == 0 && messageTypes.Count == 0) return;
+            // Phase D: Find pre-generated handler types in the WolverineHandlers namespace
+            // that inherit from MessageHandler. These are emitted by Wolverine's code generation
+            // (dotnet run -- codegen) and can be looked up via dictionary instead of linear scan.
+            var preGenHandlerTypes = FindPreGeneratedHandlerTypes(compilation);
 
-            var source = EmitTypeLoaderSource(handlerTypes, messageTypes);
+            // Phase E: Find extension types implementing IWolverineExtension
+            var extensionTypes = FindExtensionTypes(compilation);
+
+            // Don't emit if we found nothing
+            if (handlerTypes.Count == 0 && messageTypes.Count == 0
+                && preGenHandlerTypes.Count == 0 && extensionTypes.Count == 0) return;
+
+            var source = EmitTypeLoaderSource(handlerTypes, messageTypes, preGenHandlerTypes, extensionTypes);
             context.AddSource("WolverineTypeManifest.g.cs", SourceText.From(source, Encoding.UTF8));
+        }
+
+        /// <summary>
+        /// Phase D: Scan for types in the WolverineHandlers namespace that inherit from
+        /// Wolverine.Runtime.Handlers.MessageHandler. These are pre-generated handler types
+        /// emitted by Wolverine's code generation step (dotnet run -- codegen).
+        /// </summary>
+        private static List<(string FullName, string ClassName)> FindPreGeneratedHandlerTypes(Compilation compilation)
+        {
+            var result = new List<(string, string)>();
+
+            var messageHandlerSymbol = compilation.GetTypeByMetadataName(MessageHandlerFullName);
+            if (messageHandlerSymbol == null) return result;
+
+            // Scan all types in the compilation's source assembly
+            var visitor = new PreGeneratedHandlerVisitor(messageHandlerSymbol, result);
+            visitor.Visit(compilation.Assembly.GlobalNamespace);
+
+            return result;
+        }
+
+        /// <summary>
+        /// Phase E: Scan for types implementing IWolverineExtension or decorated with
+        /// [WolverineModule] attribute in the compilation's source assembly.
+        /// </summary>
+        private static List<string> FindExtensionTypes(Compilation compilation)
+        {
+            var result = new List<string>();
+
+            var extensionInterfaceSymbol = compilation.GetTypeByMetadataName(IWolverineExtensionFullName);
+            if (extensionInterfaceSymbol == null) return result;
+
+            var visitor = new ExtensionTypeVisitor(extensionInterfaceSymbol, result);
+            visitor.Visit(compilation.Assembly.GlobalNamespace);
+
+            return result;
         }
 
         private static string EmitTypeLoaderSource(
             List<string> handlerTypes,
-            Dictionary<string, string> messageTypes)
+            Dictionary<string, string> messageTypes,
+            List<(string FullName, string ClassName)> preGenHandlerTypes,
+            List<string> extensionTypes)
         {
             var sb = new StringBuilder();
+            var hasPreGenHandlers = preGenHandlerTypes.Count > 0;
 
             sb.AppendLine("// <auto-generated />");
             sb.AppendLine("// Generated by Wolverine.SourceGeneration");
@@ -403,20 +460,65 @@ namespace Wolverine.SourceGeneration
             sb.AppendLine("        public IReadOnlyList<(Type MessageType, string Alias)> DiscoveredMessageTypes => _messageTypes;");
             sb.AppendLine();
 
-            // DiscoveredHttpEndpointTypes (Phase A does not discover HTTP endpoints)
+            // DiscoveredHttpEndpointTypes (not yet implemented)
             sb.AppendLine("        public IReadOnlyList<Type> DiscoveredHttpEndpointTypes => Array.Empty<Type>();");
             sb.AppendLine();
 
-            // DiscoveredExtensionTypes (Phase A does not discover extensions)
-            sb.AppendLine("        public IReadOnlyList<Type> DiscoveredExtensionTypes => Array.Empty<Type>();");
+            // Phase E: DiscoveredExtensionTypes
+            if (extensionTypes.Count > 0)
+            {
+                sb.AppendLine("        private static readonly IReadOnlyList<Type> _extensionTypes = new Type[]");
+                sb.AppendLine("        {");
+                foreach (var ext in extensionTypes)
+                {
+                    sb.AppendLine($"            typeof({ext}),");
+                }
+                sb.AppendLine("        };");
+                sb.AppendLine();
+                sb.AppendLine("        public IReadOnlyList<Type> DiscoveredExtensionTypes => _extensionTypes;");
+            }
+            else
+            {
+                sb.AppendLine("        public IReadOnlyList<Type> DiscoveredExtensionTypes => Array.Empty<Type>();");
+            }
             sb.AppendLine();
 
-            // HasPreGeneratedHandlers (Phase A does not do pre-gen)
-            sb.AppendLine("        public bool HasPreGeneratedHandlers => false;");
+            // Phase D: HasPreGeneratedHandlers and PreGeneratedHandlerTypes
+            sb.AppendLine($"        public bool HasPreGeneratedHandlers => {(hasPreGenHandlers ? "true" : "false")};");
             sb.AppendLine();
 
-            // TryFindPreGeneratedType (Phase A stub)
-            sb.AppendLine("        public Type? TryFindPreGeneratedType(string typeName) => null;");
+            if (hasPreGenHandlers)
+            {
+                sb.AppendLine("        private static Dictionary<string, Type>? _preGenTypes;");
+                sb.AppendLine();
+                sb.AppendLine("        public IReadOnlyDictionary<string, Type>? PreGeneratedHandlerTypes => _preGenTypes ??= BuildPreGenTypes();");
+                sb.AppendLine();
+                sb.AppendLine("        private static Dictionary<string, Type> BuildPreGenTypes()");
+                sb.AppendLine("        {");
+                sb.AppendLine($"            var dict = new Dictionary<string, Type>({preGenHandlerTypes.Count});");
+                foreach (var (fullName, className) in preGenHandlerTypes)
+                {
+                    sb.AppendLine($"            dict[\"{className}\"] = typeof({fullName});");
+                }
+                sb.AppendLine("            return dict;");
+                sb.AppendLine("        }");
+                sb.AppendLine();
+                sb.AppendLine("        public Type? TryFindPreGeneratedType(string typeName)");
+                sb.AppendLine("        {");
+                sb.AppendLine("            var types = PreGeneratedHandlerTypes;");
+                sb.AppendLine("            if (types != null && types.TryGetValue(typeName, out var type))");
+                sb.AppendLine("            {");
+                sb.AppendLine("                return type;");
+                sb.AppendLine("            }");
+                sb.AppendLine("            return null;");
+                sb.AppendLine("        }");
+            }
+            else
+            {
+                sb.AppendLine("        public IReadOnlyDictionary<string, Type>? PreGeneratedHandlerTypes => null;");
+                sb.AppendLine();
+                sb.AppendLine("        public Type? TryFindPreGeneratedType(string typeName) => null;");
+            }
 
             sb.AppendLine("    }");
             sb.AppendLine("}");
@@ -450,5 +552,105 @@ namespace Wolverine.SourceGeneration
         /// (FullTypeName, Alias)
         /// </summary>
         public List<(string FullTypeName, string Alias)> MethodMessageTypes { get; } = new List<(string, string)>();
+    }
+
+    /// <summary>
+    /// Phase D: Visits all namespaces in the compilation to find types in the
+    /// WolverineHandlers namespace that inherit from MessageHandler.
+    /// These represent pre-generated handler code from Wolverine's codegen step.
+    /// </summary>
+    internal sealed class PreGeneratedHandlerVisitor : SymbolVisitor
+    {
+        private readonly INamedTypeSymbol _messageHandlerSymbol;
+        private readonly List<(string FullName, string ClassName)> _result;
+
+        public PreGeneratedHandlerVisitor(
+            INamedTypeSymbol messageHandlerSymbol,
+            List<(string FullName, string ClassName)> result)
+        {
+            _messageHandlerSymbol = messageHandlerSymbol;
+            _result = result;
+        }
+
+        public override void VisitNamespace(INamespaceSymbol symbol)
+        {
+            foreach (var member in symbol.GetMembers())
+            {
+                member.Accept(this);
+            }
+        }
+
+        public override void VisitNamedType(INamedTypeSymbol symbol)
+        {
+            // Only consider types in a namespace ending with WolverineHandlers
+            var ns = symbol.ContainingNamespace?.ToDisplayString() ?? "";
+            if (!ns.EndsWith(WolverineTypeManifestGenerator.WolverineHandlersNamespaceConst))
+                return;
+
+            // Must not be abstract and must inherit from MessageHandler
+            if (symbol.IsAbstract) return;
+            if (!InheritsFrom(symbol, _messageHandlerSymbol)) return;
+
+            var fullName = symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+            _result.Add((fullName, symbol.Name));
+        }
+
+        private static bool InheritsFrom(INamedTypeSymbol symbol, INamedTypeSymbol baseType)
+        {
+            var current = symbol.BaseType;
+            while (current != null)
+            {
+                if (SymbolEqualityComparer.Default.Equals(current, baseType))
+                    return true;
+                current = current.BaseType;
+            }
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Phase E: Visits all namespaces in the compilation to find concrete types
+    /// implementing IWolverineExtension.
+    /// </summary>
+    internal sealed class ExtensionTypeVisitor : SymbolVisitor
+    {
+        private readonly INamedTypeSymbol _extensionInterfaceSymbol;
+        private readonly List<string> _result;
+
+        public ExtensionTypeVisitor(
+            INamedTypeSymbol extensionInterfaceSymbol,
+            List<string> result)
+        {
+            _extensionInterfaceSymbol = extensionInterfaceSymbol;
+            _result = result;
+        }
+
+        public override void VisitNamespace(INamespaceSymbol symbol)
+        {
+            foreach (var member in symbol.GetMembers())
+            {
+                member.Accept(this);
+            }
+        }
+
+        public override void VisitNamedType(INamedTypeSymbol symbol)
+        {
+            // Must be a concrete, non-abstract class
+            if (symbol.IsAbstract) return;
+            if (symbol.TypeKind != TypeKind.Class) return;
+            if (symbol.DeclaredAccessibility != Accessibility.Public &&
+                symbol.DeclaredAccessibility != Accessibility.Internal) return;
+
+            // Check if it implements IWolverineExtension
+            foreach (var iface in symbol.AllInterfaces)
+            {
+                if (SymbolEqualityComparer.Default.Equals(iface, _extensionInterfaceSymbol))
+                {
+                    var fullName = symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+                    _result.Add(fullName);
+                    return;
+                }
+            }
+        }
     }
 }
