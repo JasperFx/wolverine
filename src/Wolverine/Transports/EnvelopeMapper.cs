@@ -119,9 +119,10 @@ public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIn
         {
             var serializer = new MassTransitJsonSerializer(e);
             configure?.Invoke(serializer);
-            
+
             MapPropertyToHeader(x => x.MessageType!, MassTransitHeaders.MessageType);
-        
+            MapPropertyToHeader(x => x.ParentId!, MassTransitHeaders.ActivityId);
+
             _endpoint.DefaultSerializer = serializer;
             
             var replyUri = new Lazy<string>(() => e.MassTransitReplyUri()?.ToString() ?? string.Empty);
