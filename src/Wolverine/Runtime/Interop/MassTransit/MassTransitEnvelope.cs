@@ -41,6 +41,11 @@ internal class MassTransitEnvelope<T> : IMassTransitEnvelope where T : class
         {
             ExpirationTime = envelope.DeliverBy.Value.UtcDateTime;
         }
+
+        if (!string.IsNullOrEmpty(envelope.ParentId))
+        {
+            Headers[MassTransitHeaders.ActivityId] = envelope.ParentId;
+        }
     }
 
     public string? MessageId { get; set; }
@@ -86,6 +91,13 @@ internal class MassTransitEnvelope<T> : IMassTransitEnvelope where T : class
         }
 
         foreach (var header in Headers) envelope.Headers[header.Key] = header.Value?.ToString();
+
+        if (string.IsNullOrEmpty(envelope.ParentId)
+            && Headers.TryGetValue(MassTransitHeaders.ActivityId, out var activityId)
+            && activityId is string aid)
+        {
+            envelope.ParentId = aid;
+        }
 
         if (ExpirationTime.HasValue)
         {
