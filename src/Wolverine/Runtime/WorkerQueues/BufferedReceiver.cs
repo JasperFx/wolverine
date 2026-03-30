@@ -125,7 +125,7 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
     public async ValueTask DrainAsync()
     {
         // If _latched was already true, this drain was triggered during shutdown
-        // (after OnApplicationStopping called Latch()). Safe to wait for in-flight items.
+        // (after StopAndDrainAsync called Latch()). Safe to wait for in-flight items.
         // If _latched was false, this drain may have been triggered from within the handler
         // pipeline (e.g., rate limiting pause via PauseListenerContinuation). Waiting for
         // the receiving block to complete would deadlock because the current message's

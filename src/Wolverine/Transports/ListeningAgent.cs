@@ -182,15 +182,18 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
             return;
         }
 
-        Listener = null;
-        _receiver = null;
-
         try
         {
             using var activity = WolverineTracing.ActivitySource.StartActivity(WolverineTracing.StoppingListener);
             activity?.SetTag(WolverineTracing.EndpointAddress, Uri);
 
             await listener.StopAsync();
+
+            LatchReceiver();
+
+            Listener = null;
+            _receiver = null;
+
             if (receiver != null)
             {
                 await receiver.DrainAsync();

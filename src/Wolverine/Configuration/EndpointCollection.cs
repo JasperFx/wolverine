@@ -384,8 +384,9 @@ public class EndpointCollection : IEndpointCollection
 
     /// <summary>
     /// Immediately latch all receivers to stop picking up new messages from their internal queues.
-    /// This is called as early as possible during shutdown (via IHostApplicationLifetime.ApplicationStopping)
-    /// so that messages already queued internally are not processed after the shutdown signal.
+    /// During normal shutdown this is no longer called globally; instead each ListeningAgent
+    /// latches its own receiver after stopping the listener (see StopAndDrainAsync).
+    /// Kept to not break public api compatability.
     /// </summary>
     public void LatchAllReceivers()
     {

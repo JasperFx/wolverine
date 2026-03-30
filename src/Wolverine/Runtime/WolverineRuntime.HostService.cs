@@ -126,8 +126,7 @@ public partial class WolverineRuntime
 
     internal void OnApplicationStopping()
     {
-        Logger.LogInformation("Application stopping signal received, latching all message receivers");
-        _endpoints.LatchAllReceivers();
+        Logger.LogInformation("Application stopping signal received");
     }
 
     private bool _hasMigratedStorage;
@@ -219,10 +218,9 @@ public partial class WolverineRuntime
 
         if (StopMode == StopMode.Normal)
         {
-            // Step 1: Drain endpoints first — stop listeners from accepting new messages
-            // and wait for in-flight handlers to complete before releasing ownership.
-            // Receivers were already latched via IHostApplicationLifetime.ApplicationStopping
-            // to prevent new messages from being picked up, so this just waits for completion.
+            // Step 1: Drain endpoints — each listener is stopped, its receiver latched,
+            // then in-flight handlers are drained. Receivers are not latched up front,
+            // since messages might be unnecessarily deferred before listeners are stopped.
             await _endpoints.DrainAsync();
 
             if (_accumulator.IsValueCreated)
