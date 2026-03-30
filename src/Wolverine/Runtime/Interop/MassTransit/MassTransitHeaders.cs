@@ -84,6 +84,11 @@ internal static class MassTransitHeaders
     public const string InitiatingConversationId = "MT-InitiatingConversationId";
 
     /// <summary>
+    ///     The W3C Activity Id used for distributed trace propagation
+    /// </summary>
+    public const string ActivityId = "MT-Activity-Id";
+
+    /// <summary>
     ///     MessageId - <see cref="MessageEnvelope" />
     /// </summary>
     public const string MessageId = "MessageId";
