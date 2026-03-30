@@ -423,7 +423,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
 
                     if (envelope.Id == Guid.Empty)
                     {
-                        envelope.Id = NewId.NextSequentialGuid();
+                        envelope.Id = Envelope.IdGenerator();
                     }
 
                     envelope.MessageType ??= $"unknown/{e.GetType().Name}";
@@ -435,7 +435,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
                 // Have to do this before moving to the DLQ
                 if (envelope.Id == Guid.Empty)
                 {
-                    envelope.Id = NewId.NextSequentialGuid();
+                    envelope.Id = Envelope.IdGenerator();
                 }
 
                 if (envelope.MessageType.IsEmpty())

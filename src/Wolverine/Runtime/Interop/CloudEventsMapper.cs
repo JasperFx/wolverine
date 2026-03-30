@@ -155,7 +155,7 @@ public class CloudEventsMapper : IUnwrapsMetadataMessageSerializer
             }
             else
             {
-                envelope.Id = NewId.NextSequentialGuid();
+                envelope.Id = Envelope.IdGenerator();
             }
         }
 

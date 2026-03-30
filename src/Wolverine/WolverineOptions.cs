@@ -98,6 +98,28 @@ public enum InvokeTracingMode
     Full
 }
 
+/// <summary>
+/// Controls how Wolverine generates unique identifiers for envelopes (messages).
+/// </summary>
+public enum EnvelopeIdGeneration
+{
+    /// <summary>
+    /// Default. Uses MassTransit's NewId algorithm which generates sequential GUIDs
+    /// based on machine identity (MAC/DNS) and timestamp. Good for SQL Server index
+    /// performance but can produce duplicates in cloud environments where multiple
+    /// instances share network identity (containers, Cloud Run, serverless).
+    /// </summary>
+    NewId,
+
+    /// <summary>
+    /// Uses Guid.CreateVersion7() which produces time-ordered GUIDs with cryptographically
+    /// strong random bits per RFC 9562. Recommended for greenfield applications and
+    /// cloud environments where instances may share network identity. Guaranteed unique
+    /// without relying on machine-specific properties.
+    /// </summary>
+    GuidV7
+}
+
 public class MetricsOptions
 {
     /// <summary>
@@ -201,6 +223,14 @@ public sealed partial class WolverineOptions
     /// as an in-process mediator.
     /// </summary>
     public InvokeTracingMode InvokeTracing { get; set; } = InvokeTracingMode.Lightweight;
+
+    /// <summary>
+    /// Controls how Wolverine generates unique identifiers for message envelopes.
+    /// Default is <see cref="EnvelopeIdGeneration.NewId"/> for backward compatibility.
+    /// Use <see cref="EnvelopeIdGeneration.GuidV7"/> for greenfield applications or
+    /// cloud environments where multiple instances may share network identity.
+    /// </summary>
+    public EnvelopeIdGeneration EnvelopeIdGeneration { get; set; } = EnvelopeIdGeneration.NewId;
 
     /// <summary>
     /// What is the policy within this application for whether or not it is valid to allow Service Location within

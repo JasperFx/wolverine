@@ -35,7 +35,7 @@ public class EnvelopeGenerator
     {
         var envelope = new Envelope(MessageSource())
         {
-            Id = NewId.NextSequentialGuid(),
+            Id = Envelope.IdGenerator(),
             Destination = ReceivedAt,
             TenantId = TenantId,
             Serializer = Serializer,
