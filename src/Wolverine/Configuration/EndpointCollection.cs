@@ -403,8 +403,7 @@ public class EndpointCollection : IEndpointCollection
 
     public async Task DrainAsync()
     {
-        // Drain the listeners
-        foreach (var listener in ActiveListeners().ToArray())
+        await Task.WhenAll(ActiveListeners().ToArray().Select(async listener =>
         {
             try
             {
@@ -414,9 +413,9 @@ public class EndpointCollection : IEndpointCollection
             {
                 _runtime.Logger.LogError(e, "Failed to 'drain' outstanding messages in listener {Uri}", listener.Uri);
             }
-        }
+        }));
 
-        foreach (var queue in _localSenders.Enumerate().Select(x => x.Value).OfType<ILocalQueue>())
+        await Task.WhenAll(_localSenders.Enumerate().Select(x => x.Value).OfType<ILocalQueue>().Select(async queue =>
         {
             try
             {
@@ -426,7 +425,7 @@ public class EndpointCollection : IEndpointCollection
             {
                 _runtime.Logger.LogError(e, "Failed to 'drain' outstanding messages in local sender {Queue}", queue);
             }
-        }
+        }));
     }
 
     internal void StoreSendingAgent(ISendingAgent agent)
