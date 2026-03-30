@@ -4,6 +4,7 @@ using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Wolverine.Attributes;
 using Wolverine.Configuration;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime.Agents;
@@ -41,6 +42,21 @@ public partial class WolverineRuntime
                 {
                     await configuresRuntime.ConfigureAsync(this);
                 }
+            }
+
+            // Check for a source-generated type loader to bypass runtime assembly scanning
+            var typeLoader = _container.Services.GetService(typeof(IWolverineTypeLoader)) as IWolverineTypeLoader;
+            if (typeLoader == null)
+            {
+                // Also check for the assembly-level attribute as a discovery mechanism
+                typeLoader = tryDiscoverTypeLoaderFromAttribute();
+            }
+
+            if (typeLoader != null)
+            {
+                Logger.LogInformation(
+                    "Source-generated IWolverineTypeLoader detected, using compile-time discovery to reduce startup time");
+                Handlers.UseTypeLoader(typeLoader);
             }
 
             // Build up the message handlers
@@ -408,6 +424,27 @@ public partial class WolverineRuntime
         }
 
         Options.LocalRouting.DiscoverListeners(this, handledMessageTypes);
+    }
+
+    private IWolverineTypeLoader? tryDiscoverTypeLoaderFromAttribute()
+    {
+        try
+        {
+            var assembly = Options.ApplicationAssembly;
+            if (assembly == null) return null;
+
+            var attribute = assembly.GetCustomAttributes(typeof(WolverineTypeManifestAttribute), false)
+                .FirstOrDefault() as WolverineTypeManifestAttribute;
+
+            if (attribute?.LoaderType == null) return null;
+
+            return Activator.CreateInstance(attribute.LoaderType) as IWolverineTypeLoader;
+        }
+        catch (Exception e)
+        {
+            Logger.LogWarning(e, "Failed to instantiate source-generated IWolverineTypeLoader from assembly attribute, falling back to runtime scanning");
+            return null;
+        }
     }
 
     internal Task StartLightweightAsync()
