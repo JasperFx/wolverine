@@ -79,7 +79,7 @@ public partial class WolverineRuntime : IAgentRuntime
 
     public Uri[] AllRunningAgentUris()
     {
-        return  NodeController!.AllRunningAgentUris();
+        return NodeController?.AllRunningAgentUris() ?? Array.Empty<Uri>();
     }
 
     public bool IsLeader()
