@@ -429,6 +429,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
                     envelope.MessageType ??= $"unknown/{e.GetType().Name}";
                     envelope.Failure = e;
                     await _moveToErrors.PostAsync(envelope);
+                    await _completeBlock.PostAsync(envelope);
                     return;
                 }
 
@@ -442,6 +443,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
                 {
                     _logger.LogInformation("Empty or missing message type name for Envelope {Id} received at durable {Destination}. Moving to dead letter queue", envelope.Id, envelope.Destination);
                     await _moveToErrors.PostAsync(envelope);
+                    await _completeBlock.PostAsync(envelope);
                     return;
                 }
 
