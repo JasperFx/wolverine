@@ -104,6 +104,18 @@ public class KafkaTopicGroup : KafkaTopic, IBrokerEndpoint
         await adminClient.DeleteTopicsAsync(TopicNames);
     }
 
+    /// <summary>
+    /// Optional action to configure the TopicSpecification for each topic created by this group.
+    /// The string parameter is the topic name. Applied before topic creation unless <see cref="CreateTopicFunc"/> is overridden.
+    /// </summary>
+    public Action<string, TopicSpecification>? SpecificationConfig { get; set; }
+
+    /// <summary>
+    /// Optional override for topic creation logic. Receives the admin client and topic name.
+    /// Defaults to creating the topic using <see cref="SpecificationConfig"/> if set.
+    /// </summary>
+    public new Func<IAdminClient, string, Task>? CreateTopicFunc { get; set; }
+
     new public async ValueTask SetupAsync(ILogger logger)
     {
         using var adminClient = Parent.CreateAdminClient();
@@ -112,8 +124,17 @@ public class KafkaTopicGroup : KafkaTopic, IBrokerEndpoint
         {
             try
             {
-                var spec = new TopicSpecification { Name = topicName };
-                await adminClient.CreateTopicsAsync([spec]);
+                if (CreateTopicFunc != null)
+                {
+                    await CreateTopicFunc(adminClient, topicName);
+                }
+                else
+                {
+                    var spec = new TopicSpecification { Name = topicName };
+                    SpecificationConfig?.Invoke(topicName, spec);
+                    await adminClient.CreateTopicsAsync([spec]);
+                }
+
                 logger.LogInformation("Created Kafka topic {Topic}", topicName);
             }
             catch (CreateTopicsException e)
