@@ -32,6 +32,7 @@ public class envelope_id_generation : IDisposable
         envelope.Id.ShouldNotBe(Guid.Empty);
     }
 
+#if NET9_0_OR_GREATER
     [Fact]
     public void guid_v7_mode_produces_version_7_guids()
     {
@@ -40,10 +41,7 @@ public class envelope_id_generation : IDisposable
         var envelope = new Envelope();
         envelope.Id.ShouldNotBe(Guid.Empty);
 
-        // Version 7 GUIDs have version bits in byte 6 (high nibble = 7)
-        var bytes = envelope.Id.ToByteArray();
-        // .NET stores GUIDs in mixed-endian format, but Version is in the standard position
-        // Use the Guid.Version property available in .NET 9+
+        // Version 7 GUIDs have version bits indicating V7
         ((int)envelope.Id.Version).ShouldBe(7);
     }
 
@@ -101,6 +99,7 @@ public class envelope_id_generation : IDisposable
 
         GuidV7TestHandler.LastReceived.ShouldBe("hello");
     }
+#endif
 
     [Fact]
     public void all_newid_usages_respect_id_generator()

@@ -464,6 +464,10 @@ using var host = await Host.CreateDefaultBuilder()
 
 `GuidV7` uses `Guid.CreateVersion7()` per [RFC 9562](https://www.rfc-editor.org/rfc/rfc9562), which produces time-ordered GUIDs with cryptographically strong random bits. This guarantees uniqueness without relying on machine-specific properties, while still maintaining good database index performance due to time-ordering.
 
+::: warning
+`EnvelopeIdGeneration.GuidV7` requires **.NET 9 or later**. `Guid.CreateVersion7()` is not available on .NET 8. Attempting to use this option on .NET 8 will throw a `NotSupportedException` at startup.
+:::
+
 | Strategy | Uniqueness Source | Time-Ordered | Best For |
 |----------|------------------|-------------|----------|
 | `NewId` (default) | Machine identity + timestamp | Yes | Single-machine or unique-network deployments |
