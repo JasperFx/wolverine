@@ -45,6 +45,13 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
         Options = options;
         Handlers = options.HandlerGraph;
 
+        // Set the envelope ID generation strategy based on configuration
+        Envelope.IdGenerator = options.EnvelopeIdGeneration switch
+        {
+            EnvelopeIdGeneration.GuidV7 => Guid.CreateVersion7,
+            _ => MassTransit.NewId.NextSequentialGuid
+        };
+
         _accumulator = new Lazy<MetricsAccumulator>(() => new MetricsAccumulator(this));
 
         _stores =
