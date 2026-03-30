@@ -499,6 +499,7 @@ internal class MySqlMessageStore : MessageDatabase<MySqlConnection>
                 var tenantTable = new Table(new DbObjectName(SchemaName, DatabaseConstants.TenantsTableName));
                 tenantTable.AddColumn<string>(StorageConstants.TenantIdColumn).AsPrimaryKey();
                 tenantTable.AddColumn<string>(StorageConstants.ConnectionStringColumn).NotNull();
+                tenantTable.AddColumn<bool>(DatabaseConstants.DisabledColumn).DefaultValueByExpression("false").NotNull();
                 yield return tenantTable;
             }
 

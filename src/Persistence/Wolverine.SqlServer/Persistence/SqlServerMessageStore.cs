@@ -504,6 +504,7 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
                 var tenantTable = new Table(new DbObjectName(SchemaName, DatabaseConstants.TenantsTableName));
                 tenantTable.AddColumn(StorageConstants.TenantIdColumn, "varchar(100)").AsPrimaryKey();
                 tenantTable.AddColumn(StorageConstants.ConnectionStringColumn, "varchar(500)").NotNull();
+                tenantTable.AddColumn(DatabaseConstants.DisabledColumn, "bit").DefaultValueByExpression("0").NotNull();
                 yield return tenantTable;
             }
             
