@@ -384,8 +384,9 @@ public class EndpointCollection : IEndpointCollection
 
     /// <summary>
     /// Immediately latch all receivers to stop picking up new messages from their internal queues.
-    /// This is called as early as possible during shutdown (via IHostApplicationLifetime.ApplicationStopping)
-    /// so that messages already queued internally are not processed after the shutdown signal.
+    /// During normal shutdown this is no longer called globally; instead each ListeningAgent
+    /// latches its own receiver after stopping the listener (see StopAndDrainAsync).
+    /// Kept to not break public api compatability.
     /// </summary>
     public void LatchAllReceivers()
     {
@@ -402,8 +403,7 @@ public class EndpointCollection : IEndpointCollection
 
     public async Task DrainAsync()
     {
-        // Drain the listeners
-        foreach (var listener in ActiveListeners().ToArray())
+        await Task.WhenAll(ActiveListeners().ToArray().Select(async listener =>
         {
             try
             {
@@ -413,9 +413,9 @@ public class EndpointCollection : IEndpointCollection
             {
                 _runtime.Logger.LogError(e, "Failed to 'drain' outstanding messages in listener {Uri}", listener.Uri);
             }
-        }
+        }));
 
-        foreach (var queue in _localSenders.Enumerate().Select(x => x.Value).OfType<ILocalQueue>())
+        await Task.WhenAll(_localSenders.Enumerate().Select(x => x.Value).OfType<ILocalQueue>().Select(async queue =>
         {
             try
             {
@@ -425,7 +425,7 @@ public class EndpointCollection : IEndpointCollection
             {
                 _runtime.Logger.LogError(e, "Failed to 'drain' outstanding messages in local sender {Queue}", queue);
             }
-        }
+        }));
     }
 
     internal void StoreSendingAgent(ISendingAgent agent)

@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using JasperFx.Core;
 using Wolverine.Runtime;
 
@@ -32,7 +33,13 @@ public class ParallelListener : IListener, IDisposable
 
     public async ValueTask StopAsync()
     {
-        foreach (var listener in _listeners) await listener.StopAsync();
+        var exceptions = new ConcurrentBag<Exception>();
+        await Task.WhenAll(_listeners.Select(async l =>
+        {
+            try { await l.StopAsync(); }
+            catch (Exception e) { exceptions.Add(e); }
+        }));
+        if (!exceptions.IsEmpty) throw new AggregateException(exceptions);
     }
 
     public ValueTask DisposeAsync() =>
