@@ -18,8 +18,9 @@ public class KafkaTopicGroupConfigurationTests
     public void specification_uniform_sets_config_on_group()
     {
         var group = BuildGroup("topic-a", "topic-b");
-        new KafkaTopicGroupListenerConfiguration(group)
+        var config = new KafkaTopicGroupListenerConfiguration(group)
             .Specification(spec => spec.NumPartitions = 12);
+        ((IDelayedEndpointConfiguration)config).Apply();
 
         var capturedSpec = new TopicSpecification { Name = "topic-a" };
         group.SpecificationConfig.ShouldNotBeNull();
@@ -31,8 +32,9 @@ public class KafkaTopicGroupConfigurationTests
     public void specification_per_topic_receives_topic_name()
     {
         var group = BuildGroup("topic-a", "topic-b");
-        new KafkaTopicGroupListenerConfiguration(group)
+        var config = new KafkaTopicGroupListenerConfiguration(group)
             .Specification((topicName, spec) => spec.NumPartitions = topicName == "topic-a" ? 6 : 24);
+        ((IDelayedEndpointConfiguration)config).Apply();
 
         group.SpecificationConfig.ShouldNotBeNull();
 
@@ -51,8 +53,9 @@ public class KafkaTopicGroupConfigurationTests
         var group = BuildGroup("topic-a", "topic-b");
         Func<Confluent.Kafka.IAdminClient, string, Task> func = (_, _) => Task.CompletedTask;
 
-        new KafkaTopicGroupListenerConfiguration(group)
+        var config = new KafkaTopicGroupListenerConfiguration(group)
             .TopicCreation(func);
+        ((IDelayedEndpointConfiguration)config).Apply();
 
         group.CreateTopicFunc.ShouldNotBeNull();
         group.CreateTopicFunc.ShouldBeSameAs(func);
