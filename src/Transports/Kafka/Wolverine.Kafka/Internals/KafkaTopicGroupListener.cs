@@ -45,7 +45,9 @@ public class KafkaTopicGroupListener : IListener, IDisposable, ISupportDeadLette
 
                         var envelope = mapper!.CreateEnvelope(result.Topic, message);
                         envelope.Offset = result.Offset.Value;
-                        if (endpoint.StampConsumerGroupIdOnEnvelope) envelope.GroupId = config.GroupId;
+
+                        if (endpoint.StampConsumerGroupIdOnEnvelope)
+                            envelope.GroupId = config.GroupId;
 
                         await receiver.ReceivedAsync(this, envelope);
                     }
@@ -101,10 +103,11 @@ public class KafkaTopicGroupListener : IListener, IDisposable, ISupportDeadLette
         return _receiver.ReceivedAsync(this, envelope);
     }
 
-    public ValueTask DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
-        Dispose();
-        return ValueTask.CompletedTask;
+        await StopAsync();
+        _consumer.SafeDispose();
+        _runner.Dispose();
     }
 
     public Uri Address { get; }
@@ -162,6 +165,8 @@ public class KafkaTopicGroupListener : IListener, IDisposable, ISupportDeadLette
 
     public void Dispose()
     {
+        _cancellation.Cancel();
+        _runner.Wait();
         _consumer.SafeDispose();
         _runner.Dispose();
     }
