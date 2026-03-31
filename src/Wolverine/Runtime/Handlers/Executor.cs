@@ -54,11 +54,13 @@ internal class Executor : IExecutor
     private readonly FailureRuleCollection _rules;
     private readonly TimeSpan _timeout;
     private readonly IMessageTracker _tracker;
+    private readonly IWolverineRuntime? _runtime;
 
     public Executor(ObjectPool<MessageContext> contextPool, IWolverineRuntime runtime, IMessageHandler handler,
         FailureRuleCollection rules, TimeSpan timeout)
         : this(contextPool, runtime.LoggerFactory.CreateLogger(handler.MessageType), handler, runtime.MessageTracking, rules, timeout)
     {
+        _runtime = runtime;
     }
 
     public Executor(ObjectPool<MessageContext> contextPool, ILogger logger, IMessageHandler handler,
@@ -106,6 +108,12 @@ internal class Executor : IExecutor
             while (await InvokeAsync(context, cancellation) == InvokeResult.TryAgain)
             {
                 envelope.Attempts++;
+            }
+
+            // Record message causation before flushing outgoing messages
+            if (_runtime is { Options.EnableMessageCausationTracking: true })
+            {
+                Handler.RecordCauseAndEffect(context, _runtime.Observer);
             }
 
             await context.FlushOutgoingMessagesAsync();
@@ -179,11 +187,18 @@ internal class Executor : IExecutor
         try
         {
             await Handler.HandleAsync(context, combined.Token);
+
+            // Record message causation after handler execution
+            if (_runtime is { Options.EnableMessageCausationTracking: true })
+            {
+                Handler.RecordCauseAndEffect(context, _runtime.Observer);
+            }
+
             if (context.Envelope!.ReplyRequested.IsNotEmpty())
             {
                 await context.AssertAnyRequiredResponseWasGenerated();
             }
-            
+
             Activity.Current?.SetStatus(ActivityStatusCode.Ok);
 
             _messageSucceeded(_logger, _messageTypeName, envelope.Id,
