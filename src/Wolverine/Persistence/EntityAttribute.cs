@@ -20,6 +20,8 @@ public class LoadEntityFrameBlock : Frame
 {
     private readonly Frame[] _guardFrames;
 
+    private Variable? _originalStream;
+
     public LoadEntityFrameBlock(Variable entity, params Frame[] guardFrames) : base(entity.Creator!.IsAsync || guardFrames.Any(x => x.IsAsync))
     {
         _guardFrames = guardFrames;
@@ -29,6 +31,7 @@ public class LoadEntityFrameBlock : Frame
 
     public void AlsoMirrorAsTheCreator(Variable variable)
     {
+        _originalStream = variable;
         // Seems goofy, but adds it to the creates
         new Variable(variable.VariableType, variable.Usage, this);
     }
@@ -68,9 +71,16 @@ public class LoadEntityFrameBlock : Frame
     
     public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
     {
-        return Creator
+        var vars = Creator
             .FindVariables(chain)
             .Concat(_guardFrames.SelectMany(x => x.FindVariables(chain))).Distinct();
+
+        if (_originalStream != null)
+        {
+            vars = vars.Append(_originalStream);
+        }
+
+        return vars;
     }
 
     public override bool CanReturnTask()
