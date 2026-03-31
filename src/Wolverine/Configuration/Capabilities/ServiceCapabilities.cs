@@ -60,6 +60,12 @@ public class ServiceCapabilities : OptionsDescription
     public OptionsDescription? DurabilitySettings { get; set; }
 
     /// <summary>
+    /// Additional capability descriptions contributed by extension frameworks
+    /// (e.g. Wolverine.HTTP) via ICapabilityDescriptor implementations.
+    /// </summary>
+    public List<OptionsDescription> AdditionalCapabilities { get; set; } = [];
+
+    /// <summary>
     ///     Uri for sending command messages to this service
     /// </summary>
     public Uri? SystemControlUri { get; set; }
@@ -81,6 +87,8 @@ public class ServiceCapabilities : OptionsDescription
         readMessageTypes(runtime, capabilities);
 
         readEndpoints(runtime, capabilities);
+
+        readAdditionalCapabilities(runtime, capabilities);
 
         return capabilities;
     }
@@ -131,6 +139,15 @@ public class ServiceCapabilities : OptionsDescription
         capabilities.MessageStores.AddRange(stores.Select(MessageStore.For).OrderBy(x => x.Uri.ToString()));
 
         capabilities.MessageStoreCardinality = collection.Cardinality();
+    }
+
+    private static void readAdditionalCapabilities(IWolverineRuntime runtime, ServiceCapabilities capabilities)
+    {
+        var descriptors = runtime.Services.GetServices<ICapabilityDescriptor>();
+        foreach (var descriptor in descriptors)
+        {
+            capabilities.AdditionalCapabilities.Add(descriptor.Describe());
+        }
     }
 
     private static void readTransports(IWolverineRuntime runtime, ServiceCapabilities capabilities)

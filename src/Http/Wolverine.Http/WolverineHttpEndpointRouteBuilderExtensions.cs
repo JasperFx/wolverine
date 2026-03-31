@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Routing.Matching;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Wolverine.Configuration;
+using Wolverine.Configuration.Capabilities;
 using Wolverine.Http.CodeGen;
 using Wolverine.Http.Transport;
 using Wolverine.Http.Validation;
@@ -161,9 +162,11 @@ public static class WolverineHttpEndpointRouteBuilderExtensions
         services.AddSingleton<WolverineHttpOptions>();
         services.AddSingleton<NewtonsoftHttpSerialization>();
         services.AddSingleton<HttpTransportExecutor>();
-        
+
         services.AddSingleton(typeof(IProblemDetailSource<>), typeof(ProblemDetailSource<>));
         services.AddSingleton<MatcherPolicy, ContentTypeEndpointSelectorPolicy>();
+
+        services.AddSingleton<ICapabilityDescriptor, HttpCapabilityDescriptor>();
 
         services.ConfigureWolverine(opts =>
         {
