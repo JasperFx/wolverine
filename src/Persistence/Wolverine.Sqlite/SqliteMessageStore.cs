@@ -436,6 +436,7 @@ internal class SqliteMessageStore : MessageDatabase<SqliteConnection>
                 var tenantTable = new Weasel.Sqlite.Tables.Table(new SqliteObjectName(DatabaseConstants.TenantsTableName));
                 tenantTable.AddColumn(StorageConstants.TenantIdColumn, "TEXT").AsPrimaryKey();
                 tenantTable.AddColumn(StorageConstants.ConnectionStringColumn, "TEXT").NotNull();
+                tenantTable.AddColumn(DatabaseConstants.DisabledColumn, "INTEGER").DefaultValueByExpression("0").NotNull();
                 yield return tenantTable;
             }
 

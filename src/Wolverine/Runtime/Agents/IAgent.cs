@@ -1,5 +1,6 @@
 using System;
 using JasperFx;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Hosting;
 
 namespace Wolverine.Runtime.Agents;
@@ -12,17 +13,30 @@ namespace Wolverine.Runtime.Agents;
 ///     Models a constantly running background process within a Wolverine
 ///     node cluster
 /// </summary>
-public interface IAgent : IHostedService // Standard .NET interface for background services
+public interface IAgent : IHostedService, IHealthCheck
 {
     /// <summary>
     ///     Unique identification for this agent within the Wolverine system
     /// </summary>
     Uri Uri { get; }
-    
-    // Not really used for anything real *yet*, but 
-    // hopefully becomes something useful for CritterWatch
-    // health monitoring
+
+    /// <summary>
+    ///     Current status of this agent
+    /// </summary>
     AgentStatus Status { get; }
+
+    /// <summary>
+    ///     Default health check implementation based on agent status.
+    ///     Override in implementations for more specific health reporting.
+    /// </summary>
+    Task<HealthCheckResult> IHealthCheck.CheckHealthAsync(
+        HealthCheckContext context,
+        CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult(Status == AgentStatus.Running
+            ? HealthCheckResult.Healthy()
+            : HealthCheckResult.Unhealthy($"Agent {Uri} is {Status}"));
+    }
 }
 
 #endregion

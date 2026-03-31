@@ -28,6 +28,7 @@ public class DatabaseConstants
     public const string NodeTableName = "wolverine_nodes";
     public const string NodeAssignmentsTableName = "wolverine_node_assignments";
     public const string TenantsTableName = "wolverine_tenants";
+    public const string DisabledColumn = "disabled";
 
     public const string Timestamp = "timestamp";
 

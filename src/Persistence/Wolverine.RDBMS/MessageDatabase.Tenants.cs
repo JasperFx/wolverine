@@ -92,7 +92,7 @@ public abstract partial class MessageDatabase<T>
         {
             await using var reader =
                 await conn.CreateCommand(
-                        $"select {StorageConstants.TenantIdColumn}, {StorageConstants.ConnectionStringColumn} from {Settings.SchemaName}.{DatabaseConstants.TenantsTableName}")
+                        $"select {StorageConstants.TenantIdColumn}, {StorageConstants.ConnectionStringColumn} from {Settings.SchemaName}.{DatabaseConstants.TenantsTableName} where {DatabaseConstants.DisabledColumn} = false")
                     .ExecuteReaderAsync(_cancellation);
 
             while (await reader.ReadAsync(_cancellation))
@@ -115,4 +115,83 @@ public abstract partial class MessageDatabase<T>
     }
 
     public IDatabaseProvider Provider { get; }
+
+    public async Task AddTenantRecordAsync(string tenantId, string connectionString)
+    {
+        await using var conn = CreateConnection();
+        await conn.OpenAsync(_cancellation);
+        try
+        {
+            await conn.CreateCommand(
+                    $"insert into {Settings.SchemaName}.{DatabaseConstants.TenantsTableName} ({StorageConstants.TenantIdColumn}, {StorageConstants.ConnectionStringColumn}, {DatabaseConstants.DisabledColumn}) values (@id, @connection, false) on conflict ({StorageConstants.TenantIdColumn}) do update set {StorageConstants.ConnectionStringColumn} = @connection, {DatabaseConstants.DisabledColumn} = false")
+                .With("id", tenantId)
+                .With("connection", connectionString)
+                .ExecuteNonQueryAsync(_cancellation);
+        }
+        finally
+        {
+            await conn.CloseAsync();
+        }
+    }
+
+    public async Task SetTenantDisabledAsync(string tenantId, bool disabled)
+    {
+        await using var conn = CreateConnection();
+        await conn.OpenAsync(_cancellation);
+        try
+        {
+            await conn.CreateCommand(
+                    $"update {Settings.SchemaName}.{DatabaseConstants.TenantsTableName} set {DatabaseConstants.DisabledColumn} = @disabled where {StorageConstants.TenantIdColumn} = @id")
+                .With("id", tenantId)
+                .With("disabled", disabled)
+                .ExecuteNonQueryAsync(_cancellation);
+        }
+        finally
+        {
+            await conn.CloseAsync();
+        }
+    }
+
+    public async Task DeleteTenantRecordAsync(string tenantId)
+    {
+        await using var conn = CreateConnection();
+        await conn.OpenAsync(_cancellation);
+        try
+        {
+            await conn.CreateCommand(
+                    $"delete from {Settings.SchemaName}.{DatabaseConstants.TenantsTableName} where {StorageConstants.TenantIdColumn} = @id")
+                .With("id", tenantId)
+                .ExecuteNonQueryAsync(_cancellation);
+        }
+        finally
+        {
+            await conn.CloseAsync();
+        }
+    }
+
+    public async Task<IReadOnlyList<string>> LoadDisabledTenantIdsAsync()
+    {
+        var list = new List<string>();
+        await using var conn = CreateConnection();
+        await conn.OpenAsync(_cancellation);
+        try
+        {
+            await using var reader = await conn.CreateCommand(
+                    $"select {StorageConstants.TenantIdColumn} from {Settings.SchemaName}.{DatabaseConstants.TenantsTableName} where {DatabaseConstants.DisabledColumn} = true")
+                .ExecuteReaderAsync(_cancellation);
+
+            while (await reader.ReadAsync(_cancellation))
+            {
+                list.Add(await reader.GetFieldValueAsync<string>(0, _cancellation));
+            }
+
+            await reader.CloseAsync();
+        }
+        finally
+        {
+            await conn.CloseAsync();
+        }
+
+        return list;
+    }
 }

@@ -43,6 +43,9 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
     public abstract string Description { get; }
     public List<AuditedMember> AuditedMembers { get; } = [];
 
+    /// <inheritdoc />
+    public Type? AncillaryStoreType { get; set; }
+
     public abstract bool TryInferMessageIdentity(out PropertyInfo? property);
 
     /// <summary>

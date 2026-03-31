@@ -3,6 +3,7 @@ using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using JasperFx.Core.TypeScanning;
 using Wolverine.Attributes;
+using Wolverine.Runtime;
 
 namespace Wolverine;
 
@@ -68,6 +69,16 @@ internal static class ExtensionLoader
 
     internal static void ApplyExtensions(WolverineOptions options)
     {
+        // Phase E: Check if we have a source-generated type loader with pre-discovered
+        // extension types. If so, use those instead of scanning all assemblies.
+        var typeLoader = TryFindTypeLoader(options.ApplicationAssembly);
+        if (typeLoader?.DiscoveredExtensionTypes?.Count > 0)
+        {
+            ApplyExtensionsFromTypeLoader(options, typeLoader);
+            return;
+        }
+
+        // Fallback to runtime assembly scanning
         var assemblies = FindExtensionAssemblies();
 
         if (assemblies.Length == 0)
@@ -83,5 +94,54 @@ internal static class ExtensionLoader
             .ToArray();
 
         options.ApplyExtensions(extensions);
+    }
+
+    /// <summary>
+    /// Phase E: Apply extensions discovered at compile time by the source generator,
+    /// bypassing the expensive AssemblyFinder scanning.
+    /// </summary>
+    private static void ApplyExtensionsFromTypeLoader(WolverineOptions options, IWolverineTypeLoader typeLoader)
+    {
+        var extensions = typeLoader.DiscoveredExtensionTypes
+            .Where(t => t != null && !t.IsAbstract && typeof(IWolverineExtension).IsAssignableFrom(t))
+            .Select(t => (IWolverineExtension)Activator.CreateInstance(t)!)
+            .ToArray();
+
+        if (extensions.Length == 0) return;
+
+        // Include the assemblies that contain extension types for handler discovery
+        var extensionAssemblies = extensions
+            .Select(e => e.GetType().Assembly)
+            .Distinct()
+            .Where(a => a.HasAttribute<WolverineModuleAttribute>())
+            .ToArray();
+
+        if (extensionAssemblies.Length > 0)
+        {
+            options.IncludeExtensionAssemblies(extensionAssemblies);
+        }
+
+        options.ApplyExtensions(extensions);
+    }
+
+    /// <summary>
+    /// Try to find a source-generated IWolverineTypeLoader from the application assembly
+    /// via the [WolverineTypeManifest] assembly attribute.
+    /// </summary>
+    internal static IWolverineTypeLoader? TryFindTypeLoader(Assembly? applicationAssembly)
+    {
+        if (applicationAssembly == null) return null;
+
+        var attr = applicationAssembly.GetCustomAttribute<WolverineTypeManifestAttribute>();
+        if (attr?.LoaderType == null) return null;
+
+        try
+        {
+            return (IWolverineTypeLoader)Activator.CreateInstance(attr.LoaderType)!;
+        }
+        catch
+        {
+            return null;
+        }
     }
 }

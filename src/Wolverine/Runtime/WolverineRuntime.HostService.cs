@@ -4,6 +4,7 @@ using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Wolverine.Attributes;
 using Wolverine.Configuration;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime.Agents;
@@ -11,6 +12,7 @@ using Wolverine.Runtime.Scheduled;
 using Wolverine.Runtime.WorkerQueues;
 using Wolverine.Transports;
 using Wolverine.Transports.Local;
+using Wolverine.Util;
 
 namespace Wolverine.Runtime;
 
@@ -41,6 +43,21 @@ public partial class WolverineRuntime
                 {
                     await configuresRuntime.ConfigureAsync(this);
                 }
+            }
+
+            // Check for a source-generated type loader to bypass runtime assembly scanning
+            var typeLoader = _container.Services.GetService(typeof(IWolverineTypeLoader)) as IWolverineTypeLoader;
+            if (typeLoader == null)
+            {
+                // Also check for the assembly-level attribute as a discovery mechanism
+                typeLoader = tryDiscoverTypeLoaderFromAttribute();
+            }
+
+            if (typeLoader != null)
+            {
+                Logger.LogInformation(
+                    "Source-generated IWolverineTypeLoader detected, using compile-time discovery to reduce startup time");
+                Handlers.UseTypeLoader(typeLoader);
             }
 
             // Build up the message handlers
@@ -308,6 +325,18 @@ public partial class WolverineRuntime
             }
         }
 
+        // Build message-type-to-ancillary-store mapping for durable inbox routing.
+        // When a handler targets an ancillary store on a different database, incoming
+        // envelopes should be persisted in that store for transactional atomicity.
+        if (Stores != null && Stores.HasAnyAncillaryStores())
+        {
+            foreach (var chain in Handlers.Chains.Where(c => c.AncillaryStoreType != null))
+            {
+                var messageTypeName = chain.MessageType.ToMessageTypeName();
+                Stores.MapMessageTypeToAncillaryStore(messageTypeName, chain.AncillaryStoreType!);
+            }
+        }
+
         // No local queues if running in Serverless
         if (Options.Durability.Mode == DurabilityMode.Serverless)
         {
@@ -406,6 +435,27 @@ public partial class WolverineRuntime
         }
 
         Options.LocalRouting.DiscoverListeners(this, handledMessageTypes);
+    }
+
+    private IWolverineTypeLoader? tryDiscoverTypeLoaderFromAttribute()
+    {
+        try
+        {
+            var assembly = Options.ApplicationAssembly;
+            if (assembly == null) return null;
+
+            var attribute = assembly.GetCustomAttributes(typeof(WolverineTypeManifestAttribute), false)
+                .FirstOrDefault() as WolverineTypeManifestAttribute;
+
+            if (attribute?.LoaderType == null) return null;
+
+            return Activator.CreateInstance(attribute.LoaderType) as IWolverineTypeLoader;
+        }
+        catch (Exception e)
+        {
+            Logger.LogWarning(e, "Failed to instantiate source-generated IWolverineTypeLoader from assembly attribute, falling back to runtime scanning");
+            return null;
+        }
     }
 
     internal Task StartLightweightAsync()

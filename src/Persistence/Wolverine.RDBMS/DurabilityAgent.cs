@@ -2,6 +2,7 @@ using JasperFx;
 using JasperFx.Blocks;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
 using Weasel.Core;
 using Wolverine.Persistence;
@@ -28,6 +29,10 @@ internal class DurabilityAgent : IAgent
     private Timer? _recoveryTimer;
     private Timer? _scheduledJobTimer;
 
+    private int _successCount;
+    private int _exceptionCount;
+    private DateTime _lastHealthCheck = DateTime.UtcNow;
+
     public DurabilityAgent(IWolverineRuntime runtime, IMessageDatabase database)
     {
         _runtime = runtime;
@@ -50,9 +55,11 @@ internal class DurabilityAgent : IAgent
             try
             {
                 await executor.InvokeAsync(batch, new MessageBus(runtime));
+                Interlocked.Increment(ref _successCount);
             }
             catch (Exception e)
             {
+                Interlocked.Increment(ref _exceptionCount);
                 _logger.LogError(e, "Error trying to run durability agent commands");
             }
         });
@@ -223,5 +230,30 @@ internal class DurabilityAgent : IAgent
             new Timer(
                 _ => { _runningBlock.Post(new RunScheduledMessagesOperation(_database, _settings)); },
                 _settings, _settings.ScheduledJobFirstExecution, _settings.ScheduledJobPollingTime);
+    }
+
+    public Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context,
+        CancellationToken cancellationToken = default)
+    {
+        if (Status != AgentStatus.Running)
+        {
+            return Task.FromResult(HealthCheckResult.Unhealthy($"Agent {Uri} is {Status}"));
+        }
+
+        var exceptions = Interlocked.Exchange(ref _exceptionCount, 0);
+        var successes = Interlocked.Exchange(ref _successCount, 0);
+        _lastHealthCheck = DateTime.UtcNow;
+
+        if (exceptions > 0 && successes == 0)
+        {
+            return Task.FromResult(HealthCheckResult.Unhealthy("All database operations failed"));
+        }
+
+        if (exceptions > 0)
+        {
+            return Task.FromResult(HealthCheckResult.Degraded("Some database operations failed"));
+        }
+
+        return Task.FromResult(HealthCheckResult.Healthy());
     }
 }

@@ -458,6 +458,32 @@ public class MessageStoreCollection : IAgentFamily, IAsyncDisposable
     {
         return _ancillaryStores.Contains(applicationType);
     }
+
+    private ImHashMap<string, IMessageStore> _messageTypeToAncillaryStore = ImHashMap<string, IMessageStore>.Empty;
+
+    /// <summary>
+    /// Register a mapping from a message type name to an ancillary store.
+    /// Used so that DurableReceiver can persist incoming envelopes in the
+    /// correct ancillary store when the handler targets a different database.
+    /// </summary>
+    internal void MapMessageTypeToAncillaryStore(string messageTypeName, Type ancillaryMarkerType)
+    {
+        if (_ancillaryStores.TryFind(ancillaryMarkerType, out var store))
+        {
+            _messageTypeToAncillaryStore = _messageTypeToAncillaryStore.AddOrUpdate(messageTypeName, store);
+        }
+    }
+
+    /// <summary>
+    /// Try to find the ancillary store that should be used to persist an incoming
+    /// envelope based on the handler's [MartenStore] attribute. Returns null if
+    /// the message type's handler uses the main store.
+    /// </summary>
+    public IMessageStore? TryFindAncillaryStoreForMessageType(string? messageTypeName)
+    {
+        if (messageTypeName == null) return null;
+        return _messageTypeToAncillaryStore.TryFind(messageTypeName, out var store) ? store : null;
+    }
 }
 
 public class InvalidWolverineStorageConfigurationException : Exception

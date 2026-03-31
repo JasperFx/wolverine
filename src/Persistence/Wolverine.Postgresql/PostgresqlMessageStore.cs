@@ -189,17 +189,54 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
             await fetchCountsWithGroupBy(counts);
         }
 
-        var longCount = await CreateCommand($"select count(*) from {SchemaName}.{DatabaseConstants.OutgoingTable}")
-            .ExecuteScalarAsync();
-
-        counts.Outgoing = Convert.ToInt32(longCount);
-
-        var deadLetterCount = await CreateCommand($"select count(*) from {SchemaName}.{DatabaseConstants.DeadLetterTable}")
-            .ExecuteScalarAsync();
-
-        counts.DeadLetter = Convert.ToInt32(deadLetterCount);
+        counts.Outgoing = await estimateTableCount(DatabaseConstants.OutgoingTable);
+        counts.DeadLetter = await estimateTableCount(DatabaseConstants.DeadLetterTable);
 
         return counts;
+    }
+
+    private async Task<int> estimateTableCount(string tableName)
+    {
+        // Use pg_class reltuples for a fast estimation instead of expensive count(*).
+        // Same approach as the partition estimation: handles never-vacuumed tables
+        // (reltuples < 0) and empty tables (relpages = 0), then scales by current
+        // relation size.
+        var sql = $@"
+select (case when c.reltuples < 0 then 0
+             when c.relpages = 0 then 0
+             else (c.reltuples / c.relpages)
+                  * (pg_catalog.pg_relation_size(c.oid)
+                     / pg_catalog.current_setting('block_size')::int)
+        end)::bigint as estimated_count,
+       c.reltuples,
+       pg_catalog.pg_relation_size(c.oid) as relation_size
+from pg_catalog.pg_class c
+join pg_catalog.pg_namespace n on n.oid = c.relnamespace and n.nspname = '{SchemaName}'
+where c.relname = '{tableName}';";
+
+        await using var reader = await CreateCommand(sql).ExecuteReaderAsync();
+        if (await reader.ReadAsync())
+        {
+            var estimate = await reader.GetFieldValueAsync<long>(0);
+            var reltuples = await reader.GetFieldValueAsync<float>(1);
+            var relationSize = await reader.GetFieldValueAsync<long>(2);
+
+            await reader.CloseAsync();
+
+            // If the table has physical data but reltuples hasn't been updated
+            // by VACUUM/ANALYZE, fall back to exact count
+            if (reltuples <= 0 && relationSize > 0)
+            {
+                var exactCount = await CreateCommand($"select count(*) from {SchemaName}.{tableName}")
+                    .ExecuteScalarAsync();
+                return Convert.ToInt32(exactCount);
+            }
+
+            return (int)estimate;
+        }
+
+        await reader.CloseAsync();
+        return 0;
     }
 
     private async Task fetchCountsWithGroupBy(PersistedCounts counts)
@@ -581,6 +618,7 @@ join pg_catalog.pg_namespace n on n.oid = c.relnamespace and n.nspname = '{Schem
                 var tenantTable = new Table(new DbObjectName(SchemaName, DatabaseConstants.TenantsTableName));
                 tenantTable.AddColumn<string>(StorageConstants.TenantIdColumn).AsPrimaryKey();
                 tenantTable.AddColumn<string>(StorageConstants.ConnectionStringColumn).NotNull();
+                tenantTable.AddColumn<bool>(DatabaseConstants.DisabledColumn).DefaultValueByExpression("false").NotNull();
                 yield return tenantTable;
             }
 

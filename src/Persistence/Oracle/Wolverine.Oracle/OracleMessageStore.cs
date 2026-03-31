@@ -248,6 +248,7 @@ internal partial class OracleMessageStore : IMessageDatabase, IMessageInbox, IMe
                 var tenantTable = new Table(new OracleObjectName(SchemaName, DatabaseConstants.TenantsTableName.ToUpperInvariant()));
                 tenantTable.AddColumn("tenant_id", "VARCHAR2(100)").AsPrimaryKey();
                 tenantTable.AddColumn("connection_string", "VARCHAR2(500)").NotNull();
+                tenantTable.AddColumn("disabled", "NUMBER(1)").DefaultValueByExpression("0").NotNull();
                 yield return tenantTable;
             }
 
@@ -473,7 +474,7 @@ internal partial class OracleMessageStore : IMessageDatabase, IMessageInbox, IMe
         try
         {
             var cmd = conn.CreateCommand(
-                $"SELECT tenant_id, connection_string FROM {SchemaName}.{DatabaseConstants.TenantsTableName}");
+                $"SELECT tenant_id, connection_string FROM {SchemaName}.{DatabaseConstants.TenantsTableName} WHERE disabled = 0");
             await using var reader = await cmd.ExecuteReaderAsync(_cancellation);
 
             while (await reader.ReadAsync(_cancellation))
@@ -519,5 +520,85 @@ internal partial class OracleMessageStore : IMessageDatabase, IMessageInbox, IMe
         {
             await conn.CloseAsync();
         }
+    }
+
+    public async Task AddTenantRecordAsync(string tenantId, string connectionString)
+    {
+        await using var conn = CreateConnection();
+        await conn.OpenAsync(_cancellation);
+        try
+        {
+            // Oracle MERGE for upsert
+            var cmd = conn.CreateCommand(
+                $"MERGE INTO {SchemaName}.{DatabaseConstants.TenantsTableName} t USING (SELECT :id AS tenant_id FROM DUAL) s ON (t.tenant_id = s.tenant_id) WHEN MATCHED THEN UPDATE SET connection_string = :conn, disabled = 0 WHEN NOT MATCHED THEN INSERT (tenant_id, connection_string, disabled) VALUES (:id, :conn, 0)");
+            cmd.With("id", tenantId);
+            cmd.With("conn", connectionString);
+            await cmd.ExecuteNonQueryAsync(_cancellation);
+        }
+        finally
+        {
+            await conn.CloseAsync();
+        }
+    }
+
+    public async Task SetTenantDisabledAsync(string tenantId, bool disabled)
+    {
+        await using var conn = CreateConnection();
+        await conn.OpenAsync(_cancellation);
+        try
+        {
+            var cmd = conn.CreateCommand(
+                $"UPDATE {SchemaName}.{DatabaseConstants.TenantsTableName} SET disabled = :disabled WHERE tenant_id = :id");
+            cmd.With("id", tenantId);
+            cmd.With("disabled", disabled ? 1 : 0);
+            await cmd.ExecuteNonQueryAsync(_cancellation);
+        }
+        finally
+        {
+            await conn.CloseAsync();
+        }
+    }
+
+    public async Task DeleteTenantRecordAsync(string tenantId)
+    {
+        await using var conn = CreateConnection();
+        await conn.OpenAsync(_cancellation);
+        try
+        {
+            var cmd = conn.CreateCommand(
+                $"DELETE FROM {SchemaName}.{DatabaseConstants.TenantsTableName} WHERE tenant_id = :id");
+            cmd.With("id", tenantId);
+            await cmd.ExecuteNonQueryAsync(_cancellation);
+        }
+        finally
+        {
+            await conn.CloseAsync();
+        }
+    }
+
+    public async Task<IReadOnlyList<string>> LoadDisabledTenantIdsAsync()
+    {
+        var list = new List<string>();
+        await using var conn = CreateConnection();
+        await conn.OpenAsync(_cancellation);
+        try
+        {
+            await using var reader = await conn.CreateCommand(
+                    $"SELECT tenant_id FROM {SchemaName}.{DatabaseConstants.TenantsTableName} WHERE disabled = 1")
+                .ExecuteReaderAsync(_cancellation);
+
+            while (await reader.ReadAsync(_cancellation))
+            {
+                list.Add(await reader.GetFieldValueAsync<string>(0));
+            }
+
+            await reader.CloseAsync();
+        }
+        finally
+        {
+            await conn.CloseAsync();
+        }
+
+        return list;
     }
 }

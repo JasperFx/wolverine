@@ -30,6 +30,10 @@ public class EndpointDescriptor : OptionsDescription
     {
         Uri = endpoint.Uri;
         TransportType = ResolveTransportType(endpoint);
+        SerializerType = endpoint.DefaultSerializer?.GetType().Name;
+        InteropMode = ResolveInteropMode(endpoint);
+        IsSystemEndpoint = endpoint.Uri?.ToString().Contains("wolverine.response", StringComparison.OrdinalIgnoreCase) == true
+                        || endpoint.Uri?.Scheme.Equals("local", StringComparison.OrdinalIgnoreCase) == true;
     }
 
     public Uri Uri { get; set; } = null!;
@@ -39,9 +43,41 @@ public class EndpointDescriptor : OptionsDescription
     /// </summary>
     public string? TransportType { get; init; }
 
-    internal static string ResolveTransportType(Endpoint endpoint)
+    /// <summary>
+    /// The serializer type name (e.g., "SystemTextJsonSerializer", "MessagePackSerializer")
+    /// </summary>
+    public string? SerializerType { get; init; }
+
+    /// <summary>
+    /// Interop mode if using a pre-canned interop format.
+    /// Values: "CloudEvents", "NServiceBus", "MassTransit", "RawJson", or null for default Wolverine format.
+    /// </summary>
+    public string? InteropMode { get; init; }
+
+    /// <summary>
+    /// Whether this is a Wolverine system endpoint (reply queue, control queue, etc.)
+    /// </summary>
+    public bool IsSystemEndpoint { get; init; }
+
+    internal static string? ResolveInteropMode(Endpoint endpoint)
     {
-        var typeName = endpoint.GetType().Name;
+        return ResolveInteropMode(endpoint.DefaultSerializer?.GetType().Name);
+    }
+
+    public static string? ResolveInteropMode(string? serializerTypeName)
+    {
+        if (string.IsNullOrEmpty(serializerTypeName)) return null;
+        if (serializerTypeName.Contains("CloudEvents", StringComparison.OrdinalIgnoreCase)) return "CloudEvents";
+        if (serializerTypeName.Contains("NServiceBus", StringComparison.OrdinalIgnoreCase)) return "NServiceBus";
+        if (serializerTypeName.Contains("MassTransit", StringComparison.OrdinalIgnoreCase)) return "MassTransit";
+        if (serializerTypeName.Contains("RawJson", StringComparison.OrdinalIgnoreCase)) return "RawJson";
+        return null;
+    }
+
+    internal static string ResolveTransportType(Endpoint endpoint) => ResolveTransportType(endpoint.GetType().Name);
+
+    public static string ResolveTransportType(string typeName)
+    {
 
         if (TransportTypeMap.TryGetValue(typeName, out var mapped))
         {

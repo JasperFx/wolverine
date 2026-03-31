@@ -31,6 +31,15 @@ public interface IWolverineObserver
     Task CircuitBreakerReset(Endpoint endpoint);
     void PersistedCounts(Uri storeUri, PersistedCounts counts);
     void MessageHandlingMetricsExported(MessageHandlingMetrics metrics);
+
+    /// <summary>
+    /// Called when a new message causation pair is discovered at runtime.
+    /// Latched: only fires once per unique (incomingType, outgoingType) pair.
+    /// </summary>
+    void MessageCausedBy(string incomingMessageType, string outgoingMessageType, string handlerType, string? endpointUri)
+    {
+        // Default no-op implementation
+    }
 }
 
 internal class PersistenceWolverineObserver : IWolverineObserver

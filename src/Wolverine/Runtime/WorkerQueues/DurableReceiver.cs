@@ -144,6 +144,30 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
 
     public bool ShouldPersistBeforeProcessing { get; set; }
 
+    /// <summary>
+    /// If the handler for this message type targets an ancillary store on a
+    /// different database, set envelope.Store so that the DelegatingMessageInbox
+    /// persists it in the correct store for transactional atomicity.
+    /// </summary>
+    private void assignAncillaryStoreIfNeeded(Envelope envelope)
+    {
+        if (_runtime.Stores == null) return;
+        var store = _runtime.Stores.TryFindAncillaryStoreForMessageType(envelope.MessageType);
+        if (store != null)
+        {
+            envelope.Store = store;
+        }
+    }
+
+    private void assignAncillaryStoreIfNeeded(IReadOnlyList<Envelope> envelopes)
+    {
+        if (_runtime.Stores == null) return;
+        foreach (var envelope in envelopes)
+        {
+            assignAncillaryStoreIfNeeded(envelope);
+        }
+    }
+
     public async ValueTask DisposeAsync()
     {
         await _receiver.WaitForCompletionAsync();
@@ -382,6 +406,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
                 await executeWithRetriesAsync(async () =>
                 {
                     envelope.OwnerId = TransportConstants.AnyNode;
+                    assignAncillaryStoreIfNeeded(envelope);
                     try
                     {
                         await _inbox.StoreIncomingAsync(envelope);
@@ -448,6 +473,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
                 }
 
                 envelope.OwnerId = _settings.AssignedNodeNumber;
+                assignAncillaryStoreIfNeeded(envelope);
                 await _inbox.StoreIncomingAsync(envelope);
                 envelope.WasPersistedInInbox = true;
             }
@@ -529,6 +555,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
         {
             try
             {
+                assignAncillaryStoreIfNeeded(envelopes);
                 await _inbox.StoreIncomingAsync(envelopes);
                 foreach (var envelope in envelopes)
                 {
