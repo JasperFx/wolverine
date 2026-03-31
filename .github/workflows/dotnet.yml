@@ -2,9 +2,9 @@ name: .NET
 
 on:
   push:
-    branches: [ main ]
   pull_request:
     branches: [ main ]
+  workflow_dispatch:
 
 env:
   config: Release
@@ -18,22 +18,22 @@ jobs:
 
     steps:
       - name: Setup .NET 8
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: 8.0.x
           
       - name: Setup .NET 9
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: 9.0.x
           
       - name: Setup .NET 10
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: 10.0.x
 
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -53,7 +53,7 @@ jobs:
 
 
       - name: Publish CI Packages
-        if: github.event_name != 'pull_request'
+        if: github.repository_owner == 'JasperFx' && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         run: |
           for package in $(find -name "*.nupkg" | grep "minver" -v); do
           
@@ -72,7 +72,7 @@ jobs:
           done
 
       - name: Publish Release Packages
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: github.repository_owner == 'JasperFx' && github.event_name != 'pull_request' && startsWith(github.ref, 'refs/tags/v')
         run: |
           for package in $(find -name "*.nupkg" | grep "minver" -v); do
             echo "${0##*/}": Pushing $package...
