@@ -79,6 +79,7 @@ public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIn
         MapPropertyToHeader(x => x.AcceptedContentTypes, EnvelopeConstants.AcceptedContentTypesKey);
 
         MapPropertyToHeader(x => x.TenantId!, EnvelopeConstants.TenantIdKey);
+        MapPropertyToHeader(x => x.UserName!, EnvelopeConstants.UserNameKey);
 
         MapPropertyToHeader(x => x.DeliverBy!, EnvelopeConstants.DeliverByKey);
 
