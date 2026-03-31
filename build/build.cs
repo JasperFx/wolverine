@@ -444,27 +444,26 @@ partial class Build : NukeBuild
         while (attempt < 10)
             try
             {
-                using (var conn = new Npgsql.NpgsqlConnection(PostgresConnectionString + ";Pooling=false"))
-                {
-                    conn.Open();
+                using var conn = new Npgsql.NpgsqlConnection(PostgresConnectionString + ";Pooling=false");
+                conn.Open();
 
-                    var cmd = conn.CreateCommand();
-                    cmd.CommandText = "select 1";
-                    cmd.ExecuteNonQuery();
+                var cmd = conn.CreateCommand();
+                cmd.CommandText = "select 1";
+                cmd.ExecuteNonQuery();
 
-                    Log.Information("Postgresql is up and ready!");
-                    break;
-                }
+                Log.Information("Postgresql is up and ready!");
+                return;
             }
             catch (Exception ex)
             {
-                Log.Error(ex, "Error while waiting for the database to be ready");
+                Log.Information("Database is not ready ({Error})", ex.Message);
                 Thread.Sleep(250);
                 attempt++;
             }
+
+        Log.Error("Database is not ready after all attempts.");
     }
-    
-    
+
     private Dictionary<string, string[]> ReferencedProjects = new()
     {
         { "jasperfx", ["JasperFx", "JasperFx.Events", "EventTests", "JasperFx.RuntimeCompiler"] },
