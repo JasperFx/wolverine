@@ -148,6 +148,40 @@ internal class MartenMessageDatabaseSource : ITenantedMessageSource
         return _databases.Enumerate().Select(x => new Assignment<IMessageStore>(x.Key, x.Value)).ToList();
     }
 
+    /// <summary>
+    /// Evict and dispose the cached Wolverine message store for a given tenant.
+    /// Called when a tenant is disabled or removed from dynamic tenancy.
+    /// </summary>
+    public async ValueTask RemoveTenantStoreAsync(string tenantId)
+    {
+        IMessageStore? storeToDispose = null;
+
+        lock (_locker)
+        {
+            if (_stores.TryFind(tenantId, out var store))
+            {
+                _stores = _stores.Remove(tenantId);
+
+                // Also remove from _databases if this store is cached there
+                foreach (var entry in _databases.Enumerate())
+                {
+                    if (ReferenceEquals(entry.Value, store))
+                    {
+                        _databases = _databases.Remove(entry.Key);
+                        break;
+                    }
+                }
+
+                storeToDispose = store;
+            }
+        }
+
+        if (storeToDispose != null)
+        {
+            await storeToDispose.DisposeAsync();
+        }
+    }
+
     public async ValueTask ConfigureDatabaseAsync(Func<IMessageDatabase, ValueTask> configureDatabase)
     {
         foreach (var database in AllActive().OfType<IMessageDatabase>()) await configureDatabase(database);

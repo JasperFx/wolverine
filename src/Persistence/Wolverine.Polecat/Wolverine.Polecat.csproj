@@ -14,7 +14,7 @@
         <ProjectReference Include="..\Wolverine.SqlServer\Wolverine.SqlServer.csproj" />
     </ItemGroup>
     <ItemGroup>
-      <PackageReference Include="Polecat" />
+      <ProjectReference Include="../../../../polecat/src/Polecat/Polecat.csproj" />
     </ItemGroup>
     <Import Project="../../../Analysis.Build.props" />
 </Project>

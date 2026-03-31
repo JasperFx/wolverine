@@ -418,6 +418,14 @@ public sealed partial class WolverineOptions
     /// </summary>
     public bool EnableAutomaticFailureAcks { get; set; } = false;
 
+    /// <summary>
+    /// When enabled, Wolverine tracks which message types are produced as a result
+    /// of handling other message types (cause and effect). New causation pairs are
+    /// reported to IWolverineObserver.MessageCausedBy for CritterWatch topology
+    /// visualization. Default is false; Wolverine.CritterWatch enables this automatically.
+    /// </summary>
+    public bool EnableMessageCausationTracking { get; set; }
+
     private void deriveServiceName()
     {
         if (GetType() == typeof(WolverineOptions))

@@ -16,7 +16,7 @@
 
     <ItemGroup>
         <PackageReference Include="Oracle.ManagedDataAccess.Core" />
-        <PackageReference Include="Weasel.Oracle" />
+        <ProjectReference Include="..\..\..\..\..\weasel\src\Weasel.Oracle\Weasel.Oracle.csproj" />
     </ItemGroup>
 
     <Import Project="../../../../Analysis.Build.props" />

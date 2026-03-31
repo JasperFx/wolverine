@@ -10,11 +10,31 @@ public interface ITenantDatabaseRegistry
 {
     Task<string> TryFindTenantConnectionString(string tenantId);
     Task<IReadOnlyList<Assignment<string>>> LoadAllTenantConnectionStrings();
-    
+
     IDatabaseProvider Provider { get; }
+
+    /// <summary>
+    /// Add or update a tenant record in the master tenants table.
+    /// </summary>
+    Task AddTenantRecordAsync(string tenantId, string connectionString);
+
+    /// <summary>
+    /// Set the disabled flag on a tenant record.
+    /// </summary>
+    Task SetTenantDisabledAsync(string tenantId, bool disabled);
+
+    /// <summary>
+    /// Delete a tenant record entirely from the master tenants table.
+    /// </summary>
+    Task DeleteTenantRecordAsync(string tenantId);
+
+    /// <summary>
+    /// Load all tenant IDs that are currently disabled.
+    /// </summary>
+    Task<IReadOnlyList<string>> LoadDisabledTenantIdsAsync();
 }
 
-public class MasterTenantSource : ITenantedSource<string>
+public class MasterTenantSource : IDynamicTenantSource<string>
 {
     private readonly ITenantDatabaseRegistry _tenantRegistry;
     private readonly WolverineOptions _options;
@@ -74,5 +94,47 @@ public class MasterTenantSource : ITenantedSource<string>
     public IReadOnlyList<Assignment<string>> AllActiveByTenant()
     {
         return _values.Enumerate().Select(pair => new Assignment<string>(pair.Key, pair.Value)).ToList();
+    }
+
+    public async Task AddTenantAsync(string tenantId, string connectionValue)
+    {
+        tenantId = _options.Durability.TenantIdStyle.MaybeCorrectTenantId(tenantId);
+        await _tenantRegistry.AddTenantRecordAsync(tenantId, connectionValue);
+
+        var connectionString = _tenantRegistry.Provider.AddApplicationNameToConnectionString(connectionValue, _options.ServiceName);
+        _values = _values.AddOrUpdate(tenantId, connectionString);
+    }
+
+    public async Task DisableTenantAsync(string tenantId)
+    {
+        tenantId = _options.Durability.TenantIdStyle.MaybeCorrectTenantId(tenantId);
+        await _tenantRegistry.SetTenantDisabledAsync(tenantId, true);
+        _values = _values.Remove(tenantId);
+    }
+
+    public async Task RemoveTenantAsync(string tenantId)
+    {
+        tenantId = _options.Durability.TenantIdStyle.MaybeCorrectTenantId(tenantId);
+        await _tenantRegistry.DeleteTenantRecordAsync(tenantId);
+        _values = _values.Remove(tenantId);
+    }
+
+    public async Task<IReadOnlyList<string>> AllDisabledAsync()
+    {
+        return await _tenantRegistry.LoadDisabledTenantIdsAsync();
+    }
+
+    public async Task EnableTenantAsync(string tenantId)
+    {
+        tenantId = _options.Durability.TenantIdStyle.MaybeCorrectTenantId(tenantId);
+        await _tenantRegistry.SetTenantDisabledAsync(tenantId, false);
+
+        // Re-populate the cache for this tenant
+        var connectionString = await _tenantRegistry.TryFindTenantConnectionString(tenantId);
+        if (connectionString.IsNotEmpty())
+        {
+            connectionString = _tenantRegistry.Provider.AddApplicationNameToConnectionString(connectionString, _options.ServiceName);
+            _values = _values.AddOrUpdate(tenantId, connectionString);
+        }
     }
 }

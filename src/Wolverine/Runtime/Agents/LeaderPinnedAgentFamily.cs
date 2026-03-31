@@ -1,6 +1,8 @@
 using JasperFx;
 using JasperFx.Core;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Wolverine.Configuration;
+using Wolverine.Transports;
 
 namespace Wolverine.Runtime.Agents;
 
@@ -29,8 +31,30 @@ internal class LeaderPinnedListenerAgent : IAgent
     }
 
     public Uri Uri { get; set; }
-    
+
     public AgentStatus Status { get; set; } = AgentStatus.Running;
+
+    public Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context,
+        CancellationToken cancellationToken = default)
+    {
+        if (Status != AgentStatus.Running)
+        {
+            return Task.FromResult(HealthCheckResult.Unhealthy($"Agent {Uri} is {Status}"));
+        }
+
+        var listeningAgent = _runtime.Endpoints.FindListeningAgent(_endpoint.Uri);
+        if (listeningAgent == null)
+        {
+            return Task.FromResult(HealthCheckResult.Healthy());
+        }
+
+        return Task.FromResult(listeningAgent.Status switch
+        {
+            ListeningStatus.TooBusy => HealthCheckResult.Degraded($"Listener {_endpoint.EndpointName} is too busy"),
+            ListeningStatus.GloballyLatched => HealthCheckResult.Unhealthy($"Listener {_endpoint.EndpointName} is globally latched"),
+            _ => HealthCheckResult.Healthy()
+        });
+    }
 }
 
 public class LeaderPinnedListenerFamily : IStaticAgentFamily

@@ -38,6 +38,8 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
 
     internal readonly HandlerDiscovery Discovery = new();
 
+    private IWolverineTypeLoader? _typeLoader;
+
     private ImHashMap<Type, HandlerChain> _chains = ImHashMap<Type, HandlerChain>.Empty;
 
     private ImHashMap<Type, IMessageHandler?> _handlers = ImHashMap<Type, IMessageHandler?>.Empty;
@@ -63,7 +65,22 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
         RegisterMessageType(typeof(Acknowledgement));
         RegisterMessageType(typeof(FailureAcknowledgement));
     }
-    
+
+    /// <summary>
+    /// Set a source-generated type loader to bypass runtime assembly scanning.
+    /// When set, Compile() will use the loader's pre-discovered types instead
+    /// of running HandlerDiscovery.FindCalls().
+    /// </summary>
+    internal void UseTypeLoader(IWolverineTypeLoader typeLoader)
+    {
+        _typeLoader = typeLoader;
+    }
+
+    /// <summary>
+    /// Returns the currently configured type loader, if any.
+    /// </summary>
+    internal IWolverineTypeLoader? TypeLoader => _typeLoader;
+
     public Dictionary<Type, Type> MappedGenericMessageTypes { get; } = new();
 
     internal IServiceContainer Container { get; set; } = null!;
@@ -324,22 +341,13 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
 
         Rules = options.CodeGeneration;
 
-        foreach (var assembly in Discovery.Assemblies)
+        if (_typeLoader != null)
         {
-            logger.LogInformation("Searching assembly {Assembly} for Wolverine message handlers", assembly.GetName());
-        }
-
-        var methods = Discovery.FindCalls(options);
-
-        var calls = methods.Select(x => new HandlerCall(x.Item1, x.Item2));
-
-        if (methods.Length == 0)
-        {
-            logger.LogWarning("Wolverine found no handlers. If this is unexpected, check the assemblies that it's scanning. See https://wolverine.netlify.app/guide/handlers/discovery.html for more information");
+            compileWithTypeLoader(options, logger);
         }
         else
         {
-            AddRange(calls);
+            compileWithRuntimeScanning(options, logger);
         }
 
         Group(options);
@@ -389,6 +397,69 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
         tryApplyLocalQueueConfiguration(options);
 
         options.MessagePartitioning.MaybeInferGrouping(this);
+    }
+
+    private void compileWithTypeLoader(WolverineOptions options, ILogger logger)
+    {
+        logger.LogInformation(
+            "Using source-generated type loader for handler discovery, bypassing runtime assembly scanning");
+
+        var handlerTypes = _typeLoader!.DiscoveredHandlerTypes;
+
+        // Still use Discovery's method filtering on the pre-discovered types,
+        // but skip the expensive assembly scanning to find those types
+        var methods = new List<(Type, System.Reflection.MethodInfo)>();
+        foreach (var handlerType in handlerTypes)
+        {
+            var typeMethods = handlerType
+                .GetMethods(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)
+                .Where(x => x.DeclaringType != typeof(object))
+                .Where(m => Discovery.MethodIncludes.Matches(m) && !Discovery.MethodExcludes.Matches(m))
+                .Select(m => (handlerType, m));
+
+            methods.AddRange(typeMethods);
+        }
+
+        var calls = methods.Select(x => new HandlerCall(x.Item1, x.Item2));
+
+        if (methods.Count == 0)
+        {
+            logger.LogWarning(
+                "Source-generated type loader found no handler methods. If this is unexpected, verify the source generator is correctly discovering handler types");
+        }
+        else
+        {
+            AddRange(calls);
+        }
+
+        // Also pre-register message types from the loader
+        foreach (var (messageType, alias) in _typeLoader.DiscoveredMessageTypes)
+        {
+            RegisterMessageType(messageType);
+        }
+    }
+
+    private void compileWithRuntimeScanning(WolverineOptions options, ILogger logger)
+    {
+        foreach (var assembly in Discovery.Assemblies)
+        {
+            logger.LogInformation("Searching assembly {Assembly} for Wolverine message handlers",
+                assembly.GetName());
+        }
+
+        var methods = Discovery.FindCalls(options);
+
+        var calls = methods.Select(x => new HandlerCall(x.Item1, x.Item2));
+
+        if (methods.Length == 0)
+        {
+            logger.LogWarning(
+                "Wolverine found no handlers. If this is unexpected, check the assemblies that it's scanning. See https://wolverine.netlify.app/guide/handlers/discovery.html for more information");
+        }
+        else
+        {
+            AddRange(calls);
+        }
     }
 
     private void tryApplyLocalQueueConfiguration(WolverineOptions options)
