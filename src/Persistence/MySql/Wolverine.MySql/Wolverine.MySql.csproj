@@ -16,7 +16,7 @@
 
     <ItemGroup>
       <PackageReference Include="MySqlConnector" />
-      <ProjectReference Include="..\..\..\..\..\weasel\src\Weasel.MySql\Weasel.MySql.csproj" />
+      <PackageReference Include="Weasel.MySql" />
     </ItemGroup>
 
     <Import Project="../../../../Analysis.Build.props" />
