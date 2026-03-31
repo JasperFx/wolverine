@@ -51,6 +51,32 @@ partial class Build
             WaitForLocalStackToBeReady();
         if (services.Contains("asb-emulator"))
             WaitForAzureServiceBusEmulatorToBeReady();
+        if (services.Contains("kafka"))
+            WaitForKafkaToBeReady();
+    }
+
+    void WaitForKafkaToBeReady()
+    {
+        var attempt = 0;
+        while (attempt < 30)
+        {
+            try
+            {
+                using var tcpClient = new System.Net.Sockets.TcpClient();
+                tcpClient.Connect("localhost", 9092);
+                Log.Information("Kafka is up and ready!");
+                return;
+            }
+            catch (Exception)
+            {
+                // ignore connection errors
+            }
+
+            Thread.Sleep(2000);
+            attempt++;
+        }
+
+        Log.Warning("Kafka did not become ready after 60 seconds");
     }
 
     void WaitForSqlServerToBeReady()
@@ -316,7 +342,7 @@ partial class Build
             var tests = RootDirectory / "src" / "Transports" / "Kafka" / "Wolverine.Kafka.Tests" / "Wolverine.Kafka.Tests.csproj";
 
             BuildTestProjects(tests);
-            StartDockerServices("postgresql");
+            StartDockerServices("kafka", "postgresql");
 
             RunSingleProjectOneClassAtATime(tests);
         });

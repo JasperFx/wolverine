@@ -87,7 +87,10 @@ public class publish_and_receive_raw_json : IAsyncLifetime
         });
         producer.Flush();
 
-        await Task.Delay(2.Minutes());
+        // Wait long enough to detect any infinite retry loop, but not so long
+        // it needlessly inflates CI run time. 30 seconds is sufficient — a tight
+        // retry loop would exhaust resources well before then.
+        await Task.Delay(30.Seconds());
     }
 
     public async Task DisposeAsync()

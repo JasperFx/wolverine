@@ -170,6 +170,20 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
 
     public async ValueTask StopAndDrainAsync()
     {
+        await StopAndDrainCoreAsync(latchBeforeDrain: true);
+    }
+
+    /// <summary>
+    /// Shared implementation for stop-and-drain. When <paramref name="latchBeforeDrain"/> is
+    /// <c>true</c> (normal shutdown), the receiver is latched before <see cref="IReceiver.DrainAsync"/>
+    /// so that the drain knows it is safe to wait for any in-flight messages to complete.
+    /// When <c>false</c> (pause triggered from within the handler pipeline, e.g. rate limiting),
+    /// the receiver is <em>not</em> pre-latched, so <see cref="IReceiver.DrainAsync"/> sees
+    /// <c>_latched == false</c> and returns immediately — avoiding a deadlock caused by the
+    /// current message's execute frame being on the call stack.
+    /// </summary>
+    private async ValueTask StopAndDrainCoreAsync(bool latchBeforeDrain)
+    {
         if (Status == ListeningStatus.Stopped || Status == ListeningStatus.GloballyLatched)
         {
             return;
@@ -189,7 +203,15 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
 
             await listener.StopAsync();
 
-            LatchReceiver();
+            // When called during normal shutdown, latch BEFORE drain so DrainAsync knows
+            // it can safely wait for in-flight messages to complete.
+            // When called from within the handler pipeline (e.g. PauseListenerContinuation),
+            // do NOT latch here: DrainAsync will see _latched==false and return immediately,
+            // preventing a deadlock with the current message's execute frame.
+            if (latchBeforeDrain)
+            {
+                LatchReceiver();
+            }
 
             Listener = null;
             _receiver = null;
@@ -301,7 +323,11 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
         {
             using var activity = WolverineTracing.ActivitySource.StartActivity(WolverineTracing.PausingListener);
             activity?.SetTag(WolverineTracing.EndpointAddress, Uri);
-            await StopAndDrainAsync();
+            // Do NOT pre-latch the receiver here. PauseAsync may be called from within the
+            // handler pipeline (e.g. via RateLimitContinuation → PauseListenerContinuation).
+            // Pre-latching causes DrainAsync to wait for the ActionBlock to drain, which
+            // deadlocks because the current message's execute frame is still on the call stack.
+            await StopAndDrainCoreAsync(latchBeforeDrain: false);
         }
         catch (Exception e)
         {

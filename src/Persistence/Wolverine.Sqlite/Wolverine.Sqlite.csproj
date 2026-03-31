@@ -15,7 +15,7 @@
     </ItemGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\..\..\..\weasel\src\Weasel.Sqlite\Weasel.Sqlite.csproj" />
+      <PackageReference Include="Weasel.Sqlite" />
     </ItemGroup>
 
     <Import Project="../../../Analysis.Build.props" />

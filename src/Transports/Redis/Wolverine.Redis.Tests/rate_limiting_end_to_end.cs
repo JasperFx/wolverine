@@ -30,6 +30,11 @@ public class rate_limiting_end_to_end(ITestOutputHelper output) : IAsyncLifetime
                 opts.ApplicationAssembly = typeof(rate_limiting_end_to_end).Assembly;
                 opts.Services.AddSingleton(_tracker);
 
+                // Fast polling so scheduled messages are picked up quickly after the
+                // listener restarts following the rate-limit pause.
+                opts.Durability.ScheduledJobFirstExecution = 100.Milliseconds();
+                opts.Durability.ScheduledJobPollingTime = 200.Milliseconds();
+
                 opts.UseRedisTransport(RedisContainerFixture.ConnectionString).AutoProvision();
                 opts.PublishAllMessages().ToRedisStream(streamKey);
                 opts.ListenToRedisStream(streamKey, groupName)
