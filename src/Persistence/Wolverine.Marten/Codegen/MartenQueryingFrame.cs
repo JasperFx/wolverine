@@ -88,13 +88,26 @@ internal class MartenBatchFrame : AsyncFrame
             writer.BlankLine();
             op.WriteCodeToEnlistInBatchQuery(method, writer);
         }
-        
+
         writer.BlankLine();
-        
+
         writer.WriteLine($"await {BatchQuery.Usage}.{nameof(IBatchedQuery.Execute)}({_cancellation.Usage});");
-        
+
         writer.BlankLine();
-        
+
+        // After the batch query executes, generate the code to resolve each
+        // batched frame's result variable (e.g. var stream_entity = await stream_entity_BatchItem).
+        // This must happen BEFORE any guard frames that reference these variables.
+        foreach (var op in _operations)
+        {
+            if (op is LoadAggregateFrame loadFrame)
+            {
+                loadFrame.GenerateCodeForBatchResolution(method, writer);
+            }
+        }
+
+        writer.BlankLine();
+
         Next?.GenerateCode(method, writer);
     }
     

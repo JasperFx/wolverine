@@ -102,8 +102,43 @@ internal class LoadAggregateFrame : AsyncFrame,  IBatchableFrame
         }
     }
 
+    /// <summary>
+    /// Set to true after GenerateCodeForBatchResolution has been called,
+    /// to prevent duplicate variable declarations.
+    /// </summary>
+    internal bool BatchResolutionGenerated { get; private set; }
+
+    /// <summary>
+    /// When this frame is part of a batch query, generate only the code that
+    /// resolves the batch item result (var stream_entity = await ...BatchItem).
+    /// This is called by MartenBatchFrame after the batch execute, ensuring
+    /// the variable is declared before any guard frames reference it.
+    /// </summary>
+    public void GenerateCodeForBatchResolution(GeneratedMethod method, ISourceWriter writer)
+    {
+        if (_batchQueryItem == null) return;
+
+        writer.WriteComment("Loading Marten aggregate as part of the aggregate handler workflow");
+        writer.Write(
+            $"var {Stream.Usage} = await {_batchQueryItem.Usage}.ConfigureAwait(false);");
+
+        if (_att.AlwaysEnforceConsistency)
+        {
+            writer.WriteLine($"{Stream.Usage}.{nameof(IEventStream<string>.AlwaysEnforceConsistency)} = true;");
+        }
+
+        BatchResolutionGenerated = true;
+    }
+
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
+        // If batch resolution already generated the variable declaration, skip
+        if (BatchResolutionGenerated)
+        {
+            Next?.GenerateCode(method, writer);
+            return;
+        }
+
         writer.WriteComment("Loading Marten aggregate as part of the aggregate handler workflow");
         if (_batchQueryItem == null)
         {
