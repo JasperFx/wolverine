@@ -64,6 +64,13 @@ public interface IChain
     Dictionary<string, object> Tags { get; }
 
     /// <summary>
+    /// When set, indicates that this handler chain targets an ancillary message store
+    /// identified by this marker type (e.g., IAncillaryStore). This is used to route
+    /// incoming durable inbox envelopes to the correct store for transactional atomicity.
+    /// </summary>
+    Type? AncillaryStoreType { get; set; }
+
+    /// <summary>
     ///     Strategy for dealing with any return values from the handler methods
     /// </summary>
     IReturnVariableActionSource ReturnVariableActionSource { get; set; }
