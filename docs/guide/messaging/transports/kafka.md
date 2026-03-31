@@ -476,6 +476,45 @@ opts.ListenToKafkaTopics("orders", "invoices")
     .EnableNativeDeadLetterQueue();
 ```
 
+### Topic Creation Options <Badge type="tip" text="5.27" />
+
+You can control how Wolverine creates topics for a multi-topic listener group. The `Specification()` method lets you
+set partition count, replication factor, and other topic properties uniformly or per-topic:
+
+```csharp
+// Apply the same specification to all topics in the group
+opts.ListenToKafkaTopics("orders", "invoices", "shipments")
+    .Specification(spec =>
+    {
+        spec.NumPartitions = 6;
+        spec.ReplicationFactor = 3;
+    });
+
+// Or configure each topic differently by name
+opts.ListenToKafkaTopics("orders", "invoices", "shipments")
+    .Specification((topicName, spec) =>
+    {
+        spec.NumPartitions = topicName == "orders" ? 12 : 6;
+    });
+```
+
+For full control over topic creation, use `TopicCreation()` which gives you direct access to the Kafka `IAdminClient`:
+
+```csharp
+opts.ListenToKafkaTopics("orders", "invoices")
+    .TopicCreation(async (adminClient, topicName) =>
+    {
+        var spec = new TopicSpecification
+        {
+            Name = topicName,
+            NumPartitions = 12,
+            ReplicationFactor = 3
+        };
+
+        await adminClient.CreateTopicsAsync(new[] { spec });
+    });
+```
+
 ### When to Use Multi-Topic Listening
 
 Use `ListenToKafkaTopics()` when:
