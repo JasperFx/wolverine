@@ -1,6 +1,7 @@
 using ImTools;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
+using Wolverine.Configuration;
 using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.Routing;
 using Wolverine.Transports;
@@ -29,6 +30,16 @@ public interface IMessageRouteSource
 }
 
 #endregion
+
+/// <summary>
+/// Optional interface for IMessageRouteSource implementations to expose their
+/// target endpoints, enabling endpoint policies (like UseDurableOutboxOnAllSendingEndpoints)
+/// to discover and configure them.
+/// </summary>
+public interface IEndpointSource
+{
+    IEnumerable<Endpoint> ActiveEndpoints();
+}
 
 internal class AgentMessages : IMessageRouteSource
 {

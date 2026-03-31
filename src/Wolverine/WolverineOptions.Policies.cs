@@ -153,7 +153,10 @@ public sealed partial class WolverineOptions : IPolicies
 
             if (!e.Subscriptions.Any())
             {
-                return;
+                var isRoutingTarget = CustomRouteSources
+                    .OfType<IEndpointSource>()
+                    .Any(rs => rs.ActiveEndpoints().Contains(e));
+                if (!isRoutingTarget) return;
             }
 
             var configuration = new SubscriberConfiguration(e);
