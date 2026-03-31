@@ -41,15 +41,19 @@ public class LoadEntityFrameBlock : Frame
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
-        // The [WriteAggregate] somehow causes this
         if (Creator.Next == this || Creator.Next != null)
         {
-            for (int i = 1; i < _guardFrames.Length; i++)
+            // Creator has been handled elsewhere (e.g. by batching) —
+            // only render the guard frames
+            if (_guardFrames.Length > 0)
             {
-                _guardFrames[i - 1].Next = _guardFrames[i];
+                for (int i = 1; i < _guardFrames.Length; i++)
+                {
+                    _guardFrames[i - 1].Next = _guardFrames[i];
+                }
+
+                _guardFrames[0].GenerateCode(method, writer);
             }
-            
-            _guardFrames[0].GenerateCode(method, writer);
         }
         else
         {
@@ -59,7 +63,7 @@ public class LoadEntityFrameBlock : Frame
                 previous.Next = next;
                 previous = next;
             }
-        
+
             Creator.GenerateCode(method, writer);
         }
 
