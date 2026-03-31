@@ -11,6 +11,7 @@ using Wolverine.Runtime.Scheduled;
 using Wolverine.Runtime.WorkerQueues;
 using Wolverine.Transports;
 using Wolverine.Transports.Local;
+using Wolverine.Util;
 
 namespace Wolverine.Runtime;
 
@@ -305,6 +306,18 @@ public partial class WolverineRuntime
             foreach (var topology in Options.MessagePartitioning.GlobalPartitionedTopologies)
             {
                 topology.ResolveMessageTypeNames(knownMessageTypes);
+            }
+        }
+
+        // Build message-type-to-ancillary-store mapping for durable inbox routing.
+        // When a handler targets an ancillary store on a different database, incoming
+        // envelopes should be persisted in that store for transactional atomicity.
+        if (Stores != null && Stores.HasAnyAncillaryStores())
+        {
+            foreach (var chain in Handlers.Chains.Where(c => c.AncillaryStoreType != null))
+            {
+                var messageTypeName = chain.MessageType.ToMessageTypeName();
+                Stores.MapMessageTypeToAncillaryStore(messageTypeName, chain.AncillaryStoreType!);
             }
         }
 

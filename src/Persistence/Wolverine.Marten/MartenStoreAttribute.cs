@@ -19,6 +19,7 @@ public class MartenStoreAttribute : ModifyChainAttribute
 
     public override void Modify(IChain chain, GenerationRules rules, IServiceContainer container)
     {
+        chain.AncillaryStoreType = StoreType;
         chain.Middleware.Insert(0, new AncillaryOutboxFactoryFrame(StoreType));
     }
 }
