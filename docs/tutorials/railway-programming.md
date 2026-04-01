@@ -1,8 +1,13 @@
 # Railway Programming with Wolverine (Kind Of)
 
 ::: tip
-I'm sure a grizzled, experienced developer in your life has already told you this 
-many times, but throwing and catching `Exceptions` in .NET code is pretty expensive in 
+For more examples and context, see the blog post
+[Low Ceremony Railway Programming with Wolverine](https://jeremydmiller.com/2025/06/05/low-ceremony-railway-programming-with-wolverine/).
+:::
+
+::: tip
+I'm sure a grizzled, experienced developer in your life has already told you this
+many times, but throwing and catching `Exceptions` in .NET code is pretty expensive in
 terms of performance.
 :::
 

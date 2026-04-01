@@ -1,8 +1,8 @@
 # Durable Messaging
 
-::: info
-A major goal of Wolverine 4.0 is to bring the EF Core integration capabilities (including multi-tenancy support) up to match the current integration
-with Marten, add event sourcing support for SQL Server, and at least envelope storage integration with CosmosDb.
+::: tip
+For a practical walkthrough of the transactional outbox pattern with both Marten and EF Core, see the blog post
+[Build Resilient Systems with Wolverine's Transactional Outbox](https://jeremydmiller.com/2024/12/08/build-resilient-systems-with-wolverines-transactional-outbox/).
 :::
 
 Wolverine can integrate with several database engines and persistence tools for:

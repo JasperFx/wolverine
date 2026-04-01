@@ -1,5 +1,9 @@
 # Multi-Tenancy and Marten
 
+::: tip
+For a holistic overview of multi-tenancy across all of Wolverine, see the [Multi-Tenancy Tutorial](/tutorials/multi-tenancy).
+:::
+
 ::: info
 This functionality was a very late addition just in time for Wolverine 1.0.
 :::

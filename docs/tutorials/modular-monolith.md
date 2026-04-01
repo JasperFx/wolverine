@@ -2,6 +2,12 @@
 
 @[youtube](JSnBe7n-CNI)
 
+::: tip
+For additional context, see the blog posts
+[Wolverine 5 and Modular Monoliths](https://jeremydmiller.com/2025/10/27/wolverine-5-and-modular-monoliths/) (multi-database support)
+and [Modular Monoliths and the "Critter Stack"](https://jeremydmiller.com/2024/04/15/modular-monoliths-and-the-critter-stack/).
+:::
+
 ::: info
 Wolverine's mantra is "low code ceremony," and the modular monolith approach comes with a mountain of temptation
 for a certain kind of software architect to try out a world of potentially harmful high ceremony coding techniques.

@@ -1,5 +1,9 @@
 # Multi-Tenancy with Wolverine
 
+::: tip
+For a holistic overview of multi-tenancy across all of Wolverine, see the [Multi-Tenancy Tutorial](/tutorials/multi-tenancy).
+:::
+
 Wolverine has first class support for multi-tenancy by tracking the tenant id as message metadata. When invoking a message
 inline, you can execute that message for a specific tenant with this syntax:
 

@@ -1,7 +1,13 @@
 # Sagas
 
 ::: tip
-To be honest, we're just not going to get hung up on "process manager" vs. "saga" here. The key point is that what 
+For practical examples of building sagas with Wolverine, see the blog posts
+[Low Ceremony Sagas with Wolverine](https://jeremydmiller.com/2024/08/20/low-ceremony-sagas-with-wolverine/) and
+[Multi Step Workflows with the Critter Stack](https://jeremydmiller.com/2024/10/01/multi-step-workflows-with-the-critter-stack/).
+:::
+
+::: tip
+To be honest, we're just not going to get hung up on "process manager" vs. "saga" here. The key point is that what
 Wolverine is calling a "saga" really just means a long running, multi-step process where you need to track some state
 between the steps. If that annoys Greg Young, then ¯\_(ツ)_/¯.
 :::

@@ -87,7 +87,8 @@ const config: UserConfig<DefaultTheme.Config> = {
                         {text: 'Leader Election and Agents', link: '/tutorials/leader-election'},
                         {text: 'Dealing with Concurrency', link:'/tutorials/concurrency'},
                         {text: 'Dead Letter Queues', link: '/tutorials/dead-letter-queues'},
-                        {text: 'Idempotency in Messaging', link: '/tutorials/idempotency'}
+                        {text: 'Idempotency in Messaging', link: '/tutorials/idempotency'},
+                        {text: 'Multi-Tenancy', link: '/tutorials/multi-tenancy'}
                     ]
                 },
                 {

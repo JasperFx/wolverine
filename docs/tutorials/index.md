@@ -13,3 +13,4 @@
 | [Dealing with Concurrency](./concurrency)                    | Dealing with concurrency can be hard, but Wolverine has plenty of tools to help you manage it              |
 | [Dead Letter Queues](./dead-letter-queues)| Understand how dead letter queueing works in Wolverine and how to manage message failures                  |
 | [Idempotency in Messaging](./idempotency) | Find out how best to use Wolverine's built in support for messaging idempotency                            |
+| [Multi-Tenancy](./multi-tenancy) | A holistic guide to multi-tenancy across HTTP, messaging, and persistence in Wolverine                     |
