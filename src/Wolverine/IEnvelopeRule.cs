@@ -151,6 +151,33 @@ internal class GroupIdToPartitionKeyRule : IEnvelopeRule
     }
 }
 
+internal class PropagateHeadersRule : IEnvelopeRule
+{
+    private readonly string[] _headerNames;
+
+    public PropagateHeadersRule(string[] headerNames)
+    {
+        _headerNames = headerNames;
+    }
+
+    // No incoming context available outside a handler — nothing to propagate
+    public void Modify(Envelope envelope) { }
+
+    public void ApplyCorrelation(IMessageContext originator, Envelope outgoing)
+    {
+        var incoming = originator.Envelope;
+        if (incoming is null) return;
+
+        foreach (var name in _headerNames)
+        {
+            if (incoming.Headers.TryGetValue(name, out var value))
+            {
+                outgoing.Headers[name] = value;
+            }
+        }
+    }
+}
+
 internal class LambdaEnvelopeRule : IEnvelopeRule
 {
     private readonly Action<Envelope> _configure;

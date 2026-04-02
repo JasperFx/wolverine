@@ -178,4 +178,11 @@ public interface IPolicies : IEnumerable<IWolverinePolicy>, IWithFailurePolicies
     /// specifying DeliveryOptions on every outgoing message.
     /// </summary>
     void PropagateGroupIdToPartitionKey();
+
+    /// <summary>
+    /// Automatically propagate the named headers from an incoming message to all outgoing
+    /// messages cascaded within the same handler context. Headers not present on the incoming
+    /// message are silently skipped.
+    /// </summary>
+    void PropagateIncomingHeadersToOutgoing(params string[] headerNames);
 }
