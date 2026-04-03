@@ -242,6 +242,7 @@ const config: UserConfig<DefaultTheme.Config> = {
                         {text: 'Fluent Validation', link: '/guide/http/fluentvalidation'},
                         {text: 'Problem Details', link: '/guide/http/problemdetails'},
                         {text: 'Caching', link: '/guide/http/caching'},
+                        {text: 'Output Caching', link: '/guide/http/output-caching'},
                         {text: 'HTTP Messaging Transport', link: '/guide/http/transport'},
                         {text: 'Integration Testing with Alba', link: '/guide/http/integration-testing'}
                     ]
