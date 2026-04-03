@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using System.Reflection;
 using JasperFx;
 using JasperFx.CodeGeneration;
@@ -26,6 +27,53 @@ internal static class ChainExtensions
 
         // All good if no attribute
         return true;
+    }
+}
+
+public static class ChainMiddlewareExtensions
+{
+    /// <summary>
+    ///     Add a middleware method call to this chain's middleware pipeline
+    /// </summary>
+    /// <param name="chain">The chain to add middleware to</param>
+    /// <param name="method">Expression pointing to the middleware method</param>
+    /// <typeparam name="T">The middleware class type</typeparam>
+    public static void AddMiddleware<T>(this IChain chain, Expression<Action<T>> method)
+    {
+        chain.Middleware.Add(new MethodCall(typeof(T), ReflectionHelper.GetMethod(method)!));
+    }
+
+    /// <summary>
+    ///     Add a middleware method call to this chain's middleware pipeline
+    /// </summary>
+    /// <param name="chain">The chain to add middleware to</param>
+    /// <param name="middlewareType">The middleware class type</param>
+    /// <param name="methodName">The name of the method to call</param>
+    public static void AddMiddleware(this IChain chain, Type middlewareType, string methodName)
+    {
+        chain.Middleware.Add(new MethodCall(middlewareType, methodName));
+    }
+
+    /// <summary>
+    ///     Add a postprocessor method call to this chain's postprocessor pipeline
+    /// </summary>
+    /// <param name="chain">The chain to add the postprocessor to</param>
+    /// <param name="method">Expression pointing to the postprocessor method</param>
+    /// <typeparam name="T">The middleware class type</typeparam>
+    public static void AddPostprocessor<T>(this IChain chain, Expression<Action<T>> method)
+    {
+        chain.Postprocessors.Add(new MethodCall(typeof(T), ReflectionHelper.GetMethod(method)!));
+    }
+
+    /// <summary>
+    ///     Add a postprocessor method call to this chain's postprocessor pipeline
+    /// </summary>
+    /// <param name="chain">The chain to add the postprocessor to</param>
+    /// <param name="middlewareType">The middleware class type</param>
+    /// <param name="methodName">The name of the method to call</param>
+    public static void AddPostprocessor(this IChain chain, Type middlewareType, string methodName)
+    {
+        chain.Postprocessors.Add(new MethodCall(middlewareType, methodName));
     }
 }
 

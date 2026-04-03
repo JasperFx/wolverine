@@ -88,7 +88,8 @@ const config: UserConfig<DefaultTheme.Config> = {
                         {text: 'Dealing with Concurrency', link:'/tutorials/concurrency'},
                         {text: 'Dead Letter Queues', link: '/tutorials/dead-letter-queues'},
                         {text: 'Idempotency in Messaging', link: '/tutorials/idempotency'},
-                        {text: 'Multi-Tenancy', link: '/tutorials/multi-tenancy'}
+                        {text: 'Multi-Tenancy', link: '/tutorials/multi-tenancy'},
+                        {text: 'Migrating from MVC/Minimal API Filters', link: '/tutorials/middleware-migration'}
                     ]
                 },
                 {
