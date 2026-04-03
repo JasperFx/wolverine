@@ -129,6 +129,7 @@ public class WolverineHttpOptions
         Policies.Add(new UserNamePolicy());
         Policies.Add(new RequiredEntityPolicy());
         Policies.Add(new HttpChainResponseCacheHeaderPolicy());
+        Policies.Add(new TagHttpHandlerPolicy());
 
         Policies.Add(TenantIdDetection);
     }

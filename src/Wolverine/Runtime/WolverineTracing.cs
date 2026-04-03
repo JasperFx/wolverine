@@ -16,6 +16,7 @@ internal static class WolverineTracing
     public const string MessagingDestination = "messaging.destination"; // Use the destination Uri
 
     public const string MessageHandler = "message.handler";
+    public const string HandlerType = "handler.type";
 
     public const string
         MessagingDestinationKind =

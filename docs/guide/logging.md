@@ -429,6 +429,25 @@ public const string TooManySenderFailures = "TooManySenderFailures";
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/WolverineTracing.cs#L27-L121' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_open_telemetry_tracing_spans_and_activities' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Handler Type Tagging
+
+Wolverine automatically tags Open Telemetry activity spans with the handler type name during message processing. This provides per-handler tracing visibility in observability backends like Jaeger, Zipkin, or Honeycomb without any additional configuration.
+
+For both message handlers and Wolverine.HTTP endpoints, Wolverine emits the `handler.type` tag containing the full .NET type name of the handler class. For message handlers, the existing `message.handler` tag is also set with the same value for backward compatibility.
+
+These tags are memoized as string literals in Wolverine's generated code, so there is no runtime cost for computing the handler type name on each request.
+
+Example activity tags for a message handler:
+```
+handler.type = "MyApp.Handlers.OrderPlacedHandler"
+message.handler = "MyApp.Handlers.OrderPlacedHandler"
+```
+
+Example activity tags for an HTTP endpoint:
+```
+handler.type = "MyApp.Endpoints.OrderEndpoint"
+```
+
 ## Message Correlation
 
 ::: tip

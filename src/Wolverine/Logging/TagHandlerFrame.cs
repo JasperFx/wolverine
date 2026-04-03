@@ -36,10 +36,13 @@ internal class TagHandlerFrame : SyncFrame
     {
         if (_chain.HandlerCalls().Length == 1)
         {
+            var handlerTypeName = _chain.HandlerCalls()[0].HandlerType.FullNameInCode();
             writer.WriteLine(
-                $"{typeof(Activity).FullNameInCode()}.{nameof(Activity.Current)}?.{nameof(Activity.SetTag)}(\"{WolverineTracing.MessageHandler}\", \"{_chain.HandlerCalls()[0].HandlerType.FullNameInCode()}\");");
+                $"{typeof(Activity).FullNameInCode()}.{nameof(Activity.Current)}?.{nameof(Activity.SetTag)}(\"{WolverineTracing.MessageHandler}\", \"{handlerTypeName}\");");
+            writer.WriteLine(
+                $"{typeof(Activity).FullNameInCode()}.{nameof(Activity.Current)}?.{nameof(Activity.SetTag)}(\"{WolverineTracing.HandlerType}\", \"{handlerTypeName}\");");
         }
-        
+
         Next?.GenerateCode(method, writer);
     }
 }
