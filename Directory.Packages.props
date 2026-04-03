@@ -3,7 +3,7 @@
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
   </PropertyGroup>
   <ItemGroup>
-    <PackageVersion Include="Alba" Version="8.4.1" />
+    <PackageVersion Include="Alba" Version="8.5.2" />
     <PackageVersion Include="AWSSDK.SimpleNotificationService" Version="4.0.2.14" />
     <PackageVersion Include="AWSSDK.SQS" Version="4.0.2.14" />
     <PackageVersion Include="Azure.Identity" Version="1.17.0" />
