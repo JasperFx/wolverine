@@ -217,6 +217,7 @@ public static class WolverineHttpEndpointRouteBuilderExtensions
 
         options.JsonSerializerOptions = new Lazy<JsonSerializerOptions>(() => serviceProvider.GetService<IOptions<JsonOptions>>()?.Value?.SerializerOptions ?? new JsonSerializerOptions());
 
+        options.Endpoints.AutoAntiforgeryOnFormEndpoints = options._autoAntiforgeryOnFormEndpoints;
         options.Endpoints.DiscoverEndpoints(options);
         runtime.Options.Parts.Add(options.Endpoints);
 

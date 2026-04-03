@@ -89,6 +89,8 @@ public class Program
         });
         #endregion
 
+        #endregion
+
         builder.Services.AddDbContextWithWolverineIntegration<ItemsDbContext>(x =>
             x.UseNpgsql(Servers.PostgresConnectionString));
 
@@ -221,6 +223,8 @@ public class Program
         app.UseRateLimiter();
         #endregion
 
+        #endregion
+
 // These routes are for doing
         OpenApiEndpoints.BuildComparisonRoutes(app);
 
@@ -308,6 +312,10 @@ public class Program
             opts.SendMessage<HttpMessage6>("/send/message6").WithTags("messages");
             opts.SendMessage<MessageThatAlwaysGoesToDeadLetter>(HttpMethod.Post, "/send/always-dead-letter")
                 .WithTags("messages");
+
+            // Register OnException middleware for testing
+            opts.AddMiddleware(typeof(GlobalExceptionMiddleware),
+                chain => chain.Method.HandlerType == typeof(MiddlewareExceptionEndpoints));
 
             opts.AddPolicy<StreamCollisionExceptionPolicy>();
 

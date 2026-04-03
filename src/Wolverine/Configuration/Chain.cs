@@ -320,6 +320,56 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
                     Postprocessors.Insert(i, frame);
                 }
             }
+
+            // Discover OnException methods from handler types
+            var onExceptions = MiddlewarePolicy.FilterMethods<WolverineOnExceptionAttribute>(this,
+                handlerType.GetMethods(), MiddlewarePolicy.OnExceptionMethodNames).ToArray();
+
+            foreach (var onException in onExceptions)
+            {
+                var parameters = onException.GetParameters();
+                if (parameters.Length == 0 || !typeof(Exception).IsAssignableFrom(parameters[0].ParameterType))
+                {
+                    throw new InvalidWolverineMiddlewareException(
+                        $"OnException method '{onException.Name}' on type '{handlerType.FullName}' must have an Exception type as its first parameter.");
+                }
+
+                var exceptionType = parameters[0].ParameterType;
+                var call = new MethodCall(handlerType, onException);
+                ApplyParameterMatching(call);
+
+                var frames = new List<Frame> { call };
+
+                var outgoings = call.Creates.Where(x => x.VariableType == typeof(OutgoingMessages)).ToArray();
+                foreach (var outgoing in outgoings)
+                {
+                    frames.Add(new CaptureCascadingMessages(outgoing));
+                }
+
+                if (generationRules.TryFindContinuationHandler(this, call, out var continuation))
+                {
+                    frames.Add(continuation!);
+                }
+
+                GetOrCreateTryCatchFinallyFrame().AddCatchBlock(exceptionType, frames.ToArray());
+            }
+
+            // Discover Finally methods from handler types
+            // When there are OnException handlers, Finally goes into the TryCatchFinallyFrame
+            // Otherwise they stand alone (existing TryFinallyWrapperFrame behavior handles them from middleware)
+            var finals = MiddlewarePolicy.FilterMethods<WolverineFinallyAttribute>(this,
+                handlerType.GetMethods(), MiddlewarePolicy.FinallyMethodNames).ToArray();
+
+            if (finals.Length > 0)
+            {
+                var tryCatchFinally = GetOrCreateTryCatchFinallyFrame();
+                foreach (var final in finals)
+                {
+                    var finalCall = new MethodCall(handlerType, final);
+                    ApplyParameterMatching(finalCall);
+                    tryCatchFinally.AddFinallyBlock(finalCall);
+                }
+            }
         }
 
         applyDeferredMiddlewareVariables();
@@ -341,6 +391,19 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
                 }
             }
         }
+    }
+
+    private TryCatchFinallyFrame? _tryCatchFinallyFrame;
+
+    public TryCatchFinallyFrame GetOrCreateTryCatchFinallyFrame()
+    {
+        if (_tryCatchFinallyFrame == null)
+        {
+            _tryCatchFinallyFrame = new TryCatchFinallyFrame();
+            Middleware.Insert(0, _tryCatchFinallyFrame);
+        }
+
+        return _tryCatchFinallyFrame;
     }
 
     public void AddMiddleware(GenerationRules generationRules, MethodCall frame)

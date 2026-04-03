@@ -7,6 +7,7 @@ using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
 using Wolverine.Attributes;
 using Wolverine.Logging;
+using Wolverine.Middleware;
 using Wolverine.Persistence;
 using Wolverine.Runtime;
 
@@ -225,6 +226,12 @@ public interface IChain
     Frame[] AddStopConditionIfNull(Variable data, Variable? identity, IDataRequirement requirement);
 
     bool TryInferMessageIdentity(out PropertyInfo? property);
+
+    /// <summary>
+    /// Get the existing TryCatchFinallyFrame or create a new one for wrapping
+    /// exception handling around the handler execution
+    /// </summary>
+    TryCatchFinallyFrame GetOrCreateTryCatchFinallyFrame();
 
     /// <summary>
     /// Create a Frame for simple validation based on a variable that contains
