@@ -266,3 +266,134 @@ app.Run();
 ```cs
 public record PlaceOrder(Guid OrderId, string CustomerId, decimal Total);
 ```
+
+## Cross-Site and WAN Messaging
+
+::: tip
+If you're coming from NServiceBus or Rebus, you may know this pattern as a "WAN Gateway" or "HTTP Gateway."
+Wolverine's HTTP transport covers the same use case — durable, reliable messaging across sites separated
+by firewalls, WANs, or network boundaries where a shared message broker isn't available.
+:::
+
+### The Problem
+
+In many enterprise environments, you have services deployed across different sites, data centers, or
+cloud regions that cannot share a single message broker. Firewalls may only allow HTTP/HTTPS traffic
+between sites. You still want the benefits of asynchronous messaging — decoupled services, retry
+policies, guaranteed delivery — but without requiring every site to connect to the same RabbitMQ
+cluster or Kafka instance.
+
+Other frameworks solve this with a dedicated gateway component:
+
+- **NServiceBus Gateway** provides HTTP(S)-based fire-and-forget messaging across sites with hash
+  verification and message deduplication
+- **Rebus HTTP Gateway** bridges REST endpoints and messaging for external integration
+
+Wolverine takes a simpler approach: the HTTP transport **is** the gateway. There's no separate
+component to deploy or configure — you use the same `ToHttpEndpoint()` API shown above, and all of
+Wolverine's messaging infrastructure works automatically.
+
+### How Wolverine Covers the WAN Gateway Pattern
+
+| Capability | NServiceBus Gateway | Wolverine HTTP Transport |
+|-----------|---------------------|--------------------------|
+| **Transport protocol** | HTTP(S) | HTTP(S) via ASP.NET Core |
+| **Durability** | Dedicated gateway storage | Wolverine's durable outbox (PostgreSQL, SQL Server, etc.) |
+| **Deduplication** | Hash-based message deduplication | Built-in [idempotency checks](/tutorials/idempotency) via message ID tracking in the durable inbox |
+| **Retry and resilience** | Gateway-specific retry | Full Wolverine error handling policies, circuit breakers, requeue |
+| **Authentication** | Custom HTTP headers | Standard ASP.NET Core authentication and authorization middleware |
+| **Serialization** | Gateway-specific binary | Wolverine binary format or [CloudEvents](https://cloudevents.io/) JSON for interoperability |
+| **Observability** | NServiceBus metrics | Full Open Telemetry tracing and metrics |
+| **Deployment** | Separate gateway process per site | No separate process — endpoints are hosted in your existing ASP.NET Core application |
+| **Batching** | Single messages | Configurable batch sending for throughput |
+
+### Setting Up Cross-Site Messaging
+
+A typical cross-site topology has a sender in one site publishing messages to a receiver in another
+site over HTTPS:
+
+```
+┌─────────────────┐         HTTPS          ┌─────────────────┐
+│   Site A         │ ───────────────────▸  │   Site B         │
+│                  │                        │                  │
+│  Sender App      │   /_wolverine/batch/   │  Receiver App    │
+│  (durable outbox)│   /_wolverine/invoke   │  (handlers)      │
+└─────────────────┘                        └─────────────────┘
+```
+
+**Site A (Sender)** — uses the durable outbox to guarantee delivery:
+
+```cs
+builder.UseWolverine(opts =>
+{
+    // All messages to Site B go through the HTTP transport
+    // with durable outbox persistence
+    opts.PublishAllMessages()
+        .ToHttpEndpoint("https://site-b.example.com")
+        .UseDurableOutbox();
+});
+```
+
+**Site B (Receiver)** — exposes the transport endpoints with authentication:
+
+```cs
+app.MapWolverineHttpTransportEndpoints()
+    .RequireAuthorization("CrossSitePolicy");
+```
+
+### Guaranteed Delivery
+
+The combination of the durable outbox on the sender and Wolverine's message handling pipeline on the
+receiver provides end-to-end guaranteed delivery:
+
+1. **Sender side**: When using `UseDurableOutbox()`, messages are persisted to the sender's database
+   before any HTTP call is attempted. If the sender crashes, the message is still in the outbox and
+   will be retried when the application restarts. The durable outbox uses the same transactional
+   outbox pattern as any other Wolverine transport.
+
+2. **Receiver side**: Once the receiver's `/_wolverine/batch/{queue}` endpoint accepts a batch, the
+   messages are queued into Wolverine's local processing pipeline. If a handler fails, Wolverine's
+   error handling policies (retry, requeue, scheduled retry, dead letter queue) apply just as they
+   would for messages received from RabbitMQ or any other transport.
+
+3. **Deduplication**: When using durable persistence, Wolverine tracks incoming message IDs in the
+   durable inbox. If the same message is delivered twice (e.g., due to a network retry), the
+   duplicate is detected and discarded. See the [idempotency tutorial](/tutorials/idempotency) for
+   details on configuring idempotency behavior.
+
+### Circuit Breaking for Unreliable Links
+
+WAN links between sites are inherently less reliable than local networks. Use Wolverine's circuit
+breaker to pause sending when the remote site is down, preventing a backlog of failed HTTP calls:
+
+```cs
+opts.PublishAllMessages()
+    .ToHttpEndpoint("https://site-b.example.com")
+    .UseDurableOutbox()
+    .CircuitBreaking(cb =>
+    {
+        cb.MinimumThreshold = 5;
+        cb.PauseTime = TimeSpan.FromMinutes(1);
+        cb.TrackingPeriod = TimeSpan.FromMinutes(5);
+        cb.FailurePercentageThreshold = 50;
+    });
+```
+
+When the circuit breaker trips, messages accumulate safely in the durable outbox. Once the remote
+site recovers and the circuit breaker resets, the queued messages are delivered automatically.
+
+### Interoperability with Non-Wolverine Systems
+
+If the remote site runs a non-Wolverine application, use CloudEvents mode for a standard JSON
+wire format:
+
+```cs
+opts.PublishAllMessages()
+    .ToHttpEndpoint("https://partner-api.example.com",
+        useCloudEvents: true);
+```
+
+The receiver can be any HTTP endpoint that accepts
+[CloudEvents](https://cloudevents.io/) JSON — a .NET Minimal API, a Java service, a Go application,
+or anything else that speaks HTTP. See the [interoperability tutorial](/tutorials/interop) for more
+details on messaging with non-Wolverine systems.
