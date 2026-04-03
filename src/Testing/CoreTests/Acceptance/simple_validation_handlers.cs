@@ -134,6 +134,34 @@ public class simple_validation_handlers
     }
 
     [Fact]
+    public async Task sad_path_with_validationoutcome_async_validate()
+    {
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine()
+            .StartAsync();
+
+        SimpleValidationValidationOutcomeAsyncHandler.Handled = false;
+
+        await host.InvokeMessageAndWaitAsync(new SimpleValidateValidationOutcomeAsyncMessage(20));
+
+        SimpleValidationValidationOutcomeAsyncHandler.Handled.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task happy_path_with_validationoutcome_async_validate()
+    {
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine()
+            .StartAsync();
+
+        SimpleValidationValidationOutcomeAsyncHandler.Handled = false;
+
+        await host.InvokeMessageAndWaitAsync(new SimpleValidateValidationOutcomeAsyncMessage(3));
+
+        SimpleValidationValidationOutcomeAsyncHandler.Handled.ShouldBeTrue();
+    }
+
+    [Fact]
     public async Task sad_path_with_valuetask_string_array_validate()
     {
         using var host = await Host.CreateDefaultBuilder()
@@ -254,7 +282,7 @@ public static class SimpleValidationValueTaskHandler
 
 #endregion
 
-#region sample_simple_validation_ValidationOutcome
+#region sample_simple_validation_validationoutcome
 public record SimpleValidateValidationOutcomeMessage(int Number);
 
 public static class SimpleValidationValidationOutcomeHandler
@@ -270,6 +298,33 @@ public static class SimpleValidationValidationOutcomeHandler
     }
 
     public static void Handle(SimpleValidateValidationOutcomeMessage message)
+    {
+        Debug.WriteLine("Handled " + message);
+        Handled = true;
+    }
+
+    public static bool Handled { get; set; }
+}
+#endregion
+
+#region sample_simple_validation_validationoutcome_async
+public record SimpleValidateValidationOutcomeAsyncMessage(int Number);
+
+public static class SimpleValidationValidationOutcomeAsyncHandler
+{
+    public static Task<ValidationOutcome> ValidateAsync(SimpleValidateValidationOutcomeAsyncMessage message)
+    {
+        if (message.Number > 10)
+        {
+            return Task.FromResult<ValidationOutcome>(
+                [new(nameof(SimpleValidateValidationOutcomeAsyncMessage.Number), "Number must be 10 or less")]
+            );
+        }
+
+        return Task.FromResult<ValidationOutcome>([]);
+    }
+
+    public static void Handle(SimpleValidateValidationOutcomeAsyncMessage message)
     {
         Debug.WriteLine("Handled " + message);
         Handled = true;

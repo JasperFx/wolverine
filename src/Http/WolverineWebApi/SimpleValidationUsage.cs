@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using Wolverine;
 using Wolverine.Http;
 
@@ -90,7 +89,7 @@ public static class SimpleValidationHttpValueTaskEndpoint
 
 #endregion
 
-#region sample_simple_validation_validationoutcome
+#region sample_simple_validation_http_validationoutcome
 
 public record SimpleValidateHttpValidationOutcomeMessage(int Number);
 
@@ -108,6 +107,30 @@ public static class SimpleValidationHttpValidationOutcomeEndpoint
 
     [WolverinePost("/simple-validation/validationoutcome")]
     public static string Post(SimpleValidateHttpValidationOutcomeMessage message) => "Ok";
+}
+
+#endregion
+
+#region sample_simple_validation_http_validationoutcome_async
+
+public record SimpleValidateHttpValidationOutcomeAsyncMessage(int Number);
+
+public static class SimpleValidationHttpValidationOutcomeAsyncEndpoint
+{
+    public static Task<ValidationOutcome> ValidateAsync(SimpleValidateHttpValidationOutcomeAsyncMessage message)
+    {
+        if (message.Number > 10)
+        {
+            return Task.FromResult<ValidationOutcome>(
+                [new(nameof(SimpleValidateHttpValidationOutcomeAsyncMessage.Number), "Number must be 10 or less")]
+            );
+        }
+
+        return Task.FromResult<ValidationOutcome>([]);
+    }
+
+    [WolverinePost("/simple-validation/validationoutcomeasync")]
+    public static string Post(SimpleValidateHttpValidationOutcomeAsyncMessage message) => "Ok";
 }
 
 #endregion
