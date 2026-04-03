@@ -89,6 +89,8 @@ public class Program
         });
         #endregion
 
+        #endregion
+
         builder.Services.AddDbContextWithWolverineIntegration<ItemsDbContext>(x =>
             x.UseNpgsql(Servers.PostgresConnectionString));
 
@@ -219,6 +221,8 @@ public class Program
 
         #region sample_use_rate_limiter_middleware
         app.UseRateLimiter();
+        #endregion
+
         #endregion
 
 // These routes are for doing
