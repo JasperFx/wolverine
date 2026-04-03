@@ -801,6 +801,255 @@ using var host = await Host.CreateDefaultBuilder()
     }).StartAsync();
 ```
 
+## Scatter-Gather Pattern
+
+::: tip
+For a detailed walkthrough of a real-world multi-step saga workflow with fan-out and result collection, see the blog post
+[Multi Step Workflows with the Critter Stack](https://jeremydmiller.com/2024/10/01/multi-step-workflows-with-the-critter-stack/).
+:::
+
+The [Scatter-Gather](https://www.enterpriseintegrationpatterns.com/patterns/messaging/BroadcastAggregate.html) pattern
+(sometimes called "fan-out/fan-in") is a common messaging pattern where you:
+
+1. **Scatter**: Fan out requests to multiple services or handlers in parallel
+2. **Gather**: Collect the responses and aggregate them into a final result
+3. **Complete**: When all responses have arrived (or a timeout fires), emit the aggregated result
+
+In frameworks like Apache Camel or MuleSoft, scatter-gather is a first-class routing pattern with
+dedicated DSL support. In Wolverine, you implement it naturally as a **saga** — the saga state tracks
+which responses have arrived, and the saga completes when all expected responses are collected.
+
+### Example: Price Comparison
+
+Consider a price comparison service that fans out quote requests to multiple suppliers and aggregates
+the results:
+
+```cs
+// Messages
+public record RequestQuotes(Guid QuoteId, string ProductName, string[] Suppliers);
+
+public record RequestSupplierQuote(Guid QuoteId, string Supplier, string ProductName);
+
+public record SupplierQuoteResponse(Guid QuoteId, string Supplier, decimal Price);
+
+public record QuoteTimeout(Guid QuoteId) : TimeoutMessage(30.Seconds());
+
+public record AllQuotesCollected(Guid QuoteId, Dictionary<string, decimal> Quotes);
+```
+
+```cs
+public class QuoteCollection : Saga
+{
+    public Guid Id { get; set; }
+    public string ProductName { get; set; } = "";
+    public int ExpectedResponses { get; set; }
+    public Dictionary<string, decimal> CollectedQuotes { get; set; } = new();
+
+    // Scatter: start the saga and fan out requests to each supplier
+    public static (QuoteCollection, OutgoingMessages) Start(RequestQuotes request)
+    {
+        var saga = new QuoteCollection
+        {
+            Id = request.QuoteId,
+            ProductName = request.ProductName,
+            ExpectedResponses = request.Suppliers.Length
+        };
+
+        var messages = new OutgoingMessages();
+        foreach (var supplier in request.Suppliers)
+        {
+            messages.Add(new RequestSupplierQuote(
+                request.QuoteId, supplier, request.ProductName));
+        }
+
+        // Schedule a timeout in case some suppliers never respond
+        messages.Add(new QuoteTimeout(request.QuoteId));
+
+        return (saga, messages);
+    }
+
+    // Gather: collect each supplier response
+    public AllQuotesCollected? Handle(SupplierQuoteResponse response)
+    {
+        CollectedQuotes[response.Supplier] = response.Price;
+
+        // Check if all responses have arrived
+        if (CollectedQuotes.Count >= ExpectedResponses)
+        {
+            MarkCompleted();
+            return new AllQuotesCollected(Id, CollectedQuotes);
+        }
+
+        // Still waiting for more responses
+        return null;
+    }
+
+    // Timeout: emit whatever we have and complete the saga
+    public AllQuotesCollected Handle(QuoteTimeout timeout)
+    {
+        MarkCompleted();
+        return new AllQuotesCollected(Id, CollectedQuotes);
+    }
+}
+```
+
+The key points in this pattern:
+
+- **`Start()` returns `OutgoingMessages`** to fan out individual requests to each supplier. Each
+  `RequestSupplierQuote` message will be handled independently — possibly by different services
+  or by different instances of the same service.
+- **`Handle(SupplierQuoteResponse)` collects results** into the saga state. When all expected
+  responses arrive, the saga emits the aggregated `AllQuotesCollected` message and marks itself
+  complete.
+- **`Handle(QuoteTimeout)` provides a safety net** — if some suppliers are slow or unresponsive,
+  the timeout fires and the saga completes with whatever quotes it has collected. The `TimeoutMessage`
+  base class schedules the message for future delivery automatically.
+- **Returning `null`** from a handler method means "no cascading message" — the saga state is still
+  persisted, but no downstream work is triggered.
+
+### Variations
+
+**Fire-and-forget scatter** — If you don't need to collect responses (e.g., sending notifications
+to multiple channels), the saga can simply fan out messages in `Start()` and immediately
+`MarkCompleted()`:
+
+```cs
+public static (NotificationSaga, OutgoingMessages) Start(
+    SendNotifications request)
+{
+    var saga = new NotificationSaga { Id = request.Id };
+    saga.MarkCompleted();
+
+    var messages = new OutgoingMessages();
+    messages.Add(new SendEmail(request.Id, request.Message));
+    messages.Add(new SendSms(request.Id, request.Message));
+    messages.Add(new SendPushNotification(request.Id, request.Message));
+
+    return (saga, messages);
+}
+```
+
+**Partial results** — If you want to emit intermediate results as responses arrive, return a
+cascading message from each `Handle()` call:
+
+```cs
+public QuoteUpdated Handle(SupplierQuoteResponse response)
+{
+    CollectedQuotes[response.Supplier] = response.Price;
+
+    if (CollectedQuotes.Count >= ExpectedResponses)
+    {
+        MarkCompleted();
+    }
+
+    // Emit an update after every response
+    return new QuoteUpdated(Id, CollectedQuotes);
+}
+```
+
+## Saga Concurrency
+
+::: warning
+Concurrency is the most common source of subtle bugs in saga implementations. If two messages for the
+same saga instance are processed simultaneously, they can overwrite each other's state changes. Take
+time to understand the strategies below and choose the right one for your workload.
+:::
+
+When multiple messages targeting the same saga arrive at the same time — which is especially common
+in the scatter-gather pattern where multiple responses arrive in quick succession — you need a
+strategy to prevent lost updates. Wolverine provides several approaches, and you can combine them.
+
+For a deeper discussion of concurrency strategies in Wolverine, see the
+[Dealing with Concurrency](/tutorials/concurrency) tutorial.
+
+### Optimistic Concurrency with Revisioning
+
+If your saga persistence supports optimistic concurrency (Marten and EF Core both do), you can
+implement the `IRevisioned` interface on your saga class. Wolverine will automatically check the
+version on save and throw a `ConcurrencyException` if the saga was modified by another handler
+between load and save:
+
+```cs
+public class QuoteCollection : Saga, IRevisioned
+{
+    public Guid Id { get; set; }
+    public int Version { get; set; }
+
+    // ... handlers as before
+}
+```
+
+Pair this with a retry policy on the handler chain to automatically retry on conflict:
+
+```cs
+public static void Configure(HandlerChain chain)
+{
+    chain.OnException<ConcurrencyException>()
+        .RetryWithCooldown(100.Milliseconds(), 250.Milliseconds());
+}
+```
+
+This approach works well when conflicts are **infrequent** — each retry re-loads the saga state and
+re-applies the handler, so the second attempt will see the first handler's changes.
+
+### Partitioned Sequential Messaging
+
+For sagas that receive a high volume of messages per instance (like the scatter-gather pattern with
+many suppliers), optimistic concurrency retries can become expensive. A better approach is to ensure
+that messages for the same saga instance are processed **sequentially** using
+[Partitioned Sequential Messaging](/guide/messaging/partitioning):
+
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.MessagePartitioning
+            .UseInferredMessageGrouping();
+    }).StartAsync();
+```
+
+When `UseInferredMessageGrouping()` is enabled, Wolverine automatically detects saga identity
+properties on messages and uses them as the partition key. All messages with the same saga ID are
+routed to the same local queue partition, guaranteeing they are processed one at a time. This
+eliminates concurrency conflicts entirely for saga messages, at the cost of limiting parallelism
+per saga instance.
+
+::: tip
+Partitioned sequential messaging is the recommended default strategy for sagas that use the
+scatter-gather pattern. It provides the strongest correctness guarantees with the least complexity.
+:::
+
+### Combining Strategies
+
+In practice, you may want both:
+
+- **Partitioned messaging** for the local processing of saga messages within a single application
+  node, ensuring no two handlers for the same saga run concurrently on the same node
+- **Optimistic concurrency** as a safety net in multi-node deployments, where messages could
+  occasionally be processed on different nodes targeting the same saga
+
+```cs
+public class QuoteCollection : Saga, IRevisioned
+{
+    public Guid Id { get; set; }
+    public int Version { get; set; }
+
+    // Optimistic concurrency retry as a safety net
+    public static void Configure(HandlerChain chain)
+    {
+        chain.OnException<ConcurrencyException>()
+            .RetryWithCooldown(100.Milliseconds(), 250.Milliseconds());
+    }
+
+    // ... handlers
+}
+```
+
+```cs
+// Plus partitioned messaging for local ordering
+opts.MessagePartitioning.UseInferredMessageGrouping();
+```
+
 ## Testing Sagas
 
 ::: tip
