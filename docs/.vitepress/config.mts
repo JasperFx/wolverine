@@ -224,6 +224,7 @@ const config: UserConfig<DefaultTheme.Config> = {
                         {text: 'Json', link: '/guide/http/json'},
                         {text: 'Routing', link: '/guide/http/routing'},
                         {text: 'Authentication and Authorization', link: '/guide/http/security'},
+                        {text: 'Antiforgery / CSRF Protection', link: '/guide/http/antiforgery'},
                         {text: 'Working with Querystring', link: '/guide/http/querystring'},
                         {text: 'Headers', link: '/guide/http/headers'},
                         {text: 'HTTP Form Data', link: '/guide/http/forms'},

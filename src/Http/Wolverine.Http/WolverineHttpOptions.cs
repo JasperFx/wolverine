@@ -3,6 +3,7 @@ using JasperFx.CodeGeneration.Frames;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Microsoft.AspNetCore.Builder;
+using Wolverine.Http.Antiforgery;
 using Microsoft.AspNetCore.Http;
 using Newtonsoft.Json;
 using Wolverine.Configuration;
@@ -250,6 +251,16 @@ public class WolverineHttpOptions
     }
 
     #endregion
+
+    /// <summary>
+    /// Require antiforgery token validation on all Wolverine HTTP endpoints,
+    /// regardless of whether they use form binding. Individual endpoints can
+    /// opt out with <see cref="DisableAntiforgeryAttribute"/>.
+    /// </summary>
+    public void RequireAntiforgeryOnAll()
+    {
+        ConfigureEndpoints(e => e.WithMetadata(WolverineAntiforgeryMetadata.Required));
+    }
 
     /// <summary>
     ///     Add a new IEndpointPolicy for the Wolverine endpoints
