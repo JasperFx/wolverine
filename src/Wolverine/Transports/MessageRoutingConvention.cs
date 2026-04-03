@@ -57,7 +57,7 @@ public abstract class MessageRoutingConvention<TTransport, TListener, TSubscribe
                 foreach (var handler in chain.Handlers)
                 {
                     var handlerType = handler.HandlerType;
-                    var endpoint = maybeCreateListenerForMessageOrHandlerType(transport, handlerType, runtime);
+                    var endpoint = maybeCreateListenerForMessageOrHandlerType(transport, handlerType, runtime, messageType);
                     if (endpoint != null)
                     {
                         endpoint.StickyHandlers.Add(handlerType);
@@ -118,7 +118,7 @@ public abstract class MessageRoutingConvention<TTransport, TListener, TSubscribe
         return endpoint;
     }
 
-    private Endpoint? maybeCreateListenerForMessageOrHandlerType(TTransport transport, Type messageOrHandlerType, IWolverineRuntime runtime)
+    private Endpoint? maybeCreateListenerForMessageOrHandlerType(TTransport transport, Type messageOrHandlerType, IWolverineRuntime runtime, Type? originalMessageType = null)
     {
         // Can be null, so bail out if there's no queue
         var queueName = _queueNameForListener(messageOrHandlerType);
@@ -139,8 +139,11 @@ public abstract class MessageRoutingConvention<TTransport, TListener, TSubscribe
         _configureListener(configuration, context);
 
         configuration!.As<IDelayedEndpointConfiguration>().Apply();
-            
-        ApplyListenerRoutingDefaults(corrected, transport, messageOrHandlerType);
+
+        // When using FromHandlerType naming, the exchange should still be named
+        // after the message type so that senders (which always use message type)
+        // and listeners share the same exchange. See GH-2397.
+        ApplyListenerRoutingDefaults(corrected, transport, originalMessageType ?? messageOrHandlerType);
 
         return endpoint;
     }

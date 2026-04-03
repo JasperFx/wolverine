@@ -21,9 +21,8 @@ public class when_using_handler_type_naming : IDisposable
         _host = WolverineHost.For(opts =>
         {
             opts.UseRabbitMq()
-                .UseConventionalRouting(NamingSource.FromHandlerType)
                 .AutoProvision()
-                .AutoPurgeOnStartup();
+                .UseConventionalRouting(NamingSource.FromHandlerType);
 
             opts.Discovery.DisableConventionalDiscovery()
                 .IncludeType(typeof(HandlerTypeNamingHandler));
@@ -67,6 +66,40 @@ public class when_using_handler_type_naming : IDisposable
 
         _runtime.Endpoints.ActiveListeners().Any(x => x.Uri == expectedUri)
             .ShouldBeTrue($"Expected active listener at {expectedUri}");
+    }
+
+    [Fact]
+    public void exchange_should_be_named_after_message_type_not_handler_type()
+    {
+        var messageName = typeof(HandlerTypeNamingMessage).ToMessageTypeName();
+        var handlerName = typeof(HandlerTypeNamingHandler).ToMessageTypeName();
+
+        var transport = _runtime.Options.RabbitMqTransport();
+
+        // The exchange should be named after the message type
+        transport.Exchanges.Any(e => e.Name == messageName).ShouldBeTrue(
+            $"Expected exchange named '{messageName}' for message type, but found exchanges: {string.Join(", ", transport.Exchanges.Select(e => e.Name))}");
+
+        // The exchange should NOT be named after the handler type
+        transport.Exchanges.Any(e => e.Name == handlerName).ShouldBeFalse(
+            $"Exchange should not be named '{handlerName}' (handler type). Exchanges should use the message type name.");
+    }
+
+    [Fact]
+    public void queue_should_be_bound_to_message_type_exchange()
+    {
+        var queueName = typeof(HandlerTypeNamingHandler).ToMessageTypeName();
+        var messageName = typeof(HandlerTypeNamingMessage).ToMessageTypeName();
+
+        var transport = _runtime.Options.RabbitMqTransport();
+        var queue = transport.Queues[queueName];
+
+        queue.HasBindings.ShouldBeTrue(
+            $"Queue '{queueName}' should have bindings");
+
+        // The queue should be bound to the exchange named after the message type
+        queue.Bindings().Any(b => b.ExchangeName == messageName).ShouldBeTrue(
+            $"Queue '{queueName}' should be bound to exchange '{messageName}', but found bindings to: {string.Join(", ", queue.Bindings().Select(b => b.ExchangeName))}");
     }
 
     public void Dispose()
