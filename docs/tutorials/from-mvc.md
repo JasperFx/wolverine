@@ -81,15 +81,17 @@ public static class OrderEndpoints
     }
 
     [WolverineDelete("/api/orders/{id}")]
-    public static async Task<int> Delete(int id, IOrderRepository repo)
+    public static Task Delete(int id, IOrderRepository repo)
     {
-        await repo.DeleteAsync(id);
-        return 204; // returning an int sets the status code
+        return repo.DeleteAsync(id);
+        // this will set a 204 HTTP status code
     }
 }
 
 public static class UpdateOrderEndpoint
 {
+    // This could be further reduced by using the [Entity] attribute
+    // if you'll also drop the custom repository wrappers:)
     public static async Task<Order?> LoadAsync(int id, IOrderRepository repo)
         => await repo.GetByIdAsync(id);
 

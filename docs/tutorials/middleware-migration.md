@@ -1,5 +1,9 @@
 # Migrating from MVC Filters and Minimal API Endpoint Filters
 
+::: tip
+See our guide on [HTTP Middleware](/guide/http/middleware) for more information.
+:::
+
 If you're coming from ASP.NET Core MVC or Minimal APIs, you're used to filters like `IActionFilter`,
 `IEndpointFilter`, `IResultFilter`, and friends. Wolverine.HTTP replaces all of these with a single,
 convention-based middleware system that is compile-time code generated, requires no interface ceremony,
@@ -131,6 +135,9 @@ public static class GetOrderEndpoint
 ::: tip
 All of the following method names are recognized as "before" middleware:
 `Before`, `BeforeAsync`, `Load`, `LoadAsync`, `Validate`, `ValidateAsync`
+
+See [Compound Handlers](https://wolverinefx.io/guide/handlers/#compound-handlers) for more information about
+how the conventional method names behave in both HTTP endpoints and Wolverine message handlers.
 :::
 
 ## Short-Circuiting: Replacing IAuthorizationFilter and IResourceFilter
@@ -282,6 +289,23 @@ public static class UpdateOrderEndpoint
 
 The `[Required]` attribute on a nullable parameter tells Wolverine to return a 404 if the loaded
 value is `null` — replacing the manual null check in the MVC filter.
+
+To go farther into Wolverine, you can simplify that even more with our [persistence helpers](https://wolverinefx.io/guide/handlers/persistence.html#automatically-loading-entities-to-method-parameters)
+and simplify the code above even more:
+
+```csharp
+public static class UpdateOrderEndpoint
+{
+    [WolverinePut("/orders/{id}")]
+    public static IMartenOp Put(
+        UpdateOrderRequest request,
+        [Entity(Required = true)] Order? order)  // returns 404 automatically if null
+    {
+        order!.Name = request.Name;
+        return MartenOps.Store(order);
+    }
+}
+```
 
 ## After Methods: Replacing IResultFilter
 
