@@ -230,6 +230,7 @@ const config: UserConfig<DefaultTheme.Config> = {
                         {text: 'HTTP Form Data', link: '/guide/http/forms'},
                         {text: `AsParameters Binding`, link: '/guide/http/as-parameters'},
                         {text: 'Middleware', link: '/guide/http/middleware.md'},
+                        {text: 'Exception Handling', link: '/guide/http/exception-handling'},
                         {text: 'Policies', link: '/guide/http/policies.md'},
                         {text: 'OpenAPI Metadata', link: '/guide/http/metadata'},
                         {text: 'Using as Mediator', link: '/guide/http/mediator'},

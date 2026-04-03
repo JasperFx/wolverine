@@ -309,6 +309,10 @@ public class Program
             opts.SendMessage<MessageThatAlwaysGoesToDeadLetter>(HttpMethod.Post, "/send/always-dead-letter")
                 .WithTags("messages");
 
+            // Register OnException middleware for testing
+            opts.AddMiddleware(typeof(GlobalExceptionMiddleware),
+                chain => chain.Method.HandlerType == typeof(MiddlewareExceptionEndpoints));
+
             opts.AddPolicy<StreamCollisionExceptionPolicy>();
 
             opts.AddPolicy<FrameRearrangeMiddleware.HttpPolicy>();

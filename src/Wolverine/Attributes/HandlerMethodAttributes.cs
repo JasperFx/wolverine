@@ -80,3 +80,21 @@ public class WolverineFinallyAttribute : ScopedMiddlewareAttribute
     {
     }
 }
+
+/// <summary>
+///     Marks a method on middleware types or handler types as a method
+///     that should be called in a catch block when an exception of the specified
+///     type is thrown during handler execution. The first parameter of the method
+///     must be the exception type to catch.
+/// </summary>
+[AttributeUsage(AttributeTargets.Method)]
+public class WolverineOnExceptionAttribute : ScopedMiddlewareAttribute
+{
+    public WolverineOnExceptionAttribute(MiddlewareScoping scoping) : base(scoping)
+    {
+    }
+
+    public WolverineOnExceptionAttribute()
+    {
+    }
+}
