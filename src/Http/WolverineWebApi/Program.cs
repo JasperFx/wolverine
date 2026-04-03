@@ -1,3 +1,4 @@
+using System.Threading.RateLimiting;
 using IntegrationTests;
 using JasperFx;
 using JasperFx.CodeGeneration;
@@ -9,6 +10,7 @@ using JasperFx.Resources;
 using Marten;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Wolverine;
 using Wolverine.AdminApi;
@@ -66,6 +68,19 @@ public class Program
         builder.Services.AddSingleton<Broadcaster>();
 
         builder.Services.AddAuthorization();
+
+        #region sample_rate_limiting_configuration
+        builder.Services.AddRateLimiter(options =>
+        {
+            options.AddFixedWindowLimiter("fixed", opt =>
+            {
+                opt.PermitLimit = 1;
+                opt.Window = TimeSpan.FromSeconds(10);
+                opt.QueueLimit = 0;
+            });
+            options.RejectionStatusCode = 429;
+        });
+        #endregion
 
         builder.Services.AddDbContextWithWolverineIntegration<ItemsDbContext>(x =>
             x.UseNpgsql(Servers.PostgresConnectionString));
@@ -190,6 +205,10 @@ public class Program
         app.UseSwaggerUI();
 
         app.UseAuthorization();
+
+        #region sample_use_rate_limiter_middleware
+        app.UseRateLimiter();
+        #endregion
 
 // These routes are for doing
         OpenApiEndpoints.BuildComparisonRoutes(app);
