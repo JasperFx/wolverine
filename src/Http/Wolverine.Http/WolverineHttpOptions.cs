@@ -281,12 +281,25 @@ public class WolverineHttpOptions
     #endregion
 
     /// <summary>
+    /// Automatically apply antiforgery token validation to form data and file upload
+    /// endpoints. Individual endpoints can opt out with <see cref="DisableAntiforgeryAttribute"/>.
+    /// Requires <c>app.UseAntiforgery()</c> in the middleware pipeline.
+    /// </summary>
+    public void AutoAntiforgeryOnFormEndpoints()
+    {
+        _autoAntiforgeryOnFormEndpoints = true;
+    }
+
+    internal bool _autoAntiforgeryOnFormEndpoints;
+
+    /// <summary>
     /// Require antiforgery token validation on all Wolverine HTTP endpoints,
     /// regardless of whether they use form binding. Individual endpoints can
     /// opt out with <see cref="DisableAntiforgeryAttribute"/>.
     /// </summary>
     public void RequireAntiforgeryOnAll()
     {
+        _autoAntiforgeryOnFormEndpoints = true;
         ConfigureEndpoints(e => e.WithMetadata(WolverineAntiforgeryMetadata.Required));
     }
 

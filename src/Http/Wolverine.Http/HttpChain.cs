@@ -429,8 +429,8 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
             return;
         }
 
-        // Auto-enable for form data and file upload endpoints
-        if (IsFormData || FileParameters.Any())
+        // Auto-enable for form data and file upload endpoints when antiforgery is enabled
+        if (_parent.AutoAntiforgeryOnFormEndpoints && (IsFormData || FileParameters.Any()))
         {
             Metadata.WithMetadata(WolverineAntiforgeryMetadata.Required);
         }

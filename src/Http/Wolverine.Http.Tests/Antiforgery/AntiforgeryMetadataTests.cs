@@ -8,17 +8,6 @@ namespace Wolverine.Http.Tests.Antiforgery;
 public class AntiforgeryMetadataTests
 {
     [Fact]
-    public void form_endpoint_automatically_gets_antiforgery_metadata()
-    {
-        var chain = HttpChain.ChainFor<AntiforgeryTestEndpoints>(x => x.PostForm(""));
-        var endpoint = chain.BuildEndpoint(RouteWarmup.Lazy);
-
-        var antiforgeryMeta = endpoint.Metadata.GetMetadata<IAntiforgeryMetadata>();
-        antiforgeryMeta.ShouldNotBeNull();
-        antiforgeryMeta.RequiresValidation.ShouldBeTrue();
-    }
-
-    [Fact]
     public void non_form_endpoint_does_not_get_antiforgery_metadata()
     {
         var chain = HttpChain.ChainFor<AntiforgeryTestEndpoints>(x => x.PostJson(null!));
@@ -59,5 +48,16 @@ public class AntiforgeryMetadataTests
         var antiforgeryMeta = endpoint.Metadata.GetMetadata<IAntiforgeryMetadata>();
         antiforgeryMeta.ShouldNotBeNull();
         antiforgeryMeta.RequiresValidation.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void form_endpoint_without_auto_antiforgery_does_not_get_metadata()
+    {
+        // Default behavior - auto-antiforgery is opt-in
+        var chain = HttpChain.ChainFor<AntiforgeryTestEndpoints>(x => x.PostForm(""));
+        var endpoint = chain.BuildEndpoint(RouteWarmup.Lazy);
+
+        var antiforgeryMeta = endpoint.Metadata.GetMetadata<IAntiforgeryMetadata>();
+        antiforgeryMeta.ShouldBeNull();
     }
 }

@@ -43,6 +43,12 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollectionWithServ
     
     internal IServiceContainer Container { get; }
 
+    /// <summary>
+    /// When true, automatically apply antiforgery metadata to form data and file upload endpoints.
+    /// Defaults to false. Enable by calling <see cref="WolverineHttpOptions.AutoAntiforgeryOnFormEndpoints"/>.
+    /// </summary>
+    internal bool AutoAntiforgeryOnFormEndpoints { get; set; }
+
     internal IEnumerable<IResourceWriterPolicy> WriterPolicies => _optionsWriterPolicies.Concat(_builtInWriterPolicies);
 
     public override IReadOnlyList<Endpoint> Endpoints => _endpoints;

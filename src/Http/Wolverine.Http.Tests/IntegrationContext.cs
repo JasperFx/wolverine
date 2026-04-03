@@ -42,7 +42,7 @@ public class AppFixture : IAsyncLifetime
                 // testing cold starts
                 services.RunWolverineInSoloMode();
 
-                // And just for completion, disable all Wolverine external 
+                // And just for completion, disable all Wolverine external
                 // messaging transports
                 services.DisableAllExternalWolverineTransports();
             });
