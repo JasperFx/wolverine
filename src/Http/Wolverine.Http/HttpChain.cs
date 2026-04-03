@@ -204,7 +204,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
     }
 
     [IgnoreDescription]
-    public RoutePattern? RoutePattern { get; private set; }
+    public RoutePattern? RoutePattern { get; internal set; }
 
     public Type? RequestType
     {

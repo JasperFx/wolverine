@@ -110,6 +110,70 @@ public static StrongLetterAggregate Handle(
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/StrongTypedIdentifiers.cs#L11-L22' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_strong_typed_id_as_route_argument' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Route Prefixes <Badge type="tip" text="5.14" />
+
+Wolverine.HTTP supports route prefix groups to automatically prepend a common prefix to your endpoint routes. This is useful for API versioning, organizing endpoints under a common base path, or grouping related endpoints.
+
+### Global Route Prefix
+
+Use the `RoutePrefix` method on `WolverineHttpOptions` to set a prefix that applies to all Wolverine HTTP endpoints:
+
+```cs
+app.MapWolverineEndpoints(opts =>
+{
+    // All endpoints will be prefixed with /api
+    // e.g., /orders becomes /api/orders
+    opts.RoutePrefix("api");
+});
+```
+
+### Namespace-Specific Prefix
+
+You can target endpoints by their handler class namespace:
+
+```cs
+app.MapWolverineEndpoints(opts =>
+{
+    // Only endpoints in this namespace (and child namespaces)
+    // will get the prefix
+    opts.RoutePrefix("api/orders",
+        forEndpointsInNamespace: "MyApp.Features.Orders");
+
+    opts.RoutePrefix("api/customers",
+        forEndpointsInNamespace: "MyApp.Features.Customers");
+});
+```
+
+When multiple namespace prefixes could match (e.g., `MyApp` and `MyApp.Features`), the most specific (longest) matching namespace wins.
+
+### `[RoutePrefix]` Attribute
+
+You can also apply a prefix to all endpoints in a specific class using the `[RoutePrefix]` attribute:
+
+```cs
+[RoutePrefix("api/v2")]
+public class OrderEndpoints
+{
+    // Route becomes /api/v2/orders
+    [WolverineGet("/orders")]
+    public string GetOrders() => "orders";
+
+    // Route becomes /api/v2/orders/{id}
+    [WolverineGet("/orders/{id}")]
+    public string GetOrder(int id) => $"order {id}";
+}
+```
+
+### Precedence
+
+When multiple prefix sources are configured, the following precedence applies (most specific wins):
+
+1. `[RoutePrefix]` attribute on the endpoint class
+2. Namespace-specific prefix (most specific namespace match)
+3. Global prefix
+
+Only one prefix is applied per endpoint -- they do not stack.
+
 ## Route Name
 
 You can add a name to the ASP.Net route with this property that is on all of the route definition attributes:
