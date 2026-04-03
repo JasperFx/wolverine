@@ -104,6 +104,11 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollectionWithServ
         wolverineHttpOptions.Middleware.Apply(_chains, Rules, Container);
         _optionsWriterPolicies.AddRange(wolverineHttpOptions.ResourceWriterPolicies);
 
+        // Apply route prefix policy before other policies so that
+        // downstream policies see the final route patterns
+        var routePrefixPolicy = new RoutePrefixPolicy(wolverineHttpOptions);
+        routePrefixPolicy.Apply(_chains, Rules, Container);
+
         var policies = _options.Policies.OfType<IChainPolicy>();
         foreach (var policy in policies) policy.Apply(_chains, Rules, Container);
 

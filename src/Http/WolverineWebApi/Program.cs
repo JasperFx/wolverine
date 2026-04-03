@@ -1,3 +1,4 @@
+using System.Threading.RateLimiting;
 using IntegrationTests;
 using JasperFx;
 using JasperFx.CodeGeneration;
@@ -9,6 +10,7 @@ using JasperFx.Resources;
 using Marten;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Wolverine;
 using Wolverine.AdminApi;
@@ -74,6 +76,17 @@ public class Program
             options.AddPolicy("short", builder => builder.Expire(TimeSpan.FromSeconds(5)));
         });
 
+        #region sample_rate_limiting_configuration
+        builder.Services.AddRateLimiter(options =>
+        {
+            options.AddFixedWindowLimiter("fixed", opt =>
+            {
+                opt.PermitLimit = 1;
+                opt.Window = TimeSpan.FromSeconds(10);
+                opt.QueueLimit = 0;
+            });
+            options.RejectionStatusCode = 429;
+        });
         #endregion
 
         builder.Services.AddDbContextWithWolverineIntegration<ItemsDbContext>(x =>
@@ -204,6 +217,8 @@ public class Program
 
         app.UseOutputCache();
 
+        #region sample_use_rate_limiter_middleware
+        app.UseRateLimiter();
         #endregion
 
 // These routes are for doing

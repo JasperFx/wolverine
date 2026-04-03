@@ -3,6 +3,7 @@ using JasperFx.CodeGeneration.Frames;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Microsoft.AspNetCore.Builder;
+using Wolverine.Http.Antiforgery;
 using Microsoft.AspNetCore.Http;
 using Newtonsoft.Json;
 using Wolverine.Configuration;
@@ -191,6 +192,34 @@ public class WolverineHttpOptions
 
     public List<IResourceWriterPolicy> ResourceWriterPolicies { get; } = new();
 
+    internal string? GlobalRoutePrefix { get; set; }
+    internal List<(string Prefix, string Namespace)> NamespacePrefixes { get; } = new();
+
+    /// <summary>
+    /// Set a global route prefix that will be prepended to all Wolverine HTTP endpoint routes.
+    /// For example, RoutePrefix("api") will turn "/orders" into "/api/orders".
+    /// </summary>
+    /// <param name="prefix">The route prefix to prepend</param>
+    public void RoutePrefix(string prefix)
+    {
+        GlobalRoutePrefix = prefix?.Trim('/') ?? throw new ArgumentNullException(nameof(prefix));
+    }
+
+    /// <summary>
+    /// Set a route prefix for all Wolverine HTTP endpoints whose handler type
+    /// is in the specified namespace (or a child namespace).
+    /// For example, RoutePrefix("api/orders", forEndpointsInNamespace: "MyApp.Features.Orders")
+    /// will prefix all endpoints in that namespace.
+    /// </summary>
+    /// <param name="prefix">The route prefix to prepend</param>
+    /// <param name="forEndpointsInNamespace">The namespace to match against endpoint handler types</param>
+    public void RoutePrefix(string prefix, string forEndpointsInNamespace)
+    {
+        ArgumentNullException.ThrowIfNull(prefix);
+        ArgumentNullException.ThrowIfNull(forEndpointsInNamespace);
+        NamespacePrefixes.Add((prefix.Trim('/'), forEndpointsInNamespace));
+    }
+
     /// <summary>
     /// Configure built in tenant id detection strategies
     /// </summary>
@@ -250,6 +279,16 @@ public class WolverineHttpOptions
     }
 
     #endregion
+
+    /// <summary>
+    /// Require antiforgery token validation on all Wolverine HTTP endpoints,
+    /// regardless of whether they use form binding. Individual endpoints can
+    /// opt out with <see cref="DisableAntiforgeryAttribute"/>.
+    /// </summary>
+    public void RequireAntiforgeryOnAll()
+    {
+        ConfigureEndpoints(e => e.WithMetadata(WolverineAntiforgeryMetadata.Required));
+    }
 
     /// <summary>
     ///     Add a new IEndpointPolicy for the Wolverine endpoints
