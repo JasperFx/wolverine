@@ -800,3 +800,225 @@ using var host = await Host.CreateDefaultBuilder()
             .UseInferredMessageGrouping();
     }).StartAsync();
 ```
+
+## Testing Sagas
+
+::: tip
+Wolverine's [TrackedSession](/guide/testing) support already provides everything you need for saga testing. Unlike NServiceBus (which has a dedicated `SagaScenarioTestingLibrary` with virtual storage) or Rebus (which has `SagaFixture`), Wolverine takes the approach that sagas are just message handlers with persisted state — so the same `TrackedSession` tools you use for all Wolverine integration testing work for sagas too.
+:::
+
+### Setting Up a Saga Test
+
+The simplest way to test a saga is to spin up an `IHost` with your saga type registered, then use `InvokeMessageAndWaitAsync()` or `SendMessageAndWaitAsync()` to drive the saga through its states. The tracked session will wait for all cascading messages to complete before returning control to your test.
+
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        // Register your saga and any related handler types
+        opts.Discovery.DisableConventionalDiscovery()
+            .IncludeType(typeof(Order));
+    }).StartAsync();
+```
+
+::: tip
+For production applications with a real persistence backend, use `RunWolverineInSoloMode()` and `DisableAllExternalWolverineTransports()` for faster test startup, just as described in the [integration testing guide](/guide/http/integration-testing).
+:::
+
+### Testing State Transitions
+
+To verify a saga moves through states correctly, send the starting message, then send subsequent messages and load the saga state to check properties:
+
+```cs
+[Fact]
+public async Task saga_state_is_updated_across_messages()
+{
+    var sagaId = Guid.NewGuid();
+
+    // Start the saga
+    await host.InvokeMessageAndWaitAsync(
+        new StartOrder(sagaId.ToString()));
+
+    // Send a follow-up message
+    await host.SendMessageAndWaitAsync(
+        new CompleteOrder(sagaId.ToString()));
+}
+```
+
+When using the in-memory saga persistence (the default with no persistence configured), you can load saga state directly:
+
+```cs
+var persistor = host.Services
+    .GetRequiredService<InMemorySagaPersistor>();
+var state = persistor.Load<Order>(sagaId);
+
+// Saga was completed and deleted
+state.ShouldBeNull();
+```
+
+With Marten, use the document session:
+
+```cs
+using var session = host.Services
+    .GetRequiredService<IDocumentStore>()
+    .LightweightSession();
+var state = await session.LoadAsync<Order>(sagaId);
+```
+
+### Testing Saga Completion
+
+When a saga calls `MarkCompleted()`, Wolverine deletes the saga state after the handler finishes. To verify a saga has completed, load its state and assert it's null:
+
+```cs
+[Fact]
+public async Task saga_is_deleted_after_completion()
+{
+    var id = Guid.NewGuid();
+
+    // Start the saga
+    await host.InvokeMessageAndWaitAsync(new StartOrder(id.ToString()));
+
+    // Complete it
+    await host.InvokeMessageAndWaitAsync(new CompleteOrder(id.ToString()));
+
+    // Verify the saga state has been deleted
+    var persistor = host.Services
+        .GetRequiredService<InMemorySagaPersistor>();
+    persistor.Load<Order>(id).ShouldBeNull();
+}
+```
+
+### Testing Cascading Messages from Sagas
+
+Saga handlers frequently return cascading messages — either as return values or through tuple returns. The `ITrackedSession` returned from `InvokeMessageAndWaitAsync()` and `SendMessageAndWaitAsync()` lets you inspect every message that was sent or executed during the test:
+
+```cs
+[Fact]
+public async Task cascading_messages_carry_the_saga_id()
+{
+    var id = Guid.NewGuid();
+
+    // Start the saga
+    await host.InvokeMessageAndWaitAsync(new StartCascadingTest(id));
+
+    // Trigger a handler that returns a cascading message
+    var tracked = await host.SendMessageAndWaitAsync(
+        new TriggerCascade(id));
+
+    // Verify the cascaded message was executed
+    var cascadedEnvelopes = tracked.Executed.Envelopes()
+        .Where(x => x.Message is CascadedMessage)
+        .ToArray();
+
+    cascadedEnvelopes.ShouldNotBeEmpty();
+
+    // Verify the saga ID was propagated to cascaded messages
+    foreach (var envelope in cascadedEnvelopes)
+    {
+        envelope.SagaId.ShouldBe(id.ToString());
+    }
+}
+```
+
+This is particularly useful for verifying that cascading messages from a saga carry the correct `SagaId` in the envelope, which is how Wolverine routes follow-up messages back to the correct saga instance.
+
+### Testing Timeouts and Scheduled Messages
+
+Wolverine sagas support timeout messages via the `TimeoutMessage` base class. When a saga's `Start()` method returns a `TimeoutMessage`, Wolverine schedules it for future delivery. In tests, you can verify the timeout was scheduled and even play it back immediately:
+
+```cs
+// Recall the Order saga Start method returns both the saga
+// and a scheduled OrderTimeout message:
+//
+// public static (Order, OrderTimeout) Start(StartOrder order)
+// {
+//     return (new Order { Id = order.OrderId },
+//             new OrderTimeout(order.OrderId));
+// }
+
+[Fact]
+public async Task timeout_message_is_scheduled_on_start()
+{
+    var tracked = await host
+        .InvokeMessageAndWaitAsync(new StartOrder("order-1"));
+
+    // Verify the timeout was scheduled
+    tracked.Scheduled
+        .MessagesOf<OrderTimeout>()
+        .ShouldNotBeEmpty();
+}
+
+[Fact]
+public async Task play_back_scheduled_timeout()
+{
+    var tracked = await host
+        .InvokeMessageAndWaitAsync(new StartOrder("order-1"));
+
+    // Fast-forward: immediately execute any scheduled messages
+    await tracked.PlayScheduledMessagesAsync(
+        TimeSpan.FromSeconds(10));
+
+    // After timeout, the saga should be completed and deleted
+    var persistor = host.Services
+        .GetRequiredService<InMemorySagaPersistor>();
+    persistor.Load<Order>("order-1").ShouldBeNull();
+}
+```
+
+The `PlayScheduledMessagesAsync()` method on `ITrackedSession` is the key here — it lets you "fast forward" scheduled messages in tests without waiting for real time to pass.
+
+### Testing the NotFound Path
+
+Wolverine sagas support a static `NotFound()` method that handles messages when no matching saga state exists. This is a common pattern for handling race conditions or out-of-order message delivery:
+
+```cs
+// On the Order saga:
+// public static void NotFound(CompleteOrder complete, ILogger<Order> logger)
+// {
+//     logger.LogInformation("Order {Id} not found", complete.Id);
+// }
+
+[Fact]
+public async Task not_found_handler_is_invoked_for_missing_saga()
+{
+    // Send a message for a saga that doesn't exist
+    await host.InvokeMessageAndWaitAsync(
+        new CompleteOrder("nonexistent-order"));
+
+    // No exception thrown — the NotFound handler was invoked
+}
+```
+
+### Advanced: TrackActivity() for Saga Tests
+
+For more complex saga testing scenarios, use the fluent `TrackActivity()` API. This is especially useful when you need to:
+
+- Track activity across multiple hosts (e.g., testing sagas that publish messages to external transports)
+- Ignore specific background message types that interfere with tracking
+- Override timeouts for long-running saga tests
+- Coordinate with Marten async projections
+
+```cs
+var tracked = await host.TrackActivity()
+    .Timeout(TimeSpan.FromSeconds(30))
+    .DoNotAssertOnExceptionsDetected()
+    .ExecuteAndWaitAsync(async context =>
+    {
+        await context.SendAsync(new StartOrder("order-1"));
+    });
+
+// Inspect all message activity
+var allMessages = tracked.Sent.AllMessages().ToArray();
+```
+
+### How This Compares to Other Frameworks
+
+| Feature | NServiceBus | Rebus | Wolverine |
+|---------|-------------|-------|-----------|
+| **Testing API** | `SagaScenarioTestingLibrary` with virtual storage | `SagaFixture<T>` with in-memory storage | `TrackedSession` + real or in-memory persistence |
+| **Virtual time** | Built-in time advancement | Manual timeout delivery | `PlayScheduledMessagesAsync()` on `ITrackedSession` |
+| **Message assertions** | Saga-specific assert methods | `fixture.AssertSagaData()` | `tracked.Sent.SingleMessage<T>()`, `tracked.Executed.MessagesOf<T>()` |
+| **State inspection** | Via virtual saga storage | Via `SagaFixture.Data` | Load state directly from persistence (in-memory, Marten, EF Core, etc.) |
+| **External messages** | Separate test transport | Separate fake transport | `DisableAllExternalWolverineTransports()` + `tracked.Sent` inspection |
+
+The key difference is that Wolverine doesn't require a separate saga-specific testing library. Since sagas are just message handlers with persisted state, the same `TrackedSession` tooling that tests any Wolverine handler works identically for sagas — including full visibility into cascading messages, scheduled messages, and saga ID propagation.
