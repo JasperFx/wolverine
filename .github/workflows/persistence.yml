@@ -2,6 +2,7 @@ name: persistence
 
 on:
   push:
+    branches: [ main ]
   pull_request:
     branches: [ main ]
   workflow_dispatch:
