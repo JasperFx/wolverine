@@ -69,6 +69,13 @@ public class Program
 
         builder.Services.AddAuthorization();
 
+        #region sample_adding_output_cache_services
+
+        builder.Services.AddOutputCache(options =>
+        {
+            options.AddPolicy("short", builder => builder.Expire(TimeSpan.FromSeconds(5)));
+        });
+
         #region sample_rate_limiting_configuration
         builder.Services.AddRateLimiter(options =>
         {
@@ -205,6 +212,10 @@ public class Program
         app.UseSwaggerUI();
 
         app.UseAuthorization();
+
+        #region sample_using_output_cache_middleware
+
+        app.UseOutputCache();
 
         #region sample_use_rate_limiter_middleware
         app.UseRateLimiter();

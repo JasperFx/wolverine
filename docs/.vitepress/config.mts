@@ -243,6 +243,7 @@ const config: UserConfig<DefaultTheme.Config> = {
                         {text: 'Fluent Validation', link: '/guide/http/fluentvalidation'},
                         {text: 'Problem Details', link: '/guide/http/problemdetails'},
                         {text: 'Caching', link: '/guide/http/caching'},
+                        {text: 'Output Caching', link: '/guide/http/output-caching'},
                         {text: 'Rate Limiting', link: '/guide/http/rate-limiting'},
                         {text: 'Streaming and SSE', link: '/guide/http/streaming'},
                         {text: 'HTTP Messaging Transport', link: '/guide/http/transport'},
