@@ -535,6 +535,8 @@ The simplest approach is to add a `Validate` or `ValidateAsync` method to your h
 
 Supported return types are `IEnumerable<string>`, `string[]`, `Task<string[]>`, and `ValueTask<string[]>`.
 
+There is also a special wrapper type `ValidationOutcome` that allows you to group the validationmessages by a key.
+
 For **message handlers**, Wolverine will:
 1. Check if there are any validation messages
 2. If none, continue processing
@@ -629,6 +631,10 @@ public static class SimpleValidationAsyncHandler
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/simple_validation_handlers.cs#L175-L200' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_simple_validation_async' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+
+Using `ValidationOutcome` is similar:
+
+<!-- snippet: sample_simple_validation_validationoutcome -->
 
 For **HTTP endpoints**, the behavior is different — Wolverine will create a `ProblemDetails` response with a 400 status code containing the validation messages:
 
