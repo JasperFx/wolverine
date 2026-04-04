@@ -46,6 +46,7 @@ public class KafkaListener : IListener, IDisposable, ISupportDeadLetterQueue
 
                         var envelope = mapper!.CreateEnvelope(result.Topic, message);
                         envelope.Offset = result.Offset.Value;
+                        envelope.Headers["kafka-partition-id"] = result.Partition.Value.ToString();
                         envelope.MessageType ??= _messageTypeName;
 
                         if (topic.StampConsumerGroupIdOnEnvelope)

@@ -95,6 +95,22 @@ public class when_publishing_and_receiving_by_partition_key : IAsyncLifetime
 
     }
 
+    [Fact]
+    public async Task received_message_has_partition_id_header()
+    {
+        var session = await _sender.TrackActivity()
+            .AlsoTrack(_receiver)
+            .WaitForMessageToBeReceivedAt<ColorMessage>(_receiver)
+            .PublishMessageAndWaitAsync(new ColorMessage("parrot"), new DeliveryOptions()
+            {
+                PartitionKey = "key1"
+            });
+        var singleEnvelope = session.Received.SingleEnvelope<ColorMessage>();
+        singleEnvelope.TryGetHeader("kafka-partition-id", out var partitionIdValue).ShouldBeTrue();
+        int.TryParse(partitionIdValue, out var partitionId).ShouldBeTrue();
+        partitionId.ShouldBeGreaterThanOrEqualTo(0);
+    }
+
     public async Task DisposeAsync()
     {
         await _sender.StopAsync();

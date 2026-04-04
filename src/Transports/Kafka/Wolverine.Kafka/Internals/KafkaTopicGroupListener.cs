@@ -45,6 +45,7 @@ public class KafkaTopicGroupListener : IListener, IDisposable, ISupportDeadLette
 
                         var envelope = mapper!.CreateEnvelope(result.Topic, message);
                         envelope.Offset = result.Offset.Value;
+                        envelope.Headers["kafka-partition-id"] = result.Partition.Value.ToString();
 
                         if (endpoint.StampConsumerGroupIdOnEnvelope)
                             envelope.GroupId = config.GroupId;
