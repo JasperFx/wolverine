@@ -1,6 +1,4 @@
 using Alba;
-using JasperFx;
-using JasperFx.CommandLine;
 using Microsoft.Extensions.DependencyInjection;
 using Polecat;
 using Wolverine;
@@ -17,8 +15,6 @@ public class AppFixture : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-        JasperFxEnvironment.AutoStartHost = true;
-
         Host = await AlbaHost.For<Program>(x =>
         {
             x.ConfigureServices(services =>

@@ -1,6 +1,5 @@
 using Alba;
 using IntegrationTests;
-using JasperFx.CommandLine;
 using Marten.Exceptions;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
@@ -10,8 +9,6 @@ using SharedPersistenceModels;
 using SharedPersistenceModels.Items;
 using SharedPersistenceModels.Orders;
 using Shouldly;
-using Weasel.Postgresql;
-using Weasel.SqlServer;
 using Wolverine;
 using Wolverine.EntityFrameworkCore;
 using Wolverine.EntityFrameworkCore.Internals;
@@ -38,7 +35,6 @@ public abstract class MultiTenancyCompliance : IAsyncLifetime, IWolverineExtensi
     
     protected MultiTenancyCompliance(DatabaseEngine engine)
     {
-        JasperFxEnvironment.AutoStartHost = true;
         TestingOverrides.Extension = this;
         
         _engine = engine;

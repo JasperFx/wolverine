@@ -1,8 +1,6 @@
 using Alba;
 using Marten;
 using Microsoft.Extensions.DependencyInjection;
-using JasperFx;
-using JasperFx.CommandLine;
 using Wolverine.Runtime;
 
 namespace DiagnosticsTests;
@@ -13,11 +11,8 @@ public class AppFixture : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-        JasperFxEnvironment.AutoStartHost = true;
-
         // This is bootstrapping the actual application using
         // its implied Program.Main() set up
-        
         Host = await AlbaHost.For<Program>(x => { });
     }
 
