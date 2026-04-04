@@ -23,6 +23,7 @@ public static class ChangeCourseCapacityHandler
         var query = new EventTagQuery()
             .Or<CourseCreated, CourseId>(command.CourseId)
             .Or<CourseCapacityChanged, CourseId>(command.CourseId);
+        
         var boundary = await session.Events.FetchForWritingByTags<CourseState>(query);
 
         var state = boundary.Aggregate;
@@ -44,15 +45,19 @@ public static class WithDcbChangeCourseCapacityHandler
         public bool Created { get; private set; }
         public int Capacity { get; private set; }
 
-        public void Apply(CourseCreated e)
+        public void Evolve(IEvent e)
         {
-            Created = true;
-            Capacity = e.Capacity;
-        }
-
-        public void Apply(CourseCapacityChanged e)
-        {
-            Capacity = e.Capacity;
+            switch (e.Data)
+            {
+                case CourseCreated c:
+                    Created = true;
+                    Capacity = c.Capacity;
+                    break;
+                
+                case CourseCapacityChanged changed:
+                    Capacity = changed.Capacity;
+                    break;
+            }
         }
     }
     
@@ -75,7 +80,7 @@ public static class WithDcbChangeCourseCapacityHandler
         return HandlerContinuation.Continue;
     }
     
-    public static CourseCapacityChanged? Handle(ChangeCourseCapacity command, State state)
+    public static CourseCapacityChanged? Handle(ChangeCourseCapacity command, [BoundaryModel]State state)
     {
         return command.Capacity != state.Capacity
             ? new CourseCapacityChanged(FacultyId.Default, command.CourseId, command.Capacity)
@@ -125,7 +130,6 @@ public static class AggregateHandlerChangeCourseCapacityHandler
     
     public static CourseCapacityChanged? Handle(ChangeCourseCapacity command, 
         
-        // TODO -- see if we could auto-register this with Marten?
         [WriteAggregate] 
         Course state)
     {

@@ -1,3 +1,4 @@
+using JasperFx.Events;
 using JasperFx.Events.Tags;
 using Wolverine.Marten;
 
@@ -41,3 +42,37 @@ public static class BoundaryModelSubscribeStudentHandler
     }
 }
 #endregion
+
+
+public class Student
+{
+    public StudentId Id { get; set; }
+    
+    // Apply() methods here
+}
+
+public class Course
+{
+    public CourseId Id { get; set; }
+    
+    // Apply() methods here
+}
+
+public static class BoundaryModelSubscribeStudent2Handler
+{
+    public const int MaxCoursesPerStudent = 3;
+
+    public static StudentSubscribedToCourse Handle(
+        BoundaryModelSubscribeStudentToCourse command,
+        [WriteAggregate]
+        Student student, 
+        
+        [WriteAggregate]
+        Course course)
+    {
+        // pre-conditions
+
+        // This event will be added to both event streams
+        return new StudentSubscribedToCourse(FacultyId.Default, command.StudentId, command.CourseId);
+    }
+}
