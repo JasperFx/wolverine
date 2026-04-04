@@ -222,6 +222,7 @@ const config: UserConfig<DefaultTheme.Config> = {
                         {text: 'Integration with ASP.Net Core', link: '/guide/http/integration'},
                         {text: 'Endpoints', link: '/guide/http/endpoints'},
                         {text: 'Json', link: '/guide/http/json'},
+                        {text: 'Content Negotiation', link: '/guide/http/conneg'},
                         {text: 'Routing', link: '/guide/http/routing'},
                         {text: 'Authentication and Authorization', link: '/guide/http/security'},
                         {text: 'Antiforgery / CSRF Protection', link: '/guide/http/antiforgery'},

@@ -20,6 +20,7 @@ using Microsoft.AspNetCore.Routing.Patterns;
 using Microsoft.Extensions.DependencyInjection;
 using Wolverine.Configuration;
 using Wolverine.Http.CodeGen;
+using Wolverine.Http.ContentNegotiation;
 using Wolverine.Http.Metadata;
 using Wolverine.Http.Policies;
 using Wolverine.Persistence;
@@ -75,6 +76,12 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
     /// </summary>
     [IgnoreDescription]
     public Variable? ResourceVariable { get; set; }
+
+    /// <summary>
+    /// Controls how content negotiation behaves when no matching content type writer is found.
+    /// Default is Loose (falls back to JSON). Set to Strict to return 406 Not Acceptable.
+    /// </summary>
+    public ConnegMode ConnegMode { get; set; } = ConnegMode.Loose;
 
     // Make the assumption that the route argument has to match the parameter name
     private GeneratedType? _generatedType;

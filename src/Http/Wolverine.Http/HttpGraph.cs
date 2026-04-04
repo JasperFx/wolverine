@@ -9,6 +9,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Primitives;
 using Wolverine.Configuration;
 using Wolverine.Http.CodeGen;
+using Wolverine.Http.ContentNegotiation;
 using Wolverine.Http.Resources;
 using Wolverine.Runtime;
 using Endpoint = Microsoft.AspNetCore.Http.Endpoint;
@@ -25,6 +26,7 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollectionWithServ
         new StatusCodePolicy(),
         new ResultWriterPolicy(),
         new StringResourceWriterPolicy(),
+        new ContentNegotiationWriterPolicy(),
         new JsonResourceWriterPolicy()
     ];
 
