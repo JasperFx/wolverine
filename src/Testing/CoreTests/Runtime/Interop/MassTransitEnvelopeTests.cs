@@ -39,6 +39,9 @@ public class MassTransitEnvelopeTests
             Message = new object()
         };
 
+        envelope.Headers["color"] = "purple";
+        envelope.Headers["number"] = "1";
+
         var mtEnvelope = new MassTransitEnvelope(envelope);
 
         mtEnvelope.MessageId.ShouldBe(envelope.Id.ToString());
@@ -47,6 +50,9 @@ public class MassTransitEnvelopeTests
         mtEnvelope.SentTime.ShouldNotBeNull();
 
         mtEnvelope.ExpirationTime!.Value.ShouldBe(envelope.DeliverBy!.Value.DateTime);
+
+        mtEnvelope.Headers["color"].ShouldBe("purple");
+        mtEnvelope.Headers["number"].ShouldBe("1");
     }
 
     [Fact]
