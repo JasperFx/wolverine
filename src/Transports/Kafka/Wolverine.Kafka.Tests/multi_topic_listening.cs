@@ -106,6 +106,25 @@ public class multi_topic_listening : IAsyncLifetime
         groupEndpoint.Uri.ToString().ShouldContain("topic/");
     }
 
+    [Fact]
+    public async Task received_message_from_topic_group_has_partition_id()
+    {
+        MultiTopicAlphaHandler.Received = new TaskCompletionSource<bool>();
+
+        var session = await _sender
+            .TrackActivity()
+            .AlsoTrack(_receiver)
+            .Timeout(60.Seconds())
+            .WaitForMessageToBeReceivedAt<AlphaMessage>(_receiver)
+            .PublishMessageAndWaitAsync(new AlphaMessage("partition-check"));
+
+        await MultiTopicAlphaHandler.Received.Task.TimeoutAfterAsync(30000);
+
+        var envelope = session.Received.SingleEnvelope<AlphaMessage>();
+        envelope.PartitionId.ShouldNotBeNull();
+        envelope.PartitionId.Value.ShouldBeGreaterThanOrEqualTo(0);
+    }
+
     public async Task DisposeAsync()
     {
         await _sender.StopAsync();
