@@ -121,6 +121,14 @@ public partial class Envelope
     [JsonIgnore]
     internal bool HasBeenAcked { get; set; }
 
+    /// <summary>
+    /// The active wire tap for this envelope, set from the endpoint configuration
+    /// during message receive or send. Used by the message tracker to record
+    /// success/failure without coupling the tracking infrastructure to endpoint config.
+    /// </summary>
+    [JsonIgnore]
+    internal IWireTap? WireTap { get; set; }
+
     internal void StartTiming()
     {
         _startTimestamp = Stopwatch.GetTimestamp();
@@ -174,9 +182,11 @@ public partial class Envelope
         _metricHeaders.Add(new KeyValuePair<string, object?>(tagName, value));
     }
 
-    internal void MarkReceived(IListener listener, DateTimeOffset now, DurabilitySettings settings)
+    internal void MarkReceived(IListener listener, DateTimeOffset now, DurabilitySettings settings,
+        IWireTap? wireTap = null)
     {
         Listener = listener;
+        WireTap = wireTap;
 
         // If this is a stream with multiple consumers, use the consumer-specific address
         if (listener is ISupportMultipleConsumers multiConsumerListener)

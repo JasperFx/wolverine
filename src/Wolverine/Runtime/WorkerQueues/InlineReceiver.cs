@@ -117,7 +117,7 @@ internal class InlineReceiver : IReceiver
 
         try
         {
-            envelope.MarkReceived(listener, DateTimeOffset.UtcNow, _settings);
+            envelope.MarkReceived(listener, DateTimeOffset.UtcNow, _settings, _endpoint.WireTap);
             await _pipeline.InvokeAsync(envelope, listener, activity!);
             _logger.IncomingReceived(envelope, listener.Address);
 

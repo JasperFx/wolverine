@@ -7,6 +7,7 @@ using JasperFx.CommandLine.Descriptions;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using JasperFx.Descriptors;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Wolverine.ErrorHandling;
 using Wolverine.Runtime;
@@ -284,6 +285,25 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
     internal IWolverineRuntime? Runtime { get; set; }
 
     /// <summary>
+    /// When true, this endpoint will resolve an <see cref="IWireTap"/> from the IoC container
+    /// to record message success/failure for auditing purposes.
+    /// </summary>
+    internal bool UseWireTap { get; set; }
+
+    /// <summary>
+    /// Optional keyed service key for resolving a specific <see cref="IWireTap"/>
+    /// implementation from the IoC container. When null, the default (non-keyed)
+    /// IWireTap registration is used.
+    /// </summary>
+    internal string? WireTapServiceKey { get; set; }
+
+    /// <summary>
+    /// The resolved wire tap instance, populated during <see cref="Compile"/>.
+    /// </summary>
+    [IgnoreDescription]
+    internal IWireTap? WireTap { get; set; }
+
+    /// <summary>
     ///     Get or override the default message serializer for just this endpoint
     /// </summary>
     /// <exception cref="ArgumentNullException"></exception>
@@ -444,7 +464,23 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
 
         DefaultSerializer ??= runtime.Options.DefaultSerializer;
 
+        if (UseWireTap)
+        {
+            WireTap = ResolveWireTap(runtime);
+        }
+
         _hasCompiled = true;
+    }
+
+    private IWireTap? ResolveWireTap(IWolverineRuntime runtime)
+    {
+        var services = runtime.Services;
+        if (WireTapServiceKey != null)
+        {
+            return services.GetKeyedService<IWireTap>(WireTapServiceKey);
+        }
+
+        return services.GetService<IWireTap>();
     }
 
     internal bool ShouldSendMessage(Type messageType)

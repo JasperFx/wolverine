@@ -265,6 +265,151 @@ This will extend your log entries to like this:
 [09:41:00 INFO] Starting to process IAccountMessage ("018761ad-8ed2-4bc9-bde5-c3cbb643f9f3") with AccountId: "c446fa0b-7496-42a5-b6c8-dd53c65c96c8"
 ```
 
+## Wire Tap <Badge type="tip" text="5.13" />
+
+Wolverine supports the [Wire Tap](https://www.enterpriseintegrationpatterns.com/patterns/messaging/WireTap.html) pattern
+from the Enterprise Integration Patterns book. A wire tap lets you record a copy of every message flowing through
+configured endpoints for auditing, compliance, analytics, or monitoring purposes — without affecting the primary
+message processing pipeline.
+
+### Defining a Wire Tap
+
+Implement the `IWireTap` interface:
+
+```csharp
+public class AuditWireTap : IWireTap
+{
+    private readonly IAuditStore _store;
+
+    public AuditWireTap(IAuditStore store)
+    {
+        _store = store;
+    }
+
+    public async ValueTask RecordSuccessAsync(Envelope envelope)
+    {
+        await _store.RecordAsync(new AuditEntry
+        {
+            MessageId = envelope.Id,
+            MessageType = envelope.MessageType,
+            Destination = envelope.Destination?.ToString(),
+            Timestamp = DateTimeOffset.UtcNow,
+            Succeeded = true
+        });
+    }
+
+    public async ValueTask RecordFailureAsync(Envelope envelope, Exception exception)
+    {
+        await _store.RecordAsync(new AuditEntry
+        {
+            MessageId = envelope.Id,
+            MessageType = envelope.MessageType,
+            Destination = envelope.Destination?.ToString(),
+            Timestamp = DateTimeOffset.UtcNow,
+            Succeeded = false,
+            ExceptionType = exception.GetType().Name,
+            ExceptionMessage = exception.Message
+        });
+    }
+}
+```
+
+::: warning
+**Implementations must never allow exceptions to escape.** Wolverine wraps wire tap calls in a safety-net `try/catch`,
+but if your wire tap throws, the exception will only be logged — it will *not* retry or affect message processing.
+Your implementation should handle all errors internally (e.g., log and swallow) to avoid polluting application logs
+with wire tap noise.
+:::
+
+::: tip
+For production wire taps that write to a database or external system, consider using `System.Threading.Channels`
+(specifically Wolverine's built-in `BatchingChannel`) to batch the recording operations. This keeps the wire tap
+mechanics off the hot path of message handling, improving throughput while batching database writes for efficiency.
+:::
+
+### Registering a Wire Tap
+
+Register your `IWireTap` in the IoC container. **Singleton lifetime is strongly recommended** since wire taps are
+resolved once per endpoint at startup:
+
+```csharp
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        // Register a singleton wire tap
+        opts.Services.AddSingleton<IWireTap, AuditWireTap>();
+    }).StartAsync();
+```
+
+### Enabling Wire Taps on Endpoints
+
+Wire taps must be explicitly enabled on each endpoint — there is no global "enable everywhere" switch. This is
+intentional: you should deliberately choose which endpoints need auditing.
+
+```csharp
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.Services.AddSingleton<IWireTap, AuditWireTap>();
+
+        // Enable on a specific listener
+        opts.ListenToRabbitQueue("incoming").UseWireTap();
+
+        // Enable on a specific sender
+        opts.PublishAllMessages().ToRabbitExchange("outgoing").UseWireTap();
+
+        // Enable on a specific local queue
+        opts.LocalQueue("important").UseWireTap();
+
+        // Enable across all external listeners (excludes local queues)
+        opts.Policies.AllListeners(x => x.UseWireTap());
+
+        // Enable across all local queues separately
+        opts.Policies.AllLocalQueues(x => x.UseWireTap());
+
+        // Enable across all sender endpoints
+        opts.Policies.AllSenders(x => x.UseWireTap());
+    }).StartAsync();
+```
+
+### Using Keyed Wire Taps
+
+If different endpoints need different wire tap implementations (e.g., one endpoint writes to a compliance database
+while another sends to a monitoring service), use keyed services:
+
+```csharp
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        // Register multiple wire tap implementations
+        opts.Services.AddSingleton<IWireTap, ComplianceWireTap>();
+        opts.Services.AddKeyedSingleton<IWireTap>("monitoring", new MonitoringWireTap());
+
+        // Default wire tap (uses the non-keyed registration)
+        opts.ListenToRabbitQueue("orders").UseWireTap();
+
+        // Specific wire tap by service key
+        opts.ListenToRabbitQueue("payments").UseWireTap("monitoring");
+    }).StartAsync();
+```
+
+### What Gets Recorded
+
+- **`RecordSuccessAsync`** is called when:
+  - A message has been successfully handled at a listening endpoint
+  - A message has been successfully sent from a sending endpoint
+- **`RecordFailureAsync`** is called when:
+  - Message handling fails at a listening endpoint after exhausting all error handling policies (moved to dead letter queue)
+
+### Auditing and Compliance Considerations
+
+For systems with regulatory auditing requirements (SOC 2, HIPAA, PCI-DSS, GDPR):
+
+- Wire taps provide a natural integration point for recording message flow for audit trails
+- Combine with Wolverine's [contextual logging and audited members](#contextual-logging-with-audited-members) to include business identifiers in your audit records
+- The `Envelope` passed to wire tap methods includes correlation IDs, tenant IDs, and message metadata useful for compliance reporting
+- Consider separate wire tap implementations per compliance domain using keyed services
+
 ## Open Telemetry
 
 Wolverine also supports the [Open Telemetry](https://opentelemetry.io/docs/instrumentation/net/) standard for distributed tracing. To enable

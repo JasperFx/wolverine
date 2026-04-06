@@ -295,7 +295,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
         try
         {
             var now = DateTimeOffset.UtcNow;
-            envelope.MarkReceived(listener, now, _settings);
+            envelope.MarkReceived(listener, now, _settings, _endpoint.WireTap);
 
             await _receivingOne.PostAsync(envelope);
         }
@@ -548,7 +548,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
             throw new OperationCanceledException();
         }
 
-        foreach (var envelope in envelopes) envelope.MarkReceived(listener, now, _settings);
+        foreach (var envelope in envelopes) envelope.MarkReceived(listener, now, _settings, _endpoint.WireTap);
 
         var batchSucceeded = false;
         if (ShouldPersistBeforeProcessing)

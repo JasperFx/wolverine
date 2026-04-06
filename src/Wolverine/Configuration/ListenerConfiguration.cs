@@ -413,4 +413,20 @@ public class ListenerConfiguration<TSelf, TEndpoint> : DelayedEndpointConfigurat
         add(e => e.MessageType = messageType);
         return this.As<TSelf>();
     }
+
+    public TSelf UseWireTap()
+    {
+        add(e => e.UseWireTap = true);
+        return this.As<TSelf>();
+    }
+
+    public TSelf UseWireTap(string serviceKey)
+    {
+        add(e =>
+        {
+            e.UseWireTap = true;
+            e.WireTapServiceKey = serviceKey;
+        });
+        return this.As<TSelf>();
+    }
 }

@@ -228,6 +228,22 @@ public class SubscriberConfiguration<T, TEndpoint> : DelayedEndpointConfiguratio
         });
         return this.As<T>();
     }
+
+    public T UseWireTap()
+    {
+        add(e => e.UseWireTap = true);
+        return this.As<T>();
+    }
+
+    public T UseWireTap(string serviceKey)
+    {
+        add(e =>
+        {
+            e.UseWireTap = true;
+            e.WireTapServiceKey = serviceKey;
+        });
+        return this.As<T>();
+    }
 }
 
 internal class SubscriberConfiguration : SubscriberConfiguration<ISubscriberConfiguration, Endpoint>,

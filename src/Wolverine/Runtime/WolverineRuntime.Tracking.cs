@@ -77,6 +77,8 @@ public sealed partial class WolverineRuntime : IMessageTracker
         _sent(Logger, envelope.CorrelationId!, envelope.GetMessageTypeName(), envelope.Id,
             envelope.Destination?.ToString() ?? string.Empty,
             null);
+
+        fireWireTapSuccess(envelope);
     }
 
     public void Received(Envelope envelope)
@@ -148,6 +150,8 @@ public sealed partial class WolverineRuntime : IMessageTracker
         }
 
         ActiveSession?.Record(MessageEventType.MessageSucceeded, envelope, _serviceName, _uniqueNodeId);
+
+        fireWireTapSuccess(envelope);
     }
 
     public void MessageFailed(Envelope envelope, Exception ex)
@@ -167,6 +171,8 @@ public sealed partial class WolverineRuntime : IMessageTracker
         }
 
         ActiveSession?.Record(MessageEventType.Sent, envelope, _serviceName, _uniqueNodeId, ex);
+
+        fireWireTapFailure(envelope, ex);
     }
 
     public void NoHandlerFor(Envelope envelope)
@@ -220,6 +226,32 @@ public sealed partial class WolverineRuntime : IMessageTracker
     public void LogStatus(string message)
     {
         ActiveSession?.LogStatus(message);
+    }
+
+    private void fireWireTapSuccess(Envelope envelope)
+    {
+        if (envelope.WireTap == null) return;
+        try
+        {
+            _ = envelope.WireTap.RecordSuccessAsync(envelope);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Wire tap failed for envelope {EnvelopeId}", envelope.Id);
+        }
+    }
+
+    private void fireWireTapFailure(Envelope envelope, Exception exception)
+    {
+        if (envelope.WireTap == null) return;
+        try
+        {
+            _ = envelope.WireTap.RecordFailureAsync(envelope, exception);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Wire tap failed for envelope {EnvelopeId}", envelope.Id);
+        }
     }
 
     /// <summary>

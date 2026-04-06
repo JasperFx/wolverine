@@ -191,7 +191,7 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
 
         foreach (var envelope in messages)
         {
-            envelope.MarkReceived(listener, now, _settings);
+            envelope.MarkReceived(listener, now, _settings, _endpoint.WireTap);
             if (!envelope.IsExpired())
             {
                 await EnqueueAsync(envelope);
@@ -206,7 +206,7 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
     public async ValueTask ReceivedAsync(IListener listener, Envelope envelope)
     {
         var now = DateTimeOffset.Now;
-        envelope.MarkReceived(listener, now, _settings);
+        envelope.MarkReceived(listener, now, _settings, _endpoint.WireTap);
 
         if (envelope.IsExpired())
         {
