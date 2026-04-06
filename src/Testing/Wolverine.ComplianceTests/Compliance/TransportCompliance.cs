@@ -625,6 +625,79 @@ public abstract class TransportCompliance<T> : IAsyncLifetime where T : Transpor
         session.FindSingleTrackedMessageOfType<BlueMessage>()
             .Name.ShouldBe("Kareem Abdul-Jabbar");
     }
+
+    [Fact]
+    public void can_collect_endpoint_health_snapshots_without_error()
+    {
+        var runtime = theSender.Get<IWolverineRuntime>();
+        var snapshots = runtime.Endpoints.CollectEndpointHealth();
+
+        // Should return at least one snapshot (sender has at least a sending endpoint)
+        snapshots.ShouldNotBeEmpty();
+
+        // Every snapshot should have a valid URI
+        foreach (var snapshot in snapshots)
+        {
+            snapshot.Uri.ShouldNotBeNull();
+            snapshot.EndpointName.ShouldNotBeNullOrEmpty();
+            snapshot.Direction.ShouldBeOneOf(EndpointDirection.Listening, EndpointDirection.Sending);
+        }
+    }
+
+    [Fact]
+    public void receiver_endpoint_health_includes_listeners()
+    {
+        var host = theReceiver ?? theSender;
+        var runtime = host.Get<IWolverineRuntime>();
+        var snapshots = runtime.Endpoints.CollectEndpointHealth();
+
+        var listeners = snapshots.Where(s => s.Direction == EndpointDirection.Listening).ToList();
+        listeners.ShouldNotBeEmpty("Should have at least one listening endpoint");
+
+        foreach (var listener in listeners)
+        {
+            // Status should be a valid ListeningStatus value
+            listener.Status.ShouldNotBeNullOrEmpty();
+            listener.LastQueueActivityAt.ShouldNotBeNull();
+        }
+    }
+
+    [Fact]
+    public void sender_endpoint_health_includes_senders()
+    {
+        var runtime = theSender.Get<IWolverineRuntime>();
+        var snapshots = runtime.Endpoints.CollectEndpointHealth();
+
+        var senders = snapshots.Where(s => s.Direction == EndpointDirection.Sending).ToList();
+        senders.ShouldNotBeEmpty("Should have at least one sending endpoint");
+
+        foreach (var sender in senders)
+        {
+            sender.SenderLatched.ShouldBeFalse("Senders should not be latched on healthy startup");
+        }
+    }
+
+    [Fact]
+    public async Task transport_health_check_does_not_throw()
+    {
+        var runtime = theSender.Get<IWolverineRuntime>();
+
+        foreach (var transport in runtime.Options.Transports)
+        {
+            var healthCheck = transport.BuildHealthCheck(runtime);
+            if (healthCheck == null) continue;
+
+            // Smoke test: calling the health check should not throw
+            var result = await healthCheck.CheckHealthAsync();
+            result.ShouldNotBeNull();
+            result.TransportName.ShouldNotBeNullOrEmpty();
+            result.Protocol.ShouldNotBeNullOrEmpty();
+            result.Status.ShouldBeOneOf(
+                TransportHealthStatus.Healthy,
+                TransportHealthStatus.Degraded,
+                TransportHealthStatus.Unhealthy);
+        }
+    }
 }
 
 #region sample_BlueTextReader

@@ -28,6 +28,11 @@ public interface IEndpointCollection : IAsyncDisposable
     ISendingAgent? AgentForLocalQueue(Uri uri);
 
     /// <summary>
+    /// Collect a point-in-time health snapshot of all active endpoints.
+    /// </summary>
+    IReadOnlyList<EndpointHealthSnapshot> CollectEndpointHealth();
+
+    /// <summary>
     /// Endpoints where the message listener should only be active on a single endpoint
     /// </summary>
     /// <returns></returns>
@@ -122,6 +127,41 @@ public class EndpointCollection : IEndpointCollection
     public IEnumerable<IListeningAgent> ActiveListeners()
     {
         return _listeners.Values;
+    }
+
+    public IReadOnlyList<EndpointHealthSnapshot> CollectEndpointHealth()
+    {
+        var snapshots = new List<EndpointHealthSnapshot>();
+
+        foreach (var listener in _listeners.Values)
+        {
+            snapshots.Add(new EndpointHealthSnapshot(
+                Uri: listener.Uri,
+                EndpointName: listener.Endpoint.EndpointName,
+                Direction: EndpointDirection.Listening,
+                Status: listener.Status.ToString(),
+                QueueCount: listener.QueueCount,
+                LastQueueActivityAt: listener.LastQueueActivityAt,
+                LastMessageSentAt: null,
+                SenderLatched: false,
+                BufferLimit: listener.Endpoint.BufferingLimits?.Maximum));
+        }
+
+        foreach (var sender in _senders.Enumerate().Select(x => x.Value))
+        {
+            snapshots.Add(new EndpointHealthSnapshot(
+                Uri: sender.Destination,
+                EndpointName: sender.Endpoint?.EndpointName ?? "unknown",
+                Direction: EndpointDirection.Sending,
+                Status: sender.Latched ? "Latched" : "Active",
+                QueueCount: 0,
+                LastQueueActivityAt: null,
+                LastMessageSentAt: sender.LastMessageSentAt,
+                SenderLatched: sender.Latched,
+                BufferLimit: null));
+        }
+
+        return snapshots;
     }
 
     public ISendingAgent GetOrBuildSendingAgent(Uri address, Action<Endpoint>? configureNewEndpoint = null)
