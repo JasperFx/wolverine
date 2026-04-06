@@ -88,7 +88,10 @@ public class PulsarTransport : TransportBase<PulsarEndpoint>, IAsyncDisposable
         return ValueTask.CompletedTask;
     }
 
-
+    public WolverineTransportHealthCheck BuildHealthCheck(IWolverineRuntime runtime)
+    {
+        return new PulsarHealthCheck(this);
+    }
 
     public PulsarEndpoint EndpointFor(string topicPath)
     {

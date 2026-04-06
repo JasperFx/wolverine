@@ -58,7 +58,15 @@ public class SocketListener : IListener, IDisposable
 
         if (_receivingLoop != null)
         {
-            await _receivingLoop;
+            try
+            {
+                await _receivingLoop;
+            }
+            catch (OperationCanceledException)
+            {
+                // Expected during disposal — the receiving loop was cancelled
+            }
+
             _receivingLoop.Dispose();
             _receivingLoop = null;
         }

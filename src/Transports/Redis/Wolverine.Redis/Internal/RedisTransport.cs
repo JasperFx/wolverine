@@ -116,6 +116,11 @@ public class RedisTransport : BrokerTransport<RedisStreamEndpoint>, IAsyncDispos
         }
     }
 
+    public WolverineTransportHealthCheck BuildHealthCheck(IWolverineRuntime runtime)
+    {
+        return new RedisHealthCheck(this);
+    }
+
     public override IEnumerable<PropertyColumn> DiagnosticColumns()
     {
         yield return new PropertyColumn("Stream Key", "streamKey");

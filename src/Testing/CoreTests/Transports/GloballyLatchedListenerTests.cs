@@ -13,25 +13,32 @@ using Xunit;
 
 namespace CoreTests.Transports;
 
-public class GloballyLatchedListenerTests : IDisposable
+public class GloballyLatchedListenerTests : IAsyncLifetime
 {
     private readonly int _port;
-    private readonly IHost _host;
+    private IHost _host = null!;
 
     public GloballyLatchedListenerTests()
     {
         _port = PortFinder.GetAvailablePort();
+    }
 
-        _host = WolverineHost.For(opts =>
+    public async Task InitializeAsync()
+    {
+        _host = await WolverineHost.ForAsync(opts =>
         {
             opts.Durability.Mode = DurabilityMode.Solo;
             opts.ListenAtPort(_port).Named("latching-test");
         });
     }
 
-    public void Dispose()
+    public async Task DisposeAsync()
     {
-        _host?.Dispose();
+        if (_host != null)
+        {
+            await _host.StopAsync();
+            _host.Dispose();
+        }
     }
 
     [Fact]

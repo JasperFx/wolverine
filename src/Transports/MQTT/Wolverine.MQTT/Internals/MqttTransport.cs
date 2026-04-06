@@ -80,6 +80,11 @@ public class MqttTransport : TransportBase<MqttTopic>, IAsyncDisposable
         }
     }
 
+    public WolverineTransportHealthCheck BuildHealthCheck(IWolverineRuntime runtime)
+    {
+        return new MqttHealthCheck(this);
+    }
+
     private void startSubscribing()
     {
         if (_subscribed) return;
