@@ -41,6 +41,11 @@ internal class MassTransitEnvelope<T> : IMassTransitEnvelope where T : class
         {
             ExpirationTime = envelope.DeliverBy.Value.UtcDateTime;
         }
+
+        foreach (var header in envelope.Headers)
+        {
+            Headers[header.Key] = header.Value;
+        }
     }
 
     public string? MessageId { get; set; }
