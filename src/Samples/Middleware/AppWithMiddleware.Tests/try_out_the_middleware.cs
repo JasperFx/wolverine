@@ -3,8 +3,6 @@ using JasperFx.Core;
 using Marten;
 using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
-using JasperFx;
-using JasperFx.CommandLine;
 using Shouldly;
 using Wolverine;
 using Xunit.Abstractions;
@@ -17,9 +15,6 @@ public class try_out_the_middleware
 
     public try_out_the_middleware(ITestOutputHelper output)
     {
-        // Boo! I blame the AspNetCore team for this one though
-        JasperFxEnvironment.AutoStartHost = true;
-
         _output = output;
     }
 

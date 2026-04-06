@@ -1,5 +1,4 @@
 ﻿using Alba;
-using JasperFx.CommandLine;
 using JasperFx.Core.Reflection;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Hosting;
@@ -77,8 +76,6 @@ public class Bug_using_host_stop
 
     private static async Task<IHost> CreateAlbaHostWithWithFactory()
     {
-        JasperFxEnvironment.AutoStartHost = true; // to start the underlying host
-
         return await AlbaHost.For<WolverineWebApi.Program>(x =>
             x.ConfigureServices(ConfigureWolverine));
     }

@@ -1,8 +1,6 @@
 using Alba;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using JasperFx;
-using JasperFx.CommandLine;
 using Shouldly;
 using Wolverine.Tracking;
 
@@ -10,11 +8,6 @@ namespace ItemService.Tests;
 
 public class end_to_end_for_dbcontext_not_integrated_with_outbox
 {
-    public end_to_end_for_dbcontext_not_integrated_with_outbox()
-    {
-        JasperFxEnvironment.AutoStartHost = true;
-    }
-
     [Fact]
     public async Task run_through_the_handler()
     {

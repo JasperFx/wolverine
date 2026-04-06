@@ -4,7 +4,6 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.OpenApi.Models;
-using JasperFx.CommandLine;
 using Shouldly;
 using Swashbuckle.AspNetCore.Swagger;
 using Wolverine.Tracking;
@@ -19,11 +18,6 @@ public class AppFixture : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-        // Sorry folks, but this is absolutely necessary if you
-        // use JasperFx for command line processing and want to
-        // use WebApplicationFactory and/or Alba for integration testing
-        JasperFxEnvironment.AutoStartHost = true;
-
         // For "integration" test collection (based on this fixture) ApplicationAssembly is WolverineWebApi.
         // If not set explicitly here other tests may set it to the test assembly causing issues with endpoints discovery.
         JasperFxOptions.RememberedApplicationAssembly = typeof(WolverineWebApi.Program).Assembly;
