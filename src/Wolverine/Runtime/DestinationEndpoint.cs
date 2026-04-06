@@ -35,7 +35,7 @@ internal class DestinationEndpoint : IDestinationEndpoint
         }
 
         var route = _endpoint.RouteFor(message.GetType(), _parent.Runtime);
-        var envelope = new Envelope(message, _endpoint.Agent!);
+        var envelope = new Envelope(message, _endpoint.Agent!) { WireTap = _endpoint.WireTap };
         if (options != null && options.ContentType.IsNotEmpty() && options.ContentType != envelope.ContentType)
         {
             envelope.Serializer = _parent.Runtime.Options.FindSerializer(options.ContentType);
@@ -74,7 +74,8 @@ internal class DestinationEndpoint : IDestinationEndpoint
         var envelope = new Envelope
         {
             Data = data,
-            Sender = _parent.Runtime.Endpoints.GetOrBuildSendingAgent(_endpoint.Uri)
+            Sender = _parent.Runtime.Endpoints.GetOrBuildSendingAgent(_endpoint.Uri),
+            WireTap = _endpoint.WireTap
         };
 
         if (messageType != null)

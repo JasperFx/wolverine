@@ -88,7 +88,8 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
         {
             Serializer = Serializer,
             ContentType = Serializer?.ContentType,
-            TopicName = topicName
+            TopicName = topicName,
+            WireTap = _endpoint.WireTap
         };
 
         if (Sender.Endpoint is LocalQueue)
@@ -179,7 +180,8 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
         var envelope = new Envelope(message, Sender)
         {
             TenantId = options?.TenantId ?? bus.TenantId,
-            TopicName = topicName
+            TopicName = topicName,
+            WireTap = _endpoint.WireTap
         };
         
         options?.Override(envelope);
