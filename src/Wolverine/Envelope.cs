@@ -1,9 +1,8 @@
-﻿using System.Text.Json.Serialization;
-using JasperFx;
-using JasperFx.Core;
+﻿using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using JasperFx.MultiTenancy;
 using MassTransit;
+using System.Text.Json.Serialization;
 using Wolverine.Attributes;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime.Serialization;
@@ -512,8 +511,13 @@ public partial class Envelope : IHasTenantId
     /// For stream based transports (Kafka/RedPanda, this will reflect the message offset. This is strictly informational
     /// </summary>
     public long Offset { get; set; }
-    
-    
+
+    /// <summary>
+    /// For stream based transports (Kafka), this will reflect the partition the message was consumed from. This is strictly informational
+    /// </summary>
+    public int? PartitionId { get; set; }
+
+
     /// <summary>
     /// For some forms of modular monoliths, Wolverine needs to track what message store
     /// persisted this envelope for later tracking
