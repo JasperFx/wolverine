@@ -327,6 +327,85 @@ _sender = await Host.CreateDefaultBuilder()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/publish_and_receive_raw_json.cs#L21-L62' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_raw_json_sending_and_receiving_with_kafka' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Confluent Schema Registry Serializers <Badge type="tip" text="5.27" />
+
+When you need to interoperate with other Kafka clients that use the [Confluent Schema Registry](https://docs.confluent.io/platform/current/schema-registry/index.html)
+wire format, Wolverine provides built-in serializers for both **JSON Schema** and **Avro** that integrate directly with
+the Schema Registry. These serializers handle schema registration, evolution, and the Confluent wire format
+(magic byte + 4-byte schema ID prefix) automatically.
+
+### JSON Schema Serializer
+
+The `SchemaRegistryJsonSerializer` works with any .NET class — no code generation or special interfaces required:
+
+```csharp
+using Confluent.SchemaRegistry;
+using Wolverine.Kafka.Serialization;
+
+var schemaRegistry = new CachedSchemaRegistryClient(
+    new SchemaRegistryConfig { Url = "http://localhost:8081" });
+
+opts.PublishMessage<OrderPlaced>()
+    .ToKafkaTopic("orders")
+    .DefaultSerializer(new SchemaRegistryJsonSerializer(schemaRegistry));
+
+opts.ListenToKafkaTopic("orders")
+    .DefaultSerializer(new SchemaRegistryJsonSerializer(schemaRegistry));
+```
+
+You can also pass a `JsonSerializerConfig` to control schema auto-registration and compatibility settings:
+
+```csharp
+var serializer = new SchemaRegistryJsonSerializer(schemaRegistry,
+    new JsonSerializerConfig
+    {
+        AutoRegisterSchemas = true,
+        SubjectNameStrategy = SubjectNameStrategy.TopicRecord
+    });
+```
+
+### Avro Serializer
+
+The `SchemaRegistryAvroSerializer` works with Avro-generated classes that implement `Avro.Specific.ISpecificRecord`.
+Use the [Apache Avro tools](https://avro.apache.org/docs/current/getting-started-csharp/) or the
+[Confluent avrogen tool](https://docs.confluent.io/platform/current/schema-registry/serdes-develop/serdes-avro.html)
+to generate C# classes from `.avsc` schema files:
+
+```csharp
+using Confluent.SchemaRegistry;
+using Wolverine.Kafka.Serialization;
+
+var schemaRegistry = new CachedSchemaRegistryClient(
+    new SchemaRegistryConfig { Url = "http://localhost:8081" });
+
+opts.PublishMessage<OrderPlacedAvro>()
+    .ToKafkaTopic("orders-avro")
+    .DefaultSerializer(new SchemaRegistryAvroSerializer(schemaRegistry));
+
+opts.ListenToKafkaTopic("orders-avro")
+    .DefaultSerializer(new SchemaRegistryAvroSerializer(schemaRegistry));
+```
+
+### How It Works
+
+Both serializers extend the `SchemaRegistrySerializer` base class which implements Wolverine's `IMessageSerializer`
+interface. Internally, each serializer:
+
+1. Creates Confluent `IAsyncSerializer<T>` / `IAsyncDeserializer<T>` instances per message type on first use
+2. Caches these typed serializer delegates in a `ConcurrentDictionary` for subsequent calls
+3. Delegates all schema negotiation to the Confluent Schema Registry client library
+
+The serialized bytes use the standard [Confluent wire format](https://docs.confluent.io/platform/current/schema-registry/fundamentals/serdes-develop/index.html#wire-format):
+a magic byte (`0x00`), followed by a 4-byte big-endian schema ID, followed by the payload. This makes your
+Wolverine producers and consumers fully compatible with any other Kafka client that uses the Schema Registry
+(Java, Python, Go, etc.).
+
+::: tip
+The `ReadFromData(byte[])` overload (without a message type) is **not supported** by these serializers because
+the Schema Registry wire format does not embed the .NET type name. Wolverine must know the expected message type,
+which is handled automatically when you configure typed listeners.
+:::
+
 ## Instrumentation & Diagnostics <Badge type="tip" text="3.13" />
 
 When receiving messages through Kafka and Wolverine, there are some useful elements of Kafka metadata
