@@ -104,5 +104,93 @@ type of `IMartenOp` is a side effect.
 Like any other "side effect", you could technically return this as the main return type of a method or as part of a
 tuple.
 
+## Data Requirements <Badge type="tip" text="5.13" />
+
+Wolverine provides declarative data requirement checks that verify whether a Marten document exists (or does not
+exist) before a handler or HTTP endpoint executes. If the check fails, a `RequiredDataMissingException` is thrown,
+preventing the handler from running.
+
+### Using Attributes
+
+The simplest way to declare data requirements is with the `[DocumentExists<T>]` and `[DocumentDoesNotExist<T>]`
+attributes on handler methods:
+
+```csharp
+// Convention: looks for a property named "UserId" or "Id" on the command
+[DocumentExists<User>]
+public void Handle(PromoteUser command)
+{
+    // Only runs if a User document with the matching identity exists
+}
+
+// Explicit property name for the identity
+[DocumentDoesNotExist<User>(nameof(AddUser.UserId))]
+public void Handle(AddUser command)
+{
+    // Only runs if no User document with the matching identity exists
+}
+```
+
+The identity property is resolved from the message/request type by convention:
+1. If a property name is specified explicitly in the attribute constructor, that is used
+2. Otherwise, Wolverine looks for a property named `{DocumentTypeName}Id` (e.g., `UserId` for `User`)
+3. As a fallback, Wolverine looks for a property named `Id`
+
+You can apply multiple attributes to a single handler method to check multiple documents:
+
+```csharp
+[DocumentExists<Department>(nameof(TransferEmployee.TargetDepartmentId))]
+[DocumentExists<Employee>]
+public void Handle(TransferEmployee command)
+{
+    // Only runs if both the employee and target department exist
+}
+```
+
+### Using the Before Method Pattern
+
+For more complex requirements, or when you need access to the command properties at runtime to construct
+the check, use the `Before` method pattern with `MartenOps.Document<T>()`:
+
+```csharp
+public static class CreateThingHandler
+{
+    // Single requirement
+    public static IMartenDataRequirement Before(CreateThing command)
+        => MartenOps.Document<ThingCategory>().MustExist(command.Category);
+
+    public static IMartenOp Handle(CreateThing command)
+    {
+        return MartenOps.Store(new Thing
+        {
+            Id = command.Name,
+            CategoryId = command.Category
+        });
+    }
+}
+
+public static class CreateThing2Handler
+{
+    // Multiple requirements
+    public static IEnumerable<IMartenDataRequirement> Before(CreateThing2 command)
+    {
+        yield return MartenOps.Document<ThingCategory>().MustExist(command.Category);
+        yield return MartenOps.Document<Thing>().MustNotExist(command.Name);
+    }
+
+    public static IMartenOp Handle(CreateThing2 command)
+    {
+        return MartenOps.Store(new Thing
+        {
+            Id = command.Name,
+            CategoryId = command.Category
+        });
+    }
+}
+```
+
+When multiple data requirements are present in the same handler (whether from attributes or `Before` methods),
+Wolverine will automatically batch the existence checks into a single Marten batch query for efficiency.
+
 
 

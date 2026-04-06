@@ -40,7 +40,7 @@ public class RequirementResultContinuationPolicy : IContinuationStrategy
 
     public bool TryFindContinuationHandler(IChain chain, MethodCall call, out Frame? frame)
     {
-        if (call.Method.Name != "Validate" && call.Method.Name != "ValidateAsync")
+        if (!MiddlewarePolicy.BeforeMethodNames.Contains(call.Method.Name))
         {
             frame = null;
             return false;
