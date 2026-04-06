@@ -76,4 +76,26 @@ internal class RabbitMqHealthCheck : WolverineTransportHealthCheck
 
         return Task.FromResult(result);
     }
+
+    public override async Task<long?> GetBrokerQueueDepthAsync(Uri endpointUri, CancellationToken cancellationToken = default)
+    {
+        if (endpointUri.Scheme != RabbitMqTransport.ProtocolName) return null;
+
+        var queueName = endpointUri.Segments.LastOrDefault()?.TrimEnd('/');
+        if (string.IsNullOrEmpty(queueName)) return null;
+
+        var monitor = _transport.TryGetSendingConnection() ?? _transport.TryGetListeningConnection();
+        if (monitor == null || !monitor.IsConnected) return null;
+
+        try
+        {
+            await using var channel = await monitor.CreateChannelAsync();
+            var messageCount = await channel.MessageCountAsync(queueName, cancellationToken);
+            return (long)messageCount;
+        }
+        catch
+        {
+            return null;
+        }
+    }
 }

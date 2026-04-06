@@ -48,4 +48,15 @@ public abstract class WolverineTransportHealthCheck
     /// and read existing state rather than making expensive active probes where possible.
     /// </summary>
     public abstract Task<TransportHealthResult> CheckHealthAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Get the number of messages waiting in the broker for a specific endpoint.
+    /// Returns null if the transport does not support broker-level queue depth queries.
+    /// Used by CritterWatch to detect stale listeners where the broker has messages
+    /// but the consumer isn't pulling them.
+    /// </summary>
+    public virtual Task<long?> GetBrokerQueueDepthAsync(Uri endpointUri, CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult<long?>(null);
+    }
 }

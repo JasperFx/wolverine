@@ -12,7 +12,8 @@ public record EndpointHealthSnapshot(
     DateTimeOffset? LastQueueActivityAt,
     DateTimeOffset? LastMessageSentAt,
     bool SenderLatched,
-    int? BufferLimit);
+    int? BufferLimit,
+    long? BrokerQueueDepth = null);
 
 public enum EndpointDirection
 {
