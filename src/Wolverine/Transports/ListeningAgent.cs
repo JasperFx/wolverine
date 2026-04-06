@@ -24,6 +24,12 @@ public interface IListeningAgent : IListenerCircuit
 {
     Uri Uri { get; }
 
+    /// <summary>
+    /// Approximate timestamp of the last time queue activity was observed on this listener.
+    /// Based on QueueCount change detection, not individual message receipt.
+    /// </summary>
+    DateTimeOffset LastQueueActivityAt { get; }
+
     ValueTask StopAndDrainAsync();
 
     ValueTask MarkAsTooBusyAndStopReceivingAsync();
@@ -40,6 +46,8 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
     private readonly WolverineRuntime _runtime;
     private IReceiver? _receiver;
     private IDisposable? _restarter;
+    private int _lastObservedQueueCount;
+    private DateTimeOffset _lastQueueCountChangeAt = DateTimeOffset.UtcNow;
 
     public ListeningAgent(Endpoint endpoint, WolverineRuntime runtime)
     {
@@ -104,6 +112,27 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
     }
 
     public int QueueCount => _receiver is ILocalQueue q ? q.QueueCount : 0;
+
+    /// <summary>
+    /// Approximate timestamp of the last time a message was received on this listener,
+    /// tracked by observing QueueCount changes. Updated by BackPressureAgent polling
+    /// or explicit calls to <see cref="UpdateQueueCountObservation"/>.
+    /// </summary>
+    public DateTimeOffset LastQueueActivityAt => _lastQueueCountChangeAt;
+
+    /// <summary>
+    /// Call periodically to update the heuristic for last message received.
+    /// If QueueCount has changed since the last observation, the timestamp is updated.
+    /// </summary>
+    internal void UpdateQueueCountObservation()
+    {
+        var current = QueueCount;
+        if (current != _lastObservedQueueCount)
+        {
+            _lastQueueCountChangeAt = DateTimeOffset.UtcNow;
+            _lastObservedQueueCount = current;
+        }
+    }
 
     public async Task EnqueueDirectlyAsync(IEnumerable<Envelope> envelopes)
     {

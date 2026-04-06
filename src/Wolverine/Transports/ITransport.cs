@@ -45,4 +45,10 @@ public interface ITransport
     bool TryBuildStatefulResource(IWolverineRuntime runtime, out IStatefulResource? resource);
 
     bool TryBuildBrokerUsage(out BrokerDescription description);
+
+    /// <summary>
+    /// Build a transport-specific health check. Returns null if this transport
+    /// does not support health checking (e.g., local transport).
+    /// </summary>
+    WolverineTransportHealthCheck? BuildHealthCheck(IWolverineRuntime runtime) => null;
 }

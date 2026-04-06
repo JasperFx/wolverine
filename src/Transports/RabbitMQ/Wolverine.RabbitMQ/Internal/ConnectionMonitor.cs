@@ -35,7 +35,8 @@ internal class ConnectionMonitor : IAsyncDisposable, IConnectionMonitor
     public async Task ConnectAsync()
     {
         _connection = await _transport.CreateConnectionAsync();
-        
+        IsConnected = true;
+
         _connection.ConnectionShutdownAsync += connectionOnConnectionShutdownAsync;
         _connection.ConnectionUnblockedAsync += connectionOnConnectionUnblockedAsync;
         _connection.ConnectionBlockedAsync += connectionOnConnectionBlockedAsync;
@@ -62,6 +63,17 @@ internal class ConnectionMonitor : IAsyncDisposable, IConnectionMonitor
 
     public ConnectionRole Role { get; }
 
+    /// <summary>
+    /// Whether the underlying RabbitMQ connection is currently open.
+    /// Thread-safe: read from health check threads, written from connection event callbacks.
+    /// </summary>
+    public volatile bool IsConnected;
+
+    /// <summary>
+    /// Whether the RabbitMQ connection is currently blocked by the broker (resource alarm).
+    /// </summary>
+    public volatile bool IsBlocked;
+
     public async ValueTask DisposeAsync()
     {
         try
@@ -85,6 +97,8 @@ internal class ConnectionMonitor : IAsyncDisposable, IConnectionMonitor
 
     private async Task connectionOnRecoverySucceededAsync(object sender, AsyncEventArgs @event)
     {
+        IsConnected = true;
+
         foreach (var agent in _agents)
         {
             await agent.ReconnectedAsync();
@@ -105,18 +119,21 @@ internal class ConnectionMonitor : IAsyncDisposable, IConnectionMonitor
 
     private Task connectionOnConnectionBlockedAsync(object? sender, ConnectionBlockedEventArgs e)
     {
+        IsBlocked = true;
         _logger.LogInformation("Rabbit MQ connection is blocked because of {Reason}", e.Reason);
         return Task.CompletedTask;
     }
 
     private Task connectionOnConnectionUnblockedAsync(object? sender, AsyncEventArgs e)
     {
+        IsBlocked = false;
         _logger.LogInformation("Rabbit MQ connection unblocked");
         return Task.CompletedTask;
     }
 
     private Task connectionOnConnectionShutdownAsync(object? sender, ShutdownEventArgs e)
     {
+        IsConnected = false;
         if (e.Initiator == ShutdownInitiator.Application) return Task.CompletedTask;
 
         if (e.Exception != null)
