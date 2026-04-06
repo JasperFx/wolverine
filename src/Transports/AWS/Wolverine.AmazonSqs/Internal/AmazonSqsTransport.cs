@@ -145,6 +145,11 @@ public class AmazonSqsTransport : BrokerTransport<AmazonSqsQueue>
         }
     }
 
+    public WolverineTransportHealthCheck BuildHealthCheck(IWolverineRuntime runtime)
+    {
+        return new SqsHealthCheck(this);
+    }
+
     internal async Task CleanupOrphanedSystemQueuesAsync(IWolverineRuntime runtime)
     {
         var logger = runtime.LoggerFactory.CreateLogger<AmazonSqsTransport>();

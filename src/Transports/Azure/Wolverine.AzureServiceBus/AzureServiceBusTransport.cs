@@ -286,6 +286,11 @@ public partial class AzureServiceBusTransport : BrokerTransport<AzureServiceBusE
         return ValueTask.CompletedTask;
     }
 
+    public WolverineTransportHealthCheck BuildHealthCheck(IWolverineRuntime runtime)
+    {
+        return new AzureServiceBusHealthCheck(this);
+    }
+
     public override IEnumerable<PropertyColumn> DiagnosticColumns()
     {
         yield return new PropertyColumn("Queue", "Name");

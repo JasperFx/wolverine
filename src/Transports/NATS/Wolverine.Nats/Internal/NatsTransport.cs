@@ -112,6 +112,11 @@ public class NatsTransport : BrokerTransport<NatsEndpoint>, IAsyncDisposable
         }
     }
 
+    public WolverineTransportHealthCheck BuildHealthCheck(IWolverineRuntime runtime)
+    {
+        return new NatsHealthCheck(this);
+    }
+
     public override IEnumerable<PropertyColumn> DiagnosticColumns()
     {
         yield return new PropertyColumn("Subject", "header");
