@@ -239,6 +239,7 @@ const config: UserConfig<DefaultTheme.Config> = {
                         {text: 'Endpoint Specific Operations', link: '/guide/messaging/endpoint-operations'},
                         {text: 'Broadcast to a Specific Topic', link: '/guide/messaging/broadcast-to-topic'},
                         {text: 'Message Expiration', link: '/guide/messaging/expiration'},
+                        {text: 'Header Propagation', link: '/guide/messaging/header-propagation'},
                         {text: 'Endpoint Policies', link: '/guide/messaging/policies'},
                         {text: 'Sending Error Handling', link: '/guide/messaging/sending-error-handling'}
                     ]
