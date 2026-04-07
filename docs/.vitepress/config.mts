@@ -12,8 +12,37 @@ const config: UserConfig<DefaultTheme.Config> = {
         ['link', {rel: 'apple-touch-icon', type: 'image/png', size: "180x180", href: '/apple-icon-180x180.png'}],
         ['link', {rel: 'icon', type: 'image/png', size: "32x32", href: '/favicon-32x32.png'}],
         ['link', {rel: 'icon', type: 'image/png', size: "16x16", href: '/favicon-16x16.png'}],
-        ['link', {rel: 'manifest', manifest: '/manifest.json'}],
+        ['link', {rel: 'icon', type: 'image/x-icon', href: '/favicon.ico'}],
+        ['link', {rel: 'manifest', href: '/manifest.json'}],
+        ['meta', {name: 'viewport', content: 'width=device-width, initial-scale=1.0'}],
+        ['meta', {property: 'og:type', content: 'website'}],
+        ['meta', {property: 'og:title', content: 'Wolverine'}],
+        ['meta', {property: 'og:description', content: 'Next Generation Command and Message Bus for .NET'}],
+        ['meta', {property: 'og:image', content: 'https://wolverinefx.io/logo.png'}],
+        ['meta', {property: 'og:url', content: 'https://wolverinefx.io'}],
+        ['meta', {property: 'og:site_name', content: 'Wolverine'}],
+        ['meta', {name: 'twitter:card', content: 'summary'}],
+        ['meta', {name: 'twitter:title', content: 'Wolverine'}],
+        ['meta', {name: 'twitter:description', content: 'Next Generation Command and Message Bus for .NET'}],
+        ['meta', {name: 'twitter:image', content: 'https://wolverinefx.io/logo.png'}],
+        ['script', {type: 'application/ld+json'}, JSON.stringify({
+            '@context': 'https://schema.org',
+            '@type': 'SoftwareSourceCode',
+            'name': 'Wolverine',
+            'description': 'Next Generation Command and Message Bus for .NET',
+            'url': 'https://wolverinefx.io',
+            'codeRepository': 'https://github.com/JasperFx/wolverine',
+            'programmingLanguage': 'C#',
+            'license': 'https://opensource.org/licenses/MIT',
+            'author': {
+                '@type': 'Person',
+                'name': 'Jeremy D. Miller'
+            }
+        })],
     ],
+    sitemap: {
+        hostname: 'https://wolverinefx.io'
+    },
     lastUpdated: true,
     themeConfig: {
         logo: '/logo.png',

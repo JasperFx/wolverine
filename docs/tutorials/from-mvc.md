@@ -265,7 +265,7 @@ app.MapWolverineEndpoints(opts =>
 });
 ```
 
-## ActionResult<T> → Return Types
+## `ActionResult<T>` → Return Types
 
 MVC uses `ActionResult<T>` extensively. Wolverine uses simpler return types:
 
