@@ -178,6 +178,34 @@ internal class PropagateHeadersRule : IEnvelopeRule
     }
 }
 
+/// <summary>
+/// Propagates a single named header from the incoming envelope to the outgoing envelope
+/// if it exists. This is a convenience rule for the common case of forwarding just one header.
+/// </summary>
+internal class PropagateOneHeaderRule : IEnvelopeRule
+{
+    private readonly string _headerName;
+
+    public PropagateOneHeaderRule(string headerName)
+    {
+        _headerName = headerName;
+    }
+
+    // No incoming context available outside a handler — nothing to propagate
+    public void Modify(Envelope envelope) { }
+
+    public void ApplyCorrelation(IMessageContext originator, Envelope outgoing)
+    {
+        var incoming = originator.Envelope;
+        if (incoming is null) return;
+
+        if (incoming.Headers.TryGetValue(_headerName, out var value))
+        {
+            outgoing.Headers[_headerName] = value;
+        }
+    }
+}
+
 internal class LambdaEnvelopeRule : IEnvelopeRule
 {
     private readonly Action<Envelope> _configure;

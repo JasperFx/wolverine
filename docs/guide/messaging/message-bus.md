@@ -456,6 +456,10 @@ public static async Task SendMessagesWithDeliveryOptions(IMessageBus bus)
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CustomizingMessageDelivery.cs#L9-L27' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sendmessageswithdeliveryoptions' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+::: tip
+If you need to automatically forward headers from incoming messages to all outgoing messages within a handler context, see [Header Propagation](/guide/messaging/header-propagation).
+:::
+
 ## Sending Raw Message Data  <Badge type="tip" text="5.8" />
 
 In some particular cases, you may want to use Wolverine to send a message to another system (or the same system)
