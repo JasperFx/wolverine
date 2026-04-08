@@ -203,7 +203,7 @@ public class RedisStreamListener : IListener, ISupportDeadLetterQueue
                 return;
             }
 
-            var db = _transport.GetDatabase();
+            var db = _transport.GetDatabase(database: _endpoint.DatabaseId);
             if (DeleteOnAck)
                 await db.StreamAcknowledgeAndDeleteAsync(_endpoint.StreamKey, _endpoint.ConsumerGroup!, StreamTrimMode.Acknowledged, idString!);
             else
@@ -220,7 +220,7 @@ public class RedisStreamListener : IListener, ISupportDeadLetterQueue
     {
         try
         {
-            var db = _transport.GetDatabase();
+            var db = _transport.GetDatabase(database: _endpoint.DatabaseId);
 
             // 1) Ack the current pending entry if we can
             if (envelope.Headers.TryGetValue(RedisEnvelopeMapper.RedisEntryIdHeader, out var idString) && !string.IsNullOrEmpty(idString))
@@ -315,7 +315,7 @@ public class RedisStreamListener : IListener, ISupportDeadLetterQueue
 
     private async Task ConsumerLoop()
     {
-        var database = _transport.GetDatabase();
+        var database = _transport.GetDatabase(database: _endpoint.DatabaseId);
         var autoClaimWatch = Stopwatch.StartNew();
 
         try
