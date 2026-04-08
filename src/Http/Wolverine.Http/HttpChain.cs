@@ -69,6 +69,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
     private readonly List<HttpElementVariable> _formValueVariables = [];
 
     public string OperationId { get; set; }
+    public bool HasExplicitOperationId { get; private set; }
     public string? EndpointSummary { get; set; }
     public string? EndpointDescription { get; set; }
 
@@ -129,6 +130,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
             if (att.OperationId.IsNotEmpty())
             {
                 OperationId = att.OperationId;
+                HasExplicitOperationId = true;
             }
 
             if (att.Summary.IsNotEmpty())
@@ -741,7 +743,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
         return frame.Variable;
     }
 
-    string IEndpointNameMetadata.EndpointName => OperationId;
+    string IEndpointNameMetadata.EndpointName => HasExplicitOperationId ? OperationId : ToString();
 
     string IEndpointSummaryMetadata.Summary => EndpointSummary ?? ToString();
 

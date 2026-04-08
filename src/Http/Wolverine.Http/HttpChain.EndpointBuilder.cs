@@ -120,16 +120,19 @@ public partial class HttpChain : IEndpointConventionBuilder
             builder.Metadata.Add(new RouteNameMetadata(RouteName));
         }
 
-        builder.Metadata.Add(new EndpointNameMetadata(OperationId));
+        if (HasExplicitOperationId)
+        {
+            builder.Metadata.Add(new EndpointNameMetadata(OperationId));
+        }
 
         if (EndpointSummary.IsNotEmpty())
         {
-            builder.Metadata.Add(new WolverineEndpointSummaryMetadata(EndpointSummary));
+            builder.Metadata.Add(new EndpointSummaryAttribute(EndpointSummary));
         }
 
         if (EndpointDescription.IsNotEmpty())
         {
-            builder.Metadata.Add(new WolverineEndpointDescriptionMetadata(EndpointDescription));
+            builder.Metadata.Add(new EndpointDescriptionAttribute(EndpointDescription));
         }
 
         Endpoint = (RouteEndpoint?)builder.Build();
@@ -181,14 +184,4 @@ internal class ProducesProblemDetailsResponseTypeMetadata : IProducesResponseTyp
     public Type? Type => typeof(ProblemDetails);
     public int StatusCode => 400;
     public IEnumerable<string> ContentTypes => new string[] {"application/problem+json" };
-}
-
-internal class WolverineEndpointSummaryMetadata(string summary) : IEndpointSummaryMetadata
-{
-    public string Summary => summary;
-}
-
-internal class WolverineEndpointDescriptionMetadata(string description) : IEndpointDescriptionMetadata
-{
-    public string Description => description;
 }
