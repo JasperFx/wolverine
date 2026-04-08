@@ -617,18 +617,13 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
     
     public void RegisterMessageType(Type messageType, string messageAlias)
     {
-        if (_messageTypes.TryFind(messageAlias, out var type))
-        {
-            throw new InvalidOperationException($"Cannot register type {type} with alias {messageAlias} because alias is already used");
-        }
-
-        if (_replyTypes.Contains(messageType))
-        {
-            return;
-        }
-
         lock (_messageTypesLock)
         {
+            if (_messageTypes.TryFind(messageAlias, out var type))
+            {
+                throw new InvalidOperationException($"Cannot register type {type} with alias {messageAlias} because alias is already used");
+            }
+
             _messageTypes = _messageTypes.AddOrUpdate(messageAlias, messageType);
             _replyTypes = _replyTypes.Add(messageType);
         }

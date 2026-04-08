@@ -110,6 +110,11 @@ public class CloudEventsMapper : IUnwrapsMetadataMessageSerializer
 
     public void MapIncoming(Envelope envelope, JsonNode? node)
     {
+        mapIncoming(envelope, node, fallbackType: null);
+    }
+
+    private void mapIncoming(Envelope envelope, JsonNode? node, Type? fallbackType)
+    {
         if (node == null) return;
 
         // *IF* SNS sent a message to SQS w/ CloudEvents
@@ -122,7 +127,7 @@ public class CloudEventsMapper : IUnwrapsMetadataMessageSerializer
             }
             else if (message.GetValueKind() == JsonValueKind.Object)
             {
-                MapIncoming(envelope, node["Message"]);
+                mapIncoming(envelope, node["Message"], fallbackType);
                 return;
             }
         }
@@ -165,16 +170,22 @@ public class CloudEventsMapper : IUnwrapsMetadataMessageSerializer
             // If resolution fails, the raw type survives for dead-letter persistence.
             envelope.MessageType = cloudEventType;
 
-            if (_handlers.TryFindMessageType(cloudEventType, out var messageType))
+            // Resolve: try CloudEvent type alias first, then fall back to caller-provided
+            // type (e.g. from DefaultIncomingMessage<T> via ReadFromData)
+            var resolvedType = _handlers.TryFindMessageType(cloudEventType, out var messageType)
+                ? messageType
+                : fallbackType;
+
+            if (resolvedType != null)
             {
                 var data = node!["data"];
                 if (data != null)
                 {
-                    envelope.Message = data.Deserialize(messageType, _options);
+                    envelope.Message = data.Deserialize(resolvedType, _options);
                 }
 
                 // Overwrite with the canonical Wolverine message type name
-                envelope.MessageType = messageType.ToMessageTypeName();
+                envelope.MessageType = resolvedType.ToMessageTypeName();
             }
             else
             {
@@ -205,7 +216,7 @@ public class CloudEventsMapper : IUnwrapsMetadataMessageSerializer
     public object ReadFromData(Type messageType, Envelope envelope)
     {
         var node = JsonNode.Parse(envelope.Data);
-        MapIncoming(envelope, node);
+        mapIncoming(envelope, node, fallbackType: messageType);
 
         return envelope.Message!;
     }

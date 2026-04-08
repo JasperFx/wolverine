@@ -57,6 +57,27 @@ public class HandlerGraphTests
     }
 
     [Fact]
+    public async Task register_message_type_with_multiple_aliases()
+    {
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.RegisterMessageType(typeof(DummyMessage), "custom-alias-1");
+                opts.RegisterMessageType(typeof(DummyMessage), "custom-alias-2");
+            }).StartAsync();
+
+        var graph = host.Services.GetRequiredService<HandlerGraph>();
+
+        graph.TryFindMessageType(typeof(DummyMessage).ToMessageTypeName(), out _).ShouldBeFalse();
+
+        graph.TryFindMessageType("custom-alias-1", out var firstType).ShouldBeTrue();
+        firstType.ShouldBe(typeof(DummyMessage));
+
+        graph.TryFindMessageType("custom-alias-2", out var secondType).ShouldBeTrue();
+        secondType.ShouldBe(typeof(DummyMessage));
+    }
+
+    [Fact]
     public async Task register_message_types_with_same_alias_throws_invalid_operation_exception()
     {
         await Should.ThrowAsync<InvalidOperationException>(async () =>
