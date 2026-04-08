@@ -117,7 +117,7 @@ public class PublishingExpression : IPublishToExpression
     public PublishingExpression MessagesFromNamespace(string @namespace)
     {
         AutoAddSubscriptions = true;
-        
+
         _subscriptions.Add(new Subscription
         {
             Match = @namespace,
@@ -182,6 +182,11 @@ public class PublishingExpression : IPublishToExpression
     /// <typeparam name="T"></typeparam>
     public void MessagesImplementing<T>()
     {
-        _subscriptions.Add(new Subscription { BaseType = typeof(T), Scope = RoutingScope.Implements });
+        MessagesImplementing(typeof(T));
+    }
+
+    public void MessagesImplementing(Type baseType)
+    {
+        _subscriptions.Add(new Subscription { BaseType = baseType, Scope = RoutingScope.Implements });
     }
 }
