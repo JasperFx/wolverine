@@ -35,7 +35,43 @@ public class WolverineActionDescriptor : ControllerActionDescriptor
 
         if (chain.Endpoint != null)
         {
-            EndpointMetadata = chain.Endpoint!.Metadata.ToArray();
+            var metadata = chain.Endpoint!.Metadata.ToList();
+
+            // Ensure summary/description metadata is available to Swashbuckle
+            // even if it wasn't in the endpoint metadata collection
+            if (chain.EndpointSummary.IsNotEmpty() &&
+                !metadata.OfType<IEndpointSummaryMetadata>().Any())
+            {
+                metadata.Add(new EndpointSummaryAttribute(chain.EndpointSummary));
+            }
+
+            if (chain.EndpointDescription.IsNotEmpty() &&
+                !metadata.OfType<IEndpointDescriptionMetadata>().Any())
+            {
+                metadata.Add(new EndpointDescriptionAttribute(chain.EndpointDescription));
+            }
+
+            EndpointMetadata = metadata.ToArray();
+        }
+        else
+        {
+            // Endpoint may not be built yet when the API description provider runs
+            var metadata = new List<object>();
+
+            if (chain.EndpointSummary.IsNotEmpty())
+            {
+                metadata.Add(new EndpointSummaryAttribute(chain.EndpointSummary));
+            }
+
+            if (chain.EndpointDescription.IsNotEmpty())
+            {
+                metadata.Add(new EndpointDescriptionAttribute(chain.EndpointDescription));
+            }
+
+            if (metadata.Count > 0)
+            {
+                EndpointMetadata = metadata.ToArray();
+            }
         }
 
         ActionName = chain.OperationId;

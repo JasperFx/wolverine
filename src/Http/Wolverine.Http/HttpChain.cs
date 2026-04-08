@@ -69,7 +69,10 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
     private readonly List<HttpElementVariable> _formValueVariables = [];
 
     public string OperationId { get; set; }
-    
+    public bool HasExplicitOperationId { get; private set; }
+    public string? EndpointSummary { get; set; }
+    public string? EndpointDescription { get; set; }
+
     /// <summary>
     /// This may be overridden by some IResponseAware policies in place of the first
     /// create variable of the method call
@@ -127,6 +130,17 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
             if (att.OperationId.IsNotEmpty())
             {
                 OperationId = att.OperationId;
+                HasExplicitOperationId = true;
+            }
+
+            if (att.Summary.IsNotEmpty())
+            {
+                EndpointSummary = att.Summary;
+            }
+
+            if (att.Description.IsNotEmpty())
+            {
+                EndpointDescription = att.Description;
             }
         }
 
@@ -729,9 +743,9 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
         return frame.Variable;
     }
 
-    string IEndpointNameMetadata.EndpointName => ToString();
+    string IEndpointNameMetadata.EndpointName => HasExplicitOperationId ? OperationId : ToString();
 
-    string IEndpointSummaryMetadata.Summary => ToString();
+    string IEndpointSummaryMetadata.Summary => EndpointSummary ?? ToString();
 
     public List<ParameterInfo> FileParameters { get; } = [];
 
