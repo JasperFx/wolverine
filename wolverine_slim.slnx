@@ -1,0 +1,17 @@
+<Solution>
+  <Project Path="../alba/src/Alba/Alba.csproj" />
+  <Project Path="../jasperfx/src/JasperFx.Events/JasperFx.Events.csproj" />
+  <Project Path="../jasperfx/src/JasperFx.RuntimeCompiler/JasperFx.RuntimeCompiler.csproj" />
+  <Project Path="../jasperfx/src/JasperFx/JasperFx.csproj" />
+  <Project Path="../marten/src/Marten/Marten.csproj" />
+  <Project Path="../weasel/src/Weasel.Core/Weasel.Core.csproj" />
+  <Project Path="../weasel/src/Weasel.Postgresql/Weasel.Postgresql.csproj" />
+  <Project Path="src/Http/Wolverine.Http/Wolverine.Http.csproj" />
+  <Project Path="src/Persistence/Wolverine.Marten/Wolverine.Marten.csproj" />
+  <Project Path="src/Persistence/Wolverine.Postgresql/Wolverine.Postgresql.csproj" />
+  <Project Path="src/Persistence/Wolverine.RDBMS/Wolverine.RDBMS.csproj" />
+  <Project Path="src/Persistence/Wolverine.SqlServer/Wolverine.SqlServer.csproj" />
+  <Project Path="src/Samples/MultiTenantedTodoService/MultiTenantedTodoService/MultiTenantedTodoWebService.csproj" />
+  <Project Path="src/Samples/MultiTenantedTodoService/MultiTenantedTodoWebService.Tests/MultiTenantedTodoWebService.Tests.csproj" />
+  <Project Path="src/Wolverine/Wolverine.csproj" />
+</Solution>
