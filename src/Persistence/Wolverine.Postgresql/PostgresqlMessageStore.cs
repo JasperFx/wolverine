@@ -337,11 +337,16 @@ join pg_catalog.pg_namespace n on n.oid = c.relnamespace and n.nspname = '{Schem
 
     protected override async Task afterTruncateEnvelopeDataAsync(DbConnection conn)
     {
+        // After deleting data, PostgreSQL's pg_class.reltuples statistics become stale.
+        // FetchCountsAsync() uses these stats for fast estimation, so we must run ANALYZE
+        // to update them after bulk deletes.
+        await conn.CreateCommand($"ANALYZE {SchemaName}.{DatabaseConstants.DeadLetterTable}")
+            .ExecuteNonQueryAsync(_cancellation);
+        await conn.CreateCommand($"ANALYZE {SchemaName}.{DatabaseConstants.OutgoingTable}")
+            .ExecuteNonQueryAsync(_cancellation);
+
         if (Durability.EnableInboxPartitioning)
         {
-            // After deleting data from partitioned tables, PostgreSQL's pg_class.reltuples
-            // statistics become stale. FetchCountsAsync() uses these stats for fast partition
-            // estimates, so we must run ANALYZE to update them after bulk deletes.
             await conn.CreateCommand($"ANALYZE {SchemaName}.{DatabaseConstants.IncomingTable}")
                 .ExecuteNonQueryAsync(_cancellation);
         }
