@@ -119,6 +119,26 @@ internal static class WolverineTracing
     /// </summary>
     public const string TooManySenderFailures = "TooManySenderFailures";
 
+    /// <summary>
+    /// Activity tag for the saga identity value when processing a saga message
+    /// </summary>
+    public const string SagaId = "wolverine.saga.id";
+
+    /// <summary>
+    /// Activity tag for the saga type full name when processing a saga message
+    /// </summary>
+    public const string SagaType = "wolverine.saga.type";
+
+    /// <summary>
+    /// Activity tag for the aggregate stream identity when processing an aggregate handler workflow
+    /// </summary>
+    public const string StreamId = "wolverine.stream.id";
+
+    /// <summary>
+    /// Activity tag for the aggregate type full name when processing an aggregate handler workflow
+    /// </summary>
+    public const string StreamType = "wolverine.stream.type";
+
     #endregion
 
     public static ActivitySource ActivitySource { get; } = new(

@@ -291,7 +291,7 @@ public class SagaChain : HandlerChain
 
             if (SagaIdMember != null)
             {
-                frames.Add(new SetSagaIdFromSagaFrame(MessageType, SagaIdMember));
+                frames.Add(new SetSagaIdFromSagaFrame(MessageType, SagaIdMember, SagaType));
             }
 
             // Emit return action frames for non-saga created variables (e.g., cascading messages).
@@ -322,7 +322,7 @@ public class SagaChain : HandlerChain
         {
             yield return new CreateMissingSagaFrame(saga);
 
-            yield return new SetSagaIdFrame(sagaId);
+            yield return new SetSagaIdFrame(sagaId, SagaType);
 
             foreach (var call in StartingCalls)
             {
@@ -365,7 +365,7 @@ public class SagaChain : HandlerChain
         IPersistenceFrameProvider frameProvider, IServiceContainer container, MessageVariable? messageVariable = null)
     {
         // Set the saga ID on the context so cascading messages have the correct saga ID
-        yield return new SetSagaIdFrame(sagaId);
+        yield return new SetSagaIdFrame(sagaId, SagaType);
 
         var handlerFrames = new List<Frame>();
         foreach (var call in ExistingCalls)
