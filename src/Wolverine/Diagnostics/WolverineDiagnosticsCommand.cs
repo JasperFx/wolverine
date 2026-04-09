@@ -8,6 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Spectre.Console;
 using Wolverine.Attributes;
 using Wolverine.Configuration;
+using Wolverine.ErrorHandling;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Runtime.Routing;
@@ -17,10 +18,11 @@ namespace Wolverine.Diagnostics;
 
 public class WolverineDiagnosticsInput : NetCoreInput
 {
-    [Description("Diagnostics sub-command to execute. Valid values: codegen-preview, describe-routing")]
+    [Description("Diagnostics sub-command to execute. Valid values: codegen-preview, describe-routing, describe-resiliency")]
     public string Action { get; set; } = "codegen-preview";
 
     [Description("For describe-routing: the message type name to inspect. " +
+                 "For describe-resiliency: the endpoint name or URI to inspect. " +
                  "Accepts full name, short name, or alias.")]
     public string MessageTypeArg { get; set; } = string.Empty;
 
@@ -38,8 +40,14 @@ public class WolverineDiagnosticsInput : NetCoreInput
     public string RouteFlag { get; set; } = string.Empty;
 
     [FlagAlias("all", 'a')]
-    [Description("For describe-routing: show complete routing topology for all known message types.")]
+    [Description("For describe-routing/describe-resiliency: show complete topology for all known message types or endpoints.")]
     public bool AllFlag { get; set; }
+
+    [FlagAlias("message", 'm')]
+    [Description(
+        "For describe-resiliency: find the endpoint handling a specific message type. " +
+        "Accepts a fully-qualified type name, short name, or alias.")]
+    public string MessageFlag { get; set; } = string.Empty;
 }
 
 /// <summary>
@@ -57,6 +65,15 @@ public class WolverineDiagnosticsInput : NetCoreInput
 ///         <item>
 ///             <c>describe-routing --all</c> — show complete routing topology
 ///         </item>
+///         <item>
+///             <c>describe-resiliency &lt;endpoint&gt;</c> — inspect error handling and retry policies for an endpoint
+///         </item>
+///         <item>
+///             <c>describe-resiliency --message &lt;MessageType&gt;</c> — inspect resiliency for the endpoint handling a message type
+///         </item>
+///         <item>
+///             <c>describe-resiliency --all</c> — show resiliency config for all handler chains
+///         </item>
 ///     </list>
 /// </summary>
 [Description("Wolverine diagnostics tools for inspecting generated code and runtime behavior",
@@ -65,11 +82,11 @@ public class WolverineDiagnosticsCommand : JasperFxAsyncCommand<WolverineDiagnos
 {
     public WolverineDiagnosticsCommand()
     {
-        Usage("Run a diagnostics sub-command (e.g. codegen-preview, describe-routing --all)")
+        Usage("Run a diagnostics sub-command (e.g. codegen-preview, describe-routing --all, describe-resiliency --all)")
             .Arguments(x => x.Action)
-            .ValidFlags(x => x.HandlerFlag, x => x.RouteFlag, x => x.AllFlag);
+            .ValidFlags(x => x.HandlerFlag, x => x.RouteFlag, x => x.AllFlag, x => x.MessageFlag);
 
-        Usage("Describe message routing for a specific type")
+        Usage("Describe message routing or resiliency for a specific type or endpoint")
             .Arguments(x => x.Action, x => x.MessageTypeArg);
     }
 
@@ -83,9 +100,12 @@ public class WolverineDiagnosticsCommand : JasperFxAsyncCommand<WolverineDiagnos
             case "describe-routing":
                 return await RunDescribeRoutingAsync(input);
 
+            case "describe-resiliency":
+                return await RunDescribeResiliencyAsync(input);
+
             default:
                 AnsiConsole.MarkupLine(
-                    $"[red]Unknown sub-command '{input.Action}'. Valid sub-commands: codegen-preview, describe-routing[/]");
+                    $"[red]Unknown sub-command '{input.Action}'. Valid sub-commands: codegen-preview, describe-routing, describe-resiliency[/]");
                 return false;
         }
     }
@@ -739,5 +759,324 @@ public class WolverineDiagnosticsCommand : JasperFxAsyncCommand<WolverineDiagnos
         }
 
         return "Transport routing convention";
+    }
+
+    // -------------------------------------------------------------------------
+    // describe-resiliency implementation
+    // -------------------------------------------------------------------------
+
+    private static async Task<bool> RunDescribeResiliencyAsync(WolverineDiagnosticsInput input)
+    {
+        if (!input.AllFlag && input.MessageFlag.IsEmpty() && input.MessageTypeArg.IsEmpty())
+        {
+            AnsiConsole.MarkupLine(
+                "[red]describe-resiliency requires an endpoint argument, --message <MessageType>, or --all.[/]");
+            AnsiConsole.MarkupLine(
+                "[grey]Usage: wolverine-diagnostics describe-resiliency <endpoint>[/]");
+            AnsiConsole.MarkupLine(
+                "[grey]       wolverine-diagnostics describe-resiliency --message <MessageType>[/]");
+            AnsiConsole.MarkupLine(
+                "[grey]       wolverine-diagnostics describe-resiliency --all[/]");
+            return false;
+        }
+
+        DynamicCodeBuilder.WithinCodegenCommand = true;
+
+        try
+        {
+            using var host = input.BuildHost();
+            await host.StartAsync();
+
+            var runtime = host.Services.GetRequiredService<IWolverineRuntime>();
+
+            WolverineSystemPart.WithinDescription = true;
+            try
+            {
+                if (input.AllFlag)
+                {
+                    DescribeAllResiliency(runtime);
+                    return true;
+                }
+
+                // --message flag takes priority over the positional argument
+                var search = input.MessageFlag.IsNotEmpty() ? input.MessageFlag : input.MessageTypeArg;
+                return DescribeSingleResiliency(search, runtime);
+            }
+            finally
+            {
+                WolverineSystemPart.WithinDescription = false;
+            }
+        }
+        finally
+        {
+            DynamicCodeBuilder.WithinCodegenCommand = false;
+        }
+    }
+
+    private static bool DescribeSingleResiliency(string search, IWolverineRuntime runtime)
+    {
+        var options = runtime.Options;
+        var chains = options.HandlerGraph.AllChains().ToArray();
+
+        // First try: match as a handler chain (by message type or handler name)
+        var chain = FindHandlerChain(search, chains);
+
+        // Second try: match as an endpoint name/URI — find all chains whose local queue matches
+        if (chain == null)
+        {
+            var endpoint = options.Transports.AllEndpoints()
+                .FirstOrDefault(e =>
+                    string.Equals(e.EndpointName, search, StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(e.Uri.ToString(), search, StringComparison.OrdinalIgnoreCase));
+
+            if (endpoint != null)
+            {
+                DescribeEndpointResiliency(endpoint, options);
+                return true;
+            }
+        }
+
+        if (chain == null)
+        {
+            AnsiConsole.MarkupLine(
+                $"[red]No handler chain or endpoint found matching '[bold]{Markup.Escape(search)}[/]'.[/]");
+            AnsiConsole.MarkupLine("[grey]Known message types (first 30):[/]");
+            foreach (var c in chains.Take(30))
+            {
+                AnsiConsole.MarkupLine(
+                    $"  [grey]{Markup.Escape(c.MessageType.FullName ?? c.MessageType.Name)}[/]");
+            }
+
+            if (chains.Length > 30)
+            {
+                AnsiConsole.MarkupLine($"  [grey]... and {chains.Length - 30} more[/]");
+            }
+
+            return false;
+        }
+
+        // Find the local queue for this chain
+        var routes = runtime.RoutingFor(chain.MessageType).Routes;
+        var localRoute = routes.OfType<MessageRoute>().FirstOrDefault(r => r.IsLocal);
+        var queueEndpoint = localRoute != null ? FindEndpointByUri(localRoute.Uri, options) : null;
+
+        WriteChainResiliency(chain, options.HandlerGraph.Failures, queueEndpoint);
+        return true;
+    }
+
+    private static void DescribeAllResiliency(IWolverineRuntime runtime)
+    {
+        var options = runtime.Options;
+        var globalFailures = options.HandlerGraph.Failures;
+
+        // Global failure rules
+        AnsiConsole.MarkupLine("[bold green]Global Failure Rules[/]");
+        WriteFailureRules(globalFailures, isGlobal: true);
+        AnsiConsole.WriteLine();
+
+        var chains = options.HandlerGraph.AllChains()
+            .Where(c => c.MessageType.Assembly != typeof(WolverineDiagnosticsCommand).Assembly)
+            .OrderBy(c => c.MessageType.FullName)
+            .ToArray();
+
+        if (chains.Length == 0)
+        {
+            AnsiConsole.MarkupLine("[grey](no message handler chains found)[/]");
+            return;
+        }
+
+        // Summary table
+        AnsiConsole.MarkupLine("[bold green]Handler Chain Resiliency Summary[/]");
+        var table = new Table()
+            .AddColumn("Message Type")
+            .AddColumn("Max Attempts")
+            .AddColumn("Chain Rules")
+            .AddColumn("Endpoint Mode")
+            .AddColumn("Circuit Breaker");
+
+        foreach (var c in chains)
+        {
+            var routes = runtime.RoutingFor(c.MessageType).Routes;
+            var localRoute = routes.OfType<MessageRoute>().FirstOrDefault(r => r.IsLocal);
+            var ep = localRoute != null ? FindEndpointByUri(localRoute.Uri, options) : null;
+
+            var maxAttempts = c.Failures.MaximumAttempts ?? globalFailures.MaximumAttempts ?? 3;
+            var chainRuleCount = c.Failures.Count();
+            var mode = ep?.Mode.ToString() ?? "Buffered";
+            var cb = ep?.CircuitBreakerOptions != null
+                ? $"[yellow]{ep.CircuitBreakerOptions.FailurePercentageThreshold}% threshold[/]"
+                : "[grey]None[/]";
+
+            table.AddRow(
+                (c.MessageType.FullName ?? c.MessageType.Name).EscapeMarkup(),
+                maxAttempts.ToString(),
+                chainRuleCount == 0 ? "[grey]inherits global[/]" : $"[cyan]{chainRuleCount} rule(s)[/]",
+                mode,
+                cb);
+        }
+
+        AnsiConsole.Write(table);
+
+        // Per-chain details for chains with custom rules
+        var chainsWithRules = chains.Where(c => c.Failures.Any()).ToArray();
+        if (chainsWithRules.Length > 0)
+        {
+            AnsiConsole.WriteLine();
+            AnsiConsole.MarkupLine("[bold green]Chain-Specific Failure Rules[/]");
+            foreach (var c in chainsWithRules)
+            {
+                AnsiConsole.MarkupLine($"[bold]{(c.MessageType.FullName ?? c.MessageType.Name).EscapeMarkup()}[/]");
+                WriteFailureRules(c.Failures, isGlobal: false);
+                AnsiConsole.WriteLine();
+            }
+        }
+
+        // Endpoints with circuit breakers
+        var endpointsWithCb = options.Transports.AllEndpoints()
+            .Where(e => e.CircuitBreakerOptions != null)
+            .OrderBy(e => e.Uri.ToString())
+            .ToArray();
+
+        if (endpointsWithCb.Length > 0)
+        {
+            AnsiConsole.MarkupLine("[bold green]Circuit Breakers[/]");
+            foreach (var ep in endpointsWithCb)
+            {
+                DescribeCircuitBreaker(ep.EndpointName, ep.CircuitBreakerOptions!);
+                AnsiConsole.WriteLine();
+            }
+        }
+    }
+
+    private static void DescribeEndpointResiliency(Endpoint endpoint, WolverineOptions options)
+    {
+        AnsiConsole.MarkupLine($"[bold green]Endpoint: {endpoint.Uri.ToString().EscapeMarkup()}[/]");
+        AnsiConsole.MarkupLine($"  [grey]Name:[/] {endpoint.EndpointName.EscapeMarkup()}");
+        AnsiConsole.MarkupLine($"  [grey]Mode:[/] {endpoint.Mode}");
+        AnsiConsole.WriteLine();
+
+        if (endpoint.CircuitBreakerOptions != null)
+        {
+            DescribeCircuitBreaker(endpoint.EndpointName, endpoint.CircuitBreakerOptions);
+        }
+        else
+        {
+            AnsiConsole.MarkupLine("[grey]Circuit Breaker: (none)[/]");
+        }
+
+        AnsiConsole.WriteLine();
+        AnsiConsole.MarkupLine("[grey]Tip: use --message <MessageType> to inspect handler-level failure rules.[/]");
+    }
+
+    private static void WriteChainResiliency(HandlerChain chain, FailureRuleCollection globalFailures,
+        Endpoint? queueEndpoint)
+    {
+        AnsiConsole.MarkupLine(
+            $"[bold green]Resiliency for: {(chain.MessageType.FullName ?? chain.MessageType.Name).EscapeMarkup()}[/]");
+        AnsiConsole.WriteLine();
+
+        // Handlers
+        AnsiConsole.MarkupLine("[bold]Handler(s):[/]");
+        foreach (var h in chain.Handlers)
+        {
+            AnsiConsole.MarkupLine(
+                $"  [cyan]{h.HandlerType.FullNameInCode().EscapeMarkup()}.{h.Method.Name}[/]");
+        }
+
+        AnsiConsole.WriteLine();
+
+        // Endpoint mode
+        var mode = queueEndpoint?.Mode.ToString() ?? "Buffered";
+        AnsiConsole.MarkupLine($"[bold]Endpoint Mode:[/] {mode}");
+        if (queueEndpoint != null)
+        {
+            AnsiConsole.MarkupLine($"[bold]Endpoint URI:[/]  {queueEndpoint.Uri.ToString().EscapeMarkup()}");
+        }
+
+        AnsiConsole.WriteLine();
+
+        // Maximum attempts
+        var maxAttempts = chain.Failures.MaximumAttempts ?? globalFailures.MaximumAttempts ?? 3;
+        AnsiConsole.MarkupLine($"[bold]Maximum Attempts:[/] {maxAttempts}");
+        AnsiConsole.WriteLine();
+
+        // Chain-specific rules
+        AnsiConsole.MarkupLine("[bold]Chain-Specific Failure Rules:[/]");
+        if (chain.Failures.Any())
+        {
+            WriteFailureRules(chain.Failures, isGlobal: false);
+        }
+        else
+        {
+            AnsiConsole.MarkupLine("  [grey](none — global rules apply)[/]");
+        }
+
+        AnsiConsole.WriteLine();
+
+        // Global rules
+        AnsiConsole.MarkupLine("[bold]Global Failure Rules:[/]");
+        WriteFailureRules(globalFailures, isGlobal: true);
+        AnsiConsole.WriteLine();
+
+        // Effective ordering note
+        AnsiConsole.MarkupLine("[bold]Effective Rule Order:[/]");
+        AnsiConsole.MarkupLine(
+            "  [grey]Chain-specific rules are evaluated first, then global rules.[/]");
+        AnsiConsole.MarkupLine(
+            "  [grey]The first matching rule wins. Unmatched exceptions move to the dead-letter queue.[/]");
+        AnsiConsole.WriteLine();
+
+        // Circuit breaker
+        AnsiConsole.MarkupLine("[bold]Circuit Breaker:[/]");
+        if (queueEndpoint?.CircuitBreakerOptions != null)
+        {
+            DescribeCircuitBreaker(queueEndpoint.EndpointName, queueEndpoint.CircuitBreakerOptions);
+        }
+        else
+        {
+            AnsiConsole.MarkupLine("  [grey](none)[/]");
+        }
+    }
+
+    private static void WriteFailureRules(FailureRuleCollection rules, bool isGlobal)
+    {
+        if (!rules.Any())
+        {
+            if (isGlobal)
+            {
+                // Default: move to error queue on any exception
+                AnsiConsole.MarkupLine("  [grey]Any exception → Move to dead-letter queue (default)[/]");
+            }
+            else
+            {
+                AnsiConsole.MarkupLine("  [grey](none)[/]");
+            }
+
+            return;
+        }
+
+        var tree = new Tree("[grey]Rules[/]");
+        foreach (var rule in rules)
+        {
+            var ruleNode = tree.AddNode($"[cyan]{rule.Match.Description.EscapeMarkup()}[/]");
+            foreach (var slot in rule)
+            {
+                ruleNode.AddNode($"Attempt {slot.Attempt}: {slot.Describe().EscapeMarkup()}");
+            }
+
+            ruleNode.AddNode("[grey]Otherwise: Move to dead-letter queue[/]");
+        }
+
+        AnsiConsole.Write(tree);
+    }
+
+    private static void DescribeCircuitBreaker(string endpointName, CircuitBreakerOptions cb)
+    {
+        AnsiConsole.MarkupLine($"  [bold yellow]Circuit Breaker on '{endpointName.EscapeMarkup()}'[/]");
+        AnsiConsole.MarkupLine($"    Failure threshold:  [yellow]{cb.FailurePercentageThreshold}%[/] of messages");
+        AnsiConsole.MarkupLine($"    Minimum threshold:  {cb.MinimumThreshold} messages before activating");
+        AnsiConsole.MarkupLine($"    Pause time:         {cb.PauseTime.TotalSeconds:0.#}s when tripped");
+        AnsiConsole.MarkupLine($"    Tracking period:    {cb.TrackingPeriod.TotalMinutes:0.#}m statistics window");
+        AnsiConsole.MarkupLine($"    Sampling period:    {cb.SamplingPeriod.TotalMilliseconds:0.#}ms evaluation interval");
     }
 }
