@@ -593,6 +593,30 @@ Example activity tags for an HTTP endpoint:
 handler.type = "MyApp.Endpoints.OrderEndpoint"
 ```
 
+## Saga and Aggregate Stream Tags <Badge type="tip" text="5.14" />
+
+Wolverine automatically tags OpenTelemetry spans with identity information when processing saga messages and aggregate handler workflows.
+
+### Saga Tags
+
+| Tag | Description | Example |
+|-----|-------------|---------|
+| `wolverine.saga.id` | The saga identity value | `"order-123"` or `"550e8400-e29b-41d4-a716-446655440000"` |
+| `wolverine.saga.type` | The fully-qualified saga type name | `"MyApp.Orders.OrderSaga"` |
+
+The `wolverine.saga.id` tag is set whenever a message includes a `SagaId` header (for existing sagas where the ID propagates through the message envelope), and also via code generation at the point where the saga ID is resolved during handler execution.
+
+The `wolverine.saga.type` tag is set via code generation when the saga type is statically known.
+
+### Aggregate Stream Tags
+
+| Tag | Description | Example |
+|-----|-------------|---------|
+| `wolverine.stream.id` | The event stream (aggregate) identity | `"550e8400-e29b-41d4-a716-446655440000"` |
+| `wolverine.stream.type` | The fully-qualified aggregate type name | `"MyApp.Orders.Order"` |
+
+These tags are automatically applied to any handler that uses Wolverine's [aggregate handler workflow](./durability/marten/event-sourcing) with either Marten or Polecat.
+
 ## Message Correlation
 
 ::: tip

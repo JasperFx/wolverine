@@ -1327,3 +1327,8 @@ var allMessages = tracked.Sent.AllMessages().ToArray();
 | **External messages** | Separate test transport | Separate fake transport | `DisableAllExternalWolverineTransports()` + `tracked.Sent` inspection |
 
 The key difference is that Wolverine doesn't require a separate saga-specific testing library. Since sagas are just message handlers with persisted state, the same `TrackedSession` tooling that tests any Wolverine handler works identically for sagas — including full visibility into cascading messages, scheduled messages, and saga ID propagation.
+
+
+## Open Telemetry Tracing
+
+Wolverine automatically tags OpenTelemetry spans with `wolverine.saga.id` and `wolverine.saga.type` when processing saga messages. See [Saga and Aggregate Stream Tags](/guide/logging.html#saga-and-aggregate-stream-tags) for details.

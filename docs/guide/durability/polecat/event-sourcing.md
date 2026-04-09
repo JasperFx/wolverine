@@ -854,3 +854,7 @@ public static StudentSubscribedToCourse Handle(
     // ...
 }
 ```
+
+## Open Telemetry Tracing
+
+Wolverine automatically tags OpenTelemetry spans with `wolverine.stream.id` and `wolverine.stream.type` when processing aggregate handler workflows. See [Saga and Aggregate Stream Tags](/guide/logging.html#saga-and-aggregate-stream-tags) for details.

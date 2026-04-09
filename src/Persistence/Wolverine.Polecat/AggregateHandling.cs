@@ -12,6 +12,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Polecat;
 using Polecat.Events;
 using Wolverine.Configuration;
+using Wolverine.Logging;
 using Wolverine.Polecat.Codegen;
 using Wolverine.Polecat.Persistence.Sagas;
 using Wolverine.Persistence;
@@ -41,6 +42,7 @@ internal record AggregateHandling(IDataRequirement Requirement)
 
         var loader = new LoadAggregateFrame(this);
         chain.Middleware.Add(loader);
+        chain.Middleware.Add(new TagAggregateOtelFrame(AggregateType, AggregateId));
 
         var firstCall = chain.HandlerCalls().First();
 
