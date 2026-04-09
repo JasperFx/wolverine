@@ -1,7 +1,9 @@
 ﻿using JasperFx.CodeGeneration;
+using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Wolverine.Attributes;
 using Wolverine.ComplianceTests.Compliance;
+using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
 using Xunit;
 using Xunit.Abstractions;
@@ -87,6 +89,43 @@ public class saga_action_discovery : IntegrationContext
     {
         chainFor<SagaStarter>().ShouldNotBeNull();
     }
+
+    [Fact]
+    public void generates_wolverine_saga_id_otel_tag_for_existing_saga()
+    {
+        // Force compilation
+        Handlers.HandlerFor<SagaMessage2>();
+
+        var code = chainFor<SagaMessage2>().SourceCode!;
+        code.ShouldContain($"SetTag(\"{WolverineTracing.SagaId}\"");
+    }
+
+    [Fact]
+    public void generates_wolverine_saga_type_otel_tag_for_existing_saga()
+    {
+        Handlers.HandlerFor<SagaMessage2>();
+
+        var code = chainFor<SagaMessage2>().SourceCode!;
+        code.ShouldContain($"SetTag(\"{WolverineTracing.SagaType}\", \"{typeof(MySagaStateGuy).FullName}\"");
+    }
+
+    [Fact]
+    public void generates_wolverine_saga_id_otel_tag_for_start_saga_with_id_in_command()
+    {
+        Handlers.HandlerFor<SagaStartWithId>();
+
+        var code = chainFor<SagaStartWithId>().SourceCode!;
+        code.ShouldContain($"SetTag(\"{WolverineTracing.SagaId}\"");
+    }
+
+    [Fact]
+    public void generates_wolverine_saga_type_otel_tag_for_start_saga_with_id_in_command()
+    {
+        Handlers.HandlerFor<SagaStartWithId>();
+
+        var code = chainFor<SagaStartWithId>().SourceCode!;
+        code.ShouldContain($"SetTag(\"{WolverineTracing.SagaType}\", \"{typeof(MySagaWithExplicitId).FullName}\"");
+    }
 }
 
 public class MySagaStateGuy : Saga
@@ -115,3 +154,19 @@ public class SagaMessage1
 }
 
 public class SagaMessage2 : Message2;
+
+// Saga with an explicit ID in the start command, for OTEL tag code-gen tests
+public class SagaStartWithId
+{
+    public Guid MySagaWithExplicitIdId { get; set; } = Guid.NewGuid();
+}
+
+public class MySagaWithExplicitId : Saga
+{
+    public Guid Id { get; set; }
+
+    public void Start(SagaStartWithId command)
+    {
+        Id = command.MySagaWithExplicitIdId;
+    }
+}

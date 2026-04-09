@@ -601,6 +601,34 @@ public class CustomizedHandler
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/can_customize_handler_chain_through_Configure_call_on_HandlerType.cs#L25-L46' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_customized_handler_using_configure' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+### Compile-time Safe Configuration with IHandlerConfiguration
+
+As an alternative to the naming convention above, your handler class can implement the `IHandlerConfiguration` interface. This provides compile-time validation of the method name and signature, preventing silent failures from misspellings or incorrect parameter types:
+
+<!-- snippet: sample_customized_handler_using_IHandlerConfiguration -->
+<a id='snippet-sample_customized_handler_using_ihandlerconfiguration'></a>
+```cs
+public class InterfaceConfiguredHandler : IHandlerConfiguration
+{
+    public void Handle(InterfaceConfiguredMessage message)
+    {
+        // handle the message
+    }
+
+    public static void Configure(HandlerChain chain)
+    {
+        chain.Middleware.Add(new CustomFrame());
+
+        chain.SuccessLogLevel = LogLevel.None;
+        chain.ProcessingLogLevel = LogLevel.None;
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/can_customize_handler_chain_through_IHandlerConfiguration.cs#L33-L51' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_customized_handler_using_ihandlerconfiguration' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Both approaches are functionally equivalent at runtime; the interface simply adds a compile-time contract that prevents the `Configure` method from being silently ignored if the name or parameters are incorrect.
+
 ## Sending Messages from Middleware
 
 Wolverine 5.0 included some improvements to the usage of middleware *external* to the main handler or

@@ -93,10 +93,28 @@ public class aggregate_handler_workflow: PostgresqlContext, IAsyncLifetime
         // Do this first to force the compilation
         var handler = theHost.GetRuntime().Handlers.HandlerFor<RaiseABC>();
         var chain = theHost.GetRuntime().Handlers.ChainFor<RaiseABC>();
-        
+
         chain!.AuditedMembers.Single().MemberName.ShouldBe(nameof(RaiseABC.LetterAggregateId));
 
         chain.SourceCode!.ShouldContain("System.Diagnostics.Activity.Current?.SetTag(\"letter.aggregate.id\", raiseABC.LetterAggregateId);");
+    }
+
+    [Fact]
+    public void generates_wolverine_stream_id_otel_tag()
+    {
+        var handler = theHost.GetRuntime().Handlers.HandlerFor<RaiseABC>();
+        var chain = theHost.GetRuntime().Handlers.ChainFor<RaiseABC>();
+
+        chain!.SourceCode!.ShouldContain($"SetTag(\"{Wolverine.Runtime.WolverineTracing.StreamId}\"");
+    }
+
+    [Fact]
+    public void generates_wolverine_stream_type_otel_tag()
+    {
+        var handler = theHost.GetRuntime().Handlers.HandlerFor<RaiseABC>();
+        var chain = theHost.GetRuntime().Handlers.ChainFor<RaiseABC>();
+
+        chain!.SourceCode!.ShouldContain($"SetTag(\"{Wolverine.Runtime.WolverineTracing.StreamType}\", \"{typeof(LetterAggregate).FullName}\"");
     }
 
     [Fact]

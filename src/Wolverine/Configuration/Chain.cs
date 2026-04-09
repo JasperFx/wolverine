@@ -138,7 +138,24 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
     protected void applyAttributesAndConfigureMethods(GenerationRules rules, IServiceContainer container)
     {
         var handlers = HandlerCalls();
-        var configureMethods = handlers.Select(x => x.HandlerType).Distinct()
+        var handlerTypes = handlers.Select(x => x.HandlerType).Distinct().ToList();
+
+        // Interface-based configuration (compile-time safe): check for IHandlerConfiguration implementors first
+        var interfaceHandled = new HashSet<Type>();
+        foreach (var handlerType in handlerTypes)
+        {
+            if (handlerType.IsAssignableTo(typeof(IHandlerConfiguration)))
+            {
+                // Invoke via interface map to call the concrete type's static implementation
+                var map = handlerType.GetInterfaceMap(typeof(IHandlerConfiguration));
+                map.TargetMethods[0].Invoke(null, [this]);
+                interfaceHandled.Add(handlerType);
+            }
+        }
+
+        // Convention-based configuration (backward compatible): skip types already handled by the interface
+        var configureMethods = handlerTypes
+            .Where(t => !interfaceHandled.Contains(t))
             .SelectMany(x => x.GetMethods())
             .Where(isConfigureMethod);
 

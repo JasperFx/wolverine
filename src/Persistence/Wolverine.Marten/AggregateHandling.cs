@@ -43,6 +43,7 @@ internal record AggregateHandling(IDataRequirement Requirement)
 
         var loader = new LoadAggregateFrame(this);
         chain.Middleware.Add(loader);
+        chain.Middleware.Add(new TagAggregateOtelFrame(AggregateType, AggregateId));
         
         var firstCall = chain.HandlerCalls().First();
 

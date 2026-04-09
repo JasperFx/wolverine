@@ -52,6 +52,12 @@ public class when_creating_an_execution_activity
     }
 
     [Fact]
+    public void does_not_set_saga_id_when_not_present()
+    {
+        theActivity.GetTagItem(WolverineTracing.SagaId).ShouldBeNull();
+    }
+
+    [Fact]
     public void should_set_the_tenant_id()
     {
         theActivity.GetTagItem(MetricsConstants.TenantIdKey).ShouldBe(theEnvelope.TenantId);
@@ -104,5 +110,26 @@ public class when_creating_an_execution_activity
     {
         theActivity.GetTagItem(WolverineTracing.MessagingConversationId)
             .ShouldBe(theEnvelope.CorrelationId);
+    }
+}
+
+public class when_saga_id_is_set_on_envelope
+{
+    private readonly Activity theActivity;
+    private readonly Envelope theEnvelope;
+
+    public when_saga_id_is_set_on_envelope()
+    {
+        theEnvelope = ObjectMother.Envelope();
+        theEnvelope.SagaId = Guid.NewGuid().ToString();
+
+        theActivity = new Activity("process");
+        theEnvelope.WriteTags(theActivity);
+    }
+
+    [Fact]
+    public void should_tag_activity_with_saga_id()
+    {
+        theActivity.GetTagItem(WolverineTracing.SagaId).ShouldBe(theEnvelope.SagaId);
     }
 }
