@@ -135,6 +135,43 @@ public class persisting_envelopes_with_sqlserver : IAsyncLifetime
     }
 
     [Fact]
+    public async Task persist_outgoing_batch_uses_add_range()
+    {
+        var runtime = _host.GetRuntime();
+        var context = new MessageContext(runtime);
+
+        using var scope = _host.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<SampleMappedDbContext>();
+
+        var envelopes = Enumerable.Range(0, 3).Select(_ => new Envelope
+        {
+            Id = Guid.NewGuid(),
+            Status = EnvelopeStatus.Outgoing,
+            OwnerId = 5,
+            Data = [1, 2, 3],
+            MessageType = "batch-test",
+            Destination = new Uri("rabbitmq://queue/batch")
+        }).ToArray();
+
+        var transaction = new EfCoreEnvelopeTransaction(dbContext, context);
+        await transaction.PersistOutgoingAsync(envelopes);
+        await dbContext.SaveChangesAsync();
+
+        if (dbContext.Database.CurrentTransaction != null)
+        {
+            await dbContext.Database.CurrentTransaction.CommitAsync();
+        }
+
+        var storage = _host.Services.GetRequiredService<IMessageStore>();
+        var persisted = await storage.Admin.AllOutgoingAsync();
+
+        foreach (var envelope in envelopes)
+        {
+            persisted.ShouldContain(x => x.Id == envelope.Id);
+        }
+    }
+
+    [Fact]
     public async Task mapping_to_outgoing_envelopes()
     {
         var storage = _host.Services.GetRequiredService<IMessageStore>();
