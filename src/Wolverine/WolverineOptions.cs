@@ -267,9 +267,7 @@ public sealed partial class WolverineOptions
     public MessagePartitioningRules MessagePartitioning { get; }
 
     /// <summary>
-    /// List of <see cref="IEnvelopeRule"/> instances applied to every outgoing envelope via
-    /// <see cref="IMessageContext.ApplyCorrelation"/>. Add custom rules here to propagate
-    /// metadata from incoming to outgoing messages within a handler context.
+    /// List of <see cref="IEnvelopeRule"/> instances applied to every outgoing envelope.
     /// </summary>
     public List<IEnvelopeRule> MetadataRules { get; } = new();
 
