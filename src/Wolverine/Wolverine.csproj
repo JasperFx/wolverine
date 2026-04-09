@@ -22,6 +22,9 @@
         <PackageReference Include="JasperFx" />
         <PackageReference Include="JasperFx.Events" />
         <PackageReference Include="JasperFx.RuntimeCompiler" />
+        <PackageReference Include="JasperFx.SourceGeneration"
+                          OutputItemType="Analyzer"
+                          ReferenceOutputAssembly="false" />
     </ItemGroup>
 
     <ItemGroup>
