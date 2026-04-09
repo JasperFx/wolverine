@@ -118,6 +118,38 @@ to help you troubleshoot issues in the future.
 This functionality was originally built for consumption in the "CritterWatch" add on tool, but was requested by a [JasperFx Software](https://jasperfx.net)
 client to provide a mechanism to detect any unintentional changes to Wolverine application configuration.
 
+## CLI Commands Work Without External Connectivity
+
+::: tip
+This applies to `codegen write`, `codegen preview`, `describe`, and OpenAPI generation tools such as
+`GetDocument.Insider` (Microsoft.Extensions.ApiDescription.Server). You do **not** need a running
+database or message broker for these commands to succeed.
+:::
+
+Wolverine automatically detects when it is running in a metadata-only CLI mode and suppresses
+persistence and transport initialization. No database connections or message broker connections
+are opened. This allows commands like `codegen` and `describe` to work safely in CI pipelines or
+developer machines that do not have external infrastructure available.
+
+Detection is based on two signals:
+
+1. **`DynamicCodeBuilder.WithinCodegenCommand`** — set by JasperFx when the `codegen` command is
+   used, either via `dotnet run -- codegen ...` or the `--start` flag.
+2. **`ASPNETCORE_HOSTINGSTARTUPASSEMBLIES` environment variable** — contains `"GetDocument"` when
+   OpenAPI generation tools like `GetDocument.Insider` start the host.
+
+When either condition is true, Wolverine applies the equivalent of "lightweight mode":
+external transports are stubbed out, durability agents are disabled, and the durability
+mode is set to `MediatorOnly`.
+
+If you need to explicitly disable persistence initialization for other tooling (e.g., your own
+OpenAPI generation pipeline), you can use the `DisableAllWolverineMessagePersistence()` extension:
+
+```csharp
+// In Program.cs or Startup.cs, guard with an environment check for your tooling
+builder.Services.DisableAllWolverineMessagePersistence();
+```
+
 ## Other Highlights
 
 * See the [code generation support](./codegen)
