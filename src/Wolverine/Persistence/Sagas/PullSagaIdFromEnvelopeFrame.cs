@@ -28,7 +28,7 @@ internal class PullSagaIdFromEnvelopeFrame : SyncFrame
         {
             var typeNameInCode = SagaId.VariableType == typeof(Guid)
                 ? typeof(Guid).FullName
-                : SagaId.VariableType.NameInCode();
+                : SagaId.VariableType.FullNameInCode();
 
             writer.Write(
                 $"if (!{typeNameInCode}.TryParse({_envelope!.Usage}.{nameof(Envelope.SagaId)}, out {typeNameInCode} sagaId)) throw new {typeof(IndeterminateSagaStateIdException).FullName}({_envelope.Usage});");
