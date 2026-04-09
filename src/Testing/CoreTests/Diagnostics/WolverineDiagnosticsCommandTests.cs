@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
 using Wolverine.Diagnostics;
+using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
 using Xunit;
 
@@ -143,9 +144,153 @@ public class WolverineDiagnosticsCommandTests
     }
 }
 
+    // ── FindMessageType ─────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task find_message_type_by_exact_full_name()
+    {
+        var (messageTypes, graph) = await BuildMessageTypesAsync();
+        var found = WolverineDiagnosticsCommand.FindMessageType(
+            "CoreTests.Diagnostics.DiagnosticsTestMessage", messageTypes, graph);
+        found.ShouldBe(typeof(DiagnosticsTestMessage));
+    }
+
+    [Fact]
+    public async Task find_message_type_by_short_name()
+    {
+        var (messageTypes, graph) = await BuildMessageTypesAsync();
+        var found = WolverineDiagnosticsCommand.FindMessageType(
+            "DiagnosticsTestMessage", messageTypes, graph);
+        found.ShouldBe(typeof(DiagnosticsTestMessage));
+    }
+
+    [Fact]
+    public async Task find_message_type_fuzzy_contains()
+    {
+        var (messageTypes, graph) = await BuildMessageTypesAsync();
+        var found = WolverineDiagnosticsCommand.FindMessageType(
+            "TestMessage", messageTypes, graph);
+        found.ShouldBe(typeof(DiagnosticsTestMessage));
+    }
+
+    [Fact]
+    public async Task find_message_type_returns_null_for_unknown()
+    {
+        var (messageTypes, graph) = await BuildMessageTypesAsync();
+        var found = WolverineDiagnosticsCommand.FindMessageType(
+            "NonExistentXyzMessage", messageTypes, graph);
+        found.ShouldBeNull();
+    }
+
+    // ── describe-routing smoke tests ─────────────────────────────────────────
+
+    [Fact]
+    public async Task describe_routing_for_handled_message_finds_local_route()
+    {
+        DynamicCodeBuilder.WithinCodegenCommand = true;
+        try
+        {
+            using var host = await Host.CreateDefaultBuilder()
+                .UseWolverine(opts =>
+                {
+                    opts.Discovery
+                        .DisableConventionalDiscovery()
+                        .IncludeType(typeof(DiagnosticsTestHandler));
+                })
+                .StartAsync();
+
+            var runtime = host.Services.GetRequiredService<IWolverineRuntime>();
+            WolverineSystemPart.WithinDescription = true;
+            try
+            {
+                var options = runtime.Options;
+                var messageTypes = options.Discovery.FindAllMessages(options.HandlerGraph).ToList();
+                var match = WolverineDiagnosticsCommand.FindMessageType(
+                    "DiagnosticsTestMessage", messageTypes, options.HandlerGraph);
+
+                match.ShouldNotBeNull();
+                match.ShouldBe(typeof(DiagnosticsTestMessage));
+
+                // The message has a local handler so it should have at least one local route
+                var routes = runtime.RoutingFor(typeof(DiagnosticsTestMessage)).Routes;
+                routes.ShouldNotBeEmpty();
+                routes.Any(r => r is Wolverine.Runtime.Routing.MessageRoute mr && mr.IsLocal)
+                    .ShouldBeTrue("Expected a local route for a handled message type");
+            }
+            finally
+            {
+                WolverineSystemPart.WithinDescription = false;
+            }
+        }
+        finally
+        {
+            DynamicCodeBuilder.WithinCodegenCommand = false;
+        }
+    }
+
+    [Fact]
+    public async Task describe_routing_for_unhandled_message_returns_no_routes()
+    {
+        DynamicCodeBuilder.WithinCodegenCommand = true;
+        try
+        {
+            using var host = await Host.CreateDefaultBuilder()
+                .UseWolverine(opts =>
+                {
+                    opts.Discovery.DisableConventionalDiscovery();
+                })
+                .StartAsync();
+
+            var runtime = host.Services.GetRequiredService<IWolverineRuntime>();
+            WolverineSystemPart.WithinDescription = true;
+            try
+            {
+                var routes = runtime.RoutingFor(typeof(DiagnosticsUnhandledMessage)).Routes;
+                routes.ShouldBeEmpty();
+            }
+            finally
+            {
+                WolverineSystemPart.WithinDescription = false;
+            }
+        }
+        finally
+        {
+            DynamicCodeBuilder.WithinCodegenCommand = false;
+        }
+    }
+
+    private static async Task<(IReadOnlyList<Type> messageTypes, HandlerGraph graph)> BuildMessageTypesAsync()
+    {
+        DynamicCodeBuilder.WithinCodegenCommand = true;
+        try
+        {
+            using var host = await Host.CreateDefaultBuilder()
+                .UseWolverine(opts =>
+                {
+                    opts.Discovery
+                        .DisableConventionalDiscovery()
+                        .IncludeType(typeof(DiagnosticsTestHandler));
+                })
+                .StartAsync();
+
+            var graph = host.Services.GetRequiredService<HandlerGraph>();
+            var options = host.Services.GetRequiredService<IWolverineRuntime>().Options;
+            var messageTypes = options.Discovery.FindAllMessages(graph);
+            return (messageTypes, graph);
+        }
+        finally
+        {
+            DynamicCodeBuilder.WithinCodegenCommand = false;
+        }
+    }
+}
+
 // ── Test fixtures ────────────────────────────────────────────────────────────
 
 public record DiagnosticsTestMessage(string Text);
+
+// Unhandled message — no handler registered
+public record DiagnosticsUnhandledMessage(string Text);
 
 public static class DiagnosticsTestHandler
 {
