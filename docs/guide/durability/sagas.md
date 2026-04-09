@@ -308,6 +308,62 @@ And lastly, Wolverine looks for a public member named `Id` like this one:
 public record CompleteOrder(string Id);
 ```
 
+## Strong-Typed Identifiers <Badge type="tip" text="5.x" />
+
+Wolverine supports strong-typed identifiers (record structs or classes wrapping a primitive) as the saga identity.
+The type must expose a `TryParse(string?, out T)` static method so Wolverine can recover the identity from the
+envelope header when a message does not carry the ID directly on its body.
+
+```csharp
+// Strong-typed ID wrapping Guid
+public record struct OrderSagaId(Guid Value)
+{
+    public static OrderSagaId New() => new(Guid.NewGuid());
+
+    public static bool TryParse(string? input, out OrderSagaId result)
+    {
+        if (Guid.TryParse(input, out var guid))
+        {
+            result = new OrderSagaId(guid);
+            return true;
+        }
+        result = default;
+        return false;
+    }
+
+    public override string ToString() => Value.ToString();
+}
+
+public class OrderSaga : Saga
+{
+    public OrderSagaId Id { get; set; }
+
+    public static OrderSaga Start(StartOrder cmd)
+        => new() { Id = cmd.OrderId };
+
+    // Messages that carry the ID on the body work automatically
+    public void Handle(ShipOrder cmd) { /* ... */ }
+
+    // Messages without the ID field read it from the envelope header
+    public void Handle(OrderTimeout timeout) { /* ... */ }
+}
+
+public record StartOrder(OrderSagaId OrderId);
+public record ShipOrder(OrderSagaId OrderSagaId);
+public record OrderTimeout; // no saga ID field — read from envelope
+```
+
+::: tip
+When the message type does not expose the saga ID as a field, Wolverine propagates the identity automatically through
+the `SagaId` envelope header. The cascaded messages emitted from within a saga handler will have this header set
+for you. In your own integration tests you can supply it via `envelope.SagaId = id.ToString()`.
+:::
+
+::: warning
+Strong-typed identifiers backed by a third-party source-generator (e.g. [StronglyTypedId](https://github.com/andrewlock/StronglyTypedId))
+are supported. The generated `TryParse` method on those types satisfies the requirement above.
+:::
+
 ## Starting a Saga
 
 ::: tip
