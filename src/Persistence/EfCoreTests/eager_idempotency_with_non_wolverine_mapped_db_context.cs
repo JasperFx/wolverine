@@ -9,6 +9,7 @@ using Weasel.SqlServer;
 using Weasel.SqlServer.Tables;
 using Wolverine;
 using Wolverine.ComplianceTests;
+using Wolverine.EntityFrameworkCore;
 using Wolverine.EntityFrameworkCore.Internals;
 using Wolverine.RDBMS;
 using Wolverine.Runtime;
@@ -67,6 +68,56 @@ public class eager_idempotency_with_non_wolverine_mapped_db_context : IClassFixt
         
     }
     
+    // Regression test for https://github.com/JasperFx/wolverine/issues/2474
+    [Fact]
+    public async Task persist_batch_outgoing_envelopes_uses_outgoing_table()
+    {
+        await Host.RebuildAllEnvelopeStorageAsync();
+
+        var runtime = Host.GetRuntime();
+        var context = new MessageContext(runtime);
+
+        using var scope = Host.Services.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<ItemsDbContext>();
+
+        dbContext.IsWolverineEnabled().ShouldBeFalse();
+
+        var envelope1 = new Envelope
+        {
+            Id = Guid.NewGuid(),
+            Data = [1, 2, 3, 4],
+            MessageType = "Something",
+            Destination = new Uri("tcp://localhost:2222"),
+            ContentType = EnvelopeConstants.JsonContentType,
+            OwnerId = 567,
+            Attempts = 1,
+            DeliverBy = new DateTimeOffset(DateTime.Today.AddHours(28))
+        };
+        var envelope2 = new Envelope
+        {
+            Id = Guid.NewGuid(),
+            Data = [5, 6, 7, 8],
+            MessageType = "SomethingElse",
+            Destination = new Uri("tcp://localhost:2222"),
+            ContentType = EnvelopeConstants.JsonContentType,
+            OwnerId = 567,
+            Attempts = 1,
+            DeliverBy = new DateTimeOffset(DateTime.Today.AddHours(28))
+        };
+
+        var transaction = new EfCoreEnvelopeTransaction(dbContext, context);
+        await transaction.PersistOutgoingAsync([envelope1, envelope2]);
+        await dbContext.Database.CurrentTransaction!.CommitAsync();
+
+        var outgoing = await runtime.Storage.Admin.AllOutgoingAsync();
+        outgoing.ShouldContain(x => x.Id == envelope1.Id);
+        outgoing.ShouldContain(x => x.Id == envelope2.Id);
+
+        var incoming = await runtime.Storage.Admin.AllIncomingAsync();
+        incoming.ShouldNotContain(x => x.Id == envelope1.Id);
+        incoming.ShouldNotContain(x => x.Id == envelope2.Id);
+    }
+
     [Fact]
     public async Task sad_path_eager_idempotency()
     {
