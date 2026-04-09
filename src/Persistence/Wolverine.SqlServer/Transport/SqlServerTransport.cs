@@ -63,7 +63,7 @@ public class SqlServerTransport : BrokerTransport<SqlServerQueue>
 
     public override string SanitizeIdentifier(string identifier)
     {
-        return identifier.Replace('-', '_').ToLower();
+        return identifier.Replace('-', '_').ToLowerInvariant();
     }
 
     protected override SqlServerQueue findEndpointByUri(Uri uri)

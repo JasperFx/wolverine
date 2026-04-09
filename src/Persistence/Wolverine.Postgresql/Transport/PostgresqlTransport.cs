@@ -84,7 +84,7 @@ public class PostgresqlTransport : BrokerTransport<PostgresqlQueue>, ITransportC
 
     public override string SanitizeIdentifier(string identifier)
     {
-        return identifier.Replace('-', '_').ToLower();
+        return identifier.Replace('-', '_').ToLowerInvariant();
     }
 
     protected override PostgresqlQueue findEndpointByUri(Uri uri)

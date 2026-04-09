@@ -72,7 +72,7 @@ public class SqliteTransport : BrokerTransport<SqliteQueue>, ITransportConfigure
 
     public override string SanitizeIdentifier(string identifier)
     {
-        return identifier.Replace('-', '_').ToLower();
+        return identifier.Replace('-', '_').ToLowerInvariant();
     }
 
     protected override SqliteQueue findEndpointByUri(Uri uri)
