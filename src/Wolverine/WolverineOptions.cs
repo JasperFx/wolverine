@@ -267,10 +267,9 @@ public sealed partial class WolverineOptions
     public MessagePartitioningRules MessagePartitioning { get; }
 
     /// <summary>
-    /// Internal list of IEnvelopeRule instances that are applied via ApplyCorrelation
-    /// to outgoing envelopes in PersistOrSendAsync
+    /// List of <see cref="IEnvelopeRule"/> instances applied to every outgoing envelope.
     /// </summary>
-    internal List<IEnvelopeRule> MetadataRules { get; } = new();
+    public List<IEnvelopeRule> MetadataRules { get; } = new();
 
     
     /// For advanced usages, this gives you the ability to register pre-canned message handling
