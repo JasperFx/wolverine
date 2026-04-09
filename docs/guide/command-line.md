@@ -154,7 +154,12 @@ builder.Services.DisableAllWolverineMessagePersistence();
 ## Wolverine Diagnostics Commands <Badge type="tip" text="5.14" />
 
 The `wolverine-diagnostics` command is an extensible parent command for deeper Wolverine-specific
-inspection tools. Currently it exposes one sub-command: **`codegen-preview`**.
+inspection tools.
+
+::: tip
+Both `codegen-preview` and `describe-routing` work without database or message-broker connectivity.
+Wolverine automatically detects CLI codegen mode and stubs out persistence and transports.
+:::
 
 ### codegen-preview
 
@@ -187,11 +192,44 @@ middleware calls in order, dependency resolution from the IoC container, and any
 transaction-wrapping frames. This is identical to what `codegen preview` outputs, but scoped to
 exactly one handler so the signal-to-noise ratio is much higher.
 
-::: tip
-`wolverine-diagnostics` works without database or message-broker connectivity for the same reason
-as `codegen preview`: Wolverine automatically detects CLI codegen mode and stubs out persistence
-and transports.
-:::
+### describe-routing <Badge type="tip" text="5.15" />
+
+Inspect the message routing configuration for a specific message type or show a complete view of
+all message routing in your application.
+
+**Inspect routing for a single message type** (accepts full name, short name, or fuzzy match):
+
+```bash
+# Short class name
+dotnet run -- wolverine-diagnostics describe-routing CreateOrder
+
+# Fully-qualified name
+dotnet run -- wolverine-diagnostics describe-routing MyApp.Orders.CreateOrder
+```
+
+The output for a single message type includes:
+
+- **Local handler** — the handler class and method, if any
+- **Routes table** — each destination with its type (local vs. external), endpoint mode
+  (Buffered/Durable/Inline), outbox enrollment, serialization format, and how the route was
+  resolved (local handler convention, explicit publish rule, transport routing convention, or
+  `[LocalQueue]` attribute)
+- **Message-level attributes** — any `ModifyEnvelopeAttribute`-derived attributes (e.g.,
+  `[DeliverWithin]`) applied to the message class
+
+**Show the complete routing topology** (all message types):
+
+```bash
+dotnet run -- wolverine-diagnostics describe-routing --all
+```
+
+The `--all` output includes:
+
+- **Routing Conventions** — transport-level conventions registered via `RouteWith()`
+- **Message Routing** table — every known message type with its destinations, mode, outbox status,
+  and serializer; unrouted types are flagged in yellow
+- **Listeners** — all configured listening endpoints with name, mode, and parallelism
+- **Senders** — all configured sending endpoints with name, mode, and subscription count
 
 ## Other Highlights
 
