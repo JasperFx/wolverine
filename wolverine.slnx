@@ -1,0 +1,251 @@
+<Solution>
+  <Configurations>
+    <Platform Name="Any CPU" />
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Folder Name="/.SolutionItems/">
+    <File Path=".claude/docs/architectural_patterns.md" />
+    <File Path=".github/workflows/docs.yml" />
+    <File Path=".github/workflows/dotnet.yml" />
+    <File Path=".github/workflows/http.yml" />
+    <File Path=".github/workflows/persistence.yml" />
+    <File Path=".github/workflows/publish_nugets.yml" />
+    <File Path=".github/workflows/pulsar.yml" />
+    <File Path="Analysis.Build.props" />
+    <File Path="CLAUDE.md" />
+    <File Path="Directory.Build.props" />
+    <File Path="Directory.Packages.props" />
+    <File Path="docker-compose.yml" />
+    <File Path="global.json" />
+    <File Path="mdsnippets.json" />
+    <File Path="package.json" />
+    <File Path="README.md" />
+  </Folder>
+  <Folder Name="/Extensions/">
+    <Project Path="src/Extensions/Wolverine.DataAnnotationsValidation.Tests/Wolverine.DataAnnotationsValidation.Tests.csproj" />
+    <Project Path="src/Extensions/Wolverine.DataAnnotationsValidation/Wolverine.DataAnnotationsValidation.csproj" />
+    <Project Path="src/Extensions/Wolverine.FluentValidation.Tests/Wolverine.FluentValidation.Tests.csproj" />
+    <Project Path="src/Extensions/Wolverine.FluentValidation/Wolverine.FluentValidation.csproj" />
+    <Project Path="src/Extensions/Wolverine.MemoryPack.Tests/Wolverine.MemoryPack.Tests.csproj" />
+    <Project Path="src/Extensions/Wolverine.MemoryPack/Wolverine.MemoryPack.csproj" />
+    <Project Path="src/Extensions/Wolverine.MessagePack.Tests/Wolverine.MessagePack.Tests.csproj" />
+    <Project Path="src/Extensions/Wolverine.MessagePack/Wolverine.MessagePack.csproj" />
+    <Project Path="src/Extensions/Wolverine.Protobuf.Tests/Wolverine.Protobuf.Tests.csproj" />
+    <Project Path="src/Extensions/Wolverine.Protobuf/Wolverine.Protobuf.csproj" />
+  </Folder>
+  <Folder Name="/Http/">
+    <Project Path="src/Http/CrazyStartingWebApp/CrazyStartingWebApp.csproj" />
+    <Project Path="src/Http/DeepMiddlewareUsage/DeepMiddlewareUsage.csproj" />
+    <Project Path="src/Http/NSwagDemonstrator/NSwagDemonstrator.csproj" />
+    <Project Path="src/Http/OpenApiDemonstrator/OpenApiDemonstrator.csproj" />
+    <Project Path="src/Http/StaticCodeGenDemonstrator/StaticCodeGenDemonstrator.csproj" />
+    <Project Path="src/Http/Wolverine.AdminApi/Wolverine.AdminApi.csproj" />
+    <Project Path="src/Http/Wolverine.Http.FluentValidation/Wolverine.Http.FluentValidation.csproj" />
+    <Project Path="src/Http/Wolverine.Http.Marten/Wolverine.Http.Marten.csproj" />
+    <Project Path="src/Http/Wolverine.Http.Tests.DifferentAssembly/Wolverine.Http.Tests.DifferentAssembly.csproj" />
+    <Project Path="src/Http/Wolverine.Http.Tests/Wolverine.Http.Tests.csproj" />
+    <Project Path="src/Http/Wolverine.Http/Wolverine.Http.csproj" />
+    <Project Path="src/Http/WolverineWebApi/WolverineWebApi.csproj" />
+    <Project Path="src/Http/WolverineWebApiFSharp/WolverineWebApiFSharp.fsproj" />
+  </Folder>
+  <Folder Name="/Persistence/">
+    <Project Path="src/Persistence/DuplicateMessageSending/DuplicateMessageSending.csproj" />
+    <Project Path="src/Persistence/LoadTesting/LoadTesting.csproj" />
+    <Project Path="src/Persistence/PersistenceTests/PersistenceTests.csproj" />
+    <Project Path="src/Persistence/SharedPersistenceModels/SharedPersistenceModels.csproj" />
+    <Project Path="src/Persistence/Wolverine.RDBMS/Wolverine.RDBMS.csproj" />
+  </Folder>
+  <Folder Name="/Persistence/CosmosDb/">
+    <Project Path="src/Persistence/CosmosDbTests/CosmosDbTests.csproj" />
+    <Project Path="src/Persistence/Wolverine.CosmosDb/Wolverine.CosmosDb.csproj" />
+  </Folder>
+  <Folder Name="/Persistence/EFCore/">
+    <Project Path="src/Persistence/EfCoreTests.MultiTenancy/EfCoreTests.MultiTenancy.csproj" />
+    <Project Path="src/Persistence/EfCoreTests/EfCoreTests.csproj" />
+    <Project Path="src/Persistence/MultiTenantedEfCoreWithPostgreSQL/MultiTenantedEfCoreWithPostgreSQL.csproj" />
+    <Project Path="src/Persistence/MultiTenantedEfCoreWithSqlServer/MultiTenantedEfCoreWithSqlServer.csproj" />
+    <Project Path="src/Persistence/Wolverine.EntityFrameworkCore/Wolverine.EntityFrameworkCore.csproj" />
+  </Folder>
+  <Folder Name="/Persistence/LeaderElection/">
+    <Project Path="src/Persistence/LeaderElection/MySqlTests.LeaderElection/MySqlTests.LeaderElection.csproj" />
+    <Project Path="src/Persistence/LeaderElection/PostgresqlTests.LeaderElection/PostgresqlTests.LeaderElection.csproj" />
+    <Project Path="src/Persistence/LeaderElection/RavenDbTests.LeaderElection/RavenDbTests.LeaderElection.csproj" />
+    <Project Path="src/Persistence/LeaderElection/SqlServerTests.LeaderElection/SqlServerTests.LeaderElection.csproj" />
+  </Folder>
+  <Folder Name="/Persistence/Marten/">
+    <Project Path="src/Persistence/MartenSubscriptionTests/MartenSubscriptionTests.csproj" />
+    <Project Path="src/Persistence/MartenTests/MartenTests.csproj" />
+    <Project Path="src/Persistence/OrderEventSourcingSample/OrderEventSourcingSample.csproj" />
+    <Project Path="src/Persistence/Wolverine.Marten/Wolverine.Marten.csproj" />
+  </Folder>
+  <Folder Name="/Persistence/MySql/">
+    <Project Path="src/Persistence/MySql/MySqlTests/MySqlTests.csproj" />
+    <Project Path="src/Persistence/MySql/Wolverine.MySql/Wolverine.MySql.csproj" />
+  </Folder>
+  <Folder Name="/Persistence/Oracle/">
+    <Project Path="src/Persistence/Oracle/OracleTests/OracleTests.csproj" />
+    <Project Path="src/Persistence/Oracle/Wolverine.Oracle/Wolverine.Oracle.csproj" />
+  </Folder>
+  <Folder Name="/Persistence/Polecat/">
+    <Project Path="src/Http/Wolverine.Http.Polecat/Wolverine.Http.Polecat.csproj" />
+    <Project Path="src/Persistence/Polecat/PolecatIncidentService.Tests/PolecatIncidentService.Tests.csproj">
+      <Build Project="false" />
+    </Project>
+    <Project Path="src/Persistence/Polecat/PolecatIncidentService/PolecatIncidentService.csproj">
+      <Build Project="false" />
+    </Project>
+    <Project Path="src/Persistence/PolecatTests/PolecatTests.csproj" />
+    <Project Path="src/Persistence/Wolverine.Polecat/Wolverine.Polecat.csproj" />
+  </Folder>
+  <Folder Name="/Persistence/PostgreSQL/">
+    <Project Path="src/Persistence/PostgresqlTests/PostgresqlTests.csproj" />
+    <Project Path="src/Persistence/Wolverine.Postgresql/Wolverine.Postgresql.csproj" />
+  </Folder>
+  <Folder Name="/Persistence/RavenDb/">
+    <Project Path="src/Persistence/RavenDbTests/RavenDbTests.csproj" />
+    <Project Path="src/Persistence/Wolverine.RavenDb/Wolverine.RavenDb.csproj" />
+  </Folder>
+  <Folder Name="/Persistence/Sqlite/">
+    <Project Path="src/Persistence/SqliteTests/SqliteTests.csproj" />
+    <Project Path="src/Persistence/Wolverine.Sqlite/Wolverine.Sqlite.csproj" />
+  </Folder>
+  <Folder Name="/Persistence/SqlServer/">
+    <Project Path="src/Persistence/SqlServerTests/SqlServerTests.csproj" />
+    <Project Path="src/Persistence/Wolverine.SqlServer/Wolverine.SqlServer.csproj" />
+  </Folder>
+  <Folder Name="/Samples/">
+    <Project Path="src/Samples/ChaosSender/ChaosSender.csproj" />
+    <Project Path="src/Samples/CommandBus/CommandBus.csproj" />
+    <Project Path="src/Samples/DocumentationSamples/DocumentationSamples.csproj" />
+    <Project Path="src/Samples/InMemoryMediator/InMemoryMediator.csproj" />
+    <Project Path="src/Samples/OptimizedArtifactWorkflowSample/OptimizedArtifactWorkflowSample.csproj" />
+    <Project Path="src/Samples/OrderSagaSample/OrderSagaSample.csproj" />
+    <Project Path="src/Samples/Quickstart/Quickstart.csproj" />
+    <Project Path="src/Samples/WebApiWithMarten/WebApiWithMarten.csproj" />
+  </Folder>
+  <Folder Name="/Samples/CQRSWithMarten/">
+    <Project Path="src/Samples/CQRSWithMarten/TeleHealth.Backend/TeleHealth.Backend.csproj" />
+    <Project Path="src/Samples/CQRSWithMarten/TeleHealth.Common/TeleHealth.Common.csproj" />
+    <Project Path="src/Samples/CQRSWithMarten/TeleHealth.Tests/TeleHealth.Tests.csproj" />
+    <Project Path="src/Samples/CQRSWithMarten/TeleHealth.WebApi/TeleHealth.WebApi.csproj" />
+  </Folder>
+  <Folder Name="/Samples/Diagnostics/">
+    <Project Path="src/Samples/Diagnostics/DiagnosticsApp/DiagnosticsApp.csproj" />
+    <Project Path="src/Samples/Diagnostics/DiagnosticsModule/DiagnosticsModule.csproj" />
+    <Project Path="src/Samples/Diagnostics/DiagnosticsTests/DiagnosticsTests.csproj" />
+  </Folder>
+  <Folder Name="/Persistence/EFCore/DomainEventsWithEfCore/">
+    <Project Path="src/Persistence/EFCore/DomainEventsWithEfCore/BackLogService/BackLogService.csproj" />
+  </Folder>
+  <Folder Name="/Samples/EFCoreSample/">
+    <Project Path="src/Samples/EFCoreSample/ItemService.Tests/ItemService.Tests.csproj" />
+    <Project Path="src/Samples/EFCoreSample/ItemService/ItemService.csproj" />
+  </Folder>
+  <Folder Name="/Samples/IncidentService/">
+    <Project Path="src/Samples/IncidentService/IncidentService.Tests/IncidentService.Tests.csproj" />
+    <Project Path="src/Samples/IncidentService/IncidentService/IncidentService.csproj" />
+  </Folder>
+  <Folder Name="/Samples/KitchenSink/">
+    <Project Path="src/Samples/KitchenSink/MartenAndRabbitEmailService/MartenAndRabbitEmailService.csproj" />
+    <Project Path="src/Samples/KitchenSink/MartenAndRabbitIssueService/MartenAndRabbitIssueService.csproj" />
+    <Project Path="src/Samples/KitchenSink/MartenAndRabbitMessages/MartenAndRabbitMessages.csproj" />
+  </Folder>
+  <Folder Name="/Samples/Middleware/">
+    <Project Path="src/Samples/Middleware/AppWithMiddleware.Tests/AppWithMiddleware.Tests.csproj" />
+    <Project Path="src/Samples/Middleware/AppWithMiddleware/AppWithMiddleware.csproj" />
+  </Folder>
+  <Folder Name="/Samples/MultiTenantedTodoService/">
+    <Project Path="src/Samples/MultiTenantedTodoService/MultiTenantedTodoService/MultiTenantedTodoWebService.csproj" />
+    <Project Path="src/Samples/MultiTenantedTodoService/MultiTenantedTodoWebService.Tests/MultiTenantedTodoWebService.Tests.csproj" />
+  </Folder>
+  <Folder Name="/Samples/OrderManagement/">
+    <Project Path="src/Samples/OrderManagement/Messages/Messages.csproj" />
+    <Project Path="src/Samples/OrderManagement/Orders/Orders.csproj" />
+    <Project Path="src/Samples/OrderManagement/RetailClient/RetailClient.csproj" />
+  </Folder>
+  <Folder Name="/Samples/PingPong/">
+    <Project Path="src/Samples/PingPong/Messages/Messages.csproj" />
+    <Project Path="src/Samples/PingPong/Pinger/Pinger.csproj" />
+    <Project Path="src/Samples/PingPong/Ponger/Ponger.csproj" />
+  </Folder>
+  <Folder Name="/Samples/PingPongWithRabbitMq/">
+    <Project Path="src/Samples/PingPongWithRabbitMq/Pinger/Pinger.csproj" />
+    <Project Path="src/Samples/PingPongWithRabbitMq/Ponger/Ponger.csproj" />
+  </Folder>
+  <Folder Name="/Samples/TestHarness/">
+    <Project Path="src/Samples/TestHarness/BankingService.Tests/BankingService.Tests.csproj" />
+    <Project Path="src/Samples/TestHarness/BankingService/BankingService.csproj" />
+  </Folder>
+  <Folder Name="/Samples/TodoWebService/">
+    <Project Path="src/Samples/TodoWebService/TodoWebService/TodoWebService.csproj" />
+    <Project Path="src/Samples/TodoWebService/TodoWebServiceTests/TodoWebServiceTests.csproj" />
+  </Folder>
+  <Folder Name="/Testing/">
+    <Project Path="src/Testing/BackPressureTests/BackPressureTests.csproj" />
+    <Project Path="src/Testing/ConsoleApp/ConsoleApp.csproj" />
+    <Project Path="src/Testing/CoreTests/CoreTests.csproj" />
+    <Project Path="src/Testing/MessageRoutingTests/MessageRoutingTests.csproj" />
+    <Project Path="src/Testing/MetricsTests/MetricsTests.csproj" />
+    <Project Path="src/Testing/Module1/Module1.csproj" />
+    <Project Path="src/Testing/Module2/Module2.csproj" />
+    <Project Path="src/Testing/OpenTelemetry/OtelWebApiWolverineMarten/OtelWebApiWolverineMarten.csproj" />
+    <Project Path="src/Testing/OrderExtension/OrderExtension.csproj" />
+    <Project Path="src/Testing/PolicyTests/PolicyTests.csproj" />
+    <Project Path="src/Testing/SlowTests/SlowTests.csproj" />
+    <Project Path="src/Testing/Wolverine.ComplianceTests/Wolverine.ComplianceTests.csproj" />
+  </Folder>
+  <Folder Name="/Transports/" />
+  <Folder Name="/Transports/AWS/">
+    <Project Path="src/Transports/AWS/WebAppWithSQS/WebAppWithSQS.csproj" />
+    <Project Path="src/Transports/AWS/Wolverine.AmazonSns.Tests/Wolverine.AmazonSns.Tests.csproj" />
+    <Project Path="src/Transports/AWS/Wolverine.AmazonSns/Wolverine.AmazonSns.csproj" />
+    <Project Path="src/Transports/AWS/Wolverine.AmazonSqs.Tests/Wolverine.AmazonSqs.Tests.csproj" />
+    <Project Path="src/Transports/AWS/Wolverine.AmazonSqs/Wolverine.AmazonSqs.csproj" />
+  </Folder>
+  <Folder Name="/Transports/Azure/">
+    <Project Path="src/Transports/Azure/Wolverine.AzureServiceBus.Tests/Wolverine.AzureServiceBus.Tests.csproj" />
+    <Project Path="src/Transports/Azure/Wolverine.AzureServiceBus/Wolverine.AzureServiceBus.csproj" />
+  </Folder>
+  <Folder Name="/Transports/GCP/">
+    <Project Path="src/Transports/GCP/Wolverine.Pubsub.Tests/Wolverine.Pubsub.Tests.csproj" />
+    <Project Path="src/Transports/GCP/Wolverine.Pubsub/Wolverine.Pubsub.csproj" />
+  </Folder>
+  <Folder Name="/Transports/Kafka/">
+    <Project Path="src/Transports/Kafka/BatchMessaging/BatchMessaging.csproj" />
+    <Project Path="src/Transports/Kafka/Wolverine.Kafka.Tests/Wolverine.Kafka.Tests.csproj" />
+    <Project Path="src/Transports/Kafka/Wolverine.Kafka/Wolverine.Kafka.csproj" />
+  </Folder>
+  <Folder Name="/Transports/MQTT/">
+    <Project Path="src/Transports/MQTT/Wolverine.MQTT.Tests/Wolverine.MQTT.Tests.csproj" />
+    <Project Path="src/Transports/MQTT/Wolverine.MQTT/Wolverine.MQTT.csproj" />
+  </Folder>
+  <Folder Name="/Transports/NATS/">
+    <Project Path="src/Transports/NATS/Wolverine.Nats.Tests/Wolverine.Nats.Tests.csproj" />
+    <Project Path="src/Transports/NATS/Wolverine.Nats/Wolverine.Nats.csproj" />
+  </Folder>
+  <Folder Name="/Transports/Pulsar/">
+    <Project Path="src/Transports/Pulsar/Wolverine.Pulsar.Tests/Wolverine.Pulsar.Tests.csproj" />
+    <Project Path="src/Transports/Pulsar/Wolverine.Pulsar/Wolverine.Pulsar.csproj" />
+  </Folder>
+  <Folder Name="/Transports/RabbitMQ/">
+    <Project Path="src/Transports/RabbitMQ/ChaosTesting/ChaosTesting.csproj" />
+    <Project Path="src/Transports/RabbitMQ/CircuitBreakingTests/CircuitBreakingTests.csproj" />
+    <Project Path="src/Transports/RabbitMQ/RabbitMqBootstrapping/RabbitMqBootstrapping.csproj" />
+    <Project Path="src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Wolverine.RabbitMQ.Tests.csproj" />
+    <Project Path="src/Transports/RabbitMQ/Wolverine.RabbitMQ/Wolverine.RabbitMQ.csproj" />
+  </Folder>
+  <Folder Name="/Transports/Redis/">
+    <Project Path="src/Transports/Redis/Wolverine.Redis.Tests/Wolverine.Redis.Tests.csproj" />
+    <Project Path="src/Transports/Redis/Wolverine.Redis/Wolverine.Redis.csproj" />
+  </Folder>
+  <Folder Name="/Transports/SignalR/">
+    <Project Path="src/Samples/WolverineChat/WolverineChat.csproj" />
+    <Project Path="src/Transports/SignalR/Wolverine.SignalR.Tests/Wolverine.SignalR.Tests.csproj" />
+    <Project Path="src/Transports/SignalR/Wolverine.SignalR/Wolverine.SignalR.csproj" />
+  </Folder>
+  <Project Path="build/build.csproj">
+    <Build Project="false" />
+  </Project>
+  <Project Path="src/Wolverine/Wolverine.csproj" />
+</Solution>

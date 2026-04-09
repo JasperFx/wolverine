@@ -8,8 +8,8 @@
     </PropertyGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\..\src\Persistence\Wolverine.EntityFrameworkCore\Wolverine.EntityFrameworkCore.csproj" />
-      <ProjectReference Include="..\..\src\Persistence\Wolverine.Postgresql\Wolverine.Postgresql.csproj" />
+      <ProjectReference Include="..\..\..\Wolverine.EntityFrameworkCore\Wolverine.EntityFrameworkCore.csproj" />
+      <ProjectReference Include="..\..\..\Wolverine.Postgresql\Wolverine.Postgresql.csproj" />
     </ItemGroup>
 
     <ItemGroup>
