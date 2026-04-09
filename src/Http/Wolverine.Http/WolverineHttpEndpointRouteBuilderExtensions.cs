@@ -1,6 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using JasperFx;
+using JasperFx.CodeGeneration;
 using JasperFx.Core.IoC;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -210,7 +211,7 @@ public static class WolverineHttpEndpointRouteBuilderExtensions
         
         options.Policies.Add(new ProblemDetailsFromMiddleware());
         
-        if (Environment.CommandLine.Contains("codegen", StringComparison.OrdinalIgnoreCase))
+        if (DynamicCodeBuilder.WithinCodegenCommand)
         {
             options.WarmUpRoutes = RouteWarmup.Lazy;
         }

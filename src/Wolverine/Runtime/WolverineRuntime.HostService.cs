@@ -21,11 +21,36 @@ public partial class WolverineRuntime
     private bool _hasStarted;
     private Task? _idleAgentCleanupLoop;
 
+    /// <summary>
+    /// Detects whether Wolverine is running in a metadata-only CLI mode (codegen, OpenAPI
+    /// generation via GetDocument.Insider) where persistence and transport connectivity
+    /// are not required. When detected, lightweight startup settings are applied automatically
+    /// so the host can start without needing external databases or message brokers.
+    /// </summary>
+    private void applyMetadataOnlyModeIfDetected()
+    {
+        if (Options.LightweightMode) return; // Already applied (e.g., by StartLightweightAsync)
+
+        var isMetadataOnly = DynamicCodeBuilder.WithinCodegenCommand
+            || (Environment.GetEnvironmentVariable("ASPNETCORE_HOSTINGSTARTUPASSEMBLIES")
+                ?.Contains("GetDocument", StringComparison.OrdinalIgnoreCase) ?? false);
+
+        if (!isMetadataOnly) return;
+
+        Options.ExternalTransportsAreStubbed = true;
+        Options.Durability.DurabilityAgentEnabled = false;
+        Options.Durability.Mode = DurabilityMode.MediatorOnly;
+        Options.LightweightMode = true;
+    }
+
     public async Task StartAsync(CancellationToken cancellationToken)
     {
         // Make this idempotent because the AddResourceSetupOnStartup() can cause it to bootstrap twice
         if (_hasStarted) return;
-        
+
+        // Auto-detect codegen and OpenAPI generation tools; suppress persistence/transport init
+        applyMetadataOnlyModeIfDetected();
+
         try
         {
             Logger.LogInformation("Starting Wolverine messaging for application assembly {Assembly}",
