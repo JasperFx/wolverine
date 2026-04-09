@@ -79,11 +79,7 @@ public class EfCoreEnvelopeTransaction : IEnvelopeTransaction
 
         if (DbContext.IsWolverineEnabled())
         {
-            foreach (var envelope in envelopes)
-            {
-                var outgoing = new OutgoingMessage(envelope);
-                DbContext.Add(outgoing);
-            }
+            DbContext.AddRange(envelopes.Select(e => new OutgoingMessage(e)));
         }
         else
         {
