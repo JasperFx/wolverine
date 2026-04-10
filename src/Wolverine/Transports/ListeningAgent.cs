@@ -350,8 +350,6 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
     {
         try
         {
-            using var activity = WolverineTracing.ActivitySource.StartActivity(WolverineTracing.PausingListener);
-            activity?.SetTag(WolverineTracing.EndpointAddress, Uri);
             // Do NOT pre-latch the receiver here. PauseAsync may be called from within the
             // handler pipeline (e.g. via RateLimitContinuation → PauseListenerContinuation).
             // Pre-latching causes DrainAsync to wait for the ActionBlock to drain, which

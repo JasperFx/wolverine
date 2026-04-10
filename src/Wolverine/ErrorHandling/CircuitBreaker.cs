@@ -177,8 +177,6 @@ internal class CircuitBreaker : IAsyncDisposable, IMessageSuccessTracker
 
         if (failures > 0 && ShouldStopProcessing())
         {
-            using var activity = WolverineTracing.ActivitySource.StartActivity(WolverineTracing.CircuitBreakerTripped);
-            activity?.SetTag(WolverineTracing.EndpointAddress, _circuit.Endpoint.Uri);
             await _circuit.PauseAsync(Options.PauseTime);
 
             if (_observer != null)
