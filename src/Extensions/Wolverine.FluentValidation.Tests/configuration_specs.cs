@@ -11,8 +11,20 @@ using Wolverine.Runtime.Handlers;
 
 namespace Wolverine.FluentValidation.Tests;
 
-public class configuration_specs
+public class configuration_specs : IDisposable
 {
+    // Store original values to restore after tests that modify global state
+    private readonly CascadeMode _originalClassCascadeMode = ValidatorOptions.Global.DefaultClassLevelCascadeMode;
+    private readonly CascadeMode _originalRuleCascadeMode = ValidatorOptions.Global.DefaultRuleLevelCascadeMode;
+    private readonly Severity _originalSeverity = ValidatorOptions.Global.Severity;
+
+    public void Dispose()
+    {
+        ValidatorOptions.Global.DefaultClassLevelCascadeMode = _originalClassCascadeMode;
+        ValidatorOptions.Global.DefaultRuleLevelCascadeMode = _originalRuleCascadeMode;
+        ValidatorOptions.Global.Severity = _originalSeverity;
+    }
+
     [Fact]
     public async Task register_validators_in_application_assembly()
     {
@@ -82,6 +94,84 @@ public class configuration_specs
         handlers.ChainFor<Command3>()!.Middleware.OfType<MethodCall>()
             .Any(x => x.HandlerType == typeof(FluentValidationExecutor))
             .ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task configure_validator_options_via_action_overload()
+    {
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.UseFluentValidation(fv =>
+                {
+                    fv.ValidatorOptions.DefaultRuleLevelCascadeMode = CascadeMode.Stop;
+                    fv.ValidatorOptions.DefaultClassLevelCascadeMode = CascadeMode.Stop;
+                    fv.ValidatorOptions.Severity = Severity.Warning;
+                });
+
+                opts.Services.AddScoped<IDataService, DataService>();
+            }).StartAsync();
+
+        ValidatorOptions.Global.DefaultRuleLevelCascadeMode.ShouldBe(CascadeMode.Stop);
+        ValidatorOptions.Global.DefaultClassLevelCascadeMode.ShouldBe(CascadeMode.Stop);
+        ValidatorOptions.Global.Severity.ShouldBe(Severity.Warning);
+    }
+
+    [Fact]
+    public async Task configure_registration_behavior_via_action_overload()
+    {
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.Services.AddSingleton<IValidator<Command1>, Command1Validator>();
+
+                opts.UseFluentValidation(fv =>
+                {
+                    fv.RegistrationBehavior = RegistrationBehavior.ExplicitRegistration;
+                });
+            }).StartAsync();
+
+        var container = host.Services.GetRequiredService<IServiceContainer>();
+
+        // Only the explicitly registered validator should be present
+        container.DefaultFor<IValidator<Command1>>()!
+            .ImplementationType.ShouldBe(typeof(Command1Validator));
+    }
+
+    [Fact]
+    public async Task action_overload_still_applies_middleware()
+    {
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.UseFluentValidation(fv =>
+                {
+                    fv.ValidatorOptions.DefaultRuleLevelCascadeMode = CascadeMode.Stop;
+                });
+
+                opts.Services.AddScoped<IDataService, DataService>();
+            }).StartAsync();
+
+        var wolverineOptions = host.Services.GetRequiredService<IWolverineRuntime>()
+            .As<WolverineRuntime>().Options;
+
+        var handlers = (HandlerGraph)typeof(WolverineOptions)
+            .GetProperty(nameof(HandlerGraph), BindingFlags.NonPublic | BindingFlags.Instance)!
+            .GetValue(wolverineOptions)!;
+
+        // Middleware should still be wired up
+        handlers.ChainFor<Command1>()!.Middleware.OfType<MethodCall>()
+            .Any(x => x.HandlerType == typeof(FluentValidationExecutor))
+            .ShouldBeTrue();
+    }
+
+    [Fact]
+    public void fluent_validation_configuration_defaults()
+    {
+        var config = new FluentValidationConfiguration();
+
+        config.RegistrationBehavior.ShouldBe(RegistrationBehavior.DiscoverAndRegisterValidators);
+        config.ValidatorOptions.ShouldBe(ValidatorOptions.Global);
     }
 }
 

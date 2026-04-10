@@ -27,9 +27,25 @@ public static class WolverineFluentValidationExtensions
 {
     /// <summary>
     ///     Apply FluentValidation middleware to message handlers that have known validators
+    ///     in the underlying container, with full access to FluentValidation configuration.
+    /// </summary>
+    /// <param name="options"></param>
+    /// <param name="configure">Action to configure FluentValidation behavior and validator options</param>
+    /// <returns></returns>
+    public static WolverineOptions UseFluentValidation(this WolverineOptions options,
+        Action<FluentValidationConfiguration> configure)
+    {
+        var config = new FluentValidationConfiguration();
+        configure(config);
+        return options.UseFluentValidation(config.RegistrationBehavior);
+    }
+
+    /// <summary>
+    ///     Apply FluentValidation middleware to message handlers that have known validators
     ///     in the underlying container
     /// </summary>
     /// <param name="options"></param>
+    /// <param name="behavior"></param>
     /// <returns></returns>
     public static WolverineOptions UseFluentValidation(this WolverineOptions options,
         RegistrationBehavior behavior = RegistrationBehavior.DiscoverAndRegisterValidators)
