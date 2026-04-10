@@ -22,7 +22,7 @@
     <PackageVersion Include="Grpc.Core" Version="2.46.6" />
     <PackageVersion Include="Grpc.Tools" Version="2.72.0" />
     <PackageVersion Include="HtmlTags" Version="9.0.0" />
-    <PackageVersion Include="JasperFx" Version="1.24.0" />
+    <PackageVersion Include="JasperFx" Version="1.24.1" />
     <PackageVersion Include="JasperFx.Events" Version="1.27.0" />
     <PackageVersion Include="JasperFx.RuntimeCompiler" Version="4.4.0" />
     <PackageVersion Include="JasperFx.SourceGeneration" Version="1.1.0" />
