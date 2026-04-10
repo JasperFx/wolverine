@@ -116,4 +116,4 @@ When working on specific areas, consult these files:
 
 ## Version
 
-Current: **5.13.0** (see `Directory.Build.props`)
+Current: **5.30.0** (see `Directory.Build.props`)
