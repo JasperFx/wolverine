@@ -166,11 +166,73 @@ public class configuration_specs : IDisposable
     }
 
     [Fact]
+    public async Task discover_internal_validators_when_include_internal_types_is_true()
+    {
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.UseFluentValidation(fv =>
+                {
+                    fv.IncludeInternalTypes = true;
+                });
+
+                opts.Services.AddScoped<IDataService, DataService>();
+            }).StartAsync();
+
+        var container = host.Services.GetRequiredService<IServiceContainer>();
+
+        // InternalCommand6Validator is internal and should be discovered
+        container.DefaultFor<IValidator<Command6>>().ShouldNotBeNull();
+        container.DefaultFor<IValidator<Command6>>()!
+            .Lifetime.ShouldBe(ServiceLifetime.Singleton);
+    }
+
+    [Fact]
+    public async Task do_not_discover_internal_validators_by_default()
+    {
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.UseFluentValidation();
+
+                opts.Services.AddScoped<IDataService, DataService>();
+            }).StartAsync();
+
+        var container = host.Services.GetRequiredService<IServiceContainer>();
+
+        // InternalCommand6Validator is internal and should NOT be discovered by default
+        container.DefaultFor<IValidator<Command6>>().ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task discover_internal_validator_with_dependencies_as_scoped()
+    {
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.UseFluentValidation(fv =>
+                {
+                    fv.IncludeInternalTypes = true;
+                });
+
+                opts.Services.AddScoped<IDataService, DataService>();
+            }).StartAsync();
+
+        var container = host.Services.GetRequiredService<IServiceContainer>();
+
+        // InternalCommand7Validator has a constructor dependency, so it should be Scoped
+        container.DefaultFor<IValidator<Command7>>().ShouldNotBeNull();
+        container.DefaultFor<IValidator<Command7>>()!
+            .Lifetime.ShouldBe(ServiceLifetime.Scoped);
+    }
+
+    [Fact]
     public void fluent_validation_configuration_defaults()
     {
         var config = new FluentValidationConfiguration();
 
         config.RegistrationBehavior.ShouldBe(RegistrationBehavior.DiscoverAndRegisterValidators);
+        config.IncludeInternalTypes.ShouldBeFalse();
         config.ValidatorOptions.ShouldBe(ValidatorOptions.Global);
     }
 }
@@ -282,6 +344,34 @@ public class Command5Validator : AbstractValidator<Command5>
     }
 }
 
+public class Command6
+{
+    public string Value { get; set; } = null!;
+}
+
+// Internal validator — only discoverable when IncludeInternalTypes is true
+internal class InternalCommand6Validator : AbstractValidator<Command6>
+{
+    public InternalCommand6Validator()
+    {
+        RuleFor(x => x.Value).NotNull().NotEmpty();
+    }
+}
+
+public class Command7
+{
+    public string Email { get; set; } = null!;
+}
+
+// Internal validator with a constructor dependency — should be registered as Scoped
+internal class InternalCommand7Validator : AbstractValidator<Command7>
+{
+    public InternalCommand7Validator(IDataService dataService)
+    {
+        RuleFor(x => x.Email).NotNull();
+    }
+}
+
 public class CommandHandler
 {
     public void Handle(Command1 command)
@@ -301,6 +391,14 @@ public class CommandHandler
     }
 
     public void Handle(Command5 command)
+    {
+    }
+
+    public void Handle(Command6 command)
+    {
+    }
+
+    public void Handle(Command7 command)
     {
     }
 }

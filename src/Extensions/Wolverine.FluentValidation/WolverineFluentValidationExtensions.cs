@@ -37,7 +37,7 @@ public static class WolverineFluentValidationExtensions
     {
         var config = new FluentValidationConfiguration();
         configure(config);
-        return options.UseFluentValidation(config.RegistrationBehavior);
+        return options.UseFluentValidation(config.RegistrationBehavior, config.IncludeInternalTypes);
     }
 
     /// <summary>
@@ -46,9 +46,11 @@ public static class WolverineFluentValidationExtensions
     /// </summary>
     /// <param name="options"></param>
     /// <param name="behavior"></param>
+    /// <param name="includeInternalTypes">When true, also discovers validators with internal visibility</param>
     /// <returns></returns>
     public static WolverineOptions UseFluentValidation(this WolverineOptions options,
-        RegistrationBehavior behavior = RegistrationBehavior.DiscoverAndRegisterValidators)
+        RegistrationBehavior behavior = RegistrationBehavior.DiscoverAndRegisterValidators,
+        bool includeInternalTypes = false)
     {
         if (options.Services.Any(x => x.ServiceType == typeof(WolverineFluentValidationMarker)))
         {
@@ -75,13 +77,37 @@ public static class WolverineFluentValidationExtensions
                             "Wolverine (and JasperFx) have not been able to determine the ApplicationAssembly. Please set that explicitly");
                     }
                 }
-                
-                options.Services.Scan(x =>
-                {
-                    foreach (var assembly in options.Assemblies) x.Assembly(assembly);
 
-                    x.ConnectImplementationsToTypesClosing(typeof(IValidator<>), type => type.HasConstructorsWithArguments() ? ServiceLifetime.Scoped : ServiceLifetime.Singleton);
-                });
+                // Use FluentValidation's own AssemblyScanner when internal types are needed,
+                // since Lamar's ConnectImplementationsToTypesClosing only finds public types.
+                if (includeInternalTypes)
+                {
+                    var scanResults =
+                        global::FluentValidation.AssemblyScanner.FindValidatorsInAssemblies(options.Assemblies,
+                            includeInternalTypes: true);
+
+                    foreach (var result in scanResults)
+                    {
+                        var lifetime = result.ValidatorType.HasConstructorsWithArguments()
+                            ? ServiceLifetime.Scoped
+                            : ServiceLifetime.Singleton;
+
+                        options.Services.TryAdd(new ServiceDescriptor(result.InterfaceType, result.ValidatorType,
+                            lifetime));
+                    }
+                }
+                else
+                {
+                    options.Services.Scan(x =>
+                    {
+                        foreach (var assembly in options.Assemblies) x.Assembly(assembly);
+
+                        x.ConnectImplementationsToTypesClosing(typeof(IValidator<>),
+                            type => type.HasConstructorsWithArguments()
+                                ? ServiceLifetime.Scoped
+                                : ServiceLifetime.Singleton);
+                    });
+                }
             }
         });
 

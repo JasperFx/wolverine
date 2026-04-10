@@ -17,6 +17,18 @@ public class FluentValidationConfiguration
         RegistrationBehavior.DiscoverAndRegisterValidators;
 
     /// <summary>
+    ///     When true, FluentValidation's <see cref="AssemblyScanner"/> will also discover
+    ///     validators with <c>internal</c> visibility, not just public ones. Default is false.
+    /// </summary>
+    /// <remarks>
+    ///     By default, Wolverine's assembly scanning only discovers public validator types.
+    ///     Set this to true if you have internal validators that should be auto-registered.
+    ///     This option only takes effect when <see cref="RegistrationBehavior"/> is
+    ///     <see cref="FluentValidation.RegistrationBehavior.DiscoverAndRegisterValidators"/>.
+    /// </remarks>
+    public bool IncludeInternalTypes { get; set; }
+
+    /// <summary>
     ///     Direct access to FluentValidation's global validator options for configuring
     ///     cascade modes, severity, language manager, property name resolvers, and other settings.
     /// </summary>
