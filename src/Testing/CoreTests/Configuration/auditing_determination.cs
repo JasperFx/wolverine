@@ -91,7 +91,7 @@ public class auditing_determination : IntegrationContext
         
         
         
-        chain.SourceCode!.ShouldContain("\"Starting to process CoreTests.Configuration.AuditedMessage2 ({EnvelopeId} with Id: {Id}, AccountIdentifier: {AccountId}\"");
+        chain.SourceCode!.ShouldContain("\"Starting to process CoreTests.Configuration.AuditedMessage2 ({EnvelopeId}) with Id: {Id}, AccountIdentifier: {AccountId}\"");
         
 /*
 ((Microsoft.Extensions.Logging.ILogger)_loggerForMessage).Log(Microsoft.Extensions.Logging.LogLevel.Information, "Starting to process CoreTests.Configuration.AuditedMessage2 ({EnvelopeId} with Id: {Id}, AccountIdentifier: {AccountId}", context.Envelope.Id, auditedMessage2.Id, auditedMessage2.AccountId);
