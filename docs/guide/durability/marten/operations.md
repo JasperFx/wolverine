@@ -42,8 +42,42 @@ public static IMartenOp Pay([Document] Invoice invoice)
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Documents.cs#L43-L52' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_marten_op_from_http_endpoint' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-There are existing Marten ops for storing, inserting, updating, and deleting a document. There's also a specific
-helper for starting a new event stream as shown below:
+There are existing Marten ops for storing, inserting, updating, and deleting a document.
+
+### Storing Multiple Documents
+
+Use `MartenOps.StoreMany()` to store multiple documents of the same type, or `MartenOps.StoreObjects()` to store
+multiple documents of different types in a single side effect:
+
+```csharp
+// Store multiple documents of the same type
+public static StoreManyDocs<Invoice> Handle(BatchInvoiceCommand command)
+{
+    var invoices = command.Items.Select(i => new Invoice { Id = i.Id, Amount = i.Amount });
+    return MartenOps.StoreMany(invoices.ToArray());
+}
+
+// Store multiple documents of different types
+public static StoreObjects Handle(CreateOrderCommand command)
+{
+    var order = new Order { Id = command.OrderId, Total = command.Total };
+    var audit = new AuditLog { Action = "OrderCreated", EntityId = command.OrderId };
+    return MartenOps.StoreObjects(order, audit);
+}
+```
+
+Both `StoreMany()` and `StoreObjects()` support fluent `With()` methods to incrementally add documents:
+
+```csharp
+public static StoreObjects Handle(ComplexCommand command)
+{
+    return MartenOps.StoreObjects(new Order { Id = command.OrderId })
+        .With(new AuditLog { Action = "Created" })
+        .With(new Notification { Message = "Order created" });
+}
+```
+
+There's also a specific helper for starting a new event stream as shown below:
 
 <!-- snippet: sample_using_start_stream_side_effect -->
 <a id='snippet-sample_using_start_stream_side_effect'></a>
