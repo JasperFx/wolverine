@@ -77,7 +77,7 @@ public class PublishingExpression : IPublishToExpression
         return new LocalQueueConfiguration(settings);
     }
 
-    public void AddSubscriber(Endpoint endpoint)
+    public PublishingExpression AddSubscriber(Endpoint endpoint)
     {
         _endpoints.Add(endpoint);
 
@@ -85,6 +85,8 @@ public class PublishingExpression : IPublishToExpression
         {
             endpoint.Subscriptions.AddRange(_subscriptions);
         }
+
+        return this;
     }
 
     /// <summary>
@@ -180,13 +182,15 @@ public class PublishingExpression : IPublishToExpression
     ///     base class
     /// </summary>
     /// <typeparam name="T"></typeparam>
-    public void MessagesImplementing<T>()
+    /// <returns></returns>
+    public PublishingExpression MessagesImplementing<T>()
     {
-        MessagesImplementing(typeof(T));
+        return MessagesImplementing(typeof(T));
     }
 
-    public void MessagesImplementing(Type baseType)
+    public PublishingExpression MessagesImplementing(Type baseType)
     {
         _subscriptions.Add(new Subscription { BaseType = baseType, Scope = RoutingScope.Implements });
+        return this;
     }
 }

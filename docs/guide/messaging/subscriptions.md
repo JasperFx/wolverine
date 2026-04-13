@@ -112,6 +112,11 @@ using var host = Host.CreateDefaultBuilder()
         opts.Publish().MessagesFromAssembly(typeof(PingMessage).Assembly)
             .ToPort(3333);
 
+        // Publish all messages implementing a marker interface to a specific endpoint
+        opts.Publish()
+            .MessagesImplementing<IEventMarker>()
+            .ToPort(4444);
+
         // Complicated rules, I don't think folks will use this much
         opts.Publish(rule =>
         {
