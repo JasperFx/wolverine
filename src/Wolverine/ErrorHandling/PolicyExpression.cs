@@ -125,12 +125,32 @@ public interface IAdditionalActions
     /// <param name="source"></param>
     /// <returns></returns>
     IAdditionalActions And(IContinuationSource source);
+
+    /// <summary>
+    /// Apply full additive jitter to every delay in this rule.
+    /// Effective delay ∈ [d, 2d]. Mutually exclusive with the other WithXxxJitter methods.
+    /// </summary>
+    IAdditionalActions WithFullJitter();
+
+    /// <summary>
+    /// Apply bounded additive jitter to every delay in this rule.
+    /// Effective delay ∈ [d, d × (1 + percent)]. Mutually exclusive with the other WithXxxJitter methods.
+    /// </summary>
+    /// <param name="percent">Upper bound of the additive range, as a fraction of the configured delay. Must be &gt; 0.</param>
+    IAdditionalActions WithBoundedJitter(double percent);
+
+    /// <summary>
+    /// Apply attempt-scaled additive jitter to every delay in this rule.
+    /// Effective delay ∈ [d, d × (1 + 2·attempt)]. Mutually exclusive with the other WithXxxJitter methods.
+    /// </summary>
+    IAdditionalActions WithExponentialJitter();
 }
 
 internal class FailureActions : IAdditionalActions, IFailureActions
 {
     private readonly FailureRule _rule;
     private readonly List<FailureSlot> _slots = new();
+    private bool _jitterApplied;
 
     public FailureActions(IExceptionMatch match, FailureRuleCollection parent)
     {
@@ -353,7 +373,7 @@ internal class FailureActions : IAdditionalActions, IFailureActions
         {
             throw new InvalidOperationException("You must specify at least one delay time");
         }
-        
+
         if (delays.Length > 25)
             throw new ArgumentOutOfRangeException(nameof(delays),
                 "Wolverine allows a maximum of 25 attempts, maybe see one of the indefinite requeue or reschedule policies");
@@ -365,6 +385,48 @@ internal class FailureActions : IAdditionalActions, IFailureActions
             _slots.Add(slot);
         }
 
+        return this;
+    }
+
+    public IAdditionalActions WithFullJitter()
+        => ApplyJitterStrategy(new FullJitter());
+
+    public IAdditionalActions WithBoundedJitter(double percent)
+        => ApplyJitterStrategy(new BoundedJitter(percent));
+
+    public IAdditionalActions WithExponentialJitter()
+        => ApplyJitterStrategy(new ExponentialJitter());
+
+    private IAdditionalActions ApplyJitterStrategy(IJitterStrategy strategy)
+    {
+        if (_jitterApplied)
+        {
+            throw new InvalidOperationException(
+                "A jitter strategy has already been applied to this error rule. " +
+                "Only one of WithFullJitter / WithBoundedJitter / WithExponentialJitter is allowed per rule.");
+        }
+
+        var applied = false;
+
+        foreach (var slot in _rule)
+        {
+            if (slot.ApplyJitter(strategy)) applied = true;
+        }
+
+        if (_rule.InfiniteSource is IJitterable infiniteJitterable
+            && infiniteJitterable.TrySetJitter(strategy))
+        {
+            applied = true;
+        }
+
+        if (!applied)
+        {
+            throw new InvalidOperationException(
+                "Jitter can only be applied after a delay-carrying policy such as " +
+                "RetryWithCooldown, ScheduleRetry, ScheduleRetryIndefinitely, or PauseThenRequeue.");
+        }
+
+        _jitterApplied = true;
         return this;
     }
 }

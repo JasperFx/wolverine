@@ -1,4 +1,5 @@
 using NSubstitute;
+using Shouldly;
 using Wolverine.ComplianceTests;
 using Wolverine.ErrorHandling;
 using Wolverine.Runtime;
@@ -44,5 +45,23 @@ public class FailureSlotTests
 
         continuation.Inner[0].ShouldBe(continuation1);
         continuation.Inner[1].ShouldBe(continuation2);
+    }
+
+    [Fact]
+    public void apply_jitter_returns_true_when_source_accepts_strategy()
+    {
+        var continuation = new RetryInlineContinuation(TimeSpan.FromSeconds(1));
+        var slot = new FailureSlot(1, continuation);
+
+        slot.ApplyJitter(new FullJitter()).ShouldBeTrue();
+    }
+
+    [Fact]
+    public void apply_jitter_returns_false_when_no_jitterable_source()
+    {
+        var source = Substitute.For<IContinuationSource>();
+        var slot = new FailureSlot(1, source);
+
+        slot.ApplyJitter(new FullJitter()).ShouldBeFalse();
     }
 }
