@@ -44,6 +44,12 @@ public class soft_deleted_saga_experiment : IAsyncLifetime
     [Fact]
     public async Task saga_is_soft_deleted_when_completed()
     {
+        // KNOWN BEHAVIOR: Marten's LoadAsync() does NOT filter soft-deleted documents.
+        // Only LINQ queries apply the soft-delete filter. So after MarkCompleted()
+        // triggers session.Delete(), the saga is soft-deleted in the database but
+        // LoadAsync still returns it. LINQ queries without MaybeDeleted() will
+        // correctly filter it out.
+
         var id = Guid.NewGuid();
 
         // Start the saga
@@ -59,12 +65,19 @@ public class soft_deleted_saga_experiment : IAsyncLifetime
         // Complete the saga (this calls MarkCompleted() which triggers Delete)
         await _host.SendMessageAndWaitAsync(new CompleteSoftDeleteOrder(id));
 
-        // Normal load should NOT find the soft-deleted saga
+        // LoadAsync does NOT filter soft-deleted documents — this is standard Marten behavior
         await using var session2 = _host.DocumentStore().QuerySession();
         var afterComplete = await session2.LoadAsync<SoftDeletedOrderSaga>(id);
-        afterComplete.ShouldBeNull();
+        afterComplete.ShouldNotBeNull("LoadAsync returns soft-deleted documents");
 
-        // But with MaybeDeleted, we should still be able to find it
+        // But a LINQ query WITHOUT MaybeDeleted() filters the soft-deleted saga out
+        var filteredQuery = await session2
+            .Query<SoftDeletedOrderSaga>()
+            .Where(x => x.Id == id)
+            .FirstOrDefaultAsync();
+        filteredQuery.ShouldBeNull("LINQ queries filter soft-deleted documents by default");
+
+        // With MaybeDeleted(), we can still find the soft-deleted saga
         var includingDeleted = await session2
             .Query<SoftDeletedOrderSaga>()
             .Where(x => x.Id == id)
