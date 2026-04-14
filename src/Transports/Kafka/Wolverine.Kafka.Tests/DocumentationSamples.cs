@@ -106,6 +106,14 @@ public class DocumentationSamples
                         // Other configuration
                     })
                     
+                    // Configure circuit breaker behavior for
+                    // this specific Kafka listener
+                    .CircuitBreaker(cb =>
+                    {
+                        cb.MinimumThreshold = 10;
+                        cb.PauseTime = TimeSpan.FromMinutes(1);
+                    })
+                    
                     // Fine tune how the Kafka Topic is declared by Wolverine
                     .Specification(spec =>
                     {

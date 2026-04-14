@@ -2,6 +2,7 @@ using System.Text.Json;
 using Confluent.Kafka;
 using Confluent.Kafka.Admin;
 using Wolverine.Configuration;
+using Wolverine.ErrorHandling;
 using Wolverine.Kafka.Internals;
 
 namespace Wolverine.Kafka;
@@ -30,6 +31,29 @@ public class KafkaListenerConfiguration : InteroperableListenerConfiguration<Kaf
         }
 
         add(topic => configure(topic.Specification));
+        return this;
+    }
+    
+    /// <summary>
+    /// Configures circuit breaker behavior for this Kafka listener.
+    /// </summary>
+    /// <param name="configure">
+    /// Optional configuration action for <see cref="CircuitBreakerOptions"/>.
+    /// <returns></returns>
+    /// <exception cref="ArgumentNullException"></exception>
+    public KafkaListenerConfiguration CircuitBreaker(Action<CircuitBreakerOptions> configure)
+    {
+        if (configure == null)
+        {
+            throw new ArgumentNullException(nameof(configure));
+        }
+
+        add(topic =>
+        {
+            topic.CircuitBreakerOptions = new CircuitBreakerOptions();
+            configure(topic.CircuitBreakerOptions);
+        });
+
         return this;
     }
 
