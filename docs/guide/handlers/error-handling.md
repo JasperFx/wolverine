@@ -130,6 +130,49 @@ public class MessageWithBackoff
 <!-- endSnippet -->
 
 
+## Jitter
+
+When many nodes retry at the same fixed delay after a shared downstream failure, they produce a "thundering herd" that pounds the recovering dependency in lockstep. Wolverine supports **additive jitter** on the three delay-based error policies: `RetryWithCooldown`, `ScheduleRetry` / `ScheduleRetryIndefinitely`, and `PauseThenRequeue`.
+
+**Invariant:** jitter only *extends* the configured delay, never shortens it. The configured values remain the lower bound.
+
+Three strategies are available. They are mutually exclusive per error rule.
+
+Jitter is applied once per error rule — all slots in the rule share the same strategy, including those added via `.Then`. Attempting to call a second `WithXxxJitter()` method on the same rule (even after `.Then`) throws `InvalidOperationException`.
+
+### WithFullJitter
+
+Effective delay ∈ `[d, 2·d]`.
+
+```csharp
+opts.OnException<DownstreamUnavailableException>()
+    .RetryWithCooldown(50.Milliseconds(), 100.Milliseconds(), 250.Milliseconds())
+    .WithFullJitter();
+```
+
+### WithBoundedJitter
+
+Effective delay ∈ `[d, d × (1 + percent)]`. Useful when you deliberately picked the cooldown values and want to keep the spread narrow.
+
+```csharp
+opts.OnException<DownstreamUnavailableException>()
+    .ScheduleRetry(1.Seconds(), 5.Seconds(), 30.Seconds())
+    .WithBoundedJitter(0.25); // +0% to +25%
+```
+
+`percent` must be greater than zero; there is no upper bound.
+
+### WithExponentialJitter
+
+Effective delay ∈ `[d, d × (1 + 2·attempt)]`. The spread widens with every attempt, so persistent failures fan out more than transient ones. This is an attempt-scaled, stateless variant of the "decorrelated jitter" pattern — it deliberately avoids persisting the previous actual delay per envelope.
+
+```csharp
+opts.OnException<DownstreamUnavailableException>()
+    .PauseThenRequeue(5.Seconds())
+    .WithExponentialJitter();
+```
+
+
 ## Pausing Listening on Error Conditions
 
 ::: tip

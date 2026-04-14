@@ -5,7 +5,7 @@ using Wolverine.Transports;
 
 namespace Wolverine.ErrorHandling;
 
-internal class RequeueContinuation : IContinuation, IContinuationSource
+internal class RequeueContinuation : IContinuation, IContinuationSource, IJitterable
 {
     public static readonly RequeueContinuation Instance = new();
 
@@ -20,6 +20,15 @@ internal class RequeueContinuation : IContinuation, IContinuationSource
 
     public TimeSpan? Delay { get; }
 
+    private volatile IJitterStrategy? _jitter;
+
+    public bool TrySetJitter(IJitterStrategy strategy)
+    {
+        if (Delay == null) return false;
+        _jitter = strategy;
+        return true;
+    }
+
     public async ValueTask ExecuteAsync(IEnvelopeLifecycle lifecycle, IWolverineRuntime runtime, DateTimeOffset now,
         Activity? activity)
     {
@@ -28,6 +37,7 @@ internal class RequeueContinuation : IContinuation, IContinuationSource
         if (Delay != null)
         {
             var envelope = lifecycle.Envelope!;
+            var effective = _jitter?.Apply(Delay.Value, envelope.Attempts) ?? Delay.Value;
             var agent = findListenerCircuit(envelope, runtime);
 
             // For external transport listeners, stop the consumer BEFORE requeuing
@@ -54,7 +64,7 @@ internal class RequeueContinuation : IContinuation, IContinuationSource
                 {
                     try
                     {
-                        await agent.PauseAsync(Delay.Value);
+                        await agent.PauseAsync(effective);
                     }
                     catch (Exception e)
                     {

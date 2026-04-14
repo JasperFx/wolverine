@@ -30,6 +30,19 @@ public class FailureSlot
         _sources.Insert(0, source);
     }
 
+    internal bool ApplyJitter(IJitterStrategy strategy)
+    {
+        var applied = false;
+        foreach (var source in _sources)
+        {
+            if (source is IJitterable jitterable && jitterable.TrySetJitter(strategy))
+            {
+                applied = true;
+            }
+        }
+        return applied;
+    }
+
     public IContinuation Build(Exception ex, Envelope envelope)
     {
         if (_sources.Count == 1)

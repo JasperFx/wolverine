@@ -1,5 +1,6 @@
 using CoreTests.Runtime;
 using NSubstitute;
+using Shouldly;
 using Wolverine.ComplianceTests;
 using Wolverine.ErrorHandling;
 using Xunit;
@@ -20,5 +21,22 @@ public class RequeueContinuationTester
         await RequeueContinuation.Instance.ExecuteAsync(context, new MockWolverineRuntime(), DateTime.Now, null);
 
         await context.Received(1).DeferAsync();
+    }
+
+    [Fact]
+    public void requeue_continuation_with_delay_accepts_jitter()
+    {
+        var continuation = new RequeueContinuation(TimeSpan.FromSeconds(5));
+        var strategy = new FixedMultiplierJitter(2.0);
+
+        ((IJitterable)continuation).TrySetJitter(strategy).ShouldBeTrue();
+    }
+
+    [Fact]
+    public void singleton_requeue_continuation_rejects_jitter()
+    {
+        var strategy = new FixedMultiplierJitter(2.0);
+
+        ((IJitterable)RequeueContinuation.Instance).TrySetJitter(strategy).ShouldBeFalse();
     }
 }
