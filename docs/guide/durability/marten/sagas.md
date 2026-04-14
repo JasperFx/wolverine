@@ -98,8 +98,9 @@ Any strong-typed identifier type that Marten can resolve will work, including ty
 
 ## Soft-Deleted Sagas
 
-By default, when a saga calls `MarkCompleted()`, Wolverine hard-deletes the saga document from Marten. If you would
-prefer to keep a history of completed sagas, you can configure your saga type to use Marten's
+By default, when a saga calls `MarkCompleted()`, Wolverine deletes the saga document from Marten via
+`IDocumentSession.Delete()`. If your saga type is configured for soft-deletes, the document will be
+soft-deleted rather than hard-deleted, allowing you to keep a history of completed sagas using Marten's
 [soft-delete](https://martendb.io/documents/deletes.html#configuring-a-document-type-as-soft-deleted) feature.
 
 ::: warning

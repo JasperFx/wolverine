@@ -354,7 +354,7 @@ partial class Build
             var tests = RootDirectory / "src" / "Transports" / "MQTT" / "Wolverine.MQTT.Tests" / "Wolverine.MQTT.Tests.csproj";
 
             BuildTestProjects(tests);
-            StartDockerServices("postgresql");
+            StartDockerServices("postgresql", "sqlserver");
 
             RunSingleProjectOneClassAtATime(tests);
         });

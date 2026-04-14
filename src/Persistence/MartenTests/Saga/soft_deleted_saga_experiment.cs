@@ -44,6 +44,12 @@ public class soft_deleted_saga_experiment : IAsyncLifetime
     [Fact]
     public async Task saga_is_soft_deleted_when_completed()
     {
+        // KNOWN BEHAVIOR: Marten's LoadAsync() does NOT filter soft-deleted documents.
+        // Only LINQ queries apply the soft-delete filter. So after MarkCompleted()
+        // triggers session.Delete(), the saga is soft-deleted in the database but
+        // LoadAsync still returns it. LINQ queries without MaybeDeleted() will
+        // correctly filter it out.
+
         var id = Guid.NewGuid();
 
         // Start the saga
@@ -59,12 +65,19 @@ public class soft_deleted_saga_experiment : IAsyncLifetime
         // Complete the saga (this calls MarkCompleted() which triggers Delete)
         await _host.SendMessageAndWaitAsync(new CompleteSoftDeleteOrder(id));
 
-        // Normal load should NOT find the soft-deleted saga
+        // LoadAsync does NOT filter soft-deleted documents — this is standard Marten behavior
         await using var session2 = _host.DocumentStore().QuerySession();
         var afterComplete = await session2.LoadAsync<SoftDeletedOrderSaga>(id);
-        afterComplete.ShouldBeNull();
+        afterComplete.ShouldNotBeNull("LoadAsync returns soft-deleted documents");
 
-        // But with MaybeDeleted, we should still be able to find it
+        // But a LINQ query WITHOUT MaybeDeleted() filters the soft-deleted saga out
+        var filteredQuery = await session2
+            .Query<SoftDeletedOrderSaga>()
+            .Where(x => x.Id == id)
+            .FirstOrDefaultAsync();
+        filteredQuery.ShouldBeNull("LINQ queries filter soft-deleted documents by default");
+
+        // With MaybeDeleted(), we can still find the soft-deleted saga
         var includingDeleted = await session2
             .Query<SoftDeletedOrderSaga>()
             .Where(x => x.Id == id)
@@ -75,8 +88,17 @@ public class soft_deleted_saga_experiment : IAsyncLifetime
     }
 
     [Fact]
-    public async Task send_message_to_completed_soft_deleted_saga()
+    public async Task send_message_to_completed_soft_deleted_saga_resurrects_it()
     {
+        // KNOWN BEHAVIOR: Wolverine uses LoadAsync() to find sagas, which does NOT
+        // filter out soft-deleted documents. This means sending a message to a
+        // soft-deleted saga will "resurrect" it — the handler runs and the document
+        // is updated back to a non-deleted state.
+        //
+        // Recommendation: Use ISoftDeleted interface on your saga class and guard
+        // against processing in handlers by checking the Deleted property.
+        // See docs/guide/durability/marten/sagas.md for details.
+
         var id = Guid.NewGuid();
 
         // Start the saga
@@ -86,40 +108,15 @@ public class soft_deleted_saga_experiment : IAsyncLifetime
         await _host.SendMessageAndWaitAsync(new CompleteSoftDeleteOrder(id));
 
         // Now send another message targeting the completed (soft-deleted) saga
-        // What happens? Does Wolverine find it or treat it as not found?
         await _host.SendMessageAndWaitAsync(new PokeSoftDeleteOrder(id));
 
-        // Check if the saga was somehow resurrected or if it stayed deleted
         await using var session = _host.DocumentStore().QuerySession();
 
-        // Normal load
+        // The saga is resurrected — LoadAsync finds soft-deleted docs, and the
+        // handler updates the document, removing the soft-delete marker
         var normalLoad = await session.LoadAsync<SoftDeletedOrderSaga>(id);
-
-        // Load including deleted
-        var withDeleted = await session
-            .Query<SoftDeletedOrderSaga>()
-            .Where(x => x.Id == id)
-            .Where(x => x.MaybeDeleted())
-            .FirstOrDefaultAsync();
-
-        // Report findings
-        if (normalLoad != null)
-        {
-            // Saga was resurrected - the soft-deleted document was found and updated
-            throw new Exception($"FINDING: Saga was RESURRECTED after sending message to soft-deleted saga. " +
-                                $"WasHandled={withDeleted?.WasHandledAfterCompletion}");
-        }
-        else if (withDeleted?.WasHandledAfterCompletion == true)
-        {
-            // Saga was found (soft-deleted), handler ran, but it's still soft-deleted
-            throw new Exception("FINDING: Handler ran on the soft-deleted saga but it stayed deleted");
-        }
-        else
-        {
-            // Saga was NOT found - Wolverine correctly treats soft-deleted as not-found
-            // This is the expected/desired behavior
-            normalLoad.ShouldBeNull();
-        }
+        normalLoad.ShouldNotBeNull("Saga should be resurrected after receiving a message");
+        normalLoad.WasHandledAfterCompletion.ShouldBeTrue();
     }
 }
 

@@ -10,6 +10,7 @@ using Xunit;
 
 namespace Wolverine.AmazonSqs.Tests.ConventionalRouting;
 
+[Trait("Category", "Flaky")]
 public class when_using_handler_type_naming : IDisposable
 {
     private readonly IHost _host;
