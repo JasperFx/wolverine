@@ -25,6 +25,7 @@
     <ItemGroup>
         <ProjectReference Include="..\..\..\Testing\Wolverine.ComplianceTests\Wolverine.ComplianceTests.csproj" />
         <ProjectReference Include="..\Wolverine.MQTT\Wolverine.MQTT.csproj"/>
+        <ProjectReference Include="..\..\..\Persistence\Wolverine.SqlServer\Wolverine.SqlServer.csproj" />
     </ItemGroup>
 
     <ItemGroup>
