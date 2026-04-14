@@ -77,6 +77,52 @@ public static StoreObjects Handle(ComplexCommand command)
 }
 ```
 
+### Tenant-Scoped Operations
+
+Every `MartenOps` factory method has an overload that accepts a `tenantId` parameter. When provided, the
+operation uses `IDocumentSession.ForTenant(tenantId)` to scope the write to a specific tenant. This is
+useful in multi-tenant systems where a handler processing a message for one tenant needs to write data
+to a different tenant's storage:
+
+```csharp
+// Store a document in a specific tenant
+public static StoreDoc<Invoice> Handle(CreateInvoiceForTenant command)
+{
+    var invoice = new Invoice { Id = command.InvoiceId, Amount = command.Amount };
+    return MartenOps.Store(invoice, command.TenantId);
+}
+
+// Insert a document in a specific tenant
+public static InsertDoc<AuditRecord> Handle(CrossTenantAudit command)
+{
+    var record = new AuditRecord { Action = command.Action };
+    return MartenOps.Insert(record, command.TargetTenantId);
+}
+
+// Delete by id in a specific tenant
+public static DeleteDocById<Invoice> Handle(CancelInvoice command)
+{
+    return MartenOps.Delete<Invoice>(command.InvoiceId, command.TenantId);
+}
+
+// Store many documents in a specific tenant
+public static StoreManyDocs<LineItem> Handle(BatchLineItems command)
+{
+    return MartenOps.StoreMany(command.TenantId, command.Items.ToArray());
+}
+
+// Delete matching documents in a specific tenant
+public static DeleteDocWhere<TempRecord> Handle(CleanupTenant command)
+{
+    return MartenOps.DeleteWhere<TempRecord>(
+        x => x.CreatedAt < DateTimeOffset.UtcNow.AddDays(-30),
+        command.TenantId
+    );
+}
+```
+
+All existing method signatures are unchanged — the tenant overloads are purely additive.
+
 There's also a specific helper for starting a new event stream as shown below:
 
 <!-- snippet: sample_using_start_stream_side_effect -->

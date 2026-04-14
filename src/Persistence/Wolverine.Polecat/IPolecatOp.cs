@@ -151,6 +151,123 @@ public static class PolecatOps
     }
 
     public static NoOp Nothing() => new NoOp();
+
+    // ---- Tenant-scoped overloads ----
+
+    /// <summary>
+    /// Return a side effect of storing the specified document, scoped to a specific tenant
+    /// </summary>
+    public static StoreDoc<T> Store<T>(T document, string tenantId) where T : notnull
+    {
+        if (document == null) throw new ArgumentNullException(nameof(document));
+        if (tenantId == null) throw new ArgumentNullException(nameof(tenantId));
+        return new StoreDoc<T>(document, tenantId);
+    }
+
+    /// <summary>
+    /// Return a side effect of storing many documents, scoped to a specific tenant
+    /// </summary>
+    public static StoreManyDocs<T> StoreMany<T>(string tenantId, params T[] documents) where T : notnull
+    {
+        if (tenantId == null) throw new ArgumentNullException(nameof(tenantId));
+        if (documents == null) throw new ArgumentNullException(nameof(documents));
+        return new StoreManyDocs<T>(tenantId, documents);
+    }
+
+    /// <summary>
+    /// Return a side effect of inserting the specified document, scoped to a specific tenant
+    /// </summary>
+    public static InsertDoc<T> Insert<T>(T document, string tenantId) where T : notnull
+    {
+        if (document == null) throw new ArgumentNullException(nameof(document));
+        if (tenantId == null) throw new ArgumentNullException(nameof(tenantId));
+        return new InsertDoc<T>(document, tenantId);
+    }
+
+    /// <summary>
+    /// Return a side effect of updating the specified document, scoped to a specific tenant
+    /// </summary>
+    public static UpdateDoc<T> Update<T>(T document, string tenantId) where T : notnull
+    {
+        if (document == null) throw new ArgumentNullException(nameof(document));
+        if (tenantId == null) throw new ArgumentNullException(nameof(tenantId));
+        return new UpdateDoc<T>(document, tenantId);
+    }
+
+    /// <summary>
+    /// Return a side effect of deleting the specified document, scoped to a specific tenant
+    /// </summary>
+    public static DeleteDoc<T> Delete<T>(T document, string tenantId) where T : notnull
+    {
+        if (document == null) throw new ArgumentNullException(nameof(document));
+        if (tenantId == null) throw new ArgumentNullException(nameof(tenantId));
+        return new DeleteDoc<T>(document, tenantId);
+    }
+
+    /// <summary>
+    /// Return a side effect of deleting a document by string id, scoped to a specific tenant
+    /// </summary>
+    public static DeleteDocById<T> Delete<T>(string id, string tenantId) where T : class
+    {
+        if (id == null) throw new ArgumentNullException(nameof(id));
+        if (tenantId == null) throw new ArgumentNullException(nameof(tenantId));
+        return new DeleteDocById<T>(id, tenantId);
+    }
+
+    /// <summary>
+    /// Return a side effect of deleting a document by Guid id, scoped to a specific tenant
+    /// </summary>
+    public static DeleteDocById<T> Delete<T>(Guid id, string tenantId) where T : class
+    {
+        if (tenantId == null) throw new ArgumentNullException(nameof(tenantId));
+        return new DeleteDocById<T>(id, tenantId);
+    }
+
+    /// <summary>
+    /// Return a side effect of deleting a document by int id, scoped to a specific tenant
+    /// </summary>
+    public static DeleteDocById<T> Delete<T>(int id, string tenantId) where T : class
+    {
+        if (tenantId == null) throw new ArgumentNullException(nameof(tenantId));
+        return new DeleteDocById<T>(id, tenantId);
+    }
+
+    /// <summary>
+    /// Return a side effect of deleting a document by long id, scoped to a specific tenant
+    /// </summary>
+    public static DeleteDocById<T> Delete<T>(long id, string tenantId) where T : class
+    {
+        if (tenantId == null) throw new ArgumentNullException(nameof(tenantId));
+        return new DeleteDocById<T>(id, tenantId);
+    }
+
+    /// <summary>
+    /// Return a side effect of deleting documents matching a filter, scoped to a specific tenant
+    /// </summary>
+    public static DeleteDocWhere<T> DeleteWhere<T>(Expression<Func<T, bool>> expression, string tenantId) where T : class
+    {
+        if (expression == null) throw new ArgumentNullException(nameof(expression));
+        if (tenantId == null) throw new ArgumentNullException(nameof(tenantId));
+        return new DeleteDocWhere<T>(expression, tenantId);
+    }
+
+    /// <summary>
+    /// Return a side effect of starting a new event stream, scoped to a specific tenant
+    /// </summary>
+    public static StartStream<T> StartStream<T>(Guid streamId, string tenantId, params object[] events) where T : class
+    {
+        if (tenantId == null) throw new ArgumentNullException(nameof(tenantId));
+        return new StartStream<T>(streamId, events) { TenantId = tenantId };
+    }
+
+    /// <summary>
+    /// Return a side effect of starting a new event stream with a string key, scoped to a specific tenant
+    /// </summary>
+    public static IStartStream StartStream<T>(string streamKey, string tenantId, params object[] events) where T : class
+    {
+        if (tenantId == null) throw new ArgumentNullException(nameof(tenantId));
+        return new StartStream<T>(streamKey, events) { TenantId = tenantId };
+    }
 }
 
 public class NoOp : IPolecatOp
@@ -173,6 +290,11 @@ public class StartStream<T> : IStartStream where T : class
 {
     public string StreamKey { get; } = string.Empty;
     public Guid StreamId { get; }
+
+    /// <summary>
+    /// Optional tenant id. When set, the operation will be scoped to the specified tenant
+    /// </summary>
+    public string? TenantId { get; set; }
 
     public StartStream(Guid streamId, params object[] events)
     {
@@ -226,6 +348,9 @@ public class StartStream<T> : IStartStream where T : class
 
     public void Execute(IDocumentSession session)
     {
+        // For event streams, we use the session directly since ITenantOperations
+        // exposes IQueryEventStore (read-only) rather than IEventStoreOperations.
+        // Tenant scoping for event streams should be handled at the session level.
         if (StreamId == Guid.Empty)
         {
             if (StreamKey.IsNotEmpty())
@@ -251,51 +376,63 @@ public class StoreDoc<T> : DocumentOp where T : notnull
 {
     private readonly T _document;
     public StoreDoc(T document) : base(document) { _document = document; }
-    public override void Execute(IDocumentSession session) { session.Store(_document); }
+    public StoreDoc(T document, string tenantId) : base(document, tenantId) { _document = document; }
+    public override void Execute(IDocumentSession session) { ResolveSession(session).Store(_document); }
 }
 
 public class StoreManyDocs<T> : DocumentsOp where T : notnull
 {
-    private readonly T[] _documents;
-    public StoreManyDocs(params T[] documents) : base(documents.Cast<object>().ToArray()) { _documents = documents; }
+    public StoreManyDocs(params T[] documents) : base(documents.Cast<object>().ToArray()) { }
     public StoreManyDocs(IList<T> documents) : this(documents.ToArray()) { }
-    public override void Execute(IDocumentSession session) { session.Store(_documents); }
+    public StoreManyDocs(string tenantId, params T[] documents) : base(tenantId, documents.Cast<object>().ToArray()) { }
+    public override void Execute(IDocumentSession session) { ResolveSession(session).Store(Documents.Cast<T>()); }
 }
 
 public class InsertDoc<T> : DocumentOp where T : notnull
 {
     private readonly T _document;
     public InsertDoc(T document) : base(document) { _document = document; }
-    public override void Execute(IDocumentSession session) { session.Insert(_document); }
+    public InsertDoc(T document, string tenantId) : base(document, tenantId) { _document = document; }
+    public override void Execute(IDocumentSession session) { ResolveSession(session).Insert(_document); }
 }
 
 public class UpdateDoc<T> : DocumentOp where T : notnull
 {
     private readonly T _document;
     public UpdateDoc(T document) : base(document) { _document = document; }
-    public override void Execute(IDocumentSession session) { session.Update(_document); }
+    public UpdateDoc(T document, string tenantId) : base(document, tenantId) { _document = document; }
+    public override void Execute(IDocumentSession session) { ResolveSession(session).Update(_document); }
 }
 
 public class DeleteDoc<T> : DocumentOp where T : notnull
 {
     private readonly T _document;
     public DeleteDoc(T document) : base(document) { _document = document; }
-    public override void Execute(IDocumentSession session) { session.Delete(_document); }
+    public DeleteDoc(T document, string tenantId) : base(document, tenantId) { _document = document; }
+    public override void Execute(IDocumentSession session) { ResolveSession(session).Delete(_document); }
 }
 
 public class DeleteDocById<T> : IPolecatOp where T : class
 {
     private readonly object _id;
+
+    /// <summary>
+    /// Optional tenant id. When set, the operation will be scoped to the specified tenant
+    /// </summary>
+    public string? TenantId { get; set; }
+
     public DeleteDocById(object id) { _id = id; }
+    public DeleteDocById(object id, string tenantId) : this(id) { TenantId = tenantId; }
 
     public void Execute(IDocumentSession session)
     {
+        IDocumentOperations target = TenantId != null ? session.ForTenant(TenantId) : session;
         switch (_id)
         {
-            case string idAsString: session.Delete<T>(idAsString); break;
-            case Guid idAsGuid: session.Delete<T>(idAsGuid); break;
-            case long idAsLong: session.Delete<T>(idAsLong); break;
-            case int idAsInt: session.Delete<T>(idAsInt); break;
+            case string idAsString: target.Delete<T>(idAsString); break;
+            case Guid idAsGuid: target.Delete<T>(idAsGuid); break;
+            case long idAsLong: target.Delete<T>(idAsLong); break;
+            case int idAsInt: target.Delete<T>(idAsInt); break;
             default: throw new InvalidOperationException($"Cannot delete by id of type {_id.GetType()}"); break;
         }
     }
@@ -304,20 +441,64 @@ public class DeleteDocById<T> : IPolecatOp where T : class
 public class DeleteDocWhere<T> : IPolecatOp where T : class
 {
     private readonly Expression<Func<T, bool>> _expression;
+
+    /// <summary>
+    /// Optional tenant id. When set, the operation will be scoped to the specified tenant
+    /// </summary>
+    public string? TenantId { get; set; }
+
     public DeleteDocWhere(Expression<Func<T, bool>> expression) { _expression = expression; }
-    public void Execute(IDocumentSession session) { session.DeleteWhere(_expression); }
+    public DeleteDocWhere(Expression<Func<T, bool>> expression, string tenantId) : this(expression) { TenantId = tenantId; }
+
+    public void Execute(IDocumentSession session)
+    {
+        IDocumentOperations target = TenantId != null ? session.ForTenant(TenantId) : session;
+        target.DeleteWhere(_expression);
+    }
 }
 
 public abstract class DocumentOp : IPolecatOp
 {
     public object Document { get; }
+
+    /// <summary>
+    /// Optional tenant id. When set, the operation will be scoped to the specified tenant
+    /// </summary>
+    public string? TenantId { get; set; }
+
     protected DocumentOp(object document) { Document = document; }
+    protected DocumentOp(object document, string tenantId) : this(document) { TenantId = tenantId; }
+
+    /// <summary>
+    /// Resolves the appropriate session, scoped to the tenant if TenantId is set
+    /// </summary>
+    protected IDocumentOperations ResolveSession(IDocumentSession session)
+    {
+        return TenantId != null ? session.ForTenant(TenantId) : session;
+    }
+
     public abstract void Execute(IDocumentSession session);
 }
 
 public abstract class DocumentsOp : IPolecatOp
 {
-    public object[] Documents { get; }
-    protected DocumentsOp(params object[] documents) { Documents = documents; }
+    public List<object> Documents { get; } = new();
+
+    /// <summary>
+    /// Optional tenant id. When set, the operation will be scoped to the specified tenant
+    /// </summary>
+    public string? TenantId { get; set; }
+
+    protected DocumentsOp(params object[] documents) { Documents.AddRange(documents); }
+    protected DocumentsOp(string tenantId, params object[] documents) : this(documents) { TenantId = tenantId; }
+
+    /// <summary>
+    /// Resolves the appropriate session, scoped to the tenant if TenantId is set
+    /// </summary>
+    protected IDocumentOperations ResolveSession(IDocumentSession session)
+    {
+        return TenantId != null ? session.ForTenant(TenantId) : session;
+    }
+
     public abstract void Execute(IDocumentSession session);
 }

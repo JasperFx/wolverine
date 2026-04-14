@@ -304,12 +304,139 @@ public static class MartenOps
         return new StartStream<T>(streamKey, events);
     }
 
+    // ---- Tenant-scoped overloads ----
+
+    /// <summary>
+    /// Return a side effect of storing the specified document in Marten, scoped to a specific tenant
+    /// </summary>
+    public static StoreDoc<T> Store<T>(T document, string tenantId) where T : notnull
+    {
+        if (document == null) throw new ArgumentNullException(nameof(document));
+        if (tenantId == null) throw new ArgumentNullException(nameof(tenantId));
+        return new StoreDoc<T>(document, tenantId);
+    }
+
+    /// <summary>
+    /// Return a side effect of storing many documents in Marten, scoped to a specific tenant
+    /// </summary>
+    public static StoreManyDocs<T> StoreMany<T>(string tenantId, params T[] documents) where T : notnull
+    {
+        if (tenantId == null) throw new ArgumentNullException(nameof(tenantId));
+        if (documents == null) throw new ArgumentNullException(nameof(documents));
+        return new StoreManyDocs<T>(tenantId, documents);
+    }
+
+    /// <summary>
+    /// Return a side effect of storing mixed document types in Marten, scoped to a specific tenant
+    /// </summary>
+    public static StoreObjects StoreObjects(string tenantId, params object[] documents)
+    {
+        if (tenantId == null) throw new ArgumentNullException(nameof(tenantId));
+        if (documents == null) throw new ArgumentNullException(nameof(documents));
+        return new StoreObjects(tenantId, documents);
+    }
+
+    /// <summary>
+    /// Return a side effect of inserting the specified document in Marten, scoped to a specific tenant
+    /// </summary>
+    public static InsertDoc<T> Insert<T>(T document, string tenantId) where T : notnull
+    {
+        if (document == null) throw new ArgumentNullException(nameof(document));
+        if (tenantId == null) throw new ArgumentNullException(nameof(tenantId));
+        return new InsertDoc<T>(document, tenantId);
+    }
+
+    /// <summary>
+    /// Return a side effect of updating the specified document in Marten, scoped to a specific tenant
+    /// </summary>
+    public static UpdateDoc<T> Update<T>(T document, string tenantId) where T : notnull
+    {
+        if (document == null) throw new ArgumentNullException(nameof(document));
+        if (tenantId == null) throw new ArgumentNullException(nameof(tenantId));
+        return new UpdateDoc<T>(document, tenantId);
+    }
+
+    /// <summary>
+    /// Return a side effect of deleting the specified document in Marten, scoped to a specific tenant
+    /// </summary>
+    public static DeleteDoc<T> Delete<T>(T document, string tenantId) where T : notnull
+    {
+        if (document == null) throw new ArgumentNullException(nameof(document));
+        if (tenantId == null) throw new ArgumentNullException(nameof(tenantId));
+        return new DeleteDoc<T>(document, tenantId);
+    }
+
+    /// <summary>
+    /// Return a side effect of deleting a document by string id in Marten, scoped to a specific tenant
+    /// </summary>
+    public static DeleteDocById<T> Delete<T>(string id, string tenantId) where T : notnull
+    {
+        if (id == null) throw new ArgumentNullException(nameof(id));
+        if (tenantId == null) throw new ArgumentNullException(nameof(tenantId));
+        return new DeleteDocById<T>(id, tenantId);
+    }
+
+    /// <summary>
+    /// Return a side effect of deleting a document by Guid id in Marten, scoped to a specific tenant
+    /// </summary>
+    public static DeleteDocById<T> Delete<T>(Guid id, string tenantId) where T : notnull
+    {
+        if (tenantId == null) throw new ArgumentNullException(nameof(tenantId));
+        return new DeleteDocById<T>(id, tenantId);
+    }
+
+    /// <summary>
+    /// Return a side effect of deleting a document by int id in Marten, scoped to a specific tenant
+    /// </summary>
+    public static DeleteDocById<T> Delete<T>(int id, string tenantId) where T : notnull
+    {
+        if (tenantId == null) throw new ArgumentNullException(nameof(tenantId));
+        return new DeleteDocById<T>(id, tenantId);
+    }
+
+    /// <summary>
+    /// Return a side effect of deleting a document by long id in Marten, scoped to a specific tenant
+    /// </summary>
+    public static DeleteDocById<T> Delete<T>(long id, string tenantId) where T : notnull
+    {
+        if (tenantId == null) throw new ArgumentNullException(nameof(tenantId));
+        return new DeleteDocById<T>(id, tenantId);
+    }
+
+    /// <summary>
+    /// Return a side effect of deleting documents matching a filter in Marten, scoped to a specific tenant
+    /// </summary>
+    public static DeleteDocWhere<T> DeleteWhere<T>(Expression<Func<T, bool>> expression, string tenantId) where T : notnull
+    {
+        if (expression == null) throw new ArgumentNullException(nameof(expression));
+        if (tenantId == null) throw new ArgumentNullException(nameof(tenantId));
+        return new DeleteDocWhere<T>(expression, tenantId);
+    }
+
+    /// <summary>
+    /// Return a side effect of starting a new event stream in Marten, scoped to a specific tenant
+    /// </summary>
+    public static StartStream<T> StartStream<T>(Guid streamId, string tenantId, params object[] events) where T : class
+    {
+        if (tenantId == null) throw new ArgumentNullException(nameof(tenantId));
+        return new StartStream<T>(streamId, events) { TenantId = tenantId };
+    }
+
+    /// <summary>
+    /// Return a side effect of starting a new event stream in Marten with a string key, scoped to a specific tenant
+    /// </summary>
+    public static IStartStream StartStream<T>(string streamKey, string tenantId, params object[] events) where T : class
+    {
+        if (tenantId == null) throw new ArgumentNullException(nameof(tenantId));
+        return new StartStream<T>(streamKey, events) { TenantId = tenantId };
+    }
+
     /// <summary>
     /// As it says, do nothing
     /// </summary>
     /// <returns></returns>
     public static NoOp Nothing() => new NoOp();
-    
+
     public static CheckDocument<T> Document<T>() where T : class => new();
 }
 
@@ -353,6 +480,11 @@ public class StartStream<T> : IStartStream where T : class
     public string StreamKey { get; } = string.Empty;
     public Guid StreamId { get; }
 
+    /// <summary>
+    /// Optional tenant id. When set, the operation will be scoped to the specified tenant
+    /// </summary>
+    public string? TenantId { get; set; }
+
     public StartStream(Guid streamId, params object[] events)
     {
         StreamId = streamId;
@@ -394,27 +526,29 @@ public class StartStream<T> : IStartStream where T : class
 
     public void Execute(IDocumentSession session)
     {
-        if (session is DocumentSessionBase s && s.Options.Events.StreamIdentity == StreamIdentity.AsString &&
+        IDocumentOperations target = TenantId != null ? session.ForTenant(TenantId) : session;
+
+        if (target is DocumentSessionBase s && s.Options.Events.StreamIdentity == StreamIdentity.AsString &&
             StreamKey.IsEmpty())
         {
             throw new InvalidOperationException(
                 "The event stream identity is string, but the StreamKey is empty or null");
         }
-        
+
         if (StreamId == Guid.Empty)
         {
             if (StreamKey.IsNotEmpty())
             {
-                session.Events.StartStream<T>(StreamKey, Events.ToArray());
+                target.Events.StartStream<T>(StreamKey, Events.ToArray());
             }
             else
             {
-                session.Events.StartStream<T>(Events.ToArray());
+                target.Events.StartStream<T>(Events.ToArray());
             }
         }
         else
         {
-            session.Events.StartStream<T>(StreamId, Events.ToArray());
+            target.Events.StartStream<T>(StreamId, Events.ToArray());
         }
     }
 
@@ -432,9 +566,14 @@ public class StoreDoc<T> : DocumentOp where T : notnull
         _document = document;
     }
 
+    public StoreDoc(T document, string tenantId) : base(document, tenantId)
+    {
+        _document = document;
+    }
+
     public override void Execute(IDocumentSession session)
     {
-        session.Store(_document);
+        ResolveSession(session).Store(_document);
     }
 }
 
@@ -443,6 +582,8 @@ public class StoreManyDocs<T> : DocumentsOp where T : notnull
     public StoreManyDocs(params T[] documents) : base(documents.Cast<object>().ToArray()) { }
 
     public StoreManyDocs(IList<T> documents) : this(documents.ToArray()) { }
+
+    public StoreManyDocs(string tenantId, params T[] documents) : base(tenantId, documents.Cast<object>().ToArray()) { }
 
     public StoreManyDocs<T> With(T[] documents)
     {
@@ -458,7 +599,7 @@ public class StoreManyDocs<T> : DocumentsOp where T : notnull
 
     public override void Execute(IDocumentSession session)
     {
-        session.Store(Documents.Cast<T>());
+        ResolveSession(session).Store(Documents.Cast<T>());
     }
 }
 
@@ -467,6 +608,8 @@ public class StoreObjects : DocumentsOp
     public StoreObjects(params object[] documents) : base(documents) { }
 
     public StoreObjects(IList<object> documents) : this(documents.ToArray()) { }
+
+    public StoreObjects(string tenantId, params object[] documents) : base(tenantId, documents) { }
 
     public StoreObjects With(object[] documents)
     {
@@ -482,7 +625,7 @@ public class StoreObjects : DocumentsOp
 
     public override void Execute(IDocumentSession session)
     {
-        session.StoreObjects(Documents);
+        ResolveSession(session).StoreObjects(Documents);
     }
 }
 
@@ -495,9 +638,14 @@ public class InsertDoc<T> : DocumentOp where T : notnull
         _document = document;
     }
 
+    public InsertDoc(T document, string tenantId) : base(document, tenantId)
+    {
+        _document = document;
+    }
+
     public override void Execute(IDocumentSession session)
     {
-        session.Insert(_document);
+        ResolveSession(session).Insert(_document);
     }
 }
 
@@ -510,9 +658,14 @@ public class UpdateDoc<T> : DocumentOp where T : notnull
         _document = document;
     }
 
+    public UpdateDoc(T document, string tenantId) : base(document, tenantId)
+    {
+        _document = document;
+    }
+
     public override void Execute(IDocumentSession session)
     {
-        session.Update(_document);
+        ResolveSession(session).Update(_document);
     }
 }
 
@@ -525,9 +678,14 @@ public class DeleteDoc<T> : DocumentOp where T : notnull
         _document = document;
     }
 
+    public DeleteDoc(T document, string tenantId) : base(document, tenantId)
+    {
+        _document = document;
+    }
+
     public override void Execute(IDocumentSession session)
     {
-        session.Delete(_document);
+        ResolveSession(session).Delete(_document);
     }
 }
 
@@ -535,29 +693,40 @@ public class DeleteDocById<T> : IMartenOp where T : notnull
 {
     private readonly object _id;
 
+    /// <summary>
+    /// Optional tenant id. When set, the operation will be scoped to the specified tenant
+    /// </summary>
+    public string? TenantId { get; set; }
+
     public DeleteDocById(object id)
     {
         _id = id;
     }
 
+    public DeleteDocById(object id, string tenantId) : this(id)
+    {
+        TenantId = tenantId;
+    }
+
     public void Execute(IDocumentSession session)
     {
+        IDocumentOperations target = TenantId != null ? session.ForTenant(TenantId) : session;
         switch (_id)
         {
             case string idAsString:
-                session.Delete<T>(idAsString);
+                target.Delete<T>(idAsString);
                 break;
             case Guid idAsGuid:
-                session.Delete<T>(idAsGuid);
+                target.Delete<T>(idAsGuid);
                 break;
             case long idAsLong:
-                session.Delete<T>(idAsLong);
+                target.Delete<T>(idAsLong);
                 break;
             case int idAsInt:
-                session.Delete<T>(idAsInt);
+                target.Delete<T>(idAsInt);
                 break;
             default:
-                session.Delete<T>(_id);
+                target.Delete<T>(_id);
                 break;
         }
     }
@@ -567,14 +736,25 @@ public class DeleteDocWhere<T> : IMartenOp where T : notnull
 {
     private readonly Expression<Func<T, bool>> _expression;
 
+    /// <summary>
+    /// Optional tenant id. When set, the operation will be scoped to the specified tenant
+    /// </summary>
+    public string? TenantId { get; set; }
+
     public DeleteDocWhere(Expression<Func<T, bool>> expression)
     {
         _expression = expression;
     }
 
+    public DeleteDocWhere(Expression<Func<T, bool>> expression, string tenantId) : this(expression)
+    {
+        TenantId = tenantId;
+    }
+
     public void Execute(IDocumentSession session)
     {
-        session.DeleteWhere(_expression);
+        IDocumentOperations target = TenantId != null ? session.ForTenant(TenantId) : session;
+        target.DeleteWhere(_expression);
     }
 }
 
@@ -582,9 +762,28 @@ public abstract class DocumentOp : IMartenOp
 {
     public object Document { get; }
 
+    /// <summary>
+    /// Optional tenant id. When set, the operation will be scoped to the specified tenant
+    /// using IDocumentSession.ForTenant()
+    /// </summary>
+    public string? TenantId { get; set; }
+
     protected DocumentOp(object document)
     {
         Document = document;
+    }
+
+    protected DocumentOp(object document, string tenantId) : this(document)
+    {
+        TenantId = tenantId;
+    }
+
+    /// <summary>
+    /// Resolves the appropriate session, scoped to the tenant if TenantId is set
+    /// </summary>
+    protected IDocumentOperations ResolveSession(IDocumentSession session)
+    {
+        return TenantId != null ? session.ForTenant(TenantId) : session;
     }
 
     public abstract void Execute(IDocumentSession session);
@@ -599,9 +798,28 @@ public abstract class DocumentsOp : IDocumentsOp
 {
     public List<object> Documents { get; } = new();
 
+    /// <summary>
+    /// Optional tenant id. When set, the operation will be scoped to the specified tenant
+    /// using IDocumentSession.ForTenant()
+    /// </summary>
+    public string? TenantId { get; set; }
+
     protected DocumentsOp(params object[] documents)
     {
         Documents.AddRange(documents);
+    }
+
+    protected DocumentsOp(string tenantId, params object[] documents) : this(documents)
+    {
+        TenantId = tenantId;
+    }
+
+    /// <summary>
+    /// Resolves the appropriate session, scoped to the tenant if TenantId is set
+    /// </summary>
+    protected IDocumentOperations ResolveSession(IDocumentSession session)
+    {
+        return TenantId != null ? session.ForTenant(TenantId) : session;
     }
 
     public abstract void Execute(IDocumentSession session);
