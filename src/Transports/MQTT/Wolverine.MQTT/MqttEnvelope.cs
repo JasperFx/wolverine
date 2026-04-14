@@ -14,5 +14,6 @@ public class MqttEnvelope : Envelope
         Args = args;
         Data = args.ApplicationMessage.PayloadSegment.Array;
         MessageType = topic.MessageTypeName;
+        Destination = topic.Uri;
     }
 }
