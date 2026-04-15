@@ -33,7 +33,7 @@ internal class JsonOnlyMapper : IKafkaEnvelopeMapper
         }
         else if (envelope.Message != null)
         {
-            outgoing.Value = Encoding.Default.GetBytes(JsonSerializer.Serialize(envelope.Message, _options));
+            outgoing.Value = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(envelope.Message, _options));
         }
         else
         {

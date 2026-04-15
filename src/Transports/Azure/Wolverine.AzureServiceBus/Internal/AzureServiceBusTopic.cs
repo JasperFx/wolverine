@@ -150,7 +150,7 @@ public class AzureServiceBusTopic : AzureServiceBusEndpoint, IMassTransitInterop
                 if (serviceBusReceivedMessage.ApplicationProperties.TryGetValue("NServiceBus.ReplyToAddress",
                         out var raw))
                 {
-                    var queueName = (raw is byte[] b ? Encoding.Default.GetString(b) : raw.ToString())!;
+                    var queueName = (raw is byte[] b ? Encoding.UTF8.GetString(b) : raw.ToString())!;
                     e.ReplyUri = new Uri($"{Parent.Protocol}://queue/{queueName}");
                 }
             }
@@ -161,7 +161,7 @@ public class AzureServiceBusTopic : AzureServiceBusEndpoint, IMassTransitInterop
             {
                 if (msg.ApplicationProperties.TryGetValue("NServiceBus.EnclosedMessageTypes", out var raw))
                 {
-                    var typeName = (raw is byte[] b ? Encoding.Default.GetString(b) : raw.ToString())!;
+                    var typeName = (raw is byte[] b ? Encoding.UTF8.GetString(b) : raw.ToString())!;
                     if (typeName.IsNotEmpty())
                     {
                         var messageType = Type.GetType(typeName);

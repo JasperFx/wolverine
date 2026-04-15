@@ -149,7 +149,7 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
             await client.ProduceAsync(TopicName, new Message<string, byte[]>
             {
                 Key = "ping",
-                Value = Encoding.Default.GetBytes("ping")
+                Value = Encoding.UTF8.GetBytes("ping")
             });
 
 

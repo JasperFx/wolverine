@@ -515,7 +515,7 @@ IMessageBus bus = host.MessageBus();
 // The raw message data, but pretend this was sourced from a database
 // table or some other non-Wolverine storage in your system
 byte[] messageData 
-    = Encoding.Default.GetBytes("{\"Name\": \"George Karlaftis\"}");
+    = Encoding.UTF8.GetBytes("{\"Name\": \"George Karlaftis\"}");
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/sending_raw_messages.cs#L164-L176' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_context_for_raw_message_sending' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
