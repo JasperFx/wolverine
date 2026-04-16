@@ -170,6 +170,11 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
         return await connection.TryGetGlobalLock(lockId, cancellation: token) == AttainLockResult.Success;
     }
 
+    protected override Task ReleaseLockAsync(int lockId, NpgsqlConnection connection, CancellationToken token)
+    {
+        return connection.ReleaseGlobalLock(lockId, cancellation: token);
+    }
+
     protected override DbCommand buildFetchSql(NpgsqlConnection conn, DbObjectName tableName, string[] columnNames, int maxRecords)
     {
         return conn.CreateCommand($"select {columnNames.Join(", ")} from {tableName.QualifiedName} LIMIT :limit")
