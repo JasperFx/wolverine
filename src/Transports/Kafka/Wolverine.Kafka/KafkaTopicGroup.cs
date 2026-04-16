@@ -86,7 +86,7 @@ public class KafkaTopicGroup : KafkaTopic, IBrokerEndpoint
                 await client.ProduceAsync(topicName, new Message<string, byte[]>
                 {
                     Key = "ping",
-                    Value = System.Text.Encoding.Default.GetBytes("ping")
+                    Value = System.Text.Encoding.UTF8.GetBytes("ping")
                 });
             }
 

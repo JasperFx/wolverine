@@ -100,7 +100,7 @@ internal class MqttListener : IListener
         {
             _logger.LogError(e, "Error trying to map an incoming MQTT message {MessageId} to an Envelope",
                 args.ApplicationMessage.CorrelationData != null
-                    ? Encoding.Default.GetString(args.ApplicationMessage.CorrelationData)
+                    ? Encoding.UTF8.GetString(args.ApplicationMessage.CorrelationData)
                     : "(none)");
 
             // MoveToErrorsAsync keys the envelope by Id; the mapper threw before

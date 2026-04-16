@@ -34,7 +34,7 @@ public class Connectivity
 
         managedClient.ApplicationMessageReceivedAsync += e =>
         {
-            _output.WriteLine(">> RECEIVED: " + e.ApplicationMessage.Topic + ", " + Encoding.Default.GetString(e.ApplicationMessage.PayloadSegment));
+            _output.WriteLine(">> RECEIVED: " + e.ApplicationMessage.Topic + ", " + Encoding.UTF8.GetString(e.ApplicationMessage.PayloadSegment));
             return CompletedTask.Instance;
         };
 

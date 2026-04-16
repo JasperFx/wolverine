@@ -427,14 +427,14 @@ public class SerializedMessage : ISerializable
 
     public byte[] Write()
     {
-        return Encoding.Default.GetBytes(Name);
+        return Encoding.UTF8.GetBytes(Name);
     }
 
     // You'll need at least C# 11 for static methods
     // on interfaces!
     public static object Read(byte[] bytes)
     {
-        var name = Encoding.Default.GetString(bytes);
+        var name = Encoding.UTF8.GetString(bytes);
         return new SerializedMessage { Name = name };
     }
 }
