@@ -81,6 +81,16 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
         return InvokeAsync<Acknowledgement>(message, bus, cancellation, timeout, options);
     }
 
+    public IAsyncEnumerable<T> StreamAsync<T>(object message, MessageBus bus,
+        CancellationToken cancellation = default,
+        DeliveryOptions? options = null)
+    {
+        throw new NotSupportedException(
+            $"StreamAsync is only supported for locally-handled messages. " +
+            $"The message type '{message.GetType().FullNameInCode()}' is routed to a remote endpoint ({_endpoint.Uri}). " +
+            $"Configure a local handler or use InvokeAsync<T> for remote request/reply.");
+    }
+
     public Envelope CreateForSending(object message, DeliveryOptions? options, ISendingAgent localDurableQueue,
         WolverineRuntime runtime, string? topicName)
     {

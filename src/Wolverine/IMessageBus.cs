@@ -95,6 +95,29 @@ public interface ICommandBus
     /// <typeparam name="T"></typeparam>
     /// <returns></returns>
     Task<T> InvokeAsync<T>(object message, DeliveryOptions options, CancellationToken cancellation = default, TimeSpan? timeout = default);
+
+    /// <summary>
+    ///     Execute the message handling right now and stream back a typed sequence of response objects.
+    ///     The handler must return <see cref="IAsyncEnumerable{TResponse}"/> of the response type.
+    ///     Only supported for locally-handled messages.
+    /// </summary>
+    /// <param name="message"></param>
+    /// <param name="cancellation"></param>
+    /// <typeparam name="TResponse"></typeparam>
+    /// <returns></returns>
+    IAsyncEnumerable<TResponse> StreamAsync<TResponse>(object message, CancellationToken cancellation = default);
+
+    /// <summary>
+    ///     Execute the message handling right now and stream back a typed sequence of response objects.
+    ///     The handler must return <see cref="IAsyncEnumerable{TResponse}"/> of the response type.
+    ///     Only supported for locally-handled messages.
+    /// </summary>
+    /// <param name="message"></param>
+    /// <param name="options">Use to pass in extra metadata like headers or group id or correlation information to the command execution</param>
+    /// <param name="cancellation"></param>
+    /// <typeparam name="TResponse"></typeparam>
+    /// <returns></returns>
+    IAsyncEnumerable<TResponse> StreamAsync<TResponse>(object message, DeliveryOptions options, CancellationToken cancellation = default);
 }
 
 /// <summary>

@@ -172,6 +172,30 @@ public partial class MessageBus : IMessageBus, IMessageContext
         return Runtime.FindInvoker(message.GetType()).InvokeAsync<T>(message, this, cancellation, timeout, new DeliveryOptions{TenantId = tenantId});
     }
 
+    public IAsyncEnumerable<TResponse> StreamAsync<TResponse>(object message, CancellationToken cancellation = default)
+    {
+        if (message == null)
+        {
+            throw new ArgumentNullException(nameof(message));
+        }
+
+        Runtime.AssertHasStarted();
+
+        return Runtime.FindInvoker(message.GetType()).StreamAsync<TResponse>(message, this, cancellation);
+    }
+
+    public IAsyncEnumerable<TResponse> StreamAsync<TResponse>(object message, DeliveryOptions options, CancellationToken cancellation = default)
+    {
+        if (message == null)
+        {
+            throw new ArgumentNullException(nameof(message));
+        }
+
+        Runtime.AssertHasStarted();
+
+        return Runtime.FindInvoker(message.GetType()).StreamAsync<TResponse>(message, this, cancellation, options);
+    }
+
     public IReadOnlyList<Envelope> PreviewSubscriptions(object message)
     {
         return Runtime.RoutingFor(message.GetType()).RouteForPublish(message, null);

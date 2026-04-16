@@ -67,4 +67,16 @@ internal class NoHandlerExecutor : IExecutor
 
         return Task.CompletedTask;
     }
+
+    public IAsyncEnumerable<T> StreamAsync<T>(object message, MessageBus bus,
+        CancellationToken cancellation = default,
+        DeliveryOptions? options = null)
+    {
+        if (Exception != null)
+        {
+            throw Exception;
+        }
+
+        throw new IndeterminateRoutesException(_messageType);
+    }
 }

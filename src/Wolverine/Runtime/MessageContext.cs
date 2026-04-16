@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Reflection;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Logging;
@@ -623,6 +624,19 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
                 return;
         }
 
+        // Handle typed IAsyncEnumerable<T> (T != object) as cascading messages.
+        // IAsyncEnumerable<T> is not covariant, so IAsyncEnumerable<SomeType> does not match
+        // the case above. When ResponseType is set (StreamAsync path), the check above this
+        // switch already captured the sequence; we only reach here during regular InvokeAsync
+        // with a handler that returns a typed async sequence.
+        var asyncEnumInterface = message.GetType().GetInterfaces()
+            .FirstOrDefault(t => t.IsGenericType && t.GetGenericTypeDefinition() == typeof(IAsyncEnumerable<>));
+        if (asyncEnumInterface != null)
+        {
+            await CascadeTypedAsyncEnumerableAsync(message, asyncEnumInterface);
+            return;
+        }
+
         if (Envelope?.ReplyUri != null && message.GetType().ToMessageTypeName() == Envelope.ReplyRequested)
         {
             await EndpointFor(Envelope.ReplyUri!).SendAsync(message, new DeliveryOptions { IsResponse = true });
@@ -637,6 +651,24 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         }
 
         await PublishAsync(message);
+    }
+
+    private static readonly MethodInfo _cascadeTypedItemsMethod =
+        typeof(MessageContext).GetMethod(nameof(CascadeTypedItemsAsync), BindingFlags.Static | BindingFlags.NonPublic)!;
+
+    private static async Task CascadeTypedItemsAsync<T>(IAsyncEnumerable<T> source, MessageContext context)
+    {
+        await foreach (var item in source)
+        {
+            await context.EnqueueCascadingAsync(item);
+        }
+    }
+
+    private Task CascadeTypedAsyncEnumerableAsync(object asyncEnumerable, Type interfaceType)
+    {
+        var elementType = interfaceType.GetGenericArguments()[0];
+        var method = _cascadeTypedItemsMethod.MakeGenericMethod(elementType);
+        return (Task)method.Invoke(null, [asyncEnumerable, this])!;
     }
 
     internal void ClearState()

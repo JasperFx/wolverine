@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.ObjectPool;
@@ -257,6 +258,80 @@ internal class Executor : IExecutor
             return await retry
                 .ExecuteInlineAsync(context, context.Runtime, DateTimeOffset.UtcNow, Activity.Current, cancellation)
                 .ConfigureAwait(false);
+        }
+    }
+
+    public IAsyncEnumerable<T> StreamAsync<T>(object message, MessageBus bus,
+        CancellationToken cancellation = default,
+        DeliveryOptions? options = null)
+    {
+        var envelope = new Envelope(message)
+        {
+            ResponseType = typeof(IAsyncEnumerable<T>),
+            TenantId = options?.TenantId ?? bus.TenantId,
+            DoNotCascadeResponse = true
+        };
+
+        options?.Override(envelope);
+        bus.TrackEnvelopeCorrelation(envelope, Activity.Current);
+
+        return StreamCoreAsync<T>(envelope, cancellation);
+    }
+
+    private async IAsyncEnumerable<T> StreamCoreAsync<T>(Envelope envelope,
+        [EnumeratorCancellation] CancellationToken cancellation)
+    {
+        using var activity = Handler.TelemetryEnabled ? WolverineTracing.StartStreaming(envelope) : null;
+        _tracker.ExecutionStarted(envelope);
+
+        var context = _contextPool.Get();
+        context.ReadEnvelope(envelope, InvocationCallback.Instance);
+        envelope.Attempts = 1;
+
+        IAsyncEnumerable<T>? stream = null;
+
+        try
+        {
+            await InvokeAsync(context, cancellation);
+
+            if (_runtime is { Options.EnableMessageCausationTracking: true })
+            {
+                Handler.RecordCauseAndEffect(context, _runtime.Observer);
+            }
+
+            await context.FlushOutgoingMessagesAsync();
+            stream = envelope.Response as IAsyncEnumerable<T>;
+            activity?.AddEvent(new ActivityEvent(WolverineTracing.StreamingStarted));
+            _tracker.ExecutionFinished(envelope);
+        }
+        catch (Exception e)
+        {
+            activity?.SetStatus(ActivityStatusCode.Error, e.GetType().Name);
+            _tracker.ExecutionFinished(envelope, e);
+            _contextPool.Return(context);
+            throw;
+        }
+
+        if (stream == null)
+        {
+            _contextPool.Return(context);
+            activity?.SetStatus(ActivityStatusCode.Ok);
+            yield break;
+        }
+
+        try
+        {
+            await foreach (var item in stream.WithCancellation(cancellation))
+            {
+                yield return item;
+            }
+
+            activity?.AddEvent(new ActivityEvent(WolverineTracing.StreamingCompleted));
+            activity?.SetStatus(ActivityStatusCode.Ok);
+        }
+        finally
+        {
+            _contextPool.Return(context);
         }
     }
 
