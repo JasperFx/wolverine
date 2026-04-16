@@ -54,13 +54,35 @@ public abstract partial class MessageDatabase<T>
         Func<Task> tryMigrate = async () =>
         {
             await using var conn = await DataSource.OpenConnectionAsync(_cancellation);
+            var typedConn = (T)conn;
+            var lockId = _settings.MigrationLockId;
+            var lockAcquired = false;
 
             try
             {
+                // Acquire a global advisory lock to serialize migrations across processes.
+                // Without this, concurrent CREATE SCHEMA IF NOT EXISTS statements can race
+                // and produce 23505 duplicate-key errors against pg_namespace_nspname_index
+                // (or equivalents on other engines). See GH-2518.
+                lockAcquired = await acquireMigrationLockAsync(lockId, typedConn, _cancellation);
+
                 await migrateAsync(conn);
             }
             finally
             {
+                if (lockAcquired)
+                {
+                    try
+                    {
+                        await ReleaseLockAsync(lockId, typedConn, _cancellation);
+                    }
+                    catch
+                    {
+                        // Best-effort release. The session-scoped lock will be cleaned up
+                        // when the connection closes regardless.
+                    }
+                }
+
                 await conn.CloseAsync();
             }
         };
@@ -82,6 +104,30 @@ public abstract partial class MessageDatabase<T>
             await Task.Delay(new Random().Next(250, 1000).Milliseconds(), _cancellation);
             await tryMigrate();
         }
+    }
+
+    /// <summary>
+    /// Attempt to acquire the migration advisory lock with bounded retries.
+    /// Returns true if acquired (caller is responsible for the migration and release),
+    /// false if not acquired after the retry budget — in which case another process
+    /// is presumably finishing the migration; we proceed and let our own SchemaMigration
+    /// detect "no changes" as a no-op.
+    /// </summary>
+    private async Task<bool> acquireMigrationLockAsync(int lockId, T conn, CancellationToken token)
+    {
+        const int maxAttempts = 10;
+        for (var attempt = 0; attempt < maxAttempts; attempt++)
+        {
+            if (await TryAttainLockAsync(lockId, conn, token))
+            {
+                return true;
+            }
+
+            // Linear backoff: 100ms, 200ms, ..., 1000ms (~5.5s total worst case)
+            await Task.Delay(TimeSpan.FromMilliseconds(100 * (attempt + 1)), token);
+        }
+
+        return false;
     }
 
     public async Task<IReadOnlyList<Envelope>> AllIncomingAsync()

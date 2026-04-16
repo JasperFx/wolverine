@@ -362,6 +362,11 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
         return connection.TryGetGlobalLock(lockId.ToString(), token);
     }
 
+    protected override Task ReleaseLockAsync(int lockId, SqlConnection connection, CancellationToken token)
+    {
+        return connection.ReleaseGlobalLock(lockId.ToString(), token);
+    }
+
     protected override DbCommand buildFetchSql(SqlConnection conn, DbObjectName tableName, string[] columnNames, int maxRecords)
     {
         return conn.CreateCommand($"select top(@limit) {columnNames.Join(", ")} from {tableName.QualifiedName}")

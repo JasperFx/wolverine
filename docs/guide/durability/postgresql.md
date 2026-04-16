@@ -335,4 +335,31 @@ See the details on [Lightweight Saga Storage](/guide/durability/sagas.html#light
 The PostgreSQL message persistence and transport is automatically included with the `AddMarten().IntegrateWithWolverine()`
 configuration syntax.
 
+### Aligning the migration advisory lock with Marten
+
+Wolverine takes a session-scoped PostgreSQL advisory lock around `MigrateAsync` to serialize schema migrations
+across concurrent processes (preventing duplicate `CREATE SCHEMA IF NOT EXISTS` races that surface as
+`23505` errors against `pg_namespace_nspname_index`). The default lock id is `4006`. Marten uses `4004`
+by default for its own migrations.
+
+When `IntegrateWithWolverine()` is in use, both frameworks target the same schema. To make them serialize
+against the *same* advisory lock — useful when many test fixtures or service replicas boot in parallel —
+align the two ids:
+
+```csharp
+services.AddMarten(opts =>
+{
+    opts.Connection(connectionString);
+    opts.ApplyChangesLockId = 4004; // default
+})
+.IntegrateWithWolverine();
+
+builder.Host.UseWolverine(opts =>
+{
+    opts.PersistMessagesWithPostgresql(connectionString)
+        // Reuse Marten's lock so Marten and Wolverine migrations serialize together
+        .OverrideMigrationLockId(4004);
+});
+```
+
 

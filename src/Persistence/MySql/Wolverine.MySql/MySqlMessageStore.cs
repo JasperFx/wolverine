@@ -159,6 +159,15 @@ internal class MySqlMessageStore : MessageDatabase<MySqlConnection>
         return false;
     }
 
+    protected override async Task ReleaseLockAsync(int lockId, MySqlConnection connection, CancellationToken token)
+    {
+        var lockName = $"wolverine_{lockId}";
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandText = "SELECT RELEASE_LOCK(@lockName)";
+        cmd.Parameters.AddWithValue("@lockName", lockName);
+        await cmd.ExecuteScalarAsync(token).ConfigureAwait(false);
+    }
+
     protected override DbCommand buildFetchSql(MySqlConnection conn, DbObjectName tableName, string[] columnNames,
         int maxRecords)
     {

@@ -73,6 +73,17 @@ public interface IPostgresqlBackedPersistence
     IPostgresqlBackedPersistence OverrideScheduledJobLockId(int lockId);
 
     /// <summary>
+    /// Override the PostgreSQL advisory lock identifier that Wolverine uses to serialize
+    /// schema migrations across concurrent processes. The default is 4006. Set this to
+    /// match Marten's <c>StoreOptions.ApplyChangesLockId</c> (default 4004) when using
+    /// <c>IntegrateWithWolverine</c> if you want both frameworks to serialize against
+    /// the same lock.
+    /// </summary>
+    /// <param name="lockId"></param>
+    /// <returns></returns>
+    IPostgresqlBackedPersistence OverrideMigrationLockId(int lockId);
+
+    /// <summary>
     /// Should Wolverine provision PostgreSQL command queues for this Wolverine application? The default is true,
     /// but these queues are unnecessary if using an external broker for Wolverine command queues -- and the Wolverine team does recommend
     /// using external brokers for command queues when that's possible
@@ -154,7 +165,7 @@ internal class PostgresqlBackedPersistence : IPostgresqlBackedPersistence, IWolv
     public bool CommandQueuesEnabled { get; set; } = true;
 
     private int _scheduledJobLockId = 0;
-    
+
     // This would be an override
     public int ScheduledJobLockId
     {
@@ -169,6 +180,13 @@ internal class PostgresqlBackedPersistence : IPostgresqlBackedPersistence, IWolv
             _scheduledJobLockId = value;
         }
     }
+
+    /// <summary>
+    /// Advisory lock id used to serialize Wolverine schema migrations across concurrent
+    /// processes. Defaults to 4006. Align with Marten's ApplyChangesLockId (default 4004)
+    /// when using IntegrateWithWolverine to share the lock between the two frameworks.
+    /// </summary>
+    public int MigrationLockId { get; set; } = 4006;
     
 
     public void Configure(WolverineOptions options)
@@ -253,6 +271,7 @@ internal class PostgresqlBackedPersistence : IPostgresqlBackedPersistence, IWolv
             ConnectionString = ConnectionString,
             DataSource = DataSource,
             ScheduledJobLockId = ScheduledJobLockId,
+            MigrationLockId = MigrationLockId,
             SchemaName = EnvelopeStorageSchemaName,
             AddTenantLookupTable = UseMasterTableTenancy,
             TenantConnections = TenantConnections
@@ -309,6 +328,12 @@ internal class PostgresqlBackedPersistence : IPostgresqlBackedPersistence, IWolv
     IPostgresqlBackedPersistence IPostgresqlBackedPersistence.OverrideScheduledJobLockId(int lockId)
     {
         _scheduledJobLockId = lockId;
+        return this;
+    }
+
+    IPostgresqlBackedPersistence IPostgresqlBackedPersistence.OverrideMigrationLockId(int lockId)
+    {
+        MigrationLockId = lockId;
         return this;
     }
 
