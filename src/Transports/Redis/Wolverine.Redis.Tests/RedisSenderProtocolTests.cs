@@ -45,7 +45,7 @@ public class RedisSenderProtocolTests : IAsyncLifetime
             .UseWolverine(opts =>
             {
                 opts.ServiceName = "SenderProtocolTestService";
-                opts.UseRedisTransport("localhost:6379").AutoProvision();
+                opts.UseRedisTransport(RedisContainerFixture.ConnectionString).AutoProvision();
             }).StartAsync();
 
         _runtime = _host.Services.GetRequiredService<IWolverineRuntime>();

@@ -67,9 +67,9 @@ public class DurableComplianceFixture : TransportComplianceFixture, IAsyncLifeti
         await Receiver.RebuildAllEnvelopeStorageAsync();
     }
 
-    public async Task DisposeAsync()
+    public new async Task DisposeAsync()
     {
-        await DisposeAsync();
+        await base.DisposeAsync();
     }
 
     public class DurableSendingAndReceivingCompliance : TransportCompliance<DurableComplianceFixture>
@@ -88,7 +88,7 @@ public class DurableComplianceFixture : TransportComplianceFixture, IAsyncLifeti
             var transport = runtime.Options.Transports.GetOrCreate<AmazonSqsTransport>();
             var queue = transport.Queues[AmazonSqsTransport.DeadLetterQueueName];
             await queue.InitializeAsync(NullLogger.Instance);
-            var messages = await transport.Client.ReceiveMessageAsync(queue.QueueUrl);
+            var messages = await transport.Client!.ReceiveMessageAsync(queue.QueueUrl);
             messages.Messages.Count.ShouldBeGreaterThan(0);
         }
     }

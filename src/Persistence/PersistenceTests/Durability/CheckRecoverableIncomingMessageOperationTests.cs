@@ -54,7 +54,7 @@ public class CheckRecoverableIncomingMessageOperationTests
     [InlineData("Limited by number on server 2", 492, 8, 8)]
     [InlineData("Limited by queue count and buffered limit", 433, 300, 66)]
     [InlineData("Already at buffered limit", 505, 300, 0)]
-    public void determine_page_size(string description, int queueLimit, int serverCount, int expected)
+    public void determine_page_size(string _, int queueLimit, int serverCount, int expected)
     {
         theAgent.QueueCount.Returns(queueLimit);
         theAgent.Status.Returns(ListeningStatus.Accepting);

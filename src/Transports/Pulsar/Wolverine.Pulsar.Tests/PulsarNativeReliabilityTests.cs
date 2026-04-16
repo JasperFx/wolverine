@@ -13,7 +13,7 @@ namespace Wolverine.Pulsar.Tests;
 [Collection("pulsar")]
 public class PulsarNativeReliabilityTests : /*TransportComplianceFixture,*/ IAsyncLifetime
 {
-    public IHost WolverineHost;
+    public IHost WolverineHost = null!;
 
     public PulsarNativeReliabilityTests()
     {
@@ -30,7 +30,7 @@ public class PulsarNativeReliabilityTests : /*TransportComplianceFixture,*/ IAsy
 
                 opts.UsePulsar(b =>
                 {
-                    b.ServiceUrl(new Uri("pulsar://127.0.0.1:6650"));
+                    b.ServiceUrl(PulsarContainerFixture.ServiceUrl);
                 });
 
                 opts.IncludeType<SRMessageHandlers>();
@@ -276,7 +276,7 @@ public class WaitForDeadLetteredMessage<T> : ITrackedCondition
 
     public void Record(EnvelopeRecord record)
     {
-        if (record.Envelope.Message is T && record.MessageEventType == MessageEventType.MovedToErrorQueue )
+        if (record.Envelope?.Message is T && record.MessageEventType == MessageEventType.MovedToErrorQueue)
         {
             _found = true;
         }

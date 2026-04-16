@@ -22,7 +22,7 @@ public record AgentRestriction(Guid Id, Uri AgentUri, AgentRestrictionType Type,
 
 public class AgentRestrictions
 {
-    private readonly AgentRestriction[] _originals;
+    private readonly AgentRestriction[] _originals = null!;
     private readonly List<AgentRestriction> _current = new();
 
     public AgentRestrictions()

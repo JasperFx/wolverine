@@ -1,5 +1,11 @@
 # Multi-Tenancy with EF Core <Badge type="tip" text="4.0" />
 
+::: tip
+For a holistic overview of multi-tenancy across all of Wolverine, see the [Multi-Tenancy Tutorial](/tutorials/multi-tenancy).
+For additional context on the EF Core multi-tenancy story, see the blog post
+[Wolverine 4 is Bringing Multi-Tenancy to EF Core](https://jeremydmiller.com/2025/05/15/wolverine-4-is-bringing-multi-tenancy-to-ef-core/).
+:::
+
 Wolverine has first class support for using a single EF Core `DbContext` type that potentially uses different databases
 for different clients within your system, and this includes every single bit of EF Core capabilities with Wolverine:
 

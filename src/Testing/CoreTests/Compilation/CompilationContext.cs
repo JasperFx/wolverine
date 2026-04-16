@@ -9,10 +9,10 @@ namespace CoreTests.Compilation;
 
 public abstract class CompilationContext : IDisposable
 {
-    private IHost _host;
+    private IHost _host = null!;
 
 
-    protected Envelope theEnvelope;
+    protected Envelope theEnvelope = null!;
 
     public void Dispose()
     {
@@ -39,13 +39,13 @@ public abstract class CompilationContext : IDisposable
             _host = WolverineHost.For(configure);
         }
 
-        return _host.Get<HandlerGraph>().HandlerFor(typeof(TMessage)).As<MessageHandler>();
+        return _host.Get<HandlerGraph>().HandlerFor(typeof(TMessage))!.As<MessageHandler>();
     }
 
     public async Task<IMessageContext> Execute<TMessage>(TMessage message)
     {
         var handler = HandlerFor<TMessage>();
-        theEnvelope = new Envelope(message);
+        theEnvelope = new Envelope(message!);
         var context = new MessageContext(_host.Get<IWolverineRuntime>());
         context.ReadEnvelope(theEnvelope, InvocationCallback.Instance);
 

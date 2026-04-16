@@ -1,6 +1,11 @@
+using System.Text;
 using System.Text.Json;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Runtime.Interop;
+using Wolverine.Util;
 using Xunit;
 
 namespace CoreTests.Runtime.Interop;
@@ -84,6 +89,31 @@ public class when_reading_and_writing_CloudEvents_data
     {
         theEnvelope.SentAt.ShouldBe(DateTimeOffset.Parse("2020-09-23T06:23:21Z"));
         theCloudEventEnvelope.Time.ShouldBe(theEnvelope.SentAt.ToString("O"));
+    }
+
+    [Fact]
+    public async Task try_deserialize_envelope_unwraps_metadata_when_message_type_is_missing()
+    {
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.RegisterMessageType(typeof(ApproveOrder), "com.dapr.event.sent");
+            }).StartAsync();
+
+        var runtime = host.Services.GetRequiredService<IWolverineRuntime>();
+        var serializer = new CloudEventsMapper(runtime.Options.HandlerGraph,
+            new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+
+        var envelope = new Envelope
+        {
+            Data = Encoding.UTF8.GetBytes(Json),
+            Serializer = serializer
+        };
+
+        await runtime.Pipeline.TryDeserializeEnvelope(envelope);
+
+        envelope.Message.ShouldBeOfType<ApproveOrder>().OrderId.ShouldBe(1);
+        envelope.MessageType.ShouldBe(typeof(ApproveOrder).ToMessageTypeName());
     }
 }
 

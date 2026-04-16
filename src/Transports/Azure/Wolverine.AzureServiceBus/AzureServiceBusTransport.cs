@@ -21,7 +21,7 @@ public partial class AzureServiceBusTransport : BrokerTransport<AzureServiceBusE
     private readonly Lazy<ServiceBusAdministrationClient> _managementClient;
 
     public readonly List<AzureServiceBusSubscription> Subscriptions = new();
-    private string _hostName;
+    private string _hostName = null!;
     public const string DeadLetterQueueName = DeadLetterQueueConstants.DefaultQueueName;
 
     public AzureServiceBusTransport() : this(ProtocolName)
@@ -210,7 +210,7 @@ public partial class AzureServiceBusTransport : BrokerTransport<AzureServiceBusE
         {
             if (_hostName == null)
             {
-                var parts = ConnectionString.Split(';');
+                var parts = ConnectionString!.Split(';');
                 foreach (var part in parts)
                 {
                     var split = part.Split('=');
@@ -221,7 +221,7 @@ public partial class AzureServiceBusTransport : BrokerTransport<AzureServiceBusE
                 }
             }
 
-            return _hostName;
+            return _hostName!;
         }
     }
 
@@ -254,10 +254,10 @@ public partial class AzureServiceBusTransport : BrokerTransport<AzureServiceBusE
         switch (uri.Host)
         {
             case "queue":
-                return Queues[uri.Segments[1]];
+                return Queues[Uri.UnescapeDataString(uri.Segments[1])];
 
             case "topic":
-                var topicName = uri.Segments[1].TrimEnd('/');
+                var topicName = Uri.UnescapeDataString(uri.Segments[1].TrimEnd('/'));
                 if (uri.Segments.Length == 3)
                 {
                     var subscription = Subscriptions.FirstOrDefault(x => x.Uri == uri);
@@ -266,7 +266,7 @@ public partial class AzureServiceBusTransport : BrokerTransport<AzureServiceBusE
                         return subscription;
                     }
 
-                    var subscriptionName = uri.Segments.Last().TrimEnd('/');
+                    var subscriptionName = Uri.UnescapeDataString(uri.Segments.Last().TrimEnd('/'));
                     var topic = Topics[topicName];
                     subscription = new AzureServiceBusSubscription(this, topic, subscriptionName);
                     Subscriptions.Add(subscription);
@@ -284,6 +284,11 @@ public partial class AzureServiceBusTransport : BrokerTransport<AzureServiceBusE
     {
         // we're going to use a client per endpoint
         return ValueTask.CompletedTask;
+    }
+
+    public WolverineTransportHealthCheck BuildHealthCheck(IWolverineRuntime runtime)
+    {
+        return new AzureServiceBusHealthCheck(this);
     }
 
     public override IEnumerable<PropertyColumn> DiagnosticColumns()

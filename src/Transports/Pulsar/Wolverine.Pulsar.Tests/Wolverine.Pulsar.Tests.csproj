@@ -10,6 +10,7 @@
         <PackageReference Include="GitHubActionsTestLogger" PrivateAssets="All" />
         <PackageReference Include="xunit.runner.visualstudio" PrivateAssets="All"/>
         <PackageReference Include="coverlet.collector" PrivateAssets="All" />
+        <PackageReference Include="Testcontainers.Pulsar" />
     </ItemGroup>
 
     <ItemGroup>

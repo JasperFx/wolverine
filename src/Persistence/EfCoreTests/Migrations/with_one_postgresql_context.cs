@@ -21,7 +21,7 @@ namespace EfCoreTests.Migrations;
 [Collection("postgresql")]
 public class with_one_postgresql_context : IAsyncLifetime
 {
-    private IHost _host;
+    private IHost _host = null!;
 
     public async Task InitializeAsync()
     {

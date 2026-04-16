@@ -16,8 +16,8 @@ namespace MartenTests.AggregateHandlerWorkflow;
 
 public class version_source_override : PostgresqlContext, IAsyncLifetime
 {
-    private IHost theHost;
-    private IDocumentStore theStore;
+    private IHost theHost = null!;
+    private IDocumentStore theStore = null!;
     private Guid theStreamId;
 
     public async Task InitializeAsync()
@@ -59,7 +59,7 @@ public class version_source_override : PostgresqlContext, IAsyncLifetime
     private async Task<VersionSourceAggregate> LoadAggregate()
     {
         await using var session = theStore.LightweightSession();
-        return await session.LoadAsync<VersionSourceAggregate>(theStreamId);
+        return (await session.LoadAsync<VersionSourceAggregate>(theStreamId))!;
     }
 
     [Fact]

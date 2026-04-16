@@ -21,7 +21,7 @@ internal sealed class RateLimitSettingsRegistry
 
     public bool TryFindForMessageType(Type messageType, out RateLimitSettings settings)
     {
-        if (_messageTypeLimits.TryGetValue(messageType, out settings))
+        if (_messageTypeLimits.TryGetValue(messageType, out settings!))
         {
             return true;
         }
@@ -41,6 +41,6 @@ internal sealed class RateLimitSettingsRegistry
 
     public bool TryFindForEndpoint(Uri endpoint, out RateLimitSettings settings)
     {
-        return _endpointLimits.TryGetValue(endpoint.ToString(), out settings);
+        return _endpointLimits.TryGetValue(endpoint.ToString(), out settings!);
     }
 }

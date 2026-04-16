@@ -1,6 +1,7 @@
 using System.Reflection;
 using Wolverine.Configuration;
 using Wolverine.Runtime.Routing;
+using Wolverine.Util;
 
 namespace Wolverine.Runtime.Partitioning;
 
@@ -8,6 +9,7 @@ public class GlobalPartitionedMessageTopology
 {
     private readonly WolverineOptions _options;
     private readonly List<Subscription> _subscriptions = new();
+    private readonly HashSet<string> _messageTypeNames = new(StringComparer.OrdinalIgnoreCase);
     private PartitionedMessageTopology? _externalTopology;
     private LocalPartitionedMessageTopology? _localTopology;
 
@@ -19,6 +21,11 @@ public class GlobalPartitionedMessageTopology
     internal PartitionedMessageTopology? ExternalTopology => _externalTopology;
     internal LocalPartitionedMessageTopology? LocalTopology => _localTopology;
 
+    public void LocalQueues(string baseQueueName, int numberOfEndpoints)
+    {
+        _localTopology = new LocalPartitionedMessageTopology(_options, baseQueueName, numberOfEndpoints);
+    }
+
     internal void SetExternalTopology(Func<WolverineOptions, PartitionedMessageTopology> factory, string baseName)
     {
         SetExternalTopology(factory(_options), baseName);
@@ -28,10 +35,12 @@ public class GlobalPartitionedMessageTopology
     {
         _externalTopology = topology;
 
-        // Create companion local topology with matching slot count
-        var localBaseName = $"global-{baseName}";
-        var slotCount = topology.Slots.Count;
-        _localTopology = new LocalPartitionedMessageTopology(_options, localBaseName, slotCount);
+        if (_localTopology == null)
+        {
+            // Create companion local topology with matching slot count
+            var localBaseName = $"global-{baseName}";
+            _localTopology = new LocalPartitionedMessageTopology(_options, localBaseName, topology.Slots.Count);
+        }
 
         // Force durable mode on all external endpoints
         foreach (var slot in topology.Slots)
@@ -46,9 +55,13 @@ public class GlobalPartitionedMessageTopology
         }
 
         // Tag each external slot endpoint with its companion local queue URI
-        for (var i = 0; i < topology.Slots.Count; i++)
+        // Only tag if slot counts match; mismatches will be caught by AssertValidity()
+        if (topology.Slots.Count == _localTopology.Slots.Count)
         {
-            topology.Slots[i].GlobalPartitionLocalQueueUri = _localTopology.Slots[i].Uri;
+            for (var i = 0; i < topology.Slots.Count; i++)
+            {
+                topology.Slots[i].GlobalPartitionLocalQueueUri = _localTopology.Slots[i].Uri;
+            }
         }
     }
 
@@ -68,6 +81,7 @@ public class GlobalPartitionedMessageTopology
     public void Message(Type type)
     {
         _subscriptions.Add(Subscription.ForType(type));
+        _messageTypeNames.Add(type.ToMessageTypeName());
     }
 
     /// <summary>
@@ -135,11 +149,48 @@ public class GlobalPartitionedMessageTopology
             throw new InvalidOperationException(
                 "An external transport topology must be configured for global partitioning");
         }
+
+        if (_localTopology == null)
+        {
+            throw new InvalidOperationException(
+                "A local queue topology must be configured for global partitioning");
+        }
+
+        if (_externalTopology.Slots.Count != _localTopology.Slots.Count)
+        {
+            throw new InvalidOperationException(
+                $"The external topology has {_externalTopology.Slots.Count} slots but the local topology has {_localTopology.Slots.Count} slots. These must match for global partitioning.");
+        }
     }
 
     internal bool Matches(Type messageType)
     {
         return _subscriptions.Any(x => x.Matches(messageType));
+    }
+
+    /// <summary>
+    /// Check if a message type name (from envelope metadata) matches this topology's subscriptions.
+    /// This is used by the interceptor when the message hasn't been deserialized yet (e.g. Kafka).
+    /// </summary>
+    internal bool MatchesByMessageTypeName(string? messageTypeName)
+    {
+        return messageTypeName != null && _messageTypeNames.Contains(messageTypeName);
+    }
+
+    /// <summary>
+    /// Pre-compute message type names for subscription scopes that can't be resolved from
+    /// a string alone (e.g. MessagesImplementing, namespace, assembly).
+    /// Called during startup with the set of known handler message types.
+    /// </summary>
+    internal void ResolveMessageTypeNames(IEnumerable<Type> knownMessageTypes)
+    {
+        foreach (var type in knownMessageTypes)
+        {
+            if (Matches(type))
+            {
+                _messageTypeNames.Add(type.ToMessageTypeName());
+            }
+        }
     }
 
     internal bool TryMatch(Type messageType, IWolverineRuntime runtime, out IMessageRoute? route)

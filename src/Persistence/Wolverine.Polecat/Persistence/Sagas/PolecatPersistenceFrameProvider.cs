@@ -1,3 +1,4 @@
+using System.Reflection;
 using JasperFx;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
@@ -23,7 +24,7 @@ internal class PolecatPersistenceFrameProvider : IPersistenceFrameProvider
 
     public Type DetermineSagaIdType(Type sagaType, IServiceContainer container)
     {
-        var idProp = sagaType.GetProperty("Id", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+        var idProp = sagaType.GetProperty("Id", BindingFlags.Public | BindingFlags.Instance);
         return idProp?.PropertyType ?? typeof(Guid);
     }
 

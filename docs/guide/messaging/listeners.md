@@ -66,6 +66,30 @@ without having to use any kind of message persistence.
 To improve throughput, you can direct Wolverine to use a number of parallel listeners, but the default is
 just 1 per listening endpoint.
 
+### Processing Inline While Draining
+
+By default, when Wolverine begins draining an inline listener during graceful shutdown, any messages still queued
+in the receiver are immediately deferred back to the transport broker. If you'd prefer that already-ingested messages
+continue processing to completion before the receiver shuts down, you can enable the `ProcessInlineWhileDraining` option:
+
+```cs
+opts.ListenToRabbitQueue("inline")
+    .ProcessInline()
+
+    // Allow messages already received by the listener to finish
+    // processing during graceful shutdown instead of being deferred
+    // back to the broker immediately.
+    .ProcessInlineWhileDraining();
+```
+
+With this flag enabled:
+
+* Messages that have already been received by the listener will continue to be processed through the handler pipeline
+  while the drain is in progress.
+* Once the drain completes, any new messages that arrive will be deferred as usual.
+
+This is useful when deferring partially-processed batches could lead to latency outliers.
+
 ## Buffered Endpoints
 
 ::: tip
@@ -132,6 +156,28 @@ ListeningAgent-->CircuitBreaker: potentially stops the listening
   from the messaging transport like a Rabbit MQ broker, and passes that information to Wolverine's message handlers
 * `ListeningAgent` is a controller within Wolverine that governs the listener lifecycle including pauses and restarts depending
   on load or error conditions
+
+## Maximum Parallel Messages
+
+::: tip
+Wolverine defaults the maximum number of parallel messages per endpoint to the greater of `Environment.ProcessorCount`
+or 5. This ensures reasonable throughput even on low-core environments like containers or CI runners where `ProcessorCount`
+may be as low as 1 or 2.
+:::
+
+You can override the default parallelism per endpoint:
+
+```csharp
+opts.ListenToRabbitQueue("high-throughput")
+    .BufferedInMemory()
+    .MaximumParallelMessages(20);
+```
+
+Or set a global default for all listening endpoints using a policy:
+
+```csharp
+opts.Policies.AllListeners(x => x.MaximumParallelMessages = 5);
+```
 
 ## Strictly Ordered Listeners <Badge type="tip" text="2.3" />
 

@@ -74,10 +74,26 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IAsy
 
     public DeadLetterQueue DeadLetterQueue { get; } = new(DeadLetterQueueName);
 
+    /// <summary>
+    /// When true, a background listener recovers messages from the RabbitMQ dead letter queue
+    /// into Wolverine's persistent dead letter storage (database).
+    /// </summary>
+    public bool EnableDeadLetterQueueRecovery { get; set; }
+
     internal RabbitMqChannelCallback? Callback { get; private set; }
 
     internal ConnectionMonitor ListeningConnection => _listenerConnection ?? throw new InvalidOperationException("The listening connection has not been created yet or is disabled!");
     internal ConnectionMonitor SendingConnection => _sendingConnection ?? throw new InvalidOperationException("The sending connection has not been created yet or is disabled!");
+
+    /// <summary>
+    /// Null-safe access to the listening connection for health checks.
+    /// </summary>
+    internal ConnectionMonitor? TryGetListeningConnection() => _listenerConnection;
+
+    /// <summary>
+    /// Null-safe access to the sending connection for health checks.
+    /// </summary>
+    internal ConnectionMonitor? TryGetSendingConnection() => _sendingConnection;
 
     /// <summary>
     /// Specifies a customizable action for configuring channel creation options in RabbitMQ.
@@ -146,6 +162,11 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IAsy
         {
             await tenant.Transport.DisposeAsync();
         }
+    }
+
+    public WolverineTransportHealthCheck BuildHealthCheck(IWolverineRuntime runtime)
+    {
+        return new RabbitMqHealthCheck(this);
     }
 
     public override async ValueTask ConnectAsync(IWolverineRuntime runtime)

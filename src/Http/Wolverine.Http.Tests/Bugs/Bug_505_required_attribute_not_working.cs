@@ -81,10 +81,10 @@ public class AggregateRepository
     {
         if (Breeders.TryGetValue(breederId, out var breeder))
         {
-            return Task.FromResult<T>(breeder as T);
+            return Task.FromResult<T>((breeder as T)!);
         }
 
-        return Task.FromResult<T>(null);
+        return Task.FromResult<T>(null!);
     }
 }
 
@@ -99,7 +99,7 @@ public class ChangeBreederVisionEndpoint
     }
 
     public static async Task<Breeder?> LoadAsync(ChangeVisionCommand c, AggregateRepository r, CancellationToken ct)
-        => await r.LoadAsync<Breeder>(c.BreederId, null, ct);
+        => await r.LoadAsync<Breeder>(c.BreederId, null!, ct);
 
     [Tags("Breeder")]
     [ProducesResponseType(204)]

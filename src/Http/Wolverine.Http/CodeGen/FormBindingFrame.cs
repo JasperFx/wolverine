@@ -97,7 +97,7 @@ internal class FormBindingFrame : SyncFrame
             }
 
             var formValueVariable = chain.TryFindOrCreateFormValue(parameter);
-            _parameters.Add(formValueVariable);
+            _parameters.Add(formValueVariable!);
         }
 
         if (!_constructor.GetParameters().Any())

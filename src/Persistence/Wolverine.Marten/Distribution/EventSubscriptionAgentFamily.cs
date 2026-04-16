@@ -22,12 +22,12 @@ public class EventSubscriptionAgentFamily : IStaticAgentFamily, IAsyncDisposable
     
     public EventSubscriptionAgentFamily(IEnumerable<IEventStore> stores, IEnumerable<IObserver<ShardState>> observers)
     {
+        _observers = observers.ToArray();
+
         foreach (var store in stores)
         {
             _stores = _stores.AddOrUpdate(store.Identity.ToString(), new EventStoreAgents(store, _observers));
         }
-
-        _observers = observers.ToArray();
     }
 
     public string Scheme => SchemeName;

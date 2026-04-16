@@ -10,8 +10,8 @@ namespace CoreTests;
 public abstract class SendingContext : IAsyncDisposable
 {
     private readonly int _senderPort;
-    private IHost _receiver;
-    private IHost _sender;
+    private IHost _receiver = null!;
+    private IHost _sender = null!;
 
     public SendingContext()
     {

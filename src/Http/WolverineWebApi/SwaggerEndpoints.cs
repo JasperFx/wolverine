@@ -25,5 +25,5 @@ public record CreateUserProfile(string Name);
 
 public class UserProfile
 {
-    public string Id { get; set; }
+    public string Id { get; set; } = null!;
 }

@@ -1,4 +1,4 @@
-﻿using System.Reflection;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using JasperFx;
 using JasperFx.CodeGeneration;
@@ -75,6 +75,49 @@ public enum UnknownMessageBehavior
     /// then move it to the appropriate dead letter queue for the receiving endpoint
     /// </summary>
     DeadLetterQueue
+}
+
+/// <summary>
+/// Controls how much tracing and logging is applied to InvokeAsync() calls.
+/// By default, InvokeAsync uses lightweight tracking without detailed log messages.
+/// </summary>
+public enum InvokeTracingMode
+{
+    /// <summary>
+    /// Default behavior. InvokeAsync() uses lightweight tracking without
+    /// emitting log messages for execution start/finish/success/failure.
+    /// </summary>
+    Lightweight,
+
+    /// <summary>
+    /// InvokeAsync() will emit the same structured log messages as transport-received
+    /// messages, including execution started, execution finished, message succeeded,
+    /// and message failed log entries. Use this mode when you need full observability
+    /// for messages invoked as an in-process mediator.
+    /// </summary>
+    Full
+}
+
+/// <summary>
+/// Controls how Wolverine generates unique identifiers for envelopes (messages).
+/// </summary>
+public enum EnvelopeIdGeneration
+{
+    /// <summary>
+    /// Default. Uses MassTransit's NewId algorithm which generates sequential GUIDs
+    /// based on machine identity (MAC/DNS) and timestamp. Good for SQL Server index
+    /// performance but can produce duplicates in cloud environments where multiple
+    /// instances share network identity (containers, Cloud Run, serverless).
+    /// </summary>
+    NewId,
+
+    /// <summary>
+    /// Uses Guid.CreateVersion7() which produces time-ordered GUIDs with cryptographically
+    /// strong random bits per RFC 9562. Recommended for greenfield applications and
+    /// cloud environments where instances may share network identity. Guaranteed unique
+    /// without relying on machine-specific properties.
+    /// </summary>
+    GuidV7
 }
 
 public enum NoRouteBehavior
@@ -169,6 +212,7 @@ public sealed partial class WolverineOptions
         InternalRouteSources.Insert(0, Transports.GetOrCreate<StubTransport>());
     }
 
+    [ChildDescription]
     public MetricsOptions Metrics { get; } = new();
 
     /// <summary>
@@ -191,6 +235,23 @@ public sealed partial class WolverineOptions
     /// on outgoing envelopes and into Marten's IDocumentSession.LastModifiedBy
     /// </summary>
     public bool EnableRelayOfUserName { get; set; }
+
+    /// <summary>
+    /// Controls how much tracing and logging is applied to InvokeAsync() calls.
+    /// Default is <see cref="InvokeTracingMode.Lightweight"/> which uses minimal tracking.
+    /// Set to <see cref="InvokeTracingMode.Full"/> to emit the same structured log messages
+    /// as transport-received messages, useful for full observability when using Wolverine
+    /// as an in-process mediator.
+    /// </summary>
+    public InvokeTracingMode InvokeTracing { get; set; } = InvokeTracingMode.Lightweight;
+
+    /// <summary>
+    /// Controls how Wolverine generates unique identifiers for message envelopes.
+    /// Default is <see cref="EnvelopeIdGeneration.NewId"/> for backward compatibility.
+    /// Use <see cref="EnvelopeIdGeneration.GuidV7"/> for greenfield applications or
+    /// cloud environments where multiple instances may share network identity.
+    /// </summary>
+    public EnvelopeIdGeneration EnvelopeIdGeneration { get; set; } = EnvelopeIdGeneration.NewId;
 
     /// <summary>
     /// How should Wolverine handle messages that have no configured routes when being published?
@@ -234,10 +295,9 @@ public sealed partial class WolverineOptions
     public MessagePartitioningRules MessagePartitioning { get; }
 
     /// <summary>
-    /// Internal list of IEnvelopeRule instances that are applied via ApplyCorrelation
-    /// to outgoing envelopes in PersistOrSendAsync
+    /// List of <see cref="IEnvelopeRule"/> instances applied to every outgoing envelope.
     /// </summary>
-    internal List<IEnvelopeRule> MetadataRules { get; } = new();
+    public List<IEnvelopeRule> MetadataRules { get; } = new();
 
     
     /// For advanced usages, this gives you the ability to register pre-canned message handling
@@ -266,7 +326,7 @@ public sealed partial class WolverineOptions
     public void AddMessageHandler<T>(MessageHandler<T> handler)
     {
         AddMessageHandler(typeof(T), handler);
-        handler.ConfigureChain(handler.Chain); // Yeah, this is 100% a tell, don't ask violation
+        handler.ConfigureChain(handler.Chain!); // Yeah, this is 100% a tell, don't ask violation
     }
 
     [IgnoreDescription]
@@ -352,7 +412,7 @@ public sealed partial class WolverineOptions
     /// <summary>
     ///     Descriptive name of the running service. Used in Wolverine diagnostics and testing support
     /// </summary>
-    public string ServiceName { get; set; }
+    public string ServiceName { get; set; } = null!;
 
     /// <summary>
     ///     This should probably *only* be used in development or testing
@@ -384,6 +444,14 @@ public sealed partial class WolverineOptions
     /// original caller. Default is *false* as of Wolverine 4.6
     /// </summary>
     public bool EnableAutomaticFailureAcks { get; set; } = false;
+
+    /// <summary>
+    /// When enabled, Wolverine tracks which message types are produced as a result
+    /// of handling other message types (cause and effect). New causation pairs are
+    /// reported to IWolverineObserver.MessageCausedBy for CritterWatch topology
+    /// visualization. Default is false; Wolverine.CritterWatch enables this automatically.
+    /// </summary>
+    public bool EnableMessageCausationTracking { get; set; }
 
     private void deriveServiceName()
     {

@@ -67,7 +67,7 @@ public class TenantedDbContextBuilderByDbDataSource<T> : IDbContextBuilder<T> wh
 
         builder.UseApplicationServiceProvider(_serviceProvider);
         builder.ReplaceService<IModelCustomizer, WolverineModelCustomizer>();
-        _configuration(builder, dataSource, new TenantId(messaging.TenantId));
+        _configuration(builder, dataSource, new TenantId(messaging.TenantId!));
         
         var dbContext = _constructor(builder.Options);
 
@@ -183,7 +183,7 @@ public class TenantedDbContextBuilderByDbDataSource<T> : IDbContextBuilder<T> wh
         var builder = new DbContextOptionsBuilder<T>();
         builder.UseApplicationServiceProvider(_serviceProvider);
         builder.ReplaceService<IModelCustomizer, WolverineModelCustomizer>();
-        _configuration(builder, dataSource, new TenantId(StorageConstants.DefaultTenantId));
+        _configuration(builder, dataSource!, new TenantId(StorageConstants.DefaultTenantId));
         return builder.Options;
     }
 
@@ -219,13 +219,16 @@ public class TenantedDbContextBuilderByDbDataSource<T> : IDbContextBuilder<T> wh
     public async Task EnsureAllTenantDatabasesCreatedAsync()
     {
         await _store.Source.RefreshAsync();
-        foreach (var assignment in _store.Source.AllActiveByTenant())
-        {
-            var dbContext = await BuildAsync(assignment.TenantId, CancellationToken.None);
-            await _serviceProvider.EnsureDatabaseExistsAsync(dbContext);
-            await using var migration = await _serviceProvider.CreateMigrationAsync(dbContext, CancellationToken.None);
-            await migration.ExecuteAsync(AutoCreate.CreateOrUpdate, CancellationToken.None);
-        }
+        var assignments = _store.Source.AllActiveByTenant().ToList();
+
+        await Parallel.ForEachAsync(assignments, new ParallelOptions { MaxDegreeOfParallelism = 10 },
+            async (assignment, ct) =>
+            {
+                var dbContext = await BuildAsync(assignment.TenantId, ct);
+                await _serviceProvider.EnsureDatabaseExistsAsync(dbContext, ct);
+                await using var migration = await _serviceProvider.CreateMigrationAsync(dbContext, ct);
+                await migration.ExecuteAsync(AutoCreate.CreateOrUpdate, ct);
+            });
     }
 
     private async Task<DbDataSource> findDataSource(string? tenantId)
@@ -247,7 +250,7 @@ public class TenantedDbContextBuilderByDbDataSource<T> : IDbContextBuilder<T> wh
             dataSource = databaseSettings.DataSource;
         }
 
-        _dataSources = _dataSources.AddOrUpdate(tenantId, dataSource);
+        _dataSources = _dataSources.AddOrUpdate(tenantId, dataSource!);
 
         return dataSource!;
     }

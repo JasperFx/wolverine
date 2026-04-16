@@ -125,9 +125,11 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
 
     internal void ApplyIdempotencyCheck()
     {
+        #pragma warning disable CS4014
         Middleware.Insert(0, MethodCall.For<MessageContext>(x => x.AssertEagerIdempotencyAsync(CancellationToken.None)));
-            
+
         Postprocessors.Add(MethodCall.For<MessageContext>(x => x.PersistHandledAsync()));
+        #pragma warning restore CS4014
     }
 
     protected virtual void validateAgainstInvalidSagaMethods(IGrouping<Type, HandlerCall> grouping)
@@ -275,14 +277,31 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
     bool ICodeFile.AttachTypesSynchronously(GenerationRules rules, Assembly assembly, IServiceProvider? services,
         string containingNamespace)
     {
-        _handlerType = assembly.ExportedTypes.FirstOrDefault(x => x.Name == TypeName);
+        // Use the source-generated type loader for O(1) lookup when available,
+        // falling back to linear scan of assembly.ExportedTypes.
+        // Phase D: First try the PreGeneratedHandlerTypes dictionary for O(1) lookup,
+        // then fall back to TryFindPreGeneratedType for backward compatibility.
+        var typeLoader = _parent?.TypeLoader;
+        if (typeLoader is { HasPreGeneratedHandlers: true })
+        {
+            if (typeLoader.PreGeneratedHandlerTypes?.TryGetValue(TypeName, out var preGenType) == true)
+            {
+                _handlerType = preGenType;
+            }
+            else
+            {
+                _handlerType = typeLoader.TryFindPreGeneratedType(TypeName);
+            }
+        }
+
+        _handlerType ??= assembly.ExportedTypes.FirstOrDefault(x => x.Name == TypeName);
 
         if (_handlerType == null)
         {
             return false;
         }
 
-        var container = services.GetRequiredService<IServiceContainer>();
+        var container = services!.GetRequiredService<IServiceContainer>();
         applyCustomizations(rules, container);
 
         Handler = (MessageHandler)container.QuickBuild(_handlerType);
@@ -369,7 +388,7 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
 
     public override void UseForResponse(MethodCall methodCall)
     {
-        var response = methodCall.ReturnVariable;
+        var response = methodCall.ReturnVariable!;
         response.OverrideName("response_of_" + response.Usage);
 
         Postprocessors.Add(methodCall);
@@ -380,11 +399,17 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
 
     public override bool TryFindVariable(string valueName, ValueSource source, Type valueType, out Variable variable)
     {
+        if (source == ValueSource.Claim)
+        {
+            throw new InvalidOperationException(
+                "ValueSource.Claim is only supported in HTTP endpoints, not message handlers. Use ValueSource.Header to read from Envelope headers instead.");
+        }
+
         if (source == ValueSource.InputMember || source == ValueSource.Anything)
         {
-            var member = MessageType.GetProperties()
+            var member = (MemberInfo?)MessageType.GetProperties()
                              .FirstOrDefault(x => x.Name.EqualsIgnoreCase(valueName) && x.PropertyType == valueType)
-                         ?? (MemberInfo)MessageType.GetFields()
+                         ?? MessageType.GetFields()
                              .FirstOrDefault(x => x.Name.EqualsIgnoreCase(valueName) && x.FieldType == valueType);
 
             if (member != null)
@@ -394,8 +419,43 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
             }
         }
 
-        variable = default;
+        if (source == ValueSource.Header)
+        {
+            var frame = new ReadEnvelopeHeaderFrame(valueType, valueName);
+            Middleware.Add(frame);
+            variable = frame.Variable;
+            return true;
+        }
+
+        if (source == ValueSource.Method)
+        {
+            return tryFindMethodVariable(valueName, valueType, out variable);
+        }
+
+        variable = default!;
         return false;
+    }
+
+    private bool tryFindMethodVariable(string methodName, Type returnType, out Variable variable)
+    {
+        var handlerTypes = Handlers.Select(h => h.HandlerType).Distinct();
+        foreach (var type in handlerTypes)
+        {
+            var method = type
+                .GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.FlattenHierarchy)
+                .FirstOrDefault(m => m.Name.EqualsIgnoreCase(methodName) && m.ReturnType == returnType);
+
+            if (method != null)
+            {
+                var call = new MethodCall(type, method);
+                Middleware.Add(call);
+                variable = call.ReturnVariable!;
+                return true;
+            }
+        }
+
+        throw new InvalidOperationException(
+            $"Could not find a public static method '{methodName}' returning {returnType.FullNameInCode()} on handler types: {handlerTypes.Select(t => t.FullNameInCode()).Join(", ")}");
     }
 
     public override Frame[] AddStopConditionIfNull(Variable variable)
@@ -419,7 +479,7 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
                 
             default:
                 var message = requirement.MissingMessage ?? $"Unknown {data.VariableType.NameInCode()} with identity {{Id}}";
-                return [new ThrowRequiredDataMissingExceptionFrame(data, identity, message)];
+                return [new ThrowRequiredDataMissingExceptionFrame(data, identity!, message)];
         }
     }
 
@@ -517,7 +577,7 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         {
             if (AuditedMembers.All(x => x.Member != identity))
             {
-                Audit(identity);
+                Audit(identity!);
             }    
         }
 

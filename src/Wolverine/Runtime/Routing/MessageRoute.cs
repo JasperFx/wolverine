@@ -33,11 +33,12 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
 
         if (WolverineSystemPart.WithinDescription)
         {
-            Sender = endpoint.Agent;
+            Sender = endpoint.Agent!;
         }
         else
         {
-            Sender = endpoint.Agent ?? throw new ArgumentOutOfRangeException(nameof(endpoint), $"Endpoint {endpoint.Uri} does not have an active sending agent. Message type: {messageType.FullNameInCode()}");
+            // Might need to force it to build out the sending agent if this is the first time it's been used
+            Sender = endpoint.Agent ?? runtime.Endpoints.GetOrBuildSendingAgent(endpoint.Uri) ?? throw new ArgumentOutOfRangeException(nameof(endpoint), $"Endpoint {endpoint.Uri} does not have an active sending agent. Message type: {messageType.FullNameInCode()}");
         }
 
         IsLocal = endpoint is LocalQueue;
@@ -48,7 +49,7 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
         }
         else if (WolverineSystemPart.WithinDescription)
         {
-            Serializer = endpoint.DefaultSerializer;
+            Serializer = endpoint.DefaultSerializer!;
         }
         else
         {
@@ -69,8 +70,8 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
 
     public bool IsLocal { get; }
 
-    public IMessageSerializer Serializer { get; }
-    public ISendingAgent Sender { get; }
+    public IMessageSerializer Serializer { get; } = null!;
+    public ISendingAgent Sender { get; } = null!;
 
     public IList<IEnvelopeRule> Rules { get; } = new List<IEnvelopeRule>();
 
@@ -87,7 +88,8 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
         {
             Serializer = Serializer,
             ContentType = Serializer?.ContentType,
-            TopicName = topicName
+            TopicName = topicName,
+            WireTap = _endpoint.WireTap
         };
 
         if (Sender.Endpoint is LocalQueue)
@@ -95,7 +97,7 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
             envelope.Status = EnvelopeStatus.Incoming;
         }
 
-        if (options != null && options.ContentType.IsNotEmpty() && options.ContentType != Serializer.ContentType)
+        if (options != null && options.ContentType!.IsNotEmpty() && options.ContentType! != Serializer!.ContentType)
         {
             envelope.Serializer = runtime.Options.FindSerializer(options.ContentType);
             envelope.ContentType = envelope.Serializer.ContentType;
@@ -194,7 +196,8 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
         var envelope = new Envelope(message, Sender)
         {
             TenantId = options?.TenantId ?? bus.TenantId,
-            TopicName = topicName
+            TopicName = topicName,
+            WireTap = _endpoint.WireTap
         };
         
         options?.Override(envelope);

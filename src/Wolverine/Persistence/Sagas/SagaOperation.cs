@@ -6,8 +6,8 @@ namespace Wolverine.Persistence.Sagas;
 
 public class SagaOperation : AsyncFrame, ISagaOperation
 {
-    private Variable _storage;
-    private Variable _cancellation;
+    private Variable _storage = null!;
+    private Variable _cancellation = null!;
 
     public SagaOperation(Variable saga, SagaOperationType operation)
     {

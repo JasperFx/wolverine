@@ -72,7 +72,7 @@ public class RabbitMqQueueTests
         await queue.DeclareAsync(channel, NullLogger.Instance);
 
         await channel.Received()
-            .QueueDeclareAsync("foo", queue.IsDurable, queue.IsExclusive, queue.AutoDelete, queue.Arguments);
+            .QueueDeclareAsync("foo", queue.IsDurable, queue.IsExclusive, queue.AutoDelete, (IDictionary<string, object?>)queue.Arguments);
 
         queue.HasDeclared.ShouldBeTrue();
     }
@@ -135,7 +135,7 @@ public class RabbitMqQueueTests
 
         await endpoint.InitializeAsync(theChannel, NullLogger.Instance);
 
-        await theChannel.Received().QueueDeclareAsync("foo", true, false, false, endpoint.Arguments);
+        await theChannel.Received().QueueDeclareAsync("foo", true, false, false, (IDictionary<string, object?>)endpoint.Arguments);
         await theChannel.Received().QueuePurgeAsync("foo");
     }
 
@@ -150,7 +150,7 @@ public class RabbitMqQueueTests
 
         await endpoint.InitializeAsync(theChannel, NullLogger.Instance);
 
-        await theChannel.Received().QueueDeclareAsync("foo", true, false, false, endpoint.Arguments);
+        await theChannel.Received().QueueDeclareAsync("foo", true, false, false, (IDictionary<string, object?>)endpoint.Arguments);
         await theChannel.Received().QueuePurgeAsync("foo");
     }
 }

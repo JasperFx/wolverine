@@ -4,7 +4,7 @@ namespace ItemService;
 
 public class CreateItemWithDbContextNotIntegratedWithOutboxCommand
 {
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
 }
 
 public class ItemCreatedInDbContextNotIntegratedWithOutbox

@@ -11,8 +11,8 @@ namespace SlowTests;
 
 public class invoke_async_with_delivery_options : IAsyncLifetime
 {
-    private IHost _publisher;
-    private IHost _receiver;
+    private IHost _publisher = null!;
+    private IHost _receiver = null!;
 
     public async Task InitializeAsync()
     {
@@ -81,7 +81,7 @@ public class invoke_async_with_delivery_options : IAsyncLifetime
     [Fact]
     public async Task invoke_with_expected_outcome_remotely()
     {
-        Answer answer = null;
+        Answer answer = null!;
         Func<IMessageContext, Task> action = async c => answer = await c.InvokeAsync<Answer>(new DoMath(3, 4, "blue", "tom"),
             new DeliveryOptions { TenantId = "blue" }.WithHeader("user-id", "tom"));
         var tracked = await _publisher.TrackActivity()
@@ -93,7 +93,7 @@ public class invoke_async_with_delivery_options : IAsyncLifetime
         envelope.TenantId.ShouldBe("blue");
         envelope.Headers["user-id"].ShouldBe("tom");
         
-        answer.Sum.ShouldBe(7);
+        answer!.Sum.ShouldBe(7);
     }
 }
 

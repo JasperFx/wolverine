@@ -18,6 +18,8 @@ public class MetricsConstants
     public const string MessageTypeKey = "message.type";
     public const string MessageDestinationKey = "message.destination";
     public const string TenantIdKey = "tenant.id";
+    public const string MessagesReceived = "wolverine-messages-received";
     public const string MessagesFailed = "wolverine-execution-failure";
     public const string ExceptionType = "exception.type";
+    public const string SourceKey = "source";
 }

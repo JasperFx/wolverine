@@ -3,8 +3,6 @@ using Alba.Security;
 using Marten;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
-using JasperFx;
-using JasperFx.CommandLine;
 using Shouldly;
 using Weasel.Postgresql;
 using Weasel.Postgresql.Migrations;
@@ -15,7 +13,7 @@ namespace MultiTenantedTodoWebService.Tests;
 
 public class end_to_end : IAsyncLifetime
 {
-    private IAlbaHost _host;
+    private IAlbaHost _host = null!;
 
     private async Task createDatabaseIfNotExists(NpgsqlConnection conn, string databaseName)
     {
@@ -34,10 +32,6 @@ public class end_to_end : IAsyncLifetime
         await createDatabaseIfNotExists(conn, "tenant1");
         await createDatabaseIfNotExists(conn, "tenant2");
         await createDatabaseIfNotExists(conn, "tenant3");
-
-        // Sorry folks, this is a hidden trap
-        // I blame the AspNetCore team...
-        JasperFxEnvironment.AutoStartHost = true;
 
         var securityStub = new JwtSecurityStub()
             .With("claim", "value");

@@ -1,4 +1,5 @@
 using Wolverine.Configuration;
+using Wolverine.ErrorHandling;
 using Wolverine.Logging;
 using Wolverine.Runtime.Metrics;
 using Wolverine.Runtime.Routing;
@@ -26,8 +27,19 @@ public interface IWolverineObserver
     Task BackPressureTriggered(Endpoint endpoint, IListeningAgent agent);
     Task BackPressureLifted(Endpoint endpoint);
     Task ListenerLatched(Endpoint endpoint);
+    Task CircuitBreakerTripped(Endpoint endpoint, CircuitBreakerOptions options);
+    Task CircuitBreakerReset(Endpoint endpoint);
     void PersistedCounts(Uri storeUri, PersistedCounts counts);
     void MessageHandlingMetricsExported(MessageHandlingMetrics metrics);
+
+    /// <summary>
+    /// Called when a new message causation pair is discovered at runtime.
+    /// Latched: only fires once per unique (incomingType, outgoingType) pair.
+    /// </summary>
+    void MessageCausedBy(string incomingMessageType, string outgoingMessageType, string handlerType, string? endpointUri)
+    {
+        // Default no-op implementation
+    }
 }
 
 internal class PersistenceWolverineObserver : IWolverineObserver
@@ -130,16 +142,24 @@ internal class PersistenceWolverineObserver : IWolverineObserver
     public async Task AssignmentsChanged(AssignmentGrid grid, AgentCommands commands)
     {
         if (!commands.Any()) return;
-        
+
         var records = commands.Select(x => new NodeRecord
         {
             NodeNumber = _runtime.Options.Durability.AssignedNodeNumber,
             RecordType = NodeRecordType.AssignmentChanged,
-            Description = x.ToString()
+            Description = x.ToString()!
         }).ToArray();
 
         await _runtime.Storage.Nodes.LogRecordsAsync(records);
     }
-    
-    
+
+    public Task CircuitBreakerTripped(Endpoint endpoint, CircuitBreakerOptions options)
+    {
+        return Task.CompletedTask;
+    }
+
+    public Task CircuitBreakerReset(Endpoint endpoint)
+    {
+        return Task.CompletedTask;
+    }
 }

@@ -29,6 +29,7 @@ internal class PostgresqlQueueListener : IListener
     private readonly string _queueName;
     private readonly string _schemaName;
     private readonly string _scheduledTableName;
+    private readonly TimeSpan _pollingInterval;
 
     public PostgresqlQueueListener(PostgresqlQueue queue, IWolverineRuntime runtime, IReceiver receiver,
         NpgsqlDataSource dataSource, string? databaseName)
@@ -40,6 +41,7 @@ internal class PostgresqlQueueListener : IListener
         _databaseName = databaseName;
         _logger = runtime.LoggerFactory.CreateLogger<PostgresqlQueueListener>();
         _settings = runtime.DurabilitySettings;
+        _pollingInterval = queue.PollingInterval ?? _settings.ScheduledJobPollingTime;
 
         _sender = new PostgresqlQueueSender(queue, _dataSource, databaseName);
 
@@ -111,7 +113,7 @@ SELECT message.{DatabaseConstants.Body} from message;
 
                 failedCount = 0;
 
-                await Task.Delay(_settings.ScheduledJobPollingTime);
+                await Task.Delay(_pollingInterval);
 
             }
             catch (Exception e)
@@ -153,7 +155,7 @@ SELECT message.{DatabaseConstants.Body} from message;
             batch.Connection = conn;
 
             count = (long)(await batch
-                .ExecuteScalarAsync(cancellationToken));
+                .ExecuteScalarAsync(cancellationToken))!;
         }
         finally
         {
@@ -189,13 +191,13 @@ SELECT message.{DatabaseConstants.Body} from message;
                     }
                     else
                     {
-                        await Task.Delay(_settings.ScheduledJobPollingTime);
+                        await Task.Delay(_pollingInterval);
                     }
                 }
                 else
                 {
                     // Slow down if this is a periodically used queue
-                    await Task.Delay(_settings.ScheduledJobPollingTime);
+                    await Task.Delay(_pollingInterval);
                 }
             }
             catch (Exception e)

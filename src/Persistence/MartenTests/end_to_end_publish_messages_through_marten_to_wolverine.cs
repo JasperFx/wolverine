@@ -293,7 +293,7 @@ public class SideEffectInitialData : IInitialData, IHostedService
 public class
     side_effect_messaging_with_inline_projections_and_mix_of_tenanted_and_not_tenanted_elements : IAsyncLifetime
 {
-    private IHost _host;
+    private IHost _host = null!;
 
     public async Task InitializeAsync()
     {
@@ -382,9 +382,9 @@ public static class CustomerChangedHandler
 public class Customer
 {
     public Guid Id { get; set; }
-    public  string Name { get; set; }
+    public  string Name { get; set; } = null!;
     public bool IsActive { get; set; }
-    public string Location { get; set; }
+    public string Location { get; set; } = null!;
 }
 
 public record CustomerAdded(string Name);
@@ -423,7 +423,7 @@ public record CustomerChanged(Customer Customer);
 
 public class OrderItem
 {
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
     public bool Ready { get; set; }
 }
 

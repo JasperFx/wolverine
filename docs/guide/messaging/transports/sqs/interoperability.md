@@ -65,7 +65,7 @@ public class CustomSqsMapper : ISqsEnvelopeMapper
     public string BuildMessageBody(Envelope envelope)
     {
         // Serialized data from the Wolverine message
-        return Encoding.Default.GetString(envelope.Data);
+        return Encoding.UTF8.GetString(envelope.Data);
     }
 
     // Specify header values for the SQS message from the Wolverine envelope
@@ -81,7 +81,7 @@ public class CustomSqsMapper : ISqsEnvelopeMapper
     public void ReadEnvelopeData(Envelope envelope, string messageBody,
         IDictionary<string, MessageAttributeValue> attributes)
     {
-        envelope.Data = Encoding.Default.GetBytes(messageBody);
+        envelope.Data = Encoding.UTF8.GetBytes(messageBody);
 
         if (attributes.TryGetValue("tenant-id", out var att))
         {

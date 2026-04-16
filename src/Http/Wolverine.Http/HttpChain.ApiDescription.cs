@@ -35,7 +35,43 @@ public class WolverineActionDescriptor : ControllerActionDescriptor
 
         if (chain.Endpoint != null)
         {
-            EndpointMetadata = chain.Endpoint!.Metadata.ToArray();
+            var metadata = chain.Endpoint!.Metadata.ToList();
+
+            // Ensure summary/description metadata is available to Swashbuckle
+            // even if it wasn't in the endpoint metadata collection
+            if (chain.EndpointSummary.IsNotEmpty() &&
+                !metadata.OfType<IEndpointSummaryMetadata>().Any())
+            {
+                metadata.Add(new EndpointSummaryAttribute(chain.EndpointSummary));
+            }
+
+            if (chain.EndpointDescription.IsNotEmpty() &&
+                !metadata.OfType<IEndpointDescriptionMetadata>().Any())
+            {
+                metadata.Add(new EndpointDescriptionAttribute(chain.EndpointDescription));
+            }
+
+            EndpointMetadata = metadata.ToArray();
+        }
+        else
+        {
+            // Endpoint may not be built yet when the API description provider runs
+            var metadata = new List<object>();
+
+            if (chain.EndpointSummary.IsNotEmpty())
+            {
+                metadata.Add(new EndpointSummaryAttribute(chain.EndpointSummary));
+            }
+
+            if (chain.EndpointDescription.IsNotEmpty())
+            {
+                metadata.Add(new EndpointDescriptionAttribute(chain.EndpointDescription));
+            }
+
+            if (metadata.Count > 0)
+            {
+                EndpointMetadata = metadata.ToArray();
+            }
         }
 
         ActionName = chain.OperationId;
@@ -62,12 +98,12 @@ public partial class HttpChain
         var apiDescription = new ApiDescription
         {
             HttpMethod = httpMethod,
-            GroupName = Endpoint.Metadata.GetMetadata<IEndpointGroupNameMetadata>()?.EndpointGroupName,
-            RelativePath = Endpoint.RoutePattern.RawText?.TrimStart('/'),
+            GroupName = Endpoint!.Metadata.GetMetadata<IEndpointGroupNameMetadata>()?.EndpointGroupName,
+            RelativePath = Endpoint!.RoutePattern.RawText?.TrimStart('/'),
             ActionDescriptor = new WolverineActionDescriptor(this)
         };
         
-        foreach (var routeParameter in RoutePattern.Parameters)
+        foreach (var routeParameter in RoutePattern!.Parameters)
         {
             var parameter = buildParameterDescription(routeParameter);
 
@@ -88,12 +124,12 @@ public partial class HttpChain
         {
             var parameterDescription = new ApiParameterDescription
             {
-                Name = parameter.Name,
+                Name = parameter.Name!,
                 ModelMetadata = new EndpointModelMetadata(parameter.ParameterType),
                 Source = BindingSource.FormFile,
                 ParameterDescriptor = new ParameterDescriptor
                 {
-                    Name = parameter.Name,
+                    Name = parameter.Name!,
                     ParameterType = parameter.ParameterType
                 },
                 Type = parameter.ParameterType,
@@ -107,12 +143,12 @@ public partial class HttpChain
         {
             var parameterDescription = new ApiParameterDescription
             {
-                Name = formMetadata.Name,
+                Name = formMetadata.Name!,
                 ModelMetadata = new EndpointModelMetadata(typeof(IFormFile)),
                 Source = BindingSource.Form,
                 ParameterDescriptor = new ParameterDescriptor
                 {
-                    Name = formMetadata.Name,
+                    Name = formMetadata.Name!,
                     ParameterType = typeof(IFormFile)
                 },
                 Type = typeof(IFormFile),
@@ -141,22 +177,37 @@ public partial class HttpChain
 
     public override bool TryFindVariable(string valueName, ValueSource source, Type valueType, out Variable variable)
     {
-        if ((source == ValueSource.RouteValue || source == ValueSource.Anything) && FindRouteVariable(valueType, valueName, out variable))
+        if ((source == ValueSource.RouteValue || source == ValueSource.Anything) && FindRouteVariable(valueType, valueName, out variable!))
         {
             return true;
         }
-        
-        if ((source == ValueSource.FromQueryString || source == ValueSource.Anything) && FindQuerystringVariable(valueType, valueName, out variable))
+
+        if ((source == ValueSource.FromQueryString || source == ValueSource.Anything) && FindQuerystringVariable(valueType, valueName, out variable!))
         {
             return true;
         }
-        
+
+        if (source == ValueSource.Header && FindHeaderVariable(valueType, valueName, out variable!))
+        {
+            return true;
+        }
+
+        if (source == ValueSource.Claim && FindClaimVariable(valueType, valueName, out variable!))
+        {
+            return true;
+        }
+
+        if (source == ValueSource.Method)
+        {
+            return tryFindMethodVariable(valueName, valueType, out variable!);
+        }
+
         if (HasRequestType)
         {
-            var requestType = InputType();
+            var requestType = InputType()!;
             var member = requestType.GetProperties()
                              .FirstOrDefault(x => x.Name.EqualsIgnoreCase(valueName) && x.PropertyType == valueType)
-                         ?? (MemberInfo)requestType.GetFields()
+                         ?? (MemberInfo?)requestType.GetFields()
                              .FirstOrDefault(x => x.Name.EqualsIgnoreCase(valueName) && x.FieldType == valueType);
 
             if (member != null)
@@ -164,14 +215,55 @@ public partial class HttpChain
                 if (RequestBodyVariable == null)
                     throw new InvalidOperationException(
                         "Requesting member access to the request body, but the request body is not (yet) set.");
-                
+
                 variable = new MemberAccessVariable(RequestBodyVariable, member);
                 return true;
             }
         }
-        
+
         variable = default!;
         return false;
+    }
+
+    internal bool FindHeaderVariable(Type valueType, string headerName, out Variable variable)
+    {
+        var frame = new CodeGen.ReadHttpFrame(CodeGen.BindingSource.Header, valueType, headerName.Replace("-", "_"))
+        {
+            Key = headerName
+        };
+        Middleware.Add(frame);
+        variable = frame.Variable;
+        return true;
+    }
+
+    internal bool FindClaimVariable(Type valueType, string claimType, out Variable variable)
+    {
+        var frame = new CodeGen.ReadClaimFrame(valueType, claimType);
+        Middleware.Add(frame);
+        variable = frame.Variable;
+        return true;
+    }
+
+    private bool tryFindMethodVariable(string methodName, Type returnType, out Variable variable)
+    {
+        var handlerTypes = HandlerCalls().Select(h => h.HandlerType).Distinct();
+        foreach (var type in handlerTypes)
+        {
+            var method = type
+                .GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.FlattenHierarchy)
+                .FirstOrDefault(m => m.Name.EqualsIgnoreCase(methodName) && m.ReturnType == returnType);
+
+            if (method != null)
+            {
+                var call = new MethodCall(type, method);
+                Middleware.Add(call);
+                variable = call.ReturnVariable!;
+                return true;
+            }
+        }
+
+        throw new InvalidOperationException(
+            $"Could not find a public static method '{methodName}' returning {returnType.FullNameInCode()} on endpoint types: {handlerTypes.Select(t => t.FullNameInCode()).Join(", ")}");
     }
 
     private sealed record NormalizedResponseMetadata(int StatusCode, Type? Type, IEnumerable<string> ContentTypes)
@@ -241,7 +333,7 @@ public partial class HttpChain
 
             apiDescription.ParameterDescriptions.Add(parameterDescription);
 
-            foreach (var metadata in Endpoint.Metadata.OfType<IAcceptsMetadata>())
+            foreach (var metadata in Endpoint!.Metadata.OfType<IAcceptsMetadata>())
             {
                 foreach (var contentType in metadata.ContentTypes)
                 {

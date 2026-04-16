@@ -5,7 +5,7 @@ namespace Wolverine.ComplianceTests.Compliance;
 
 public class NewUser
 {
-    public string UserId { get; set; }
+    public string UserId { get; set; } = null!;
 }
 
 public class EditUser;
@@ -22,13 +22,13 @@ public class DeleteUser
 public class PingMessage
 {
     public Guid Id { get; set; } = Guid.NewGuid();
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
 }
 
 public class PongMessage
 {
     public Guid Id { get; set; }
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
 }
 
 #endregion
@@ -36,13 +36,13 @@ public class PongMessage
 public class ImplicitPing
 {
     public Guid Id { get; set; } = Guid.NewGuid();
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
 }
 
 public class ImplicitPong
 {
     public Guid Id { get; set; }
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
 }
 
 public class PingHandler
@@ -83,25 +83,25 @@ public class PongHandler
 public class UserCreated
 {
     public Guid Id { get; set; }
-    public string UserId { get; set; }
+    public string UserId { get; set; } = null!;
 }
 
 public class UserDeleted
 {
     public Guid Id { get; set; }
-    public string UserId { get; set; }
+    public string UserId { get; set; } = null!;
 }
 
 public class SentTrack
 {
     public Guid Id { get; set; }
-    public string MessageType { get; set; }
+    public string MessageType { get; set; } = null!;
 }
 
 public class ReceivedTrack
 {
     public Guid Id { get; set; }
-    public string MessageType { get; set; }
+    public string MessageType { get; set; } = null!;
 }
 
 public class TimeoutsMessage;
@@ -130,13 +130,13 @@ public class ColorHandler
 
 public class ColorHistory
 {
-    public string Name { get; set; }
-    public Envelope Envelope { get; set; }
+    public string Name { get; set; } = null!;
+    public Envelope Envelope { get; set; } = null!;
 }
 
 public class ColorChosen
 {
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
 }
 
 public class TracksMessage<T>
@@ -172,11 +172,11 @@ public class SpecialTopic
 [MessageIdentity("Structural.Typed.Message")]
 public class BlueMessage
 {
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
 }
 
 [MessageIdentity("Structural.Typed.Message")]
 public class GreenMessage
 {
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
 }

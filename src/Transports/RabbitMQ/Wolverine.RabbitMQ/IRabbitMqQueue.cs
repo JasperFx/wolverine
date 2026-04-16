@@ -26,7 +26,7 @@ public interface IRabbitMqQueue
     ///     Arguments for Rabbit MQ queue declarations. See the Rabbit MQ .NET client documentation at
     ///     https://www.rabbitmq.com/dotnet.html
     /// </summary>
-    IDictionary<string, object> Arguments { get; }
+    IDictionary<string, object?> Arguments { get; }
 
     /// <summary>
     ///     Arguments for Rabbit MQ channel consume operations

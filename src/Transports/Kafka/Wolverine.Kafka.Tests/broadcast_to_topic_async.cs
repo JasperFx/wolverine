@@ -8,11 +8,12 @@ using Xunit.Abstractions;
 
 namespace Wolverine.Kafka.Tests;
 
+[Trait("Category", "Flaky")]
 public class broadcast_to_topic_async : IAsyncLifetime
 {
     private readonly ITestOutputHelper _output;
-    private IHost _sender;
-    private IHost _receiver;
+    private IHost _sender = null!;
+    private IHost _receiver = null!;
 
     public broadcast_to_topic_async(ITestOutputHelper output)
     {
@@ -25,7 +26,7 @@ public class broadcast_to_topic_async : IAsyncLifetime
         _sender = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.UseKafka("localhost:9092").AutoProvision();
+                opts.UseKafka(KafkaContainerFixture.ConnectionString).AutoProvision();
                 opts.Policies.DisableConventionalLocalRouting();
 
                 opts.Services.AddResourceSetupOnStartup();
@@ -34,7 +35,7 @@ public class broadcast_to_topic_async : IAsyncLifetime
         _receiver = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.UseKafka("localhost:9092").AutoProvision();
+                opts.UseKafka(KafkaContainerFixture.ConnectionString).AutoProvision();
                 opts.ListenToKafkaTopic("incoming.one");
 
                 // Include test assembly for handler discovery
@@ -77,7 +78,7 @@ public class ColorMessage
         Color = color;
     }
 
-    public string Color { get; set; }
+    public string Color { get; set; } = null!;
 }
 
 public static class ColorMessageHandler

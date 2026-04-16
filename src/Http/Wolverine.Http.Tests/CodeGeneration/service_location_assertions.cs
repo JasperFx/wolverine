@@ -26,7 +26,7 @@ public class service_location_assertions
 {
     public readonly ServiceDescriptor descriptor1 = new ServiceDescriptor(typeof(IWidget), typeof(AWidget));
     public readonly ServiceDescriptor descripter2 = new ServiceDescriptor(typeof(IWidget), "B", typeof(BWidget));
-    public readonly HttpChain theChain = new HttpChain(MethodCall.For<WidgetEndpoint>(x  => x.Post(null, null, null, null)), new HttpGraph(new WolverineOptions(), Substitute.For<IServiceContainer>()));
+    public readonly HttpChain theChain = new HttpChain(MethodCall.For<WidgetEndpoint>(x  => x.Post(null!, null!, null!, null!)), new HttpGraph(new WolverineOptions(), Substitute.For<IServiceContainer>()));
     public readonly RecordingLogger theLogger = new();
     
     private IServiceProvider servicesWithPolicy(ServiceLocationPolicy policy)
@@ -290,7 +290,7 @@ public class WidgetEndpoint
         
         context.RequestServices.GetRequiredService<IThing>().ShouldBeSameAs(thing);
         
-        return widget.ToString();
+        return widget.ToString()!;
     }
 }
 
@@ -371,7 +371,7 @@ public interface IUserContext
 
 public class UserContext : IUserContext
 {
-    public string UserId { get; set; }
+    public string UserId { get; set; } = null!;
 }
 
 public class UserContextFactory

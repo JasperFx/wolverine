@@ -69,7 +69,7 @@ public class when_determining_if_the_session_is_done : IDisposable
     {
         var history = new EnvelopeHistory(env1.Id);
 
-        env1.Destination.Scheme.ShouldBe(TransportConstants.Local);
+        env1.Destination!.Scheme.ShouldBe(TransportConstants.Local);
 
         history.RecordLocally(new EnvelopeRecord(MessageEventType.Sent, env1, 110, null));
         history.IsComplete().ShouldBeFalse();

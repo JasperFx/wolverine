@@ -42,8 +42,88 @@ public static IMartenOp Pay([Document] Invoice invoice)
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Documents.cs#L43-L52' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_marten_op_from_http_endpoint' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-There are existing Marten ops for storing, inserting, updating, and deleting a document. There's also a specific
-helper for starting a new event stream as shown below:
+There are existing Marten ops for storing, inserting, updating, and deleting a document.
+
+### Storing Multiple Documents
+
+Use `MartenOps.StoreMany()` to store multiple documents of the same type, or `MartenOps.StoreObjects()` to store
+multiple documents of different types in a single side effect:
+
+```csharp
+// Store multiple documents of the same type
+public static StoreManyDocs<Invoice> Handle(BatchInvoiceCommand command)
+{
+    var invoices = command.Items.Select(i => new Invoice { Id = i.Id, Amount = i.Amount });
+    return MartenOps.StoreMany(invoices.ToArray());
+}
+
+// Store multiple documents of different types
+public static StoreObjects Handle(CreateOrderCommand command)
+{
+    var order = new Order { Id = command.OrderId, Total = command.Total };
+    var audit = new AuditLog { Action = "OrderCreated", EntityId = command.OrderId };
+    return MartenOps.StoreObjects(order, audit);
+}
+```
+
+Both `StoreMany()` and `StoreObjects()` support fluent `With()` methods to incrementally add documents:
+
+```csharp
+public static StoreObjects Handle(ComplexCommand command)
+{
+    return MartenOps.StoreObjects(new Order { Id = command.OrderId })
+        .With(new AuditLog { Action = "Created" })
+        .With(new Notification { Message = "Order created" });
+}
+```
+
+### Tenant-Scoped Operations
+
+Every `MartenOps` factory method has an overload that accepts a `tenantId` parameter. When provided, the
+operation uses `IDocumentSession.ForTenant(tenantId)` to scope the write to a specific tenant. This is
+useful in multi-tenant systems where a handler processing a message for one tenant needs to write data
+to a different tenant's storage:
+
+```csharp
+// Store a document in a specific tenant
+public static StoreDoc<Invoice> Handle(CreateInvoiceForTenant command)
+{
+    var invoice = new Invoice { Id = command.InvoiceId, Amount = command.Amount };
+    return MartenOps.Store(invoice, command.TenantId);
+}
+
+// Insert a document in a specific tenant
+public static InsertDoc<AuditRecord> Handle(CrossTenantAudit command)
+{
+    var record = new AuditRecord { Action = command.Action };
+    return MartenOps.Insert(record, command.TargetTenantId);
+}
+
+// Delete by id in a specific tenant
+public static DeleteDocById<Invoice> Handle(CancelInvoice command)
+{
+    return MartenOps.Delete<Invoice>(command.InvoiceId, command.TenantId);
+}
+
+// Store many documents in a specific tenant
+public static StoreManyDocs<LineItem> Handle(BatchLineItems command)
+{
+    return MartenOps.StoreMany(command.TenantId, command.Items.ToArray());
+}
+
+// Delete matching documents in a specific tenant
+public static DeleteDocWhere<TempRecord> Handle(CleanupTenant command)
+{
+    return MartenOps.DeleteWhere<TempRecord>(
+        x => x.CreatedAt < DateTimeOffset.UtcNow.AddDays(-30),
+        command.TenantId
+    );
+}
+```
+
+All existing method signatures are unchanged — the tenant overloads are purely additive.
+
+There's also a specific helper for starting a new event stream as shown below:
 
 <!-- snippet: sample_using_start_stream_side_effect -->
 <a id='snippet-sample_using_start_stream_side_effect'></a>
@@ -103,6 +183,94 @@ type of `IMartenOp` is a side effect.
 
 Like any other "side effect", you could technically return this as the main return type of a method or as part of a
 tuple.
+
+## Data Requirements <Badge type="tip" text="5.13" />
+
+Wolverine provides declarative data requirement checks that verify whether a Marten document exists (or does not
+exist) before a handler or HTTP endpoint executes. If the check fails, a `RequiredDataMissingException` is thrown,
+preventing the handler from running.
+
+### Using Attributes
+
+The simplest way to declare data requirements is with the `[DocumentExists<T>]` and `[DocumentDoesNotExist<T>]`
+attributes on handler methods:
+
+```csharp
+// Convention: looks for a property named "UserId" or "Id" on the command
+[DocumentExists<User>]
+public void Handle(PromoteUser command)
+{
+    // Only runs if a User document with the matching identity exists
+}
+
+// Explicit property name for the identity
+[DocumentDoesNotExist<User>(nameof(AddUser.UserId))]
+public void Handle(AddUser command)
+{
+    // Only runs if no User document with the matching identity exists
+}
+```
+
+The identity property is resolved from the message/request type by convention:
+1. If a property name is specified explicitly in the attribute constructor, that is used
+2. Otherwise, Wolverine looks for a property named `{DocumentTypeName}Id` (e.g., `UserId` for `User`)
+3. As a fallback, Wolverine looks for a property named `Id`
+
+You can apply multiple attributes to a single handler method to check multiple documents:
+
+```csharp
+[DocumentExists<Department>(nameof(TransferEmployee.TargetDepartmentId))]
+[DocumentExists<Employee>]
+public void Handle(TransferEmployee command)
+{
+    // Only runs if both the employee and target department exist
+}
+```
+
+### Using the Before Method Pattern
+
+For more complex requirements, or when you need access to the command properties at runtime to construct
+the check, use the `Before` method pattern with `MartenOps.Document<T>()`:
+
+```csharp
+public static class CreateThingHandler
+{
+    // Single requirement
+    public static IMartenDataRequirement Before(CreateThing command)
+        => MartenOps.Document<ThingCategory>().MustExist(command.Category);
+
+    public static IMartenOp Handle(CreateThing command)
+    {
+        return MartenOps.Store(new Thing
+        {
+            Id = command.Name,
+            CategoryId = command.Category
+        });
+    }
+}
+
+public static class CreateThing2Handler
+{
+    // Multiple requirements
+    public static IEnumerable<IMartenDataRequirement> Before(CreateThing2 command)
+    {
+        yield return MartenOps.Document<ThingCategory>().MustExist(command.Category);
+        yield return MartenOps.Document<Thing>().MustNotExist(command.Name);
+    }
+
+    public static IMartenOp Handle(CreateThing2 command)
+    {
+        return MartenOps.Store(new Thing
+        {
+            Id = command.Name,
+            CategoryId = command.Category
+        });
+    }
+}
+```
+
+When multiple data requirements are present in the same handler (whether from attributes or `Before` methods),
+Wolverine will automatically batch the existence checks into a single Marten batch query for efficiency.
 
 
 

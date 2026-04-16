@@ -19,7 +19,7 @@ public class HandlerPipeline : IHandlerPipeline
     private readonly HandlerGraph _graph;
 
     private readonly WolverineRuntime _runtime;
-    private readonly Endpoint _endpoint;
+    private readonly Endpoint _endpoint = null!;
 
     internal HandlerPipeline(WolverineRuntime runtime, IExecutorFactory executorFactory)
     {
@@ -115,6 +115,7 @@ public class HandlerPipeline : IHandlerPipeline
         try
         {
             var serializer = envelope.Serializer ?? _runtime.Options.DetermineSerializer(envelope);
+            serializer.UnwrapEnvelopeIfNecessary(envelope);
 
             if (envelope.Data == null)
             {
@@ -122,7 +123,12 @@ public class HandlerPipeline : IHandlerPipeline
                     "Envelope does not have a message or deserialized message data");
             }
 
-            if (envelope.MessageType == null)
+            if (envelope.Message != null)
+            {
+                return NullContinuation.Instance;
+            }
+
+            if (string.IsNullOrEmpty(envelope.MessageType))
             {
                 throw new ArgumentOutOfRangeException(nameof(envelope),
                     "The envelope has no Message or MessageType name");
@@ -185,8 +191,13 @@ public class HandlerPipeline : IHandlerPipeline
 
         if (envelope.IsResponse)
         {
-            _runtime.Replies.Complete(envelope);
-            return MessageSucceededContinuation.Instance;
+            // If a reply listener is registered (from InvokeAsync), complete it directly.
+            // If not (from PublishAsync + RequireResponse), fall through to normal handler execution
+            // so the response can be handled by a registered message handler.
+            if (_runtime.Replies.Complete(envelope))
+            {
+                return MessageSucceededContinuation.Instance;
+            }
         }
 
         var executor = _executors[envelope.Message!.GetType()];

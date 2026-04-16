@@ -72,7 +72,7 @@ public class SqliteTransport : BrokerTransport<SqliteQueue>, ITransportConfigure
 
     public override string SanitizeIdentifier(string identifier)
     {
-        return identifier.Replace('-', '_').ToLower();
+        return identifier.Replace('-', '_').ToLowerInvariant();
     }
 
     protected override SqliteQueue findEndpointByUri(Uri uri)
@@ -122,7 +122,7 @@ public class SqliteTransport : BrokerTransport<SqliteQueue>, ITransportConfigure
 
         await using var conn = await Store.DataSource.OpenConnectionAsync().ConfigureAwait(false);
 
-        var raw = (string)await conn.CreateCommand("select datetime('now')").ExecuteScalarAsync();
-        return new DateTimeOffset(DateTime.SpecifyKind(DateTime.Parse(raw), DateTimeKind.Utc));
+        var raw = (string?)await conn.CreateCommand("select datetime('now')").ExecuteScalarAsync();
+        return new DateTimeOffset(DateTime.SpecifyKind(DateTime.Parse(raw!), DateTimeKind.Utc));
     }
 }

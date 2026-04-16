@@ -9,7 +9,8 @@ Wolverine.HTTP has direct support for utilizing validation within HTTP endpoint 
 [ProblemDetails](https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.mvc.problemdetails?view=aspnetcore-7.0) specification.
 
 1. Using one off `Validate()` or `ValidateAsync()` methods embedded directly in your endpoint types that return `ProblemDetails`. This is our recommendation for any 
-   validation logic like data lookups that would require you to utilize IoC services or database calls.
+   validation logic like data lookups that would require you to utilize IoC services or database calls.  
+   The [Lightweight Validation with String Messages](../handlers/index.md) will also generate `ProblemDetails` with status 400 for HTTP endpoints.
 2. Fluent Validation middleware through the separate `WolverineFx.Http.FluentValidation` Nuget
 3. [Data Annotations](https://learn.microsoft.com/en-us/dotnet/api/system.componentmodel.dataannotations?view=net-10.0) middleware that is an option you have to explicitly configure within Wolverine.HTTP application
 
@@ -136,6 +137,14 @@ with your own metadata if you need to use a different status code like this:
     // Use 418 as the status code instead
     [ProducesResponseType(typeof(ProblemDetails), 418)]
 ```
+
+## Using Lightweight Validation with String Messages
+
+Instead of using `ProblemDetails` directly, you can also use one of the [Lightweight Validation](../handlers/index.md) types: `IEnumerable<string>`, `string[]`, `Task<string[]>`, `ValueTask<string[]>` or `ValidationOutcome`. If the returned collection is not empty, Wolverine will create a `ProblemDetails` response with a 400 status code containing the validation messages.
+
+
+<!-- snippet: sample_simple_validation_http_ienumerable -->
+
 
 ### Using ProblemDetails with Marten Aggregates
 
@@ -417,6 +426,55 @@ public class ValidatedQuery
 }
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Forms/FormEndpoints.cs#L230-L257' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_fluent_validation_with_asparameters' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+### AsParameters with [FromBody] <Badge type="tip" text="5.25" />
+
+When using `[AsParameters]` with a `[FromBody]` property, the Fluent Validation middleware will validate
+**both** the `[FromBody]` type (if it has a validator) and the `[AsParameters]` type itself. This ensures
+that validation rules on the `[AsParameters]` type are always applied, even when a `[FromBody]` property
+is present:
+
+<!-- snippet: sample_using_fluent_validation_with_AsParameters_and_FromBody -->
+<a id='snippet-sample_using_fluent_validation_with_asparameters_and_frombody'></a>
+```cs
+public static class ValidatedAsParametersWithFromBodyEndpoint
+{
+    [WolverinePost("/asparameters/validated_with_from_body")]
+    public static string Post([AsParameters] ValidatedWithFromBody query)
+    {
+        return $"{query.Name} has dog: {query.Body?.HasDog}, has cat: {query.Body?.HasCat}";
+    }
+}
+
+public class ValidatedWithFromBody
+{
+    [FromQuery]
+    public string? Name { get; set; }
+
+    [FromQuery]
+    public int Age { get; set; }
+
+    [FromBody]
+    public ValidatedQueryBody? Body { get; set; }
+
+    public class ValidatedWithFromBodyValidator : AbstractValidator<ValidatedWithFromBody>
+    {
+        public ValidatedWithFromBodyValidator()
+        {
+            RuleFor(x => x.Name).NotNull();
+            RuleFor(x => x.Body).NotNull();
+        }
+    }
+
+    public class ValidatedQueryBody
+    {
+        public bool HasDog { get; set; }
+        public bool HasCat { get; set; }
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Forms/FormEndpoints.cs' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_fluent_validation_with_asparameters_and_frombody' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## QueryString Binding <Badge type="tip" text="5.0" />

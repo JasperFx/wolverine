@@ -16,7 +16,7 @@ public class DocumentationSamples
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.UseKafka("localhost:9092")
+                opts.UseKafka(KafkaContainerFixture.ConnectionString)
 
                     // See https://github.com/confluentinc/confluent-kafka-dotnet for the exact options here
                     .ConfigureClient(client =>
@@ -101,9 +101,17 @@ public class DocumentationSamples
                         // This will also set the Envelope.GroupId for any
                         // received messages at this topic
                         config.GroupId = "foo";
-                        config.BootstrapServers = "localhost:9092";
+                        config.BootstrapServers = KafkaContainerFixture.ConnectionString;
 
                         // Other configuration
+                    })
+                    
+                    // Configure circuit breaker behavior for
+                    // this specific Kafka listener
+                    .CircuitBreaker(cb =>
+                    {
+                        cb.MinimumThreshold = 10;
+                        cb.PauseTime = TimeSpan.FromMinutes(1);
                     })
                     
                     // Fine tune how the Kafka Topic is declared by Wolverine
@@ -134,7 +142,7 @@ public class DocumentationSamples
             .UseWolverine(opts =>
             {
                 opts
-                    .UseKafka("localhost:9092")
+                    .UseKafka(KafkaContainerFixture.ConnectionString)
                     
                     // Tell Wolverine that this application will never
                     // produce messages to turn off any diagnostics that might
@@ -153,7 +161,7 @@ public class DocumentationSamples
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.UseKafka("localhost:9092");
+                opts.UseKafka(KafkaContainerFixture.ConnectionString);
                 opts.AddNamedKafkaBroker(new BrokerName("americas"), "americas-kafka:9092");
                 opts.AddNamedKafkaBroker(new BrokerName("emea"), "emea-kafka:9092");
 

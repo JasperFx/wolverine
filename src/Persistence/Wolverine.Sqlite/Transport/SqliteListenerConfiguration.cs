@@ -19,4 +19,14 @@ public class SqliteListenerConfiguration : ListenerConfiguration<SqliteListenerC
         add(e => e.MaximumMessagesToReceive = maximumMessages);
         return this;
     }
+
+    /// <summary>
+    ///     Configure how often to poll for new messages when the queue is idle.
+    ///     If not set, falls back to DurabilitySettings.ScheduledJobPollingTime (default 5s).
+    /// </summary>
+    public SqliteListenerConfiguration PollingInterval(TimeSpan interval)
+    {
+        add(e => e.PollingInterval = interval);
+        return this;
+    }
 }

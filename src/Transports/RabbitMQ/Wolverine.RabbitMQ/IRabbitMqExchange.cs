@@ -21,5 +21,5 @@ public interface IRabbitMqExchange
     /// </summary>
     bool AutoDelete { get; set; }
 
-    IDictionary<string, object> Arguments { get; }
+    IDictionary<string, object?> Arguments { get; }
 }

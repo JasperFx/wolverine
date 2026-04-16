@@ -427,14 +427,14 @@ public class SerializedMessage : ISerializable
 
     public byte[] Write()
     {
-        return Encoding.Default.GetBytes(Name);
+        return Encoding.UTF8.GetBytes(Name);
     }
 
     // You'll need at least C# 11 for static methods
     // on interfaces!
     public static object Read(byte[] bytes)
     {
-        var name = Encoding.Default.GetString(bytes);
+        var name = Encoding.UTF8.GetString(bytes);
         return new SerializedMessage { Name = name };
     }
 }
@@ -442,6 +442,34 @@ public class SerializedMessage : ISerializable
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Serialization/intrinsic_serialization.cs#L21-L41' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_intrinsic_serialization' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-Wolverine will see the interface implementation of the message type, and automatically opt into using this "intrinsic" 
-serialization. 
+Wolverine will see the interface implementation of the message type, and automatically opt into using this "intrinsic"
+serialization.
+
+## Envelope ID Generation <Badge type="tip" text="5.26" />
+
+Every message envelope in Wolverine is assigned a unique `Guid` identifier. By default, Wolverine uses [MassTransit's NewId](https://masstransit.io/documentation/patterns/newid) algorithm which generates sequential GUIDs based on machine identity (MAC address or DNS hostname) and a timestamp. This works well for most scenarios and provides good database index performance, especially on SQL Server.
+
+However, in **cloud environments where multiple instances share network identity** — such as Kubernetes pods, Google Cloud Run, AWS Lambda, or other containerized/serverless platforms — `NewId` can produce **duplicate envelope IDs** because it relies on machine-specific properties that are identical across instances.
+
+For **greenfield applications**, or any deployment where instances may share network identity, use `GuidV7`:
+
+```csharp
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        // Recommended for new applications and cloud deployments
+        opts.EnvelopeIdGeneration = EnvelopeIdGeneration.GuidV7;
+    }).StartAsync();
+```
+
+`GuidV7` uses `Guid.CreateVersion7()` per [RFC 9562](https://www.rfc-editor.org/rfc/rfc9562), which produces time-ordered GUIDs with cryptographically strong random bits. This guarantees uniqueness without relying on machine-specific properties, while still maintaining good database index performance due to time-ordering.
+
+::: warning
+`EnvelopeIdGeneration.GuidV7` requires **.NET 9 or later**. `Guid.CreateVersion7()` is not available on .NET 8. Attempting to use this option on .NET 8 will throw a `NotSupportedException` at startup.
+:::
+
+| Strategy | Uniqueness Source | Time-Ordered | Best For |
+|----------|------------------|-------------|----------|
+| `NewId` (default) | Machine identity + timestamp | Yes | Single-machine or unique-network deployments |
+| `GuidV7` | Cryptographic randomness + timestamp | Yes | Cloud, containers, serverless, greenfield apps |
 

@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using JasperFx;
 using JasperFx.Events;
 using Marten;
@@ -33,7 +34,7 @@ public record ItemReady(string Name);
 
 public class Item
 {
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
     public bool Ready { get; set; }
 }
 
@@ -336,6 +337,34 @@ public static class MarkItemEndpoint
     [WolverineGet("/orders/latest/from-query")]
     public static Order GetLatestFromQuery([FromQuery] Guid id, [ReadAggregate] Order order) => order;
 }
+
+#region sample_write_aggregate_from_method
+
+public record ConfirmOrderFromMethod;
+
+public static class WriteAggregateFromMethodEndpoint
+{
+    // This static method resolves the aggregate ID from claims
+    public static Guid ResolveOrderId(ClaimsPrincipal user)
+    {
+        var claim = user.FindFirstValue("order-id");
+        return claim != null ? Guid.Parse(claim) : Guid.Empty;
+    }
+
+    [WolverinePost("/orders/confirm-from-method"), EmptyResponse]
+    public static OrderConfirmed Post(
+        ConfirmOrderFromMethod command,
+        [WriteAggregate(FromMethod = nameof(ResolveOrderId))] Order order)
+    {
+        return new OrderConfirmed();
+    }
+
+    [WolverineGet("/orders/read-from-method")]
+    public static Order Get(
+        [ReadAggregate(FromMethod = nameof(ResolveOrderId))] Order order) => order;
+}
+
+#endregion
 
 #region sample_using_[FromQuery]_binding
 

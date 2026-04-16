@@ -2,7 +2,6 @@ using System.Reflection;
 using System.Text.Json.Serialization;
 using JasperFx.Core.Reflection;
 using JasperFx.Descriptors;
-using Wolverine.Attributes;
 using JasperFx.Events;
 using JasperFx.Events.Descriptors;
 using Microsoft.Extensions.DependencyInjection;
@@ -17,16 +16,31 @@ public class ServiceCapabilities : OptionsDescription
     {
     }
 
-    public ServiceCapabilities(WolverineOptions options) : base(options)
+    public ServiceCapabilities(WolverineOptions options)
     {
-        Version = (options.ApplicationAssembly ?? Assembly.GetEntryAssembly()).GetName().Version?.ToString();
+        // Explicitly select only properties useful for CritterWatch monitoring —
+        // no Reflection, no noise from WolverineOptions internal plumbing
+        Subject = "Wolverine.WolverineOptions";
+
+        Version = (options.ApplicationAssembly ?? Assembly.GetEntryAssembly())!.GetName().Version?.ToString()!;
         WolverineVersion = options.GetType().Assembly.GetName().Version?.ToString();
-        DurabilitySettings = new DurabilitySettingsDescription(options.Durability);
+        DurabilitySettings = options.Durability.ToDescription();
+
+        AddValue(nameof(options.ServiceName), options.ServiceName);
+        AddValue(nameof(options.DefaultExecutionTimeout), options.DefaultExecutionTimeout);
+        AddValue(nameof(options.DefaultRemoteInvocationTimeout), options.DefaultRemoteInvocationTimeout);
+        AddValue(nameof(options.DisableAllExternalListeners), options.DisableAllExternalListeners);
+        AddValue(nameof(options.EnableRemoteInvocation), options.EnableRemoteInvocation);
+        AddValue(nameof(options.EnableAutomaticFailureAcks), options.EnableAutomaticFailureAcks);
+        AddValue(nameof(options.EnableRelayOfUserName), options.EnableRelayOfUserName);
+        AddValue(nameof(options.ServiceLocationPolicy), options.ServiceLocationPolicy);
+        AddValue("MetricsMode", options.Metrics.Mode);
+        AddValue("MetricsSamplingPeriod", options.Metrics.SamplingPeriod);
     }
 
     public DateTimeOffset Evaluated { get; set; } = DateTimeOffset.UtcNow;
 
-    public string Version { get; set; }
+    public string Version { get; set; } = null!;
 
     public string? WolverineVersion { get; set; }
 
@@ -42,7 +56,13 @@ public class ServiceCapabilities : OptionsDescription
 
     public List<BrokerDescription> Brokers { get; set; } = [];
 
-    public DurabilitySettingsDescription? DurabilitySettings { get; set; }
+    public OptionsDescription? DurabilitySettings { get; set; }
+
+    /// <summary>
+    /// Additional capability descriptions contributed by extension frameworks
+    /// (e.g. Wolverine.HTTP) via ICapabilityDescriptor implementations.
+    /// </summary>
+    public List<OptionsDescription> AdditionalCapabilities { get; set; } = [];
 
     /// <summary>
     ///     Uri for sending command messages to this service
@@ -67,6 +87,8 @@ public class ServiceCapabilities : OptionsDescription
 
         readEndpoints(runtime, capabilities);
 
+        readAdditionalCapabilities(runtime, capabilities);
+
         return capabilities;
     }
 
@@ -84,7 +106,7 @@ public class ServiceCapabilities : OptionsDescription
         var messageTypes = runtime.Options.Discovery.FindAllMessages(runtime.Options.HandlerGraph);
         foreach (var messageType in messageTypes.OrderBy(x => x.FullNameInCode()))
         {
-            if (messageType.Assembly.HasAttribute<ExcludeFromServiceCapabilitiesAttribute>()) continue;
+            if (messageType.IsSystemMessageType()) continue;
             capabilities.Messages.Add(new MessageDescriptor(messageType, runtime));
         }
     }
@@ -116,6 +138,15 @@ public class ServiceCapabilities : OptionsDescription
         capabilities.MessageStores.AddRange(stores.Select(MessageStore.For).OrderBy(x => x.Uri.ToString()));
 
         capabilities.MessageStoreCardinality = collection.Cardinality();
+    }
+
+    private static void readAdditionalCapabilities(IWolverineRuntime runtime, ServiceCapabilities capabilities)
+    {
+        var descriptors = runtime.Services.GetServices<ICapabilityDescriptor>();
+        foreach (var descriptor in descriptors)
+        {
+            capabilities.AdditionalCapabilities.Add(descriptor.Describe());
+        }
     }
 
     private static void readTransports(IWolverineRuntime runtime, ServiceCapabilities capabilities)

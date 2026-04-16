@@ -112,6 +112,11 @@ public class KafkaTransport : BrokerTransport<KafkaTopic>
         return ValueTask.CompletedTask;
     }
 
+    public WolverineTransportHealthCheck BuildHealthCheck(IWolverineRuntime runtime)
+    {
+        return new KafkaHealthCheck(this);
+    }
+
     public override IEnumerable<PropertyColumn> DiagnosticColumns()
     {
         yield break;

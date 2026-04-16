@@ -32,17 +32,38 @@ internal class FlushOutgoingMessagesOnCommit : DocumentSessionListenerBase
         {
             if (_context.Envelope.WasPersistedInInbox)
             {
-                // GH-2155: When using ancillary stores (e.g., [MartenStore]), the incoming
-                // envelope was persisted in the main store by DurableReceiver. We should only
-                // mark it as handled within this Marten session if the session's store is
-                // the same store. Otherwise, let DurableReceiver handle it via the main store.
-                if (_context.Envelope.Store == null && _messageStore.Role == MessageStoreRole.Ancillary)
+                // Determine which incoming table to update. The envelope may have been
+                // persisted in the ancillary store (if on a different database) or the
+                // main store (default). We need to update the correct table.
+                var incomingTableName = _messageStore.IncomingFullName;
+
+                if (_messageStore.Role == MessageStoreRole.Ancillary)
                 {
-                    return Task.CompletedTask;
+                    if (_context.Envelope.Store is PostgresqlMessageStore envelopeStore)
+                    {
+                        // Envelope was routed to a specific store (possibly this one)
+                        incomingTableName = envelopeStore.IncomingFullName;
+                    }
+                    else if (_context.Envelope.Store == null)
+                    {
+                        // GH-2382: Envelope was persisted in the main store. If we're on the
+                        // same database, we can still update it within this transaction.
+                        if (_context.Runtime.Storage is PostgresqlMessageStore mainStore
+                            && mainStore.Uri == _messageStore.Uri)
+                        {
+                            incomingTableName = mainStore.IncomingFullName;
+                        }
+                        else
+                        {
+                            // Different database — can't update cross-database in one transaction.
+                            // Let DurableReceiver handle it via the main store.
+                            return Task.CompletedTask;
+                        }
+                    }
                 }
 
                 var keepUntil = DateTimeOffset.UtcNow.Add(_context.Runtime.Options.Durability.KeepAfterMessageHandling);
-                session.QueueSqlCommand($"update {_messageStore.IncomingFullName} set {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}', {DatabaseConstants.KeepUntil} = ? where id = ?", keepUntil, _context.Envelope.Id);
+                session.QueueSqlCommand($"update {incomingTableName} set {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}', {DatabaseConstants.KeepUntil} = ? where id = ?", keepUntil, _context.Envelope.Id);
                 _context.Envelope.Status = EnvelopeStatus.Handled;
             }
 

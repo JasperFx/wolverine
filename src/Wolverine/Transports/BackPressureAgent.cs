@@ -45,6 +45,12 @@ internal class BackPressureAgent : IDisposable
 
     public async ValueTask CheckNowAsync()
     {
+        // Update the queue activity heuristic for stale listener detection
+        if (_agent is ListeningAgent la)
+        {
+            la.UpdateQueueCountObservation();
+        }
+
         if (_agent.Status is ListeningStatus.Accepting or ListeningStatus.Unknown)
         {
             if (_agent.QueueCount > _endpoint.BufferingLimits.Maximum)

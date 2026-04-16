@@ -19,7 +19,7 @@ public class MqttTransport : TransportBase<MqttTopic>, IAsyncDisposable
     private List<MqttListener> _listeners = new();
     private ImHashMap<string, MqttListener> _topicListeners = ImHashMap<string, MqttListener>.Empty;
     private bool _subscribed;
-    private ILogger<MqttTransport> _logger;
+    private ILogger<MqttTransport> _logger = null!;
     private Timer? _jwtTokenRefreshTimer;
 
     public static string TopicForUri(Uri uri)
@@ -78,6 +78,11 @@ public class MqttTransport : TransportBase<MqttTopic>, IAsyncDisposable
         {
             endpoint.Compile(runtime);
         }
+    }
+
+    public WolverineTransportHealthCheck BuildHealthCheck(IWolverineRuntime runtime)
+    {
+        return new MqttHealthCheck(this);
     }
 
     private void startSubscribing()
@@ -147,16 +152,16 @@ public class MqttTransport : TransportBase<MqttTopic>, IAsyncDisposable
             return listener is not null;
         }
 
-        listener = _listeners.FirstOrDefault(x => x.TopicName == topicName) ?? _listeners.FirstOrDefault(x =>
-            MqttTopicFilterComparer.Compare(topicName, x.TopicName) == MqttTopicFilterCompareResult.IsMatch);
+        listener = (_listeners.FirstOrDefault(x => x.TopicName == topicName) ?? _listeners.FirstOrDefault(x =>
+            MqttTopicFilterComparer.Compare(topicName, x.TopicName) == MqttTopicFilterCompareResult.IsMatch))!;
 
-        _topicListeners = _topicListeners.AddOrUpdate(topicName, listener);
+        _topicListeners = _topicListeners.AddOrUpdate(topicName, listener!);
 
 
         return listener is not null;
     }
 
-    internal IManagedMqttClient Client { get; private set; }
+    internal IManagedMqttClient Client { get; private set; } = null!;
     internal MqttJwtAuthenticationOptions? JwtAuthenticationOptions { get; set; }
 
     public ManagedMqttClientOptions Options { get; set; } = new ManagedMqttClientOptions

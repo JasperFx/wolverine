@@ -9,7 +9,7 @@ namespace CoreTests.Acceptance;
 
 public class using_with_keyed_services : IAsyncLifetime
 {
-    private IHost _host;
+    private IHost _host = null!;
 
     public async Task InitializeAsync()
     {
@@ -64,7 +64,7 @@ public class using_with_keyed_services : IAsyncLifetime
 
 public class using_with_keyed_services_and_lamar : IAsyncLifetime
 {
-    private IHost _host;
+    private IHost _host = null!;
 
     public async Task InitializeAsync()
     {

@@ -19,9 +19,9 @@ namespace PostgresqlTests.MultiTenancy;
 public class multi_tenant_durability_agents : PostgresqlContext, IAsyncLifetime
 {
     private readonly ITestOutputHelper _output;
-    private IHost theHost;
-    private string tenant1ConnectionString;
-    private string tenant2ConnectionString;
+    private IHost theHost = null!;
+    private string tenant1ConnectionString = null!;
+    private string tenant2ConnectionString = null!;
     private TenantMessageTracker theTracker = new();
 
     public multi_tenant_durability_agents(ITestOutputHelper output)

@@ -54,7 +54,7 @@ public class RabbitMqEnvelopeMapper : EnvelopeMapper<IReadOnlyBasicProperties, I
 
     protected override void writeOutgoingHeader(IBasicProperties outgoing, string key, string value)
     {
-        outgoing.Headers[key] = value;
+        outgoing.Headers![key] = value;
     }
 
     // TODO -- this needs to be open for customizations. See the NServiceBus interop
@@ -68,7 +68,7 @@ public class RabbitMqEnvelopeMapper : EnvelopeMapper<IReadOnlyBasicProperties, I
 
         if (incoming.Headers.TryGetValue(key, out var raw))
         {
-            value = (raw is byte[] b ? Encoding.Default.GetString(b) : raw.ToString())!;
+            value = (raw is byte[] b ? Encoding.UTF8.GetString(b) : raw!.ToString())!;
             return true;
         }
 
@@ -82,7 +82,7 @@ public class RabbitMqEnvelopeMapper : EnvelopeMapper<IReadOnlyBasicProperties, I
         foreach (var pair in incoming.Headers)
         {
             envelope.Headers[pair.Key] =
-                pair.Value is byte[] b ? Encoding.Default.GetString(b) : pair.Value?.ToString();
+                pair.Value is byte[] b ? Encoding.UTF8.GetString(b) : pair.Value?.ToString();
         }
     }
 }

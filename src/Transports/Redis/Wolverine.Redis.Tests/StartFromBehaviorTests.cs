@@ -71,7 +71,7 @@ public class StartFromBehaviorTests
         using var publisherHost = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.UseRedisTransport("localhost:6379").AutoProvision();
+                opts.UseRedisTransport(RedisContainerFixture.ConnectionString).AutoProvision();
             })
             .StartAsync();
 
@@ -94,7 +94,7 @@ public class StartFromBehaviorTests
             })
             .UseWolverine(opts =>
             {
-                opts.UseRedisTransport("localhost:6379").AutoProvision();
+                opts.UseRedisTransport(RedisContainerFixture.ConnectionString).AutoProvision();
                 opts.ListenToRedisStream(streamKey, "test-group")
                     .StartFromNewMessages()  // Explicit, but this is the default
                     .BlockTimeout(TimeSpan.FromMilliseconds(100))
@@ -144,7 +144,7 @@ public class StartFromBehaviorTests
         using var publisherHost = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.UseRedisTransport("localhost:6379").AutoProvision();
+                opts.UseRedisTransport(RedisContainerFixture.ConnectionString).AutoProvision();
 
                 opts.PublishMessage<TestMessage>().To(new Uri($"redis://stream/0/{streamKey}"))
                     .SendInline();
@@ -172,7 +172,7 @@ public class StartFromBehaviorTests
             })
             .UseWolverine(opts =>
             {
-                opts.UseRedisTransport("localhost:6379").AutoProvision();
+                opts.UseRedisTransport(RedisContainerFixture.ConnectionString).AutoProvision();
                 opts.ListenToRedisStream(streamKey, "test-group-beginning")
                     .StartFromBeginning()  // Should process existing messages
                     .BlockTimeout(TimeSpan.FromMilliseconds(100))

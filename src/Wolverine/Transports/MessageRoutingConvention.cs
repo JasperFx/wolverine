@@ -22,6 +22,7 @@ public abstract class MessageRoutingConvention<TTransport, TListener, TSubscribe
     private Action<TSubscriber, MessageRoutingContext> _configureSending = (_, _) => { };
     protected Func<Type, string?> _identifierForSender = t => t.ToMessageTypeName();
     protected Func<Type, string?> _queueNameForListener = t => t.ToMessageTypeName();
+    private NamingSource _namingSource = NamingSource.FromMessageType;
 
     void IMessageRoutingConvention.DiscoverListeners(IWolverineRuntime runtime, IReadOnlyList<Type> handledMessageTypes)
     {
@@ -35,9 +36,35 @@ public abstract class MessageRoutingConvention<TTransport, TListener, TSubscribe
         foreach (var messageType in handledMessageTypes.Where(t => _typeFilters.Matches(t)))
         {
             var chain = runtime.Options.HandlerGraph.ChainFor(messageType);
-            if (chain == null) continue;
-            
-            if (runtime.Options.MultipleHandlerBehavior == MultipleHandlerBehavior.ClassicCombineIntoOneLogicalHandler && chain.Handlers.Any())
+
+            // Batch element types won't have their own handler chain (only the array type does),
+            // but they still need external listeners created so messages can be received and
+            // routed to the local batching queue. See GH-2307.
+            var isBatchElementType = runtime.Options.BatchDefinitions.Any(b => b.ElementType == messageType);
+
+            if (chain == null)
+            {
+                if (isBatchElementType)
+                {
+                    maybeCreateListenerForMessageOrHandlerType(transport, messageType, runtime);
+                }
+
+                continue;
+            }
+
+            if (_namingSource == NamingSource.FromHandlerType && chain.Handlers.Any())
+            {
+                foreach (var handler in chain.Handlers)
+                {
+                    var handlerType = handler.HandlerType;
+                    var endpoint = maybeCreateListenerForMessageOrHandlerType(transport, handlerType, runtime, messageType);
+                    if (endpoint != null)
+                    {
+                        endpoint.StickyHandlers.Add(handlerType);
+                    }
+                }
+            }
+            else if (runtime.Options.MultipleHandlerBehavior == MultipleHandlerBehavior.ClassicCombineIntoOneLogicalHandler && chain.Handlers.Any())
             {
                 maybeCreateListenerForMessageOrHandlerType(transport, messageType, runtime);
             }
@@ -47,7 +74,7 @@ public abstract class MessageRoutingConvention<TTransport, TListener, TSubscribe
                 {
                     maybeCreateListenerForMessageOrHandlerType(transport, messageType, runtime);
                 }
-                
+
                 foreach (var handlerChain in chain.ByEndpoint)
                 {
                     var handlerType = handlerChain.Handlers.First().HandlerType;
@@ -59,8 +86,8 @@ public abstract class MessageRoutingConvention<TTransport, TListener, TSubscribe
                     }
                 }
             }
-            
-            
+
+
         }
     }
 
@@ -91,7 +118,7 @@ public abstract class MessageRoutingConvention<TTransport, TListener, TSubscribe
         return endpoint;
     }
 
-    private Endpoint? maybeCreateListenerForMessageOrHandlerType(TTransport transport, Type messageOrHandlerType, IWolverineRuntime runtime)
+    private Endpoint? maybeCreateListenerForMessageOrHandlerType(TTransport transport, Type messageOrHandlerType, IWolverineRuntime runtime, Type? originalMessageType = null)
     {
         // Can be null, so bail out if there's no queue
         var queueName = _queueNameForListener(messageOrHandlerType);
@@ -112,8 +139,11 @@ public abstract class MessageRoutingConvention<TTransport, TListener, TSubscribe
         _configureListener(configuration, context);
 
         configuration!.As<IDelayedEndpointConfiguration>().Apply();
-            
-        ApplyListenerRoutingDefaults(corrected, transport, messageOrHandlerType);
+
+        // When using FromHandlerType naming, the exchange should still be named
+        // after the message type so that senders (which always use message type)
+        // and listeners share the same exchange. See GH-2397.
+        ApplyListenerRoutingDefaults(corrected, transport, originalMessageType ?? messageOrHandlerType);
 
         return endpoint;
     }
@@ -147,6 +177,14 @@ public abstract class MessageRoutingConvention<TTransport, TListener, TSubscribe
 
         var (configuration, endpoint) = FindOrCreateSubscriber(corrected, transport);
         endpoint.EndpointName = destinationName;
+
+        // Register the subscription so that endpoint policies like
+        // UseDurableOutboxOnAllSendingEndpoints() recognize this as a sender
+        // endpoint when Compile() applies policies. See GH-2304.
+        if (!endpoint.Subscriptions.Any(s => s.Matches(messageType)))
+        {
+            endpoint.Subscriptions.Add(Subscription.ForType(messageType));
+        }
 
         _configureSending(configuration, new MessageRoutingContext(messageType, runtime));
 
@@ -208,6 +246,20 @@ public abstract class MessageRoutingConvention<TTransport, TListener, TSubscribe
     protected abstract (TSubscriber, Endpoint) FindOrCreateSubscriber(string identifier, TTransport transport);
 
     protected virtual void ApplyListenerRoutingDefaults(string listenerIdentifier, TTransport transport, Type messageType) {}
+
+    /// <summary>
+    ///     Control whether conventional routing names queues/topics after the message type (default)
+    ///     or the handler type. Using <see cref="NamingSource.FromHandlerType"/> is appropriate for
+    ///     modular monolith scenarios where you have more than one handler for a given message type
+    ///     and want each handler to receive messages on its own dedicated queue.
+    /// </summary>
+    /// <param name="source"></param>
+    /// <returns></returns>
+    public TSelf UseNaming(NamingSource source)
+    {
+        _namingSource = source;
+        return this.As<TSelf>();
+    }
 
     /// <summary>
     ///     Override the convention for determining the queue name for receiving incoming messages of the message type.

@@ -35,7 +35,7 @@ public class end_to_end
 
         var command = new Command1
         {
-            Name = null, Color = "blue", Number = 4
+            Name = null!, Color = "blue", Number = 4
         };
 
         await Should.ThrowAsync<ValidationException>(() => host.InvokeAsync(command));
@@ -70,7 +70,7 @@ public class end_to_end
 
         var command = new Command2
         {
-            Name = null
+            Name = null!
         };
 
         await Should.ThrowAsync<ValidationException>(() => host.InvokeAsync(command));

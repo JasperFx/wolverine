@@ -1,6 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using JasperFx;
+using JasperFx.CodeGeneration;
 using JasperFx.Core.IoC;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -11,6 +12,7 @@ using Microsoft.AspNetCore.Routing.Matching;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Wolverine.Configuration;
+using Wolverine.Configuration.Capabilities;
 using Wolverine.Http.CodeGen;
 using Wolverine.Http.Transport;
 using Wolverine.Http.Validation;
@@ -161,9 +163,11 @@ public static class WolverineHttpEndpointRouteBuilderExtensions
         services.AddSingleton<WolverineHttpOptions>();
         services.AddSingleton<NewtonsoftHttpSerialization>();
         services.AddSingleton<HttpTransportExecutor>();
-        
+
         services.AddSingleton(typeof(IProblemDetailSource<>), typeof(ProblemDetailSource<>));
         services.AddSingleton<MatcherPolicy, ContentTypeEndpointSelectorPolicy>();
+
+        services.AddSingleton<ICapabilityDescriptor, HttpCapabilityDescriptor>();
 
         services.ConfigureWolverine(opts =>
         {
@@ -207,13 +211,14 @@ public static class WolverineHttpEndpointRouteBuilderExtensions
         
         options.Policies.Add(new ProblemDetailsFromMiddleware());
         
-        if (Environment.CommandLine.Contains("codegen", StringComparison.OrdinalIgnoreCase))
+        if (DynamicCodeBuilder.WithinCodegenCommand)
         {
             options.WarmUpRoutes = RouteWarmup.Lazy;
         }
 
         options.JsonSerializerOptions = new Lazy<JsonSerializerOptions>(() => serviceProvider.GetService<IOptions<JsonOptions>>()?.Value?.SerializerOptions ?? new JsonSerializerOptions());
 
+        options.Endpoints.AutoAntiforgeryOnFormEndpoints = options._autoAntiforgeryOnFormEndpoints;
         options.Endpoints.DiscoverEndpoints(options);
         runtime.Options.Parts.Add(options.Endpoints);
 

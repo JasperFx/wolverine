@@ -12,16 +12,23 @@ public class SagaTableDefinition
 {
     private static readonly Regex _aliasSanitizer = new("<|>", RegexOptions.Compiled);
     
-    public SagaTableDefinition(Type sagaType, string? tableName)
+    public SagaTableDefinition(Type sagaType, string? tableName, bool useNVarCharForStringId = false)
     {
         SagaType = sagaType;
         TableName = tableName ?? defaultTableName(sagaType) + "_saga";
         IdMember = SagaChain.DetermineSagaIdMember(sagaType, sagaType) ?? throw new ArgumentException(nameof(sagaType), $"Unable to determine the identity member for {sagaType.FullNameInCode()}");
+        UseNVarCharForStringId = useNVarCharForStringId;
     }
 
     public Type SagaType { get; }
     public MemberInfo IdMember { get; }
     public string TableName { get; }
+
+    /// <summary>
+    /// Opt in to a SQL Server schema change for string saga identifiers from the default inferred
+    /// varchar(100) to nvarchar(100). This only affects Wolverine's lightweight SQL Server saga storage.
+    /// </summary>
+    public bool UseNVarCharForStringId { get; }
     
     // This is stolen from Marten
     private static string defaultTableName(Type documentType)
@@ -32,10 +39,10 @@ public class SagaTableDefinition
             nameToAlias = _aliasSanitizer.Replace(documentType.GetPrettyName(), string.Empty).Replace(",", "_");
         }
 
-        var parts = new List<string> { nameToAlias.ToLower() };
+        var parts = new List<string> { nameToAlias.ToLowerInvariant() };
         if (documentType.IsNested)
         {
-            parts.Insert(0, documentType.DeclaringType.Name.ToLower());
+            parts.Insert(0, documentType.DeclaringType!.Name.ToLowerInvariant());
         }
 
         return string.Join("_", parts);

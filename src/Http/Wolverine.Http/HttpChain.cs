@@ -8,6 +8,7 @@ using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.CodeGeneration.Services;
 using JasperFx.Core;
+using Wolverine.Http.Antiforgery;
 using JasperFx.Core.Reflection;
 using JasperFx.Descriptors;
 using Microsoft.AspNetCore.Builder;
@@ -19,6 +20,7 @@ using Microsoft.AspNetCore.Routing.Patterns;
 using Microsoft.Extensions.DependencyInjection;
 using Wolverine.Configuration;
 using Wolverine.Http.CodeGen;
+using Wolverine.Http.ContentNegotiation;
 using Wolverine.Http.Metadata;
 using Wolverine.Http.Policies;
 using Wolverine.Persistence;
@@ -67,13 +69,22 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
     private readonly List<HttpElementVariable> _formValueVariables = [];
 
     public string OperationId { get; set; }
-    
+    public bool HasExplicitOperationId { get; private set; }
+    public string? EndpointSummary { get; set; }
+    public string? EndpointDescription { get; set; }
+
     /// <summary>
     /// This may be overridden by some IResponseAware policies in place of the first
     /// create variable of the method call
     /// </summary>
     [IgnoreDescription]
     public Variable? ResourceVariable { get; set; }
+
+    /// <summary>
+    /// Controls how content negotiation behaves when no matching content type writer is found.
+    /// Default is Loose (falls back to JSON). Set to Strict to return 406 Not Acceptable.
+    /// </summary>
+    public ConnegMode ConnegMode { get; set; } = ConnegMode.Loose;
 
     // Make the assumption that the route argument has to match the parameter name
     private GeneratedType? _generatedType;
@@ -119,6 +130,17 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
             if (att.OperationId.IsNotEmpty())
             {
                 OperationId = att.OperationId;
+                HasExplicitOperationId = true;
+            }
+
+            if (att.Summary.IsNotEmpty())
+            {
+                EndpointSummary = att.Summary;
+            }
+
+            if (att.Description.IsNotEmpty())
+            {
+                EndpointDescription = att.Description;
             }
         }
 
@@ -204,7 +226,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
     }
 
     [IgnoreDescription]
-    public RoutePattern? RoutePattern { get; private set; }
+    public RoutePattern? RoutePattern { get; internal set; }
 
     public Type? RequestType
     {
@@ -331,13 +353,13 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
                 
             case OnMissing.ProblemDetailsWith400:
                 Metadata.Produces(400, contentType: "application/problem+json");
-                return [new WriteProblemDetailsIfNull(data, identity, message, 400)];
+                return [new WriteProblemDetailsIfNull(data, identity!, message, 400)];
             case OnMissing.ProblemDetailsWith404:
                 Metadata.Produces(404, contentType: "application/problem+json");
-                return [new WriteProblemDetailsIfNull(data, identity, message, 404)];
-                
+                return [new WriteProblemDetailsIfNull(data, identity!, message, 404)];
+
             default:
-                return [new ThrowRequiredDataMissingExceptionFrame(data, identity, message)];
+                return [new ThrowRequiredDataMissingExceptionFrame(data, identity!, message)];
         }
     }
 
@@ -351,7 +373,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
         var description = new OptionsDescription(this);
         description.AddValue(nameof(HttpMethods), HttpMethods.ToArray());
 
-        description.AddValue("Route", RoutePattern.RawText);
+        description.AddValue("Route", RoutePattern?.RawText ?? string.Empty);
 
         if (Tags.Any())
         {
@@ -404,10 +426,36 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
             Metadata.Accepts(typeof(IFormFile), true, "application/x-www-form-urlencoded", "multipart/form-data");
         }
 
+        applyAntiforgeryMetadata();
+
         foreach (var attribute in Method.HandlerType.GetCustomAttributes()) Metadata.WithMetadata(attribute);
         foreach (var attribute in Method.Method.GetCustomAttributes()) Metadata.WithMetadata(attribute);
     }
 
+    private void applyAntiforgeryMetadata()
+    {
+        // Check for explicit opt-out via [DisableAntiforgery] on method or class
+        if (Method.Method.HasAttribute<DisableAntiforgeryAttribute>() ||
+            Method.HandlerType.HasAttribute<DisableAntiforgeryAttribute>())
+        {
+            Metadata.WithMetadata(WolverineAntiforgeryMetadata.NotRequired);
+            return;
+        }
+
+        // Check for explicit opt-in via [ValidateAntiforgery] on method or class
+        if (Method.Method.HasAttribute<ValidateAntiforgeryAttribute>() ||
+            Method.HandlerType.HasAttribute<ValidateAntiforgeryAttribute>())
+        {
+            Metadata.WithMetadata(WolverineAntiforgeryMetadata.Required);
+            return;
+        }
+
+        // Auto-enable for form data and file upload endpoints when antiforgery is enabled
+        if (_parent.AutoAntiforgeryOnFormEndpoints && (IsFormData || FileParameters.Any()))
+        {
+            Metadata.WithMetadata(WolverineAntiforgeryMetadata.Required);
+        }
+    }
 
     public HttpElementVariable? TryFindOrCreateFormValue(ParameterInfo parameter)
     {
@@ -420,7 +468,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
             key = att.Name;
         }
 
-        return TryFindOrCreateFormValue(parameterType, parameterName, key);
+        return TryFindOrCreateFormValue(parameterType, parameterName!, key);
     }
     
  public HttpElementVariable? TryFindOrCreateFormValue(Type parameterType, string parameterName, string? key = null){
@@ -452,7 +500,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
                 }
             }
             
-            if (parameterType.IsArray && RouteParameterStrategy.CanParse(parameterType.GetElementType()))
+            if (parameterType.IsArray && RouteParameterStrategy.CanParse(parameterType.GetElementType()!))
             {
                 variable = new ParsedArrayFormValue(parameterType, parameterName).Variable;
                 variable.Name = key;
@@ -510,7 +558,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
             key = att.Name;
         }
 
-        return TryFindOrCreateQuerystringValue(parameterType, parameterName, key);
+        return TryFindOrCreateQuerystringValue(parameterType, parameterName!, key);
     }
 
     public HttpElementVariable? TryFindOrCreateQuerystringValue(Type parameterType, string parameterName, string? key = null)
@@ -551,7 +599,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
                 }
             }
 
-            if (parameterType.IsArray && RouteParameterStrategy.CanParse(parameterType.GetElementType()))
+            if (parameterType.IsArray && RouteParameterStrategy.CanParse(parameterType.GetElementType()!))
             {
                 variable = new ParsedArrayQueryStringValue(parameterType, key).Variable;
                 variable.Name = key;
@@ -585,7 +633,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
     public bool FindRouteVariable(ParameterInfo parameter, [NotNullWhen(true)]out Variable? variable)
     {
         var existing = _routeVariables.FirstOrDefault(x =>
-            x.VariableType == parameter.ParameterType && x.Usage.EqualsIgnoreCase(parameter.Name));
+            x.VariableType == parameter.ParameterType && x.Usage.EqualsIgnoreCase(parameter.Name!));
 
         if (existing is not null)
         {
@@ -610,7 +658,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
                 var inner = parameter.ParameterType.GetInnerTypeFromNullable();
                 if (RouteParameterStrategy.CanParse(inner))
                 {
-                    variable = new ReadHttpFrame(BindingSource.RouteValue, parameter.ParameterType, parameter.Name, isOptional).Variable;
+                    variable = new ReadHttpFrame(BindingSource.RouteValue, parameter.ParameterType, parameter.Name!, isOptional).Variable;
                     _routeVariables.Add(variable);
                     return true;
                 }
@@ -618,7 +666,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
 
             if (RouteParameterStrategy.CanParse(parameter.ParameterType))
             {
-                variable = new ReadHttpFrame(BindingSource.RouteValue, parameter.ParameterType, parameter.Name, isOptional).Variable;
+                variable = new ReadHttpFrame(BindingSource.RouteValue, parameter.ParameterType, parameter.Name!, isOptional).Variable;
                 _routeVariables.Add(variable);
                 return true;
             }
@@ -668,9 +716,9 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
 
         if (existing != null) return existing;
 
-        var frame = new ReadHttpFrame(BindingSource.Header, parameter.ParameterType, parameter.Name)
+        var frame = new ReadHttpFrame(BindingSource.Header, parameter.ParameterType, parameter.Name!)
         {
-            Key = metadata.Name ?? parameter.Name
+            Key = metadata.Name ?? parameter.Name!
         };
         
         _headerVariables.Add(frame.Variable);
@@ -695,9 +743,9 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
         return frame.Variable;
     }
 
-    string IEndpointNameMetadata.EndpointName => ToString();
+    string IEndpointNameMetadata.EndpointName => HasExplicitOperationId ? OperationId : ToString();
 
-    string IEndpointSummaryMetadata.Summary => ToString();
+    string IEndpointSummaryMetadata.Summary => EndpointSummary ?? ToString();
 
     public List<ParameterInfo> FileParameters { get; } = [];
 
@@ -706,6 +754,13 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
 
     public bool IsFormData { get; internal set; }
     public Type? ComplexQueryStringType { get; set; }
+
+    /// <summary>
+    /// When using [AsParameters], this tracks the original AsParameters type even when
+    /// RequestType is overwritten by a [FromBody] property. This allows middleware like
+    /// FluentValidation to also validate the AsParameters type itself.
+    /// </summary>
+    public Type? AsParametersType { get; internal set; }
     public ServiceProviderSource ServiceProviderSource { get; set; } = ServiceProviderSource.IsolatedAndScoped;
 
     internal Variable BuildJsonDeserializationVariable()

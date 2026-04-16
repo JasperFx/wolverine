@@ -42,6 +42,23 @@ public interface IEndpointConfiguration<T>
     /// <param name="isEnabled"></param>
     /// <returns></returns>
     T TelemetryEnabled(bool isEnabled);
+
+    /// <summary>
+    /// Enable wire tap auditing on this endpoint using the default <see cref="IWireTap"/>
+    /// registered in the IoC container. The wire tap will record message success and failure
+    /// for auditing, compliance, or monitoring purposes.
+    /// </summary>
+    /// <returns></returns>
+    T UseWireTap();
+
+    /// <summary>
+    /// Enable wire tap auditing on this endpoint using a keyed <see cref="IWireTap"/>
+    /// service from the IoC container. Use this to vary wire tap implementations
+    /// across different endpoints.
+    /// </summary>
+    /// <param name="serviceKey">The keyed service identifier used to resolve the IWireTap</param>
+    /// <returns></returns>
+    T UseWireTap(string serviceKey);
 }
 
 public interface IListenerConfiguration<T> : IEndpointConfiguration<T>
@@ -118,6 +135,14 @@ public interface IListenerConfiguration<T> : IEndpointConfiguration<T>
     /// </summary>
     /// <returns></returns>
     T UseForReplies();
+
+    /// <summary>
+    /// When using inline processing, allow already-ingested messages to continue processing
+    /// while the receiver is draining. Messages will only be deferred after the drain has
+    /// fully completed rather than as soon as it begins.
+    /// </summary>
+    /// <returns></returns>
+    T ProcessInlineWhileDraining();
 
     /// <summary>
     /// Direct Wolverine to use the specified handler type for its messages on

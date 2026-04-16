@@ -32,7 +32,7 @@ public class auditing_determination : IntegrationContext
     public void adds_the_audit_to_activity_code()
     {
         var chain = chainFor<AuditedMessage>();
-        var lines = chain.SourceCode.ReadLines();
+        var lines = chain.SourceCode!.ReadLines();
 
         lines.Any(x => x.Contains("Activity.Current?.SetTag(\"name\", auditedMessage.Name)")).ShouldBeTrue();
         lines.Any(x => x.Contains("Activity.Current?.SetTag(\"account.id\", auditedMessage.AccountId)")).ShouldBeTrue();
@@ -47,7 +47,7 @@ public class auditing_determination : IntegrationContext
         });
 
         var chain = chainFor<AuditedMessage>();
-        var lines = chain.SourceCode.ReadLines();
+        var lines = chain.SourceCode!.ReadLines();
 
         var expected = "Log(Microsoft.Extensions.Logging.LogLevel.Information, \"Starting to process CoreTests.Configuration.AuditedMessage ({Id}) with Name: {Name}, AccountIdentifier: {AccountId}\", context.Envelope.Id, auditedMessage.Name, auditedMessage.AccountId)";
 
@@ -91,7 +91,7 @@ public class auditing_determination : IntegrationContext
         
         
         
-        chain.SourceCode.ShouldContain("\"Starting to process CoreTests.Configuration.AuditedMessage2 ({EnvelopeId} with Id: {Id}, AccountIdentifier: {AccountId}\"");
+        chain.SourceCode!.ShouldContain("\"Starting to process CoreTests.Configuration.AuditedMessage2 ({EnvelopeId}) with Id: {Id}, AccountIdentifier: {AccountId}\"");
         
 /*
 ((Microsoft.Extensions.Logging.ILogger)_loggerForMessage).Log(Microsoft.Extensions.Logging.LogLevel.Information, "Starting to process CoreTests.Configuration.AuditedMessage2 ({EnvelopeId} with Id: {Id}, AccountIdentifier: {AccountId}", context.Envelope.Id, auditedMessage2.Id, auditedMessage2.AccountId);
@@ -104,7 +104,7 @@ public class auditing_determination : IntegrationContext
 public class AuditedMessage
 {
     [Audit]
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
 
     [Audit("AccountIdentifier")] public int AccountId;
 }
@@ -129,7 +129,7 @@ public class AuditedHandler
 public class AuditedMessage2
 {
     [Audit]
-    public string Id { get; set; }
+    public string Id { get; set; } = null!;
 
     [Audit("AccountIdentifier")] public int AccountId;
 }

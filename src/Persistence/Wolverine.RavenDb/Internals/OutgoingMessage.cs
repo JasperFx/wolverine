@@ -20,7 +20,7 @@ public class OutgoingMessage
         DeliverBy = envelope.DeliverBy?.ToUniversalTime();
     }
 
-    public string Id { get; set; }
+    public string Id { get; set; } = null!;
     public int OwnerId { get; set; }
     public Uri? Destination { get; set; }
     public DateTimeOffset? DeliverBy { get; set; }

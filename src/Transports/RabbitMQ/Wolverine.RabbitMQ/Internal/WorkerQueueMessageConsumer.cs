@@ -52,7 +52,39 @@ internal class WorkerQueueMessageConsumer : AsyncDefaultBasicConsumer, IDisposab
         catch (Exception e)
         {
             _logger.LogError(e, "Error trying to map an incoming RabbitMQ message {MessageId} to an Envelope", properties.MessageId);
-            await Channel.BasicAckAsync(envelope.DeliveryTag, false, _cancellation);
+
+            // MoveToErrorsAsync keys the envelope by Id; the mapper threw before
+            // setting one, so synthesize a Guid to satisfy the dead-letter store contract.
+            if (envelope.Id == Guid.Empty)
+            {
+                envelope.Id = Guid.NewGuid();
+            }
+
+            try
+            {
+                if (_workerQueue is ISupportDeadLetterQueue dlq)
+                {
+                    await dlq.MoveToErrorsAsync(envelope, e);
+                    return;
+                }
+            }
+            catch (Exception moveEx)
+            {
+                _logger.LogError(moveEx,
+                    "Failed to move un-mappable RabbitMQ message {MessageId} to the dead-letter store; falling back to broker DLX",
+                    properties.MessageId);
+            }
+
+            try
+            {
+                await Channel.BasicNackAsync(envelope.DeliveryTag, multiple: false, requeue: false, _cancellation);
+            }
+            catch (Exception nackEx)
+            {
+                _logger.LogError(nackEx,
+                    "Failed to Nack un-mappable RabbitMQ message {MessageId}",
+                    properties.MessageId);
+            }
 
             return;
         }

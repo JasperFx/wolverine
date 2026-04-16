@@ -19,7 +19,7 @@ public class RabbitMqBinding
     public IRabbitMqQueue Queue => _queue;
     public string ExchangeName { get; }
 
-    public IDictionary<string, object> Arguments { get; } = new Dictionary<string, object>();
+    public IDictionary<string, object?> Arguments { get; } = new Dictionary<string, object?>();
     public bool HasDeclared { get; private set; }
 
     internal async Task DeclareAsync(IChannel channel, ILogger logger)

@@ -90,7 +90,7 @@ internal record StartAgents(Uri[] AgentUris) : IAgentCommand, ISerializable
             return true;
         }
 
-        return AgentUris.SequenceEqual(other.AgentUris);
+        return AgentUris.SequenceEqual(other!.AgentUris);
     }
 
     public override int GetHashCode()

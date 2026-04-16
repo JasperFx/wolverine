@@ -60,21 +60,21 @@ internal class LoadAggregateFrame : AsyncFrame,  IBatchableFrame
     {
         if (_att.IsNaturalKey)
         {
-            writer.WriteLine($"var {_batchQueryItem.Usage} = {NaturalKeyFetchForWriting(_batchQuery!.Usage)};");
+            writer.WriteLine($"var {_batchQueryItem!.Usage} = {NaturalKeyFetchForWriting(_batchQuery!.Usage)};");
             return;
         }
 
         if (_att.LoadStyle == ConcurrencyStyle.Exclusive)
         {
-            writer.WriteLine($"var {_batchQueryItem.Usage} = {_batchQuery!.Usage}.Events.FetchForExclusiveWriting<{_att.AggregateType.FullNameInCode()}>({_rawIdentity.Usage});");
+            writer.WriteLine($"var {_batchQueryItem!.Usage} = {_batchQuery!.Usage}.Events.FetchForExclusiveWriting<{_att.AggregateType.FullNameInCode()}>({_rawIdentity.Usage});");
         }
         else if (_version == null)
         {
-            writer.WriteLine($"var {_batchQueryItem.Usage} = {_batchQuery!.Usage}.Events.FetchForWriting<{_att.AggregateType.FullNameInCode()}>({_rawIdentity.Usage});");
+            writer.WriteLine($"var {_batchQueryItem!.Usage} = {_batchQuery!.Usage}.Events.FetchForWriting<{_att.AggregateType.FullNameInCode()}>({_rawIdentity.Usage});");
         }
         else
         {
-            writer.WriteLine($"var {_batchQueryItem.Usage} = {_batchQuery!.Usage}.Events.FetchForWriting<{_att.AggregateType.FullNameInCode()}>({_rawIdentity.Usage}, {_version.Usage});");
+            writer.WriteLine($"var {_batchQueryItem!.Usage} = {_batchQuery!.Usage}.Events.FetchForWriting<{_att.AggregateType.FullNameInCode()}>({_rawIdentity.Usage}, {_version.Usage});");
         }
     }
 
@@ -102,8 +102,43 @@ internal class LoadAggregateFrame : AsyncFrame,  IBatchableFrame
         }
     }
 
+    /// <summary>
+    /// Set to true after GenerateCodeForBatchResolution has been called,
+    /// to prevent duplicate variable declarations.
+    /// </summary>
+    internal bool BatchResolutionGenerated { get; private set; }
+
+    /// <summary>
+    /// When this frame is part of a batch query, generate only the code that
+    /// resolves the batch item result (var stream_entity = await ...BatchItem).
+    /// This is called by MartenBatchFrame after the batch execute, ensuring
+    /// the variable is declared before any guard frames reference it.
+    /// </summary>
+    public void GenerateCodeForBatchResolution(GeneratedMethod method, ISourceWriter writer)
+    {
+        if (_batchQueryItem == null) return;
+
+        writer.WriteComment("Loading Marten aggregate as part of the aggregate handler workflow");
+        writer.Write(
+            $"var {Stream.Usage} = await {_batchQueryItem.Usage}.ConfigureAwait(false);");
+
+        if (_att.AlwaysEnforceConsistency)
+        {
+            writer.WriteLine($"{Stream.Usage}.{nameof(IEventStream<string>.AlwaysEnforceConsistency)} = true;");
+        }
+
+        BatchResolutionGenerated = true;
+    }
+
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
+        // If batch resolution already generated the variable declaration, skip
+        if (BatchResolutionGenerated)
+        {
+            Next?.GenerateCode(method, writer);
+            return;
+        }
+
         writer.WriteComment("Loading Marten aggregate as part of the aggregate handler workflow");
         if (_batchQueryItem == null)
         {
@@ -113,15 +148,15 @@ internal class LoadAggregateFrame : AsyncFrame,  IBatchableFrame
             }
             else if (_att.LoadStyle == ConcurrencyStyle.Exclusive)
             {
-                writer.WriteLine($"var {Stream.Usage} = await {_session!.Usage}.Events.FetchForExclusiveWriting<{_att.AggregateType.FullNameInCode()}>({_rawIdentity.Usage}, {_token.Usage});");
+                writer.WriteLine($"var {Stream.Usage} = await {_session!.Usage}.Events.FetchForExclusiveWriting<{_att.AggregateType.FullNameInCode()}>({_rawIdentity.Usage}, {_token!.Usage});");
             }
             else if (_version == null)
             {
-                writer.WriteLine($"var {Stream.Usage} = await {_session!.Usage}.Events.FetchForWriting<{_att.AggregateType.FullNameInCode()}>({_rawIdentity.Usage}, {_token.Usage});");
+                writer.WriteLine($"var {Stream.Usage} = await {_session!.Usage}.Events.FetchForWriting<{_att.AggregateType.FullNameInCode()}>({_rawIdentity.Usage}, {_token!.Usage});");
             }
             else
             {
-                writer.WriteLine($"var {Stream.Usage} = await {_session!.Usage}.Events.FetchForWriting<{_att.AggregateType.FullNameInCode()}>({_rawIdentity.Usage}, {_version.Usage}, {_token.Usage});");
+                writer.WriteLine($"var {Stream.Usage} = await {_session!.Usage}.Events.FetchForWriting<{_att.AggregateType.FullNameInCode()}>({_rawIdentity.Usage}, {_version.Usage}, {_token!.Usage});");
             }
         }
         else

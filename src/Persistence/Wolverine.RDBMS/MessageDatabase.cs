@@ -97,7 +97,7 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
 
     public Uri Uri { get; protected set; } = new Uri("null://null");
     
-    public IAdvisoryLock AdvisoryLock { get; protected set; }
+    public IAdvisoryLock AdvisoryLock { get; protected set; } = null!;
 
     public ILogger Logger { get; }
 

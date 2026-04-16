@@ -2,6 +2,7 @@ using JasperFx;
 using JasperFx.Blocks;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
 using Weasel.Core;
 using Wolverine.Persistence;
@@ -24,12 +25,13 @@ internal class DurabilityAgent : IAgent
     private readonly IWolverineRuntime _runtime;
     private readonly DurabilitySettings _settings;
     private Timer? _expirationTimer;
-    private DateTimeOffset? _lastDeadLetterQueueCheck;
-
-    private DateTimeOffset? _lastNodeRecordPruneTime;
-    private PersistenceMetrics _metrics;
+    private PersistenceMetrics _metrics = null!;
     private Timer? _recoveryTimer;
     private Timer? _scheduledJobTimer;
+
+    private int _successCount;
+    private int _exceptionCount;
+    private DateTime _lastHealthCheck = DateTime.UtcNow;
 
     public DurabilityAgent(IWolverineRuntime runtime, IMessageDatabase database)
     {
@@ -53,9 +55,11 @@ internal class DurabilityAgent : IAgent
             try
             {
                 await executor.InvokeAsync(batch, new MessageBus(runtime));
+                Interlocked.Increment(ref _successCount);
             }
             catch (Exception e)
             {
+                Interlocked.Increment(ref _exceptionCount);
                 _logger.LogError(e, "Error trying to run durability agent commands");
             }
         });
@@ -79,7 +83,7 @@ internal class DurabilityAgent : IAgent
         _recoveryTimer = new Timer(async _ =>
         {
             IReadOnlyList<int>? activeNodeNumbers = null;
-            if (_database.Settings.Role != MessageStoreRole.Main)
+            if (_settings.Mode != DurabilityMode.Solo && _database.Settings.Role != MessageStoreRole.Main)
             {
                 try
                 {
@@ -155,6 +159,10 @@ internal class DurabilityAgent : IAgent
         return new Uri($"{uri}{markerType.Name}");
     }
 
+#pragma warning disable CS0649 // Field is never assigned to
+    private DateTimeOffset? _lastNodeRecordPruneTime;
+#pragma warning restore CS0649
+
     private bool isTimeToPruneNodeEventRecords()
     {
         if (_lastNodeRecordPruneTime == null)
@@ -170,7 +178,7 @@ internal class DurabilityAgent : IAgent
         return false;
     }
 
-    private IDatabaseOperation[] buildOperationBatch(IReadOnlyList<int>? activeNodeNumbers = null)
+    internal IDatabaseOperation[] buildOperationBatch(IReadOnlyList<int>? activeNodeNumbers = null)
     {
         var incomingTable = new DbObjectName(_database.SchemaName, DatabaseConstants.IncomingTable);
         var now = DateTimeOffset.UtcNow;
@@ -183,18 +191,24 @@ internal class DurabilityAgent : IAgent
             new MoveReplayableErrorMessagesToIncomingOperation(_database)
         ];
 
+        if (_settings.Mode != DurabilityMode.Solo)
+        {
+            if (_database.Settings.Role == MessageStoreRole.Main)
+            {
+                ops.Add(new ReleaseOrphanedMessagesOperation(_database));
+            }
+            else if (activeNodeNumbers is { Count: > 0 })
+            {
+                ops.Add(new ReleaseOrphanedMessagesForAncillaryOperation(_database, activeNodeNumbers));
+            }
+        }
+
         if (_database.Settings.Role == MessageStoreRole.Main)
         {
-            ops.Add(new ReleaseOrphanedMessagesOperation(_database));
-
             if (isTimeToPruneNodeEventRecords())
             {
                 ops.Add(new DeleteOldNodeEventRecords(_database, _settings));
             }
-        }
-        else if (activeNodeNumbers is { Count: > 0 })
-        {
-            ops.Add(new ReleaseOrphanedMessagesForAncillaryOperation(_database, activeNodeNumbers));
         }
 
         if (_runtime.Options.Durability.OutboxStaleTime.HasValue)
@@ -216,5 +230,30 @@ internal class DurabilityAgent : IAgent
             new Timer(
                 _ => { _runningBlock.Post(new RunScheduledMessagesOperation(_database, _settings)); },
                 _settings, _settings.ScheduledJobFirstExecution, _settings.ScheduledJobPollingTime);
+    }
+
+    public Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context,
+        CancellationToken cancellationToken = default)
+    {
+        if (Status != AgentStatus.Running)
+        {
+            return Task.FromResult(HealthCheckResult.Unhealthy($"Agent {Uri} is {Status}"));
+        }
+
+        var exceptions = Interlocked.Exchange(ref _exceptionCount, 0);
+        var successes = Interlocked.Exchange(ref _successCount, 0);
+        _lastHealthCheck = DateTime.UtcNow;
+
+        if (exceptions > 0 && successes == 0)
+        {
+            return Task.FromResult(HealthCheckResult.Unhealthy("All database operations failed"));
+        }
+
+        if (exceptions > 0)
+        {
+            return Task.FromResult(HealthCheckResult.Degraded("Some database operations failed"));
+        }
+
+        return Task.FromResult(HealthCheckResult.Healthy());
     }
 }

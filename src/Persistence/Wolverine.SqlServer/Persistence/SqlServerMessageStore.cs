@@ -39,7 +39,7 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
     
     public SqlServerMessageStore(DatabaseSettings database, DurabilitySettings settings,
         ILogger<SqlServerMessageStore> logger, IEnumerable<SagaTableDefinition> sagaTypes)
-        : base(database, SqlClientFactory.Instance.CreateDataSource(database.ConnectionString), settings, logger, new SqlServerMigrator(), SqlServerProvider.Instance)
+        : base(database, SqlClientFactory.Instance.CreateDataSource(database.ConnectionString!), settings, logger, new SqlServerMigrator(), SqlServerProvider.Instance)
     {
         _findAtLargeEnvelopesSql =
             $"select top (@limit) {DatabaseConstants.IncomingFields} from {database.SchemaName}.{DatabaseConstants.IncomingTable} where owner_id = {TransportConstants.AnyNode} and status = '{EnvelopeStatus.Incoming}' and {DatabaseConstants.ReceivedAt} = @address";
@@ -50,7 +50,7 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
 
         foreach (var sagaTableDefinition in sagaTypes)
         {
-            var storage = typeof(DatabaseSagaSchema<,>).CloseAndBuildAs<IDatabaseSagaSchema>(sagaTableDefinition, _settings, sagaTableDefinition.IdMember.GetMemberType(), sagaTableDefinition.SagaType);
+            var storage = typeof(DatabaseSagaSchema<,>).CloseAndBuildAs<IDatabaseSagaSchema>(sagaTableDefinition, _settings, sagaTableDefinition.IdMember.GetMemberType()!, sagaTableDefinition.SagaType);
             _sagaStorage = _sagaStorage.AddOrUpdate(sagaTableDefinition.SagaType, storage);
         }
         
@@ -270,7 +270,7 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
             var count = await conn
                 .CreateCommand($"select count(id) from {SchemaName}.{DatabaseConstants.IncomingTable} where id = @id and {DatabaseConstants.ReceivedAt} = @destination")
                 .With("id", envelope.Id)
-                .With("destination", envelope.Destination.ToString())
+                .With("destination", envelope.Destination!.ToString())
                 .ExecuteScalarAsync(cancellation);
 
             return ((int)count) > 0;
@@ -351,7 +351,7 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
         }
 
         var batch = builder.Compile();
-        batch.Connection = (SqlConnection)tx.Connection;
+        batch.Connection = (SqlConnection)tx.Connection!;
         batch.Transaction = (SqlTransaction)tx;
 
         return batch.ExecuteNonQueryAsync();
@@ -360,6 +360,11 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
     protected override Task<bool> TryAttainLockAsync(int lockId, SqlConnection connection, CancellationToken token)
     {
         return connection.TryGetGlobalLock(lockId.ToString(), token);
+    }
+
+    protected override Task ReleaseLockAsync(int lockId, SqlConnection connection, CancellationToken token)
+    {
+        return connection.ReleaseGlobalLock(lockId.ToString(), token);
     }
 
     protected override DbCommand buildFetchSql(SqlConnection conn, DbObjectName tableName, string[] columnNames, int maxRecords)
@@ -427,7 +432,7 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
             ServerName = builder.DataSource ?? string.Empty,
             DatabaseName = builder.InitialCatalog ?? string.Empty,
             Subject = GetType().FullNameInCode(),
-            SchemaOrNamespace = _settings.SchemaName,
+            SchemaOrNamespace = _settings.SchemaName!,
             SubjectUri = SubjectUri
         };
         
@@ -504,6 +509,7 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
                 var tenantTable = new Table(new DbObjectName(SchemaName, DatabaseConstants.TenantsTableName));
                 tenantTable.AddColumn(StorageConstants.TenantIdColumn, "varchar(100)").AsPrimaryKey();
                 tenantTable.AddColumn(StorageConstants.ConnectionStringColumn, "varchar(500)").NotNull();
+                tenantTable.AddColumn(DatabaseConstants.DisabledColumn, "bit").DefaultValueByExpression("0").NotNull();
                 yield return tenantTable;
             }
             

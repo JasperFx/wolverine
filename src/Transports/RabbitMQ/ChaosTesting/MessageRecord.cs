@@ -12,5 +12,5 @@ public class MessageRecord
     }
 
     public Guid Id { get; set; }
-    public string TypeName { get; set; }
+    public string TypeName { get; set; } = null!;
 }

@@ -63,6 +63,12 @@ public class PostgresqlQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint
     /// </summary>
     public int MaximumMessagesToReceive { get; set; } = 20;
 
+    /// <summary>
+    ///     How often to poll for new messages when the queue is idle.
+    ///     If null, falls back to DurabilitySettings.ScheduledJobPollingTime (default 5s).
+    /// </summary>
+    public TimeSpan? PollingInterval { get; set; }
+
     public override async ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
     {
         if (Parent.AutoProvision)
@@ -252,7 +258,7 @@ public class PostgresqlQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint
 
             try
             {
-                count += (long)await conn.CreateCommand($"select count(*) from {QueueTable.Identifier}").ExecuteScalarAsync();
+                count += (long)(await conn.CreateCommand($"select count(*) from {QueueTable.Identifier}").ExecuteScalarAsync())!;
             }
             finally
             {
@@ -271,7 +277,7 @@ public class PostgresqlQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint
             await using var conn = await source.OpenConnectionAsync();
             try
             {
-                count += (long)await conn.CreateCommand($"select count(*) from {ScheduledTable.Identifier}").ExecuteScalarAsync();
+                count += (long)(await conn.CreateCommand($"select count(*) from {ScheduledTable.Identifier}").ExecuteScalarAsync())!;
             }
             finally
             {

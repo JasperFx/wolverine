@@ -21,9 +21,9 @@ namespace EfCoreTests;
 [Collection("sqlserver")]
 public class persisting_envelopes_with_sqlserver : IAsyncLifetime
 {
-    private IHost _host;
-    private Envelope theIncomingEnvelope;
-    private Envelope theOutgoingEnvelope;
+    private IHost _host = null!;
+    private Envelope theIncomingEnvelope = null!;
+    private Envelope theOutgoingEnvelope = null!;
 
     public async Task InitializeAsync()
     {
@@ -132,6 +132,43 @@ public class persisting_envelopes_with_sqlserver : IAsyncLifetime
         envelope.ReplyUri.ShouldBe(theIncomingEnvelope.ReplyUri);
         envelope.Destination.ShouldBe(theIncomingEnvelope.Destination);
         envelope.SentAt.ShouldBe(theIncomingEnvelope.SentAt);
+    }
+
+    [Fact]
+    public async Task persist_outgoing_batch_uses_add_range()
+    {
+        var runtime = _host.GetRuntime();
+        var context = new MessageContext(runtime);
+
+        using var scope = _host.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<SampleMappedDbContext>();
+
+        var envelopes = Enumerable.Range(0, 3).Select(_ => new Envelope
+        {
+            Id = Guid.NewGuid(),
+            Status = EnvelopeStatus.Outgoing,
+            OwnerId = 5,
+            Data = [1, 2, 3],
+            MessageType = "batch-test",
+            Destination = new Uri("rabbitmq://queue/batch")
+        }).ToArray();
+
+        var transaction = new EfCoreEnvelopeTransaction(dbContext, context);
+        await transaction.PersistOutgoingAsync(envelopes);
+        await dbContext.SaveChangesAsync();
+
+        if (dbContext.Database.CurrentTransaction != null)
+        {
+            await dbContext.Database.CurrentTransaction.CommitAsync();
+        }
+
+        var storage = _host.Services.GetRequiredService<IMessageStore>();
+        var persisted = await storage.Admin.AllOutgoingAsync();
+
+        foreach (var envelope in envelopes)
+        {
+            persisted.ShouldContain(x => x.Id == envelope.Id);
+        }
     }
 
     [Fact]

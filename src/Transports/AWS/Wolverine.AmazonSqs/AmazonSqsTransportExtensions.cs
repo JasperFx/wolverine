@@ -235,6 +235,7 @@ public static class AmazonSqsTransportExtensions
         topology.SetExternalTopology(opts =>
         {
             var t = new PartitionedMessageTopologyWithQueues(opts, PartitionSlots.Five, baseName, numberOfEndpoints);
+            t.ConfigureListening(x => {});
             configure?.Invoke(t);
             return t;
         }, baseName);

@@ -94,9 +94,21 @@ opts.ListenToSqlServerQueue("sender").BufferedInMemory();
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqlServerTests/Transport/compliance_tests.cs#L67-L71' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setting_sql_server_queue_to_buffered' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-Using this option just means that the Sql Server queues can be used for both sending or receiving with no integration 
+Using this option just means that the Sql Server queues can be used for both sending or receiving with no integration
 with the transactional inbox or outbox. This is a little more performant, but less safe as messages could be
-lost if held in memory when the application shuts down unexpectedly. 
+lost if held in memory when the application shuts down unexpectedly.
+
+### Polling
+The Sql Server transport polls queues on a configured interval. The default interval is controlled globally by
+`DurabilitySettings.ScheduledJobPollingTime` (default: 5 seconds).
+
+You can override the polling interval for a specific queue:
+
+```cs
+opts.ListenToSqlServerQueue("inbound").PollingInterval(2.Seconds());
+```
+
+When not set, the queue falls back to the global `DurabilitySettings.ScheduledJobPollingTime`.
 
 If you want to use Sql Server as a queueing mechanism between multiple applications, you'll need:
 
@@ -148,6 +160,11 @@ _listener = await Host.CreateDefaultBuilder()
 ## Lightweight Saga Usage <Badge type="tip" text="3.0" />
 
 See the details on [Lightweight Saga Storage](/guide/durability/sagas.html#lightweight-saga-storage) for more information.
+
+If you are using string-identified sagas with the lightweight storage, be aware that the default `varchar(100)`
+identity column can cause performance issues due to SQL Server's implicit `varchar`/`nvarchar` conversion on
+query parameters. See [SQL Server String Identity and nvarchar](/guide/durability/sagas.html#sql-server-string-identity-and-nvarchar)
+for the opt-in fix.
 
 ## Multi-Tenancy <Badge type="tip" text="4.0" />
 

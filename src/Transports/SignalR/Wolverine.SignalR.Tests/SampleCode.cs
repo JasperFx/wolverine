@@ -37,7 +37,7 @@ public class SampleCode
             // hosted on your application and include the exact route where
             // the WolverineHub is listening
             var url = builder.Configuration.GetValue<string>("signalr.url");
-            opts.UseClientToSignalR(url);
+            opts.UseClientToSignalR(url!);
 
             // Setting this up to publish any messages implementing
             // the WebSocketMessage marker interface with the SignalR
@@ -45,7 +45,7 @@ public class SampleCode
             opts.Publish(x =>
             {
                 x.MessagesImplementing<WebSocketMessage>();
-                x.ToSignalRWithClient(url);
+                x.ToSignalRWithClient(url!);
             });
         });
 

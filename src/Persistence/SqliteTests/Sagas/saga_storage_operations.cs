@@ -99,7 +99,7 @@ public class saga_storage_operations : SqliteContext, IAsyncLifetime
         using var db2 = await conn.BeginTransactionAsync();
         var saga2 = await _theSchema.LoadAsync(saga.Id, db2, CancellationToken.None);
 
-        saga2.Name.ShouldBe("Xavier Worthy");
+        saga2!.Name.ShouldBe("Xavier Worthy");
     }
 
     [Fact]
@@ -123,7 +123,7 @@ public class saga_storage_operations : SqliteContext, IAsyncLifetime
         using var db2 = await conn.BeginTransactionAsync();
         var saga2 = await _theSchema.LoadAsync(saga.Id, db2, CancellationToken.None);
 
-        saga2.Name.ShouldBe("Hollywood Brown");
+        saga2!.Name.ShouldBe("Hollywood Brown");
     }
 
     [Fact]
@@ -189,5 +189,5 @@ public class saga_storage_operations : SqliteContext, IAsyncLifetime
 public class LightweightSaga : Saga
 {
     public Guid Id { get; set; }
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
 }

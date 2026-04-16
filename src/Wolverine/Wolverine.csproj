@@ -9,6 +9,7 @@
         <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" />
         <PackageReference Include="Microsoft.Extensions.Configuration.Binder" />
         <PackageReference Include="Microsoft.Extensions.Configuration.Json" />
+        <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions" />
         <PackageReference Include="Microsoft.Extensions.Hosting" />
         <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
         <PackageReference Include="Microsoft.Extensions.ObjectPool" />
@@ -21,10 +22,19 @@
         <PackageReference Include="JasperFx" />
         <PackageReference Include="JasperFx.Events" />
         <PackageReference Include="JasperFx.RuntimeCompiler" />
+        <PackageReference Include="JasperFx.SourceGeneration"
+                          OutputItemType="Analyzer"
+                          ReferenceOutputAssembly="false" />
     </ItemGroup>
 
     <ItemGroup>
       <None Include="Runtime\Metrics\METRICS.md" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\Wolverine.SourceGeneration\Wolverine.SourceGeneration.csproj"
+                        OutputItemType="Analyzer"
+                        ReferenceOutputAssembly="false" />
     </ItemGroup>
 
     <Import Project="../../Analysis.Build.props" />

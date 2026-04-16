@@ -57,6 +57,6 @@ public class NodeRecord : ISerializable
 
     public static object Read(byte[] bytes)
     {
-        return JsonSerializer.Deserialize<NodeRecord>(bytes);
+        return JsonSerializer.Deserialize<NodeRecord>(bytes)!;
     }
 }

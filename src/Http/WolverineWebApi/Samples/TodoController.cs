@@ -144,7 +144,7 @@ public static class UpdateEndpoint
         // but note the [Required] attribute
         [Required] Todo? todo)
     {
-        todo.Name = request.Name;
+        todo!.Name = request.Name;
         todo.IsComplete = request.IsComplete;
 
         return MartenOps.Store(todo);
@@ -182,7 +182,7 @@ public static class UpdateEndpointWithValidation
 
     public static IResult Validate([Required] Todo? todo)
     {
-        return todo.IsComplete
+        return todo!.IsComplete
             ? Results.ValidationProblem([new("IsComplere", ["Completed Todo cannot be updated"])])
             : WolverineContinue.Result();
     }
@@ -199,7 +199,7 @@ public static class UpdateEndpointWithValidation
         // but note the [Required] attribute
         [Required] Todo? todo)
     {
-        todo.Name = request.Name;
+        todo!.Name = request.Name;
         todo.IsComplete = request.IsComplete;
 
         return MartenOps.Store(todo);
@@ -220,7 +220,7 @@ public static class UpdateEndpointWithMiddleware
         // but note the [Required] attribute
         [Required] Todo? todo)
     {
-        todo.Name = request.Name;
+        todo!.Name = request.Name;
         todo.IsComplete = request.IsComplete;
 
         return MartenOps.Store(todo);
@@ -248,7 +248,7 @@ public static class UpdateEndpointWithPolicy
         // but note the [Required] attribute
         [Required] Todo? todo)
     {
-        todo.Name = request.Name;
+        todo!.Name = request.Name;
         todo.IsComplete = request.IsComplete;
 
         return MartenOps.Store(todo);

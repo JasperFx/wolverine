@@ -222,6 +222,32 @@ using var host = await Host.CreateDefaultBuilder()
 
 Calling `EnableWolverineControlQueues()` implicitly enables system queues and request/reply support as well.
 
+## Global Partitioning
+
+Amazon SQS queues can be used as the external transport for [global partitioned messaging](/guide/messaging/partitioning#global-partitioning). This creates a set of sharded SQS queues with companion local queues for sequential processing across a multi-node cluster.
+
+Use `UseShardedAmazonSqsQueues()` within a `GlobalPartitioned()` configuration:
+
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.UseAmazonSqsTransport().AutoProvision();
+
+        opts.MessagePartitioning.ByMessage<IMyMessage>(x => x.GroupId);
+
+        opts.MessagePartitioning.GlobalPartitioned(topology =>
+        {
+            // Creates 4 sharded SQS queues named "orders1" through "orders4"
+            // with matching companion local queues for sequential processing
+            topology.UseShardedAmazonSqsQueues("orders", 4);
+            topology.MessagesImplementing<IMyMessage>();
+        });
+    }).StartAsync();
+```
+
+This creates SQS queues named `orders1` through `orders4` with companion local queues `global-orders1` through `global-orders4`. Messages are routed to the correct shard based on their group id, and Wolverine handles the coordination between nodes automatically.
+
 ## Disabling System Queues <Badge type="tip" text="5.14" />
 
 If your application does not have IAM permissions to create or delete queues, you can explicitly disable system queues:

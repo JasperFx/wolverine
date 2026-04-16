@@ -34,9 +34,7 @@ public class RandomFileChangeForPublish
 public class when_session_is_tracked_for_published_message_without_handler : IAsyncLifetime
 {
     private readonly ITestOutputHelper _testOutputHelper;
-    private IHost _host;
-
-    private IHost _secondHost;
+    private IHost _host = null!;
 
     public when_session_is_tracked_for_published_message_without_handler(
         ITestOutputHelper testOutputHelper

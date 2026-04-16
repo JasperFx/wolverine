@@ -27,9 +27,10 @@ internal class SqlServerQueueListener : IListener
     private readonly string _tryPopMessagesToInboxSql;
     private readonly string _moveScheduledToReadyQueueSql;
     private readonly string _deleteExpiredSql;
+    private readonly TimeSpan _pollingInterval;
 
     public SqlServerQueueListener(SqlServerQueue queue, IWolverineRuntime runtime, IReceiver receiver)
-        : this(queue, runtime, receiver, queue.Parent.Settings.ConnectionString, null)
+        : this(queue, runtime, receiver, queue.Parent.Settings.ConnectionString!, null)
     {
     }
 
@@ -43,6 +44,7 @@ internal class SqlServerQueueListener : IListener
         _databaseName = databaseName;
         _logger = runtime.LoggerFactory.CreateLogger<SqlServerQueueListener>();
         _settings = runtime.DurabilitySettings;
+        _pollingInterval = queue.PollingInterval ?? _settings.ScheduledJobPollingTime;
 
         _sender = new SqlServerQueueSender(queue, connectionString, databaseName);
 
@@ -164,7 +166,7 @@ select count(*) from #temp_move_{queue.Name}
 
                 failedCount = 0;
 
-                await Task.Delay(_settings.ScheduledJobPollingTime);
+                await Task.Delay(_pollingInterval);
             }
             catch (Exception e)
             {
@@ -227,7 +229,7 @@ select count(*) from #temp_move_{queue.Name}
                 else
                 {
                     // Slow down if this is a periodically used queue
-                    await Task.Delay(_settings.ScheduledJobPollingTime);
+                    await Task.Delay(_pollingInterval);
                 }
             }
             catch (Exception e)

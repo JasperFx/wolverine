@@ -294,12 +294,12 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
 
     public async Task ReassignIncomingAsync(int ownerId, IReadOnlyList<Envelope> incoming)
     {
-        string tenantId = null;
+        string tenantId = null!;
         try
         {
-            tenantId = incoming.Select(x => x.TenantId).Distinct().Single();
+            tenantId = incoming.Select(x => x.TenantId).Distinct().Single()!;
         }
-        catch (Exception e)
+        catch (Exception)
         {
             throw new ArgumentOutOfRangeException(nameof(incoming),
                 "Invalid in this case to use a mixed bag of tenanted envelopes");
@@ -309,7 +309,7 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
         await database.ReassignIncomingAsync(ownerId, incoming);
     }
 
-    public string Name { get; }
+    public string Name { get; } = null!;
     public void PromoteToMain(IWolverineRuntime runtime)
     {
         // Nothing here. 
@@ -590,7 +590,7 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
             }
         }
 
-        var store = await Source.FindAsync(context.TenantId) as ISagaSupport;
+        var store = await Source.FindAsync(context.TenantId!) as ISagaSupport;
         if (store != null)
         {
             return await store.EnrollAndFetchSagaStorage<TId, TSaga>(context);
@@ -626,30 +626,30 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
             return Main;
         }
 
-        if (tenantId.EqualsIgnoreCase(TransportConstants.Default))
+        if (tenantId!.EqualsIgnoreCase(TransportConstants.Default))
         {
             return Main;
         }
 
-        if (tenantId.EqualsIgnoreCase(StorageConstants.Main))
+        if (tenantId!.EqualsIgnoreCase(StorageConstants.Main))
         {
             return Main;
         }
 
-        if (_byTenant.TryFind(tenantId, out var store))
+        if (_byTenant.TryFind(tenantId!, out var store))
         {
             return store;
         }
 
-        store = await Source.FindAsync(tenantId);
+        store = await Source.FindAsync(tenantId!);
         if (store != null && _runtime.Options.AutoBuildMessageStorageOnStartup != AutoCreate.None)
         {
             await store.Admin.MigrateAsync();
         }
 
-        _byTenant = _byTenant.AddOrUpdate(tenantId, store);
+        _byTenant = _byTenant.AddOrUpdate(tenantId!, store!);
 
-        return store;
+        return store!;
     }
 
     private IEnumerable<IMessageStore> databases()

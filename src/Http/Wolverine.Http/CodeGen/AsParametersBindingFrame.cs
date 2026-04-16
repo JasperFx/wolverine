@@ -24,6 +24,7 @@ internal class AsParamatersAttributeUsage : IParameterStrategy
         if (IsClassOrNullableClassNotCollection(parameter.ParameterType))
         {
             chain.RequestType = parameter.ParameterType;
+            chain.AsParametersType = parameter.ParameterType;
             chain.IsFormData = true;
             variable = new AsParametersBindingFrame(parameter.ParameterType, chain, container).Variable;
             return true;
@@ -92,8 +93,8 @@ internal class AsParametersBindingFrame : SyncFrame
         {
             if (tryCreateFrame(parameter, chain, container, out var variable))
             {
-                _parameters.Add(variable);
-                if (variable.Creator != null)
+                _parameters.Add(variable!);
+                if (variable!.Creator != null)
                 {
                     _parameterFrames.Add(variable.Creator);
                 }
@@ -111,8 +112,8 @@ internal class AsParametersBindingFrame : SyncFrame
                 }
                 else
                 {
-                    _props.Add(new AssignPropertyFrame(Variable, propertyInfo, variable));
-                    _dependencies.Add(variable);
+                    _props.Add(new AssignPropertyFrame(Variable, propertyInfo, variable!));
+                    _dependencies.Add(variable!);
                 }
             }
         }
@@ -135,7 +136,7 @@ internal class AsParametersBindingFrame : SyncFrame
         {
             _hasForms = true;
             var formName = fatt.Name ?? memberName;
-            variable = chain.TryFindOrCreateFormValue(memberType, memberName, formName);
+            variable = chain.TryFindOrCreateFormValue(memberType, memberName!, formName);
             return true;
         }
 
@@ -143,7 +144,7 @@ internal class AsParametersBindingFrame : SyncFrame
         {
             var queryStringName = qatt.Name ?? memberName;
             variable =
-                chain.TryFindOrCreateQuerystringValue(memberType, queryStringName);
+                chain.TryFindOrCreateQuerystringValue(memberType, queryStringName!);
 
             return true;
         }
@@ -151,7 +152,7 @@ internal class AsParametersBindingFrame : SyncFrame
         if (parameter.TryGetAttribute<FromRouteAttribute>(out var ratt))
         {
             var routeArgumentName = ratt.Name ?? memberName;
-            if (chain.FindRouteVariable(memberType, routeArgumentName, out variable))
+            if (chain.FindRouteVariable(memberType, routeArgumentName!, out variable))
             {
                 return true;
             }
@@ -191,12 +192,12 @@ internal class AsParametersBindingFrame : SyncFrame
 
         var memberType = propertyInfo.PropertyType;
         var memberName = propertyInfo.Name;
-        
+
         if (propertyInfo.TryGetAttribute<FromFormAttribute>(out var fatt))
         {
             _hasForms = true;
             var formName = fatt.Name ?? memberName;
-            variable = chain.TryFindOrCreateFormValue(memberType, memberName, formName);
+            variable = chain.TryFindOrCreateFormValue(memberType, memberName!, formName);
             return true;
         }
 
@@ -204,7 +205,7 @@ internal class AsParametersBindingFrame : SyncFrame
         {
             var queryStringName = qatt.Name ?? memberName;
             variable =
-                chain.TryFindOrCreateQuerystringValue(memberType, queryStringName);
+                chain.TryFindOrCreateQuerystringValue(memberType, queryStringName!);
 
             return true;
         }
@@ -212,7 +213,7 @@ internal class AsParametersBindingFrame : SyncFrame
         if (propertyInfo.TryGetAttribute<FromRouteAttribute>(out var ratt))
         {
             var routeArgumentName = ratt.Name ?? memberName;
-            if (chain.FindRouteVariable(memberType, routeArgumentName, out variable))
+            if (chain.FindRouteVariable(memberType, routeArgumentName!, out variable))
             {
                 return true;
             }

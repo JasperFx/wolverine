@@ -14,7 +14,7 @@ public class endpoint_adds_requesttype_audit_tags_to_activity : IntegrationConte
     {
         var chain = HttpChains.ChainFor("POST", "/auditable/empty");
 
-        chain.AuditedMembers.Single()
+        chain!.AuditedMembers.Single()
             .MemberName.ShouldBe(nameof(AuditablePostBody.Id));
     }
 }

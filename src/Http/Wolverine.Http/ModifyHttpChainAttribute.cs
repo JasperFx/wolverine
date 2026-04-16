@@ -75,6 +75,16 @@ public abstract class WolverineHttpMethodAttribute : Attribute
     /// Swashbuckle
     /// </summary>
     public string? OperationId { get; set; }
+
+    /// <summary>
+    /// Sets the summary for this endpoint in OpenAPI documentation
+    /// </summary>
+    public string? Summary { get; set; }
+
+    /// <summary>
+    /// Sets the description for this endpoint in OpenAPI documentation
+    /// </summary>
+    public string? Description { get; set; }
 }
 
 /// <summary>

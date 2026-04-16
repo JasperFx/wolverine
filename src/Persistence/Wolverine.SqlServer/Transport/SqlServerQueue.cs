@@ -67,6 +67,12 @@ public class SqlServerQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint
     /// </summary>
     public int MaximumMessagesToReceive { get; set; } = 20;
 
+    /// <summary>
+    ///     How often to poll for new messages when the queue is idle.
+    ///     If null, falls back to DurabilitySettings.ScheduledJobPollingTime (default 5s).
+    /// </summary>
+    public TimeSpan? PollingInterval { get; set; }
+
     public override async ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
     {
         if (Parent.AutoProvision)
@@ -142,13 +148,13 @@ public class SqlServerQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint
             // Multi-tenant mode - iterate over all tenant databases
             foreach (var database in Parent.Databases.ActiveDatabases().OfType<SqlServerMessageStore>())
             {
-                await action(database.Settings.ConnectionString, database.Identifier);
+                await action(database.Settings.ConnectionString!, database.Identifier);
             }
         }
         else
         {
             // Single-tenant mode - use the transport's connection string
-            await action(Parent.Settings.ConnectionString, Parent.Settings.SchemaName ?? "wolverine");
+            await action(Parent.Settings.ConnectionString!, Parent.Settings.SchemaName ?? "wolverine");
         }
     }
 
@@ -257,8 +263,8 @@ public class SqlServerQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint
 
             try
             {
-                count += (int)await conn.CreateCommand($"select count(*) from {QueueTable.Identifier}")
-                    .ExecuteScalarAsync();
+                count += (int)(await conn.CreateCommand($"select count(*) from {QueueTable.Identifier}")
+                    .ExecuteScalarAsync())!;
             }
             finally
             {
@@ -279,8 +285,8 @@ public class SqlServerQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint
 
             try
             {
-                count += (int)await conn.CreateCommand($"select count(*) from {ScheduledTable.Identifier}")
-                    .ExecuteScalarAsync();
+                count += (int)(await conn.CreateCommand($"select count(*) from {ScheduledTable.Identifier}")
+                    .ExecuteScalarAsync())!;
             }
             finally
             {
@@ -408,8 +414,8 @@ IF (@NOCOUNT = 'OFF') SET NOCOUNT OFF;";
                 await conn.CreateCommand(_writeDirectlyToQueueTableSql!)
                     .With("id", envelope.Id)
                     .With("body", EnvelopeSerializer.Serialize(envelope))
-                    .With("type", envelope.MessageType)
-                    .With("expires", envelope.DeliverBy)
+                    .With("type", envelope.MessageType!)
+                    .With("expires", envelope.DeliverBy!)
                     .ExecuteNonQueryAsync(cancellationToken);
                 await conn.CloseAsync();
             }
@@ -429,9 +435,9 @@ IF (@NOCOUNT = 'OFF') SET NOCOUNT OFF;";
         await conn.CreateCommand(_writeDirectlyToTheScheduledTable!)
             .With("id", envelope.Id)
             .With("body", EnvelopeSerializer.Serialize(envelope))
-            .With("type", envelope.MessageType)
-            .With("expires", envelope.DeliverBy)
-            .With("time", envelope.ScheduledTime)
+            .With("type", envelope.MessageType!)
+            .With("expires", envelope.DeliverBy!)
+            .With("time", envelope.ScheduledTime!)
             .ExecuteNonQueryAsync(cancellationToken);
         await conn.CloseAsync();
     }

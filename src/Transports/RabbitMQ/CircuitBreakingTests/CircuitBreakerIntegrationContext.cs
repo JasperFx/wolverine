@@ -230,7 +230,7 @@ public class OutputLogger<T> : ILogger<T>, IDisposable
         //return typeof(T).Name == "DurabilityAgent";
     }
 
-    public IDisposable BeginScope<TState>(TState state)
+    public IDisposable BeginScope<TState>(TState state) where TState : notnull
     {
         return this;
     }

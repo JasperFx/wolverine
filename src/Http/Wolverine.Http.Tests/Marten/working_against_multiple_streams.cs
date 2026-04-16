@@ -24,7 +24,7 @@ public class working_against_multiple_streams : IntegrationContext
     {
         using var session = Host.DocumentStore().LightweightSession();
         var account = await session.Events.FetchLatest<Account>(id);
-        return account.Amount;
+        return account!.Amount;
     }
 
     [Fact]

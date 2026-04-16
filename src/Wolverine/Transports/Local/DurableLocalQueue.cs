@@ -44,7 +44,7 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
 
         if (endpoint.CircuitBreakerOptions != null)
         {
-            CircuitBreaker = new CircuitBreaker(endpoint.CircuitBreakerOptions, this);
+            CircuitBreaker = new CircuitBreaker(endpoint.CircuitBreakerOptions, this, runtime.Observer);
             Pipeline = new HandlerPipeline(runtime, new CircuitBreakerTrackedExecutorFactory(CircuitBreaker, runtime),
                 endpoint)
             {
@@ -150,7 +150,7 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
 
     async ValueTask IReceiver.DrainAsync()
     {
-        _receiver.Latch();
+        _receiver!.Latch();
         await _storeAndEnqueue.DrainAsync();
         await _receiver!.DrainAsync();
     }

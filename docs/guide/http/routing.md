@@ -110,6 +110,135 @@ public static StrongLetterAggregate Handle(
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/StrongTypedIdentifiers.cs#L11-L22' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_strong_typed_id_as_route_argument' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Route Prefixes <Badge type="tip" text="5.14" />
+
+Wolverine.HTTP supports route prefix groups to automatically prepend a common prefix to your endpoint routes. This is useful for API versioning, organizing endpoints under a common base path, or grouping related endpoints.
+
+### Global Route Prefix
+
+Use the `RoutePrefix` method on `WolverineHttpOptions` to set a prefix that applies to all Wolverine HTTP endpoints:
+
+```cs
+app.MapWolverineEndpoints(opts =>
+{
+    // All endpoints will be prefixed with /api
+    // e.g., /orders becomes /api/orders
+    opts.RoutePrefix("api");
+});
+```
+
+### Namespace-Specific Prefix
+
+You can target endpoints by their handler class namespace:
+
+```cs
+app.MapWolverineEndpoints(opts =>
+{
+    // Only endpoints in this namespace (and child namespaces)
+    // will get the prefix
+    opts.RoutePrefix("api/orders",
+        forEndpointsInNamespace: "MyApp.Features.Orders");
+
+    opts.RoutePrefix("api/customers",
+        forEndpointsInNamespace: "MyApp.Features.Customers");
+});
+```
+
+When multiple namespace prefixes could match (e.g., `MyApp` and `MyApp.Features`), the most specific (longest) matching namespace wins.
+
+### `[RoutePrefix]` Attribute
+
+You can also apply a prefix to all endpoints in a specific class using the `[RoutePrefix]` attribute:
+
+```cs
+[RoutePrefix("api/v2")]
+public class OrderEndpoints
+{
+    // Route becomes /api/v2/orders
+    [WolverineGet("/orders")]
+    public string GetOrders() => "orders";
+
+    // Route becomes /api/v2/orders/{id}
+    [WolverineGet("/orders/{id}")]
+    public string GetOrder(int id) => $"order {id}";
+}
+```
+
+### Precedence
+
+When multiple prefix sources are configured, the following precedence applies (most specific wins):
+
+1. `[RoutePrefix]` attribute on the endpoint class
+2. Namespace-specific prefix (most specific namespace match)
+3. Global prefix
+
+Only one prefix is applied per endpoint -- they do not stack.
+## Route Prefixes
+
+You can apply a common URL prefix to all endpoints in a handler class using the `[RoutePrefix]` attribute:
+
+```csharp
+[RoutePrefix("/api/v1")]
+public static class V1Endpoints
+{
+    // Resolves to /api/v1/orders
+    [WolverineGet("/orders")]
+    public static string GetOrders() => "V1 Orders";
+
+    // Resolves to /api/v1/orders/{id}
+    [WolverineGet("/orders/{id}")]
+    public static string GetOrder(int id) => $"V1 Order {id}";
+}
+```
+
+You can also configure route prefixes globally or by namespace in your application setup:
+
+```csharp
+app.MapWolverineEndpoints(opts =>
+{
+    // Apply a global prefix to all Wolverine endpoints
+    opts.RoutePrefix("api");
+
+    // Apply a prefix to all endpoints in a specific namespace
+    opts.RoutePrefix("api/v2", forEndpointsInNamespace: "MyApp.Endpoints.V2");
+});
+```
+
+When multiple prefix sources apply, the precedence is: `[RoutePrefix]` attribute > namespace prefix > global prefix. Only one prefix is applied per endpoint — they do not stack.
+
+## API Versioning
+
+For API versioning scenarios, Wolverine recommends using route prefixes to version your endpoints. This approach is simple, explicit, and requires no additional packages:
+
+```csharp
+[RoutePrefix("/api/v1")]
+public static class OrdersV1
+{
+    [WolverineGet("/orders")]
+    public static OrderListResponse GetOrders() => /* ... */;
+}
+
+[RoutePrefix("/api/v2")]
+public static class OrdersV2
+{
+    // V2 returns a different shape
+    [WolverineGet("/orders")]
+    public static OrderListResponseV2 GetOrders() => /* ... */;
+}
+```
+
+You can also version by namespace:
+
+```csharp
+app.MapWolverineEndpoints(opts =>
+{
+    opts.RoutePrefix("api/v1", forEndpointsInNamespace: "MyApp.Endpoints.V1");
+    opts.RoutePrefix("api/v2", forEndpointsInNamespace: "MyApp.Endpoints.V2");
+});
+```
+
+This lets you organize versioned endpoints into separate namespaces and apply the version prefix automatically without any attributes on individual classes.
+
 ## Route Name
 
 You can add a name to the ASP.Net route with this property that is on all of the route definition attributes:

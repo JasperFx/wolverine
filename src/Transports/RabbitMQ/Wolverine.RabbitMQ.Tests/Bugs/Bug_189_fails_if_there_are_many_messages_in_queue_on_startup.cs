@@ -6,6 +6,7 @@ using Xunit;
 
 namespace Wolverine.RabbitMQ.Tests.Bugs;
 
+[Trait("Category", "Flaky")]
 public class Bug_189_fails_if_there_are_many_messages_in_queue_on_startup
 {
     [Fact]

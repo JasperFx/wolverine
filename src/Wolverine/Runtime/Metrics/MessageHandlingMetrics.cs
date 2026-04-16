@@ -132,7 +132,9 @@ public record MessageHandlingMetrics(
 /// <param name="Executions">Handler execution count and total execution time in milliseconds.</param>
 /// <param name="EffectiveTime">Message completion count and total end-to-end time in milliseconds.</param>
 /// <param name="Exceptions">Per-exception-type counts of failures and dead letters, ordered alphabetically by type name.</param>
-public record PerTenantMetrics(string TenantId, Executions Executions, EffectiveTime EffectiveTime, ExceptionCounts[] Exceptions)
+/// <param name="Sent">The number of messages sent during this period.</param>
+/// <param name="Received">The number of messages received from external transports during this period.</param>
+public record PerTenantMetrics(string TenantId, Executions Executions, EffectiveTime EffectiveTime, ExceptionCounts[] Exceptions, int Sent = 0, int Received = 0)
 {
     /// <summary>
     /// Sums a group of <see cref="PerTenantMetrics"/> records sharing the same tenant ID.
@@ -155,13 +157,15 @@ public record PerTenantMetrics(string TenantId, Executions Executions, Effective
             .GroupBy(e => e.ExceptionType)
             .Select(ExceptionCounts.Sum)
             .ToArray();
+        var sent = group.Sum(t => t.Sent);
+        var received = group.Sum(t => t.Received);
 
-        return new PerTenantMetrics(tenantId, executions, effectiveTime, exceptions);
+        return new PerTenantMetrics(tenantId, executions, effectiveTime, exceptions, sent, received);
     }
 
     /// <summary>
     /// Multiplies all numeric values (execution counts and times, effective time counts and times,
-    /// and all exception failure/dead-letter counts) by the given weight.
+    /// sent/received counts, and all exception failure/dead-letter counts) by the given weight.
     /// </summary>
     /// <param name="weight">The multiplier to apply.</param>
     /// <returns>A new weighted copy of this per-tenant snapshot.</returns>
@@ -170,7 +174,9 @@ public record PerTenantMetrics(string TenantId, Executions Executions, Effective
         return new PerTenantMetrics(TenantId,
             Executions.Weight(weight),
             EffectiveTime.Weight(weight),
-            Exceptions.Select(e => e.Weight(weight)).ToArray());
+            Exceptions.Select(e => e.Weight(weight)).ToArray(),
+            Sent * weight,
+            Received * weight);
     }
 }
 

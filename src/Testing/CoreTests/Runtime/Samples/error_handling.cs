@@ -245,7 +245,7 @@ public class MyErrorCausingHandler
 public class InvoiceCreated
 {
     public DateTime Time { get; set; }
-    public string Purchaser { get; set; }
+    public string Purchaser { get; set; } = null!;
     public double Amount { get; set; }
 }
 
@@ -290,11 +290,11 @@ public class RaiseAlert : IContinuation
 
     public async ValueTask ExecuteAsync(IEnvelopeLifecycle lifecycle,
         IWolverineRuntime runtime,
-        DateTimeOffset now, Activity activity)
+        DateTimeOffset now, Activity? activity)
     {
         await lifecycle.SendAsync(new RescheduledAlert
         {
-            Id = lifecycle.Envelope.Id,
+            Id = lifecycle.Envelope!.Id,
             ExceptionText = _ex.ToString()
         });
     }
@@ -305,5 +305,5 @@ public class RaiseAlert : IContinuation
 public class RescheduledAlert
 {
     public Guid Id { get; set; }
-    public string ExceptionText { get; set; }
+    public string ExceptionText { get; set; } = null!;
 }

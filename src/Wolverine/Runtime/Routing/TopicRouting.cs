@@ -9,7 +9,7 @@ using Wolverine.Util;
 
 namespace Wolverine.Runtime.Routing;
 
-public class TopicRouting<T> : IMessageRouteSource, IMessageRoute, IMessageInvoker
+public class TopicRouting<T> : IMessageRouteSource, IMessageRoute, IMessageInvoker, IEndpointSource
 {
     private readonly Func<T, string> _topicSource;
     private readonly Endpoint _topicEndpoint;
@@ -30,6 +30,11 @@ public class TopicRouting<T> : IMessageRouteSource, IMessageRoute, IMessageInvok
     }
 
     public bool IsAdditive => true;
+
+    public IEnumerable<Endpoint> ActiveEndpoints()
+    {
+        yield return _topicEndpoint;
+    }
 
     public Envelope CreateForSending(object message, DeliveryOptions? options, ISendingAgent localDurableQueue,
         WolverineRuntime runtime, string? topicName)
@@ -136,7 +141,7 @@ internal static class TopicRouting
             throw new ArgumentNullException(nameof(envelope),
                 $"{nameof(envelope.Message)} is null, making this operation invalid");
 
-        return envelope.TopicName ?? DetermineTopicName(envelope.Message?.GetType());
+        return envelope.TopicName ?? DetermineTopicName(envelope.Message?.GetType()!);
     }
 }
 

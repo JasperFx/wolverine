@@ -57,7 +57,7 @@ internal class OutgoingSnsBatch
                 var entry = new PublishBatchRequestEntry
                 {
                     Id = envelope.Id.ToString(),
-                    Message = topic.Mapper.BuildMessageBody(envelope)
+                    Message = topic.Mapper!.BuildMessageBody(envelope)
                 };
                 
                 if (envelope.GroupId.IsNotEmpty())

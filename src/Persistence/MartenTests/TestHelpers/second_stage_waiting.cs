@@ -18,7 +18,7 @@ namespace MartenTests.TestHelpers;
 
 public class second_stage_waiting : IAsyncLifetime
 {
-    private IHost _host;
+    private IHost _host = null!;
 
     public async Task InitializeAsync()
     {
@@ -151,7 +151,7 @@ public static class GotFiveHandler
 
 public class LetterCountsProjectionWithSideEffects: SingleStreamProjection<LetterCounts, Guid>
 {
-    public override LetterCounts Evolve(LetterCounts snapshot, Guid id, IEvent e)
+    public override LetterCounts Evolve(LetterCounts? snapshot, Guid id, IEvent e)
     {
 
         switch (e.Data)
@@ -182,12 +182,12 @@ public class LetterCountsProjectionWithSideEffects: SingleStreamProjection<Lette
                 break;
         }
 
-        return snapshot;
+        return snapshot!;
     }
 
     public override ValueTask RaiseSideEffects(IDocumentOperations operations, IEventSlice<LetterCounts> slice)
     {
-        if (slice.Snapshot.ECount >= 5)
+        if (slice.Snapshot!.ECount >= 5)
         {
             slice.PublishMessage(new GotFive(slice.Snapshot.Id));
         }

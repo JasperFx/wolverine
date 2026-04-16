@@ -92,6 +92,23 @@ Some notes about the middleware:
   validators in the underlying IoC container
 * The registration also adds an error handling policy to discard messages when a `ValidationException` is thrown
 
+::: warning
+Wolverine's code generation works best when validator types are **public**. If you need to use `internal` validators, you must
+enable `IncludeInternalTypes` in the FluentValidation configuration and register those validators with a **Singleton** scope
+for Wolverine to use them in generated code:
+
+```csharp
+opts.UseFluentValidation(fv =>
+{
+    fv.IncludeInternalTypes = true;
+});
+```
+
+Note that `internal` validators discovered this way that have no constructor dependencies will be registered as `Singleton`.
+Validators with constructor dependencies will be registered as `Scoped`, which may force Wolverine to use a service locator
+pattern in the generated code. Prefer `public` validators whenever possible.
+:::
+
 ## Customizing the Validation Failure Behavior
 
 ::: tip

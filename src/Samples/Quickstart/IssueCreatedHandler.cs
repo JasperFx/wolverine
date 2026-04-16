@@ -44,7 +44,7 @@ public static class UserAssignedHandler
     public static void Handle(IssueAssigned assigned, UserRepository users, IssueRepository issues)
     {
         var issue = issues.Get(assigned.Id);
-        var user = users.Get(issue.AssigneeId.Value);
+        var user = users.Get(issue.AssigneeId!.Value);
         var message = BuildEmailMessage(issue, user);
         using var client = new SmtpClient();
         client.SendAsync(message, "some token");

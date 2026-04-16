@@ -71,8 +71,9 @@ The available commands are:
   help        List all the available commands                                                       
   resources   Check, setup, or teardown stateful resources of this system                           
   run         Start and run this .Net application                                                   
-  storage     Administer the Wolverine message storage                                                       
-                                                                                                    
+  storage                Administer the Wolverine message storage
+  wolverine-diagnostics  Wolverine diagnostics tools for inspecting generated code and runtime behavior
+
 
 Use dotnet run -- ? [command name] or dotnet run -- help [command name] to see usage help about a specific command
 
@@ -117,6 +118,118 @@ to help you troubleshoot issues in the future.
 
 This functionality was originally built for consumption in the "CritterWatch" add on tool, but was requested by a [JasperFx Software](https://jasperfx.net)
 client to provide a mechanism to detect any unintentional changes to Wolverine application configuration.
+
+## CLI Commands Work Without External Connectivity
+
+::: tip
+This applies to `codegen write`, `codegen preview`, `describe`, and OpenAPI generation tools such as
+`GetDocument.Insider` (Microsoft.Extensions.ApiDescription.Server). You do **not** need a running
+database or message broker for these commands to succeed.
+:::
+
+Wolverine automatically detects when it is running in a metadata-only CLI mode and suppresses
+persistence and transport initialization. No database connections or message broker connections
+are opened. This allows commands like `codegen` and `describe` to work safely in CI pipelines or
+developer machines that do not have external infrastructure available.
+
+Detection is based on two signals:
+
+1. **`DynamicCodeBuilder.WithinCodegenCommand`** — set by JasperFx when the `codegen` command is
+   used, either via `dotnet run -- codegen ...` or the `--start` flag.
+2. **`ASPNETCORE_HOSTINGSTARTUPASSEMBLIES` environment variable** — contains `"GetDocument"` when
+   OpenAPI generation tools like `GetDocument.Insider` start the host.
+
+When either condition is true, Wolverine applies the equivalent of "lightweight mode":
+external transports are stubbed out, durability agents are disabled, and the durability
+mode is set to `MediatorOnly`.
+
+If you need to explicitly disable persistence initialization for other tooling (e.g., your own
+OpenAPI generation pipeline), you can use the `DisableAllWolverineMessagePersistence()` extension:
+
+```csharp
+// In Program.cs or Startup.cs, guard with an environment check for your tooling
+builder.Services.DisableAllWolverineMessagePersistence();
+```
+
+## Wolverine Diagnostics Commands <Badge type="tip" text="5.14" />
+
+The `wolverine-diagnostics` command is an extensible parent command for deeper Wolverine-specific
+inspection tools.
+
+::: tip
+Both `codegen-preview` and `describe-routing` work without database or message-broker connectivity.
+Wolverine automatically detects CLI codegen mode and stubs out persistence and transports.
+:::
+
+### codegen-preview
+
+Preview the full generated adapter code for a **specific** message handler or HTTP endpoint without
+generating all handlers at once. This is useful when you want to understand exactly what middleware,
+dependency resolution, or transaction wrapping Wolverine applies to a single entry point.
+
+**Preview a message handler** (accepts fully-qualified name, short class name, or handler class name):
+
+```bash
+# Fully-qualified message type
+dotnet run -- wolverine-diagnostics codegen-preview --handler MyApp.Orders.CreateOrder
+
+# Short message type name (fuzzy match)
+dotnet run -- wolverine-diagnostics codegen-preview --handler CreateOrder
+
+# Handler class name
+dotnet run -- wolverine-diagnostics codegen-preview --handler CreateOrderHandler
+```
+
+**Preview an HTTP endpoint** (requires Wolverine.HTTP; format: `"METHOD /path"`):
+
+```bash
+dotnet run -- wolverine-diagnostics codegen-preview --route "POST /api/orders"
+dotnet run -- wolverine-diagnostics codegen-preview --route "GET /api/orders/{id}"
+```
+
+The output includes the full generated class — the `Handle` or `HandleAsync` override, all
+middleware calls in order, dependency resolution from the IoC container, and any
+transaction-wrapping frames. This is identical to what `codegen preview` outputs, but scoped to
+exactly one handler so the signal-to-noise ratio is much higher.
+
+### describe-routing <Badge type="tip" text="5.15" />
+
+Inspect the message routing configuration for a specific message type or show a complete view of
+all message routing in your application.
+
+**Inspect routing for a single message type** (accepts full name, short name, or fuzzy match):
+
+```bash
+# Short class name
+dotnet run -- wolverine-diagnostics describe-routing CreateOrder
+
+# Fully-qualified name
+dotnet run -- wolverine-diagnostics describe-routing MyApp.Orders.CreateOrder
+```
+
+The output for a single message type includes:
+
+- **Local handler** — the handler class and method, if any
+- **Routes table** — each destination with its type (local vs. external), endpoint mode
+  (Buffered/Durable/Inline), outbox enrollment, serialization format, and how the route was
+  resolved (local handler convention, explicit publish rule, transport routing convention, or
+  `[LocalQueue]` attribute)
+- **Message-level attributes** — any `ModifyEnvelopeAttribute`-derived attributes (e.g.,
+  `[DeliverWithin]`) applied to the message class
+
+**Show the complete routing topology** (all message types):
+
+```bash
+dotnet run -- wolverine-diagnostics describe-routing --all
+```
+
+The `--all` output includes:
+
+- **Routing Conventions** — transport-level conventions registered via `RouteWith()`
+- **Message Routing** table — every known message type with its destinations, mode, outbox status,
+  and serializer; unrouted types are flagged in yellow
+- **Listeners** — all configured listening endpoints with name, mode, and parallelism
+- **Senders** — all configured sending endpoints with name, mode, and subscription count
 
 ## Other Highlights
 

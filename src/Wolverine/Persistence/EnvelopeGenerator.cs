@@ -35,7 +35,7 @@ public class EnvelopeGenerator
     {
         var envelope = new Envelope(MessageSource())
         {
-            Id = NewId.NextSequentialGuid(),
+            Id = Envelope.IdGenerator(),
             Destination = ReceivedAt,
             TenantId = TenantId,
             Serializer = Serializer,
@@ -44,7 +44,7 @@ public class EnvelopeGenerator
             Source = SourceServiceName
         };
         
-        envelope.Data = envelope.Serializer.WriteMessage(envelope.Message);
+        envelope.Data = envelope.Serializer.WriteMessage(envelope.Message!);
         
         if (Random.Shared.Next(0, 10) < 2)
         {

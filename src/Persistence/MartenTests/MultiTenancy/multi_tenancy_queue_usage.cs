@@ -22,13 +22,13 @@ namespace MartenTests.MultiTenancy;
 
 public class multi_tenancy_queue_usage : PostgresqlContext, IAsyncLifetime
 {
-    private IHost _receiver;
-    private IDocumentStore theStore;
-    private string tenant1ConnectionString;
-    private string tenant2ConnectionString;
-    private string tenant3ConnectionString;
-    private string tenant4ConnectionString;
-    private IHost _sender;
+    private IHost _receiver = null!;
+    private IDocumentStore theStore = null!;
+    private string tenant1ConnectionString = null!;
+    private string tenant2ConnectionString = null!;
+    private string tenant3ConnectionString = null!;
+    private string tenant4ConnectionString = null!;
+    private IHost _sender = null!;
     private MultiTenantedQueueListener? theListener;
 
     private async Task<string> CreateDatabaseIfNotExists(NpgsqlConnection conn, string databaseName)
@@ -142,7 +142,7 @@ public class multi_tenancy_queue_usage : PostgresqlContext, IAsyncLifetime
         theStore = _receiver.Services.GetRequiredService<IDocumentStore>();
         await theStore.Advanced.Clean.DeleteAllDocumentsAsync();
 
-        theListener = (MultiTenantedQueueListener)_receiver
+        theListener = (MultiTenantedQueueListener?)_receiver
             .GetRuntime()
             .Endpoints
             .ActiveListeners()
@@ -163,7 +163,7 @@ public class multi_tenancy_queue_usage : PostgresqlContext, IAsyncLifetime
     [Fact]
     public void has_active_listeners_for_the_existing_databases()
     {
-        theListener.IsListeningToDatabase("tenant1").ShouldBeTrue();
+        theListener!.IsListeningToDatabase("tenant1").ShouldBeTrue();
         theListener.IsListeningToDatabase("tenant2").ShouldBeTrue();
     }
 
@@ -176,7 +176,7 @@ public class multi_tenancy_queue_usage : PostgresqlContext, IAsyncLifetime
 
         for (int i = 0; i < 10; i++)
         {
-            var has3 = theListener.IsListeningToDatabase("tenant3");
+            var has3 = theListener!.IsListeningToDatabase("tenant3");
             var has4 = theListener.IsListeningToDatabase("tenant4");
 
             if (has3 && has4) return;

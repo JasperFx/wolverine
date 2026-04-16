@@ -17,13 +17,13 @@ public class EfCoreEnvelopeTransaction : IEnvelopeTransaction
 {
     private readonly MessageContext _messaging;
     private readonly IDomainEventScraper[] _scrapers;
-    private readonly IMessageDatabase _database;
-    
+    private readonly IMessageDatabase _database = null!;
+
     public EfCoreEnvelopeTransaction(DbContext dbContext, MessageContext messaging, IEnumerable<IDomainEventScraper> scrapers)
     {
         _messaging = messaging;
         _scrapers = scrapers.ToArray();
-        if (!messaging.TryFindMessageDatabase(out _database))
+        if (!messaging.TryFindMessageDatabase(out _database!))
         {
             throw new InvalidOperationException(
                 "This Wolverine application is not using Database backed message persistence. Please configure the message persistence");
@@ -79,17 +79,13 @@ public class EfCoreEnvelopeTransaction : IEnvelopeTransaction
 
         if (DbContext.IsWolverineEnabled())
         {
-            foreach (var envelope in envelopes)
-            {
-                var outgoing = new OutgoingMessage(envelope);
-                DbContext.Add(outgoing);
-            }
+            DbContext.AddRange(envelopes.Select(e => new OutgoingMessage(e)));
         }
         else
         {
             var conn = DbContext.Database.GetDbConnection();
             var tx = DbContext.Database.CurrentTransaction!.GetDbTransaction();
-            var cmd = DatabasePersistence.BuildIncomingStorageCommand(envelopes, _database);
+            var cmd = DatabasePersistence.BuildOutgoingStorageCommand(envelopes, envelopes[0].OwnerId, _database);
             cmd.Transaction = tx;
             cmd.Connection = conn;
 

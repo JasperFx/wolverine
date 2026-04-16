@@ -75,7 +75,7 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
         
         foreach (var sagaTableDefinition in sagaTypes)
         {
-            var storage = typeof(DatabaseSagaSchema<,>).CloseAndBuildAs<IDatabaseSagaSchema>(sagaTableDefinition, _settings, sagaTableDefinition.SagaType, sagaTableDefinition.IdMember.GetMemberType());
+            var storage = typeof(DatabaseSagaSchema<,>).CloseAndBuildAs<IDatabaseSagaSchema>(sagaTableDefinition, _settings, sagaTableDefinition.SagaType, sagaTableDefinition.IdMember.GetMemberType()!);
             _sagaStorage = _sagaStorage.AddOrUpdate(sagaTableDefinition.SagaType, storage);
         }
     }
@@ -170,6 +170,11 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
         return await connection.TryGetGlobalLock(lockId, cancellation: token) == AttainLockResult.Success;
     }
 
+    protected override Task ReleaseLockAsync(int lockId, NpgsqlConnection connection, CancellationToken token)
+    {
+        return connection.ReleaseGlobalLock(lockId, cancellation: token);
+    }
+
     protected override DbCommand buildFetchSql(NpgsqlConnection conn, DbObjectName tableName, string[] columnNames, int maxRecords)
     {
         return conn.CreateCommand($"select {columnNames.Join(", ")} from {tableName.QualifiedName} LIMIT :limit")
@@ -189,17 +194,54 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
             await fetchCountsWithGroupBy(counts);
         }
 
-        var longCount = await CreateCommand($"select count(*) from {SchemaName}.{DatabaseConstants.OutgoingTable}")
-            .ExecuteScalarAsync();
-
-        counts.Outgoing = Convert.ToInt32(longCount);
-
-        var deadLetterCount = await CreateCommand($"select count(*) from {SchemaName}.{DatabaseConstants.DeadLetterTable}")
-            .ExecuteScalarAsync();
-
-        counts.DeadLetter = Convert.ToInt32(deadLetterCount);
+        counts.Outgoing = await estimateTableCount(DatabaseConstants.OutgoingTable);
+        counts.DeadLetter = await estimateTableCount(DatabaseConstants.DeadLetterTable);
 
         return counts;
+    }
+
+    private async Task<int> estimateTableCount(string tableName)
+    {
+        // Use pg_class reltuples for a fast estimation instead of expensive count(*).
+        // Same approach as the partition estimation: handles never-vacuumed tables
+        // (reltuples < 0) and empty tables (relpages = 0), then scales by current
+        // relation size.
+        var sql = $@"
+select (case when c.reltuples < 0 then 0
+             when c.relpages = 0 then 0
+             else (c.reltuples / c.relpages)
+                  * (pg_catalog.pg_relation_size(c.oid)
+                     / pg_catalog.current_setting('block_size')::int)
+        end)::bigint as estimated_count,
+       c.reltuples,
+       pg_catalog.pg_relation_size(c.oid) as relation_size
+from pg_catalog.pg_class c
+join pg_catalog.pg_namespace n on n.oid = c.relnamespace and n.nspname = '{SchemaName}'
+where c.relname = '{tableName}';";
+
+        await using var reader = await CreateCommand(sql).ExecuteReaderAsync();
+        if (await reader.ReadAsync())
+        {
+            var estimate = await reader.GetFieldValueAsync<long>(0);
+            var reltuples = await reader.GetFieldValueAsync<float>(1);
+            var relationSize = await reader.GetFieldValueAsync<long>(2);
+
+            await reader.CloseAsync();
+
+            // If the table has physical data but reltuples hasn't been updated
+            // by VACUUM/ANALYZE, fall back to exact count
+            if (reltuples <= 0 && relationSize > 0)
+            {
+                var exactCount = await CreateCommand($"select count(*) from {SchemaName}.{tableName}")
+                    .ExecuteScalarAsync();
+                return Convert.ToInt32(exactCount);
+            }
+
+            return (int)estimate;
+        }
+
+        await reader.CloseAsync();
+        return 0;
     }
 
     private async Task fetchCountsWithGroupBy(PersistedCounts counts)
@@ -298,6 +340,23 @@ join pg_catalog.pg_namespace n on n.oid = c.relnamespace and n.nspname = '{Schem
         }
     }
 
+    protected override async Task afterTruncateEnvelopeDataAsync(DbConnection conn)
+    {
+        // After deleting data, PostgreSQL's pg_class.reltuples statistics become stale.
+        // FetchCountsAsync() uses these stats for fast estimation, so we must run ANALYZE
+        // to update them after bulk deletes.
+        await conn.CreateCommand($"ANALYZE {SchemaName}.{DatabaseConstants.DeadLetterTable}")
+            .ExecuteNonQueryAsync(_cancellation);
+        await conn.CreateCommand($"ANALYZE {SchemaName}.{DatabaseConstants.OutgoingTable}")
+            .ExecuteNonQueryAsync(_cancellation);
+
+        if (Durability.EnableInboxPartitioning)
+        {
+            await conn.CreateCommand($"ANALYZE {SchemaName}.{DatabaseConstants.IncomingTable}")
+                .ExecuteNonQueryAsync(_cancellation);
+        }
+    }
+
     public override async Task DiscardAndReassignOutgoingAsync(Envelope[] discards, Envelope[] reassigned, int nodeId)
     {
         await using var cmd = CreateCommand(_discardAndReassignOutgoingSql)
@@ -349,7 +408,7 @@ join pg_catalog.pg_namespace n on n.oid = c.relnamespace and n.nspname = '{Schem
                 .With("id", envelope.Id)
                 .ExecuteScalarAsync(cancellation);
 
-            return ((long)count) > 0;
+            return ((long)count!) > 0;
         }
         else
         {
@@ -357,10 +416,10 @@ join pg_catalog.pg_namespace n on n.oid = c.relnamespace and n.nspname = '{Schem
             var count = await conn
                 .CreateCommand($"select count(id) from {SchemaName}.{DatabaseConstants.IncomingTable} where id = :id and {DatabaseConstants.ReceivedAt} = :destination")
                 .With("id", envelope.Id)
-                .With("destination", envelope.Destination.ToString())
+                .With("destination", envelope.Destination!.ToString())
                 .ExecuteScalarAsync(cancellation);
 
-            return ((long)count) > 0;
+            return ((long)count!) > 0;
         }
     }
 
@@ -461,16 +520,16 @@ join pg_catalog.pg_namespace n on n.oid = c.relnamespace and n.nspname = '{Schem
         
         descriptor.TenantIds.AddRange(TenantIds);
 
-        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.Host));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.Host!));
         descriptor.Properties.Add(OptionsValue.Read(builder, x => x.Port));
-        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.Database));
-        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.Username));
-        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.ApplicationName));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.Database!));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.Username!));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.ApplicationName!));
         descriptor.Properties.Add(OptionsValue.Read(builder, x => x.Enlist));
-        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.SearchPath));
-        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.ClientEncoding));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.SearchPath!));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.ClientEncoding!));
         descriptor.Properties.Add(OptionsValue.Read(builder, x => x.Encoding));
-        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.Timezone));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.Timezone!));
         descriptor.Properties.Add(OptionsValue.Read(builder, x => x.SslMode));
         descriptor.Properties.Add(OptionsValue.Read(builder, x => x.SslNegotiation));
         descriptor.Properties.Add(OptionsValue.Read(builder, x => x.CheckCertificateRevocation));
@@ -489,7 +548,7 @@ join pg_catalog.pg_namespace n on n.oid = c.relnamespace and n.nspname = '{Schem
         descriptor.Properties.Add(OptionsValue.Read(builder, x => x.Timeout));
         descriptor.Properties.Add(OptionsValue.Read(builder, x => x.CommandTimeout));
         descriptor.Properties.Add(OptionsValue.Read(builder, x => x.CancellationTimeout));
-        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.TargetSessionAttributes));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.TargetSessionAttributes!));
         descriptor.Properties.Add(OptionsValue.Read(builder, x => x.LoadBalanceHosts));
         descriptor.Properties.Add(OptionsValue.Read(builder, x => x.HostRecheckSeconds));
         descriptor.Properties.Add(OptionsValue.Read(builder, x => x.KeepAlive));
@@ -503,7 +562,7 @@ join pg_catalog.pg_namespace n on n.oid = c.relnamespace and n.nspname = '{Schem
         descriptor.Properties.Add(OptionsValue.Read(builder, x => x.MaxAutoPrepare));
         descriptor.Properties.Add(OptionsValue.Read(builder, x => x.AutoPrepareMinUsages));
         descriptor.Properties.Add(OptionsValue.Read(builder, x => x.NoResetOnClose));
-        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.Options));
+        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.Options!));
         descriptor.Properties.Add(OptionsValue.Read(builder, x => x.ArrayNullabilityMode));
         descriptor.Properties.Add(OptionsValue.Read(builder, x => x.Multiplexing));
         descriptor.Properties.Add(OptionsValue.Read(builder, x => x.WriteCoalescingBufferThresholdBytes));
@@ -569,6 +628,7 @@ join pg_catalog.pg_namespace n on n.oid = c.relnamespace and n.nspname = '{Schem
                 var tenantTable = new Table(new DbObjectName(SchemaName, DatabaseConstants.TenantsTableName));
                 tenantTable.AddColumn<string>(StorageConstants.TenantIdColumn).AsPrimaryKey();
                 tenantTable.AddColumn<string>(StorageConstants.ConnectionStringColumn).NotNull();
+                tenantTable.AddColumn<bool>(DatabaseConstants.DisabledColumn).DefaultValueByExpression("false").NotNull();
                 yield return tenantTable;
             }
 

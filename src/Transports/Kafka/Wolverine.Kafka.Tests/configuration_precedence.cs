@@ -22,7 +22,7 @@ public class configuration_precedence
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.UseKafka("localhost:9092").ConfigureConsumers( x => x.GroupId = "Conventional").AutoProvision();
+                opts.UseKafka(KafkaContainerFixture.ConnectionString).ConfigureConsumers( x => x.GroupId = "Conventional").AutoProvision();
 
                 opts.ListenToKafkaTopic("General").Named("General");
                 
@@ -30,7 +30,7 @@ public class configuration_precedence
                     .ConfigureConsumer(x =>
                     {
                         x.GroupId = "Specific";
-                        x.BootstrapServers = "localhost:9092";
+                        x.BootstrapServers = KafkaContainerFixture.ConnectionString;
                     }).Named("Specific"); // Not working as expected
 
                 opts.Services.AddResourceSetupOnStartup();
@@ -49,6 +49,6 @@ public class configuration_precedence
         general.Parent.ConsumerConfig.GroupId.ShouldBe("Conventional");
         
         var specific = runtime.Endpoints.EndpointFor("kafka://topic/ResponseMessages".ToUri()).ShouldBeOfType<KafkaTopic>();
-        specific.ConsumerConfig.GroupId.ShouldBe("Specific");
+        specific.ConsumerConfig!.GroupId.ShouldBe("Specific");
     }
 }

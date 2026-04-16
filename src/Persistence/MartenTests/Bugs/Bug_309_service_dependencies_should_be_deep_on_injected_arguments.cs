@@ -31,7 +31,7 @@ public class Bug_309_service_dependencies_should_be_deep_on_injected_arguments
 
         using var session = host.DocumentStore().LightweightSession();
 
-        var item = await session.LoadAsync<Item>(created.Id);
+        var item = await session.LoadAsync<Item>(created!.Id);
         item.ShouldNotBeNull();
     }
 }

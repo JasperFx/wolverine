@@ -40,14 +40,14 @@ public class endpoint_discovery_and_construction : IntegrationContext
     public void read_order_from_attribute()
     {
         var chain = HttpChains.ChainFor("GET", "/fake/hello");
-        chain.Endpoint.Order.ShouldBe(55);
+        chain!.Endpoint!.Order.ShouldBe(55);
     }
 
     [Fact]
     public void read_display_name_from_http_method_attribute()
     {
         var chain = HttpChains.ChainFor("GET", "/fake/hello");
-        chain.Endpoint.DisplayName.ShouldBe("The Hello Route!");
+        chain!.Endpoint!.DisplayName.ShouldBe("The Hello Route!");
     }
 
     [Fact]
@@ -55,7 +55,7 @@ public class endpoint_discovery_and_construction : IntegrationContext
     {
         var chain = HttpChains.ChainFor("POST", "/spawn");
 
-        chain.InputType().ShouldBe(typeof(SpawnInput));
+        chain!.InputType().ShouldBe(typeof(SpawnInput));
         chain.ResourceType.ShouldBe(typeof(string));
     }
 

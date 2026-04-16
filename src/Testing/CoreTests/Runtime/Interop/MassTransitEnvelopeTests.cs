@@ -39,6 +39,9 @@ public class MassTransitEnvelopeTests
             Message = new object()
         };
 
+        envelope.Headers["color"] = "purple";
+        envelope.Headers["number"] = "1";
+
         var mtEnvelope = new MassTransitEnvelope(envelope);
 
         mtEnvelope.MessageId.ShouldBe(envelope.Id.ToString());
@@ -46,7 +49,10 @@ public class MassTransitEnvelopeTests
         mtEnvelope.ConversationId.ShouldBe(envelope.ConversationId.ToString());
         mtEnvelope.SentTime.ShouldNotBeNull();
 
-        mtEnvelope.ExpirationTime.Value.ShouldBe(envelope.DeliverBy.Value.DateTime);
+        mtEnvelope.ExpirationTime!.Value.ShouldBe(envelope.DeliverBy!.Value.DateTime);
+
+        mtEnvelope.Headers["color"].ShouldBe("purple");
+        mtEnvelope.Headers["number"].ShouldBe("1");
     }
 
     [Fact]
@@ -59,7 +65,7 @@ public class MassTransitEnvelopeTests
     [Fact]
     public void map_the_message_id()
     {
-        theEnvelope.Id.ShouldBe(Guid.Parse(theMassTransitEnvelope.MessageId));
+        theEnvelope.Id.ShouldBe(Guid.Parse(theMassTransitEnvelope.MessageId!));
     }
 
     [Fact]
@@ -71,7 +77,7 @@ public class MassTransitEnvelopeTests
     [Fact]
     public void map_the_conversation_id()
     {
-        theEnvelope.ConversationId.ShouldBe(Guid.Parse(theMassTransitEnvelope.ConversationId));
+        theEnvelope.ConversationId.ShouldBe(Guid.Parse(theMassTransitEnvelope.ConversationId!));
     }
 
     [Fact]

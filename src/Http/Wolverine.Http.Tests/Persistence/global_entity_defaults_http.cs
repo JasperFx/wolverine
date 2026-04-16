@@ -12,7 +12,7 @@ namespace Wolverine.Http.Tests.Persistence;
 
 public class global_entity_defaults_http : IAsyncLifetime
 {
-    private IAlbaHost theHost;
+    private IAlbaHost theHost = null!;
 
     public async Task InitializeAsync()
     {

@@ -57,7 +57,7 @@ internal class MySqlMessageStore : MessageDatabase<MySqlConnection>
         foreach (var sagaTableDefinition in sagaTypes)
         {
             var storage = typeof(DatabaseSagaSchema<,>).CloseAndBuildAs<IDatabaseSagaSchema>(sagaTableDefinition,
-                _settings, sagaTableDefinition.SagaType, sagaTableDefinition.IdMember.GetMemberType());
+                _settings, sagaTableDefinition.SagaType, sagaTableDefinition.IdMember.GetMemberType()!);
             _sagaStorage = _sagaStorage.AddOrUpdate(sagaTableDefinition.SagaType, storage);
         }
     }
@@ -157,6 +157,15 @@ internal class MySqlMessageStore : MessageDatabase<MySqlConnection>
         if (result is long longResult && longResult == 1) return true;
 
         return false;
+    }
+
+    protected override async Task ReleaseLockAsync(int lockId, MySqlConnection connection, CancellationToken token)
+    {
+        var lockName = $"wolverine_{lockId}";
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandText = "SELECT RELEASE_LOCK(@lockName)";
+        cmd.Parameters.AddWithValue("@lockName", lockName);
+        await cmd.ExecuteScalarAsync(token).ConfigureAwait(false);
     }
 
     protected override DbCommand buildFetchSql(MySqlConnection conn, DbObjectName tableName, string[] columnNames,
@@ -499,6 +508,7 @@ internal class MySqlMessageStore : MessageDatabase<MySqlConnection>
                 var tenantTable = new Table(new DbObjectName(SchemaName, DatabaseConstants.TenantsTableName));
                 tenantTable.AddColumn<string>(StorageConstants.TenantIdColumn).AsPrimaryKey();
                 tenantTable.AddColumn<string>(StorageConstants.ConnectionStringColumn).NotNull();
+                tenantTable.AddColumn<bool>(DatabaseConstants.DisabledColumn).DefaultValueByExpression("false").NotNull();
                 yield return tenantTable;
             }
 

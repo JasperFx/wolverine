@@ -8,9 +8,10 @@ using Wolverine.Tracking;
 
 namespace Wolverine.AmazonSns.Tests;
 
+[Trait("Category", "Flaky")]
 public class send_to_topic_and_receive_in_queue_in_aws : IAsyncLifetime
 {
-    private IHost _host;
+    private IHost _host = null!;
 
     public async Task InitializeAsync()
     {

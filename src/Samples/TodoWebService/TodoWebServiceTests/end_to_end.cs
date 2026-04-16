@@ -2,8 +2,6 @@ using Alba;
 using Marten;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
-using JasperFx;
-using JasperFx.CommandLine;
 using Shouldly;
 using TodoWebService;
 using Wolverine.Tracking;
@@ -12,14 +10,10 @@ namespace TodoWebServiceTests;
 
 public class end_to_end : IAsyncLifetime
 {
-    private IAlbaHost _host;
+    private IAlbaHost _host = null!;
 
     public async Task InitializeAsync()
     {
-        // Sorry folks, this is a hidden trap
-        // I blame the AspNetCore team...
-        JasperFxEnvironment.AutoStartHost = true;
-
         _host = await AlbaHost.For<Program>();
 
         // Wiping out any leftover data in the database

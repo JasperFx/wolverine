@@ -26,5 +26,5 @@ public record IssueCreated(Guid Id) : CreationResponse($"/issue/{Id}");
 public class Issue
 {
     public Guid Id { get; set; }
-    public string Title { get; set; }
+    public string Title { get; set; } = null!;
 }

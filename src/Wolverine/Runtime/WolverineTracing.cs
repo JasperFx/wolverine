@@ -16,6 +16,7 @@ internal static class WolverineTracing
     public const string MessagingDestination = "messaging.destination"; // Use the destination Uri
 
     public const string MessageHandler = "message.handler";
+    public const string HandlerType = "handler.type";
 
     public const string
         MessagingDestinationKind =
@@ -117,6 +118,26 @@ internal static class WolverineTracing
     /// A stop reason when sending agents are paused after too many sender failures
     /// </summary>
     public const string TooManySenderFailures = "TooManySenderFailures";
+
+    /// <summary>
+    /// Activity tag for the saga identity value when processing a saga message
+    /// </summary>
+    public const string SagaId = "wolverine.saga.id";
+
+    /// <summary>
+    /// Activity tag for the saga type full name when processing a saga message
+    /// </summary>
+    public const string SagaType = "wolverine.saga.type";
+
+    /// <summary>
+    /// Activity tag for the aggregate stream identity when processing an aggregate handler workflow
+    /// </summary>
+    public const string StreamId = "wolverine.stream.id";
+
+    /// <summary>
+    /// Activity tag for the aggregate type full name when processing an aggregate handler workflow
+    /// </summary>
+    public const string StreamType = "wolverine.stream.type";
 
     /// <summary>
     /// Span emitted when a streaming handler begins streaming responses

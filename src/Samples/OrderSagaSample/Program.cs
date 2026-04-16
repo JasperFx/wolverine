@@ -16,7 +16,7 @@ builder.Host.ApplyJasperFxExtensions();
 builder.Services.AddMarten(opts =>
     {
         var connectionString = builder.Configuration.GetConnectionString("Marten");
-        opts.Connection(connectionString);
+        opts.Connection(connectionString!);
         opts.DatabaseSchemaName = "orders";
     })
 

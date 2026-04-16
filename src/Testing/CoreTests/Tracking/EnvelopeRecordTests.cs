@@ -23,13 +23,13 @@ public class EnvelopeRecordTests
             .AddConsoleExporter()
             .Build();
 
-        var root = source.CreateActivity("process", ActivityKind.Internal);
+        var root = source.CreateActivity("process", ActivityKind.Internal)!;
         root.Start();
 
-        var parent = source.CreateActivity("process", ActivityKind.Internal);
+        var parent = source.CreateActivity("process", ActivityKind.Internal)!;
         parent.Start();
 
-        var child = source.CreateActivity("process", ActivityKind.Internal);
+        var child = source.CreateActivity("process", ActivityKind.Internal)!;
         child.Start();
 
         root.ShouldNotBeNull();
@@ -39,8 +39,8 @@ public class EnvelopeRecordTests
 
         var record = new EnvelopeRecord(MessageEventType.Sent, ObjectMother.Envelope(), 1000, null);
 
-        root.Id.ShouldContain(record.RootId);
-        record.ParentId.ShouldContain(parent.Id);
+        root.Id!.ShouldContain(record.RootId!);
+        record.ParentId!.ShouldContain(parent.Id!);
         record.ActivityId.ShouldBe(child.Id);
 
         root.Stop();

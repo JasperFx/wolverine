@@ -44,7 +44,7 @@ return await Host.CreateDefaultBuilder(args)
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/PingPongWithRabbitMq/Pinger/Program.cs#L7-L37' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_rabbitmq' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-See the [Rabbit MQ .NET Client documentation](https://www.com/dotnet-api-guide.html#connecting) for more information about configuring the `ConnectionFactory` to connect to Rabbit MQ.
+See the [Rabbit MQ .NET Client documentation](https://www.rabbitmq.com/dotnet-api-guide.html#connecting) for more information about configuring the `ConnectionFactory` to connect to Rabbit MQ.
 
 
 ## Managing Rabbit MQ Connections
@@ -227,6 +227,45 @@ builder.UseWolverine(opts =>
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/channel_configuration.cs#L13-L31' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_rabbit_mq_channel_creation' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+
+## Global Partitioning
+
+RabbitMQ queues can be used as the external transport for [global partitioned messaging](/guide/messaging/partitioning#global-partitioning). This creates a set of sharded RabbitMQ queues with companion local queues for sequential processing across a multi-node cluster.
+
+Use `UseShardedRabbitQueues()` within a `GlobalPartitioned()` configuration:
+
+<!-- snippet: sample_global_partitioned_with_rabbit_mq -->
+<a id='snippet-sample_global_partitioned_with_rabbit_mq'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.UseRabbitMq();
+
+        // Do something to add Saga storage too!
+
+        opts
+            .MessagePartitioning
+
+            // This tells Wolverine to "just" use implied
+            // message grouping based on Saga identity among other things
+            .UseInferredMessageGrouping()
+
+
+            .GlobalPartitioned(topology =>
+            {
+                // Creates 5 sharded RabbitMQ queues named "sequenced1" through "sequenced5"
+                // with matching companion local queues for sequential processing
+                topology.UseShardedRabbitQueues("sequenced", 5);
+                topology.MessagesImplementing<MySequencedCommand>();
+
+            });
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L721-L746' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_global_partitioned_with_rabbit_mq' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+This creates RabbitMQ queues named `sequenced1` through `sequenced5` with companion local queues `global-sequenced1` through `global-sequenced5`. Messages are routed to the correct shard based on their group id, and Wolverine handles the coordination between nodes automatically.
 
 ## Compatibility Note
 

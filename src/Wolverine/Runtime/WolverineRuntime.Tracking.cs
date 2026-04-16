@@ -28,6 +28,7 @@ public sealed partial class WolverineRuntime : IMessageTracker
     private readonly Histogram<double> _effectiveTime;
     private readonly Histogram<long> _executionCounter;
     private readonly Counter<int> _failureCounter;
+    private readonly Counter<int> _receivedCounter;
     private readonly Counter<int> _sentCounter;
     private readonly Counter<int> _successCounter;
 
@@ -56,15 +57,47 @@ public sealed partial class WolverineRuntime : IMessageTracker
 
     public void Sent(Envelope envelope)
     {
-        _sentCounter.Add(1, envelope.ToMetricsHeaders());
+        var tags = envelope.ToMetricsHeaders();
+        tags.Add(MetricsConstants.SourceKey, _serviceName);
+        _sentCounter.Add(1, tags);
+
+        if (Options.Metrics.Mode != WolverineMetricsMode.SystemDiagnosticsMeter
+            && envelope.MessageType.IsNotEmpty()
+            && !IsSystemEndpoint(envelope.Destination))
+        {
+            var accumulator = _accumulator.Value.FindAccumulator(envelope.MessageType!, envelope.Destination!);
+            accumulator.EntryPoint.Post(new RecordSent(envelope.TenantId!, _serviceName));
+        }
+
         ActiveSession?.MaybeRecord(MessageEventType.Sent, envelope, _serviceName, _uniqueNodeId);
         _sent(Logger, envelope.CorrelationId!, envelope.GetMessageTypeName(), envelope.Id,
             envelope.Destination?.ToString() ?? string.Empty,
             null);
+
+        fireWireTapSuccess(envelope);
     }
 
     public void Received(Envelope envelope)
     {
+        var isExternal = envelope.Destination != null
+                         && !envelope.Destination.Scheme.EqualsIgnoreCase("local")
+                         && !envelope.Destination.Scheme.EqualsIgnoreCase("stub");
+
+        if (isExternal)
+        {
+            var tags = envelope.ToMetricsHeaders();
+            tags.Add(MetricsConstants.SourceKey, _serviceName);
+            _receivedCounter.Add(1, tags);
+        }
+
+        if (isExternal && Options.Metrics.Mode != WolverineMetricsMode.SystemDiagnosticsMeter
+            && envelope.MessageType.IsNotEmpty()
+            && !IsSystemEndpoint(envelope.Destination))
+        {
+            var accumulator = _accumulator.Value.FindAccumulator(envelope.MessageType!, envelope.Destination!);
+            accumulator.EntryPoint.Post(new RecordReceived(envelope.TenantId!, _serviceName));
+        }
+
         ActiveSession?.Record(MessageEventType.Received, envelope, _serviceName, _uniqueNodeId);
         _received(Logger, envelope.CorrelationId!, envelope.GetMessageTypeName(), envelope.Id,
             envelope.Destination?.ToString() ?? string.Empty,
@@ -104,7 +137,17 @@ public sealed partial class WolverineRuntime : IMessageTracker
 
         _successCounter.Add(1, tags);
 
+        if (Options.Metrics.Mode != WolverineMetricsMode.SystemDiagnosticsMeter
+            && envelope.MessageType.IsNotEmpty()
+            && !IsSystemEndpoint(envelope.Destination))
+        {
+            var accumulator = _accumulator.Value.FindAccumulator(envelope.MessageType!, envelope.Destination!);
+            accumulator.EntryPoint.Post(new RecordEffectiveTime(time, envelope.TenantId!));
+        }
+
         ActiveSession?.Record(MessageEventType.MessageSucceeded, envelope, _serviceName, _uniqueNodeId);
+
+        fireWireTapSuccess(envelope);
     }
 
     public void MessageFailed(Envelope envelope, Exception ex)
@@ -115,7 +158,17 @@ public sealed partial class WolverineRuntime : IMessageTracker
 
         _deadLetterQueueCounter.Add(1, tags);
 
+        if (Options.Metrics.Mode != WolverineMetricsMode.SystemDiagnosticsMeter
+            && envelope.MessageType.IsNotEmpty()
+            && !IsSystemEndpoint(envelope.Destination))
+        {
+            var accumulator = _accumulator.Value.FindAccumulator(envelope.MessageType!, envelope.Destination!);
+            accumulator.EntryPoint.Post(new RecordEffectiveTime(time, envelope.TenantId!));
+        }
+
         ActiveSession?.Record(MessageEventType.Sent, envelope, _serviceName, _uniqueNodeId, ex);
+
+        fireWireTapFailure(envelope, ex);
     }
 
     public void NoHandlerFor(Envelope envelope)
@@ -149,10 +202,12 @@ public sealed partial class WolverineRuntime : IMessageTracker
         ActiveSession?.Record(MessageEventType.MovedToErrorQueue, envelope, _serviceName, _uniqueNodeId);
         _movedToErrorQueue(Logger, envelope, ex);
 
-        if (Options.Metrics.Mode != WolverineMetricsMode.SystemDiagnosticsMeter && envelope.MessageType.IsNotEmpty())
+        if (Options.Metrics.Mode != WolverineMetricsMode.SystemDiagnosticsMeter
+            && envelope.MessageType.IsNotEmpty()
+            && !IsSystemEndpoint(envelope.Destination))
         {
-            var accumulator = _accumulator.Value.FindAccumulator(envelope.MessageType, envelope.Destination);
-            accumulator.EntryPoint.Post(new RecordDeadLetter(ex.GetType().FullNameInCode(), envelope.TenantId));
+            var accumulator = _accumulator.Value.FindAccumulator(envelope.MessageType!, envelope.Destination!);
+            accumulator.EntryPoint.Post(new RecordDeadLetter(ex.GetType().FullNameInCode(), envelope.TenantId!));
         }
     }
 
@@ -179,5 +234,43 @@ public sealed partial class WolverineRuntime : IMessageTracker
     public void LogStatus(string message)
     {
         ActiveSession?.LogStatus(message);
+    }
+
+    private void fireWireTapSuccess(Envelope envelope)
+    {
+        if (envelope.WireTap == null) return;
+        try
+        {
+            _ = envelope.WireTap.RecordSuccessAsync(envelope);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Wire tap failed for envelope {EnvelopeId}", envelope.Id);
+        }
+    }
+
+    private void fireWireTapFailure(Envelope envelope, Exception exception)
+    {
+        if (envelope.WireTap == null) return;
+        try
+        {
+            _ = envelope.WireTap.RecordFailureAsync(envelope, exception);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Wire tap failed for envelope {EnvelopeId}", envelope.Id);
+        }
+    }
+
+    /// <summary>
+    /// Returns true if the destination URI belongs to a Wolverine system endpoint
+    /// (e.g. wolverine.response reply queues or local:// queues) that should not
+    /// have metrics tracked in the CritterWatch accumulation pipeline.
+    /// </summary>
+    internal static bool IsSystemEndpoint(Uri? destination)
+    {
+        if (destination == null) return false;
+        return destination.ToString().Contains("wolverine.response", StringComparison.OrdinalIgnoreCase)
+               || destination.Scheme.EqualsIgnoreCase("local");
     }
 }

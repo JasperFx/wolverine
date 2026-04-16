@@ -12,7 +12,7 @@
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\..\..\WolverineWebApiFSharp\WolverineWebApiFSharp.fsproj" />
+        <ProjectReference Include="..\WolverineWebApiFSharp\WolverineWebApiFSharp.fsproj" />
         <ProjectReference Include="..\..\Persistence\Wolverine.EntityFrameworkCore\Wolverine.EntityFrameworkCore.csproj" />
         <ProjectReference Include="..\..\Persistence\Wolverine.Marten\Wolverine.Marten.csproj" />
         <ProjectReference Include="..\Wolverine.AdminApi\Wolverine.AdminApi.csproj" />

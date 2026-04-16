@@ -33,7 +33,7 @@ public class MartenTestResequencerSaga : ResequencerSaga<MartenSequencedCommand>
 
 public class resequencer_saga_end_to_end : PostgresqlContext, IAsyncLifetime
 {
-    private IHost _host;
+    private IHost _host = null!;
 
     public async Task InitializeAsync()
     {

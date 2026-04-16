@@ -29,14 +29,14 @@ public abstract partial class RabbitMqEndpoint
 
             void WriteReplyToAddress(Envelope e, IBasicProperties props)
             {
-                props.Headers["NServiceBus.ReplyToAddress"] = replyAddress.Value;
+                props.Headers!["NServiceBus.ReplyToAddress"] = replyAddress.Value;
             }
 
             void ReadReplyUri(Envelope e, IReadOnlyBasicProperties props)
             {
-                if (props.Headers.TryGetValue("NServiceBus.ReplyToAddress", out var raw))
+                if (props.Headers!.TryGetValue("NServiceBus.ReplyToAddress", out var raw))
                 {
-                    var queueName = (raw is byte[] b ? Encoding.Default.GetString(b) : raw.ToString())!;
+                    var queueName = (raw is byte[] b ? Encoding.UTF8.GetString(b) : raw!.ToString())!;
                     e.ReplyUri = new Uri($"{_parent.Protocol}://queue/{queueName}");
                 }
             }

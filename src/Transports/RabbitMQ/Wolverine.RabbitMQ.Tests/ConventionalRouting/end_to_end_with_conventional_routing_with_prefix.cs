@@ -55,13 +55,13 @@ public class end_to_end_with_conventional_routing_with_prefix : IDisposable
 
         var received = session
             .AllRecordsInOrder()
-            .Where(x => x.Envelope.Message?.GetType() == typeof(ConventionallyRoutedMessage))
+            .Where(x => x.Envelope?.Message?.GetType() == typeof(ConventionallyRoutedMessage))
             .Single(x => x.MessageEventType == MessageEventType.Received);
 
         received
             .ServiceName.ShouldBe("Receiver");
 
-        received.Envelope.Destination
+        received.Envelope!.Destination
             .ShouldBe(new Uri("rabbitmq://queue/shazaam-routed"));
     }
 }

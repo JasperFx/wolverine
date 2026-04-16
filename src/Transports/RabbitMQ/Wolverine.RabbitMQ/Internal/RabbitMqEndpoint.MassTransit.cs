@@ -8,7 +8,7 @@ public abstract partial class RabbitMqEndpoint : IMassTransitInteropEndpoint
     public Uri? MassTransitUri()
     {
         var segments = new List<string>();
-        var virtualHost = _parent.ConnectionFactory.VirtualHost;
+        var virtualHost = _parent.ConnectionFactory!.VirtualHost;
         if (virtualHost.IsNotEmpty() && virtualHost != "/")
         {
             segments.Add(virtualHost);

@@ -144,6 +144,30 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
 
     public bool ShouldPersistBeforeProcessing { get; set; }
 
+    /// <summary>
+    /// If the handler for this message type targets an ancillary store on a
+    /// different database, set envelope.Store so that the DelegatingMessageInbox
+    /// persists it in the correct store for transactional atomicity.
+    /// </summary>
+    private void assignAncillaryStoreIfNeeded(Envelope envelope)
+    {
+        if (_runtime.Stores == null) return;
+        var store = _runtime.Stores.TryFindAncillaryStoreForMessageType(envelope.MessageType);
+        if (store != null)
+        {
+            envelope.Store = store;
+        }
+    }
+
+    private void assignAncillaryStoreIfNeeded(IReadOnlyList<Envelope> envelopes)
+    {
+        if (_runtime.Stores == null) return;
+        foreach (var envelope in envelopes)
+        {
+            assignAncillaryStoreIfNeeded(envelope);
+        }
+    }
+
     public async ValueTask DisposeAsync()
     {
         await _receiver.WaitForCompletionAsync();
@@ -209,7 +233,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
         await EnqueueAsync(envelope);
     }
 
-    public IHandlerPipeline? Pipeline { get; }
+    public IHandlerPipeline Pipeline { get; } = null!;
 
     public Uri Uri { get; set; }
 
@@ -271,7 +295,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
         try
         {
             var now = DateTimeOffset.UtcNow;
-            envelope.MarkReceived(listener, now, _settings);
+            envelope.MarkReceived(listener, now, _settings, _endpoint.WireTap);
 
             await _receivingOne.PostAsync(envelope);
         }
@@ -284,7 +308,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
     public async ValueTask DrainAsync()
     {
         // If _latched was already true, this drain was triggered during shutdown
-        // (after OnApplicationStopping called Latch()). Safe to wait for in-flight items.
+        // (after StopAndDrainAsync called Latch()). Safe to wait for in-flight items.
         // If _latched was false, this drain may have been triggered from within the handler
         // pipeline (e.g., rate limiting pause via PauseListenerContinuation). Waiting for
         // the receiver block to complete would deadlock because the current message's
@@ -382,6 +406,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
                 await executeWithRetriesAsync(async () =>
                 {
                     envelope.OwnerId = TransportConstants.AnyNode;
+                    assignAncillaryStoreIfNeeded(envelope);
                     try
                     {
                         await _inbox.StoreIncomingAsync(envelope);
@@ -413,25 +438,42 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
         {
             try
             {
-                if (envelope.MessageType.IsEmpty() && envelope.Serializer is IUnwrapsMetadataMessageSerializer serializer)
+                try
                 {
-                    serializer.Unwrap(envelope);
+                    envelope.Serializer?.UnwrapEnvelopeIfNecessary(envelope);
                 }
-                
+                catch (Exception e)
+                {
+                    _logger.LogInformation(e, "Failed to unwrap metadata for Envelope {Id} received at durable {Destination}. Moving to dead letter queue", envelope.Id, envelope.Destination);
+
+                    if (envelope.Id == Guid.Empty)
+                    {
+                        envelope.Id = Envelope.IdGenerator();
+                    }
+
+                    envelope.MessageType ??= $"unknown/{e.GetType().Name}";
+                    envelope.Failure = e;
+                    await _moveToErrors.PostAsync(envelope);
+                    await _completeBlock.PostAsync(envelope);
+                    return;
+                }
+
                 // Have to do this before moving to the DLQ
                 if (envelope.Id == Guid.Empty)
                 {
-                    envelope.Id = NewId.NextSequentialGuid();
+                    envelope.Id = Envelope.IdGenerator();
                 }
 
                 if (envelope.MessageType.IsEmpty())
                 {
                     _logger.LogInformation("Empty or missing message type name for Envelope {Id} received at durable {Destination}. Moving to dead letter queue", envelope.Id, envelope.Destination);
                     await _moveToErrors.PostAsync(envelope);
+                    await _completeBlock.PostAsync(envelope);
                     return;
                 }
 
                 envelope.OwnerId = _settings.AssignedNodeNumber;
+                assignAncillaryStoreIfNeeded(envelope);
                 await _inbox.StoreIncomingAsync(envelope);
                 envelope.WasPersistedInInbox = true;
             }
@@ -506,13 +548,14 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
             throw new OperationCanceledException();
         }
 
-        foreach (var envelope in envelopes) envelope.MarkReceived(listener, now, _settings);
+        foreach (var envelope in envelopes) envelope.MarkReceived(listener, now, _settings, _endpoint.WireTap);
 
         var batchSucceeded = false;
         if (ShouldPersistBeforeProcessing)
         {
             try
             {
+                assignAncillaryStoreIfNeeded(envelopes);
                 await _inbox.StoreIncomingAsync(envelopes);
                 foreach (var envelope in envelopes)
                 {

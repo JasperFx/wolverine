@@ -13,7 +13,7 @@ namespace Wolverine.Http.Tests.Marten;
 
 public class reacting_to_read_aggregate : IAsyncLifetime
 {
-    private IAlbaHost theHost;
+    private IAlbaHost theHost = null!;
     
     public async Task InitializeAsync()
     {

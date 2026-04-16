@@ -63,7 +63,7 @@ public class SqlServerTransport : BrokerTransport<SqlServerQueue>
 
     public override string SanitizeIdentifier(string identifier)
     {
-        return identifier.Replace('-', '_').ToLower();
+        return identifier.Replace('-', '_').ToLowerInvariant();
     }
 
     protected override SqlServerQueue findEndpointByUri(Uri uri)
@@ -101,7 +101,7 @@ public class SqlServerTransport : BrokerTransport<SqlServerQueue>
 
     internal DatabaseSettings Settings { get; set; }
 
-    internal SqlServerMessageStore Storage { get; set; }
+    internal SqlServerMessageStore Storage { get; set; } = null!;
 
     internal MultiTenantedMessageStore? Databases { get; set; }
 
@@ -117,6 +117,6 @@ public class SqlServerTransport : BrokerTransport<SqlServerQueue>
         await using var conn = new SqlConnection(Settings.ConnectionString);
         await conn.OpenAsync();
 
-        return (DateTimeOffset)await conn.CreateCommand("select SYSDATETIMEOFFSET()").ExecuteScalarAsync();
+        return (DateTimeOffset)(await conn.CreateCommand("select SYSDATETIMEOFFSET()").ExecuteScalarAsync())!;
     }
 }

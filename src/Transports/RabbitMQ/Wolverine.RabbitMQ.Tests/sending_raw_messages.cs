@@ -10,6 +10,7 @@ using Xunit;
 
 namespace Wolverine.RabbitMQ.Tests;
 
+[Trait("Category", "Flaky")]
 public class sending_raw_messages
 {
     [Fact]
@@ -139,7 +140,7 @@ public class sending_raw_messages
 
         builder.UseWolverine(opts =>
         {
-            opts.UseRabbitMq(connectionString).AutoProvision();
+            opts.UseRabbitMq(connectionString!).AutoProvision();
 
             opts.ListenToRabbitQueue("batches")
 
@@ -171,7 +172,7 @@ public class sending_raw_messages
         // The raw message data, but pretend this was sourced from a database
         // table or some other non-Wolverine storage in your system
         byte[] messageData 
-            = Encoding.Default.GetBytes("{\"Name\": \"George Karlaftis\"}");
+            = Encoding.UTF8.GetBytes("{\"Name\": \"George Karlaftis\"}");
 
             #endregion
 

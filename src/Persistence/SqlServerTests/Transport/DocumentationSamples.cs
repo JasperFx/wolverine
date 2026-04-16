@@ -1,3 +1,4 @@
+using JasperFx.Core;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Wolverine;
@@ -15,7 +16,7 @@ public class DocumentationSamples
         builder.UseWolverine(opts =>
         {
             var connectionString = builder.Configuration.GetConnectionString("sqlserver");
-            opts.UseSqlServerPersistenceAndTransport(connectionString, "myapp")
+            opts.UseSqlServerPersistenceAndTransport(connectionString!, "myapp")
 
                 // Tell Wolverine to build out all necessary queue or scheduled message
                 // tables on demand as needed
@@ -39,7 +40,10 @@ public class DocumentationSamples
 
                 // Optionally specify how many messages to
                 // fetch into the listener at any one time
-                .MaximumMessagesToReceive(50);
+                .MaximumMessagesToReceive(50)
+
+                // Override how often to poll for new messages when the queue is idle.
+                .PollingInterval(1.Seconds());
         });
 
         using var host = builder.Build();

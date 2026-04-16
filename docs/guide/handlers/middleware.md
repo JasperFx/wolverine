@@ -601,6 +601,34 @@ public class CustomizedHandler
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/can_customize_handler_chain_through_Configure_call_on_HandlerType.cs#L25-L46' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_customized_handler_using_configure' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+### Compile-time Safe Configuration with IHandlerConfiguration
+
+As an alternative to the naming convention above, your handler class can implement the `IHandlerConfiguration` interface. This provides compile-time validation of the method name and signature, preventing silent failures from misspellings or incorrect parameter types:
+
+<!-- snippet: sample_customized_handler_using_IHandlerConfiguration -->
+<a id='snippet-sample_customized_handler_using_ihandlerconfiguration'></a>
+```cs
+public class InterfaceConfiguredHandler : IHandlerConfiguration
+{
+    public void Handle(InterfaceConfiguredMessage message)
+    {
+        // handle the message
+    }
+
+    public static void Configure(HandlerChain chain)
+    {
+        chain.Middleware.Add(new CustomFrame());
+
+        chain.SuccessLogLevel = LogLevel.None;
+        chain.ProcessingLogLevel = LogLevel.None;
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/can_customize_handler_chain_through_IHandlerConfiguration.cs#L33-L51' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_customized_handler_using_ihandlerconfiguration' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Both approaches are functionally equivalent at runtime; the interface simply adds a compile-time contract that prevents the `Configure` method from being silently ignored if the name or parameters are incorrect.
+
 ## Sending Messages from Middleware
 
 Wolverine 5.0 included some improvements to the usage of middleware *external* to the main handler or
@@ -640,4 +668,50 @@ public static class MaybeBadThing4Handler
 
 And any objects in the `OutgoingMessages` return value from the middleware method will be sent as cascaded
 messages. Wolverine will also apply a "maybe stop" frame from the `IHandlerContinuation` as well.
+
+## Parameter Value Sources <Badge type="tip" text="5.25" />
+
+When using `WolverineParameterAttribute` subclasses (like `[Aggregate]`, `[WriteAggregate]`), you can control
+where parameter values are resolved from using the `ValueSource` property or the convenience shorthand properties.
+
+### From an Envelope Header
+
+Use `FromHeader` to resolve a value from the message envelope's headers:
+
+```cs
+public void Handle(
+    ProcessOrder command,
+    [WriteAggregate(FromHeader = "X-Tenant-Id")] TenantAggregate tenant)
+{
+    // tenant loaded using the value from the "X-Tenant-Id" envelope header
+}
+```
+
+### From a Static Method
+
+Use `FromMethod` to resolve a value from a static method on the handler class. The method's parameters
+are resolved via method injection:
+
+```cs
+public class ProcessOrderHandler
+{
+    public static Guid ResolveTenantId(IMessageContext context)
+    {
+        context.Envelope!.TryGetHeader("X-Tenant-Id", out var tenantId);
+        return Guid.Parse(tenantId!);
+    }
+
+    public void Handle(
+        ProcessOrder command,
+        [WriteAggregate(FromMethod = "ResolveTenantId")] TenantAggregate tenant)
+    {
+        // tenant loaded using the Guid returned by ResolveTenantId()
+    }
+}
+```
+
+::: warning
+`FromClaim` is only supported in HTTP endpoints and will throw an `InvalidOperationException` if
+used in a message handler.
+:::
 

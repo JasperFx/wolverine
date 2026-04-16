@@ -28,17 +28,27 @@ internal class MassTransitMapper : ISqsEnvelopeMapper
 
     public IEnumerable<KeyValuePair<string, MessageAttributeValue>> ToAttributes(Envelope envelope)
     {
-        yield break;
+        if (!string.IsNullOrEmpty(envelope.ParentId))
+        {
+            yield return new KeyValuePair<string, MessageAttributeValue>(
+                MassTransitHeaders.ActivityId,
+                new MessageAttributeValue { DataType = "String", StringValue = envelope.ParentId });
+        }
     }
 
     public void ReadEnvelopeData(Envelope envelope, string messageBody, IDictionary<string, MessageAttributeValue> attributes)
     {
         // TODO -- this could be more efficient of course
         envelope.Data = Encoding.UTF8.GetBytes(messageBody);
-        
+
         // This is the really important part
         // of the mapping
         envelope.Serializer = _serializer;
+
+        if (attributes.TryGetValue(MassTransitHeaders.ActivityId, out var activityId))
+        {
+            envelope.ParentId = activityId.StringValue;
+        }
     }
 }
 

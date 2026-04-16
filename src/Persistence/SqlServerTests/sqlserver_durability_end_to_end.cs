@@ -23,10 +23,10 @@ public class sqlserver_durability_end_to_end : IAsyncLifetime
 {
     private const string SenderSchemaName = "sender";
     private const string ReceiverSchemaName = "receiver";
-    private Uri _listener;
-    private LightweightCache<string, IHost> _receivers;
+    private Uri _listener = null!;
+    private LightweightCache<string, IHost> _receivers = null!;
 
-    private LightweightCache<string, IHost> _senders;
+    private LightweightCache<string, IHost> _senders = null!;
 
     public async Task InitializeAsync()
     {
@@ -162,7 +162,7 @@ create table receiver.trace_doc
     {
         using var conn = new SqlConnection(Servers.SqlServerConnectionString);
         conn.Open();
-        return (int)conn.CreateCommand("select count(*) from receiver.trace_doc").ExecuteScalar();
+        return (int)conn.CreateCommand("select count(*) from receiver.trace_doc").ExecuteScalar()!;
     }
 
     protected async Task WaitForMessagesToBeProcessed(int count)
@@ -172,7 +172,7 @@ create table receiver.trace_doc
 
         for (var i = 0; i < 200; i++)
         {
-            var actual = (int)conn.CreateCommand("select count(*) from receiver.trace_doc").ExecuteScalar();
+            var actual = (int)conn.CreateCommand("select count(*) from receiver.trace_doc").ExecuteScalar()!;
             var envelopeCount = PersistedIncomingCount();
 
             Trace.WriteLine($"waitForMessages: {actual} actual & {envelopeCount} incoming envelopes");
@@ -196,7 +196,7 @@ create table receiver.trace_doc
 
         return (int)conn.CreateCommand(
                 $"select count(*) from receiver.{DatabaseConstants.IncomingTable} where {DatabaseConstants.Status} = '{EnvelopeStatus.Incoming}'")
-            .ExecuteScalar();
+            .ExecuteScalar()!;
     }
 
     protected long PersistedOutgoingCount()
@@ -206,7 +206,7 @@ create table receiver.trace_doc
 
         return (int)conn.CreateCommand(
                 $"select count(*) from sender.{DatabaseConstants.OutgoingTable}")
-            .ExecuteScalar();
+            .ExecuteScalar()!;
     }
 
     protected async Task StopReceiver(string name)
@@ -256,12 +256,12 @@ create table receiver.trace_doc
 public class TraceDoc
 {
     public Guid Id { get; set; } = Guid.NewGuid();
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
 }
 
 public class TraceMessage
 {
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
 }
 
 [WolverineIgnore]

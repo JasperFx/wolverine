@@ -61,7 +61,7 @@ public class using_separate_handlers : MessageRoutingContext
     {
         var tracked = await theHost.SendMessageAndWaitAsync(new ColorMessage());
         
-        tracked.Executed.Envelopes().Select(x => x.Destination).OrderBy(x => x.ToString())
+        tracked.Executed.Envelopes().Select(x => x.Destination!).OrderBy(x => x.ToString())
             .ShouldBe([new Uri("local://blue"), new Uri("local://messageroutingtests.greencolormessagehandler"), new Uri("local://red")]);
     }
 

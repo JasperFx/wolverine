@@ -1,5 +1,8 @@
+using System.Collections.Concurrent;
 using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Logging;
+using Wolverine.Configuration.Capabilities;
+using Wolverine.Runtime.Agents;
 
 namespace Wolverine.Runtime.Handlers;
 
@@ -19,10 +22,24 @@ public interface IMessageHandler
     bool TelemetryEnabled { get; }
 
     Task HandleAsync(MessageContext context, CancellationToken cancellation);
+
+    /// <summary>
+    /// Records cause-and-effect relationships between incoming and outgoing messages.
+    /// Called after handler execution but before flushing outgoing messages.
+    /// Default is a no-op; MessageHandler provides the real implementation.
+    /// </summary>
+    void RecordCauseAndEffect(MessageContext context, IWolverineObserver observer)
+    {
+        // No-op by default
+    }
 }
 
 public abstract class MessageHandler : IMessageHandler
 {
+    // Thread-safe set of known causation pairs: "IncomingType->OutgoingType"
+    // Static per concrete handler type via the dictionary keyed by handler type
+    private static readonly ConcurrentDictionary<string, byte> _knownCausation = new();
+
     public HandlerChain? Chain { get; set; }
 
     public abstract Task HandleAsync(MessageContext context, CancellationToken cancellation);
@@ -33,6 +50,46 @@ public abstract class MessageHandler : IMessageHandler
     public LogLevel ProcessingLogLevel => Chain!.ProcessingLogLevel;
 
     public bool TelemetryEnabled => Chain!.TelemetryEnabled;
+
+    /// <summary>
+    /// Records cause-and-effect relationships between the incoming message type
+    /// and any outgoing messages produced during handling. Latched: each unique
+    /// (incoming, outgoing) pair is only reported once to the observer.
+    /// </summary>
+    public void RecordCauseAndEffect(MessageContext context, IWolverineObserver observer)
+    {
+        if (!context.Runtime.Options.EnableMessageCausationTracking) return;
+
+        // Skip the entire causation report when the incoming message itself is a
+        // framework-internal type (IAgentCommand, INotToBeRouted, IInternalMessage, etc.).
+        // See GH-2520.
+        if (MessageType.IsSystemMessageType()) return;
+
+        var incomingType = MessageType.FullName ?? MessageType.Name;
+        var handlerType = GetType().FullName ?? GetType().Name;
+        var endpointUri = Chain?.Endpoints?.FirstOrDefault()?.Uri?.ToString();
+
+        foreach (var envelope in context.Outstanding)
+        {
+            var outgoingMessage = envelope.Message;
+            if (outgoingMessage is null) continue;
+
+            // Per-instance check uses fast pattern match over runtime type-tests for
+            // the marker interfaces; falls through to the helper for assembly attrs.
+            var outgoingMessageType = outgoingMessage.GetType();
+            if (outgoingMessageType.IsSystemMessageType()) continue;
+
+            var outgoingType = outgoingMessageType.FullName;
+            if (string.IsNullOrEmpty(outgoingType)) continue;
+
+            var key = $"{incomingType}->{outgoingType}@{handlerType}";
+
+            // Latch: only report each unique causation pair once
+            if (!_knownCausation.TryAdd(key, 0)) continue;
+
+            observer.MessageCausedBy(incomingType, outgoingType, handlerType, endpointUri);
+        }
+    }
 }
 
 #endregion
@@ -41,13 +98,13 @@ public abstract class MessageHandler<T> : MessageHandler
 {
     public sealed override Task HandleAsync(MessageContext context, CancellationToken cancellation)
     {
-        if (context.Envelope.Message is T message)
+        if (context.Envelope!.Message is T message)
         {
             return HandleAsync(message, context, cancellation);
         }
 
         throw new ArgumentOutOfRangeException(nameof(context),
-            $"Wrong message type {context.Envelope.Message.GetType().FullNameInCode()}, expected {typeof(T).FullNameInCode()}");
+            $"Wrong message type {context.Envelope!.Message!.GetType().FullNameInCode()}, expected {typeof(T).FullNameInCode()}");
     }
 
     /// <summary>

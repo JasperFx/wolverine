@@ -24,7 +24,7 @@ public class ScheduledMessageTests
                 opts.Durability.ScheduledJobFirstExecution = 50.Milliseconds();
                 opts.Durability.ScheduledJobPollingTime = 100.Milliseconds();
                 
-                opts.UseRedisTransport("localhost:6379").AutoProvision();
+                opts.UseRedisTransport(RedisContainerFixture.ConnectionString).AutoProvision();
 
                 opts.PublishAllMessages().ToRedisStream(streamKey);
                 opts.ListenToRedisStream(streamKey, "scheduled-test-group")
@@ -116,7 +116,7 @@ public class ScheduledMessageTests
                 opts.Durability.ScheduledJobFirstExecution = 50.Milliseconds();
                 opts.Durability.ScheduledJobPollingTime = 100.Milliseconds();
                 
-                opts.UseRedisTransport("localhost:6379").AutoProvision();
+                opts.UseRedisTransport(RedisContainerFixture.ConnectionString).AutoProvision();
                 
                 opts.PublishAllMessages().ToRedisStream(streamKey);
                 opts.ListenToRedisStream(streamKey, "scheduled-test-group")

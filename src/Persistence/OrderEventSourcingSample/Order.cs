@@ -23,7 +23,7 @@ public record ItemReady(string Name);
 
 public class Item
 {
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
     public bool Ready { get; set; }
 }
 
@@ -93,7 +93,7 @@ public class MarkItemController : ControllerBase
             // We're also opting into Marten optimistic concurrency checks here
             .FetchForWriting<Order>(command.OrderId, command.Version);
 
-        var order = stream.Aggregate;
+        var order = stream.Aggregate!;
 
         if (order.Items.TryGetValue(command.ItemName, out var item))
         {
@@ -137,7 +137,7 @@ public class ShipOrderHandler
             .Events
             .FetchForWriting<Order>(command.OrderId);
 
-        var order = stream.Aggregate;
+        var order = stream.Aggregate!;
 
         if (order.Items.TryGetValue(command.ItemName, out var item))
         {
@@ -169,7 +169,7 @@ public class ShipOrderHandler
             // event stream
             .FetchForWriting<Order>(command.OrderId, command.Version);
 
-        var order = stream.Aggregate;
+        var order = stream.Aggregate!;
 
         if (order.Items.TryGetValue(command.ItemName, out var item))
         {
@@ -201,7 +201,7 @@ public class ShipOrderHandler
             // event stream
             .FetchForExclusiveWriting<Order>(command.OrderId);
 
-        var order = stream.Aggregate;
+        var order = stream.Aggregate!;
 
         if (order.Items.TryGetValue(command.ItemName, out var item))
         {
@@ -227,7 +227,7 @@ public class ShipOrderHandler
     {
         return session.Events.WriteToAggregate<Order>(command.OrderId, command.Version, stream =>
         {
-            var order = stream.Aggregate;
+            var order = stream.Aggregate!;
 
             if (order.Items.TryGetValue(command.ItemName, out var item))
             {

@@ -11,11 +11,11 @@ using Xunit.Abstractions;
 namespace Wolverine.MQTT.Tests;
 
 [Collection("acceptance")]
-public class connectivity
+public class Connectivity
 {
     private readonly ITestOutputHelper _output;
 
-    public connectivity(ITestOutputHelper output)
+    public Connectivity(ITestOutputHelper output)
     {
         _output = output;
     }
@@ -34,7 +34,7 @@ public class connectivity
 
         managedClient.ApplicationMessageReceivedAsync += e =>
         {
-            _output.WriteLine(">> RECEIVED: " + e.ApplicationMessage.Topic + ", " + Encoding.Default.GetString(e.ApplicationMessage.PayloadSegment));
+            _output.WriteLine(">> RECEIVED: " + e.ApplicationMessage.Topic + ", " + Encoding.UTF8.GetString(e.ApplicationMessage.PayloadSegment));
             return CompletedTask.Instance;
         };
 

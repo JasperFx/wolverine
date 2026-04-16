@@ -7,7 +7,7 @@ namespace Wolverine.RabbitMQ.Tests;
 
 public class dynamic_object_creation_smoke_tests : IAsyncLifetime
 {
-    private IHost _host;
+    private IHost _host = null!;
 
     public async Task InitializeAsync()
     {

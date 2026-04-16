@@ -114,7 +114,13 @@ using var host = await Host.CreateDefaultBuilder()
 
                 // Other configuration
             })
-            
+            // Configure circuit breaker behavior for
+            // this specific Kafka listener
+            .CircuitBreaker(cb =>
+            {
+                cb.MinimumThreshold = 10;
+                cb.PauseTime = TimeSpan.FromMinutes(1);
+            });
             // Fine tune how the Kafka Topic is declared by Wolverine
             .Specification(spec =>
             {
@@ -231,9 +237,9 @@ public static ValueTask publish_by_partition_key(IMessageBus bus)
 
 ## Propagating GroupId to PartitionKey <Badge type="tip" text="5.17" />
 
-When consuming from a Kafka topic, the incoming envelope's `GroupId` is automatically set from the Kafka consumer's
-configured `GroupId`. If your handler produces cascaded messages that should land on the same partition, you can
-enable automatic propagation of the originating `GroupId` to the outgoing `PartitionKey`:
+By default, Wolverine stamps the Kafka consumer's configured `GroupId` onto the `GroupId` property of every incoming
+envelope. If your handler produces cascaded messages that should land on the same partition, you can enable automatic
+propagation of the originating `GroupId` to the outgoing `PartitionKey`:
 
 ```csharp
 opts.Policies.PropagateGroupIdToPartitionKey();
@@ -242,6 +248,35 @@ opts.Policies.PropagateGroupIdToPartitionKey();
 This eliminates the need to manually set `DeliveryOptions.PartitionKey` on every outgoing message from your handlers.
 The rule will never override an explicitly set `PartitionKey`. See the [Partitioned Sequential Messaging](/guide/messaging/partitioning#propagating-groupid-to-partitionkey)
 documentation for more details and a code sample.
+
+::: warning
+When using `PropagateGroupIdToPartitionKey()` together with business-level partition key derivation (e.g.
+`UseInferredMessageGrouping().ByPropertyNamed(...)`), you should disable consumer group ID stamping on your listeners.
+Otherwise the consumer group name (e.g. `"my-application-name"`) will be written to `envelope.GroupId` and may
+pollute the partition key derivation for cascaded messages:
+
+```csharp
+opts.ListenToKafkaTopic("my-topic")
+    .DisableConsumerGroupIdStamping()
+    .ConfigureConsumer(config =>
+    {
+        config.GroupId = "my-application-name";
+    });
+```
+:::
+
+### Disabling Consumer Group ID Stamping
+
+If you do not want the Kafka consumer group name written to `envelope.GroupId` at all, call
+`DisableConsumerGroupIdStamping()` on the listener:
+
+```csharp
+opts.ListenToKafkaTopic("orders")
+    .ProcessInline()
+    .DisableConsumerGroupIdStamping();
+```
+
+The same method is available on `ListenToKafkaTopics()` (multi-topic listeners).
 
 ## Interoperability
 
@@ -297,6 +332,85 @@ _sender = await Host.CreateDefaultBuilder()
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/publish_and_receive_raw_json.cs#L21-L62' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_raw_json_sending_and_receiving_with_kafka' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+
+## Confluent Schema Registry Serializers <Badge type="tip" text="5.27" />
+
+When you need to interoperate with other Kafka clients that use the [Confluent Schema Registry](https://docs.confluent.io/platform/current/schema-registry/index.html)
+wire format, Wolverine provides built-in serializers for both **JSON Schema** and **Avro** that integrate directly with
+the Schema Registry. These serializers handle schema registration, evolution, and the Confluent wire format
+(magic byte + 4-byte schema ID prefix) automatically.
+
+### JSON Schema Serializer
+
+The `SchemaRegistryJsonSerializer` works with any .NET class — no code generation or special interfaces required:
+
+```csharp
+using Confluent.SchemaRegistry;
+using Wolverine.Kafka.Serialization;
+
+var schemaRegistry = new CachedSchemaRegistryClient(
+    new SchemaRegistryConfig { Url = "http://localhost:8081" });
+
+opts.PublishMessage<OrderPlaced>()
+    .ToKafkaTopic("orders")
+    .DefaultSerializer(new SchemaRegistryJsonSerializer(schemaRegistry));
+
+opts.ListenToKafkaTopic("orders")
+    .DefaultSerializer(new SchemaRegistryJsonSerializer(schemaRegistry));
+```
+
+You can also pass a `JsonSerializerConfig` to control schema auto-registration and compatibility settings:
+
+```csharp
+var serializer = new SchemaRegistryJsonSerializer(schemaRegistry,
+    new JsonSerializerConfig
+    {
+        AutoRegisterSchemas = true,
+        SubjectNameStrategy = SubjectNameStrategy.TopicRecord
+    });
+```
+
+### Avro Serializer
+
+The `SchemaRegistryAvroSerializer` works with Avro-generated classes that implement `Avro.Specific.ISpecificRecord`.
+Use the [Apache Avro tools](https://avro.apache.org/docs/current/getting-started-csharp/) or the
+[Confluent avrogen tool](https://docs.confluent.io/platform/current/schema-registry/serdes-develop/serdes-avro.html)
+to generate C# classes from `.avsc` schema files:
+
+```csharp
+using Confluent.SchemaRegistry;
+using Wolverine.Kafka.Serialization;
+
+var schemaRegistry = new CachedSchemaRegistryClient(
+    new SchemaRegistryConfig { Url = "http://localhost:8081" });
+
+opts.PublishMessage<OrderPlacedAvro>()
+    .ToKafkaTopic("orders-avro")
+    .DefaultSerializer(new SchemaRegistryAvroSerializer(schemaRegistry));
+
+opts.ListenToKafkaTopic("orders-avro")
+    .DefaultSerializer(new SchemaRegistryAvroSerializer(schemaRegistry));
+```
+
+### How It Works
+
+Both serializers extend the `SchemaRegistrySerializer` base class which implements Wolverine's `IMessageSerializer`
+interface. Internally, each serializer:
+
+1. Creates Confluent `IAsyncSerializer<T>` / `IAsyncDeserializer<T>` instances per message type on first use
+2. Caches these typed serializer delegates in a `ConcurrentDictionary` for subsequent calls
+3. Delegates all schema negotiation to the Confluent Schema Registry client library
+
+The serialized bytes use the standard [Confluent wire format](https://docs.confluent.io/platform/current/schema-registry/fundamentals/serdes-develop/index.html#wire-format):
+a magic byte (`0x00`), followed by a 4-byte big-endian schema ID, followed by the payload. This makes your
+Wolverine producers and consumers fully compatible with any other Kafka client that uses the Schema Registry
+(Java, Python, Go, etc.).
+
+::: tip
+The `ReadFromData(byte[])` overload (without a message type) is **not supported** by these serializers because
+the Schema Registry wire format does not embed the .NET type name. Wolverine must know the expected message type,
+which is handled automatically when you configure typed listeners.
+:::
 
 ## Instrumentation & Diagnostics <Badge type="tip" text="3.13" />
 
@@ -447,6 +561,45 @@ opts.ListenToKafkaTopics("orders", "invoices")
     .EnableNativeDeadLetterQueue();
 ```
 
+### Topic Creation Options <Badge type="tip" text="5.27" />
+
+You can control how Wolverine creates topics for a multi-topic listener group. The `Specification()` method lets you
+set partition count, replication factor, and other topic properties uniformly or per-topic:
+
+```csharp
+// Apply the same specification to all topics in the group
+opts.ListenToKafkaTopics("orders", "invoices", "shipments")
+    .Specification(spec =>
+    {
+        spec.NumPartitions = 6;
+        spec.ReplicationFactor = 3;
+    });
+
+// Or configure each topic differently by name
+opts.ListenToKafkaTopics("orders", "invoices", "shipments")
+    .Specification((topicName, spec) =>
+    {
+        spec.NumPartitions = topicName == "orders" ? 12 : 6;
+    });
+```
+
+For full control over topic creation, use `TopicCreation()` which gives you direct access to the Kafka `IAdminClient`:
+
+```csharp
+opts.ListenToKafkaTopics("orders", "invoices")
+    .TopicCreation(async (adminClient, topicName) =>
+    {
+        var spec = new TopicSpecification
+        {
+            Name = topicName,
+            NumPartitions = 12,
+            ReplicationFactor = 3
+        };
+
+        await adminClient.CreateTopicsAsync(new[] { spec });
+    });
+```
+
 ### When to Use Multi-Topic Listening
 
 Use `ListenToKafkaTopics()` when:
@@ -474,13 +627,54 @@ using var host = await Host.CreateDefaultBuilder()
     {
         opts
             .UseKafka("localhost:9092")
-            
+
             // Tell Wolverine that this application will never
             // produce messages to turn off any diagnostics that might
             // try to "ping" a topic and result in errors
             .ConsumeOnly();
-        
+
     }).StartAsync();
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/DocumentationSamples.cs#L131-L146' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disable_all_kafka_sending' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+
+## Global Partitioning
+
+Kafka topics can be used as the external transport for [global partitioned messaging](/guide/messaging/partitioning#global-partitioning). This creates a set of sharded Kafka topics with companion local queues for sequential processing across a multi-node cluster.
+
+Use `UseShardedKafkaTopics()` within a `GlobalPartitioned()` configuration:
+
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.UseKafka("localhost:9092").AutoProvision();
+
+        opts.MessagePartitioning.ByMessage<IMyMessage>(x => x.GroupId);
+
+        opts.MessagePartitioning.GlobalPartitioned(topology =>
+        {
+            // Creates 4 sharded Kafka topics named "orders1" through "orders4"
+            // with matching companion local queues for sequential processing
+            topology.UseShardedKafkaTopics("orders", 4);
+            topology.MessagesImplementing<IMyMessage>();
+        });
+    }).StartAsync();
+```
+
+This creates Kafka topics named `orders1` through `orders4` with companion local queues `global-orders1` through `global-orders4`. Messages are routed to the correct shard based on their group id, and Wolverine handles the coordination between nodes automatically.
+
+## Sending Tombstone Messages <Badge type="tip" text="5.22" />
+
+Wolverine supports sending [Kafka tombstone messages](https://medium.com/@damienthomlutz/deleting-records-in-kafka-aka-tombstones-651114655a16) — messages with a non-null key and a null value — which are used to delete records from log-compacted Kafka topics.
+
+To send a tombstone, broadcast a `KafkaTombstone` to the target topic:
+
+```cs
+// Delete a record by key from a log-compacted topic
+await bus.BroadcastToTopicAsync("my-topic", new KafkaTombstone("record-key-to-delete"));
+```
+
+When Wolverine encounters a `KafkaTombstone` message, it produces a Kafka message with the specified key and a `null` value. This signals to Kafka's log compaction process that the record with that key should be removed during the next compaction cycle.
+
+This is useful when your Kafka topics use [log compaction](https://docs.confluent.io/platform/current/kafka/design.html#log-compaction) to maintain a key-value snapshot of the latest state. Publishing a tombstone ensures that deleted records are eventually cleaned up from the topic.

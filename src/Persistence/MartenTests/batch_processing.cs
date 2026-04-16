@@ -14,6 +14,7 @@ using Wolverine.Tracking;
 
 namespace MartenTests;
 
+[Trait("Category", "Flaky")]
 public class batch_processing
 {
 

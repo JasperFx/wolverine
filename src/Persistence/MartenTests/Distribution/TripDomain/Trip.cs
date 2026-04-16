@@ -17,7 +17,7 @@ public class Trip
 
     public double Traveled { get; set; }
 
-    public string State { get; set; }
+    public string State { get; set; } = null!;
 
     public bool Active { get; set; }
 

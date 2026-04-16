@@ -46,7 +46,7 @@ internal class ReadJsonBodyWithNewtonsoft : MethodCall
 {
     private static MethodInfo findMethodForType(Type parameterType)
     {
-        return typeof(NewtonsoftHttpSerialization).GetMethod(nameof(NewtonsoftHttpSerialization.ReadFromJsonAsync))
+        return typeof(NewtonsoftHttpSerialization).GetMethod(nameof(NewtonsoftHttpSerialization.ReadFromJsonAsync))!
             .MakeGenericMethod(parameterType);
     }
 
@@ -127,15 +127,15 @@ internal class JsonBodyParameterStrategy : IParameterStrategy
         {
             // It *could* be used twice, so let's watch out for this!
             chain.RequestBodyVariable ??= Usage == JsonUsage.SystemTextJson
-                ? new ReadJsonBody(chain.RequestType).Variable
-                : new ReadJsonBodyWithNewtonsoft(chain.RequestType).ReturnVariable!;
+                ? new ReadJsonBody(chain.RequestType!).Variable
+                : new ReadJsonBodyWithNewtonsoft(chain.RequestType!).ReturnVariable!;
 
             variable = chain.RequestBodyVariable;
 
             return true;
         }
 
-        variable = default;
+        variable = default!;
         return false;
     }
 }

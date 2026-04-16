@@ -134,7 +134,7 @@ public class multi_tenanted_brokers
             // connection string out of configuration
             var azureServiceBusConnectionString = builder
                 .Configuration
-                .GetConnectionString("azure-service-bus");
+                .GetConnectionString("azure-service-bus")!;
 
             // Connect to the broker in the simplest possible way
             opts.UseAzureServiceBus(azureServiceBusConnectionString)
@@ -153,15 +153,15 @@ public class multi_tenanted_brokers
 
                 // Add new tenants by registering the tenant id and a separate fully qualified namespace
                 // to a different Azure Service Bus connection
-                .AddTenantByNamespace("one", builder.Configuration.GetValue<string>("asb_ns_one"))
-                .AddTenantByNamespace("two", builder.Configuration.GetValue<string>("asb_ns_two"))
-                .AddTenantByNamespace("three", builder.Configuration.GetValue<string>("asb_ns_three"))
+                .AddTenantByNamespace("one", builder.Configuration.GetValue<string>("asb_ns_one")!)
+                .AddTenantByNamespace("two", builder.Configuration.GetValue<string>("asb_ns_two")!)
+                .AddTenantByNamespace("three", builder.Configuration.GetValue<string>("asb_ns_three")!)
 
                 // OR, instead, add tenants by registering the tenant id and a separate connection string
                 // to a different Azure Service Bus connection
-                .AddTenantByConnectionString("four", builder.Configuration.GetConnectionString("asb_four"))
-                .AddTenantByConnectionString("five", builder.Configuration.GetConnectionString("asb_five"))
-                .AddTenantByConnectionString("six", builder.Configuration.GetConnectionString("asb_six"));
+                .AddTenantByConnectionString("four", builder.Configuration.GetConnectionString("asb_four")!)
+                .AddTenantByConnectionString("five", builder.Configuration.GetConnectionString("asb_five")!)
+                .AddTenantByConnectionString("six", builder.Configuration.GetConnectionString("asb_six")!);
             
             // This Wolverine application would be listening to a queue
             // named "incoming" on all Azure Service Bus connections, including the default
@@ -194,7 +194,7 @@ public class CustomAzureServiceBusMapper : IAzureServiceBusEnvelopeMapper
 {
     public void MapEnvelopeToOutgoing(Envelope envelope, ServiceBusMessage outgoing)
     {
-        outgoing.Body = new BinaryData(envelope.Data);
+        outgoing.Body = new BinaryData(envelope.Data!);
         if (envelope.DeliverWithin != null)
         {
             outgoing.TimeToLive = envelope.DeliverWithin.Value;

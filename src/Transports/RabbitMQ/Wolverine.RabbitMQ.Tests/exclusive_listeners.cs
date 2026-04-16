@@ -22,7 +22,7 @@ public class exclusive_listeners : IAsyncLifetime
 {
     private readonly List<IHost> _hosts = [];
     private readonly ITestOutputHelper _output;
-    private IHost _originalHost;
+    private IHost _originalHost = null!;
 
     public exclusive_listeners(ITestOutputHelper output)
     {

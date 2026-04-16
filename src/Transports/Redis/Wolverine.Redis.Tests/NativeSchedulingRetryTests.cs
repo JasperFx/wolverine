@@ -62,7 +62,7 @@ public class NativeSchedulingRetryTests
             .UseWolverine(opts =>
             {
                 opts.ServiceName = "RetryTestService";
-                opts.UseRedisTransport("localhost:6379").AutoProvision();
+                opts.UseRedisTransport(RedisContainerFixture.ConnectionString).AutoProvision();
             }).StartAsync();
 
         var runtime = host.Services.GetRequiredService<IWolverineRuntime>();

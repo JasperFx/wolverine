@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling.Matches;
 using Wolverine.Runtime;
+using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Transports;
 
@@ -93,12 +94,14 @@ internal class CircuitBreaker : IAsyncDisposable, IMessageSuccessTracker
     private readonly IExceptionMatch _match;
     private readonly Block<object[]> _processingBlock;
     private readonly double _ratio;
+    private readonly IWolverineObserver? _observer;
 
-    public CircuitBreaker(CircuitBreakerOptions options, IListenerCircuit circuit)
+    public CircuitBreaker(CircuitBreakerOptions options, IListenerCircuit circuit, IWolverineObserver? observer = null)
     {
         Options = options;
         _match = options.ToExceptionMatch();
         _circuit = circuit;
+        _observer = observer;
 
         _processingBlock = new Block<object[]>(processExceptionsAsync);
         _batching = new BatchingChannel<object>(options.SamplingPeriod, _processingBlock);
@@ -174,9 +177,12 @@ internal class CircuitBreaker : IAsyncDisposable, IMessageSuccessTracker
 
         if (failures > 0 && ShouldStopProcessing())
         {
-            using var activity = WolverineTracing.ActivitySource.StartActivity(WolverineTracing.CircuitBreakerTripped);
-            activity?.SetTag(WolverineTracing.EndpointAddress, _circuit.Endpoint.Uri);
             await _circuit.PauseAsync(Options.PauseTime);
+
+            if (_observer != null)
+            {
+                await _observer.CircuitBreakerTripped(_circuit.Endpoint, Options);
+            }
         }
     }
 

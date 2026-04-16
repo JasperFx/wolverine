@@ -294,7 +294,7 @@ public class ListenerConfiguration<TSelf, TEndpoint> : DelayedEndpointConfigurat
     public TSelf AddStickyHandler(Type handlerType)
     {
         // This needs to be done eagerly
-        _endpoint.StickyHandlers.Add(handlerType);
+        _endpoint!.StickyHandlers.Add(handlerType);
         return this.As<TSelf>();
     }
 
@@ -323,6 +323,12 @@ public class ListenerConfiguration<TSelf, TEndpoint> : DelayedEndpointConfigurat
     public TSelf UseForReplies()
     {
         add(e => e.IsUsedForReplies = true);
+        return this.As<TSelf>();
+    }
+
+    public TSelf ProcessInlineWhileDraining()
+    {
+        add(e => e.ProcessInlineWhileDraining = true);
         return this.As<TSelf>();
     }
 
@@ -405,6 +411,22 @@ public class ListenerConfiguration<TSelf, TEndpoint> : DelayedEndpointConfigurat
     public TSelf DefaultIncomingMessage(Type messageType)
     {
         add(e => e.MessageType = messageType);
+        return this.As<TSelf>();
+    }
+
+    public TSelf UseWireTap()
+    {
+        add(e => e.UseWireTap = true);
+        return this.As<TSelf>();
+    }
+
+    public TSelf UseWireTap(string serviceKey)
+    {
+        add(e =>
+        {
+            e.UseWireTap = true;
+            e.WireTapServiceKey = serviceKey;
+        });
         return this.As<TSelf>();
     }
 }

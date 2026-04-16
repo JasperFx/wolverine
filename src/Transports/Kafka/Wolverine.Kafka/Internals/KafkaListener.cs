@@ -44,10 +44,13 @@ public class KafkaListener : IListener, IDisposable, ISupportDeadLetterQueue
                         var result = _consumer.Consume(_cancellation.Token);
                         var message = result.Message;
 
-                        var envelope = mapper.CreateEnvelope(result.Topic, message);
+                        var envelope = mapper!.CreateEnvelope(result.Topic, message);
                         envelope.Offset = result.Offset.Value;
+                        envelope.PartitionId = result.Partition.Value;
                         envelope.MessageType ??= _messageTypeName;
-                        envelope.GroupId = config.GroupId;
+
+                        if (topic.StampConsumerGroupIdOnEnvelope)
+                            envelope.GroupId = config.GroupId;
 
                         await receiver.ReceivedAsync(this, envelope);
                     }
@@ -105,10 +108,11 @@ public class KafkaListener : IListener, IDisposable, ISupportDeadLetterQueue
         return _receiver.ReceivedAsync(this, envelope);
     }
 
-    public ValueTask DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
-        Dispose();
-        return ValueTask.CompletedTask;
+        await StopAsync();
+        _consumer.SafeDispose();
+        _runner.Dispose();
     }
 
     public Uri Address { get; }
@@ -165,6 +169,8 @@ public class KafkaListener : IListener, IDisposable, ISupportDeadLetterQueue
 
     public void Dispose()
     {
+        _cancellation.Cancel();
+        _runner.Wait();
         _consumer.SafeDispose();
         _runner.Dispose();
     }

@@ -43,6 +43,9 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
     public abstract string Description { get; }
     public List<AuditedMember> AuditedMembers { get; } = [];
 
+    /// <inheritdoc />
+    public Type? AncillaryStoreType { get; set; }
+
     public abstract bool TryInferMessageIdentity(out PropertyInfo? property);
 
     /// <summary>
@@ -135,7 +138,24 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
     protected void applyAttributesAndConfigureMethods(GenerationRules rules, IServiceContainer container)
     {
         var handlers = HandlerCalls();
-        var configureMethods = handlers.Select(x => x.HandlerType).Distinct()
+        var handlerTypes = handlers.Select(x => x.HandlerType).Distinct().ToList();
+
+        // Interface-based configuration (compile-time safe): check for IHandlerConfiguration implementors first
+        var interfaceHandled = new HashSet<Type>();
+        foreach (var handlerType in handlerTypes)
+        {
+            if (handlerType.IsAssignableTo(typeof(IHandlerConfiguration)))
+            {
+                // Invoke via interface map to call the concrete type's static implementation
+                var map = handlerType.GetInterfaceMap(typeof(IHandlerConfiguration));
+                map.TargetMethods[0].Invoke(null, [this]);
+                interfaceHandled.Add(handlerType);
+            }
+        }
+
+        // Convention-based configuration (backward compatible): skip types already handled by the interface
+        var configureMethods = handlerTypes
+            .Where(t => !interfaceHandled.Contains(t))
             .SelectMany(x => x.GetMethods())
             .Where(isConfigureMethod);
 
@@ -224,7 +244,7 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
 
         if (type.IsArray)
         {
-            return isMaybeServiceDependency(type.GetElementType());
+            return isMaybeServiceDependency(type.GetElementType()!);
         }
 
         if (ServiceContainer.IsEnumerable(type))
@@ -287,6 +307,7 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
     }
 
     private bool _appliedImpliedMiddleware;
+    private int _middlewareOutgoingCounter = 100;
     
     public void ApplyImpliedMiddlewareFromHandlers(GenerationRules generationRules)
     {
@@ -316,6 +337,56 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
                     Postprocessors.Insert(i, frame);
                 }
             }
+
+            // Discover OnException methods from handler types
+            var onExceptions = MiddlewarePolicy.FilterMethods<WolverineOnExceptionAttribute>(this,
+                handlerType.GetMethods(), MiddlewarePolicy.OnExceptionMethodNames).ToArray();
+
+            foreach (var onException in onExceptions)
+            {
+                var parameters = onException.GetParameters();
+                if (parameters.Length == 0 || !typeof(Exception).IsAssignableFrom(parameters[0].ParameterType))
+                {
+                    throw new InvalidWolverineMiddlewareException(
+                        $"OnException method '{onException.Name}' on type '{handlerType.FullName}' must have an Exception type as its first parameter.");
+                }
+
+                var exceptionType = parameters[0].ParameterType;
+                var call = new MethodCall(handlerType, onException);
+                ApplyParameterMatching(call);
+
+                var frames = new List<Frame> { call };
+
+                var outgoings = call.Creates.Where(x => x.VariableType == typeof(OutgoingMessages)).ToArray();
+                foreach (var outgoing in outgoings)
+                {
+                    frames.Add(new CaptureCascadingMessages(outgoing));
+                }
+
+                if (generationRules.TryFindContinuationHandler(this, call, out var continuation))
+                {
+                    frames.Add(continuation!);
+                }
+
+                GetOrCreateTryCatchFinallyFrame().AddCatchBlock(exceptionType, frames.ToArray());
+            }
+
+            // Discover Finally methods from handler types
+            // When there are OnException handlers, Finally goes into the TryCatchFinallyFrame
+            // Otherwise they stand alone (existing TryFinallyWrapperFrame behavior handles them from middleware)
+            var finals = MiddlewarePolicy.FilterMethods<WolverineFinallyAttribute>(this,
+                handlerType.GetMethods(), MiddlewarePolicy.FinallyMethodNames).ToArray();
+
+            if (finals.Length > 0)
+            {
+                var tryCatchFinally = GetOrCreateTryCatchFinallyFrame();
+                foreach (var final in finals)
+                {
+                    var finalCall = new MethodCall(handlerType, final);
+                    ApplyParameterMatching(finalCall);
+                    tryCatchFinally.AddFinallyBlock(finalCall);
+                }
+            }
         }
 
         applyDeferredMiddlewareVariables();
@@ -339,6 +410,19 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
         }
     }
 
+    private TryCatchFinallyFrame? _tryCatchFinallyFrame;
+
+    public TryCatchFinallyFrame GetOrCreateTryCatchFinallyFrame()
+    {
+        if (_tryCatchFinallyFrame == null)
+        {
+            _tryCatchFinallyFrame = new TryCatchFinallyFrame();
+            Middleware.Insert(0, _tryCatchFinallyFrame);
+        }
+
+        return _tryCatchFinallyFrame;
+    }
+
     public void AddMiddleware(GenerationRules generationRules, MethodCall frame)
     {
         MiddlewarePolicy.AssertMethodDoesNotHaveDuplicateReturnValues(frame);
@@ -348,10 +432,9 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
         // TODO -- might generalize this a bit. Have a more generic mode of understanding return values
         // like the HTTP support has
         var outgoings = frame.Creates.Where(x => x.VariableType == typeof(OutgoingMessages)).ToArray();
-        int start = 100;
         foreach (var outgoing in outgoings)
         {
-            outgoing.OverrideName(outgoing.Usage + (++start));
+            outgoing.OverrideName(outgoing.Usage + (++_middlewareOutgoingCounter));
             Middleware.Add(new CaptureCascadingMessages(outgoing));
         }
 
@@ -384,7 +467,7 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
         if (!reports.Any()) return;
         
         var logger = services.GetLoggerOrDefault<ICodeFile>();
-        var options = services.GetService<WolverineOptions>() ?? new WolverineOptions();
+        var options = services!.GetService<WolverineOptions>() ?? new WolverineOptions();
 
         switch (options.ServiceLocationPolicy)
         {

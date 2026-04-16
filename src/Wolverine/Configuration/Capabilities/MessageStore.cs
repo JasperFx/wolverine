@@ -11,7 +11,7 @@ public record MessageStore(
     /// <summary>
     /// The agent URI that the DurabilityAgent would use for this message store
     /// </summary>
-    public string AgentUri { get; init; } = Uri?.ToString();
+    public string AgentUri { get; init; } = Uri?.ToString()!;
 
     public static MessageStore For(IMessageStore store)
     {

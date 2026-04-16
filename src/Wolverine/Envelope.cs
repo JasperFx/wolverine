@@ -1,9 +1,8 @@
-﻿using System.Text.Json.Serialization;
-using JasperFx;
-using JasperFx.Core;
+﻿using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using JasperFx.MultiTenancy;
 using MassTransit;
+using System.Text.Json.Serialization;
 using Wolverine.Attributes;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime.Serialization;
@@ -60,6 +59,21 @@ public partial class Envelope : IHasTenantId
     {
         get => _headers ??= new();
         internal set => _headers = value;
+    }
+
+    /// <summary>
+    /// Try to read a header value by key without forcing dictionary allocation.
+    /// Returns true if the header exists and has a non-null value.
+    /// </summary>
+    public bool TryGetHeader(string key, out string? value)
+    {
+        if (_headers != null && _headers.TryGetValue(key, out value))
+        {
+            return value != null;
+        }
+
+        value = null;
+        return false;
     }
 
     #region sample_envelope_deliver_by_property
@@ -147,7 +161,7 @@ public partial class Envelope : IHasTenantId
             catch (Exception e)
             {
                 throw new WolverineSerializationException(
-                    $"Error trying to serialize message of type {Message.GetType().FullNameInCode()} with serializer {Serializer}", e);
+                    $"Error trying to serialize message of type {Message!.GetType().FullNameInCode()} with serializer {Serializer}", e);
             }
         }
 
@@ -176,7 +190,7 @@ public partial class Envelope : IHasTenantId
                     return _data;
                 }
 
-                throw new WolverineSerializationException($"No data or writer is known for this envelope of message type {_message.GetType().FullNameInCode()}");
+                throw new WolverineSerializationException($"No data or writer is known for this envelope of message type {_message!.GetType().FullNameInCode()}");
             }
 
             try
@@ -186,7 +200,7 @@ public partial class Envelope : IHasTenantId
             catch (Exception e)
             {
                 throw new WolverineSerializationException(
-                    $"Error trying to serialize message of type {Message.GetType().FullNameInCode()} with serializer {Serializer}", e);
+                    $"Error trying to serialize message of type {Message!.GetType().FullNameInCode()} with serializer {Serializer}", e);
             }
 
             return _data;
@@ -318,9 +332,15 @@ public partial class Envelope : IHasTenantId
     public string?[] AcceptedContentTypes { get; set; } = DefaultAcceptedContentTypes;
 
     /// <summary>
+    /// The delegate used to generate unique envelope IDs. Defaults to NewId.NextSequentialGuid.
+    /// Set via <see cref="WolverineOptions.EnvelopeIdGeneration"/> at startup.
+    /// </summary>
+    internal static Func<Guid> IdGenerator = NewId.NextSequentialGuid;
+
+    /// <summary>
     ///     Specific message id for this envelope
     /// </summary>
-    public Guid Id { get; set; } = NewId.NextSequentialGuid();
+    public Guid Id { get; set; } = IdGenerator();
 
     /// <summary>
     ///     If specified, the message type alias for the reply message that is requested for this message
@@ -491,8 +511,13 @@ public partial class Envelope : IHasTenantId
     /// For stream based transports (Kafka/RedPanda, this will reflect the message offset. This is strictly informational
     /// </summary>
     public long Offset { get; set; }
-    
-    
+
+    /// <summary>
+    /// For stream based transports (Kafka), this will reflect the partition the message was consumed from. This is strictly informational
+    /// </summary>
+    public int? PartitionId { get; set; }
+
+
     /// <summary>
     /// For some forms of modular monoliths, Wolverine needs to track what message store
     /// persisted this envelope for later tracking

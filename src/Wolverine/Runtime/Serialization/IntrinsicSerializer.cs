@@ -17,7 +17,7 @@ public class IntrinsicSerializer : IMessageSerializer
     public string ContentType => MimeType;
     public byte[] Write(Envelope envelope)
     {
-        var messageType = envelope.Message.GetType();
+        var messageType = envelope.Message!.GetType();
         if (_inner.TryFind(messageType, out var serializer))
         {
             return serializer.Write(envelope);
@@ -32,12 +32,12 @@ public class IntrinsicSerializer : IMessageSerializer
     {
         if (_inner.TryFind(messageType, out var serializer))
         {
-            return serializer.ReadFromData(envelope.Data);
+            return serializer.ReadFromData(envelope.Data!);
         }
 
         serializer = typeof(IntrinsicSerializer<>).CloseAndBuildAs<IMessageSerializer>(messageType);
         _inner = _inner.AddOrUpdate(messageType, serializer);
-        return serializer.ReadFromData(envelope.Data);
+        return serializer.ReadFromData(envelope.Data!);
     }
 
     public object ReadFromData(byte[] data)
@@ -56,12 +56,12 @@ internal class IntrinsicSerializer<T> : IMessageSerializer where T : ISerializab
     public string ContentType => IntrinsicSerializer.MimeType;
     public byte[] Write(Envelope envelope)
     {
-        return WriteMessage(envelope.Message);
+        return WriteMessage(envelope.Message!);
     }
 
     public object ReadFromData(Type messageType, Envelope envelope)
     {
-        return T.Read(envelope.Data);
+        return T.Read(envelope.Data!);
     }
 
     public object ReadFromData(byte[] data)

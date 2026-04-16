@@ -11,7 +11,7 @@ internal class TenantedPostgresqlQueue : Endpoint, IDatabaseBackedEndpoint
     private readonly PostgresqlQueue _parent;
     private readonly NpgsqlDataSource _dataSource;
     private readonly string _databaseName;
-    private PostgresqlQueueSender _sender;
+    private PostgresqlQueueSender _sender = null!;
 
     public TenantedPostgresqlQueue(PostgresqlQueue parent, NpgsqlDataSource dataSource, string databaseName) : base(PostgresqlQueue.ToUri(parent.Name, databaseName), EndpointRole.Application)
     {

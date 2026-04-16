@@ -31,6 +31,32 @@ public class Samples
     }
 
     [Fact]
+    public async Task register_the_middleware_with_validator_options()
+    {
+        #region sample_bootstrap_with_fluent_validation_and_options
+
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                // Apply the validation middleware with full configuration access
+                opts.UseFluentValidation(fv =>
+                {
+                    // Configure FluentValidation's global validator options
+                    fv.ValidatorOptions.DefaultRuleLevelCascadeMode = CascadeMode.Stop;
+                    fv.ValidatorOptions.Severity = Severity.Warning;
+
+                    // Optionally control registration behavior
+                    fv.RegistrationBehavior = RegistrationBehavior.DiscoverAndRegisterValidators;
+                });
+
+                // Just a prerequisite for some of the test validators
+                opts.Services.AddSingleton<IDataService, DataService>();
+            }).StartAsync();
+
+        #endregion
+    }
+
+    [Fact]
     public async Task register_the_middleware_with_override_failure_condition()
     {
         #region sample_bootstrap_with_fluent_validation_and_custom_failure_condition

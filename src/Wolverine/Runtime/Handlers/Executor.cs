@@ -54,11 +54,13 @@ internal class Executor : IExecutor
     private readonly FailureRuleCollection _rules;
     private readonly TimeSpan _timeout;
     private readonly IMessageTracker _tracker;
+    private readonly IWolverineRuntime? _runtime;
 
     public Executor(ObjectPool<MessageContext> contextPool, IWolverineRuntime runtime, IMessageHandler handler,
         FailureRuleCollection rules, TimeSpan timeout)
         : this(contextPool, runtime.LoggerFactory.CreateLogger(handler.MessageType), handler, runtime.MessageTracking, rules, timeout)
     {
+        _runtime = runtime;
     }
 
     public Executor(ObjectPool<MessageContext> contextPool, ILogger logger, IMessageHandler handler,
@@ -106,6 +108,12 @@ internal class Executor : IExecutor
             while (await InvokeAsync(context, cancellation) == InvokeResult.TryAgain)
             {
                 envelope.Attempts++;
+            }
+
+            // Record message causation before flushing outgoing messages
+            if (_runtime is { Options.EnableMessageCausationTracking: true })
+            {
+                Handler.RecordCauseAndEffect(context, _runtime.Observer);
             }
 
             await context.FlushOutgoingMessagesAsync();
@@ -267,11 +275,18 @@ internal class Executor : IExecutor
         try
         {
             await Handler.HandleAsync(context, combined.Token);
-            if (context.Envelope.ReplyRequested.IsNotEmpty())
+
+            // Record message causation after handler execution
+            if (_runtime is { Options.EnableMessageCausationTracking: true })
+            {
+                Handler.RecordCauseAndEffect(context, _runtime.Observer);
+            }
+
+            if (context.Envelope!.ReplyRequested.IsNotEmpty())
             {
                 await context.AssertAnyRequiredResponseWasGenerated();
             }
-            
+
             Activity.Current?.SetStatus(ActivityStatusCode.Ok);
 
             _messageSucceeded(_logger, _messageTypeName, envelope.Id,
@@ -296,7 +311,7 @@ internal class Executor : IExecutor
         finally
         {
 
-            _executionFinished(_logger, envelope.CorrelationId, _messageTypeName, envelope.Id, null);
+            _executionFinished(_logger, envelope.CorrelationId!, _messageTypeName, envelope.Id, null);
         }
     }
 
@@ -351,7 +366,7 @@ internal class Executor : IExecutor
                 handler = batching.BuildHandler((WolverineRuntime)runtime);
             }
         }
-        
+
         if (handler == null)
         {
             return new NoHandlerExecutor(messageType, (WolverineRuntime)runtime);
@@ -360,6 +375,11 @@ internal class Executor : IExecutor
         var chain = (handler as MessageHandler)?.Chain;
         var timeoutSpan = chain?.DetermineMessageTimeout(runtime.Options) ?? 5.Seconds();
         var rules = chain?.Failures.CombineRules(handlerGraph.Failures) ?? handlerGraph.Failures;
+
+        if (runtime.Options.InvokeTracing == InvokeTracingMode.Full)
+        {
+            return new TracingExecutor(contextPool, runtime, handler, rules, timeoutSpan);
+        }
 
         return new Executor(contextPool, runtime, handler, rules, timeoutSpan);
     }
@@ -372,7 +392,12 @@ internal class Executor : IExecutor
         var rules = chain?.Failures.CombineRules(handlerGraph.Failures) ?? handlerGraph.Failures;
 
         var logger = runtime.LoggerFactory.CreateLogger(handler.MessageType);
-        
+
+        if (runtime.Options.InvokeTracing == InvokeTracingMode.Full)
+        {
+            return new TracingExecutor(contextPool, logger, handler, tracker, rules, timeoutSpan);
+        }
+
         return new Executor(contextPool, logger, handler, tracker, rules, timeoutSpan);
     }
 }

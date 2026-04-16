@@ -1,22 +1,28 @@
 using System.Diagnostics;
+using System.Text;
 using Azure.Messaging.ServiceBus;
 using Azure.Messaging.ServiceBus.Administration;
 using JasperFx.Core;
+using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Logging;
+using Newtonsoft.Json;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
+using Wolverine.Runtime.Interop.MassTransit;
+using Wolverine.Runtime.Serialization;
 using Wolverine.Transports;
 using Wolverine.Transports.Sending;
+using Wolverine.Util;
 
 namespace Wolverine.AzureServiceBus.Internal;
 
-public class AzureServiceBusSubscription : AzureServiceBusEndpoint, IBrokerQueue
+public class AzureServiceBusSubscription : AzureServiceBusEndpoint, IBrokerQueue, IMassTransitInteropEndpoint
 {
     private bool _hasInitialized;
 
     public AzureServiceBusSubscription(AzureServiceBusTransport parent, AzureServiceBusTopic topic,
         string subscriptionName) : base(parent,
-        new Uri($"{parent.Protocol}://topic/{topic.TopicName}/{subscriptionName}"),
+        new Uri($"{parent.Protocol}://topic/{Uri.EscapeDataString(topic.TopicName)}/{subscriptionName}"),
         EndpointRole.Application)
     {
         if (parent == null)
@@ -221,5 +227,77 @@ public class AzureServiceBusSubscription : AzureServiceBusEndpoint, IBrokerQueue
         {
             await PurgeAsync(logger);
         }
+    }
+
+    internal void UseNServiceBusInterop()
+    {
+        DefaultSerializer = new NewtonsoftSerializer(new JsonSerializerSettings());
+        customizeMapping((m, _) =>
+        {
+            m.MapPropertyToHeader(x => x.ConversationId, "NServiceBus.ConversationId");
+            m.MapPropertyToHeader(x => x.SentAt, "NServiceBus.TimeSent");
+            m.MapPropertyToHeader(x => x.CorrelationId!, "NServiceBus.CorrelationId");
+
+            var replyAddress = new Lazy<string>(() =>
+            {
+                var replyEndpoint = Parent.ReplyEndpoint() as AzureServiceBusQueue;
+                return replyEndpoint?.QueueName ?? string.Empty;
+            });
+
+            void WriteReplyToAddress(Envelope e, ServiceBusMessage props)
+            {
+                props.ApplicationProperties["NServiceBus.ReplyToAddress"] = replyAddress.Value;
+            }
+
+            void ReadReplyUri(Envelope e, ServiceBusReceivedMessage serviceBusReceivedMessage)
+            {
+                if (serviceBusReceivedMessage.ApplicationProperties.TryGetValue("NServiceBus.ReplyToAddress",
+                        out var raw))
+                {
+                    var queueName = (raw is byte[] b ? Encoding.UTF8.GetString(b) : raw.ToString())!;
+                    e.ReplyUri = new Uri($"{Parent.Protocol}://queue/{queueName}");
+                }
+            }
+
+            m.MapProperty(x => x.ReplyUri!, ReadReplyUri, WriteReplyToAddress);
+
+            m.MapProperty(x => x.MessageType!, (e, msg) =>
+            {
+                if (msg.ApplicationProperties.TryGetValue("NServiceBus.EnclosedMessageTypes", out var raw))
+                {
+                    var typeName = (raw is byte[] b ? Encoding.UTF8.GetString(b) : raw.ToString())!;
+                    if (typeName.IsNotEmpty())
+                    {
+                        var messageType = Type.GetType(typeName);
+                        e.MessageType = messageType!.ToMessageTypeName();
+                    }
+                }
+            },
+                (e, msg) =>
+            {
+                msg.ApplicationProperties["NServiceBus.EnclosedMessageTypes"] = e.Message!.GetType().ToMessageTypeName();
+            });
+        });
+    }
+
+    Uri? IMassTransitInteropEndpoint.MassTransitUri()
+    {
+        return new Uri($"sb://{Parent.HostName}/topic/{Topic.TopicName}/{SubscriptionName}");
+    }
+
+    Uri? IMassTransitInteropEndpoint.MassTransitReplyUri()
+    {
+        return Parent.ReplyEndpoint()!.As<IMassTransitInteropEndpoint>().MassTransitUri();
+    }
+
+    Uri? IMassTransitInteropEndpoint.TranslateMassTransitToWolverineUri(Uri uri)
+    {
+        var lastSegment = uri.Segments.Last();
+        return Parent.Queues[lastSegment].Uri;
+    }
+
+    internal void UseMassTransitInterop(Action<IMassTransitInterop>? configure = null)
+    {
+        customizeMapping((m, _) => m.InteropWithMassTransit(configure));
     }
 }

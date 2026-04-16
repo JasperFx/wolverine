@@ -71,6 +71,33 @@ public static void Configure(HandlerChain chain)
 
 will be called by Wolverine to apply message type specific overrides to Wolverine's message handling.
 
+## Full Tracing for InvokeAsync <Badge type="tip" text="5.25" />
+
+By default, messages processed via `InvokeAsync()` (Wolverine's in-process mediator) use lightweight tracking
+without emitting the same structured log messages that transport-received messages produce. If you need full
+observability for inline invocations — for example, when using Wolverine purely as a mediator within an HTTP
+application — you can opt into full tracing:
+
+```csharp
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        // Emit the same structured log messages for InvokeAsync()
+        // as Wolverine does for transport-received messages
+        opts.InvokeTracing = InvokeTracingMode.Full;
+    }).StartAsync();
+```
+
+When `InvokeTracingMode.Full` is enabled, `InvokeAsync()` will emit:
+- **Execution started** — logged at the configured `MessageExecutionLogLevel` (default `Debug`)
+- **Message succeeded** — logged at the configured `MessageSuccessLogLevel` (default `Information`)
+- **Message failed** — logged at `Error` level with the exception
+- **Execution finished** — logged at the configured `MessageExecutionLogLevel`
+
+These are the same log messages and event IDs that Wolverine already uses for messages received from
+external transports like RabbitMQ, Kafka, or Azure Service Bus. This makes it easy to use a single
+log query to observe all message processing regardless of how messages enter the system.
+
 ## Configuring Health Check Tracing
 
 Wolverine's node agent controller performs health checks periodically (every 10 seconds by default) to maintain node assignments and cluster state. By default, these health checks emit Open Telemetry traces named `wolverine_node_assignments`, which can result in high trace volumes in observability platforms.
@@ -238,6 +265,151 @@ This will extend your log entries to like this:
 [09:41:00 INFO] Starting to process IAccountMessage ("018761ad-8ed2-4bc9-bde5-c3cbb643f9f3") with AccountId: "c446fa0b-7496-42a5-b6c8-dd53c65c96c8"
 ```
 
+## Wire Tap <Badge type="tip" text="5.13" />
+
+Wolverine supports the [Wire Tap](https://www.enterpriseintegrationpatterns.com/patterns/messaging/WireTap.html) pattern
+from the Enterprise Integration Patterns book. A wire tap lets you record a copy of every message flowing through
+configured endpoints for auditing, compliance, analytics, or monitoring purposes — without affecting the primary
+message processing pipeline.
+
+### Defining a Wire Tap
+
+Implement the `IWireTap` interface:
+
+```csharp
+public class AuditWireTap : IWireTap
+{
+    private readonly IAuditStore _store;
+
+    public AuditWireTap(IAuditStore store)
+    {
+        _store = store;
+    }
+
+    public async ValueTask RecordSuccessAsync(Envelope envelope)
+    {
+        await _store.RecordAsync(new AuditEntry
+        {
+            MessageId = envelope.Id,
+            MessageType = envelope.MessageType,
+            Destination = envelope.Destination?.ToString(),
+            Timestamp = DateTimeOffset.UtcNow,
+            Succeeded = true
+        });
+    }
+
+    public async ValueTask RecordFailureAsync(Envelope envelope, Exception exception)
+    {
+        await _store.RecordAsync(new AuditEntry
+        {
+            MessageId = envelope.Id,
+            MessageType = envelope.MessageType,
+            Destination = envelope.Destination?.ToString(),
+            Timestamp = DateTimeOffset.UtcNow,
+            Succeeded = false,
+            ExceptionType = exception.GetType().Name,
+            ExceptionMessage = exception.Message
+        });
+    }
+}
+```
+
+::: warning
+**Implementations must never allow exceptions to escape.** Wolverine wraps wire tap calls in a safety-net `try/catch`,
+but if your wire tap throws, the exception will only be logged — it will *not* retry or affect message processing.
+Your implementation should handle all errors internally (e.g., log and swallow) to avoid polluting application logs
+with wire tap noise.
+:::
+
+::: tip
+For production wire taps that write to a database or external system, consider using `System.Threading.Channels`
+(specifically Wolverine's built-in `BatchingChannel`) to batch the recording operations. This keeps the wire tap
+mechanics off the hot path of message handling, improving throughput while batching database writes for efficiency.
+:::
+
+### Registering a Wire Tap
+
+Register your `IWireTap` in the IoC container. **Singleton lifetime is strongly recommended** since wire taps are
+resolved once per endpoint at startup:
+
+```csharp
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        // Register a singleton wire tap
+        opts.Services.AddSingleton<IWireTap, AuditWireTap>();
+    }).StartAsync();
+```
+
+### Enabling Wire Taps on Endpoints
+
+Wire taps must be explicitly enabled on each endpoint — there is no global "enable everywhere" switch. This is
+intentional: you should deliberately choose which endpoints need auditing.
+
+```csharp
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.Services.AddSingleton<IWireTap, AuditWireTap>();
+
+        // Enable on a specific listener
+        opts.ListenToRabbitQueue("incoming").UseWireTap();
+
+        // Enable on a specific sender
+        opts.PublishAllMessages().ToRabbitExchange("outgoing").UseWireTap();
+
+        // Enable on a specific local queue
+        opts.LocalQueue("important").UseWireTap();
+
+        // Enable across all external listeners (excludes local queues)
+        opts.Policies.AllListeners(x => x.UseWireTap());
+
+        // Enable across all local queues separately
+        opts.Policies.AllLocalQueues(x => x.UseWireTap());
+
+        // Enable across all sender endpoints
+        opts.Policies.AllSenders(x => x.UseWireTap());
+    }).StartAsync();
+```
+
+### Using Keyed Wire Taps
+
+If different endpoints need different wire tap implementations (e.g., one endpoint writes to a compliance database
+while another sends to a monitoring service), use keyed services:
+
+```csharp
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        // Register multiple wire tap implementations
+        opts.Services.AddSingleton<IWireTap, ComplianceWireTap>();
+        opts.Services.AddKeyedSingleton<IWireTap>("monitoring", new MonitoringWireTap());
+
+        // Default wire tap (uses the non-keyed registration)
+        opts.ListenToRabbitQueue("orders").UseWireTap();
+
+        // Specific wire tap by service key
+        opts.ListenToRabbitQueue("payments").UseWireTap("monitoring");
+    }).StartAsync();
+```
+
+### What Gets Recorded
+
+- **`RecordSuccessAsync`** is called when:
+  - A message has been successfully handled at a listening endpoint
+  - A message has been successfully sent from a sending endpoint
+- **`RecordFailureAsync`** is called when:
+  - Message handling fails at a listening endpoint after exhausting all error handling policies (moved to dead letter queue)
+
+### Auditing and Compliance Considerations
+
+For systems with regulatory auditing requirements (SOC 2, HIPAA, PCI-DSS, GDPR):
+
+- Wire taps provide a natural integration point for recording message flow for audit trails
+- Combine with Wolverine's [contextual logging and audited members](#contextual-logging-with-audited-members) to include business identifiers in your audit records
+- The `Envelope` passed to wire tap methods includes correlation IDs, tenant IDs, and message metadata useful for compliance reporting
+- Consider separate wire tap implementations per compliance domain using keyed services
+
 ## Open Telemetry
 
 Wolverine also supports the [Open Telemetry](https://opentelemetry.io/docs/instrumentation/net/) standard for distributed tracing. To enable
@@ -401,6 +573,25 @@ public const string TooManySenderFailures = "TooManySenderFailures";
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/WolverineTracing.cs#L27-L121' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_open_telemetry_tracing_spans_and_activities' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+
+## Handler Type Tagging
+
+Wolverine automatically tags Open Telemetry activity spans with the handler type name during message processing. This provides per-handler tracing visibility in observability backends like Jaeger, Zipkin, or Honeycomb without any additional configuration.
+
+For both message handlers and Wolverine.HTTP endpoints, Wolverine emits the `handler.type` tag containing the full .NET type name of the handler class. For message handlers, the existing `message.handler` tag is also set with the same value for backward compatibility.
+
+These tags are memoized as string literals in Wolverine's generated code, so there is no runtime cost for computing the handler type name on each request.
+
+Example activity tags for a message handler:
+```
+handler.type = "MyApp.Handlers.OrderPlacedHandler"
+message.handler = "MyApp.Handlers.OrderPlacedHandler"
+```
+
+Example activity tags for an HTTP endpoint:
+```
+handler.type = "MyApp.Endpoints.OrderEndpoint"
+```
 
 ## Message Correlation
 

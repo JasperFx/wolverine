@@ -1,6 +1,5 @@
 using Alba;
 using IntegrationTests;
-using JasperFx.CommandLine;
 using Marten.Exceptions;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
@@ -10,8 +9,6 @@ using SharedPersistenceModels;
 using SharedPersistenceModels.Items;
 using SharedPersistenceModels.Orders;
 using Shouldly;
-using Weasel.Postgresql;
-using Weasel.SqlServer;
 using Wolverine;
 using Wolverine.EntityFrameworkCore;
 using Wolverine.EntityFrameworkCore.Internals;
@@ -29,16 +26,15 @@ public enum DatabaseEngine
 [Collection("multi-tenancy")]
 public abstract class MultiTenancyCompliance : IAsyncLifetime, IWolverineExtension
 {
-    protected IDbContextBuilder<ItemsDbContext> theBuilder;
+    protected IDbContextBuilder<ItemsDbContext> theBuilder = null!;
     private readonly DatabaseEngine _engine;
-    protected IAlbaHost theHost;
-    protected string tenant1ConnectionString;
-    protected string tenant2ConnectionString;
-    protected string tenant3ConnectionString;
+    protected IAlbaHost theHost = null!;
+    protected string tenant1ConnectionString = null!;
+    protected string tenant2ConnectionString = null!;
+    protected string tenant3ConnectionString = null!;
     
     protected MultiTenancyCompliance(DatabaseEngine engine)
     {
-        JasperFxEnvironment.AutoStartHost = true;
         TestingOverrides.Extension = this;
         
         _engine = engine;
@@ -164,16 +160,16 @@ public abstract class MultiTenancyCompliance : IAsyncLifetime, IWolverineExtensi
         var greenDbContext = await theBuilder.BuildAsync("green", CancellationToken.None);
         var redDbContext = await theBuilder.BuildAsync("red", CancellationToken.None);
 
-        (await blueDbContext.Items.FindAsync(blueId)).Name.ShouldBe("Blue!");
+        (await blueDbContext.Items.FindAsync(blueId))!.Name.ShouldBe("Blue!");
         (await greenDbContext.Items.FindAsync(blueId)).ShouldBeNull();
         (await redDbContext.Items.FindAsync(blueId)).ShouldBeNull();
 
         (await blueDbContext.Items.FindAsync(redId)).ShouldBeNull();
         (await greenDbContext.Items.FindAsync(redId)).ShouldBeNull();
-        (await redDbContext.Items.FindAsync(redId)).Name.ShouldBe("Red!");
+        (await redDbContext.Items.FindAsync(redId))!.Name.ShouldBe("Red!");
 
         (await blueDbContext.Items.FindAsync(greenId)).ShouldBeNull();
-        (await greenDbContext.Items.FindAsync(greenId)).Name.ShouldBe("Green!");
+        (await greenDbContext.Items.FindAsync(greenId))!.Name.ShouldBe("Green!");
         (await redDbContext.Items.FindAsync(greenId)).ShouldBeNull();
     }
     
@@ -191,7 +187,7 @@ public abstract class MultiTenancyCompliance : IAsyncLifetime, IWolverineExtensi
             var greenDbContext = await theBuilder.BuildAsync("green", CancellationToken.None);
             var redDbContext = await theBuilder.BuildAsync("red", CancellationToken.None);
 
-            (await defaultDbContext.FindAsync<Item>(defaultId)).Name.ShouldBe("The Default!");
+            (await defaultDbContext.FindAsync<Item>(defaultId))!.Name.ShouldBe("The Default!");
         }
         catch (DefaultTenantUsageDisabledException)
         {
@@ -214,7 +210,7 @@ public abstract class MultiTenancyCompliance : IAsyncLifetime, IWolverineExtensi
         var greenDbContext = await theBuilder.BuildAsync("green", CancellationToken.None);
         var redDbContext = await theBuilder.BuildAsync("red", CancellationToken.None);
 
-        var blue = await blueDbContext.Items.FindAsync(blueId);
+        var blue = (await blueDbContext.Items.FindAsync(blueId))!;
         blue.Name.ShouldBe("Blue!");
         blue.Approved.ShouldBeTrue();
         (await greenDbContext.Items.FindAsync(blueId)).ShouldBeNull();
@@ -222,12 +218,12 @@ public abstract class MultiTenancyCompliance : IAsyncLifetime, IWolverineExtensi
 
         (await blueDbContext.Items.FindAsync(redId)).ShouldBeNull();
         (await greenDbContext.Items.FindAsync(redId)).ShouldBeNull();
-        var red = await redDbContext.Items.FindAsync(redId);
+        var red = (await redDbContext.Items.FindAsync(redId))!;
         red.Name.ShouldBe("Red!");
         red.Approved.ShouldBeTrue();
 
         (await blueDbContext.Items.FindAsync(greenId)).ShouldBeNull();
-        var green = await greenDbContext.Items.FindAsync(greenId);
+        var green = (await greenDbContext.Items.FindAsync(greenId))!;
         green.Name.ShouldBe("Green!");
         green.Approved.ShouldBeTrue();
         (await redDbContext.Items.FindAsync(greenId)).ShouldBeNull();
@@ -254,7 +250,7 @@ public abstract class MultiTenancyCompliance : IAsyncLifetime, IWolverineExtensi
         (await redDbContext.FindAsync<Item>(command.Id)).ShouldBeNull();
         (await greenDbContext.FindAsync<Item>(command.Id)).ShouldBeNull();
         
-        (await blueDbContext.FindAsync<Item>(command.Id)).Name.ShouldBe(command.Name);
+        (await blueDbContext.FindAsync<Item>(command.Id))!.Name.ShouldBe(command.Name);
     }
 
     [Fact]
@@ -277,7 +273,7 @@ public abstract class MultiTenancyCompliance : IAsyncLifetime, IWolverineExtensi
         (await redDbContext.FindAsync<Item>(command.Id)).ShouldBeNull();
         (await greenDbContext.FindAsync<Item>(command.Id)).ShouldBeNull();
         
-        (await defaultDbContext.FindAsync<Item>(command.Id)).Name.ShouldBe(command.Name);
+        (await defaultDbContext.FindAsync<Item>(command.Id))!.Name.ShouldBe(command.Name);
     }
 
     [Fact]
@@ -373,13 +369,13 @@ public abstract class MultiTenancyCompliance : IAsyncLifetime, IWolverineExtensi
         var greenDbContext = await theBuilder.BuildAsync("green", CancellationToken.None);
         var redDbContext = await theBuilder.BuildAsync("red", CancellationToken.None);
         
-        (await blueDbContext.FindAsync<Item>(command.Id)).Approved.ShouldBeFalse();
-        (await redDbContext.FindAsync<Item>(command.Id)).Approved.ShouldBeFalse();
-        
+        (await blueDbContext.FindAsync<Item>(command.Id))!.Approved.ShouldBeFalse();
+        (await redDbContext.FindAsync<Item>(command.Id))!.Approved.ShouldBeFalse();
+
         // Only approved this one
-        (await greenDbContext.FindAsync<Item>(command.Id)).Approved.ShouldBeTrue();
+        (await greenDbContext.FindAsync<Item>(command.Id))!.Approved.ShouldBeTrue();
     }
-    
+
     [Fact]
     public async Task http_post_with_direct_reference_in_middleware()
     {
@@ -403,13 +399,13 @@ public abstract class MultiTenancyCompliance : IAsyncLifetime, IWolverineExtensi
         var greenDbContext = await theBuilder.BuildAsync("green", CancellationToken.None);
         var redDbContext = await theBuilder.BuildAsync("red", CancellationToken.None);
         
-        (await blueDbContext.FindAsync<Item>(command.Id)).Approved.ShouldBeFalse();
-        (await redDbContext.FindAsync<Item>(command.Id)).Approved.ShouldBeFalse();
-        
+        (await blueDbContext.FindAsync<Item>(command.Id))!.Approved.ShouldBeFalse();
+        (await redDbContext.FindAsync<Item>(command.Id))!.Approved.ShouldBeFalse();
+
         // Only approved this one
-        (await greenDbContext.FindAsync<Item>(command.Id)).Approved.ShouldBeTrue();
+        (await greenDbContext.FindAsync<Item>(command.Id))!.Approved.ShouldBeTrue();
     }
-    
+
     [Fact]
     public async Task http_post_with_by_entity_attribute_and_storage_action()
     {
@@ -433,13 +429,13 @@ public abstract class MultiTenancyCompliance : IAsyncLifetime, IWolverineExtensi
         var greenDbContext = await theBuilder.BuildAsync("green", CancellationToken.None);
         var redDbContext = await theBuilder.BuildAsync("red", CancellationToken.None);
         
-        (await blueDbContext.FindAsync<Item>(command.Id)).Approved.ShouldBeFalse();
-        (await redDbContext.FindAsync<Item>(command.Id)).Approved.ShouldBeFalse();
-        
+        (await blueDbContext.FindAsync<Item>(command.Id))!.Approved.ShouldBeFalse();
+        (await redDbContext.FindAsync<Item>(command.Id))!.Approved.ShouldBeFalse();
+
         // Only approved this one
-        (await greenDbContext.FindAsync<Item>(command.Id)).Approved.ShouldBeTrue();
+        (await greenDbContext.FindAsync<Item>(command.Id))!.Approved.ShouldBeTrue();
     }
-    
+
     [Fact]
     public async Task use_sagas()
     {
@@ -494,7 +490,7 @@ public abstract class MultiTenancyCompliance : IAsyncLifetime, IWolverineExtensi
         var dbContext = await builder.BuildAsync("blue", CancellationToken.None);
 
         var item2 = await dbContext.Items.FindAsync(id);
-        item2.Approved.ShouldBeTrue();
+        item2!.Approved.ShouldBeTrue();
     }
 
 }

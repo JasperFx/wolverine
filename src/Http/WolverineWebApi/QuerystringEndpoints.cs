@@ -74,6 +74,25 @@ public static class QuerystringEndpoints
     }
 }
 
+public static class DottedFromQueryEndpoints
+{
+    [WolverineGet("/querystring/dotted")]
+    public static string HandleDottedQueryNames(
+        [FromQuery(Name = "hub.mode")] string hubMode,
+        [FromQuery(Name = "hub.challenge")] string hubChallenge,
+        [FromQuery(Name = "hub.verify_token")] string hubVerifyToken)
+    {
+        return $"{hubMode}|{hubChallenge}|{hubVerifyToken}";
+    }
+
+    [WolverineGet("/querystring/dotted-int")]
+    public static string HandleDottedIntQueryName(
+        [FromQuery(Name = "page.number")] int pageNumber)
+    {
+        return $"page {pageNumber}";
+    }
+}
+
 public static class FromQueryEndpoints
 {
     [WolverineGet("/api/fromquery1")]
@@ -118,11 +137,11 @@ public record AliasedIntArrayQuery([FromQuery(Name = "n")] int[] Numbers);
 
 public class BigQuery
 {
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
     public int Number { get; set; }
     public Direction Direction { get; set; }
-    public string[] Values { get; set; }
-    public int[] Numbers { get; set; }
+    public string[] Values { get; set; } = null!;
+    public int[] Numbers { get; set; } = null!;
 
     public bool Flag { get; set; }
 
@@ -137,15 +156,15 @@ public class BigQuery
     public List<string> ListValues { get; set; } = new();
     public List<Direction> EnumListValues { get; set; } = new();
 
-    public List<int> IntList { get; set; }
+    public List<int> IntList { get; set; } = null!;
 
     [FromQuery(Name = "v")]
     [FromForm(Name = "v")]
-    public string[] AliasedValues { get; set; }
+    public string[] AliasedValues { get; set; } = null!;
 
     [FromQuery(Name = "n")]
     [FromForm(Name = "n")]
-    public int[] AliasedNumbers { get; set; }
+    public int[] AliasedNumbers { get; set; } = null!;
 
     [FromQuery(Name = "d")]
     [FromForm(Name = "d")]

@@ -18,8 +18,8 @@ namespace MartenTests.AggregateHandlerWorkflow;
 
 public class aggregate_handler_workflow: PostgresqlContext, IAsyncLifetime
 {
-    private IHost theHost;
-    private IDocumentStore theStore;
+    private IHost theHost = null!;
+    private IDocumentStore theStore = null!;
     private Guid theStreamId;
 
     public async Task InitializeAsync()
@@ -61,7 +61,7 @@ public class aggregate_handler_workflow: PostgresqlContext, IAsyncLifetime
     internal async Task<LetterAggregate> LoadAggregate()
     {
         await using var session = theStore.LightweightSession();
-        return await session.LoadAsync<LetterAggregate>(theStreamId);
+        return (await session.LoadAsync<LetterAggregate>(theStreamId))!;
     }
 
     internal async Task OnAggregate(Action<LetterAggregate> assertions)
@@ -93,10 +93,28 @@ public class aggregate_handler_workflow: PostgresqlContext, IAsyncLifetime
         // Do this first to force the compilation
         var handler = theHost.GetRuntime().Handlers.HandlerFor<RaiseABC>();
         var chain = theHost.GetRuntime().Handlers.ChainFor<RaiseABC>();
-        
-        chain.AuditedMembers.Single().MemberName.ShouldBe(nameof(RaiseABC.LetterAggregateId));
-        
-        chain.SourceCode.ShouldContain("System.Diagnostics.Activity.Current?.SetTag(\"letter.aggregate.id\", raiseABC.LetterAggregateId);");
+
+        chain!.AuditedMembers.Single().MemberName.ShouldBe(nameof(RaiseABC.LetterAggregateId));
+
+        chain.SourceCode!.ShouldContain("System.Diagnostics.Activity.Current?.SetTag(\"letter.aggregate.id\", raiseABC.LetterAggregateId);");
+    }
+
+    [Fact]
+    public void generates_wolverine_stream_id_otel_tag()
+    {
+        var handler = theHost.GetRuntime().Handlers.HandlerFor<RaiseABC>();
+        var chain = theHost.GetRuntime().Handlers.ChainFor<RaiseABC>();
+
+        chain!.SourceCode!.ShouldContain($"SetTag(\"{Wolverine.Runtime.WolverineTracing.StreamId}\"");
+    }
+
+    [Fact]
+    public void generates_wolverine_stream_type_otel_tag()
+    {
+        var handler = theHost.GetRuntime().Handlers.HandlerFor<RaiseABC>();
+        var chain = theHost.GetRuntime().Handlers.ChainFor<RaiseABC>();
+
+        chain!.SourceCode!.ShouldContain($"SetTag(\"{Wolverine.Runtime.WolverineTracing.StreamType}\", \"{typeof(LetterAggregate).FullName}\"");
     }
 
     [Fact]
@@ -105,7 +123,7 @@ public class aggregate_handler_workflow: PostgresqlContext, IAsyncLifetime
         await GivenAggregate();
 
         var (tracked, response) = await theHost.InvokeMessageAndWaitAsync<Response>(new RaiseABC(theStreamId));
-        response.ACount.ShouldBe(1);
+        response!.ACount.ShouldBe(1);
         response.BCount.ShouldBe(1);
         response.CCount.ShouldBe(1);
 
@@ -138,7 +156,7 @@ public class aggregate_handler_workflow: PostgresqlContext, IAsyncLifetime
         await GivenAggregate();
 
         var (tracked, response) = await theHost.InvokeMessageAndWaitAsync<Response>(new RaiseAABCC(theStreamId));
-        response.ACount.ShouldBe(2);
+        response!.ACount.ShouldBe(2);
         response.BCount.ShouldBe(1);
         response.CCount.ShouldBe(2);
 
@@ -158,7 +176,7 @@ public class aggregate_handler_workflow: PostgresqlContext, IAsyncLifetime
         var (tracked, response) = await theHost.InvokeMessageAndWaitAsync<Response>(new RaiseBBCCC(theStreamId));
 
         // Just proves that this is what comes out of the handler
-        response.ACount.ShouldBe(5);
+        response!.ACount.ShouldBe(5);
 
         await OnAggregate(a =>
         {
@@ -177,7 +195,7 @@ public class aggregate_handler_workflow: PostgresqlContext, IAsyncLifetime
         await GivenAggregate();
 
         var (tracked, response) = await theHost.InvokeMessageAndWaitAsync<Response>(new RaiseAAA(theStreamId));
-        response.CCount.ShouldBe(11);
+        response!.CCount.ShouldBe(11);
 
         await OnAggregate(a =>
         {
@@ -248,7 +266,7 @@ public class aggregate_handler_workflow: PostgresqlContext, IAsyncLifetime
         
         tracked.Sent.AllMessages().ShouldBeEmpty();
         
-        updated.ACount.ShouldBe(3);
+        updated!.ACount.ShouldBe(3);
         updated.BCount.ShouldBe(4);
     }
 
@@ -271,11 +289,11 @@ public class aggregate_handler_workflow: PostgresqlContext, IAsyncLifetime
         {
             // Should not apply anything new if there is a value for ACount
             var existing1 = await session.LoadAsync<LetterAggregate>(streamId);
-            existing1.BCount.ShouldBe(0);
-            
+            existing1!.BCount.ShouldBe(0);
+
             // Should apply anything new if there was no value for ACount
             var existing2 = await session.LoadAsync<LetterAggregate>(streamId2);
-            existing2.BCount.ShouldBe(1);
+            existing2!.BCount.ShouldBe(1);
         }
     }
 }
@@ -318,8 +336,8 @@ public static class Outgoing1Handler
 
 public record Outgoing1
 {
-    public Event3 Event { get; set; }
-    public Aggregate Aggregate { get; set; }
+    public Event3 Event { get; set; } = null!;
+    public Aggregate Aggregate { get; set; } = null!;
 }
 
 public record LetterMessage1;

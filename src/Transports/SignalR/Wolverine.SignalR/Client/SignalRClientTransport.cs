@@ -21,7 +21,7 @@ public class SignalRClientTransport : TransportBase<SignalRClientEndpoint>
 
     protected override SignalRClientEndpoint findEndpointByUri(Uri uri)
     {
-        return Clients.FirstOrDefault(x => x.Uri == uri);
+        return Clients.FirstOrDefault(x => x.Uri == uri)!;
     }
 
     public SignalRClientEndpoint ForClientUrl(string clientUrl)

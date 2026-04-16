@@ -29,11 +29,11 @@ namespace MartenTests.AncillaryStores;
 public class bootstrapping_ancillary_marten_stores_with_wolverine : IAsyncLifetime
 {
     private readonly ITestOutputHelper _output;
-    private string tenant1ConnectionString;
-    private string tenant2ConnectionString;
-    private string tenant3ConnectionString;
-    private IAgentFamily theFamily;
-    private IHost theHost;
+    private string tenant1ConnectionString = null!;
+    private string tenant2ConnectionString = null!;
+    private string tenant3ConnectionString = null!;
+    private IAgentFamily theFamily = null!;
+    private IHost theHost = null!;
 
     public bootstrapping_ancillary_marten_stores_with_wolverine(ITestOutputHelper output)
     {
@@ -277,10 +277,10 @@ public interface IThingStore : IDocumentStore;
 
 public class Player
 {
-    public string Id { get; set; }
+    public string Id { get; set; } = null!;
 }
 
 public class Thing
 {
-    public string Id { get; set; }
+    public string Id { get; set; } = null!;
 }

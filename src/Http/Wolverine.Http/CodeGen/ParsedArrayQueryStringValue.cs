@@ -7,7 +7,7 @@ namespace Wolverine.Http.CodeGen;
 
 internal class ParsedArrayQueryStringValue : SyncFrame, IReadHttpFrame
 {
-    private string _property;
+    private string? _property;
 
     public ParsedArrayQueryStringValue(Type parameterType, string parameterName) 
     {
@@ -40,14 +40,14 @@ internal class ParsedArrayQueryStringValue : SyncFrame, IReadHttpFrame
         }
         else
         {
-            var collectionAlias = typeof(List<>).MakeGenericType(elementType).FullNameInCode();
-            var elementAlias = elementType.FullNameInCode();
+            var collectionAlias = typeof(List<>).MakeGenericType(elementType!).FullNameInCode();
+            var elementAlias = elementType!.FullNameInCode();
 
             writer.Write($"var {Variable.Usage}_List = new {collectionAlias}();");
             
             writer.Write($"BLOCK:foreach (var {Variable.Usage}Value in httpContext.Request.Query[\"{Variable.Usage}\"])");
 
-            if (elementType.IsEnum)
+            if (elementType!.IsEnum)
             {
                 writer.Write($"BLOCK:if ({elementAlias}.TryParse<{elementAlias}>({Variable.Usage}Value, out var {Variable.Usage}ValueParsed))");
             }

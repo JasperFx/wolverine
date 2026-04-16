@@ -3,5 +3,5 @@
 public class ItemCreated
 {
     public Guid Id;
-    public string Name;
+    public string Name = null!;
 }

@@ -28,6 +28,11 @@ public interface IEndpointCollection : IAsyncDisposable
     ISendingAgent? AgentForLocalQueue(Uri uri);
 
     /// <summary>
+    /// Collect a point-in-time health snapshot of all active endpoints.
+    /// </summary>
+    IReadOnlyList<EndpointHealthSnapshot> CollectEndpointHealth();
+
+    /// <summary>
     /// Endpoints where the message listener should only be active on a single endpoint
     /// </summary>
     /// <returns></returns>
@@ -122,6 +127,41 @@ public class EndpointCollection : IEndpointCollection
     public IEnumerable<IListeningAgent> ActiveListeners()
     {
         return _listeners.Values;
+    }
+
+    public IReadOnlyList<EndpointHealthSnapshot> CollectEndpointHealth()
+    {
+        var snapshots = new List<EndpointHealthSnapshot>();
+
+        foreach (var listener in _listeners.Values)
+        {
+            snapshots.Add(new EndpointHealthSnapshot(
+                Uri: listener.Uri,
+                EndpointName: listener.Endpoint.EndpointName,
+                Direction: EndpointDirection.Listening,
+                Status: listener.Status.ToString(),
+                QueueCount: listener.QueueCount,
+                LastQueueActivityAt: listener.LastQueueActivityAt,
+                LastMessageSentAt: null,
+                SenderLatched: false,
+                BufferLimit: listener.Endpoint.BufferingLimits?.Maximum));
+        }
+
+        foreach (var sender in _senders.Enumerate().Select(x => x.Value))
+        {
+            snapshots.Add(new EndpointHealthSnapshot(
+                Uri: sender.Destination,
+                EndpointName: sender.Endpoint?.EndpointName ?? "unknown",
+                Direction: EndpointDirection.Sending,
+                Status: sender.Latched ? "Latched" : "Active",
+                QueueCount: 0,
+                LastQueueActivityAt: null,
+                LastMessageSentAt: sender.LastMessageSentAt,
+                SenderLatched: sender.Latched,
+                BufferLimit: null));
+        }
+
+        return snapshots;
     }
 
     public ISendingAgent GetOrBuildSendingAgent(Uri address, Action<Endpoint>? configureNewEndpoint = null)
@@ -384,8 +424,9 @@ public class EndpointCollection : IEndpointCollection
 
     /// <summary>
     /// Immediately latch all receivers to stop picking up new messages from their internal queues.
-    /// This is called as early as possible during shutdown (via IHostApplicationLifetime.ApplicationStopping)
-    /// so that messages already queued internally are not processed after the shutdown signal.
+    /// During normal shutdown this is no longer called globally; instead each ListeningAgent
+    /// latches its own receiver after stopping the listener (see StopAndDrainAsync).
+    /// Kept to not break public api compatability.
     /// </summary>
     public void LatchAllReceivers()
     {
@@ -402,8 +443,7 @@ public class EndpointCollection : IEndpointCollection
 
     public async Task DrainAsync()
     {
-        // Drain the listeners
-        foreach (var listener in ActiveListeners().ToArray())
+        await Task.WhenAll(ActiveListeners().ToArray().Select(async listener =>
         {
             try
             {
@@ -413,9 +453,9 @@ public class EndpointCollection : IEndpointCollection
             {
                 _runtime.Logger.LogError(e, "Failed to 'drain' outstanding messages in listener {Uri}", listener.Uri);
             }
-        }
+        }));
 
-        foreach (var queue in _localSenders.Enumerate().Select(x => x.Value).OfType<ILocalQueue>())
+        await Task.WhenAll(_localSenders.Enumerate().Select(x => x.Value).OfType<ILocalQueue>().Select(async queue =>
         {
             try
             {
@@ -425,7 +465,7 @@ public class EndpointCollection : IEndpointCollection
             {
                 _runtime.Logger.LogError(e, "Failed to 'drain' outstanding messages in local sender {Queue}", queue);
             }
-        }
+        }));
     }
 
     internal void StoreSendingAgent(ISendingAgent agent)

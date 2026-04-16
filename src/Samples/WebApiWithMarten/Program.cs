@@ -16,7 +16,7 @@ builder.Services.AddMarten(opts =>
             .Configuration
             .GetConnectionString("postgres");
 
-        opts.Connection(connectionString);
+        opts.Connection(connectionString!);
         opts.DatabaseSchemaName = "orders";
     })
     // Optionally add Marten/Postgresql integration

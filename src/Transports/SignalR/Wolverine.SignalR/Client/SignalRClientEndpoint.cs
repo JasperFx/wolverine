@@ -39,7 +39,7 @@ public class SignalRClientEndpoint : Endpoint, IListener, ISender
 
     public JsonSerializerOptions JsonOptions { get; set; }
 
-    public Func<IServiceProvider, Func<Task<string?>>> AccessTokenProvider { get; set; }
+    public Func<IServiceProvider, Func<Task<string?>>> AccessTokenProvider { get; set; } = null!;
 
     public Uri SignalRUri { get; }
 

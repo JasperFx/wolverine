@@ -20,7 +20,7 @@ public class LoadEntityFrameBlock : Frame
 {
     private readonly Frame[] _guardFrames;
 
-    public LoadEntityFrameBlock(Variable entity, params Frame[] guardFrames) : base(entity.Creator.IsAsync || guardFrames.Any(x => x.IsAsync))
+    public LoadEntityFrameBlock(Variable entity, params Frame[] guardFrames) : base(entity.Creator!.IsAsync || guardFrames.Any(x => x.IsAsync))
     {
         _guardFrames = guardFrames;
         Mirror = new Variable(entity.VariableType, entity.Usage, this);
@@ -41,15 +41,19 @@ public class LoadEntityFrameBlock : Frame
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
-        // The [WriteAggregate] somehow causes this
         if (Creator.Next == this || Creator.Next != null)
         {
-            for (int i = 1; i < _guardFrames.Length; i++)
+            // Creator has been handled elsewhere (e.g. by batching) —
+            // only render the guard frames
+            if (_guardFrames.Length > 0)
             {
-                _guardFrames[i - 1].Next = _guardFrames[i];
+                for (int i = 1; i < _guardFrames.Length; i++)
+                {
+                    _guardFrames[i - 1].Next = _guardFrames[i];
+                }
+
+                _guardFrames[0].GenerateCode(method, writer);
             }
-            
-            _guardFrames[0].GenerateCode(method, writer);
         }
         else
         {
@@ -59,7 +63,7 @@ public class LoadEntityFrameBlock : Frame
                 previous.Next = next;
                 previous = next;
             }
-        
+
             Creator.GenerateCode(method, writer);
         }
 
@@ -106,7 +110,7 @@ public class EntityAttribute : WolverineParameterAttribute, IDataRequirement
     /// </summary>
     public bool Required { get; set; } = true;
 
-    public string MissingMessage { get; set; }
+    public string MissingMessage { get; set; } = null!;
 
     public OnMissing OnMissing
     {
@@ -161,7 +165,7 @@ public class EntityAttribute : WolverineParameterAttribute, IDataRequirement
         var frame = provider.DetermineLoadFrame(container, parameter.ParameterType, identity);
 
         var entity = frame.Creates.First(x => x.VariableType == parameter.ParameterType);
-        entity.OverrideName(parameter.Name);
+        entity.OverrideName(parameter.Name!);
 
         if (MaybeSoftDeleted is false)
         {
@@ -186,7 +190,7 @@ public class EntityAttribute : WolverineParameterAttribute, IDataRequirement
         }
 
         // Store deferred assignment for middleware methods added later (Before/After)
-        StoreDeferredMiddlewareVariable(chain, parameter.Name, returnVariable);
+        StoreDeferredMiddlewareVariable(chain, parameter.Name!, returnVariable);
 
         return returnVariable;
     }

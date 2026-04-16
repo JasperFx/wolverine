@@ -15,8 +15,8 @@ namespace Wolverine.ComplianceTests;
 
 public abstract class MessageStoreCompliance : IAsyncLifetime
 {
-    public IHost theHost { get; private set; }
-    protected IMessageStore thePersistence;
+    public IHost theHost { get; private set; } = null!;
+    protected IMessageStore thePersistence = null!;
     
     public abstract Task<IHost> BuildCleanHost();
     
@@ -135,7 +135,7 @@ public abstract class MessageStoreCompliance : IAsyncLifetime
         var stored = (await thePersistence.Admin.AllIncomingAsync()).Single();
         
         // This is the important part
-        stored.Data.Length.ShouldBe(0);
+        stored.Data!.Length.ShouldBe(0);
         stored.Destination.ShouldBe(envelope.Destination);
 
         stored.Id.ShouldBe(envelope.Id);
@@ -1010,6 +1010,28 @@ public abstract class MessageStoreCompliance : IAsyncLifetime
         counts.ShouldContain(c => c.MessageType == "SumTypeA" && c.Count == 3);
         counts.ShouldContain(c => c.MessageType == "SumTypeB" && c.Count == 2);
         counts.ShouldContain(c => c.MessageType == "SumTypeC" && c.Count == 1);
+    }
+
+    [Fact]
+    public async Task move_to_dead_letter_storage_with_null_source()
+    {
+        var envelope = ObjectMother.Envelope();
+        envelope.Source = null;
+        envelope.Status = EnvelopeStatus.Incoming;
+
+        await thePersistence.Inbox.StoreIncomingAsync(envelope);
+
+        var ex = new DivideByZeroException("Kaboom!");
+
+        await thePersistence.Inbox.MoveToDeadLetterStorageAsync(envelope, ex);
+
+        var stored = await thePersistence.DeadLetters.DeadLetterEnvelopeByIdAsync(envelope.Id);
+
+        stored.ShouldNotBeNull();
+        stored.Envelope.Id.ShouldBe(envelope.Id);
+        stored.Envelope.Source.ShouldBeNull();
+        stored.ExceptionMessage.ShouldBe("Kaboom!");
+        stored.ExceptionType.ShouldBe(typeof(DivideByZeroException).FullName);
     }
 
 }

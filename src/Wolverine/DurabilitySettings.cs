@@ -1,4 +1,5 @@
 using JasperFx.Core;
+using JasperFx.Descriptors;
 using JasperFx.MultiTenancy;
 
 namespace Wolverine;
@@ -51,7 +52,7 @@ public enum MessageIdentity
     IdAndDestination
 }
 
-public class DurabilitySettings
+public class DurabilitySettings : IDescribeMyself
 {
     private readonly CancellationTokenSource _cancellation = new();
     private TenantIdStyle _tenantIdStyle = TenantIdStyle.CaseSensitive;
@@ -260,5 +261,34 @@ public class DurabilitySettings
     internal void Cancel()
     {
         _cancellation.Cancel();
+    }
+
+    public OptionsDescription ToDescription()
+    {
+        var desc = new OptionsDescription { Subject = "Wolverine.DurabilitySettings" };
+        desc.AddValue(nameof(Mode), Mode);
+        desc.AddValue(nameof(MessageIdentity), MessageIdentity);
+        desc.AddValue(nameof(DurabilityAgentEnabled), DurabilityAgentEnabled);
+        desc.AddValue(nameof(RecoveryBatchSize), RecoveryBatchSize);
+        desc.AddValue(nameof(KeepAfterMessageHandling), KeepAfterMessageHandling);
+        desc.AddValue(nameof(NodeReassignmentPollingTime), NodeReassignmentPollingTime);
+        desc.AddValue(nameof(MetricsCollectionSamplingInterval), MetricsCollectionSamplingInterval);
+        desc.AddValue(nameof(ScheduledJobPollingTime), ScheduledJobPollingTime);
+        desc.AddValue(nameof(HealthCheckPollingTime), HealthCheckPollingTime);
+        desc.AddValue(nameof(StaleNodeTimeout), StaleNodeTimeout);
+        desc.AddValue(nameof(CheckAssignmentPeriod), CheckAssignmentPeriod);
+        desc.AddValue(nameof(TenantCheckPeriod), TenantCheckPeriod);
+        desc.AddValue(nameof(UpdateMetricsPeriod), UpdateMetricsPeriod);
+        desc.AddValue(nameof(DurabilityMetricsEnabled), DurabilityMetricsEnabled);
+        desc.AddValue(nameof(DeadLetterQueueExpirationEnabled), DeadLetterQueueExpirationEnabled);
+        desc.AddValue(nameof(DeadLetterQueueExpiration), DeadLetterQueueExpiration);
+        desc.AddValue(nameof(NodeEventRecordExpirationTime), NodeEventRecordExpirationTime);
+        desc.AddValue(nameof(SendingAgentIdleTimeout), SendingAgentIdleTimeout);
+        desc.AddValue(nameof(DrainTimeout), DrainTimeout);
+        desc.AddValue(nameof(EnableInboxPartitioning), EnableInboxPartitioning);
+        if (OutboxStaleTime.HasValue) desc.AddValue(nameof(OutboxStaleTime), OutboxStaleTime.Value);
+        if (InboxStaleTime.HasValue) desc.AddValue(nameof(InboxStaleTime), InboxStaleTime.Value);
+        if (MessageStorageSchemaName != null) desc.AddValue(nameof(MessageStorageSchemaName), MessageStorageSchemaName);
+        return desc;
     }
 }

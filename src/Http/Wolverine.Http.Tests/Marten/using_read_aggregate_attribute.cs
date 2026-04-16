@@ -20,9 +20,9 @@ public class using_read_aggregate_attribute(AppFixture fixture) : IntegrationCon
         });
 
         var result = await Host.GetAsJson<Order>("/orders/latest/" + id);
-        result.Items.Keys.ShouldContain("Socks");
+        result!.Items.Keys.ShouldContain("Socks");
     }
-    
+
     [Fact]
     public async Task happy_path_reading_aggregate_and_version_in_url()
     {
@@ -35,7 +35,7 @@ public class using_read_aggregate_attribute(AppFixture fixture) : IntegrationCon
         });
 
         var result = await Host.GetAsJson<Order>("/orders/V1.0/latest/" + id);
-        result.Items.Keys.ShouldContain("Socks");
+        result!.Items.Keys.ShouldContain("Socks");
     }
 
     [Fact]
@@ -60,6 +60,6 @@ public class using_read_aggregate_attribute(AppFixture fixture) : IntegrationCon
         });
 
         var result = await Host.GetAsJson<Order>("/orders/latest/from-query?id=" + id);
-        result.Items.Keys.ShouldContain("Socks");
+        result!.Items.Keys.ShouldContain("Socks");
     }
 }

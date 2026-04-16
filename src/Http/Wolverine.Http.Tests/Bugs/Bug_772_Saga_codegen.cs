@@ -78,7 +78,7 @@ public class DataService : IDataService
 public class RecordData
 {
     public Guid MessageDataId { get; set; }
-    public string Data { get; set; }
+    public string Data { get; set; } = null!;
 }
 
 public record BeginProcess(Guid DataId);

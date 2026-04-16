@@ -71,7 +71,7 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
                 envelope.ContentType = EnvelopeConstants.JsonContentType;
             }
 
-            await Pipeline.InvokeAsync(envelope, this);
+            await Pipeline!.InvokeAsync(envelope, this);
         }
         catch (Exception? e)
         {
@@ -108,7 +108,7 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
         }
     }
 
-    public IHandlerPipeline? Pipeline { get; }
+    public IHandlerPipeline Pipeline { get; } = null!;
 
     public Uri Uri { get; }
 
@@ -125,7 +125,7 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
     public async ValueTask DrainAsync()
     {
         // If _latched was already true, this drain was triggered during shutdown
-        // (after OnApplicationStopping called Latch()). Safe to wait for in-flight items.
+        // (after StopAndDrainAsync called Latch()). Safe to wait for in-flight items.
         // If _latched was false, this drain may have been triggered from within the handler
         // pipeline (e.g., rate limiting pause via PauseListenerContinuation). Waiting for
         // the receiving block to complete would deadlock because the current message's
@@ -191,7 +191,7 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
 
         foreach (var envelope in messages)
         {
-            envelope.MarkReceived(listener, now, _settings);
+            envelope.MarkReceived(listener, now, _settings, _endpoint.WireTap);
             if (!envelope.IsExpired())
             {
                 await EnqueueAsync(envelope);
@@ -206,7 +206,7 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
     public async ValueTask ReceivedAsync(IListener listener, Envelope envelope)
     {
         var now = DateTimeOffset.Now;
-        envelope.MarkReceived(listener, now, _settings);
+        envelope.MarkReceived(listener, now, _settings, _endpoint.WireTap);
 
         if (envelope.IsExpired())
         {

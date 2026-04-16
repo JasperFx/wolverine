@@ -110,7 +110,7 @@ internal class LoadDocumentFrame : AsyncFrame, IBatchableFrame
 
 internal class UpdateSagaRevisionFrame : SyncFrame
 {
-    private Variable _session;
+    private Variable _session = null!;
     public Variable Saga { get; }
 
     public UpdateSagaRevisionFrame(Variable saga)

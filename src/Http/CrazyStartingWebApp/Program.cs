@@ -78,7 +78,7 @@ internal class ClientHostedService(IServer server, IHostApplicationLifetime host
     {
         hostApplicationLifetime.ApplicationStarted.Register((_, ct) =>
         {
-            StartClientInLoop(cancellationToken);
+            _ = StartClientInLoop(cancellationToken);
         }, null);
         return Task.CompletedTask;
     }
@@ -88,7 +88,7 @@ internal class ClientHostedService(IServer server, IHostApplicationLifetime host
         await Task.Delay(2000, token);
 
         var address = server.Features.Get<IServerAddressesFeature>()?.Addresses.First();
-        var client = new Client(address);
+        var client = new Client(address!);
         while (!token.IsCancellationRequested)
         {
             var success = await client.CallEndpointsConcurrently();

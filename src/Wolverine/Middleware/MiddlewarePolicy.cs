@@ -17,6 +17,7 @@ public class MiddlewarePolicy : IChainPolicy
     public static readonly string[] BeforeMethodNames = ["Before", "BeforeAsync", "Load", "LoadAsync", "Validate", "ValidateAsync"];
     public static readonly string[] AfterMethodNames = ["After", "AfterAsync", "PostProcess", "PostProcessAsync"];
     public static readonly string[] FinallyMethodNames = ["Finally", "FinallyAsync"];
+    public static readonly string[] OnExceptionMethodNames = ["OnException", "OnExceptionAsync"];
 
     private readonly List<Application> _applications = [];
 
@@ -62,7 +63,7 @@ public class MiddlewarePolicy : IChainPolicy
             if (before is MethodCall frame)
             {
                 AssertMethodDoesNotHaveDuplicateReturnValues(frame);
-                
+
                 // TODO -- might generalize this a bit. Have a more generic mode of understanding return values
                 // like the HTTP support has
                 var outgoings = frame.Creates.Where(x => x.VariableType == typeof(OutgoingMessages)).ToArray();
@@ -82,17 +83,58 @@ public class MiddlewarePolicy : IChainPolicy
 
             position++;
         }
-        
+
         var afters = applications.ToArray().Reverse().SelectMany(x => x.BuildAfterCalls(chain, rules)).ToArray();
-        
+
         if (afters.Any())
         {
             for (int i = 0; i < afters.Length; i++)
             {
                 chain.Postprocessors.Insert(i, afters[i]);
             }
-            
+
             //chain.Postprocessors.AddRange(afters);
+        }
+
+        // Build exception handlers from all applications
+        ApplyExceptionHandling(applications, rules, chain);
+    }
+
+    internal static void ApplyExceptionHandling(List<Application> applications, GenerationRules rules, IChain chain)
+    {
+        var exceptionHandlers = applications
+            .Where(x => x.HasOnExceptions)
+            .SelectMany(x => x.BuildOnExceptionCalls(chain, rules))
+            .ToArray();
+
+        if (exceptionHandlers.Length == 0 && !applications.Any(x => x.HasFinally))
+        {
+            return;
+        }
+
+        // Only create TryCatchFinallyFrame if there are exception handlers
+        // (TryFinallyWrapperFrame already handles finally-only cases)
+        if (exceptionHandlers.Length == 0) return;
+
+        var tryCatchFinally = chain.GetOrCreateTryCatchFinallyFrame();
+
+        foreach (var (exceptionType, call) in exceptionHandlers)
+        {
+            var frames = new List<Frame> { call };
+
+            // Handle return values from OnException methods — same as Before methods
+            var outgoings = call.Creates.Where(x => x.VariableType == typeof(OutgoingMessages)).ToArray();
+            foreach (var outgoing in outgoings)
+            {
+                frames.Add(new CaptureCascadingMessages(outgoing));
+            }
+
+            if (rules.TryFindContinuationHandler(chain, call, out var continuation))
+            {
+                frames.Add(continuation!);
+            }
+
+            tryCatchFinally.AddCatchBlock(exceptionType, frames.ToArray());
         }
     }
 
@@ -121,7 +163,8 @@ public class MiddlewarePolicy : IChainPolicy
         private readonly MethodInfo[] _befores;
         private readonly ConstructorInfo? _constructor;
         private readonly MethodInfo[] _finals;
-        
+        private readonly MethodInfo[] _onExceptions;
+
         public Application(IChain? chain, Type middlewareType, Func<IChain, bool> filter)
         {
             if (!middlewareType.IsPublic && !middlewareType.IsVisible)
@@ -150,10 +193,12 @@ public class MiddlewarePolicy : IChainPolicy
             _befores = FilterMethods<WolverineBeforeAttribute>(chain, methods, BeforeMethodNames).ToArray();
             _afters = FilterMethods<WolverineAfterAttribute>(chain, methods, AfterMethodNames).ToArray();
             _finals = FilterMethods<WolverineFinallyAttribute>(chain, methods, FinallyMethodNames).ToArray();
+            _onExceptions = FilterMethods<WolverineOnExceptionAttribute>(chain, methods, OnExceptionMethodNames).ToArray();
 
             if (_befores.Length == 0 &&
                 _afters.Length == 0 &&
-                _finals.Length == 0)
+                _finals.Length == 0 &&
+                _onExceptions.Length == 0)
             {
                 throw new InvalidWolverineMiddlewareException(middlewareType);
             }
@@ -287,6 +332,29 @@ public class MiddlewarePolicy : IChainPolicy
 
             foreach (var after in afters) yield return after;
         }
+
+        public IEnumerable<(Type ExceptionType, MethodCall Call)> BuildOnExceptionCalls(IChain chain, GenerationRules rules)
+        {
+            if (!Filter(chain)) yield break;
+
+            foreach (var method in _onExceptions)
+            {
+                var parameters = method.GetParameters();
+                if (parameters.Length == 0 || !typeof(Exception).IsAssignableFrom(parameters[0].ParameterType))
+                {
+                    throw new InvalidWolverineMiddlewareException(
+                        $"OnException method '{method.Name}' on type '{MiddlewareType.FullName}' must have an Exception type as its first parameter.");
+                }
+
+                var exceptionType = parameters[0].ParameterType;
+                var call = new MethodCall(MiddlewareType, method);
+                chain.ApplyParameterMatching(call);
+                yield return (exceptionType, call);
+            }
+        }
+
+        public bool HasOnExceptions => _onExceptions.Length > 0;
+        public bool HasFinally => _finals.Length > 0;
 
         private IEnumerable<Frame> buildAfters(IChain chain)
         {

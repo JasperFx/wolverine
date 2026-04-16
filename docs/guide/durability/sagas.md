@@ -1,7 +1,13 @@
 # Sagas
 
 ::: tip
-To be honest, we're just not going to get hung up on "process manager" vs. "saga" here. The key point is that what 
+For practical examples of building sagas with Wolverine, see the blog posts
+[Low Ceremony Sagas with Wolverine](https://jeremydmiller.com/2024/08/20/low-ceremony-sagas-with-wolverine/) and
+[Multi Step Workflows with the Critter Stack](https://jeremydmiller.com/2024/10/01/multi-step-workflows-with-the-critter-stack/).
+:::
+
+::: tip
+To be honest, we're just not going to get hung up on "process manager" vs. "saga" here. The key point is that what
 Wolverine is calling a "saga" really just means a long running, multi-step process where you need to track some state
 between the steps. If that annoys Greg Young, then ¯\_(ツ)_/¯.
 :::
@@ -302,6 +308,62 @@ And lastly, Wolverine looks for a public member named `Id` like this one:
 public record CompleteOrder(string Id);
 ```
 
+## Strong-Typed Identifiers <Badge type="tip" text="5.x" />
+
+Wolverine supports strong-typed identifiers (record structs or classes wrapping a primitive) as the saga identity.
+The type must expose a `TryParse(string?, out T)` static method so Wolverine can recover the identity from the
+envelope header when a message does not carry the ID directly on its body.
+
+```csharp
+// Strong-typed ID wrapping Guid
+public record struct OrderSagaId(Guid Value)
+{
+    public static OrderSagaId New() => new(Guid.NewGuid());
+
+    public static bool TryParse(string? input, out OrderSagaId result)
+    {
+        if (Guid.TryParse(input, out var guid))
+        {
+            result = new OrderSagaId(guid);
+            return true;
+        }
+        result = default;
+        return false;
+    }
+
+    public override string ToString() => Value.ToString();
+}
+
+public class OrderSaga : Saga
+{
+    public OrderSagaId Id { get; set; }
+
+    public static OrderSaga Start(StartOrder cmd)
+        => new() { Id = cmd.OrderId };
+
+    // Messages that carry the ID on the body work automatically
+    public void Handle(ShipOrder cmd) { /* ... */ }
+
+    // Messages without the ID field read it from the envelope header
+    public void Handle(OrderTimeout timeout) { /* ... */ }
+}
+
+public record StartOrder(OrderSagaId OrderId);
+public record ShipOrder(OrderSagaId OrderSagaId);
+public record OrderTimeout; // no saga ID field — read from envelope
+```
+
+::: tip
+When the message type does not expose the saga ID as a field, Wolverine propagates the identity automatically through
+the `SagaId` envelope header. The cascaded messages emitted from within a saga handler will have this header set
+for you. In your own integration tests you can supply it via `envelope.SagaId = id.ToString()`.
+:::
+
+::: warning
+Strong-typed identifiers backed by a third-party source-generator (e.g. [StronglyTypedId](https://github.com/andrewlock/StronglyTypedId))
+are supported. The generated `TryParse` method on those types satisfies the requirement above.
+:::
+
 ## Starting a Saga
 
 ::: tip
@@ -566,6 +628,31 @@ using var host = await Host.CreateDefaultBuilder()
 Note that this manual registration is not necessary at development time or if you're content to just let Wolverine
 handle database migrations at runtime.
 
+### SQL Server String Identity and nvarchar
+
+By default, Wolverine's lightweight saga storage uses Weasel's inferred column type for the saga identity column.
+For `string` identities on SQL Server, this results in a `varchar(100)` primary key column. However, ADO.NET's
+`SqlClient` binds .NET `string` parameters as `nvarchar` (unicode) by default. This mismatch between a `varchar`
+column and `nvarchar` query parameters forces SQL Server to perform implicit conversions, which prevents index
+seeks and can cause significant performance degradation.
+
+To fix this, you can opt in to an `nvarchar(100)` identity column when registering a saga type:
+
+```cs
+opts.AddSagaType<MySaga>(useNVarCharForStringId: true);
+
+// or with a custom table name
+opts.AddSagaType<MySaga>("my_saga_table", useNVarCharForStringId: true);
+```
+
+This only affects string-identified sagas using Wolverine's lightweight SQL Server saga storage. It has no effect
+on Guid/int/long identities, and does not apply to Marten, EF Core, or PostgreSQL saga persistence.
+
+::: warning
+Enabling this option on an existing database will trigger a schema migration from `varchar(100)` to `nvarchar(100)`
+on the saga table's primary key column.
+:::
+
 ## Overriding Logging
 
 We recently had a question about how to turn down logging levels for `Saga` message processing when the log
@@ -769,3 +856,474 @@ using var host = await Host.CreateDefaultBuilder()
             .UseInferredMessageGrouping();
     }).StartAsync();
 ```
+
+## Scatter-Gather Pattern
+
+::: tip
+For a detailed walkthrough of a real-world multi-step saga workflow with fan-out and result collection, see the blog post
+[Multi Step Workflows with the Critter Stack](https://jeremydmiller.com/2024/10/01/multi-step-workflows-with-the-critter-stack/).
+:::
+
+The [Scatter-Gather](https://www.enterpriseintegrationpatterns.com/patterns/messaging/BroadcastAggregate.html) pattern
+(sometimes called "fan-out/fan-in") is a common messaging pattern where you:
+
+1. **Scatter**: Fan out requests to multiple services or handlers in parallel
+2. **Gather**: Collect the responses and aggregate them into a final result
+3. **Complete**: When all responses have arrived (or a timeout fires), emit the aggregated result
+
+In frameworks like Apache Camel or MuleSoft, scatter-gather is a first-class routing pattern with
+dedicated DSL support. In Wolverine, you implement it naturally as a **saga** — the saga state tracks
+which responses have arrived, and the saga completes when all expected responses are collected.
+
+### Example: Price Comparison
+
+Consider a price comparison service that fans out quote requests to multiple suppliers and aggregates
+the results:
+
+```cs
+// Messages
+public record RequestQuotes(Guid QuoteId, string ProductName, string[] Suppliers);
+
+public record RequestSupplierQuote(Guid QuoteId, string Supplier, string ProductName);
+
+public record SupplierQuoteResponse(Guid QuoteId, string Supplier, decimal Price);
+
+public record QuoteTimeout(Guid QuoteId) : TimeoutMessage(30.Seconds());
+
+public record AllQuotesCollected(Guid QuoteId, Dictionary<string, decimal> Quotes);
+```
+
+```cs
+public class QuoteCollection : Saga
+{
+    public Guid Id { get; set; }
+    public string ProductName { get; set; } = "";
+    public int ExpectedResponses { get; set; }
+    public Dictionary<string, decimal> CollectedQuotes { get; set; } = new();
+
+    // Scatter: start the saga and fan out requests to each supplier
+    public static (QuoteCollection, OutgoingMessages) Start(RequestQuotes request)
+    {
+        var saga = new QuoteCollection
+        {
+            Id = request.QuoteId,
+            ProductName = request.ProductName,
+            ExpectedResponses = request.Suppliers.Length
+        };
+
+        var messages = new OutgoingMessages();
+        foreach (var supplier in request.Suppliers)
+        {
+            messages.Add(new RequestSupplierQuote(
+                request.QuoteId, supplier, request.ProductName));
+        }
+
+        // Schedule a timeout in case some suppliers never respond
+        messages.Add(new QuoteTimeout(request.QuoteId));
+
+        return (saga, messages);
+    }
+
+    // Gather: collect each supplier response
+    public AllQuotesCollected? Handle(SupplierQuoteResponse response)
+    {
+        CollectedQuotes[response.Supplier] = response.Price;
+
+        // Check if all responses have arrived
+        if (CollectedQuotes.Count >= ExpectedResponses)
+        {
+            MarkCompleted();
+            return new AllQuotesCollected(Id, CollectedQuotes);
+        }
+
+        // Still waiting for more responses
+        return null;
+    }
+
+    // Timeout: emit whatever we have and complete the saga
+    public AllQuotesCollected Handle(QuoteTimeout timeout)
+    {
+        MarkCompleted();
+        return new AllQuotesCollected(Id, CollectedQuotes);
+    }
+}
+```
+
+The key points in this pattern:
+
+- **`Start()` returns `OutgoingMessages`** to fan out individual requests to each supplier. Each
+  `RequestSupplierQuote` message will be handled independently — possibly by different services
+  or by different instances of the same service.
+- **`Handle(SupplierQuoteResponse)` collects results** into the saga state. When all expected
+  responses arrive, the saga emits the aggregated `AllQuotesCollected` message and marks itself
+  complete.
+- **`Handle(QuoteTimeout)` provides a safety net** — if some suppliers are slow or unresponsive,
+  the timeout fires and the saga completes with whatever quotes it has collected. The `TimeoutMessage`
+  base class schedules the message for future delivery automatically.
+- **Returning `null`** from a handler method means "no cascading message" — the saga state is still
+  persisted, but no downstream work is triggered.
+
+### Variations
+
+**Fire-and-forget scatter** — If you don't need to collect responses (e.g., sending notifications
+to multiple channels), the saga can simply fan out messages in `Start()` and immediately
+`MarkCompleted()`:
+
+```cs
+public static (NotificationSaga, OutgoingMessages) Start(
+    SendNotifications request)
+{
+    var saga = new NotificationSaga { Id = request.Id };
+    saga.MarkCompleted();
+
+    var messages = new OutgoingMessages();
+    messages.Add(new SendEmail(request.Id, request.Message));
+    messages.Add(new SendSms(request.Id, request.Message));
+    messages.Add(new SendPushNotification(request.Id, request.Message));
+
+    return (saga, messages);
+}
+```
+
+**Partial results** — If you want to emit intermediate results as responses arrive, return a
+cascading message from each `Handle()` call:
+
+```cs
+public QuoteUpdated Handle(SupplierQuoteResponse response)
+{
+    CollectedQuotes[response.Supplier] = response.Price;
+
+    if (CollectedQuotes.Count >= ExpectedResponses)
+    {
+        MarkCompleted();
+    }
+
+    // Emit an update after every response
+    return new QuoteUpdated(Id, CollectedQuotes);
+}
+```
+
+## Saga Concurrency
+
+::: warning
+Concurrency is the most common source of subtle bugs in saga implementations. If two messages for the
+same saga instance are processed simultaneously, they can overwrite each other's state changes. Take
+time to understand the strategies below and choose the right one for your workload.
+:::
+
+When multiple messages targeting the same saga arrive at the same time — which is especially common
+in the scatter-gather pattern where multiple responses arrive in quick succession — you need a
+strategy to prevent lost updates. Wolverine provides several approaches, and you can combine them.
+
+For a deeper discussion of concurrency strategies in Wolverine, see the
+[Dealing with Concurrency](/tutorials/concurrency) tutorial.
+
+### Optimistic Concurrency with Revisioning
+
+If your saga persistence supports optimistic concurrency (Marten and EF Core both do), you can
+implement the `IRevisioned` interface on your saga class. Wolverine will automatically check the
+version on save and throw a `ConcurrencyException` if the saga was modified by another handler
+between load and save:
+
+```cs
+public class QuoteCollection : Saga, IRevisioned
+{
+    public Guid Id { get; set; }
+    public int Version { get; set; }
+
+    // ... handlers as before
+}
+```
+
+Pair this with a retry policy on the handler chain to automatically retry on conflict:
+
+```cs
+public static void Configure(HandlerChain chain)
+{
+    chain.OnException<ConcurrencyException>()
+        .RetryWithCooldown(100.Milliseconds(), 250.Milliseconds());
+}
+```
+
+This approach works well when conflicts are **infrequent** — each retry re-loads the saga state and
+re-applies the handler, so the second attempt will see the first handler's changes.
+
+### Partitioned Sequential Messaging
+
+For sagas that receive a high volume of messages per instance (like the scatter-gather pattern with
+many suppliers), optimistic concurrency retries can become expensive. A better approach is to ensure
+that messages for the same saga instance are processed **sequentially** using
+[Partitioned Sequential Messaging](/guide/messaging/partitioning):
+
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.MessagePartitioning
+            .UseInferredMessageGrouping();
+    }).StartAsync();
+```
+
+When `UseInferredMessageGrouping()` is enabled, Wolverine automatically detects saga identity
+properties on messages and uses them as the partition key. All messages with the same saga ID are
+routed to the same local queue partition, guaranteeing they are processed one at a time. This
+eliminates concurrency conflicts entirely for saga messages, at the cost of limiting parallelism
+per saga instance.
+
+::: tip
+Partitioned sequential messaging is the recommended default strategy for sagas that use the
+scatter-gather pattern. It provides the strongest correctness guarantees with the least complexity.
+:::
+
+### Combining Strategies
+
+In practice, you may want both:
+
+- **Partitioned messaging** for the local processing of saga messages within a single application
+  node, ensuring no two handlers for the same saga run concurrently on the same node
+- **Optimistic concurrency** as a safety net in multi-node deployments, where messages could
+  occasionally be processed on different nodes targeting the same saga
+
+```cs
+public class QuoteCollection : Saga, IRevisioned
+{
+    public Guid Id { get; set; }
+    public int Version { get; set; }
+
+    // Optimistic concurrency retry as a safety net
+    public static void Configure(HandlerChain chain)
+    {
+        chain.OnException<ConcurrencyException>()
+            .RetryWithCooldown(100.Milliseconds(), 250.Milliseconds());
+    }
+
+    // ... handlers
+}
+```
+
+```cs
+// Plus partitioned messaging for local ordering
+opts.MessagePartitioning.UseInferredMessageGrouping();
+```
+
+## Testing Sagas
+
+::: tip
+Wolverine's [TrackedSession](/guide/testing) support already provides everything you need for saga testing. Unlike NServiceBus (which has a dedicated `SagaScenarioTestingLibrary` with virtual storage) or Rebus (which has `SagaFixture`), Wolverine takes the approach that sagas are just message handlers with persisted state — so the same `TrackedSession` tools you use for all Wolverine integration testing work for sagas too.
+:::
+
+### Setting Up a Saga Test
+
+The simplest way to test a saga is to spin up an `IHost` with your saga type registered, then use `InvokeMessageAndWaitAsync()` or `SendMessageAndWaitAsync()` to drive the saga through its states. The tracked session will wait for all cascading messages to complete before returning control to your test.
+
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        // Register your saga and any related handler types
+        opts.Discovery.DisableConventionalDiscovery()
+            .IncludeType(typeof(Order));
+    }).StartAsync();
+```
+
+::: tip
+For production applications with a real persistence backend, use `RunWolverineInSoloMode()` and `DisableAllExternalWolverineTransports()` for faster test startup, just as described in the [integration testing guide](/guide/http/integration-testing).
+:::
+
+### Testing State Transitions
+
+To verify a saga moves through states correctly, send the starting message, then send subsequent messages and load the saga state to check properties:
+
+```cs
+[Fact]
+public async Task saga_state_is_updated_across_messages()
+{
+    var sagaId = Guid.NewGuid();
+
+    // Start the saga
+    await host.InvokeMessageAndWaitAsync(
+        new StartOrder(sagaId.ToString()));
+
+    // Send a follow-up message
+    await host.SendMessageAndWaitAsync(
+        new CompleteOrder(sagaId.ToString()));
+}
+```
+
+When using the in-memory saga persistence (the default with no persistence configured), you can load saga state directly:
+
+```cs
+var persistor = host.Services
+    .GetRequiredService<InMemorySagaPersistor>();
+var state = persistor.Load<Order>(sagaId);
+
+// Saga was completed and deleted
+state.ShouldBeNull();
+```
+
+With Marten, use the document session:
+
+```cs
+using var session = host.Services
+    .GetRequiredService<IDocumentStore>()
+    .LightweightSession();
+var state = await session.LoadAsync<Order>(sagaId);
+```
+
+### Testing Saga Completion
+
+When a saga calls `MarkCompleted()`, Wolverine deletes the saga state after the handler finishes. To verify a saga has completed, load its state and assert it's null:
+
+```cs
+[Fact]
+public async Task saga_is_deleted_after_completion()
+{
+    var id = Guid.NewGuid();
+
+    // Start the saga
+    await host.InvokeMessageAndWaitAsync(new StartOrder(id.ToString()));
+
+    // Complete it
+    await host.InvokeMessageAndWaitAsync(new CompleteOrder(id.ToString()));
+
+    // Verify the saga state has been deleted
+    var persistor = host.Services
+        .GetRequiredService<InMemorySagaPersistor>();
+    persistor.Load<Order>(id).ShouldBeNull();
+}
+```
+
+### Testing Cascading Messages from Sagas
+
+Saga handlers frequently return cascading messages — either as return values or through tuple returns. The `ITrackedSession` returned from `InvokeMessageAndWaitAsync()` and `SendMessageAndWaitAsync()` lets you inspect every message that was sent or executed during the test:
+
+```cs
+[Fact]
+public async Task cascading_messages_carry_the_saga_id()
+{
+    var id = Guid.NewGuid();
+
+    // Start the saga
+    await host.InvokeMessageAndWaitAsync(new StartCascadingTest(id));
+
+    // Trigger a handler that returns a cascading message
+    var tracked = await host.SendMessageAndWaitAsync(
+        new TriggerCascade(id));
+
+    // Verify the cascaded message was executed
+    var cascadedEnvelopes = tracked.Executed.Envelopes()
+        .Where(x => x.Message is CascadedMessage)
+        .ToArray();
+
+    cascadedEnvelopes.ShouldNotBeEmpty();
+
+    // Verify the saga ID was propagated to cascaded messages
+    foreach (var envelope in cascadedEnvelopes)
+    {
+        envelope.SagaId.ShouldBe(id.ToString());
+    }
+}
+```
+
+This is particularly useful for verifying that cascading messages from a saga carry the correct `SagaId` in the envelope, which is how Wolverine routes follow-up messages back to the correct saga instance.
+
+### Testing Timeouts and Scheduled Messages
+
+Wolverine sagas support timeout messages via the `TimeoutMessage` base class. When a saga's `Start()` method returns a `TimeoutMessage`, Wolverine schedules it for future delivery. In tests, you can verify the timeout was scheduled and even play it back immediately:
+
+```cs
+// Recall the Order saga Start method returns both the saga
+// and a scheduled OrderTimeout message:
+//
+// public static (Order, OrderTimeout) Start(StartOrder order)
+// {
+//     return (new Order { Id = order.OrderId },
+//             new OrderTimeout(order.OrderId));
+// }
+
+[Fact]
+public async Task timeout_message_is_scheduled_on_start()
+{
+    var tracked = await host
+        .InvokeMessageAndWaitAsync(new StartOrder("order-1"));
+
+    // Verify the timeout was scheduled
+    tracked.Scheduled
+        .MessagesOf<OrderTimeout>()
+        .ShouldNotBeEmpty();
+}
+
+[Fact]
+public async Task play_back_scheduled_timeout()
+{
+    var tracked = await host
+        .InvokeMessageAndWaitAsync(new StartOrder("order-1"));
+
+    // Fast-forward: immediately execute any scheduled messages
+    await tracked.PlayScheduledMessagesAsync(
+        TimeSpan.FromSeconds(10));
+
+    // After timeout, the saga should be completed and deleted
+    var persistor = host.Services
+        .GetRequiredService<InMemorySagaPersistor>();
+    persistor.Load<Order>("order-1").ShouldBeNull();
+}
+```
+
+The `PlayScheduledMessagesAsync()` method on `ITrackedSession` is the key here — it lets you "fast forward" scheduled messages in tests without waiting for real time to pass.
+
+### Testing the NotFound Path
+
+Wolverine sagas support a static `NotFound()` method that handles messages when no matching saga state exists. This is a common pattern for handling race conditions or out-of-order message delivery:
+
+```cs
+// On the Order saga:
+// public static void NotFound(CompleteOrder complete, ILogger<Order> logger)
+// {
+//     logger.LogInformation("Order {Id} not found", complete.Id);
+// }
+
+[Fact]
+public async Task not_found_handler_is_invoked_for_missing_saga()
+{
+    // Send a message for a saga that doesn't exist
+    await host.InvokeMessageAndWaitAsync(
+        new CompleteOrder("nonexistent-order"));
+
+    // No exception thrown — the NotFound handler was invoked
+}
+```
+
+### Advanced: TrackActivity() for Saga Tests
+
+For more complex saga testing scenarios, use the fluent `TrackActivity()` API. This is especially useful when you need to:
+
+- Track activity across multiple hosts (e.g., testing sagas that publish messages to external transports)
+- Ignore specific background message types that interfere with tracking
+- Override timeouts for long-running saga tests
+- Coordinate with Marten async projections
+
+```cs
+var tracked = await host.TrackActivity()
+    .Timeout(TimeSpan.FromSeconds(30))
+    .DoNotAssertOnExceptionsDetected()
+    .ExecuteAndWaitAsync(async context =>
+    {
+        await context.SendAsync(new StartOrder("order-1"));
+    });
+
+// Inspect all message activity
+var allMessages = tracked.Sent.AllMessages().ToArray();
+```
+
+### How This Compares to Other Frameworks
+
+| Feature | NServiceBus | Rebus | Wolverine |
+|---------|-------------|-------|-----------|
+| **Testing API** | `SagaScenarioTestingLibrary` with virtual storage | `SagaFixture<T>` with in-memory storage | `TrackedSession` + real or in-memory persistence |
+| **Virtual time** | Built-in time advancement | Manual timeout delivery | `PlayScheduledMessagesAsync()` on `ITrackedSession` |
+| **Message assertions** | Saga-specific assert methods | `fixture.AssertSagaData()` | `tracked.Sent.SingleMessage<T>()`, `tracked.Executed.MessagesOf<T>()` |
+| **State inspection** | Via virtual saga storage | Via `SagaFixture.Data` | Load state directly from persistence (in-memory, Marten, EF Core, etc.) |
+| **External messages** | Separate test transport | Separate fake transport | `DisableAllExternalWolverineTransports()` + `tracked.Sent` inspection |
+
+The key difference is that Wolverine doesn't require a separate saga-specific testing library. Since sagas are just message handlers with persisted state, the same `TrackedSession` tooling that tests any Wolverine handler works identically for sagas — including full visibility into cascading messages, scheduled messages, and saga ID propagation.

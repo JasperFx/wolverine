@@ -10,7 +10,7 @@ namespace Wolverine.ComplianceTests.Sagas;
 public class SagaTestHarness<T> : IDisposable
     where T : Saga
 {
-    private IHost _host;
+    private IHost _host = null!;
 
     public SagaTestHarness(ISagaHost sagaHost)
     {
@@ -29,32 +29,32 @@ public class SagaTestHarness<T> : IDisposable
         _host = SagaHost.BuildHost<T>();
     }
 
-    protected string codeFor<T>()
+    protected string codeFor<TMessage>()
     {
-        return _host.Get<HandlerGraph>().HandlerFor<T>().As<MessageHandler>().Chain.SourceCode;
+        return _host!.Get<HandlerGraph>().HandlerFor<TMessage>()!.As<MessageHandler>().Chain!.SourceCode!;
     }
 
-    protected async Task invoke<T>(T message)
-    {
-        if (_host == null)
-        {
-            withApplication();
-        }
-
-        await _host.InvokeMessageAndWaitAsync(message);
-    }
-
-    protected async Task send<T>(T message)
+    protected async Task invoke<TMessage>(TMessage message)
     {
         if (_host == null)
         {
             withApplication();
         }
 
-        await _host.ExecuteAndWaitValueTaskAsync(x => x.SendAsync(message));
+        await _host!.InvokeMessageAndWaitAsync(message!);
     }
 
-    protected Task send<T>(T message, object sagaId)
+    protected async Task send<TMessage>(TMessage message)
+    {
+        if (_host == null)
+        {
+            withApplication();
+        }
+
+        await _host!.ExecuteAndWaitValueTaskAsync(x => x.SendAsync(message!));
+    }
+
+    protected Task send<TMessage>(TMessage message, object sagaId)
     {
         return _host.SendMessageAndWaitAsync(message, new DeliveryOptions { SagaId = sagaId.ToString() }, 10000);
     }

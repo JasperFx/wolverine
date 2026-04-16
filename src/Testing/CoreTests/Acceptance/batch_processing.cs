@@ -12,7 +12,7 @@ namespace CoreTests.Acceptance;
 
 public class batch_processing : IAsyncLifetime
 {
-    private IHost theHost;
+    private IHost theHost = null!;
 
     public async Task InitializeAsync()
     {
@@ -67,7 +67,7 @@ public class batch_processing : IAsyncLifetime
     {
         var runtime = theHost.GetRuntime();
         var localQueue = runtime.Endpoints.EndpointFor(new Uri("local://items"));
-        localQueue.MaxDegreeOfParallelism.ShouldBe(1);
+        localQueue!.MaxDegreeOfParallelism.ShouldBe(1);
     }
 
     [Fact]
@@ -78,11 +78,11 @@ public class batch_processing : IAsyncLifetime
             .As<IExecutorFactory>()
             .BuildFor(typeof(Item))
             .ShouldBeOfType<Executor>()
-            .Handler
+            .Handler!
             .ShouldBeOfType<BatchingProcessor<Item>>();
 
-        handler.Chain.MessageType.ShouldBe(typeof(Item[]));
-        handler.Queue.Uri.ShouldBe(new Uri("local://items"));
+        handler!.Chain!.MessageType.ShouldBe(typeof(Item[]));
+        handler.Queue!.Uri.ShouldBe(new Uri("local://items"));
     }
 
     [Fact]

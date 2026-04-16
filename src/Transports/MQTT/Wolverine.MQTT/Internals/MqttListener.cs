@@ -99,9 +99,47 @@ internal class MqttListener : IListener
         catch (Exception e)
         {
             _logger.LogError(e, "Error trying to map an incoming MQTT message {MessageId} to an Envelope",
-                Encoding.Default.GetString(args.ApplicationMessage.CorrelationData));
-            await _complete.PostAsync(envelope);
+                args.ApplicationMessage.CorrelationData != null
+                    ? Encoding.UTF8.GetString(args.ApplicationMessage.CorrelationData)
+                    : "(none)");
 
+            // MoveToErrorsAsync keys the envelope by Id; the mapper threw before
+            // setting one, so synthesize a Guid to satisfy the dead-letter store contract.
+            // MqttEnvelope already populates Data and Destination in its constructor.
+            if (envelope.Id == Guid.Empty)
+            {
+                envelope.Id = Guid.NewGuid();
+            }
+
+            var dlq = _receiver as ISupportDeadLetterQueue;
+            if (dlq is not null)
+            {
+                try
+                {
+                    await dlq.MoveToErrorsAsync(envelope, e);
+                }
+                catch (Exception moveEx)
+                {
+                    _logger.LogError(moveEx,
+                        "Failed to move un-mappable MQTT message {MessageId} to the dead-letter store; falling back to ack to avoid poison redelivery",
+                        envelope.Id);
+                }
+            }
+
+            // Always PUBACK. If MoveToErrorsAsync succeeded, the dead-letter store has
+            // the record. If not (no durable inbox, or it threw), acking is still the
+            // best available option because MQTT has no broker DLQ and leaving the
+            // message unacked would cause a poison-redelivery loop.
+            try
+            {
+                await _complete.PostAsync(envelope);
+            }
+            catch (Exception ackEx)
+            {
+                _logger.LogError(ackEx,
+                    "Failed to ack un-mappable MQTT message {MessageId}",
+                    envelope.Id);
+            }
             return;
         }
 

@@ -7,6 +7,7 @@ using JasperFx.CommandLine.Descriptions;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using JasperFx.Descriptors;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Wolverine.ErrorHandling;
 using Wolverine.Runtime;
@@ -184,11 +185,11 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
     }
 
     /// <summary>
-    /// Controls the maximum number of messages that could be processed at one time
-    /// Default is the Environment.ProcessorCount. Setting this to 1 makes this listening endpoint
-    /// be ordered in its processing
+    /// Controls the maximum number of messages that could be processed at one time.
+    /// Default is the greater of Environment.ProcessorCount or 5. Setting this to 1 makes this listening endpoint
+    /// be ordered in its processing.
     /// </summary>
-    public int MaxDegreeOfParallelism { get; set; } = Environment.ProcessorCount;
+    public int MaxDegreeOfParallelism { get; set; } = Math.Max(Environment.ProcessorCount, 5);
     
     /// <summary>
     /// If specified, directs this endpoint to use by GroupId sharding in processing.
@@ -217,6 +218,14 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
     /// Is OpenTelemetry enabled for this endpoint?
     /// </summary>
     public bool TelemetryEnabled { get; set; } = true;
+
+    /// <summary>
+    /// When using <see cref="EndpointMode.Inline"/>, setting this to <c>true</c> will allow
+    /// already-ingested messages to continue processing while the receiver is draining, only
+    /// deferring messages after the drain has fully completed. When <c>false</c> (the default),
+    /// messages are deferred as soon as the drain begins.
+    /// </summary>
+    public bool ProcessInlineWhileDraining { get; set; }
 
     /// <summary>
     ///     Is the endpoint controlled and configured by the application or Wolverine itself?
@@ -274,6 +283,25 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
 
 
     internal IWolverineRuntime? Runtime { get; set; }
+
+    /// <summary>
+    /// When true, this endpoint will resolve an <see cref="IWireTap"/> from the IoC container
+    /// to record message success/failure for auditing purposes.
+    /// </summary>
+    internal bool UseWireTap { get; set; }
+
+    /// <summary>
+    /// Optional keyed service key for resolving a specific <see cref="IWireTap"/>
+    /// implementation from the IoC container. When null, the default (non-keyed)
+    /// IWireTap registration is used.
+    /// </summary>
+    internal string? WireTapServiceKey { get; set; }
+
+    /// <summary>
+    /// The resolved wire tap instance, populated during <see cref="Compile"/>.
+    /// </summary>
+    [IgnoreDescription]
+    internal IWireTap? WireTap { get; set; }
 
     /// <summary>
     ///     Get or override the default message serializer for just this endpoint
@@ -436,7 +464,23 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
 
         DefaultSerializer ??= runtime.Options.DefaultSerializer;
 
+        if (UseWireTap)
+        {
+            WireTap = ResolveWireTap(runtime);
+        }
+
         _hasCompiled = true;
+    }
+
+    private IWireTap? ResolveWireTap(IWolverineRuntime runtime)
+    {
+        var services = runtime.Services;
+        if (WireTapServiceKey != null)
+        {
+            return services.GetKeyedService<IWireTap>(WireTapServiceKey);
+        }
+
+        return services.GetService<IWireTap>();
     }
 
     internal bool ShouldSendMessage(Type messageType)

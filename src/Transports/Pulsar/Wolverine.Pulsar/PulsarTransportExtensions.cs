@@ -161,6 +161,7 @@ public static class PulsarTransportExtensions
         topology.SetExternalTopology(opts =>
         {
             var t = new PartitionedMessageTopologyWithTopics(opts, PartitionSlots.Five, baseName, numberOfEndpoints);
+            t.ConfigureListening(x => {});
             configure?.Invoke(t);
             return t;
         }, baseName);
@@ -241,7 +242,7 @@ public class PulsarListenerConfiguration : InteroperableListenerConfiguration<Pu
     {
         add(e => { e.SubscriptionType = DotPulsar.SubscriptionType.Shared; });
 
-        return new PulsarNativeResiliencyDeadLetterConfiguration(new PulsarListenerConfiguration(_endpoint));
+        return new PulsarNativeResiliencyDeadLetterConfiguration(new PulsarListenerConfiguration(_endpoint!));
     }
 
 
@@ -254,7 +255,7 @@ public class PulsarListenerConfiguration : InteroperableListenerConfiguration<Pu
     {
         add(e => { e.SubscriptionType = DotPulsar.SubscriptionType.KeyShared; });
 
-        return new PulsarNativeResiliencyDeadLetterConfiguration(new PulsarListenerConfiguration(_endpoint));
+        return new PulsarNativeResiliencyDeadLetterConfiguration(new PulsarListenerConfiguration(_endpoint!));
     }
 
     /// <summary>
@@ -298,7 +299,7 @@ public class PulsarListenerConfiguration : InteroperableListenerConfiguration<Pu
         add(e =>
         {
             e.DeadLetterTopic = dlq;
-            e.Runtime.Options.Policies.OnAnyException().MoveToErrorQueue();
+            e.Runtime!.Options.Policies.OnAnyException().MoveToErrorQueue();
         });
 
         return this;

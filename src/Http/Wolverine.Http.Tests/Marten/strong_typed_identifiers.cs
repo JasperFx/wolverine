@@ -79,11 +79,11 @@ public class strong_typed_identifiers : IntegrationContext
         });
 
         var aggregate1 = await session.Events.FetchLatest<StrongLetterAggregate>(stream1Id);
-        aggregate1.BCount.ShouldBe(2);
-        
+        aggregate1!.BCount.ShouldBe(2);
+
         var aggregate2 = await session.Events.FetchLatest<StrongLetterAggregate>(stream2Id);
-        aggregate2.BCount.ShouldBe(3);
-        
+        aggregate2!.BCount.ShouldBe(3);
+
     }
 
     [Fact]
@@ -94,7 +94,7 @@ public class strong_typed_identifiers : IntegrationContext
         using var session = Host.DocumentStore().LightweightSession();
         session.Events.StartStream<StrongLetterAggregate>(stream1Id, new AEvent(), new BEvent(), new CEvent(),
             new CEvent());
-        
+
         session.Events.StartStream<StrongLetterAggregate>(stream2Id, new AEvent(), new BEvent(), new BEvent(),
             new AEvent(), new DEvent());
         await session.SaveChangesAsync();
@@ -107,12 +107,12 @@ public class strong_typed_identifiers : IntegrationContext
         });
 
         var aggregate1 = await session.Events.FetchLatest<StrongLetterAggregate>(stream1Id);
-        aggregate1.BCount.ShouldBe(3);
+        aggregate1!.BCount.ShouldBe(3);
         aggregate1.ACount.ShouldBe(3);
         aggregate1.DCount.ShouldBe(1);
-        
+
         var aggregate2 = await session.Events.FetchLatest<StrongLetterAggregate>(stream2Id);
-        aggregate2.BCount.ShouldBe(2);
+        aggregate2!.BCount.ShouldBe(2);
     }
 
     [Fact]

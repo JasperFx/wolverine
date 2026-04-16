@@ -507,6 +507,7 @@ public static class RabbitMqTransportExtensions
         topology.SetExternalTopology(opts =>
         {
             var t = new PartitionedMessageTopologyWithQueues(opts, PartitionSlots.Five, baseName, numberOfEndpoints);
+            t.ConfigureListening(x => {});
             configure?.Invoke(t);
             return t;
         }, baseName);

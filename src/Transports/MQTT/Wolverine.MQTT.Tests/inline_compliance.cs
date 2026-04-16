@@ -50,7 +50,7 @@ public class InlineComplianceFixture : TransportComplianceFixture, IAsyncLifetim
         });
     }
 
-    public LocalMqttBroker Broker { get; private set; }
+    public LocalMqttBroker Broker { get; private set; } = null!;
 
     public new async Task DisposeAsync()
     {

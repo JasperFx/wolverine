@@ -17,8 +17,8 @@ namespace Wolverine.Kafka.Tests;
 public class multi_topic_listening : IAsyncLifetime
 {
     private readonly ITestOutputHelper _output;
-    private IHost _sender;
-    private IHost _receiver;
+    private IHost _sender = null!;
+    private IHost _receiver = null!;
 
     public multi_topic_listening(ITestOutputHelper output)
     {
@@ -30,7 +30,7 @@ public class multi_topic_listening : IAsyncLifetime
         _receiver = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.UseKafka("localhost:9092")
+                opts.UseKafka(KafkaContainerFixture.ConnectionString)
                     .AutoProvision()
                     .ConfigureConsumers(c =>
                     {
@@ -53,7 +53,7 @@ public class multi_topic_listening : IAsyncLifetime
         _sender = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.UseKafka("localhost:9092").AutoProvision();
+                opts.UseKafka(KafkaContainerFixture.ConnectionString).AutoProvision();
                 opts.Policies.DisableConventionalLocalRouting();
 
                 opts.PublishAllMessages().ToKafkaTopics().SendInline();
@@ -104,6 +104,25 @@ public class multi_topic_listening : IAsyncLifetime
         groupEndpoint.TopicNames.ShouldContain("multi-alpha");
         groupEndpoint.TopicNames.ShouldContain("multi-beta");
         groupEndpoint.Uri.ToString().ShouldContain("topic/");
+    }
+
+    [Fact]
+    public async Task received_message_from_topic_group_has_partition_id()
+    {
+        MultiTopicAlphaHandler.Received = new TaskCompletionSource<bool>();
+
+        var session = await _sender
+            .TrackActivity()
+            .AlsoTrack(_receiver)
+            .Timeout(60.Seconds())
+            .WaitForMessageToBeReceivedAt<AlphaMessage>(_receiver)
+            .PublishMessageAndWaitAsync(new AlphaMessage("partition-check"));
+
+        await MultiTopicAlphaHandler.Received.Task.TimeoutAfterAsync(30000);
+
+        var envelope = session.Received.SingleEnvelope<AlphaMessage>();
+        envelope.PartitionId.ShouldNotBeNull();
+        envelope.PartitionId.Value.ShouldBeGreaterThanOrEqualTo(0);
     }
 
     public async Task DisposeAsync()

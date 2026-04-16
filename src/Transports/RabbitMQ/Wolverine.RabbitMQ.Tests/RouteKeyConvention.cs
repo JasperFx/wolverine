@@ -57,14 +57,14 @@ public static class UsingRouteKeyConvention
 
         builder.UseWolverine(opts =>
         {
-            opts.UseRabbitMq(rabbitConnectionString)
+            opts.UseRabbitMq(rabbitConnectionString!)
                 .AutoProvision();
 
             var exchangeName = builder
                 .Configuration
                 .GetValue<string>("exchange-name");
 
-            opts.RouteWith(new RouteKeyConvention(exchangeName));
+            opts.RouteWith(new RouteKeyConvention(exchangeName!));
         });
 
         // actually start the app...

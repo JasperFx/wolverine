@@ -9,13 +9,13 @@ namespace Wolverine.Redis.Tests;
 
 public class RedisDiagnosticsTests
 {
-    private static async Task<IDatabase> ConnectAsync() => (await ConnectionMultiplexer.ConnectAsync("localhost:6379")).GetDatabase();
+    private static async Task<IDatabase> ConnectAsync() => (await ConnectionMultiplexer.ConnectAsync(RedisContainerFixture.ConnectionString)).GetDatabase();
 
     [Fact]
     public async Task get_attributes_and_purge()
     {
         var streamKey = $"wolverine-tests-diag-{Guid.NewGuid():N}";
-        var transport = new RedisTransport("localhost:6379");
+        var transport = new RedisTransport(RedisContainerFixture.ConnectionString);
         var endpoint = transport.StreamEndpoint(streamKey);
 
         var db = await ConnectAsync();

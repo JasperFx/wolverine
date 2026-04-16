@@ -26,7 +26,7 @@ internal class RegisterBoundaryEventsFrame<T> : MethodCall where T : notnull
     {
         return responseType.CanBeCastTo<IEnumerable<object>>()
             ? ReflectionHelper.GetMethod<IEventBoundary<T>>(x => x.AppendMany(new List<object>()))!
-            : ReflectionHelper.GetMethod<IEventBoundary<T>>(x => x.AppendOne(null))!;
+            : ReflectionHelper.GetMethod<IEventBoundary<T>>(x => x.AppendOne(null!))!;
     }
 }
 

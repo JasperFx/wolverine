@@ -16,8 +16,8 @@ namespace MartenTests.AggregateHandlerWorkflow;
 
 public class multi_stream_version_and_consistency : PostgresqlContext, IAsyncLifetime
 {
-    private IHost theHost;
-    private IDocumentStore theStore;
+    private IHost theHost = null!;
+    private IDocumentStore theStore = null!;
     private Guid fromAccountId;
     private Guid toAccountId;
 
@@ -60,7 +60,7 @@ public class multi_stream_version_and_consistency : PostgresqlContext, IAsyncLif
     private async Task<BankAccount> LoadAccount(Guid id)
     {
         await using var session = theStore.LightweightSession();
-        return await session.LoadAsync<BankAccount>(id);
+        return (await session.LoadAsync<BankAccount>(id))!;
     }
 
     [Fact]
@@ -198,7 +198,7 @@ public static class TransferFundsHandler
         [WriteAggregate] IEventStream<BankAccount> fromAccount,
         [WriteAggregate(nameof(TransferFunds.ToAccountId))] IEventStream<BankAccount> toAccount)
     {
-        if (fromAccount.Aggregate.Balance >= command.Amount)
+        if (fromAccount.Aggregate!.Balance >= command.Amount)
         {
             fromAccount.AppendOne(new FundsWithdrawn(command.Amount));
             toAccount.AppendOne(new FundsDeposited(command.Amount));
@@ -218,7 +218,7 @@ public static class TransferFundsWithDualVersionHandler
             VersionSource = nameof(TransferFundsWithDualVersion.ToVersion))]
         IEventStream<BankAccount> toAccount)
     {
-        if (fromAccount.Aggregate.Balance >= command.Amount)
+        if (fromAccount.Aggregate!.Balance >= command.Amount)
         {
             fromAccount.AppendOne(new FundsWithdrawn(command.Amount));
             toAccount.AppendOne(new FundsDeposited(command.Amount));
@@ -244,7 +244,7 @@ public static class TransferWithConsistencyCheckHandler
         await sneakySession.SaveChangesAsync();
 
         // Insufficient funds: don't append any events to "from"
-        if (fromAccount.Aggregate.Balance >= command.Amount)
+        if (fromAccount.Aggregate!.Balance >= command.Amount)
         {
             fromAccount.AppendOne(new FundsWithdrawn(command.Amount));
             toAccount.AppendOne(new FundsDeposited(command.Amount));
@@ -266,7 +266,7 @@ public static class TransferWithConsistencyCheckNoConcurrentModificationHandler
         IEventStream<BankAccount> toAccount)
     {
         // Insufficient funds: don't append any events to either stream
-        if (fromAccount.Aggregate.Balance >= command.Amount)
+        if (fromAccount.Aggregate!.Balance >= command.Amount)
         {
             fromAccount.AppendOne(new FundsWithdrawn(command.Amount));
             toAccount.AppendOne(new FundsDeposited(command.Amount));

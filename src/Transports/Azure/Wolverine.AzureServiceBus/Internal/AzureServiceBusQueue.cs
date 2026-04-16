@@ -22,7 +22,7 @@ public class AzureServiceBusQueue : AzureServiceBusEndpoint, IBrokerQueue, IMass
 
     public AzureServiceBusQueue(AzureServiceBusTransport parent, string queueName,
         EndpointRole role = EndpointRole.Application) : base(parent,
-        new Uri($"{parent.Protocol}://queue/{queueName}"), role)
+        new Uri($"{parent.Protocol}://queue/{Uri.EscapeDataString(queueName)}"), role)
     {
         if (parent == null)
         {
@@ -199,7 +199,7 @@ public class AzureServiceBusQueue : AzureServiceBusEndpoint, IBrokerQueue, IMass
 
     internal void ConfigureDeadLetterQueue(Action<AzureServiceBusQueue> configure)
     {
-        var dlq = Parent.Queues[DeadLetterQueueName];
+        var dlq = Parent.Queues[DeadLetterQueueName!];
         configure(dlq);
     }
     
@@ -243,30 +243,30 @@ public class AzureServiceBusQueue : AzureServiceBusEndpoint, IBrokerQueue, IMass
                 if (serviceBusReceivedMessage.ApplicationProperties.TryGetValue("NServiceBus.ReplyToAddress",
                         out var raw))
                 {
-                    var queueName = (raw is byte[] b ? Encoding.Default.GetString(b) : raw.ToString())!;
+                    var queueName = (raw is byte[] b ? Encoding.UTF8.GetString(b) : raw.ToString())!;
                     e.ReplyUri = new Uri($"{Parent.Protocol}://queue/{queueName}");
                 }
             }
 
             m.MapProperty(x => x.ReplyUri!, ReadReplyUri, WriteReplyToAddress);
             
-            m.MapProperty(x => x.MessageType, (e, m) =>
+            m.MapProperty(x => x.MessageType!, (e, m) =>
             {
-                // Incoming  
+                // Incoming
                 if (m.ApplicationProperties.TryGetValue("NServiceBus.EnclosedMessageTypes", out var raw))
                 {
-                    var typeName = (raw is byte[] b ? Encoding.Default.GetString(b) : raw.ToString())!;
+                    var typeName = (raw is byte[] b ? Encoding.UTF8.GetString(b) : raw.ToString())!;
                     if (typeName.IsNotEmpty())
                     {
                         var messageType = Type.GetType(typeName);
-                        e.MessageType = messageType.ToMessageTypeName();
+                        e.MessageType = messageType!.ToMessageTypeName();
                     }
                 }
-            }, 
+            },
                 (e, m) =>
             {
                 // Outgoing, use the interop strategy here
-                m.ApplicationProperties["NServiceBus.EnclosedMessageTypes"] = e.Message.GetType().ToMessageTypeName();
+                m.ApplicationProperties["NServiceBus.EnclosedMessageTypes"] = e.Message!.GetType().ToMessageTypeName();
             });
         });
     }
@@ -278,7 +278,7 @@ public class AzureServiceBusQueue : AzureServiceBusEndpoint, IBrokerQueue, IMass
 
     Uri? IMassTransitInteropEndpoint.MassTransitReplyUri()
     {
-        return Parent.ReplyEndpoint().As<IMassTransitInteropEndpoint>().MassTransitUri();
+        return Parent.ReplyEndpoint()!.As<IMassTransitInteropEndpoint>().MassTransitUri();
     }
 
     Uri? IMassTransitInteropEndpoint.TranslateMassTransitToWolverineUri(Uri uri)

@@ -21,7 +21,7 @@ public class MartenBackedMessagePersistenceTests : PostgresqlContext, IDisposabl
     private readonly Envelope theEnvelope;
 
     private readonly IHost theHost;
-    private Envelope persisted;
+    private Envelope persisted = null!;
 
     public MartenBackedMessagePersistenceTests()
     {
@@ -54,7 +54,7 @@ public class MartenBackedMessagePersistenceTests : PostgresqlContext, IDisposabl
 
         persisted = (await persistence.Admin
                 .AllIncomingAsync())
-            .FirstOrDefault(x => x.Id == theEnvelope.Id);
+            .FirstOrDefault(x => x.Id == theEnvelope.Id)!;
     }
 
     public Task DisposeAsync()
@@ -73,7 +73,7 @@ public class MartenBackedMessagePersistenceTests : PostgresqlContext, IDisposabl
     {
         var container = theHost.Services.GetRequiredService<IServiceContainer>();
 
-        container.DefaultFor<IMartenOutbox>().Lifetime.ShouldBe(ServiceLifetime.Scoped);
+        container.DefaultFor<IMartenOutbox>()!.Lifetime.ShouldBe(ServiceLifetime.Scoped);
 
         using var nested = container.Services.CreateScope();
 

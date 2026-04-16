@@ -90,7 +90,7 @@ public class ConfiguredMessageExtensionsTests
 
         message.Message.ShouldBe(inner);
         message.EndpointName.ShouldBe("foo");
-        message.DeliveryOptions.DeliverBy.HasValue.ShouldBeTrue();
+        message.DeliveryOptions!.DeliverBy.HasValue.ShouldBeTrue();
     }
 
     [Fact]
@@ -102,7 +102,7 @@ public class ConfiguredMessageExtensionsTests
 
         message.Message.ShouldBe(inner);
         message.Destination.ShouldBe(destination);
-        message.DeliveryOptions.DeliverBy.HasValue.ShouldBeTrue();
+        message.DeliveryOptions!.DeliverBy.HasValue.ShouldBeTrue();
     }
 
     [Fact]
@@ -126,7 +126,7 @@ public class ConfiguredMessageExtensionsTests
         var message = inner.WithTenantId("one").ToTopic("blue");
         message.Message.ShouldBeSameAs(inner);
         message.Topic.ShouldBe("blue");
-        message.Options.TenantId.ShouldBe("one");
+        message.Options!.TenantId.ShouldBe("one");
 
         var bus = Substitute.For<IMessageContext>();
         await message.As<ISendMyself>().ApplyAsync(bus);

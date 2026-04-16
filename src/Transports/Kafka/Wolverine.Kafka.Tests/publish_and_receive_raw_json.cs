@@ -13,8 +13,8 @@ namespace Wolverine.Kafka.Tests;
 
 public class publish_and_receive_raw_json : IAsyncLifetime
 {
-    private IHost _sender;
-    private IHost _receiver;
+    private IHost _sender = null!;
+    private IHost _receiver = null!;
 
     public async Task InitializeAsync()
     {
@@ -24,7 +24,7 @@ public class publish_and_receive_raw_json : IAsyncLifetime
             .UseWolverine(opts =>
             {
                 //opts.EnableAutomaticFailureAcks = false;
-                opts.UseKafka("localhost:9092").AutoProvision();
+                opts.UseKafka(KafkaContainerFixture.ConnectionString).AutoProvision();
                 opts.ListenToKafkaTopic("json")
 
                     // You do have to tell Wolverine what the message type
@@ -47,7 +47,7 @@ public class publish_and_receive_raw_json : IAsyncLifetime
         _sender = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.UseKafka("localhost:9092").AutoProvision();
+                opts.UseKafka(KafkaContainerFixture.ConnectionString).AutoProvision();
                 opts.Policies.DisableConventionalLocalRouting();
 
                 opts.Services.AddResourceSetupOnStartup();
@@ -87,7 +87,10 @@ public class publish_and_receive_raw_json : IAsyncLifetime
         });
         producer.Flush();
 
-        await Task.Delay(2.Minutes());
+        // Wait long enough to detect any infinite retry loop, but not so long
+        // it needlessly inflates CI run time. 30 seconds is sufficient — a tight
+        // retry loop would exhaust resources well before then.
+        await Task.Delay(30.Seconds());
     }
 
     public async Task DisposeAsync()

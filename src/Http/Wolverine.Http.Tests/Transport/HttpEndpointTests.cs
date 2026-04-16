@@ -25,13 +25,13 @@ public class HttpEndpointTests
     private ISender InvokeCreateSender(IWolverineRuntime runtime)
     {
         var method = typeof(HttpEndpoint).GetMethod("CreateSender", BindingFlags.Instance | BindingFlags.NonPublic);
-        return (ISender)method.Invoke(_endpoint, new object[] { runtime });
+        return (ISender)method!.Invoke(_endpoint, new object[] { runtime })!;
     }
 
     private bool InvokeSupportsMode(EndpointMode mode)
     {
         var method = typeof(HttpEndpoint).GetMethod("supportsMode", BindingFlags.Instance | BindingFlags.NonPublic);
-        return (bool)method.Invoke(_endpoint, new object[] { mode });
+        return (bool)method!.Invoke(_endpoint, new object[] { mode })!;
     }
 
     [Fact]

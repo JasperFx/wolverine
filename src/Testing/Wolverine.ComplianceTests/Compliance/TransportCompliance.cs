@@ -26,8 +26,8 @@ public abstract class TransportComplianceFixture : IDisposable, IAsyncDisposable
         DefaultTimeout = defaultTimeInSeconds.Seconds();
     }
 
-    public IHost Sender { get; private set; }
-    public IHost Receiver { get; private set; }
+    public IHost Sender { get; private set; } = null!;
+    public IHost Receiver { get; private set; } = null!;
     public Uri OutboundAddress { get; protected set; }
 
     public bool AllLocally { get; set; }
@@ -171,10 +171,10 @@ public abstract class TransportComplianceFixture : IDisposable, IAsyncDisposable
 public abstract class TransportCompliance<T> : IAsyncLifetime where T : TransportComplianceFixture, new()
 {
     protected readonly ErrorCausingMessage theMessage = new();
-    private ITrackedSession _session;
-    protected Uri theOutboundAddress;
-    protected IHost theReceiver;
-    protected IHost theSender;
+    private ITrackedSession _session = null!;
+    protected Uri theOutboundAddress = null!;
+    protected IHost theReceiver = null!;
+    protected IHost theSender = null!;
 
     protected TransportCompliance()
     {
@@ -366,7 +366,7 @@ public abstract class TransportCompliance<T> : IAsyncLifetime where T : Transpor
             .Timeout(30.Seconds())
             .InvokeAndWaitAsync<Response>(request, 30.Seconds());
 
-        response.Name.ShouldBe(request.Name);
+        response!.Name.ShouldBe(request.Name);
     }
 
     [Fact]
@@ -382,7 +382,7 @@ public abstract class TransportCompliance<T> : IAsyncLifetime where T : Transpor
         record
             .ShouldNotBeNull();
 
-        record.Envelope.Source.ShouldBe(theSender.Get<WolverineOptions>().ServiceName);
+        record!.Envelope!.Source.ShouldBe(theSender.Get<WolverineOptions>().ServiceName);
     }
 
     [Fact]
@@ -410,7 +410,7 @@ public abstract class TransportCompliance<T> : IAsyncLifetime where T : Transpor
             .ToArray();
 
 
-        foreach (var envelope in envelopes) envelope.CorrelationId.ShouldBe(id2);
+        foreach (var envelope in envelopes) envelope!.CorrelationId!.ShouldBe(id2);
     }
 
     [Fact]
@@ -427,9 +427,9 @@ public abstract class TransportCompliance<T> : IAsyncLifetime where T : Transpor
         message.Name.ShouldBe("Orange");
     }
 
-    protected void throwOnAttempt<T>(int attempt) where T : Exception, new()
+    protected void throwOnAttempt<TException>(int attempt) where TException : Exception, new()
     {
-        theMessage.Errors.Add(attempt, new T());
+        theMessage.Errors.Add(attempt, new TException());
     }
 
     protected async Task<EnvelopeRecord> afterProcessingIsComplete()
@@ -440,9 +440,9 @@ public abstract class TransportCompliance<T> : IAsyncLifetime where T : Transpor
             .DoNotAssertOnExceptionsDetected()
             .SendMessageAndWaitAsync(theMessage);
 
-        return _session.AllRecordsInOrder().Where(x => x.Envelope.Message is ErrorCausingMessage).LastOrDefault(x =>
+        return _session.AllRecordsInOrder().Where(x => x.Envelope!.Message is ErrorCausingMessage).LastOrDefault(x =>
             x.MessageEventType == MessageEventType.MessageSucceeded ||
-            x.MessageEventType == MessageEventType.MovedToErrorQueue);
+            x.MessageEventType == MessageEventType.MovedToErrorQueue)!;
     }
 
     protected async Task shouldSucceedOnAttempt(int attempt)
@@ -456,10 +456,10 @@ public abstract class TransportCompliance<T> : IAsyncLifetime where T : Transpor
 
         session.AssertCondition("Expected ending activity was not detected", () =>
         {
-            var record = session.AllRecordsInOrder().Where(x => x.Envelope.Message is ErrorCausingMessage).LastOrDefault(
+            var record = session.AllRecordsInOrder().Where(x => x.Envelope!.Message is ErrorCausingMessage).LastOrDefault(
                 x =>
                     x.MessageEventType == MessageEventType.MessageSucceeded ||
-                    x.MessageEventType == MessageEventType.MovedToErrorQueue);
+                    x.MessageEventType == MessageEventType.MovedToErrorQueue)!;
 
             if (record is null) return false;
 
@@ -481,10 +481,10 @@ public abstract class TransportCompliance<T> : IAsyncLifetime where T : Transpor
             .Timeout(30.Seconds())
             .SendMessageAndWaitAsync(theMessage);
 
-        var record = session.AllRecordsInOrder().Where(x => x.Envelope.Message is ErrorCausingMessage).LastOrDefault(
+        var record = session.AllRecordsInOrder().Where(x => x.Envelope!.Message is ErrorCausingMessage).LastOrDefault(
             x =>
                 x.MessageEventType == MessageEventType.MessageSucceeded ||
-                x.MessageEventType == MessageEventType.MovedToErrorQueue);
+                x.MessageEventType == MessageEventType.MovedToErrorQueue)!;
 
         if (record == null)
         {
@@ -625,6 +625,79 @@ public abstract class TransportCompliance<T> : IAsyncLifetime where T : Transpor
         session.FindSingleTrackedMessageOfType<BlueMessage>()
             .Name.ShouldBe("Kareem Abdul-Jabbar");
     }
+
+    [Fact]
+    public void can_collect_endpoint_health_snapshots_without_error()
+    {
+        var runtime = theSender.Get<IWolverineRuntime>();
+        var snapshots = runtime.Endpoints.CollectEndpointHealth();
+
+        // Should return at least one snapshot (sender has at least a sending endpoint)
+        snapshots.ShouldNotBeEmpty();
+
+        // Every snapshot should have a valid URI
+        foreach (var snapshot in snapshots)
+        {
+            snapshot.Uri.ShouldNotBeNull();
+            snapshot.EndpointName.ShouldNotBeNullOrEmpty();
+            snapshot.Direction.ShouldBeOneOf(EndpointDirection.Listening, EndpointDirection.Sending);
+        }
+    }
+
+    [Fact]
+    public void receiver_endpoint_health_includes_listeners()
+    {
+        var host = theReceiver ?? theSender;
+        var runtime = host.Get<IWolverineRuntime>();
+        var snapshots = runtime.Endpoints.CollectEndpointHealth();
+
+        var listeners = snapshots.Where(s => s.Direction == EndpointDirection.Listening).ToList();
+        listeners.ShouldNotBeEmpty("Should have at least one listening endpoint");
+
+        foreach (var listener in listeners)
+        {
+            // Status should be a valid ListeningStatus value
+            listener.Status.ShouldNotBeNullOrEmpty();
+            listener.LastQueueActivityAt.ShouldNotBeNull();
+        }
+    }
+
+    [Fact]
+    public void sender_endpoint_health_includes_senders()
+    {
+        var runtime = theSender.Get<IWolverineRuntime>();
+        var snapshots = runtime.Endpoints.CollectEndpointHealth();
+
+        var senders = snapshots.Where(s => s.Direction == EndpointDirection.Sending).ToList();
+        senders.ShouldNotBeEmpty("Should have at least one sending endpoint");
+
+        foreach (var sender in senders)
+        {
+            sender.SenderLatched.ShouldBeFalse("Senders should not be latched on healthy startup");
+        }
+    }
+
+    [Fact]
+    public async Task transport_health_check_does_not_throw()
+    {
+        var runtime = theSender.Get<IWolverineRuntime>();
+
+        foreach (var transport in runtime.Options.Transports)
+        {
+            var healthCheck = transport.BuildHealthCheck(runtime);
+            if (healthCheck == null) continue;
+
+            // Smoke test: calling the health check should not throw
+            var result = await healthCheck.CheckHealthAsync();
+            result.ShouldNotBeNull();
+            result.TransportName.ShouldNotBeNullOrEmpty();
+            result.Protocol.ShouldNotBeNullOrEmpty();
+            result.Status.ShouldBeOneOf(
+                TransportHealthStatus.Healthy,
+                TransportHealthStatus.Degraded,
+                TransportHealthStatus.Unhealthy);
+        }
+    }
 }
 
 #region sample_BlueTextReader
@@ -640,10 +713,10 @@ public class BlueTextReader : IMessageSerializer
 
     public object ReadFromData(Type messageType, Envelope envelope)
     {
-        return ReadFromData(envelope.Data);
+        return ReadFromData(envelope.Data!);
     }
 
-    public object? ReadFromData(byte[]? data)
+    public object ReadFromData(byte[] data)
     {
         var name = Encoding.UTF8.GetString(data);
         return new BlueMessage { Name = name };
@@ -661,14 +734,14 @@ public class BlueTextReader : IMessageSerializer
 
 public class GreenTextWriter : IMessageSerializer
 {
-    public string? ContentType => "text/plain";
+    public string ContentType => "text/plain";
 
     public object ReadFromData(Type messageType, Envelope envelope)
     {
         throw new NotImplementedException();
     }
 
-    public object? ReadFromData(byte[]? data)
+    public object ReadFromData(byte[] data)
     {
         throw new NotImplementedException();
     }

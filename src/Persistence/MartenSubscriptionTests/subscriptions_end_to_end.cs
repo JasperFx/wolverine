@@ -78,10 +78,10 @@ public class subscriptions_end_to_end
         tracked.Executed.MessagesOf<EventTotalsUpdated>().Count().ShouldBeGreaterThanOrEqualTo(4);
 
         using var query = store.QuerySession();
-        (await query.LoadAsync<EventTotals>("A")).Count.ShouldBe(6);
-        (await query.LoadAsync<EventTotals>("B")).Count.ShouldBe(7);
-        (await query.LoadAsync<EventTotals>("C")).Count.ShouldBe(5);
-        (await query.LoadAsync<EventTotals>("D")).Count.ShouldBe(6);
+        (await query.LoadAsync<EventTotals>("A"))!.Count.ShouldBe(6);
+        (await query.LoadAsync<EventTotals>("B"))!.Count.ShouldBe(7);
+        (await query.LoadAsync<EventTotals>("C"))!.Count.ShouldBe(5);
+        (await query.LoadAsync<EventTotals>("D"))!.Count.ShouldBe(6);
     }
 
     [Fact]
@@ -136,8 +136,8 @@ public class subscriptions_end_to_end
         tracked.Executed.MessagesOf<EventTotalsUpdated>().Count().ShouldBeGreaterThanOrEqualTo(2);
 
         using var query = store.QuerySession();
-        (await query.LoadAsync<EventTotals>("A")).Count.ShouldBe(6);
-        (await query.LoadAsync<EventTotals>("B")).Count.ShouldBe(7);
+        (await query.LoadAsync<EventTotals>("A"))!.Count.ShouldBe(6);
+        (await query.LoadAsync<EventTotals>("B"))!.Count.ShouldBe(7);
         (await query.LoadAsync<EventTotals>("C")).ShouldBeNull();
         (await query.LoadAsync<EventTotals>("D")).ShouldBeNull();
     }
@@ -613,7 +613,7 @@ public class TestBatchSubscription : BatchSubscription
 
 public class EventTotals
 {
-    public string Id { get; set; }
+    public string Id { get; set; } = null!;
     public int Count { get; set; }
 }
 

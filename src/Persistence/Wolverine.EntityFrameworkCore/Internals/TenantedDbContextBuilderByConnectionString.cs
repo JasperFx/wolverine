@@ -66,7 +66,7 @@ public class TenantedDbContextBuilderByConnectionString<T> : IDbContextBuilder<T
         builder.UseApplicationServiceProvider(_serviceProvider);
         
         builder.ReplaceService<IModelCustomizer, WolverineModelCustomizer>();
-        _configuration(builder, new ConnectionString(connectionString), new TenantId(messaging.TenantId));
+        _configuration(builder, new ConnectionString(connectionString), new TenantId(messaging.TenantId!));
         var dbContext = _constructor(builder.Options);
 
         var transaction = new EfCoreEnvelopeTransaction(dbContext, messaging, _domainScrapers);
@@ -110,13 +110,16 @@ public class TenantedDbContextBuilderByConnectionString<T> : IDbContextBuilder<T
     public async Task EnsureAllTenantDatabasesCreatedAsync()
     {
         await _store.Source.RefreshAsync();
-        foreach (var assignment in _store.Source.AllActiveByTenant())
-        {
-            var dbContext = await BuildAsync(assignment.TenantId, CancellationToken.None);
-            await _serviceProvider.EnsureDatabaseExistsAsync(dbContext);
-            await using var migration = await _serviceProvider.CreateMigrationAsync(dbContext, CancellationToken.None);
-            await migration.ExecuteAsync(AutoCreate.CreateOrUpdate, CancellationToken.None);
-        }
+        var assignments = _store.Source.AllActiveByTenant().ToList();
+
+        await Parallel.ForEachAsync(assignments, new ParallelOptions { MaxDegreeOfParallelism = 10 },
+            async (assignment, ct) =>
+            {
+                var dbContext = await BuildAsync(assignment.TenantId, ct);
+                await _serviceProvider.EnsureDatabaseExistsAsync(dbContext, ct);
+                await using var migration = await _serviceProvider.CreateMigrationAsync(dbContext, ct);
+                await migration.ExecuteAsync(AutoCreate.CreateOrUpdate, ct);
+            });
     }
 
     public async Task ApplyAllChangesToDatabasesAsync()
@@ -178,7 +181,7 @@ public class TenantedDbContextBuilderByConnectionString<T> : IDbContextBuilder<T
             connectionString = databaseSettings.ConnectionString ?? databaseSettings.DataSource?.ConnectionString;
         }
 
-        _connectionStrings = _connectionStrings.AddOrUpdate(tenantId, connectionString);
+        _connectionStrings = _connectionStrings.AddOrUpdate(tenantId, connectionString!);
 
         return connectionString!;
     }
@@ -195,7 +198,7 @@ public class TenantedDbContextBuilderByConnectionString<T> : IDbContextBuilder<T
         var builder = new DbContextOptionsBuilder<T>();
         builder.UseApplicationServiceProvider(_serviceProvider);
         builder.ReplaceService<IModelCustomizer, WolverineModelCustomizer>();
-        _configuration(builder, new ConnectionString(connectionString), new TenantId(StorageConstants.DefaultTenantId));
+        _configuration(builder, new ConnectionString(connectionString!), new TenantId(StorageConstants.DefaultTenantId));
         return builder.Options;
     }
 

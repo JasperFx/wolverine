@@ -7,7 +7,7 @@ namespace CoreTests.Runtime.Agents;
 
 public class ReassignAgentTests : IAsyncLifetime
 {
-    private AgentCommands theCascadingMessages;
+    private AgentCommands theCascadingMessages = null!;
     private readonly ReassignAgent theCommand = new(new Uri("blue://one"), NodeDestination.Standin(), NodeDestination.Standin());
     private readonly MockWolverineRuntime theRuntime = new();
 

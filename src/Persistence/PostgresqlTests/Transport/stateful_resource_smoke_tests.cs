@@ -15,10 +15,6 @@ namespace PostgresqlTests.Transport;
 [Collection("sqlserver")]
 public class stateful_resource_smoke_tests : IAsyncLifetime
 {
-    private IHost _host;
-    private IStatefulResource? theResource;
-    private PostgresqlTransport theTransport;
-
     public async Task InitializeAsync()
     {
         await using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
@@ -121,6 +117,20 @@ public class stateful_resource_smoke_tests : IAsyncLifetime
 
         (await ConfigureBuilder(false, 30)
             .RunJasperFxCommands(["resources", "teardown"])).ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task db_assert_includes_transport_tables()
+    {
+        (await ConfigureBuilder(false, 40)
+            .RunJasperFxCommands(["db-apply"])).ShouldBe(0);
+        
+        var result = await ConfigureBuilder(false, 40)
+            .RunJasperFxCommands(["resources", "check"]);
+        
+        // resources check should succeed because db-apply have included
+        // endpoints in the database schema configuration
+        result.ShouldBe(0);
     }
 }
 

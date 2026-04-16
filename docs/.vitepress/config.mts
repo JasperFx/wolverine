@@ -12,8 +12,37 @@ const config: UserConfig<DefaultTheme.Config> = {
         ['link', {rel: 'apple-touch-icon', type: 'image/png', size: "180x180", href: '/apple-icon-180x180.png'}],
         ['link', {rel: 'icon', type: 'image/png', size: "32x32", href: '/favicon-32x32.png'}],
         ['link', {rel: 'icon', type: 'image/png', size: "16x16", href: '/favicon-16x16.png'}],
-        ['link', {rel: 'manifest', manifest: '/manifest.json'}],
+        ['link', {rel: 'icon', type: 'image/x-icon', href: '/favicon.ico'}],
+        ['link', {rel: 'manifest', href: '/manifest.json'}],
+        ['meta', {name: 'viewport', content: 'width=device-width, initial-scale=1.0'}],
+        ['meta', {property: 'og:type', content: 'website'}],
+        ['meta', {property: 'og:title', content: 'Wolverine'}],
+        ['meta', {property: 'og:description', content: 'Next Generation Command and Message Bus for .NET'}],
+        ['meta', {property: 'og:image', content: 'https://wolverinefx.io/logo.png'}],
+        ['meta', {property: 'og:url', content: 'https://wolverinefx.io'}],
+        ['meta', {property: 'og:site_name', content: 'Wolverine'}],
+        ['meta', {name: 'twitter:card', content: 'summary'}],
+        ['meta', {name: 'twitter:title', content: 'Wolverine'}],
+        ['meta', {name: 'twitter:description', content: 'Next Generation Command and Message Bus for .NET'}],
+        ['meta', {name: 'twitter:image', content: 'https://wolverinefx.io/logo.png'}],
+        ['script', {type: 'application/ld+json'}, JSON.stringify({
+            '@context': 'https://schema.org',
+            '@type': 'SoftwareSourceCode',
+            'name': 'Wolverine',
+            'description': 'Next Generation Command and Message Bus for .NET',
+            'url': 'https://wolverinefx.io',
+            'codeRepository': 'https://github.com/JasperFx/wolverine',
+            'programmingLanguage': 'C#',
+            'license': 'https://opensource.org/licenses/MIT',
+            'author': {
+                '@type': 'Person',
+                'name': 'Jeremy D. Miller'
+            }
+        })],
     ],
+    sitemap: {
+        hostname: 'https://wolverinefx.io'
+    },
     lastUpdated: true,
     themeConfig: {
         logo: '/logo.png',
@@ -87,7 +116,11 @@ const config: UserConfig<DefaultTheme.Config> = {
                         {text: 'Leader Election and Agents', link: '/tutorials/leader-election'},
                         {text: 'Dealing with Concurrency', link:'/tutorials/concurrency'},
                         {text: 'Dead Letter Queues', link: '/tutorials/dead-letter-queues'},
-                        {text: 'Idempotency in Messaging', link: '/tutorials/idempotency'}
+                        {text: 'Idempotency in Messaging', link: '/tutorials/idempotency'},
+                        {text: 'Multi-Tenancy', link: '/tutorials/multi-tenancy'},
+                        {text: 'Migrating from Minimal APIs', link: '/tutorials/from-minimal-api'},
+                        {text: 'Migrating from MVC Controllers', link: '/tutorials/from-mvc'},
+                        {text: 'Migrating from MVC/Minimal API Filters', link: '/tutorials/middleware-migration'}
                     ]
                 },
                 {
@@ -206,6 +239,7 @@ const config: UserConfig<DefaultTheme.Config> = {
                         {text: 'Endpoint Specific Operations', link: '/guide/messaging/endpoint-operations'},
                         {text: 'Broadcast to a Specific Topic', link: '/guide/messaging/broadcast-to-topic'},
                         {text: 'Message Expiration', link: '/guide/messaging/expiration'},
+                        {text: 'Header Propagation', link: '/guide/messaging/header-propagation'},
                         {text: 'Endpoint Policies', link: '/guide/messaging/policies'},
                         {text: 'Sending Error Handling', link: '/guide/messaging/sending-error-handling'}
                     ]
@@ -218,13 +252,16 @@ const config: UserConfig<DefaultTheme.Config> = {
                         {text: 'Integration with ASP.Net Core', link: '/guide/http/integration'},
                         {text: 'Endpoints', link: '/guide/http/endpoints'},
                         {text: 'Json', link: '/guide/http/json'},
+                        {text: 'Content Negotiation', link: '/guide/http/conneg'},
                         {text: 'Routing', link: '/guide/http/routing'},
                         {text: 'Authentication and Authorization', link: '/guide/http/security'},
+                        {text: 'Antiforgery / CSRF Protection', link: '/guide/http/antiforgery'},
                         {text: 'Working with Querystring', link: '/guide/http/querystring'},
                         {text: 'Headers', link: '/guide/http/headers'},
                         {text: 'HTTP Form Data', link: '/guide/http/forms'},
                         {text: `AsParameters Binding`, link: '/guide/http/as-parameters'},
                         {text: 'Middleware', link: '/guide/http/middleware.md'},
+                        {text: 'Exception Handling', link: '/guide/http/exception-handling'},
                         {text: 'Policies', link: '/guide/http/policies.md'},
                         {text: 'OpenAPI Metadata', link: '/guide/http/metadata'},
                         {text: 'Using as Mediator', link: '/guide/http/mediator'},
@@ -238,7 +275,11 @@ const config: UserConfig<DefaultTheme.Config> = {
                         {text: 'Fluent Validation', link: '/guide/http/fluentvalidation'},
                         {text: 'Problem Details', link: '/guide/http/problemdetails'},
                         {text: 'Caching', link: '/guide/http/caching'},
+                        {text: 'Output Caching', link: '/guide/http/output-caching'},
+                        {text: 'Rate Limiting', link: '/guide/http/rate-limiting'},
+                        {text: 'Streaming and SSE', link: '/guide/http/streaming'},
                         {text: 'HTTP Messaging Transport', link: '/guide/http/transport'},
+                        {text: 'Integration Testing with Alba', link: '/guide/http/integration-testing'}
                         {text: 'gRPC Endpoints', link: '/guide/http/grpc'}
                     ]
                 },

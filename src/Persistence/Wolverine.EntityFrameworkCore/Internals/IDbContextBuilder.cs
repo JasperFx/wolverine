@@ -41,7 +41,7 @@ public interface IDbContextBuilder<T> : IDbContextBuilder where T : DbContext
 
 internal class CreateTenantedDbContext<T> : MethodCall where T : DbContext
 {
-    public CreateTenantedDbContext() : base(typeof(IDbContextBuilder<T>), ReflectionHelper.GetMethod<IDbContextBuilder<T>>(x => x.BuildAndEnrollAsync(null, CancellationToken.None)))
+    public CreateTenantedDbContext() : base(typeof(IDbContextBuilder<T>), ReflectionHelper.GetMethod<IDbContextBuilder<T>>(x => x.BuildAndEnrollAsync(null!, CancellationToken.None))!)
     {
     }
 }

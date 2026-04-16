@@ -14,7 +14,7 @@ public class RedisClaimingTests
 {
     public record TestMessage(string Id);
 
-    private static async Task<IDatabase> ConnectAsync() => (await ConnectionMultiplexer.ConnectAsync("localhost:6379")).GetDatabase();
+    private static async Task<IDatabase> ConnectAsync() => (await ConnectionMultiplexer.ConnectAsync(RedisContainerFixture.ConnectionString)).GetDatabase();
 
     [Fact]
     public async Task claim_and_process_pending_messages()
@@ -54,7 +54,7 @@ public class RedisClaimingTests
             })
             .UseWolverine(opts =>
             {
-                opts.UseRedisTransport("localhost:6379").AutoProvision();
+                opts.UseRedisTransport(RedisContainerFixture.ConnectionString).AutoProvision();
                  opts
                     .ListenToRedisStream(streamKey, group)
                     .EnableAutoClaim(TimeSpan.FromMilliseconds(100), TimeSpan.FromMilliseconds(1))

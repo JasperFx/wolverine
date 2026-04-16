@@ -142,7 +142,7 @@ public class DeliveryOptionsTests
 
         options.Override(envelope);
 
-        envelope.ScheduledTime.Value.ShouldBe(options.ScheduledTime.Value);
+        envelope.ScheduledTime!.Value.ShouldBe(options.ScheduledTime!.Value);
     }
 
     [Fact]
@@ -170,7 +170,7 @@ public class DeliveryOptionsTests
 
         options.Override(envelope);
 
-        envelope.DeliverBy.Value.ShouldBe(options.DeliverBy.Value);
+        envelope.DeliverBy!.Value.ShouldBe(options.DeliverBy!.Value);
     }
 
     [Fact]

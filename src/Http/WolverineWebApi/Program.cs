@@ -1,3 +1,4 @@
+using System.Threading.RateLimiting;
 using IntegrationTests;
 using JasperFx;
 using JasperFx.CodeGeneration;
@@ -9,6 +10,7 @@ using JasperFx.Resources;
 using Marten;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Wolverine;
 using Wolverine.AdminApi;
@@ -66,6 +68,28 @@ public class Program
         builder.Services.AddSingleton<Broadcaster>();
 
         builder.Services.AddAuthorization();
+
+        #region sample_adding_output_cache_services
+
+        builder.Services.AddOutputCache(options =>
+        {
+            options.AddPolicy("short", builder => builder.Expire(TimeSpan.FromSeconds(5)));
+        });
+
+        #region sample_rate_limiting_configuration
+        builder.Services.AddRateLimiter(options =>
+        {
+            options.AddFixedWindowLimiter("fixed", opt =>
+            {
+                opt.PermitLimit = 1;
+                opt.Window = TimeSpan.FromSeconds(10);
+                opt.QueueLimit = 0;
+            });
+            options.RejectionStatusCode = 429;
+        });
+        #endregion
+
+        #endregion
 
         builder.Services.AddDbContextWithWolverineIntegration<ItemsDbContext>(x =>
             x.UseNpgsql(Servers.PostgresConnectionString));
@@ -191,6 +215,16 @@ public class Program
 
         app.UseAuthorization();
 
+        #region sample_using_output_cache_middleware
+
+        app.UseOutputCache();
+
+        #region sample_use_rate_limiter_middleware
+        app.UseRateLimiter();
+        #endregion
+
+        #endregion
+
 // These routes are for doing
         OpenApiEndpoints.BuildComparisonRoutes(app);
 
@@ -278,6 +312,10 @@ public class Program
             opts.SendMessage<HttpMessage6>("/send/message6").WithTags("messages");
             opts.SendMessage<MessageThatAlwaysGoesToDeadLetter>(HttpMethod.Post, "/send/always-dead-letter")
                 .WithTags("messages");
+
+            // Register OnException middleware for testing
+            opts.AddMiddleware(typeof(GlobalExceptionMiddleware),
+                chain => chain.Method.HandlerType == typeof(MiddlewareExceptionEndpoints));
 
             opts.AddPolicy<StreamCollisionExceptionPolicy>();
 

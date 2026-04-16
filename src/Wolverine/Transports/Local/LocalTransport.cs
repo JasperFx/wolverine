@@ -46,7 +46,7 @@ internal class LocalTransport : TransportBase<LocalQueue>, ILocalMessageRoutingC
     
     public override bool TryBuildBrokerUsage(out BrokerDescription description)
     {
-        description = default;
+        description = default!;
         return false;
     }
 
@@ -170,7 +170,7 @@ internal class LocalTransport : TransportBase<LocalQueue>, ILocalMessageRoutingC
             foreach (var messageType in handledMessageTypes)
             {
                 var chain = runtime.Options.HandlerGraph.ChainFor(messageType);
-                if (chain.Handlers.Any())
+                if (chain != null && chain.Handlers.Any())
                 {
                     FindOrCreateQueueForMessageTypeByConvention(messageType);
                 }

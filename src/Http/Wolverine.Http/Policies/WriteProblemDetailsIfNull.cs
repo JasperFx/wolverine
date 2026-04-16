@@ -7,7 +7,7 @@ namespace Wolverine.Http.Policies;
 
 internal class WriteProblemDetailsIfNull : AsyncFrame
 {
-    private Variable _httpContext;
+    private Variable? _httpContext;
 
     public WriteProblemDetailsIfNull(Variable entity, Variable identity, string message, int statusCode = 400)
     {
@@ -32,12 +32,12 @@ internal class WriteProblemDetailsIfNull : AsyncFrame
 
         if (Message.Contains("{0}"))
         {
-            writer.Write($"await {nameof(HttpHandler.WriteProblems)}({StatusCode}, string.Format(\"{Message}\", {Identity.Usage}), {_httpContext.Usage}, {Identity.Usage});");
+            writer.Write($"await {nameof(HttpHandler.WriteProblems)}({StatusCode}, string.Format(\"{Message}\", {Identity.Usage}), {_httpContext!.Usage}, {Identity.Usage});");
         }
         else
         {
             var constant = Constant.For(Message);
-            writer.Write($"await {nameof(HttpHandler.WriteProblems)}({StatusCode}, {constant.Usage}, {_httpContext.Usage}, {Identity.Usage});");
+            writer.Write($"await {nameof(HttpHandler.WriteProblems)}({StatusCode}, {constant.Usage}, {_httpContext!.Usage}, {Identity.Usage});");
         }
 
         writer.Write("return;");

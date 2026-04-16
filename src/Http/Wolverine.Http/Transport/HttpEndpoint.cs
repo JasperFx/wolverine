@@ -14,7 +14,7 @@ public class HttpEndpoint : Endpoint
     }
 
     internal bool SupportsNativeScheduledSend { get; set; }
-    public string OutboundUri { get; set; }
+    public string OutboundUri { get; set; } = string.Empty;
 
     public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
     {

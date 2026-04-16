@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using System.Reflection;
 using JasperFx;
 using JasperFx.CodeGeneration;
@@ -6,6 +7,7 @@ using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
 using Wolverine.Attributes;
 using Wolverine.Logging;
+using Wolverine.Middleware;
 using Wolverine.Persistence;
 using Wolverine.Runtime;
 
@@ -26,6 +28,53 @@ internal static class ChainExtensions
 
         // All good if no attribute
         return true;
+    }
+}
+
+public static class ChainMiddlewareExtensions
+{
+    /// <summary>
+    ///     Add a middleware method call to this chain's middleware pipeline
+    /// </summary>
+    /// <param name="chain">The chain to add middleware to</param>
+    /// <param name="method">Expression pointing to the middleware method</param>
+    /// <typeparam name="T">The middleware class type</typeparam>
+    public static void AddMiddleware<T>(this IChain chain, Expression<Action<T>> method)
+    {
+        chain.Middleware.Add(new MethodCall(typeof(T), ReflectionHelper.GetMethod(method)!));
+    }
+
+    /// <summary>
+    ///     Add a middleware method call to this chain's middleware pipeline
+    /// </summary>
+    /// <param name="chain">The chain to add middleware to</param>
+    /// <param name="middlewareType">The middleware class type</param>
+    /// <param name="methodName">The name of the method to call</param>
+    public static void AddMiddleware(this IChain chain, Type middlewareType, string methodName)
+    {
+        chain.Middleware.Add(new MethodCall(middlewareType, methodName));
+    }
+
+    /// <summary>
+    ///     Add a postprocessor method call to this chain's postprocessor pipeline
+    /// </summary>
+    /// <param name="chain">The chain to add the postprocessor to</param>
+    /// <param name="method">Expression pointing to the postprocessor method</param>
+    /// <typeparam name="T">The middleware class type</typeparam>
+    public static void AddPostprocessor<T>(this IChain chain, Expression<Action<T>> method)
+    {
+        chain.Postprocessors.Add(new MethodCall(typeof(T), ReflectionHelper.GetMethod(method)!));
+    }
+
+    /// <summary>
+    ///     Add a postprocessor method call to this chain's postprocessor pipeline
+    /// </summary>
+    /// <param name="chain">The chain to add the postprocessor to</param>
+    /// <param name="middlewareType">The middleware class type</param>
+    /// <param name="methodName">The name of the method to call</param>
+    public static void AddPostprocessor(this IChain chain, Type middlewareType, string methodName)
+    {
+        chain.Postprocessors.Add(new MethodCall(middlewareType, methodName));
     }
 }
 
@@ -62,6 +111,13 @@ public interface IChain
 
     List<AuditedMember> AuditedMembers { get; }
     Dictionary<string, object> Tags { get; }
+
+    /// <summary>
+    /// When set, indicates that this handler chain targets an ancillary message store
+    /// identified by this marker type (e.g., IAncillaryStore). This is used to route
+    /// incoming durable inbox envelopes to the correct store for transactional atomicity.
+    /// </summary>
+    Type? AncillaryStoreType { get; set; }
 
     /// <summary>
     ///     Strategy for dealing with any return values from the handler methods
@@ -170,6 +226,12 @@ public interface IChain
     Frame[] AddStopConditionIfNull(Variable data, Variable? identity, IDataRequirement requirement);
 
     bool TryInferMessageIdentity(out PropertyInfo? property);
+
+    /// <summary>
+    /// Get the existing TryCatchFinallyFrame or create a new one for wrapping
+    /// exception handling around the handler execution
+    /// </summary>
+    TryCatchFinallyFrame GetOrCreateTryCatchFinallyFrame();
 
     /// <summary>
     /// Create a Frame for simple validation based on a variable that contains

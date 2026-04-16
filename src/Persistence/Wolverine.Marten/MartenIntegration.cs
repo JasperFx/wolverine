@@ -12,8 +12,10 @@ using Npgsql;
 using Weasel.Core;
 using Wolverine.ErrorHandling;
 using Wolverine.Marten.Codegen;
+using Wolverine.Middleware;
 using Wolverine.Marten.Persistence.Sagas;
 using Wolverine.Marten.Publishing;
+using Wolverine.Marten.Requirements;
 using Wolverine.Persistence.Sagas;
 using Wolverine.Postgresql.Transport;
 using Wolverine.RDBMS;
@@ -82,6 +84,8 @@ public class MartenIntegration : IWolverineExtension, IEventForwarding
         transport.MessageStorageSchemaName = MessageStorageSchemaName ?? "public";
         
         options.Policies.Add<MartenOpPolicy>();
+
+        options.CodeGeneration.AddContinuationStrategy<MartenDataRequirementContinuationStrategy>();
     }
 
     /// <summary>
@@ -130,7 +134,7 @@ public class MartenIntegration : IWolverineExtension, IEventForwarding
     /// </summary>
     public AutoCreate? AutoCreate { get; set; }
 
-    public EventForwardingTransform<T> SubscribeToEvent<T>()
+    public EventForwardingTransform<T> SubscribeToEvent<T>() where T : notnull
     {
         return new EventForwardingTransform<T>(EventRouter);
     }
@@ -147,7 +151,7 @@ internal class MartenOverrides : IConfigureMarten
             if (mapping.DocumentType.CanBeCastTo<Saga>())
             {
                 mapping.UseNumericRevisions = true;
-                mapping.Metadata.Revision.Member = mapping.DocumentType.GetProperty(nameof(Saga.Version));
+                mapping.Metadata.Revision.Member = mapping.DocumentType.GetProperty(nameof(Saga.Version))!;
             }
         });
     }
@@ -159,7 +163,7 @@ internal class EventWrapperForwarder : IHandledTypeRule
 {
     public bool TryFindHandledType(Type concreteType, out Type handlerType)
     {
-        handlerType = concreteType.FindInterfaceThatCloses(typeof(IEvent<>));
+        handlerType = concreteType.FindInterfaceThatCloses(typeof(IEvent<>))!;
         return handlerType != null;
     }
 }
@@ -212,7 +216,7 @@ internal class MartenEventRouter : IMessageRouteSource
     public List<IMessageTransformation> Transformers { get; } = [];
 }
 
-internal class EventUnwrappingMessageRoute<T> : TransformedMessageRoute<IEvent<T>, T>
+internal class EventUnwrappingMessageRoute<T> : TransformedMessageRoute<IEvent<T>, T> where T : notnull
 {
     public EventUnwrappingMessageRoute(IMessageRoute inner) : base(e => e.Data, inner)
     {
@@ -231,10 +235,10 @@ public interface IEventForwarding
     /// published to Wolverine with its normal routing rules
     /// </summary>
     /// <typeparam name="T"></typeparam>
-    EventForwardingTransform<T> SubscribeToEvent<T>();
+    EventForwardingTransform<T> SubscribeToEvent<T>() where T : notnull;
 }
 
-public class EventForwardingTransform<TSource>
+public class EventForwardingTransform<TSource> where TSource : notnull
 {
     private readonly MartenEventRouter _martenEventWrapper;
 

@@ -83,8 +83,8 @@ public class applying_restrictions
         var node3 = grid.WithNode(3, Guid.NewGuid()).HasCapabilities(capabilities);
         var node4 = grid.WithNode(4, Guid.NewGuid()).HasCapabilities(capabilities);
         
-        grid.NodeFor(4).Assign(blue10);
-        grid.NodeFor(3).Assign(blue11);
+        grid.NodeFor(4)!.Assign(blue10);
+        grid.NodeFor(3)!.Assign(blue11);
 
         var restrictions = new AgentRestrictions([]);
         restrictions.PinAgent(blue10, 4);
@@ -114,8 +114,8 @@ public class applying_restrictions
         var node3 = grid.WithNode(3, Guid.NewGuid()).HasCapabilities(capabilities);
         var node4 = grid.WithNode(4, Guid.NewGuid()).HasCapabilities(capabilities);
         
-        grid.NodeFor(1).Assign(blue10);
-        grid.NodeFor(2).Assign(blue11);
+        grid.NodeFor(1)!.Assign(blue10);
+        grid.NodeFor(2)!.Assign(blue11);
 
         var restrictions = new AgentRestrictions([]);
         restrictions.PinAgent(blue10, 4);
@@ -254,9 +254,9 @@ public class applying_restrictions
         blue12Agent.IsPaused.ShouldBeTrue();
         blue12Agent.AssignedNode.ShouldBeNull();
 
-        grid.AgentFor(blue2).AssignedNode.AssignedId.ShouldBe(3);
+        grid.AgentFor(blue2).AssignedNode!.AssignedId.ShouldBe(3);
         grid.AgentFor(blue3).AssignedNode.ShouldNotBeNull();
-        grid.AgentFor(blue4).AssignedNode.AssignedId.ShouldBe(3);
+        grid.AgentFor(blue4).AssignedNode!.AssignedId.ShouldBe(3);
         grid.AgentFor(blue5).AssignedNode.ShouldNotBeNull();
         grid.AgentFor(blue6).AssignedNode.ShouldNotBeNull();
         grid.AgentFor(blue7).AssignedNode.ShouldNotBeNull();

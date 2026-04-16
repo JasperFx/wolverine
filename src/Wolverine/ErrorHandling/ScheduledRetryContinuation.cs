@@ -1,11 +1,12 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using Wolverine.Runtime;
 
 namespace Wolverine.ErrorHandling;
 
-internal class ScheduledRetryContinuation : IContinuation, IContinuationSource
+internal class ScheduledRetryContinuation : IContinuation, IContinuationSource, IJitterable
 {
     private readonly TimeSpan _delay;
+    private volatile IJitterStrategy? _jitter;
 
     public ScheduledRetryContinuation(TimeSpan delay)
     {
@@ -14,11 +15,18 @@ internal class ScheduledRetryContinuation : IContinuation, IContinuationSource
 
     public TimeSpan Delay => _delay;
 
+    public bool TrySetJitter(IJitterStrategy strategy)
+    {
+        _jitter = strategy;
+        return true;
+    }
+
     public ValueTask ExecuteAsync(IEnvelopeLifecycle lifecycle, IWolverineRuntime runtime, DateTimeOffset now,
         Activity? activity)
     {
         activity?.AddEvent(new ActivityEvent(WolverineTracing.ScheduledRetry));
-        var scheduledTime = now.Add(_delay);
+        var effective = _jitter?.Apply(_delay, lifecycle.Envelope?.Attempts ?? 1) ?? _delay;
+        var scheduledTime = now.Add(effective);
 
         return new ValueTask(lifecycle.ReScheduleAsync(scheduledTime));
     }
@@ -42,21 +50,9 @@ internal class ScheduledRetryContinuation : IContinuation, IContinuationSource
 
     public override bool Equals(object? obj)
     {
-        if (ReferenceEquals(null, obj))
-        {
-            return false;
-        }
-
-        if (ReferenceEquals(this, obj))
-        {
-            return true;
-        }
-
-        if (obj.GetType() != GetType())
-        {
-            return false;
-        }
-
+        if (ReferenceEquals(null, obj)) return false;
+        if (ReferenceEquals(this, obj)) return true;
+        if (obj.GetType() != GetType()) return false;
         return Equals((ScheduledRetryContinuation)obj);
     }
 

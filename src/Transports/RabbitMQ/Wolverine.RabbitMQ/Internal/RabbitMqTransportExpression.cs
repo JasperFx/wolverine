@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using RabbitMQ.Client;
 using Wolverine.Configuration;
 using Wolverine.Transports;
@@ -89,7 +90,7 @@ public class RabbitMqTransportExpression : BrokerExpression<RabbitMqTransport, R
             throw new ArgumentNullException(nameof(configure));
         }
 
-        configure(Transport.ConnectionFactory);
+        configure(Transport.ConnectionFactory!);
 
         return this;
     }
@@ -137,6 +138,25 @@ public class RabbitMqTransportExpression : BrokerExpression<RabbitMqTransport, R
         Action<RabbitMqMessageRoutingConvention>? configure = null)
     {
         var convention = new RabbitMqMessageRoutingConvention();
+        configure?.Invoke(convention);
+        Options.RoutingConventions.Add(convention);
+
+        return this;
+    }
+
+    /// <summary>
+    ///     Opt into using conventional Rabbit MQ routing with the specified naming source.
+    ///     Using <see cref="NamingSource.FromHandlerType"/> is appropriate for modular monolith
+    ///     scenarios where you have more than one handler for a given message type.
+    /// </summary>
+    /// <param name="namingSource"></param>
+    /// <param name="configure"></param>
+    /// <returns></returns>
+    public RabbitMqTransportExpression UseConventionalRouting(NamingSource namingSource,
+        Action<RabbitMqMessageRoutingConvention>? configure = null)
+    {
+        var convention = new RabbitMqMessageRoutingConvention();
+        convention.UseNaming(namingSource);
         configure?.Invoke(convention);
         Options.RoutingConventions.Add(convention);
 
@@ -195,6 +215,59 @@ public class RabbitMqTransportExpression : BrokerExpression<RabbitMqTransport, R
         Transport.Exchanges.Remove(Transport.DeadLetterQueue.ExchangeName);
 
         return this;
+    }
+
+    /// <summary>
+    /// Enable a background listener on the RabbitMQ dead letter queue that recovers
+    /// dead-lettered messages into Wolverine's persistent dead letter storage (database).
+    /// This bridges RabbitMQ's native DLX with Wolverine's database-backed DLQ management,
+    /// enabling tools like CritterWatch to query, replay, and discard dead letters.
+    /// Use this when you want native RabbitMQ dead lettering AND database-backed DLQ visibility.
+    /// </summary>
+    public RabbitMqTransportExpression EnableDeadLetterQueueRecovery()
+    {
+        Transport.EnableDeadLetterQueueRecovery = true;
+        ensureRecoveryServicesRegistered();
+        return this;
+    }
+
+    /// <summary>
+    /// Enable a background listener on specific RabbitMQ dead letter queues that recovers
+    /// dead-lettered messages into Wolverine's persistent dead letter storage (database).
+    /// Use this overload when you have custom DLQ queue names beyond the default
+    /// wolverine-dead-letter-queue.
+    /// </summary>
+    /// <param name="queueNames">One or more RabbitMQ queue names to listen to for dead letter recovery</param>
+    public RabbitMqTransportExpression EnableDeadLetterQueueRecovery(params string[] queueNames)
+    {
+        Transport.EnableDeadLetterQueueRecovery = true;
+        var settings = ensureRecoveryServicesRegistered();
+        foreach (var name in queueNames)
+        {
+            if (!settings.QueueNames.Contains(name))
+            {
+                settings.QueueNames.Add(name);
+            }
+        }
+        return this;
+    }
+
+    private DeadLetterQueueRecoverySettings ensureRecoveryServicesRegistered()
+    {
+        // Check if already registered by looking for existing settings
+        var existing = Options.Services
+            .Where(s => s.ServiceType == typeof(DeadLetterQueueRecoverySettings))
+            .Select(s => s.ImplementationInstance)
+            .OfType<DeadLetterQueueRecoverySettings>()
+            .FirstOrDefault();
+
+        if (existing != null) return existing;
+
+        var settings = new DeadLetterQueueRecoverySettings();
+        Options.Services.AddSingleton(settings);
+        Options.Services.AddSingleton(Transport);
+        Options.Services.AddHostedService<DeadLetterQueueListener>();
+        return settings;
     }
 
     /// <summary>

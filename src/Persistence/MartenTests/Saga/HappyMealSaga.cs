@@ -32,10 +32,10 @@ public interface IOrderService
 
 public class HappyMealOrder
 {
-    public string Drink { get; set; }
-    public string Toy { get; set; }
-    public string SideDish { get; set; }
-    public string MainDish { get; set; }
+    public string Drink { get; set; } = null!;
+    public string Toy { get; set; } = null!;
+    public string SideDish { get; set; } = null!;
+    public string MainDish { get; set; } = null!;
 }
 
 public class ToyOnTray
@@ -63,7 +63,7 @@ public class HappyMealSaga3 : Wolverine.Saga
     // document have an "Id" property, but
     // that can be overridden
     public int Id { get; set; }
-    public HappyMealOrder Order { get; set; }
+    public HappyMealOrder Order { get; set; } = null!;
 
     public bool DrinkReady { get; set; }
     public bool ToyReady { get; set; }

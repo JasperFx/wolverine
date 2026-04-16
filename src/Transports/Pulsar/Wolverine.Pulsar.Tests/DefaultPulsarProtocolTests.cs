@@ -16,9 +16,9 @@ namespace Wolverine.Pulsar.Tests;
 
 internal class StubMessage : IMessage<ReadOnlySequence<byte>>
 {
-    public MessageId MessageId { get; }
+    public MessageId MessageId { get; } = null!;
     public ReadOnlySequence<byte> Data { get; }
-    public string ProducerName { get; }
+    public string ProducerName { get; } = null!;
     public byte[]? SchemaVersion { get; }
     public ulong SequenceId { get; }
     public uint RedeliveryCount { get; }
@@ -35,7 +35,7 @@ internal class StubMessage : IMessage<ReadOnlySequence<byte>>
     public ulong PublishTime { get; }
     public DateTime PublishTimeAsDateTime { get; }
     public DateTimeOffset PublishTimeAsDateTimeOffset { get; }
-    public IReadOnlyDictionary<string, string> Properties { get; set; }
+    public IReadOnlyDictionary<string, string> Properties { get; set; } = null!;
 
     public ReadOnlySequence<byte> Value()
     {
@@ -67,12 +67,12 @@ public class DefaultPulsarProtocolTests
             var prop1 = typeof(MessageMetadata).GetProperty("Metadata",
                 BindingFlags.Instance | BindingFlags.NonPublic);
 
-            var internalMetadata = prop1.GetValue(metadata);
-            var prop2 = internalMetadata.GetType().GetProperty("Properties");
-            var values = (RepeatedField<KeyValue>)prop2.GetValue(internalMetadata);
+            var internalMetadata = prop1!.GetValue(metadata);
+            var prop2 = internalMetadata!.GetType().GetProperty("Properties");
+            var values = (RepeatedField<KeyValue>)prop2!.GetValue(internalMetadata)!;
 
             var properties = new Dictionary<string, string>();
-            foreach (var pair in values) properties[pair.Key] = pair.Value;
+            foreach (var pair in values!) properties[pair.Key] = pair.Value;
             
             var message = new StubMessage { Properties = properties };
             

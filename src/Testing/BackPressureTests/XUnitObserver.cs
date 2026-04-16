@@ -1,4 +1,5 @@
 using Wolverine.Configuration;
+using Wolverine.ErrorHandling;
 using Wolverine.Logging;
 using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.Metrics;
@@ -98,5 +99,17 @@ public class XUnitObserver(ITestOutputHelper Output) : IWolverineObserver
     public void MessageHandlingMetricsExported(MessageHandlingMetrics metrics)
     {
         // Nothing here...
+    }
+
+    public Task CircuitBreakerTripped(Endpoint endpoint, CircuitBreakerOptions options)
+    {
+        Output.WriteLine($"Circuit breaker tripped on {endpoint.Uri}");
+        return Task.CompletedTask;
+    }
+
+    public Task CircuitBreakerReset(Endpoint endpoint)
+    {
+        Output.WriteLine($"Circuit breaker reset on {endpoint.Uri}");
+        return Task.CompletedTask;
     }
 }

@@ -16,7 +16,7 @@ public static class ConventionalRoutingTestDefaults
 
 public abstract class ConventionalRoutingContext : IDisposable
 {
-    private IHost _host;
+    private IHost _host = null!;
     
     internal bool DisableListenerDiscovery { get; set; }
     

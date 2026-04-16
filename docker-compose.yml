@@ -6,14 +6,14 @@ networks:
 
 services:
   mosquitto:
-    image: "eclipse-mosquitto:latest"
+    image: "eclipse-mosquitto:2"
     ports:
       - "1883:1883"
     volumes:
       - ./docker/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
 
   postgresql:
-    image: "postgres:latest"
+    image: "postgres:17"
     ports:
       - "5433:5432"
     environment:
@@ -42,15 +42,15 @@ services:
         "--log-http",
         "--user-output-enabled",
       ]
-  
+
   rabbitmq:
-    image: "rabbitmq:management"
+    image: "rabbitmq:4-management"
     ports:
       - "5672:5672"
       - "15672:15672"
 
   sqlserver:
-    image: "mcr.microsoft.com/azure-sql-edge"
+    image: "mcr.microsoft.com/azure-sql-edge:latest"
     ports:
       - "1434:1433"
     environment:
@@ -59,14 +59,14 @@ services:
       - "MSSQL_PID=Developer"
 
   pulsar:
-    image: "apachepulsar/pulsar:latest"
+    image: "apachepulsar/pulsar:4.0.3"
     ports:
       - "6650:6650"
       - "8080:8080"
     command: bin/pulsar standalone
 
   localstack:
-    image: localstack/localstack:stable
+    image: localstack/localstack:4
     ports:
       - "127.0.0.1:4566:4566"            # LocalStack Gateway
       - "127.0.0.1:4510-4559:4510-4559"  # external services port range
@@ -80,29 +80,21 @@ services:
       - "${LOCALSTACK_VOLUME_DIR:-./volume}:/var/lib/localstack"
       - "/var/run/docker.sock:/var/run/docker.sock"
 
-  zookeeper:
-    image: confluentinc/cp-zookeeper:latest
-    environment:
-      ZOOKEEPER_CLIENT_PORT: 2181
-      ZOOKEEPER_TICK_TIME: 2000
-    ports:
-      - 22181:2181
-  
   kafka:
-    image: confluentinc/confluent-local:latest
+    image: confluentinc/confluent-local:7.7.1
     ports:
       - "8082:8082"
       - "9092:9092"
       - "9101:9101"
-        
+
   redis-server:
-    image: "redis:alpine"
+    image: "redis:7-alpine"
     command: redis-server
     ports:
       - "6379:6379"
 
   nats:
-    image: "nats:latest"
+    image: "nats:2"
     ports:
       - "4222:4222"
       - "8222:8222"
@@ -128,7 +120,7 @@ services:
       - ./docker/oracle:/container-entrypoint-initdb.d
 
   asb-sql:
-    image: "mcr.microsoft.com/azure-sql-edge"
+    image: "mcr.microsoft.com/azure-sql-edge:latest"
     environment:
       - "ACCEPT_EULA=Y"
       - "MSSQL_SA_PASSWORD=Strong_Passw0rd#2025"
@@ -161,7 +153,7 @@ services:
       - "PROTOCOL=https"
 
   asb-sql-2:
-    image: "mcr.microsoft.com/azure-sql-edge"
+    image: "mcr.microsoft.com/azure-sql-edge:latest"
     environment:
       - "ACCEPT_EULA=Y"
       - "MSSQL_SA_PASSWORD=Strong_Passw0rd#2025"

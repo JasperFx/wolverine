@@ -16,7 +16,7 @@ namespace MartenTests.Bugs;
 
 public class Bug_1427_no_endpoint_error_on_retries : IAsyncLifetime
 {
-    private IHost _host;
+    private IHost _host = null!;
 
     public Task InitializeAsync()
     {

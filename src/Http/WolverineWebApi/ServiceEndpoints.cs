@@ -40,7 +40,7 @@ public class DataHandler
 public class Data
 {
     public Guid Id { get; set; }
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
 }
 
 public class Recorder

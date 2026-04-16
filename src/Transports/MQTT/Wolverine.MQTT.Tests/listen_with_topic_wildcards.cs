@@ -12,8 +12,8 @@ namespace Wolverine.MQTT.Tests;
 public class listen_with_topic_wildcards : IAsyncLifetime
 {
     private readonly ITestOutputHelper _output;
-    private IHost _sender;
-    private IHost _receiver;
+    private IHost _sender = null!;
+    private IHost _receiver = null!;
 
     public listen_with_topic_wildcards(ITestOutputHelper output)
     {
@@ -63,7 +63,7 @@ public class listen_with_topic_wildcards : IAsyncLifetime
         received.Color.ShouldBe("blue");
     }
 
-    public LocalMqttBroker Broker { get; set; }
+    public LocalMqttBroker Broker { get; set; } = null!;
 
     public async Task DisposeAsync()
     {

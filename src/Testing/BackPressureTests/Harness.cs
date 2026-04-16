@@ -18,7 +18,7 @@ namespace BackPressureTests;
 public class MassSender(IHost sender)
 {
     private readonly CancellationTokenSource _cancellation = new();
-    private Task _task;
+    private Task _task = null!;
 
     public void Cancel()
     {
@@ -51,9 +51,9 @@ public class MassSender(IHost sender)
 
 public class Harness : IAsyncLifetime, IWolverineActivator
 {
-    private IHost _sender;
+    private IHost _sender = null!;
     private XUnitObserver theObserver;
-    private IHost _receiver;
+    private IHost _receiver = null!;
     public static bool GoSlow { get; set; } = true;
 
     public Harness(ITestOutputHelper output)

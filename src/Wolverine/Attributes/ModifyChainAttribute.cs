@@ -37,7 +37,22 @@ public enum ValueSource
     /// <summary>
     /// The value should be sourced by a query string parameter of an HTTP request
     /// </summary>
-    FromQueryString
+    FromQueryString,
+
+    /// <summary>
+    /// The value should be sourced by an HTTP request header or an Envelope header in message handlers
+    /// </summary>
+    Header,
+
+    /// <summary>
+    /// The value should be sourced from a claim on the ClaimsPrincipal. Only supported in HTTP endpoints.
+    /// </summary>
+    Claim,
+
+    /// <summary>
+    /// The value should be sourced from the return value of a named static method on the handler or endpoint class
+    /// </summary>
+    Method
 }
 
 #endregion

@@ -37,6 +37,17 @@ public class RecoverIncomingMessagesCommand : IAgentCommand
         }
 
         var envelopes = await _store.LoadPageOfGloballyOwnedIncomingAsync(_count.Destination, pageSize);
+
+        // Ensure each recovered envelope carries a reference to the store it was loaded from.
+        // This is critical for ancillary stores: without this, the envelope's Store property
+        // is null and DelegatingMessageInbox falls back to the main store when marking the
+        // envelope as handled — leaving it stuck as "Incoming" in the ancillary store.
+        // See https://github.com/JasperFx/wolverine/issues/2318
+        foreach (var envelope in envelopes)
+        {
+            envelope.Store ??= _store;
+        }
+
         await _store.ReassignIncomingAsync(_settings.AssignedNodeNumber, envelopes);
 
         await _circuit.EnqueueDirectlyAsync(envelopes);

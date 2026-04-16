@@ -1,7 +1,7 @@
 # Event Sourcing and CQRS with Polecat
 
 ::: tip
-This guide assumes some familiarity with Event Sourcing nomenclature.
+This guide assumes some familiarity with Event Sourcing nomenclature. For a complete working example, see the [PolecatIncidentService sample](https://github.com/JasperFx/wolverine/tree/main/src/Persistence/Polecat/PolecatIncidentService) in the Wolverine repository. This is a direct port of the Marten-based IncidentService to Polecat/SQL Server.
 :::
 
 Let's get the entire Wolverine + [Polecat](https://github.com/JasperFx/polecat) combination assembled and build a system using CQRS with Event Sourcing!

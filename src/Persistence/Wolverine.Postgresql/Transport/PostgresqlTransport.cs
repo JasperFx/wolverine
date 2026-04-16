@@ -84,7 +84,7 @@ public class PostgresqlTransport : BrokerTransport<PostgresqlQueue>, ITransportC
 
     public override string SanitizeIdentifier(string identifier)
     {
-        return identifier.Replace('-', '_').ToLower();
+        return identifier.Replace('-', '_').ToLowerInvariant();
     }
 
     protected override PostgresqlQueue findEndpointByUri(Uri uri)
@@ -128,16 +128,16 @@ public class PostgresqlTransport : BrokerTransport<PostgresqlQueue>, ITransportC
 
     public async Task<DateTimeOffset> SystemTimeAsync()
     {
-        NpgsqlDataSource dataSource = null;
+        NpgsqlDataSource? dataSource = null;
         if (Store is PostgresqlMessageStore store)
         {
             dataSource = store.NpgsqlDataSource;
         }
 
-        await using var conn = await dataSource.OpenConnectionAsync();
+        await using var conn = await dataSource!.OpenConnectionAsync();
         try
         {
-            var raw = (DateTime)await conn.CreateCommand("select (now())::timestamp").ExecuteScalarAsync();
+            var raw = (DateTime)(await conn.CreateCommand("select (now())::timestamp").ExecuteScalarAsync())!;
             return new DateTimeOffset(raw, 0.Hours());
         }
         finally

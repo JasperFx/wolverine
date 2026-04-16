@@ -32,7 +32,7 @@ public class TupleHandler
         context.ShouldNotBeNull();
     }
 
-    public static string Received { get; set; }
+    public static string Received { get; set; } = null!;
 }
 
 public class Context;

@@ -109,13 +109,13 @@ public class MultiTenantedRabbitFixture : IAsyncLifetime
             }).StartAsync();
     }
 
-    public IHost Three { get; set; }
+    public IHost Three { get; set; } = null!;
 
-    public IHost Two { get; set; }
+    public IHost Two { get; set; } = null!;
 
-    public IHost One { get; set; }
+    public IHost One { get; set; } = null!;
 
-    public IHost Main { get; private set; }
+    public IHost Main { get; private set; } = null!;
 
     public async Task DisposeAsync()
     {
@@ -144,6 +144,7 @@ public class MultiTenantedRabbitFixture : IAsyncLifetime
     }
 }
 
+[Trait("Category", "Flaky")]
 public class multi_tenancy_through_virtual_hosts : IClassFixture<MultiTenantedRabbitFixture>
 {
     private readonly MultiTenantedRabbitFixture _fixture;
@@ -171,8 +172,8 @@ public class multi_tenancy_through_virtual_hosts : IClassFixture<MultiTenantedRa
         response.ServiceName.ShouldBe("main");
         
         // Label the envelope as tenant id = "two" because it was received at that point
-        response.Envelope.TenantId.ShouldBe("two");
-        response.Envelope.Message.ShouldBeOfType<MultiTenantResponse>()
+        response.Envelope!.TenantId.ShouldBe("two");
+        response.Envelope!.Message.ShouldBeOfType<MultiTenantResponse>()
             .Id.ShouldBe(message.Id);
     }
     
@@ -273,7 +274,7 @@ public static class MultiTenantedRabbitMqSamples
         {
             // At this point, you still have to have a *default* broker connection to be used for 
             // messaging. 
-            opts.UseRabbitMq(new Uri(builder.Configuration.GetConnectionString("main")))
+            opts.UseRabbitMq(new Uri(builder.Configuration.GetConnectionString("main")!))
                 
                 // This will be respected across *all* the tenant specific
                 // virtual hosts and separate broker connections
@@ -299,7 +300,7 @@ public static class MultiTenantedRabbitMqSamples
 
                 // Or, you can add a broker connection to something completel
                 // different for a tenant
-                .AddTenant("four", new Uri(builder.Configuration.GetConnectionString("rabbit_four")));
+                .AddTenant("four", new Uri(builder.Configuration.GetConnectionString("rabbit_four")!));
 
             // This Wolverine application would be listening to a queue
             // named "incoming" on all virtual hosts and/or tenant specific message

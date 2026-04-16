@@ -1,5 +1,10 @@
 # Multi-Tenancy with Rabbit MQ <Badge type="tip" text="3.4" />
 
+::: tip
+For a holistic overview of multi-tenancy across all of Wolverine, see the [Multi-Tenancy Tutorial](/tutorials/multi-tenancy).
+For more context on this feature, see the blog post [Message Broker per Tenant with Wolverine](https://jeremydmiller.com/2024/12/02/message-broker-per-tenant-with-wolverine/).
+:::
+
 Let's take a trip to the world of IoT where you might very well build a single cloud hosted service that needs
 to communicate via Rabbit MQ with devices at your customers sites. You'd preferably like to keep traffic separate
 so that one customer never accidentally receives information from another customer. In this case, Wolverine now

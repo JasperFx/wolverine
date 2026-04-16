@@ -25,10 +25,10 @@ public class in_memory_scheduled_messages : ILocalQueue
         _callbacks.Clear();
     }
 
-    public Uri Uri { get; }
-    public Uri ReplyUri { get; }
+    public Uri Uri { get; } = null!;
+    public Uri ReplyUri { get; } = null!;
     public Uri Destination { get; } = "local://delayed".ToUri();
-    public Uri Alias { get; }
+    public Uri Alias { get; } = null!;
 
     public void Enqueue(Envelope envelope)
     {
@@ -65,7 +65,7 @@ public class in_memory_scheduled_messages : ILocalQueue
         return ValueTask.CompletedTask;
     }
 
-    public IHandlerPipeline Pipeline => null;
+    public IHandlerPipeline Pipeline => null!;
 
     public int QueueCount => 0;
 

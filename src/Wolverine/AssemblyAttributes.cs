@@ -19,6 +19,7 @@ using Wolverine.Attributes;
 [assembly: InternalsVisibleTo("Wolverine.RabbitMq.Tests")]
 [assembly: InternalsVisibleTo("Wolverine.AzureServiceBus")]
 [assembly: InternalsVisibleTo("Wolverine.AmazonSqs")]
+[assembly: InternalsVisibleTo("Wolverine.AmazonSns")]
 [assembly: InternalsVisibleTo("Wolverine.ConfluentKafka")]
 [assembly: InternalsVisibleTo("Wolverine.AzureServiceBus.Tests")]
 [assembly: InternalsVisibleTo("PersistenceTests")]
@@ -48,3 +49,4 @@ using Wolverine.Attributes;
 [assembly: InternalsVisibleTo("Wolverine.Nats")]
 [assembly: InternalsVisibleTo("Wolverine.Redis")]
 [assembly: InternalsVisibleTo("Wolverine.Pubsub")]
+[assembly: InternalsVisibleTo("MetricsTests")]

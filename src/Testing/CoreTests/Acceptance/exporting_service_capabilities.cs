@@ -7,7 +7,7 @@ namespace CoreTests.Acceptance;
 
 public class exporting_service_capabilities : IntegrationContext, IAsyncLifetime
 {
-    private ServiceCapabilities theCapabilities;
+    private ServiceCapabilities theCapabilities = null!;
 
     public exporting_service_capabilities(DefaultApp @default) : base(@default)
     {
