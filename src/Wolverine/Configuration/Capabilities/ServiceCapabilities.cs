@@ -2,7 +2,6 @@ using System.Reflection;
 using System.Text.Json.Serialization;
 using JasperFx.Core.Reflection;
 using JasperFx.Descriptors;
-using Wolverine.Attributes;
 using JasperFx.Events;
 using JasperFx.Events.Descriptors;
 using Microsoft.Extensions.DependencyInjection;
@@ -107,7 +106,7 @@ public class ServiceCapabilities : OptionsDescription
         var messageTypes = runtime.Options.Discovery.FindAllMessages(runtime.Options.HandlerGraph);
         foreach (var messageType in messageTypes.OrderBy(x => x.FullNameInCode()))
         {
-            if (messageType.Assembly.HasAttribute<ExcludeFromServiceCapabilitiesAttribute>()) continue;
+            if (messageType.IsSystemMessageType()) continue;
             capabilities.Messages.Add(new MessageDescriptor(messageType, runtime));
         }
     }
