@@ -2,6 +2,7 @@ using ImTools;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Wolverine.Configuration;
+using Wolverine.Configuration.Capabilities;
 using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.Routing;
 using Wolverine.Transports;
@@ -155,7 +156,13 @@ public partial class WolverineRuntime
             ? typeof(MessageRouter<>).CloseAndBuildAs<IMessageRouter>(this, routes, messageType)
             : typeof(EmptyMessageRouter<>).CloseAndBuildAs<IMessageRouter>(this, messageType);
 
-        Observer.MessageRouted(messageType, router);
+        // Skip framework-internal types (IAgentCommand, INotToBeRouted, IInternalMessage,
+        // and types from assemblies marked [ExcludeFromServiceCapabilities]) so they
+        // never reach observers like CritterWatch. See GH-2520.
+        if (!messageType.IsSystemMessageType())
+        {
+            Observer.MessageRouted(messageType, router);
+        }
 
         _messageTypeRouting = _messageTypeRouting.AddOrUpdate(messageType, router);
 
