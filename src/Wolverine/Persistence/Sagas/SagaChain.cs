@@ -46,10 +46,10 @@ public class SagaChain : HandlerChain
     {
         // After base constructor, saga handlers may have been moved to ByEndpoint (Separated mode).
         // Check what's left in Handlers (not the original grouping).
-        var remainingSagaCalls = Handlers.Where(x => x.HandlerType.CanBeCastTo<Saga>())
-            .DistinctBy(x => x.HandlerType).ToArray();
+        var allSagaHandlers = Handlers.Where(x => x.HandlerType.CanBeCastTo<Saga>()).ToArray();
+        var distinctSagaTypes = allSagaHandlers.DistinctBy(x => x.HandlerType).ToArray();
 
-        if (remainingSagaCalls.Length == 0)
+        if (distinctSagaTypes.Length == 0)
         {
             // All sagas were separated into ByEndpoint chains — this parent is routing-only.
             var anySaga = grouping.First(x => x.HandlerType.CanBeCastTo<Saga>());
@@ -59,11 +59,13 @@ public class SagaChain : HandlerChain
 
         try
         {
-            var saga = remainingSagaCalls.Single();
+            var saga = distinctSagaTypes.Single();
             SagaType = saga.HandlerType;
             SagaMethodInfo = saga.Method;
 
-            SagaIdMember = DetermineSagaIdMember(MessageType, SagaType, saga.Method);
+            // Pass ALL saga handler methods so [SagaIdentityFrom] is found regardless of declaration order
+            SagaIdMember = DetermineSagaIdMember(MessageType, SagaType,
+                allSagaHandlers.Select(x => x.Method).ToArray());
 
             // Automatically audit the saga id
             if (SagaIdMember != null && AuditedMembers.All(x => x.Member != SagaIdMember))
@@ -73,7 +75,7 @@ public class SagaChain : HandlerChain
         }
         catch (Exception e)
         {
-            var handlerTypes = remainingSagaCalls
+            var handlerTypes = distinctSagaTypes
                 .Select(x => x.HandlerType).Select(x => x.FullNameInCode()).Join(", ");
 
             throw new InvalidSagaException(
@@ -132,7 +134,7 @@ public class SagaChain : HandlerChain
         SagaType = saga.HandlerType;
         SagaMethodInfo = saga.Method;
 
-        SagaIdMember = DetermineSagaIdMember(MessageType, SagaType, saga.Method);
+        SagaIdMember = DetermineSagaIdMember(MessageType, SagaType, [saga.Method]);
 
         // Automatically audit the saga id
         if (SagaIdMember != null && AuditedMembers.All(x => x.Member != SagaIdMember))
@@ -151,7 +153,9 @@ public class SagaChain : HandlerChain
         SagaType = saga.HandlerType;
         SagaMethodInfo = saga.Method;
 
-        SagaIdMember = DetermineSagaIdMember(MessageType, SagaType, saga.Method);
+        // Pass ALL saga handler methods so [SagaIdentityFrom] is found regardless of declaration order
+        SagaIdMember = DetermineSagaIdMember(MessageType, SagaType,
+            sagaCalls.Select(x => x.Method).ToArray());
 
         if (SagaIdMember != null && AuditedMembers.All(x => x.Member != SagaIdMember))
         {
@@ -186,9 +190,18 @@ public class SagaChain : HandlerChain
 
     public static MemberInfo? DetermineSagaIdMember(Type messageType, Type sagaType, MethodInfo? sagaHandlerMethod = null)
     {
+        return DetermineSagaIdMember(messageType, sagaType,
+            sagaHandlerMethod != null ? [sagaHandlerMethod] : null);
+    }
+
+    public static MemberInfo? DetermineSagaIdMember(Type messageType, Type sagaType, MethodInfo[]? sagaHandlerMethods)
+    {
         var expectedSagaIdName = $"{sagaType.Name}Id";
 
-        var specifiedSagaIdMemberName = sagaHandlerMethod?.GetParameters()
+        // Scan ALL handler methods for [SagaIdentityFrom], not just the first one.
+        // This fixes the bug where declaration order of NotFound vs Handle matters.
+        var specifiedSagaIdMemberName = sagaHandlerMethods?
+            .SelectMany(m => m.GetParameters())
             .Select(x => x.GetCustomAttribute<SagaIdentityFromAttribute>())
             .FirstOrDefault(a => a != null)?.PropertyName;
 
