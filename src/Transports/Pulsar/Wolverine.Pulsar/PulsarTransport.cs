@@ -95,7 +95,7 @@ public class PulsarTransport : TransportBase<PulsarEndpoint>, IAsyncDisposable
 
     public PulsarEndpoint EndpointFor(string topicPath)
     {
-        var uri = PulsarEndpoint.UriFor(topicPath);
+        var uri = PulsarEndpointUri.Topic(topicPath);
         return this[uri];
     }
 }

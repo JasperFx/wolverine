@@ -466,3 +466,16 @@ await host.StartAsync();
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/MQTT/Wolverine.MQTT.Tests/Samples.cs#L128-L159' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_applying_custom_mqtt_envelope_mapper' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## URI reference
+
+The `MqttEndpointUri` helper class builds canonical endpoint URIs:
+
+| URI form | Helper call |
+|---|---|
+| `mqtt://topic/{name}` | `MqttEndpointUri.Topic("name")` |
+
+```csharp
+using Wolverine.MQTT;
+
+var uri = MqttEndpointUri.Topic("sensor/temperature");
+```

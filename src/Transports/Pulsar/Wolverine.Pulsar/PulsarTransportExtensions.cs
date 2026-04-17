@@ -79,7 +79,7 @@ public static class PulsarTransportExtensions
     /// <returns></returns>
     public static PulsarListenerConfiguration ListenToPulsarTopic(this WolverineOptions endpoints, string topicPath)
     {
-        var uri = PulsarEndpoint.UriFor(topicPath);
+        var uri = PulsarEndpointUri.Topic(topicPath);
         var endpoint = endpoints.PulsarTransport()[uri];
         endpoint.IsListener = true;
         return new PulsarListenerConfiguration(endpoint);

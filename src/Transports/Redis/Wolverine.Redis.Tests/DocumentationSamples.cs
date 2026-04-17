@@ -116,8 +116,8 @@ public class DocumentationSamples
         #region sample_redis_uri_helpers
 
         // Using URI builder helpers
-        var ordersUri = RedisTransport.BuildRedisStreamUri("orders", databaseId: 1);
-        var paymentsUri = RedisTransport.BuildRedisStreamUri("payments", databaseId: 2, "payment-processors");
+        var ordersUri = RedisEndpointUri.Stream("orders", databaseId: 1);
+        var paymentsUri = RedisEndpointUri.Stream("payments", databaseId: 2, "payment-processors");
 
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>

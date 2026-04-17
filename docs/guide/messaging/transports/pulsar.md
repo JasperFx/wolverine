@@ -159,3 +159,24 @@ Also see the more generic [Wolverine Guide on Interoperability](/tutorials/inter
 :::
 
 Pulsar interoperability is done through the `IPulsarEnvelopeMapper` interface.
+
+## URI reference
+
+The `PulsarEndpointUri` helper class produces Wolverine endpoint URIs of the form `pulsar://persistent/{tenant}/{ns}/{topic}` or `pulsar://non-persistent/{tenant}/{ns}/{topic}` — the form Wolverine's parser accepts. Pulsar-native topic-path strings (`persistent://...`) used by the native Pulsar client are a separate concept and are not built by this helper.
+
+| Helper call | Resulting URI |
+|---|---|
+| `PulsarEndpointUri.PersistentTopic("public", "default", "orders")` | `pulsar://persistent/public/default/orders` |
+| `PulsarEndpointUri.NonPersistentTopic("public", "default", "orders")` | `pulsar://non-persistent/public/default/orders` |
+| `PulsarEndpointUri.Topic("public", "default", "orders", persistent: true)` | `pulsar://persistent/public/default/orders` |
+| `PulsarEndpointUri.Topic("persistent://public/default/orders")` | `pulsar://persistent/public/default/orders` |
+
+```csharp
+using Wolverine.Pulsar;
+
+var uri = PulsarEndpointUri.PersistentTopic("public", "default", "orders");
+```
+
+::: tip
+`PulsarEndpoint.UriFor` is deprecated. Use `PulsarEndpointUri.Topic` (string overload) or `PersistentTopic`/`NonPersistentTopic` instead. The old `UriFor(bool, ...)` overload returned a Pulsar-native topic path, not a Wolverine endpoint URI — if you need that format, build the string directly.
+:::

@@ -678,3 +678,17 @@ await bus.BroadcastToTopicAsync("my-topic", new KafkaTombstone("record-key-to-de
 When Wolverine encounters a `KafkaTombstone` message, it produces a Kafka message with the specified key and a `null` value. This signals to Kafka's log compaction process that the record with that key should be removed during the next compaction cycle.
 
 This is useful when your Kafka topics use [log compaction](https://docs.confluent.io/platform/current/kafka/design.html#log-compaction) to maintain a key-value snapshot of the latest state. Publishing a tombstone ensures that deleted records are eventually cleaned up from the topic.
+
+## URI reference
+
+The `KafkaEndpointUri` helper class builds canonical endpoint URIs:
+
+| URI form | Helper call |
+|---|---|
+| `kafka://topic/{name}` | `KafkaEndpointUri.Topic("name")` |
+
+```csharp
+using Wolverine.Kafka;
+
+var uri = KafkaEndpointUri.Topic("orders");
+```

@@ -293,25 +293,27 @@ public class RedisTransport : BrokerTransport<RedisStreamEndpoint>, IAsyncDispos
     }
     
     /// <summary>
-    /// Helper method to create a Redis stream URI with database ID
+    /// Helper method to create a Redis stream URI with database ID.
     /// </summary>
     /// <param name="streamKey">Redis stream key name</param>
     /// <param name="databaseId">Redis database ID</param>
     /// <returns>Formatted Redis stream URI</returns>
+    [Obsolete("Use RedisEndpointUri.Stream instead. This helper will be removed in a future version.")]
     public static Uri BuildRedisStreamUri(string streamKey, int databaseId = 0)
     {
-        return new Uri($"redis://stream/{databaseId}/{streamKey}");
+        return RedisEndpointUri.Stream(streamKey, databaseId);
     }
 
     /// <summary>
-    /// Helper method to create a Redis stream URI with database ID and consumer group
+    /// Helper method to create a Redis stream URI with database ID and consumer group.
     /// </summary>
     /// <param name="streamKey">Redis stream key name</param>
     /// <param name="databaseId">Redis database ID</param>
     /// <param name="consumerGroup">Consumer group name</param>
     /// <returns>Formatted Redis stream URI</returns>
+    [Obsolete("Use RedisEndpointUri.Stream instead. This helper will be removed in a future version.")]
     public static Uri BuildRedisStreamUri(string streamKey, int databaseId, string consumerGroup)
     {
-        return new Uri($"redis://stream/{databaseId}/{streamKey}?consumerGroup={consumerGroup}");
+        return RedisEndpointUri.Stream(streamKey, databaseId, consumerGroup);
     }
 }

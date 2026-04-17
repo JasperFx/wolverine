@@ -423,3 +423,17 @@ docker run -d --name nats -p 4222:4222 -p 8222:8222 nats:latest --jetstream -m 8
 # For scheduled delivery tests, use NATS 2.12+
 docker run -d --name nats -p 4222:4222 -p 8222:8222 nats:2.12-alpine --jetstream -m 8222
 ```
+
+## URI reference
+
+The `NatsEndpointUri` helper class builds canonical endpoint URIs:
+
+| URI form | Helper call |
+|---|---|
+| `nats://subject/{subject}` | `NatsEndpointUri.Subject("subject")` |
+
+```csharp
+using Wolverine.Nats;
+
+var uri = NatsEndpointUri.Subject("orders.created");
+```

@@ -264,3 +264,19 @@ using var host = await Host.CreateDefaultBuilder()
         opts.PublishAllMessages().ToSqsQueue("send-and-receive");
     }).StartAsync();
 ```
+
+## URI reference
+
+The `SqsEndpointUri` helper class builds canonical endpoint URIs:
+
+| URI form | Helper call |
+|---|---|
+| `sqs://{name}` | `SqsEndpointUri.Queue("name")` |
+
+```csharp
+using Wolverine.AmazonSqs;
+
+var uri = SqsEndpointUri.Queue("orders");
+// FIFO queue (suffix preserved verbatim):
+var fifoUri = SqsEndpointUri.Queue("orders.fifo");
+```

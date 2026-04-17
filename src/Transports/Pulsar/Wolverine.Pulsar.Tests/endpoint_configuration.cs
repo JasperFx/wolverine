@@ -39,7 +39,7 @@ public class endpoint_configuration : IDisposable
     [Fact]
     public void requeue_disabled()
     {
-        var uri = PulsarEndpoint.UriFor("persistent://public/default/one");
+        var uri = PulsarEndpointUri.Topic("persistent://public/default/one");
         var endpoint = theRuntime.Endpoints.EndpointFor(uri)?.As<PulsarEndpoint>();
 
         endpoint!.EnableRequeue.ShouldBeFalse();
@@ -48,7 +48,7 @@ public class endpoint_configuration : IDisposable
     [Fact]
     public void unsubscribe_on_close_disabled()
     {
-        var uri = PulsarEndpoint.UriFor("persistent://public/default/one");
+        var uri = PulsarEndpointUri.Topic("persistent://public/default/one");
         var endpoint = theRuntime.Endpoints.EndpointFor(uri)?.As<PulsarEndpoint>();
 
         endpoint!.UnsubscribeOnClose.ShouldBeFalse();
