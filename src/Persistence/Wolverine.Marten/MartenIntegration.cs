@@ -68,6 +68,11 @@ public class MartenIntegration : IWolverineExtension, IEventForwarding
 
         options.Policies.Add<MartenAggregateHandlerStrategy>();
         
+        // QuerySpecificationPolicy detects ICompiledQuery/IQueryPlan-typed variables
+        // produced by Load/LoadAsync methods and injects FetchSpecificationFrames to
+        // execute them. Must run BEFORE MartenBatchingPolicy so those injected frames
+        // (which are IBatchableFrame) are grouped into a single batched query.
+        options.CodeGeneration.MethodPreCompilation.Add(new QuerySpecificationPolicy());
         options.CodeGeneration.MethodPreCompilation.Add(new MartenBatchingPolicy());
 
         options.Discovery.CustomizeHandlerDiscovery(x =>
