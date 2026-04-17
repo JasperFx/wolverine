@@ -4,6 +4,7 @@ using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
 using Marten;
 using Marten.Linq;
+using Wolverine.Persistence;
 
 namespace Wolverine.Marten.Codegen;
 

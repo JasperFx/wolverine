@@ -175,3 +175,10 @@ free.
 expression in two or more handlers, extract it to a plan or compiled query.
 Return it from `Load`. Wolverine will handle the rest — including batching
 it with other loads on the same handler for a free performance win.
+
+## Cross-provider parity
+
+The same ergonomic applies to Wolverine.EntityFrameworkCore — Load methods
+returning EF Core `IQueryPlan<TDbContext, TResult>` instances (or tuples of
+them) auto-execute, and `[FromQuerySpecification]` works there too. See
+[Query Plans (EF Core)](../efcore/query-plans.md) for the parallel story.

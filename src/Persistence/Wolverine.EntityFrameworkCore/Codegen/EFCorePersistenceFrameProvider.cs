@@ -37,6 +37,44 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
     
     public Frame[] DetermineFrameToNullOutMaybeSoftDeleted(Variable entity) => [];
 
+    public bool TryBuildFetchSpecificationFrame(
+        Variable specVariable,
+        IServiceContainer container,
+        out Frame? frame,
+        out Variable? result)
+    {
+        if (specVariable is null)
+        {
+            frame = null;
+            result = null;
+            return false;
+        }
+
+        var specType = specVariable.VariableType;
+
+        // Wolverine.EntityFrameworkCore spec shapes: IQueryPlan<TDbContext, TResult>
+        // or IBatchQueryPlan<TDbContext, TResult>, both in Wolverine.EntityFrameworkCore namespace.
+        var batchPlan = specType.FindInterfaceThatCloses(typeof(IBatchQueryPlan<,>));
+        var queryPlan = specType.FindInterfaceThatCloses(typeof(IQueryPlan<,>));
+
+        var isEfBatchPlan = batchPlan is not null
+                            && batchPlan.Namespace == typeof(IBatchQueryPlan<,>).Namespace;
+        var isEfPlan = queryPlan is not null
+                       && queryPlan.Namespace == typeof(IQueryPlan<,>).Namespace;
+
+        if (!isEfBatchPlan && !isEfPlan)
+        {
+            frame = null;
+            result = null;
+            return false;
+        }
+
+        var fetch = new FetchSpecificationFrame(specVariable);
+        frame = fetch;
+        result = fetch.Result;
+        return true;
+    }
+
     public Type DetermineSagaIdType(Type sagaType, IServiceContainer container)
     {
         var dbContextType = DetermineDbContextType(sagaType, container);

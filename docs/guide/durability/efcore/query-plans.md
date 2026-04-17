@@ -117,13 +117,89 @@ public async Task active_order_plan_finds_most_recent_unarchived_order()
 | Complex query with projection/paging/caching rules    | **Query plan**                |
 | Cross-aggregate read model with data shaping          | **Query plan** or a dedicated query service |
 
+## Returning a plan from a `Load` method — auto-execution + batching <Badge type="tip" text="5.x" />
+
+You can also return a plan instance directly from a handler's `Load` /
+`LoadAsync` method (singly, or as part of a tuple). Wolverine detects the
+plan type in the return and auto-executes it, passing the materialized
+result to `Handle` / `Validate` / `After` parameters. When multiple
+batch-capable plans target the same `DbContext` on one handler, they share
+a single [Weasel `BatchedQuery`](https://github.com/JasperFx/weasel) —
+**one database round-trip for all plans**.
+
+```csharp
+public class ApproveOrderHandler
+{
+    public static (ActiveOrderForCustomer, OpenLineItemsPlan) Load(ApproveOrder cmd)
+        => (new ActiveOrderForCustomer(cmd.CustomerId), new OpenLineItemsPlan(cmd.OrderId));
+
+    public static void Handle(
+        ApproveOrder cmd,
+        Order? order,
+        IReadOnlyList<LineItem> items)
+    {
+        // Wolverine has:
+        //   1. created a shared BatchedQuery
+        //   2. enlisted both plans
+        //   3. executed one DbBatch against Postgres/SQL Server
+        //   4. materialized results and relayed them here
+    }
+}
+```
+
+Batching is available whenever the plan type implements
+`IBatchQueryPlan<TDbContext, TResult>`. The `QueryPlan<TDb, TEntity>` and
+`QueryListPlan<TDb, TEntity>` convenience base classes implement both
+`IQueryPlan` and `IBatchQueryPlan`, so inheriting from them is enough —
+no extra opt-in needed. Plans that implement only `IQueryPlan<TDb, TResult>`
+run standalone via `FetchAsync(db, ct)`.
+
+## `[FromQuerySpecification]` — attribute-driven spec construction <Badge type="tip" text="5.x" />
+
+For handlers that don't need a custom `Load` method — when the plan's inputs
+all live on the message — attach `[FromQuerySpecification(typeof(TPlan))]`
+to the handler parameter:
+
+```csharp
+public class ApproveOrderHandler
+{
+    public static void Handle(
+        ApproveOrder cmd,
+        [FromQuerySpecification(typeof(ActiveOrderForCustomer))] Order? order,
+        [FromQuerySpecification(typeof(OpenLineItemsPlan))]      IReadOnlyList<LineItem> items)
+    {
+        // Wolverine constructs both plans from cmd's fields and batches them.
+    }
+}
+```
+
+Wolverine picks the plan's public constructor with the most parameters and
+resolves each parameter by name from variables in scope (message members,
+route values, headers, claims). Any remaining writable public properties
+are assigned from scope variables too — matching the common pattern where
+plan parameters live as get/set properties rather than ctor arguments.
+
+On .NET 7+, the generic variant drops the `typeof(...)`:
+
+```csharp
+public static void Handle(
+    ApproveOrder cmd,
+    [FromQuerySpecification<ActiveOrderForCustomer>] Order? order,
+    [FromQuerySpecification<OpenLineItemsPlan>]      IReadOnlyList<LineItem> items)
+{
+}
+```
+
 ## Relationship to Marten
 
 This is the same shape as Marten's `IQueryPlan<T>` (see the
 [Marten docs](https://martendb.io/documents/querying/compiled-queries.html#query-plans))
-with the signature tweaked for EF Core's `DbContext`. If you are using both
-Marten and EF Core in a Critter Stack application, plans on both sides read
-identically.
+with the signature tweaked for EF Core's `DbContext`. The Load-method
+auto-execution, tuple-return support, and `[FromQuerySpecification]` attribute
+all work identically across both providers — the attribute lives in
+`Wolverine.Persistence` core and dispatches to whichever provider recognizes
+the spec type. If you are using both Marten and EF Core in a Critter Stack
+application, plans on both sides read identically.
 
 ## Relationship to Ardalis.Specification
 
