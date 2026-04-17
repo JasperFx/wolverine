@@ -4,7 +4,6 @@ using Wolverine.Http;
 namespace WolverineWebApi;
 
 #region sample_using_openapi_attributes
-
 public class SignupEndpoint
 {
     // The first couple attributes are ASP.Net Core

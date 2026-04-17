@@ -37,7 +37,6 @@ builder.Host.UseWolverine(opts =>
     opts.Policies.AutoApplyTransactions();
 
     #region sample_use_your_own_marker_type
-
     opts.Discovery.CustomizeHandlerDiscovery(types => types.Includes.Implements<IDiagnosticsMessageHandler>());
 
     #endregion

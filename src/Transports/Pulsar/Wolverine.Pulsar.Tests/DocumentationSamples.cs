@@ -10,7 +10,6 @@ public static class DocumentationSamples
     public static async Task configure()
     {
         #region sample_configuring_pulsar
-
         var builder = Host.CreateApplicationBuilder();
         builder.UseWolverine(opts =>
         {
@@ -53,7 +52,6 @@ public static class DocumentationSamples
     public static async Task disable_requeues()
     {
         #region sample_disable_requeue_for_pulsar
-
         var builder = Host.CreateApplicationBuilder();
         builder.UseWolverine(opts =>
         {
@@ -84,7 +82,6 @@ public static class DocumentationSamples
     public static async Task policy_configuration()
     {
         #region sample_pulsar_unsubscribe_on_close
-
         var builder = Host.CreateApplicationBuilder();
         builder.UseWolverine(opts =>
         {

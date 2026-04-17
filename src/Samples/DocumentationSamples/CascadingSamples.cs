@@ -7,8 +7,7 @@ public class MyMessage;
 
 public class MyResponse;
 
-#region sample_NoCascadingHandler
-
+#region sample_nocascadinghandler
 public class NoCascadingHandler
 {
     private readonly IMessageContext _bus;
@@ -28,8 +27,7 @@ public class NoCascadingHandler
 
 #endregion
 
-#region sample_CascadingHandler
-
+#region sample_cascadinghandler
 public class CascadingHandler
 {
     public MyResponse Consume(MyMessage message)
@@ -68,8 +66,7 @@ public class GoNorth;
 
 public class GoSouth;
 
-#region sample_ConditionalResponseHandler
-
+#region sample_conditionalresponsehandler
 public class ConditionalResponseHandler
 {
     public object Consume(DirectionRequest request)
@@ -93,8 +90,7 @@ public class GoWest;
 
 public class GoEast;
 
-#region sample_DelayedResponseHandler
-
+#region sample_delayedresponsehandler
 public class ScheduledResponseHandler
 {
     public Envelope Consume(DirectionRequest request)
@@ -111,8 +107,7 @@ public class ScheduledResponseHandler
 
 #endregion
 
-#region sample_MultipleResponseHandler
-
+#region sample_multipleresponsehandler
 public class MultipleResponseHandler
 {
     public IEnumerable<object> Consume(MyMessage message)
@@ -127,8 +122,7 @@ public class MultipleResponseHandler
 
 #endregion
 
-#region sample_TupleResponseHandler
-
+#region sample_tupleresponsehandler
 public class TupleResponseHandler
 {
     // Both GoNorth and GoWest will be interpreted as
@@ -141,8 +135,7 @@ public class TupleResponseHandler
 
 #endregion
 
-#region sample_ManuallyRoutedResponseHandler
-
+#region sample_manuallyroutedresponsehandler
 public class ManuallyRoutedResponseHandler
 {
     public IEnumerable<object> Consume(MyMessage message)
@@ -159,7 +152,6 @@ public class ManuallyRoutedResponseHandler
 
 
 #region sample_cascaded_to_topic_message
-
 public class ManuallyRoutedTopicResponseHandler
 {
     public IEnumerable<object> Consume(MyMessage message, Envelope envelope)

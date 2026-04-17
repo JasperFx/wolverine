@@ -32,7 +32,6 @@ public class SqlServerMessageStore_with_IdAndDestination_Identity : MessageStore
         await conn.CloseAsync();
         
         #region sample_configuring_message_identity_to_use_id_and_destination
-
         var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {

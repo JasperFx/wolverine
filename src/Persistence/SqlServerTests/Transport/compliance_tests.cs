@@ -65,7 +65,6 @@ public class SqlTransportBufferedFixture : TransportComplianceFixture, IAsyncLif
                 .AutoProvision().AutoPurgeOnStartup().DisableInboxAndOutboxOnAll();
 
             #region sample_setting_sql_server_queue_to_buffered
-
             opts.ListenToSqlServerQueue("sender").BufferedInMemory();
 
             #endregion

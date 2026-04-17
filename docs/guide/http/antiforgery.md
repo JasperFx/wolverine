@@ -39,7 +39,7 @@ public static string SubmitContactForm([FromForm] string name, [FromForm] string
     return $"Received from {name} ({email})";
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Antiforgery/AntiforgeryEndpoints.cs#L10-L19' title='Snippet source file'>snippet source</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Antiforgery/AntiforgeryEndpoints.cs#L8-L15' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_antiforgery_form_endpoint' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Opting Out with [DisableAntiforgery]
@@ -57,7 +57,7 @@ public static string WebhookReceiver([FromForm] string payload)
     return $"Processed: {payload}";
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Antiforgery/AntiforgeryEndpoints.cs#L21-L31' title='Snippet source file'>snippet source</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Antiforgery/AntiforgeryEndpoints.cs#L17-L25' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_antiforgery_disabled' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The `[DisableAntiforgery]` attribute can also be applied at the class level to disable antiforgery for all endpoints in that class.
@@ -77,7 +77,7 @@ public static string SecureAction(SecureCommand command)
     return $"Executed: {command.Action}";
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Antiforgery/AntiforgeryEndpoints.cs#L33-L43' title='Snippet source file'>snippet source</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Antiforgery/AntiforgeryEndpoints.cs#L27-L35' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_antiforgery_explicit' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Global Configuration

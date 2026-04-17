@@ -2,8 +2,7 @@ using Microsoft.AspNetCore.Http;
 
 namespace Wolverine.Http.Runtime.MultiTenancy;
 
-#region sample_ITenantDetection
-
+#region sample_itenantdetection
 /// <summary>
 /// Used to create new strategies to detect the tenant id from an HttpContext
 /// for the current request

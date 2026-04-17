@@ -11,8 +11,7 @@ public static class MessagingConfigurationExamples
 {
     public static async Task configuring_messaging_with_WolverineOptions()
     {
-        #region sample_configuring_messaging_with_WolverineOptions
-
+        #region sample_configuring_messaging_with_wolverineoptions
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -37,8 +36,7 @@ public static class MessagingConfigurationExamples
 
     public static async Task MyListeningApp()
     {
-        #region sample_MyListeningApp
-
+        #region sample_mylisteningapp
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -53,8 +51,7 @@ public static class MessagingConfigurationExamples
 
     public static async Task LightweightTransportApp()
     {
-        #region sample_LightweightTransportApp
-
+        #region sample_lightweighttransportapp
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -73,8 +70,7 @@ public static class MessagingConfigurationExamples
 
     public static async Task DurableTransportApp()
     {
-        #region sample_DurableTransportApp
-
+        #region sample_durabletransportapp
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -101,8 +97,7 @@ public static class MessagingConfigurationExamples
 
     public static async Task LocalTransportApp()
     {
-        #region sample_LocalTransportApp
-
+        #region sample_localtransportapp
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -120,8 +115,7 @@ public class Samples
 {
     public static async Task LocalDurableTransportApp()
     {
-        #region sample_LocalDurableTransportApp
-
+        #region sample_localdurabletransportapp
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -139,7 +133,6 @@ public class Samples
     public void Go()
     {
         #region sample_using_configuration_with_wolverineoptions
-
         var host = Host.CreateDefaultBuilder()
             .UseWolverine()
             .Start();

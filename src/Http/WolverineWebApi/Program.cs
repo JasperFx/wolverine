@@ -38,7 +38,6 @@ public class Program
     public static async Task<int> Main(string[] args)
     {
         #region sample_adding_http_services
-
         var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
@@ -55,7 +54,6 @@ public class Program
         builder.Services.AddEndpointsApiExplorer();
 
         #region sample_register_custom_swashbuckle_filter
-
         builder.Services.AddSwaggerGen(x =>
         {
             x.OperationFilter<WolverineOperationFilter>();
@@ -70,7 +68,6 @@ public class Program
         builder.Services.AddAuthorization();
 
         #region sample_adding_output_cache_services
-
         builder.Services.AddOutputCache(options =>
         {
             options.AddPolicy("short", builder => builder.Expire(TimeSpan.FromSeconds(5)));
@@ -191,8 +188,7 @@ public class Program
             o.SerializerOptions.WriteIndented = true;
         });
 
-        #region sample_calling_ApplyAsyncWolverineExtensions
-
+        #region sample_calling_applyasyncwolverineextensions
         var app = builder.Build();
 
 // In order for async Wolverine extensions to apply to Wolverine.HTTP configuration,
@@ -216,7 +212,6 @@ public class Program
         app.UseAuthorization();
 
         #region sample_using_output_cache_middleware
-
         app.UseOutputCache();
 
         #region sample_use_rate_limiter_middleware
@@ -240,7 +235,6 @@ public class Program
         app.MapWolverineAdminApiEndpoints();
 
         #region sample_register_dead_letter_endpoints
-
         app.MapDeadLettersEndpoints()
 
             // It's a Minimal API endpoint group,
@@ -253,7 +247,6 @@ public class Program
         #endregion
 
         #region sample_using_configure_endpoints
-
         app.MapWolverineEndpoints(opts =>
         {
             // This is strictly to test the endpoint policy
@@ -287,20 +280,17 @@ public class Program
             opts.AddPolicy<LoadTodoPolicy>();
 
             #region sample_user_marten_compiled_query_policy
-
             opts.UseMartenCompiledQueryResultPolicy();
 
             #endregion
 
             #region sample_register_http_middleware_by_type
-
             opts.AddMiddlewareByMessageType(typeof(FakeAuthenticationMiddleware));
             opts.AddMiddlewareByMessageType(typeof(CanShipOrderMiddleWare));
 
             #endregion
 
             #region sample_register_resource_writer_policy
-
             opts.AddResourceWriterPolicy<CustomResourceWriterPolicy>();
 
             #endregion
@@ -322,21 +312,18 @@ public class Program
             opts.AddPolicy<FrameRearrangeMiddleware.HttpPolicy>();
 
             #region sample_adding_custom_parameter_handling
-
             // Customizing parameter handling
             opts.AddParameterHandlingStrategy<NowParameterStrategy>();
 
             #endregion
         });
 
-        #region sample_MapWolverineHttpTransportEndpoints
-
+        #region sample_mapwolverinehttptransportendpoints
         app.MapWolverineHttpTransportEndpoints();
 
         #endregion
 
         #region sample_optimized_mediator_usage
-
 // Functional equivalent to MapPost(pattern, (command, IMessageBus) => bus.Invoke(command))
         app.MapPostToWolverine<HttpMessage1>("/wolverine");
         app.MapPutToWolverine<HttpMessage2>("/wolverine");

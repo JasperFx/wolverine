@@ -9,8 +9,7 @@ public static class wolverine_app_services
 {
     public static async Task WolverineAppWithServices()
     {
-        #region sample_WolverineAppWithServices
-
+        #region sample_wolverineappwithservices
         using var host = Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {

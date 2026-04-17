@@ -1,6 +1,6 @@
 namespace Wolverine.Http.Resources;
 
-#region sample_IResourceWriterPolicy
+#region sample_iresourcewriterpolicy
 /// <summary>
 ///    Use to apply custom handling to the primary result of an HTTP endpoint handler
 /// </summary>

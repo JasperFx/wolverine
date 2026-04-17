@@ -7,8 +7,7 @@ public static class Program
 {
     public static async Task EntryPoint()
     {
-        #region sample_QuickStart_Add_To_AspNetCore
-
+        #region sample_quickstart_add_to_aspnetcore
         var host = await Host.CreateDefaultBuilder()
             // Adds Wolverine to your .Net Core application
             // with its default configuration
@@ -19,8 +18,7 @@ public static class Program
     }
 }
 
-#region sample_QuickStart_InvoiceCreated
-
+#region sample_quickstart_invoicecreated
 public class InvoiceCreated
 {
     public Guid InvoiceId { get; set; }

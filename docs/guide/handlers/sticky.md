@@ -20,12 +20,12 @@ Let's start with a simple example and say that you have a message type called `S
 be handled completely separately by two different handlers performing two different logical operations using the same
 message as an input.
 
-<!-- snippet: sample_StickyMessage -->
+<!-- snippet: sample_stickymessage -->
 <a id='snippet-sample_stickymessage'></a>
 ```cs
 public class StickyMessage;
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/sticky_message_handlers.cs#L234-L238' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_stickymessage' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/sticky_message_handlers.cs#L232-L235' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_stickymessage' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And we're going to handle that `StickyMessage` message separately with two different handler types:
@@ -38,7 +38,7 @@ public static class BlueStickyHandler
 {
     public static StickyMessageResponse Handle(StickyMessage message, Envelope envelope)
     {
-        return new StickyMessageResponse("blue", message, envelope.Destination);
+        return new StickyMessageResponse("blue", message, envelope.Destination!);
     }
 }
 
@@ -47,11 +47,11 @@ public static class GreenStickyHandler
 {
     public static StickyMessageResponse Handle(StickyMessage message, Envelope envelope)
     {
-        return new StickyMessageResponse("green", message, envelope.Destination);
+        return new StickyMessageResponse("green", message, envelope.Destination!);
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/sticky_message_handlers.cs#L240-L260' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_sticky_handler_attribute' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/sticky_message_handlers.cs#L237-L256' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_sticky_handler_attribute' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: tip
@@ -79,7 +79,7 @@ using var host = await Host.CreateDefaultBuilder()
         opts.ListenAtPort(4000).Named("blue");
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/sticky_message_handlers.cs#L172-L182' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_named_listener_endpoint' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/sticky_message_handlers.cs#L172-L181' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_named_listener_endpoint' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 With all of that being said, the end result of the two `StickyMessage` handlers that are marked with `[StickyHandler]`
@@ -119,7 +119,7 @@ using var host = await Host.CreateDefaultBuilder()
 
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/sticky_message_handlers.cs#L187-L205' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sticky_handlers_by_endpoint_with_fluent_interface' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/sticky_message_handlers.cs#L186-L203' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sticky_handlers_by_endpoint_with_fluent_interface' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Configuring Local Queues <Badge type="tip" text="3.7" />

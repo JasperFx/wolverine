@@ -54,7 +54,7 @@ using var host = await Host.CreateDefaultBuilder()
         opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CodegenUsage.cs#L13-L33' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_codegen_type_load_mode' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CodegenUsage.cs#L13-L32' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_codegen_type_load_mode' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 At development time, use the `Dynamic` mode if you are actively changing handler
@@ -130,7 +130,7 @@ using var host = Host.CreateDefaultBuilder()
         opts.ApplicationAssembly = typeof(Program).Assembly;
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/BootstrappingSamples.cs#L10-L21' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_overriding_application_assembly' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/BootstrappingSamples.cs#L10-L20' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_overriding_application_assembly' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 If the assembly choice is correct, and the expected code files are really in `Internal/Generated` exactly as you'd expect, make
@@ -202,7 +202,7 @@ for your IoC configuration.
 As of Wolverine 5.0, you now have the ability to better control the usage of the service locator in Wolverine's
 code generation to potentially avoid unwanted usage:
 
-<!-- snippet: sample_configuring_ServiceLocationPolicy -->
+<!-- snippet: sample_configuring_servicelocationpolicy -->
 <a id='snippet-sample_configuring_servicelocationpolicy'></a>
 ```cs
 var builder = Host.CreateApplicationBuilder();
@@ -225,7 +225,7 @@ builder.UseWolverine(opts =>
     opts.ServiceLocationPolicy = ServiceLocationPolicy.NotAllowed;
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/ServiceLocationUsage.cs#L11-L33' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_servicelocationpolicy' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/ServiceLocationUsage.cs#L11-L32' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_servicelocationpolicy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: note
@@ -253,7 +253,7 @@ builder.UseWolverine(opts =>
     opts.CodeGeneration.AlwaysUseServiceLocationFor<IServiceGatewayUsingRefit>();
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/CodeGeneration/service_location_assertions.cs#L45-L57' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_always_use_service_location' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/CodeGeneration/service_location_assertions.cs#L45-L56' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_always_use_service_location' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 For example, this functionality might be helpful for:
@@ -288,7 +288,7 @@ builder.UseWolverine(opts =>
 using var host = builder.Build();
 await host.StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CodegenUsage.cs#L38-L58' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_asserting_all_pre_built_types_exist_upfront' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CodegenUsage.cs#L37-L56' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_asserting_all_pre_built_types_exist_upfront' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Do note that you would have to opt into using the environment checks on application startup, and maybe even force .NET
@@ -386,7 +386,7 @@ using var host = await Host.CreateDefaultBuilder()
         });
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CodegenUsage.cs#L63-L84' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_use_optimized_workflow' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CodegenUsage.cs#L61-L81' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_use_optimized_workflow' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Which will use:
@@ -413,7 +413,7 @@ builder.Services.CritterStackDefaults(opts =>
     opts.GeneratedCodeOutputPath = "/path/to/your/project/Internal/Generated";
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CodegenUsage.cs#L89-L98' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configure_generated_code_output_path' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CodegenUsage.cs#L86-L94' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configure_generated_code_output_path' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ### Auto-Resolving Project Root for Console Apps
@@ -432,7 +432,7 @@ builder.Services.CritterStackDefaults(opts =>
     opts.AutoResolveProjectRoot = true;
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CodegenUsage.cs#L103-L113' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_auto_resolve_project_root' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CodegenUsage.cs#L99-L108' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_auto_resolve_project_root' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ### Direct Wolverine Configuration
@@ -448,7 +448,7 @@ builder.UseWolverine(opts =>
     opts.CodeGeneration.GeneratedCodeOutputPath = "/path/to/output";
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CodegenUsage.cs#L118-L126' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_direct_wolverine_output_path' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CodegenUsage.cs#L113-L120' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_direct_wolverine_output_path' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Note that explicit Wolverine configuration takes precedence over `CritterStackDefaults`.

@@ -51,7 +51,7 @@ public static async Task Handle(
     await session.SaveChangesAsync(cancellation);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/WebApiWithMarten/Order.cs#L104-L130' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_longhand_order_handler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/WebApiWithMarten/Order.cs#L101-L126' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_longhand_order_handler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In the code above, the `OrderCreated` message is registered with the Wolverine `IMessageContext` for the current message, but nothing more than that is actually happening at that point.
@@ -74,7 +74,7 @@ In the section below on transactional middleware we'll see a shorthand way to si
 The Wolverine outbox is also usable from within ASP.Net Core (really any code) controller or Minimal API handler code. Within an MVC controller, the `CreateOrder`
 handling code would be:
 
-<!-- snippet: sample_CreateOrderController -->
+<!-- snippet: sample_createordercontroller -->
 <a id='snippet-sample_createordercontroller'></a>
 ```cs
 public class CreateOrderController : ControllerBase
@@ -102,7 +102,7 @@ public class CreateOrderController : ControllerBase
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/WebApiWithMarten/Order.cs#L20-L47' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_createordercontroller' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/WebApiWithMarten/Order.cs#L20-L46' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_createordercontroller' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 From a Minimal API, that could be this:
@@ -128,6 +128,6 @@ app.MapPost("/orders/create3", async (CreateOrder command, IDocumentSession sess
     await session.SaveChangesAsync();
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/WebApiWithMarten/Program.cs#L62-L82' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_create_order_through_minimal_api' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/WebApiWithMarten/Program.cs#L60-L79' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_create_order_through_minimal_api' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 

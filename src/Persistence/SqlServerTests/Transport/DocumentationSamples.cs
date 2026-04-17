@@ -11,7 +11,6 @@ public class DocumentationSamples
     public static async Task Bootstrapping()
     {
         #region sample_using_sql_server_transport
-
         var builder = Host.CreateApplicationBuilder();
         builder.UseWolverine(opts =>
         {

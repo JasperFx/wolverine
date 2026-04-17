@@ -17,7 +17,6 @@ public class MartenSubscriptionSamples
     public static async Task subscribe_to_marten_events()
     {
         #region sample_publish_events_to_wolverine_subscribers
-
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -59,7 +58,6 @@ public class MartenSubscriptionSamples
     public static async Task invoke_marten_events_in_order()
     {
         #region sample_inline_invocation_of_wolverine_messages_for_marten_subscription
-
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -103,7 +101,6 @@ public class MartenSubscriptionSamples
     public static async Task batched_subscription_usage()
     {
         #region sample_registering_a_batched_subscription
-
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -135,7 +132,6 @@ public class MartenSubscriptionSamples
     public static async Task batched_subscription_usage_with_services()
     {
         #region sample_registering_a_batched_subscription_with_services
-
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -168,7 +164,6 @@ public class MartenSubscriptionSamples
 }
 
 #region sample_transforming_event_to_external_integration_events
-
 public record OrderCreated(string OrderNumber, Guid CustomerId);
 
 // I wouldn't use this kind of suffix in real life, but it helps
@@ -196,8 +191,7 @@ public static class InternalOrderCreatedHandler
 
 #endregion
 
-#region sample_CompanyTransferSubscriptions
-
+#region sample_companytransfersubscriptions
 public record CompanyActivated(string Name);
 
 public record CompanyDeactivated;

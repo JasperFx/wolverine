@@ -32,8 +32,7 @@ public class can_customize_handler_chain_through_IHandlerConfiguration : Integra
 
 public class InterfaceConfiguredMessage;
 
-#region sample_customized_handler_using_IHandlerConfiguration
-
+#region sample_customized_handler_using_ihandlerconfiguration
 public class InterfaceConfiguredHandler : IHandlerConfiguration
 {
     public void Handle(InterfaceConfiguredMessage message)

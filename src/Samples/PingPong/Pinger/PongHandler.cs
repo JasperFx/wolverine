@@ -1,5 +1,4 @@
-#region sample_PongHandler
-
+#region sample_ponghandler
 using Messages;
 
 namespace Pinger;

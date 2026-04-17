@@ -1,5 +1,4 @@
-#region sample_Quickstart_Program
-
+#region sample_quickstart_program
 using JasperFx;
 using Quickstart;
 using Wolverine;

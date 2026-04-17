@@ -25,7 +25,7 @@ To connect to Kafka, use this syntax:
 using var host = await Host.CreateDefaultBuilder()
     .UseWolverine(opts =>
     {
-        opts.UseKafka("localhost:9092")
+        opts.UseKafka(KafkaContainerFixture.ConnectionString)
 
             // See https://github.com/confluentinc/confluent-kafka-dotnet for the exact options here
             .ConfigureClient(client =>
@@ -110,17 +110,19 @@ using var host = await Host.CreateDefaultBuilder()
                 // This will also set the Envelope.GroupId for any
                 // received messages at this topic
                 config.GroupId = "foo";
-                config.BootstrapServers = "localhost:9092";
+                config.BootstrapServers = KafkaContainerFixture.ConnectionString;
 
                 // Other configuration
             })
+            
             // Configure circuit breaker behavior for
             // this specific Kafka listener
             .CircuitBreaker(cb =>
             {
                 cb.MinimumThreshold = 10;
                 cb.PauseTime = TimeSpan.FromMinutes(1);
-            });
+            })
+            
             // Fine tune how the Kafka Topic is declared by Wolverine
             .Specification(spec =>
             {
@@ -137,7 +139,7 @@ using var host = await Host.CreateDefaultBuilder()
         opts.Services.AddResourceSetupOnStartup();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/DocumentationSamples.cs#L14-L126' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_with_kafka' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/DocumentationSamples.cs#L14-L133' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_with_kafka' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The various `Configure*****()` methods provide quick access to the full API of the Confluent Kafka library for security
@@ -232,7 +234,7 @@ public static ValueTask publish_by_partition_key(IMessageBus bus)
     return bus.PublishAsync(new Message1(), new DeliveryOptions { PartitionKey = "one" });
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/when_publishing_and_receiving_by_partition_key.cs#L13-L20' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_publish_to_kafka_by_partition_key' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/when_publishing_and_receiving_by_partition_key.cs#L14-L20' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_publish_to_kafka_by_partition_key' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Propagating GroupId to PartitionKey <Badge type="tip" text="5.17" />
@@ -295,7 +297,7 @@ _receiver = await Host.CreateDefaultBuilder()
     .UseWolverine(opts =>
     {
         //opts.EnableAutomaticFailureAcks = false;
-        opts.UseKafka("localhost:9092").AutoProvision();
+        opts.UseKafka(KafkaContainerFixture.ConnectionString).AutoProvision();
         opts.ListenToKafkaTopic("json")
 
             // You do have to tell Wolverine what the message type
@@ -318,7 +320,7 @@ _receiver = await Host.CreateDefaultBuilder()
 _sender = await Host.CreateDefaultBuilder()
     .UseWolverine(opts =>
     {
-        opts.UseKafka("localhost:9092").AutoProvision();
+        opts.UseKafka(KafkaContainerFixture.ConnectionString).AutoProvision();
         opts.Policies.DisableConventionalLocalRouting();
 
         opts.Services.AddResourceSetupOnStartup();
@@ -330,7 +332,7 @@ _sender = await Host.CreateDefaultBuilder()
             .PublishRawJson(new JsonSerializerOptions());
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/publish_and_receive_raw_json.cs#L21-L62' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_raw_json_sending_and_receiving_with_kafka' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/publish_and_receive_raw_json.cs#L21-L61' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_raw_json_sending_and_receiving_with_kafka' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Confluent Schema Registry Serializers <Badge type="tip" text="5.27" />
@@ -417,7 +419,7 @@ which is handled automatically when you configure typed listeners.
 When receiving messages through Kafka and Wolverine, there are some useful elements of Kafka metadata
 on the Wolverine `Envelope` you can use for instrumentation or diagnostics as shown in this sample middleware:
 
-<!-- snippet: sample_KafkaInstrumentation_middleware -->
+<!-- snippet: sample_kafkainstrumentation_middleware -->
 <a id='snippet-sample_kafkainstrumentation_middleware'></a>
 ```cs
 public static class KafkaInstrumentation
@@ -431,7 +433,7 @@ public static class KafkaInstrumentation
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/DocumentationSamples.cs#L178-L191' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_kafkainstrumentation_middleware' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/DocumentationSamples.cs#L183-L195' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_kafkainstrumentation_middleware' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Connecting to Multiple Brokers <Badge type="tip" text="4.7" />
@@ -444,7 +446,7 @@ Wolverine supports interacting with multiple Kafka brokers within one applicatio
 using var host = await Host.CreateDefaultBuilder()
     .UseWolverine(opts =>
     {
-        opts.UseKafka("localhost:9092");
+        opts.UseKafka(KafkaContainerFixture.ConnectionString);
         opts.AddNamedKafkaBroker(new BrokerName("americas"), "americas-kafka:9092");
         opts.AddNamedKafkaBroker(new BrokerName("emea"), "emea-kafka:9092");
 
@@ -462,7 +464,7 @@ using var host = await Host.CreateDefaultBuilder()
         // Other configuration
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/DocumentationSamples.cs#L151-L174' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_multiple_kafka_brokers' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/DocumentationSamples.cs#L157-L179' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_multiple_kafka_brokers' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Note that the `Uri` scheme within Wolverine for any endpoints from a "named" Kafka broker is the name that you supply
@@ -626,16 +628,16 @@ using var host = await Host.CreateDefaultBuilder()
     .UseWolverine(opts =>
     {
         opts
-            .UseKafka("localhost:9092")
-
+            .UseKafka(KafkaContainerFixture.ConnectionString)
+            
             // Tell Wolverine that this application will never
             // produce messages to turn off any diagnostics that might
             // try to "ping" a topic and result in errors
             .ConsumeOnly();
-
+        
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/DocumentationSamples.cs#L131-L146' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disable_all_kafka_sending' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/DocumentationSamples.cs#L138-L152' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disable_all_kafka_sending' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Global Partitioning

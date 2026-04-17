@@ -2,8 +2,7 @@ using Wolverine.Configuration;
 
 namespace Wolverine.Runtime.Routing;
 
-#region sample_IMessageRoutingConvention
-
+#region sample_imessageroutingconvention
 /// <summary>
 ///     Plugin for doing any kind of conventional message routing
 /// </summary>

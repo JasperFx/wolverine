@@ -476,7 +476,6 @@ public class using_form_parameters : IntegrationContext
     }
 
     #region sample_form_value_usage
-
     [Fact]
     public async Task use_string_form_hit()
     {

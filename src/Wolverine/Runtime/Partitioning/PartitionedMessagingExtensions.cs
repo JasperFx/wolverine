@@ -14,8 +14,7 @@ internal static class PartitionedMessagingExtensions
         }
     }
 
-    #region sample_SlotForSending
-
+    #region sample_slotforsending
     /// <summary>
     /// Uses a combination of message grouping id rules and a deterministic hash
     /// to predictably assign envelopes to a slot to help "shard" message publishing.

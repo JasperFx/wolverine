@@ -4,8 +4,7 @@ using Wolverine.Marten;
 
 namespace IncidentService;
 
-#region sample_LogIncident
-
+#region sample_logincident
 public record LogIncident(
     Guid CustomerId,
     Contact Contact,

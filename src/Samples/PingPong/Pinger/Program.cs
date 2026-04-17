@@ -1,5 +1,4 @@
-#region sample_BootstrappingPinger
-
+#region sample_bootstrappingpinger
 using Messages;
 using JasperFx;
 using Pinger;

@@ -100,7 +100,6 @@ public class routing_rules
     }
 
     #region sample_using_preview_subscriptions
-
     public static void using_preview_subscriptions(IMessageBus bus)
     {
         // Preview where Wolverine is wanting to send a message

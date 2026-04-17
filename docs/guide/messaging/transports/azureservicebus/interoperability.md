@@ -17,7 +17,7 @@ public class CustomAzureServiceBusMapper : IAzureServiceBusEnvelopeMapper
 {
     public void MapEnvelopeToOutgoing(Envelope envelope, ServiceBusMessage outgoing)
     {
-        outgoing.Body = new BinaryData(envelope.Data);
+        outgoing.Body = new BinaryData(envelope.Data!);
         if (envelope.DeliverWithin != null)
         {
             outgoing.TimeToLive = envelope.DeliverWithin.Value;
@@ -36,7 +36,7 @@ public class CustomAzureServiceBusMapper : IAzureServiceBusEnvelopeMapper
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/Samples.cs#L191-L216' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_custom_azure_service_bus_mapper' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/Samples.cs#L185-L209' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_custom_azure_service_bus_mapper' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 To apply that mapper to specific endpoints, use this syntax on any type of Azure Service Bus endpoint:
@@ -55,5 +55,5 @@ using var host = await Host.CreateDefaultBuilder()
             .ConfigureSenders(s => s.InteropWith(new CustomAzureServiceBusMapper()));
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/Samples.cs#L106-L119' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_custom_envelope_mapper_for_azure_service_bus' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/Samples.cs#L102-L114' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_custom_envelope_mapper_for_azure_service_bus' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->

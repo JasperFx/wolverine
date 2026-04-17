@@ -27,7 +27,6 @@ public class end_to_end : IAsyncLifetime
     }
 
     #region sample_testing_hello_world_for_http
-
     [Fact]
     public async Task hello_world()
     {

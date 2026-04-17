@@ -12,7 +12,7 @@ You can listen to messages from as many ports as you like, but be aware of port 
 
 To listen for messages with the TCP transport, use the `ListenAtPort()` extension method shown below:
 
-<!-- snippet: sample_UseWolverineWithInlineOptionsConfigurationAndHosting -->
+<!-- snippet: sample_usewolverinewithinlineoptionsconfigurationandhosting -->
 <a id='snippet-sample_usewolverinewithinlineoptionsconfigurationandhosting'></a>
 ```cs
 public static IHost CreateHostBuilder()
@@ -41,7 +41,7 @@ public static IHost CreateHostBuilder()
     return builder.Build();
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CustomWolverineOptions.cs#L30-L58' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_usewolverinewithinlineoptionsconfigurationandhosting' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CustomWolverineOptions.cs#L29-L56' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_usewolverinewithinlineoptionsconfigurationandhosting' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Likewise, to publish via TCP, use the `ToPort()` extension method to publish to another port on the same
@@ -73,12 +73,12 @@ await bus.EndpointFor("One").InvokeAsync(new SomeMessage());
 var answer = bus.EndpointFor("One")
     .InvokeAsync<Answer>(new Question());
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PublishingSamples.cs#L47-L72' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sending_to_endpoint_by_name' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PublishingSamples.cs#L46-L70' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sending_to_endpoint_by_name' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 or use `ToServerAndPort()` to send messages to a port on another machine:
 
-<!-- snippet: sample_StaticPublishingRules -->
+<!-- snippet: sample_staticpublishingrules -->
 <a id='snippet-sample_staticpublishingrules'></a>
 ```cs
 using var host = Host.CreateDefaultBuilder()
@@ -128,7 +128,7 @@ using var host = Host.CreateDefaultBuilder()
         opts.PublishAllMessages().ToPort(3333);
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/StaticPublishingRule.cs#L12-L61' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_staticpublishingrules' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/StaticPublishingRule.cs#L12-L60' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_staticpublishingrules' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 

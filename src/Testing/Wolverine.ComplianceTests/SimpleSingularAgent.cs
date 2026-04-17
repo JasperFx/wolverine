@@ -1,5 +1,4 @@
-#region sample_SimpleSingularAgent
-
+#region sample_simplesingularagent
 using JasperFx.Core;
 using Wolverine.Runtime.Agents;
 

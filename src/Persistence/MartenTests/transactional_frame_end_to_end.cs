@@ -63,8 +63,7 @@ public class transactional_frame_end_to_end : PostgresqlContext
 
     public static async Task Using_CommandsAreTransactional()
     {
-        #region sample_Using_CommandsAreTransactional
-
+        #region sample_using_commandsaretransactional
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -88,8 +87,7 @@ public class CreateDocCommand2
 
 
 
-#region sample_using_IDocumentOperations
-
+#region sample_using_idocumentoperations
 public class CreateDocCommand2Handler
 {
     [Transactional]
@@ -133,8 +131,7 @@ public class UsingDocumentSessionHandler
     }
 }
 
-#region sample_CommandsAreTransactional
-
+#region sample_commandsaretransactional
 public class CommandsAreTransactional : IHandlerPolicy
 {
     public void Apply(IReadOnlyList<HandlerChain> chains, GenerationRules rules, IServiceContainer container)

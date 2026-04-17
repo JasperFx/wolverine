@@ -1,7 +1,7 @@
 using Wolverine.Runtime;
 using Wolverine.Runtime.Interop;
 
-#region sample_IMissingHandler
+#region sample_imissinghandler
 namespace Wolverine;
 
 /// <summary>

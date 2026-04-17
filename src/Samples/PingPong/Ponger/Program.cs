@@ -1,5 +1,4 @@
-﻿#region sample_PongerBootstrapping
-
+﻿#region sample_pongerbootstrapping
 using Microsoft.Extensions.Hosting;
 using JasperFx;
 using Wolverine;

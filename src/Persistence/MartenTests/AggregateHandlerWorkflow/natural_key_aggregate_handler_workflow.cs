@@ -116,7 +116,6 @@ public class natural_key_aggregate_handler_workflow : PostgresqlContext, IAsyncD
 }
 
 #region sample_wolverine_marten_natural_key_aggregate
-
 public record NkHandlerOrderNumber(string Value);
 
 public class NkOrderAggregate
@@ -155,7 +154,6 @@ public record NkHandlerOrderCompleted;
 #endregion
 
 #region sample_wolverine_marten_natural_key_commands
-
 public record AddNkOrderItem(NkHandlerOrderNumber OrderNum, string ItemName, decimal Price);
 public record AddNkOrderItems(NkHandlerOrderNumber OrderNum, (string Name, decimal Price)[] Items);
 public record CompleteNkOrder(NkHandlerOrderNumber OrderNum);
@@ -163,7 +161,6 @@ public record CompleteNkOrder(NkHandlerOrderNumber OrderNum);
 #endregion
 
 #region sample_wolverine_marten_natural_key_handlers
-
 public static class NkOrderHandler
 {
     public static NkHandlerItemAdded Handle(AddNkOrderItem command,

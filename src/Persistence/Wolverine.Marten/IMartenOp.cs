@@ -16,8 +16,7 @@ using Wolverine.Runtime.Handlers;
 
 namespace Wolverine.Marten;
 
-#region sample_IMartenOp
-
+#region sample_imartenop
 /// <summary>
 /// Interface for any kind of Marten related side effect
 /// </summary>

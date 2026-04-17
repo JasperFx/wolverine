@@ -8,8 +8,7 @@ using Wolverine.Runtime;
 
 namespace WolverineWebApi.Samples;
 
-#region sample_NowParameterStrategy
-
+#region sample_nowparameterstrategy
 public class NowParameterStrategy : IParameterStrategy
 {
     public bool TryMatch(HttpChain chain, IServiceContainer container, ParameterInfo parameter, out Variable? variable)

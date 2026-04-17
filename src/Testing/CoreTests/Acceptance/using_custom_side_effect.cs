@@ -17,8 +17,7 @@ public class using_custom_side_effect
     }
 }
 
-#region sample_RecordTextHandler
-
+#region sample_recordtexthandler
 // An options class
 public class PathSettings
 {
@@ -40,8 +39,7 @@ public class RecordTextHandler
 
 #endregion
 
-#region sample_WriteFile
-
+#region sample_writefile
 // ISideEffect is a Wolverine marker interface
 public class WriteFile : ISideEffect
 {

@@ -19,7 +19,6 @@ builder.Services.AddWolverineHttp();
 builder.Services.AddHostedService<ClientHostedService>();
 
 #region sample_eager_http_warmup
-
 var app = builder.Build();
 
 app.MapWolverineEndpoints(x => x.WarmUpRoutes = RouteWarmup.Eager);

@@ -20,7 +20,6 @@ public class configuring_saga_table_storage : SqlServerContext
         await dropSchemaAsync();
 
         #region sample_manually_adding_saga_types
-
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {

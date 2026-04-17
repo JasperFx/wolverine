@@ -7,8 +7,7 @@ namespace DocumentationSamples;
 
 public class SampleProgram1
 {
-    #region sample_UseWolverineWithInlineOptionsConfiguration
-
+    #region sample_usewolverinewithinlineoptionsconfiguration
     public static IHostBuilder CreateHostBuilder()
     {
         return Host.CreateDefaultBuilder()
@@ -27,8 +26,7 @@ public class SampleProgram1
 
 public class SampleProgram2
 {
-    #region sample_UseWolverineWithInlineOptionsConfigurationAndHosting
-
+    #region sample_usewolverinewithinlineoptionsconfigurationandhosting
     public static IHost CreateHostBuilder()
     {
         var builder = Host.CreateApplicationBuilder();

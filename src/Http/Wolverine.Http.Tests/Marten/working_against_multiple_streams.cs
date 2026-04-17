@@ -161,7 +161,6 @@ public class working_against_multiple_streams : IntegrationContext
 }
 
 #region sample_when_transfering_money
-
 public class when_transfering_money
 {
     [Fact]

@@ -22,7 +22,6 @@ public class try_out_the_middleware
     public async Task the_application_assembly_is_inferred_correctly()
     {
         #region sample_disabling_the_transports_from_web_application_factory
-
         // This is using Alba to bootstrap a Wolverine application
         // for integration tests, but it's using WebApplicationFactory
         // to do the actual bootstrapping
@@ -88,7 +87,6 @@ public class try_out_the_middleware
 }
 
 #region sample_when_the_account_is_overdrawn
-
 public class when_the_account_is_overdrawn : IAsyncLifetime
 {
     private readonly Account theAccount = new Account

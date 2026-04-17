@@ -79,7 +79,7 @@ direct Wolverine to stop all other processing.
 You have more specialized ways of doing that in HTTP endpoints by using the `ProblemDetails` specification to stop
 processing like this example that uses a `Validate()` method to potentially stop processing with a descriptive 400 and error message:
 
-<!-- snippet: sample_CategoriseIncident -->
+<!-- snippet: sample_categoriseincident -->
 <a id='snippet-sample_categoriseincident'></a>
 ```cs
 public record CategoriseIncident(
@@ -121,7 +121,7 @@ public static class CategoriseIncidentEndpoint
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/IncidentService/IncidentService/CategoriseIncident.cs#L8-L49' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_categoriseincident' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/IncidentService/IncidentService/CategoriseIncident.cs#L8-L48' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_categoriseincident' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The value `WolverineContinue.NoProblems` tells Wolverine that everything is good, full speed ahead. Anything else will write the `ProblemDetails`
@@ -147,7 +147,7 @@ public static class ExamineFirstHandler
     public static void Handle(ExamineFirst command) => DidContinue = true;
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Todos/Todo2.cs#L189-L204' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_continue_result_as_filter' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Todos/Todo2.cs#L185-L199' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_continue_result_as_filter' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In this case, the "special" value `WolverineContinue.Result()` tells Wolverine to keep going, otherwise, Wolverine will 

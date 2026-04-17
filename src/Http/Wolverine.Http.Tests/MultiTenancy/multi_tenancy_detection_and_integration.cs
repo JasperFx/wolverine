@@ -476,8 +476,7 @@ public static class TenantedEndpoints
         return tenantId.Value;
     }
 
-    #region sample_using_NotTenanted
-
+    #region sample_using_nottenanted
     // Mark this endpoint as not using any kind of multi-tenancy
     [WolverineGet("/nottenanted"), NotTenanted]
     public static string NoTenantNoProblem()
@@ -488,7 +487,6 @@ public static class TenantedEndpoints
     #endregion
 
     #region sample_maybe_tenanted_attribute_usage
-
     // Mark this endpoint as "maybe" having a tenant id
     [WolverineGet("/maybe"), MaybeTenanted]
     public static string MaybeTenanted(IMessageBus bus)

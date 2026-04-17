@@ -553,7 +553,7 @@ public record PcNkOrderCreated(PcNkOrderNumber OrderNumber, string CustomerName)
 public record PcNkItemAdded(string ItemName, decimal Price);
 public record PcNkOrderCompleted;
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PolecatTests/natural_key_aggregate_handler_workflow.cs#L123-L160' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_polecat_natural_key_aggregate' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PolecatTests/natural_key_aggregate_handler_workflow.cs#L123-L159' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_polecat_natural_key_aggregate' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ### Using Natural Keys in Command Handlers
@@ -567,7 +567,7 @@ public record AddPcNkOrderItem(PcNkOrderNumber OrderNum, string ItemName, decima
 public record AddPcNkOrderItems(PcNkOrderNumber OrderNum, (string Name, decimal Price)[] Items);
 public record CompletePcNkOrder(PcNkOrderNumber OrderNum);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PolecatTests/natural_key_aggregate_handler_workflow.cs#L162-L168' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_polecat_natural_key_commands' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PolecatTests/natural_key_aggregate_handler_workflow.cs#L161-L166' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_polecat_natural_key_commands' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Wolverine uses the natural key type on the command property to call `FetchForWriting<TAggregate, TNaturalKey>()` under the covers, resolving the stream by the natural key in a single database round-trip.
@@ -603,7 +603,7 @@ public static class PcNkOrderHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PolecatTests/natural_key_aggregate_handler_workflow.cs#L170-L196' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_polecat_natural_key_handlers' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PolecatTests/natural_key_aggregate_handler_workflow.cs#L168-L193' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_polecat_natural_key_handlers' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 For more details on how natural keys work at the Polecat level, see the [Polecat natural keys documentation](/events/natural-keys).

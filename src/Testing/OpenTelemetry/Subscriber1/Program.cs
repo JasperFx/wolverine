@@ -8,7 +8,6 @@ using Wolverine.RabbitMQ;
 using Wolverine.Transports.Tcp;
 
 #region sample_bootstrapping_headless_service
-
 return await Host.CreateDefaultBuilder(args)
     .UseWolverine(opts =>
     {

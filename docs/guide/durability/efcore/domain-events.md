@@ -13,7 +13,7 @@ See Jeremy's post [“Classic” .NET Domain Events with Wolverine and EF Core](
 Jumping right into an example, let's say that you like to use a layer supertype in your domain model that
 gives your `Entity` types a chance to "raise" domain events like this one:
 
-<!-- snippet: sample_Entity_layer_super_type -->
+<!-- snippet: sample_entity_layer_super_type -->
 <a id='snippet-sample_entity_layer_super_type'></a>
 ```cs
 // Of course, if you're into DDD, you'll probably 
@@ -29,21 +29,21 @@ public abstract class Entity
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/DomainEventsWithEfCore/BackLogService/Scraping/Code.cs#L11-L26' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_entity_layer_super_type' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EFCore/DomainEventsWithEfCore/BackLogService/Scraping/Code.cs#L11-L25' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_entity_layer_super_type' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Now, let's say we're building some kind of software project planning software (as if the world doesn't have enough
 "Jira but different" applications) where we'll have an entity like this one:
 
-<!-- snippet: sample_BacklogItem -->
+<!-- snippet: sample_backlogitem -->
 <a id='snippet-sample_backlogitem'></a>
 ```cs
 public class BacklogItem : Entity
 {
     public Guid Id { get; private set; }
 
-    public string Description { get; private set; }
-    public virtual Sprint Sprint { get; private set; }
+    public string Description { get; private set; } = null!;
+    public virtual Sprint Sprint { get; private set; } = null!;
     public DateTime CreatedAtUtc { get; private set; } = DateTime.UtcNow;
     
     public void CommitTo(Sprint sprint)
@@ -53,12 +53,12 @@ public class BacklogItem : Entity
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/DomainEventsWithEfCore/BackLogService/Scraping/Code.cs#L28-L45' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_backlogitem' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EFCore/DomainEventsWithEfCore/BackLogService/Scraping/Code.cs#L27-L43' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_backlogitem' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Let’s utilize this a little bit within a Wolverine handler, first with explicit code:
 
-<!-- snippet: sample_CommitToSprintHandler -->
+<!-- snippet: sample_committosprinthandler -->
 <a id='snippet-sample_committosprinthandler'></a>
 ```cs
 public static class CommitToSprintHandler
@@ -83,7 +83,7 @@ public static class CommitToSprintHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/DomainEventsWithEfCore/BackLogService/Scraping/Code.cs#L55-L79' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_committosprinthandler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EFCore/DomainEventsWithEfCore/BackLogService/Scraping/Code.cs#L53-L76' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_committosprinthandler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Now, let’s add some Wolverine configuration to just make this pattern work:

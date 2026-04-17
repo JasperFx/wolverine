@@ -7,7 +7,6 @@ namespace MartenTests.Sample;
 public class SampleController : ControllerBase
 {
     #region sample_using_outbox_with_marten_in_mvc_action
-
     public async Task<IActionResult> PostCreateUser(
         [FromBody] CreateUser user,
 

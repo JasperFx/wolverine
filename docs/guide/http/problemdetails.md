@@ -6,7 +6,7 @@ off, explicit validation for certain endpoints.
 
 Consider this contrived sample endpoint with explicit validation being done in a "Before" middleware method:
 
-<!-- snippet: sample_ProblemDetailsUsageEndpoint -->
+<!-- snippet: sample_problemdetailsusageendpoint -->
 <a id='snippet-sample_problemdetailsusageendpoint'></a>
 ```cs
 public class ProblemDetailsUsageEndpoint
@@ -35,7 +35,7 @@ public class ProblemDetailsUsageEndpoint
 
 public record NumberMessage(int Number);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/ProblemDetailsUsage.cs#L8-L36' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_problemdetailsusageendpoint' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/ProblemDetailsUsage.cs#L8-L35' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_problemdetailsusageendpoint' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Wolverine.Http now (as of 1.2.0) has a convention that sees a return value of `ProblemDetails` and looks at that as a
@@ -104,7 +104,7 @@ public async Task stop_with_problems_if_middleware_trips_off()
     });
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/problem_details_usage_in_http_middleware.cs#L18-L43' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_testing_problem_details_behavior' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/problem_details_usage_in_http_middleware.cs#L18-L42' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_testing_problem_details_behavior' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Lastly, if Wolverine sees the existence of a `ProblemDetails` return value in any middleware, Wolverine will fill in OpenAPI
@@ -196,7 +196,7 @@ public static class NumberMessageHandler
     public static bool CalledBeforeOnlyOnHttpEndpoints { get; set; }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/ProblemDetailsUsage.cs#L38-L88' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_problem_details_in_message_handler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/ProblemDetailsUsage.cs#L37-L86' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_problem_details_in_message_handler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 This functionality was added so that some handlers could be both an endpoint and message handler

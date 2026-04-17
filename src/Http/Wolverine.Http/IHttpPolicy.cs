@@ -4,8 +4,7 @@ using Wolverine.Runtime;
 
 namespace Wolverine.Http;
 
-#region sample_IHttpPolicy
-
+#region sample_ihttppolicy
 /// <summary>
 ///     Use to apply your own conventions or policies to HTTP endpoint handlers
 /// </summary>

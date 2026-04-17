@@ -1,7 +1,6 @@
 namespace Wolverine;
 
-#region sample_IWolverineExtension
-
+#region sample_iwolverineextension
 /// <summary>
 ///     Use to create loadable extensions to Wolverine applications
 /// </summary>

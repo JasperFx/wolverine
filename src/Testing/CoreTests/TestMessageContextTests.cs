@@ -465,7 +465,6 @@ public class TestMessageContextTests
     public static async Task set_up_invoke_expectations()
     {
         #region sample_using_invoke_with_expected_response_with_test_message_context
-
         var spy = new TestMessageContext();
         var context = (IMessageContext)spy;
 

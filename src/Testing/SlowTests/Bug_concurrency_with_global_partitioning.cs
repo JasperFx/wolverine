@@ -339,7 +339,6 @@ public class SoccerExternalEventTypeOne
 #endregion
 
 #region Aggregate
-
 public class SoccerAggregate
 {
     public string Id { get; set; }
@@ -367,7 +366,6 @@ public class SoccerAggregate
 #endregion
 
 #region Handlers
-
 [AggregateHandler]
 public static class SoccerEventTypeOneHandler
 {

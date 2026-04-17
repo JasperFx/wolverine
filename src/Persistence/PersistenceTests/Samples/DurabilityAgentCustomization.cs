@@ -8,8 +8,7 @@ public static class DurabilityAgentCustomization
 {
     public static async Task AdvancedConfigurationOfDurabilityAgent()
     {
-        #region sample_AdvancedConfigurationOfDurabilityAgent
-
+        #region sample_advancedconfigurationofdurabilityagent
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {

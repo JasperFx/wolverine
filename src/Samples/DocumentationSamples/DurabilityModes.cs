@@ -10,7 +10,6 @@ public class DurabilityModes
     public static async Task bootstrap_for_serverless()
     {
         #region sample_configuring_the_serverless_mode
-
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -36,7 +35,6 @@ public class DurabilityModes
     public static async Task bootstrap_for_mediator()
     {
         #region sample_configuring_the_mediator_mode
-
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -53,7 +51,6 @@ public class DurabilityModes
     public static async Task bootstrap_for_solo()
     {
         #region sample_configuring_the_solo_mode
-
         var builder = Host.CreateApplicationBuilder();
 
         builder.UseWolverine(opts =>

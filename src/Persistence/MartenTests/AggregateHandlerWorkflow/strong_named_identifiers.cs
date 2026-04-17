@@ -122,7 +122,6 @@ public class strong_named_identifiers : IAsyncLifetime
 }
 
 #region sample_using_strong_typed_identifier_with_aggregate_handler_workflow
-
 public record IncrementStrongA(LetterId Id);
 
 public record AddFrom(LetterId Id1, LetterId Id2);
@@ -183,7 +182,6 @@ public static class StrongLetterHandler
 
 
 #region sample_strong_typed_identifier_with_aggregate
-
 [StronglyTypedId(Template.Guid)]
 public readonly partial struct LetterId;
 

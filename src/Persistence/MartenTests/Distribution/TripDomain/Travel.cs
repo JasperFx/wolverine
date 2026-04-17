@@ -39,8 +39,7 @@ public class Travel : IDayEvent
         return Movements.Sum(x => x.Distance);
     }
 
-    #region sample_Travel_Movements
-
+    #region sample_travel_movements
     public IList<Movement> Movements { get; set; } = new List<Movement>();
     public List<Stop> Stops { get; set; } = new();
 

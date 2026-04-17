@@ -111,7 +111,6 @@ public class wolverine_as_command_bus : IntegrationContext, ILogger<WolverineRun
     }
 
     #region sample_using_global_request_and_reply
-
     internal async ValueTask using_global_request_and_reply(IMessageContext messaging)
     {
         // Send a question to another application, and request that the handling

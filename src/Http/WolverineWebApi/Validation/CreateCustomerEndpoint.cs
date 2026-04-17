@@ -5,8 +5,7 @@ using Wolverine.Http;
 
 namespace WolverineWebApi.Validation;
 
-#region sample_CreateCustomer_endpoint_with_validation
-
+#region sample_createcustomer_endpoint_with_validation
 public record CreateCustomer
 (
     string FirstName,

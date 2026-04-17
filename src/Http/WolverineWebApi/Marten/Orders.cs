@@ -16,7 +16,6 @@ using Wolverine.Runtime.Handlers;
 namespace WolverineWebApi.Marten;
 
 #region sample_order_aggregate_for_http
-
 // OrderId refers to the identity of the Order aggregate
 public record MarkItemReady(Guid OrderId, string ItemName, int Version);
 
@@ -120,8 +119,7 @@ public static class CanShipOrderMiddleWare
 
 public static class MarkItemEndpoint
 {
-    #region sample_using_EmptyResponse
-
+    #region sample_using_emptyresponse
     [AggregateHandler]
     [WolverinePost("/orders/ship"), EmptyResponse]
     // The OrderShipped return value is treated as an event being posted
@@ -146,7 +144,6 @@ public static class MarkItemEndpoint
     }
 
     #region sample_using_aggregate_attribute_1
-
     [WolverinePost("/orders/{orderId}/ship2"), EmptyResponse]
     // The OrderShipped return value is treated as an event being posted
     // to a Marten even stream
@@ -163,7 +160,6 @@ public static class MarkItemEndpoint
     #endregion
 
     #region sample_using_aggregate_attribute_2
-
     [WolverinePost("/orders/{orderId}/ship3"), EmptyResponse]
     // The OrderShipped return value is treated as an event being posted
     // to a Marten even stream
@@ -187,7 +183,6 @@ public static class MarkItemEndpoint
     }
 
     #region sample_using_aggregate_attribute_query_parameter
-    
     [WolverinePost("/orders/ship/from-query"), EmptyResponse]
     // The OrderShipped return value is treated as an event being posted
     // to a Marten even stream
@@ -239,7 +234,6 @@ public static class MarkItemEndpoint
     }
 
     #region sample_returning_multiple_events_from_http_endpoint
-
     [AggregateHandler]
     [WolverinePost("/orders/itemready")]
     public static (OrderStatus, Events) Post(MarkItemReady command, Order order)
@@ -297,7 +291,6 @@ public static class MarkItemEndpoint
     }
 
     #region sample_returning_updated_aggregate_as_response_from_http_endpoint
-
     [AggregateHandler]
     [WolverinePost("/orders/{id}/confirm2")]
     // The updated version of the Order aggregate will be returned as the response body
@@ -324,8 +317,7 @@ public static class MarkItemEndpoint
         );
     }
 
-    #region sample_using_ReadAggregate_in_HTTP
-
+    #region sample_using_readaggregate_in_http
     [WolverineGet("/orders/latest/{id}")]
     public static Order GetLatest(Guid id, [ReadAggregate] Order order) => order;
 
@@ -339,7 +331,6 @@ public static class MarkItemEndpoint
 }
 
 #region sample_write_aggregate_from_method
-
 public record ConfirmOrderFromMethod;
 
 public static class WriteAggregateFromMethodEndpoint
@@ -408,8 +399,7 @@ public static class QueryOrdersEndpoint
 
 #endregion
 
-#region sample_showing_concurrency_exception_moving_directly_to_DLQ
-
+#region sample_showing_concurrency_exception_moving_directly_to_dlq
 public static class MarkItemReadyHandler
 {
     // This will let us specify error handling policies specific

@@ -9,7 +9,6 @@ public class Bootstrapping
     public async Task for_local_development()
     {
         #region sample_connect_to_sns_and_localstack
-
         var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -24,7 +23,6 @@ public class Bootstrapping
     public async Task connect_to_broker()
     {
         #region sample_simplistic_aws_sns_setup
-
         var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -42,7 +40,6 @@ public class Bootstrapping
     public async Task connect_with_customization()
     {
         #region sample_config_aws_sns_connection
-
         var builder = Host.CreateApplicationBuilder();
         builder.UseWolverine(opts =>
         {
@@ -68,7 +65,6 @@ public class Bootstrapping
     public async Task setting_credentials()
     {
         #region sample_setting_aws_sns_credentials
-
         var builder = Host.CreateApplicationBuilder();
         builder.UseWolverine(opts =>
         {
@@ -97,7 +93,6 @@ public class Bootstrapping
     public async Task publishing()
     {
         #region sample_subscriber_rules_for_sns
-
         var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -121,7 +116,6 @@ public class Bootstrapping
     public async Task topic_subscriptions()
     {
         #region sample_sns_topic_subscriptions_creation
-
         var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {

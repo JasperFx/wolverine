@@ -110,7 +110,6 @@ public class version_source_override : IAsyncLifetime
 }
 
 #region Types
-
 public class VersionSourceAggregate
 {
     public VersionSourceAggregate()
@@ -133,7 +132,6 @@ public record VersionSourceIncremented;
 #endregion
 
 #region Commands
-
 public record IncrementWithCustomVersion(Guid VersionSourceAggregateId, long ExpectedVersion);
 
 public record IncrementWithParamVersionSource(Guid VersionSourceAggregateId, long MyVersion);
@@ -141,7 +139,6 @@ public record IncrementWithParamVersionSource(Guid VersionSourceAggregateId, lon
 #endregion
 
 #region Handlers
-
 [AggregateHandler(VersionSource = nameof(IncrementWithCustomVersion.ExpectedVersion))]
 public static class CustomVersionSourceHandler
 {

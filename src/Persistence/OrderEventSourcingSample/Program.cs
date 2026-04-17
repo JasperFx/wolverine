@@ -12,7 +12,6 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Host.ApplyJasperFxExtensions();
 
 #region sample_using_the_marten_persistence_integration
-
 // Adding Marten
 builder.Services.AddMarten(opts =>
     {
@@ -27,7 +26,6 @@ builder.Services.AddMarten(opts =>
 #endregion
 
 #region sample_configure_global_exception_rules
-
 builder.Host.UseWolverine(opts =>
 {
     // Retry policies if a Marten concurrency exception is encountered

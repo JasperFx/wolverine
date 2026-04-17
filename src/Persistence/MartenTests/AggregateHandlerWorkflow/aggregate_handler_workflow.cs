@@ -433,7 +433,6 @@ public record RaiseAABCC(Guid LetterAggregateId);
 public record RaiseBBCCC(Guid LetterAggregateId);
 
 #region sample_passing_aggregate_into_validate_method
-
 public record RaiseIfValidated(Guid LetterAggregateId);
 
 public static class RaiseIfValidatedHandler

@@ -20,7 +20,7 @@ To connect to Redis and configure listeners and senders, use this syntax:
 using var host = await Host.CreateDefaultBuilder()
     .UseWolverine(opts =>
     {
-        opts.UseRedisTransport("localhost:6379")
+        opts.UseRedisTransport(RedisContainerFixture.ConnectionString)
             
             // Auto-create streams and consumer groups
             .AutoProvision()
@@ -76,7 +76,7 @@ using var host = await Host.CreateDefaultBuilder()
         opts.Services.AddResourceSetupOnStartup();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Redis/Wolverine.Redis.Tests/DocumentationSamples.cs#L19-L80' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_with_redis' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Redis/Wolverine.Redis.Tests/DocumentationSamples.cs#L19-L79' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_with_redis' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 If you need to control the database id within Redis, you have these options:
@@ -87,7 +87,7 @@ If you need to control the database id within Redis, you have these options:
 using var host = await Host.CreateDefaultBuilder()
     .UseWolverine(opts =>
     {
-        opts.UseRedisTransport("localhost:6379");
+        opts.UseRedisTransport(RedisContainerFixture.ConnectionString);
 
         // Configure streams on different databases
         opts.PublishMessage<OrderCreated>()
@@ -108,7 +108,7 @@ using var host = await Host.CreateDefaultBuilder()
             .UseDurableInbox();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Redis/Wolverine.Redis.Tests/DocumentationSamples.cs#L85-L111' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_redis_database_configuration' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Redis/Wolverine.Redis.Tests/DocumentationSamples.cs#L84-L109' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_redis_database_configuration' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 To work with multiple databases in one application, see this sample:
@@ -119,7 +119,7 @@ To work with multiple databases in one application, see this sample:
 using var host = await Host.CreateDefaultBuilder()
     .UseWolverine(opts =>
     {
-        opts.UseRedisTransport("localhost:6379").AutoProvision();
+        opts.UseRedisTransport(RedisContainerFixture.ConnectionString).AutoProvision();
 
         // Different message types on different databases for isolation
         
@@ -140,7 +140,7 @@ using var host = await Host.CreateDefaultBuilder()
         opts.ListenToRedisStream("analytics", "analytics-processors", 3);
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Redis/Wolverine.Redis.Tests/DocumentationSamples.cs#L141-L167' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_multiple_database_usage' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Redis/Wolverine.Redis.Tests/DocumentationSamples.cs#L138-L163' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_multiple_database_usage' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Interoperability
@@ -150,7 +150,7 @@ First, see the [tutorial on interoperability with Wolverine](/tutorials/interop)
 Next, the Redis transport supports interoperability through the `IRedisEnvelopeMapper` interface. If necessary, you
 can build your own version of this mapper interface like the following:
 
-<!-- snippet: sample_OurRedisJsonMapper -->
+<!-- snippet: sample_ourredisjsonmapper -->
 <a id='snippet-sample_ourredisjsonmapper'></a>
 ```cs
 // Simplistic envelope mapper that expects every message to be of
@@ -213,7 +213,7 @@ public class OurRedisJsonMapper<TMessage> : EnvelopeMapper<StreamEntry, List<Nam
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Redis/Wolverine.Redis.Tests/DocumentationSamples.cs#L186-L248' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_ourredisjsonmapper' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Redis/Wolverine.Redis.Tests/DocumentationSamples.cs#L181-L242' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_ourredisjsonmapper' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Scheduled Messaging <Badge type="tip" text="5.10" />
@@ -233,7 +233,7 @@ var builder = Host.CreateDefaultBuilder();
 
 using var host = await builder.UseWolverine(opts =>
 {
-    opts.UseRedisTransport("localhost:6379").AutoProvision()
+    opts.UseRedisTransport(RedisContainerFixture.ConnectionString).AutoProvision()
         .SystemQueuesEnabled(false) // Disable reply queues
         .DeleteStreamEntryOnAck(true); // Clean up stream entries on ack
 
@@ -256,7 +256,7 @@ using var host = await builder.UseWolverine(opts =>
     opts.Services.AddResourceSetupOnStartup();
 }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Redis/Wolverine.Redis.Tests/Samples/RedisTransportWithScheduling.cs#L7-L36' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_dead_letter_queue_for_redis' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Redis/Wolverine.Redis.Tests/Samples/RedisTransportWithScheduling.cs#L8-L36' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_dead_letter_queue_for_redis' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## URI reference

@@ -9,8 +9,7 @@ public static class MissingHandlerSamples
 {
     public static async Task ConfigureMissingHandler()
     {
-        #region sample_ConfigureMissingHandler
-
+        #region sample_configuremissinghandler
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -22,8 +21,7 @@ public static class MissingHandlerSamples
     }
 }
 
-#region sample_MyMissingHandler
-
+#region sample_mymissinghandler
 public class MyMissingHandler : IMissingHandler
 {
     public ValueTask HandleAsync(IEnvelopeLifecycle context, IWolverineRuntime root)

@@ -12,7 +12,6 @@ public class StubbingHandlers
     public static async Task configure()
     {
         #region sample_configuring_estimate_delivery
-
         var builder = Host.CreateApplicationBuilder();
         builder.UseWolverine(opts =>
         {
@@ -30,7 +29,6 @@ public class StubbingHandlers
     }
 
     #region sample_using_stub_handler_in_testing_code
-
     public static async Task try_application(IHost host)
     {
         host.StubWolverineMessageHandling<EstimateDelivery, DeliveryInformation>(
@@ -61,7 +59,6 @@ public class StubbingHandlers
     #endregion
 
     #region sample_clearing_out_stub_behavior
-
     public static void revert_stub(IHost host)
     {
         // Selectively clear out the stub behavior for only one message
@@ -79,7 +76,6 @@ public class StubbingHandlers
     #endregion
 
     #region sample_override_previous_stub_behavior
-
     public static void override_stub(IHost host)
     {
         host.StubWolverineMessageHandling<EstimateDelivery, DeliveryInformation>(
@@ -90,7 +86,6 @@ public class StubbingHandlers
     #endregion
 
     #region sample_using_more_complex_stubs
-
     public static void more_complex_stub(IHost host)
     {
         host.WolverineStubs(stubs =>
@@ -119,7 +114,6 @@ public class StubbingHandlers
 }
 
 #region sample_code_showing_remote_request_reply
-
 // This query message is normally sent to an external system through Wolverine
 // messaging
 public record EstimateDelivery(int ItemId, DateOnly Date, string PostalCode);

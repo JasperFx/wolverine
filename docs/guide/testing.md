@@ -82,7 +82,7 @@ public async Task using_tracked_sessions()
     overdrawn.AccountId.ShouldBe(debitAccount.AccountId);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L122-L138' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_tracked_session' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L119-L134' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_tracked_session' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The tracked session mechanism utilizes Wolverine's internal instrumentation to "know" when all the outstanding
@@ -158,7 +158,7 @@ public async Task using_tracked_sessions_advanced(IHost otherWolverineSystem)
     overdrawn.AccountId.ShouldBe(debitAccount.AccountId);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L140-L194' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_advanced_tracked_session_usage' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L136-L189' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_advanced_tracked_session_usage' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The samples shown above inlcude `Sent` message records, but there are more properties available in the `TrackedSession` object.
@@ -226,7 +226,7 @@ public class RandomFileChange
 
 public class When_message_is_sent : IAsyncLifetime
 {
-    private IHost _host;
+    private IHost _host = null!;
 
     public async Task InitializeAsync()
     {
@@ -300,7 +300,7 @@ public class When_message_is_sent : IAsyncLifetime
     public async Task DisposeAsync() => await _host.StopAsync();
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L218-L326' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_send_message_on_file_change' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L213-L321' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_send_message_on_file_change' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 As you can see, we just have to start our application, attach a tracked session to it, and then wait for the message to be published. This way, we can test the whole process of the application, from the file change to the message publication, in a single test.
@@ -333,7 +333,7 @@ public static DeliveryMessage<ScheduledMessage> Handle(TriggerScheduledMessage m
 
 public static void Handle(ScheduledMessage message) => Debug.WriteLine("Got scheduled message");
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/SlowTests/tracked_session_mechanics.cs#L153-L163' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_handlers_for_trigger_scheduled_message' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/SlowTests/tracked_session_mechanics.cs#L151-L160' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_handlers_for_trigger_scheduled_message' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And the test that exercises this functionality:
@@ -360,7 +360,7 @@ tracked.Scheduled.SingleMessage<ScheduledMessage>()
 var replayed = await tracked.PlayScheduledMessagesAsync(10.Seconds());
 replayed.Executed.SingleMessage<ScheduledMessage>().Text.ShouldBe("Chiefs");
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/SlowTests/tracked_session_mechanics.cs#L71-L92' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_dealing_with_locally_scheduled_messages' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/SlowTests/tracked_session_mechanics.cs#L71-L91' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_dealing_with_locally_scheduled_messages' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And now, a slightly more complicated test that tests the replay of a message scheduled
@@ -398,7 +398,7 @@ tracked.Scheduled.SingleMessage<ScheduledMessage>()
 var replayed = await tracked.PlayScheduledMessagesAsync(10.Seconds());
 replayed.Executed.SingleMessage<ScheduledMessage>().Text.ShouldBe("Broncos");
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/SlowTests/tracked_session_mechanics.cs#L98-L129' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_handling_scheduled_delivery_to_external_transport' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/SlowTests/tracked_session_mechanics.cs#L97-L127' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_handling_scheduled_delivery_to_external_transport' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Extension Methods for Outgoing Messages
@@ -411,7 +411,7 @@ inspired by the [Shouldly](https://github.com/shouldly/shouldly) project.
 For an example, let's look at this message handler for applying a debit to a bank account that
 will use [cascading messages](/guide/handlers/cascading) to raise a variable number of additional messages:
 
-<!-- snippet: sample_AccountHandler_for_testing_examples -->
+<!-- snippet: sample_accounthandler_for_testing_examples -->
 <a id='snippet-sample_accounthandler_for_testing_examples'></a>
 ```cs
 [Transactional]
@@ -444,7 +444,7 @@ public static IEnumerable<object> Handle(
     yield return new AccountUpdated(account.Id, account.Balance);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L43-L75' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_accounthandler_for_testing_examples' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L42-L73' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_accounthandler_for_testing_examples' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The testing extensions can be seen in action by the following test:
@@ -479,7 +479,7 @@ public void handle_a_debit_that_makes_the_account_have_a_low_balance()
     messages
         .ShouldHaveMessageOfType<LowBalanceDetected>(delivery =>
         {
-            delivery.ScheduleDelay.Value.ShouldNotBe(TimeSpan.Zero);
+            delivery!.ScheduleDelay!.Value.ShouldNotBe(TimeSpan.Zero);
         })
         .AccountId.ShouldBe(account.Id);
 
@@ -487,7 +487,7 @@ public void handle_a_debit_that_makes_the_account_have_a_low_balance()
     messages.ShouldHaveNoMessageOfType<AccountOverdrawn>();
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L80-L117' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_handle_a_debit_that_makes_the_account_have_a_low_balance' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L78-L114' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_handle_a_debit_that_makes_the_account_have_a_low_balance' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The supported extension methods so far are in the [TestingExtensions](https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/TestingExtensions.cs) class.
@@ -515,7 +515,7 @@ from a message handler, Wolverine comes with the `TestMessageContext` class that
 Here's a different version of the message handler from the previous section, but this time using `IMessageContext`
 directly:
 
-<!-- snippet: sample_DebitAccountHandler_that_uses_IMessageContext -->
+<!-- snippet: sample_debitaccounthandler_that_uses_imessagecontext -->
 <a id='snippet-sample_debitaccounthandler_that_uses_imessagecontext'></a>
 ```cs
 [Transactional]
@@ -551,7 +551,7 @@ public static async Task Handle(
         new DeliveryOptions { DeliverWithin = 5.Seconds() });
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Middleware/AppWithMiddleware/Account.cs#L126-L161' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_debitaccounthandler_that_uses_imessagecontext' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Middleware/AppWithMiddleware/Account.cs#L121-L155' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_debitaccounthandler_that_uses_imessagecontext' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 To test this handler, we can use `TestMessageContext` as a stand in to just record
@@ -613,7 +613,7 @@ public class when_the_account_is_overdrawn : IAsyncLifetime
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Middleware/AppWithMiddleware.Tests/try_out_the_middleware.cs#L95-L148' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_when_the_account_is_overdrawn' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Middleware/AppWithMiddleware.Tests/try_out_the_middleware.cs#L89-L141' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_when_the_account_is_overdrawn' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The `TestMessageContext` mostly just collects an array of objects that are sent, published, or scheduled. The
@@ -656,7 +656,7 @@ spy.WhenInvokedMessageOf<NumberRequest>(endpointName:"incoming")
 var response3 = await context.EndpointFor("incoming")
     .InvokeAsync<NumberResponse>(new NumberRequest(5, 6));
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/TestMessageContextTests.cs#L467-L499' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_invoke_with_expected_response_with_test_message_context' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/TestMessageContextTests.cs#L467-L498' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_invoke_with_expected_response_with_test_message_context' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Stubbing All External Transports
@@ -697,7 +697,7 @@ builder.UseWolverine(opts =>
 using var host = builder.Build();
 await host.StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L20-L37' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conditionally_disable_transports' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L20-L36' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conditionally_disable_transports' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 I'm not necessarily comfortable with a lot of conditional hosting setup all the time,
@@ -720,7 +720,7 @@ using var host = await Host.CreateDefaultBuilder()
 
     .StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/disabling_all_external_transports.cs#L12-L27' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disabling_external_transports' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/disabling_all_external_transports.cs#L12-L26' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disabling_external_transports' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Finally, to put that in a little more context about how you might go about using it
@@ -742,7 +742,7 @@ await using var host = await AlbaHost.For<Program>(x =>
     x.ConfigureServices(services => services.DisableAllExternalWolverineTransports());
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Middleware/AppWithMiddleware.Tests/try_out_the_middleware.cs#L29-L40' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disabling_the_transports_from_web_application_factory' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Middleware/AppWithMiddleware.Tests/try_out_the_middleware.cs#L24-L34' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disabling_the_transports_from_web_application_factory' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In the sample above, I'm bootstrapping the `IHost` for my production application with 
@@ -786,7 +786,7 @@ builder.UseWolverine(opts =>
 using var host = builder.Build();
 await host.StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/DurabilityModes.cs#L55-L82' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_the_solo_mode' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/DurabilityModes.cs#L53-L79' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_the_solo_mode' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Or if you're using something like [WebHostFactory](https://learn.microsoft.com/en-us/aspnet/core/test/integration-tests?view=aspnetcore-8.0) to 
@@ -808,13 +808,13 @@ Host = await AlbaHost.For<WolverineWebApi.Program>(x =>
         // testing cold starts
         services.RunWolverineInSoloMode();
 
-        // And just for completion, disable all Wolverine external 
+        // And just for completion, disable all Wolverine external
         // messaging transports
         services.DisableAllExternalWolverineTransports();
     });
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/IntegrationContext.cs#L31-L51' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_run_wolverine_in_solo_mode_with_extension' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/IntegrationContext.cs#L25-L44' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_run_wolverine_in_solo_mode_with_extension' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Stubbing Message Handlers <Badge type="tip" text="5.1" />
@@ -873,7 +873,7 @@ public static class MaybePurchaseHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/StubbingHandlers.cs#L121-L163' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_code_showing_remote_request_reply' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/StubbingHandlers.cs#L116-L157' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_code_showing_remote_request_reply' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And for a little more context, the `EstimateDelivery` message will always be sent to
@@ -886,7 +886,7 @@ var builder = Host.CreateApplicationBuilder();
 builder.UseWolverine(opts =>
 {
     opts
-        .UseRabbitMq(builder.Configuration.GetConnectionString("rabbit"))
+        .UseRabbitMq(builder.Configuration.GetConnectionString("rabbit")!)
         .AutoProvision();
 
     // Just showing that EstimateDelivery is handled by
@@ -895,7 +895,7 @@ builder.UseWolverine(opts =>
         .ToRabbitQueue("estimates");
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/StubbingHandlers.cs#L14-L29' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_estimate_delivery' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/StubbingHandlers.cs#L14-L28' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_estimate_delivery' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Using our 
@@ -935,7 +935,7 @@ public static async Task try_application(IHost host)
     rejected.LocationId.ShouldBe(locationId);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/StubbingHandlers.cs#L32-L61' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_stub_handler_in_testing_code' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/StubbingHandlers.cs#L31-L59' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_stub_handler_in_testing_code' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 After calling making this call:
@@ -977,7 +977,7 @@ public static void revert_stub(IHost host)
     host.ClearAllWolverineStubs();
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/StubbingHandlers.cs#L63-L79' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_clearing_out_stub_behavior' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/StubbingHandlers.cs#L61-L76' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_clearing_out_stub_behavior' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Or instead, we can just completely replace the previously registered stub behavior
@@ -993,7 +993,7 @@ public static void override_stub(IHost host)
 
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/StubbingHandlers.cs#L81-L90' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_override_previous_stub_behavior' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/StubbingHandlers.cs#L78-L86' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_override_previous_stub_behavior' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 So far, we've only looked at simple request/reply behavior, but what if a remote system 
@@ -1029,7 +1029,7 @@ public static void more_complex_stub(IHost host)
     });
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/StubbingHandlers.cs#L92-L118' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_more_complex_stubs' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/StubbingHandlers.cs#L88-L113' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_more_complex_stubs' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 A few notes about this capability:

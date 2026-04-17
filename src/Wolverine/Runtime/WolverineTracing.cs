@@ -26,7 +26,6 @@ internal static class WolverineTracing
     public const string PayloadSizeBytes = "messaging.message_payload_size_bytes";
 
     #region sample_wolverine_open_telemetry_tracing_spans_and_activities
-
     /// <summary>
     /// ActivityEvent marking when an incoming envelope is discarded
     /// </summary>

@@ -76,7 +76,7 @@ public static async Task broadcast(IMessageBus bus)
     await bus.BroadcastToTopicAsync("region/europe/incoming", paymentMade);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/MQTT/Wolverine.MQTT.Tests/Samples.cs#L116-L124' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_broadcast_to_mqtt' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/MQTT/Wolverine.MQTT.Tests/Samples.cs#L113-L120' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_broadcast_to_mqtt' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Publishing to Derived Topic Names
@@ -115,20 +115,20 @@ builder.UseWolverine(opts =>
 using var host = builder.Build();
 await host.StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/MQTT/Wolverine.MQTT.Tests/Samples.cs#L87-L113' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_stream_events_to_mqtt_topics' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/MQTT/Wolverine.MQTT.Tests/Samples.cs#L85-L110' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_stream_events_to_mqtt_topics' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In this approach, all messages will be routed to MQTT topics. The topic name for each message type
 would be derived from either Wolverine's [message type name](/guide/messages.html#message-type-name-or-alias) rules
 or by using the `[Topic("topic name")]` attribute as shown below:
 
-<!-- snippet: sample_using_Topic_attribute -->
+<!-- snippet: sample_using_topic_attribute -->
 <a id='snippet-sample_using_topic_attribute'></a>
 ```cs
 [Topic("one")]
 public class TopicMessage1;
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/TopicRoutingTester.cs#L7-L12' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_topic_attribute' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/TopicRoutingTester.cs#L7-L11' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_topic_attribute' title='Start of snippet'>anchor</a></sup>
 <a id='snippet-sample_using_topic_attribute-1'></a>
 ```cs
 [Topic("color.blue")]
@@ -137,7 +137,7 @@ public class FirstMessage
     public Guid Id { get; set; } = Guid.NewGuid();
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/send_by_topics.cs#L445-L453' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_topic_attribute-1' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/send_by_topics.cs#L444-L451' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_topic_attribute-1' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Publishing by Topic Rules
@@ -154,7 +154,7 @@ public interface ITenantMessage
     string TenantId { get; }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/MQTT/Wolverine.MQTT.Tests/Samples.cs#L197-L204' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_mqtt_itenantmessage' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/MQTT/Wolverine.MQTT.Tests/Samples.cs#L191-L197' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_mqtt_itenantmessage' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 To publish any message implementing that interface to an MQTT topic, you could specify the topic name logic like this:
@@ -189,7 +189,7 @@ builder.UseWolverine(opts =>
 using var host = builder.Build();
 await host.StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/MQTT/Wolverine.MQTT.Tests/Samples.cs#L164-L193' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_mqtt_topic_rules' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/MQTT/Wolverine.MQTT.Tests/Samples.cs#L159-L187' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_mqtt_topic_rules' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Listening by Topic Filter
@@ -207,7 +207,7 @@ _receiver = await Host.CreateDefaultBuilder()
         opts.ListenToMqttTopic("incoming/one", "group1").RetainMessages();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/MQTT/Wolverine.MQTT.Tests/listen_with_emqx_shared_group_topic.cs#L42-L51' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_listen_to_mqtt_topic_filter' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/MQTT/Wolverine.MQTT.Tests/listen_with_emqx_shared_group_topic.cs#L42-L50' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_listen_to_mqtt_topic_filter' title='Start of snippet'>anchor</a></sup>
 <a id='snippet-sample_listen_to_mqtt_topic_filter-1'></a>
 ```cs
 _receiver = await Host.CreateDefaultBuilder()
@@ -217,7 +217,7 @@ _receiver = await Host.CreateDefaultBuilder()
         opts.ListenToMqttTopic("incoming/#").RetainMessages();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/MQTT/Wolverine.MQTT.Tests/listen_with_topic_wildcards.cs#L42-L51' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_listen_to_mqtt_topic_filter-1' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/MQTT/Wolverine.MQTT.Tests/listen_with_topic_wildcards.cs#L42-L50' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_listen_to_mqtt_topic_filter-1' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In the case of receiving any message that matches the topic filter *according to the [MQTT topic filter rules](https://cedalo.com/blog/mqtt-topics-and-mqtt-wildcards-explained/)*, that message
@@ -262,13 +262,13 @@ builder.UseWolverine(opts =>
 using var host = builder.Build();
 await host.StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/MQTT/Wolverine.MQTT.Tests/Samples.cs#L55-L82' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_listen_for_raw_json_to_mqtt' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/MQTT/Wolverine.MQTT.Tests/Samples.cs#L54-L80' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_listen_for_raw_json_to_mqtt' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 For more complex interoperability, you can implement the `IMqttEnvelopeMapper` interface in Wolverine to map between
 incoming and outgoing MQTT messages and the Wolverine `Envelope` structure. Here's an example:
 
-<!-- snippet: sample_MyMqttEnvelopeMapper -->
+<!-- snippet: sample_mymqttenvelopemapper -->
 <a id='snippet-sample_mymqttenvelopemapper'></a>
 ```cs
 public class MyMqttEnvelopeMapper : IMqttEnvelopeMapper
@@ -276,7 +276,7 @@ public class MyMqttEnvelopeMapper : IMqttEnvelopeMapper
     public void MapEnvelopeToOutgoing(Envelope envelope, MqttApplicationMessage outgoing)
     {
         // This is the only absolutely mandatory item
-        outgoing.PayloadSegment = envelope.Data;
+        outgoing.PayloadSegment = envelope.Data!;
 
         // Maybe enrich this more?
         outgoing.ContentType = envelope.ContentType;
@@ -295,7 +295,7 @@ public class MyMqttEnvelopeMapper : IMqttEnvelopeMapper
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/MQTT/Wolverine.MQTT.Tests/Samples.cs#L208-L234' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_mymqttenvelopemapper' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/MQTT/Wolverine.MQTT.Tests/Samples.cs#L201-L226' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_mymqttenvelopemapper' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And apply that to an MQTT topic like so:
@@ -332,7 +332,7 @@ builder.UseWolverine(opts =>
 using var host = builder.Build();
 await host.StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/MQTT/Wolverine.MQTT.Tests/Samples.cs#L128-L159' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_applying_custom_mqtt_envelope_mapper' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/MQTT/Wolverine.MQTT.Tests/Samples.cs#L124-L154' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_applying_custom_mqtt_envelope_mapper' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Clearing Out Retained Messages
@@ -360,7 +360,7 @@ public static ClearMqttTopic Handle(TriggerZero message)
     return new ClearMqttTopic("red");
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/MQTT/Wolverine.MQTT.Tests/ack_smoke_tests.cs#L87-L101' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_ack_mqtt_topic' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/MQTT/Wolverine.MQTT.Tests/ack_smoke_tests.cs#L89-L102' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_ack_mqtt_topic' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Authentication via OAuth2
@@ -399,7 +399,7 @@ interface to map from Wolverine's `Envelope` structure and MQTT's `MqttApplicati
 
 Here's a simple example:
 
-<!-- snippet: sample_MyMqttEnvelopeMapper -->
+<!-- snippet: sample_mymqttenvelopemapper -->
 <a id='snippet-sample_mymqttenvelopemapper'></a>
 ```cs
 public class MyMqttEnvelopeMapper : IMqttEnvelopeMapper
@@ -407,7 +407,7 @@ public class MyMqttEnvelopeMapper : IMqttEnvelopeMapper
     public void MapEnvelopeToOutgoing(Envelope envelope, MqttApplicationMessage outgoing)
     {
         // This is the only absolutely mandatory item
-        outgoing.PayloadSegment = envelope.Data;
+        outgoing.PayloadSegment = envelope.Data!;
 
         // Maybe enrich this more?
         outgoing.ContentType = envelope.ContentType;
@@ -426,7 +426,7 @@ public class MyMqttEnvelopeMapper : IMqttEnvelopeMapper
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/MQTT/Wolverine.MQTT.Tests/Samples.cs#L208-L234' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_mymqttenvelopemapper' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/MQTT/Wolverine.MQTT.Tests/Samples.cs#L201-L226' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_mymqttenvelopemapper' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 You will need to apply that mapper to each endpoint like so:
@@ -463,7 +463,7 @@ builder.UseWolverine(opts =>
 using var host = builder.Build();
 await host.StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/MQTT/Wolverine.MQTT.Tests/Samples.cs#L128-L159' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_applying_custom_mqtt_envelope_mapper' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/MQTT/Wolverine.MQTT.Tests/Samples.cs#L124-L154' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_applying_custom_mqtt_envelope_mapper' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## URI reference

@@ -23,7 +23,6 @@ public record TodoCreated(int Id);
 public static class TodoEndpoints
 {
     #region sample_get_all_todos
-
     // The "tenant" route argument would be the route
     [WolverineGet("/todoitems/{tenant}")]
     public static Task<IReadOnlyList<Todo>> Get(string tenant, IQuerySession session)
@@ -49,7 +48,6 @@ public static class TodoEndpoints
     }
 
     #region sample_calling_invoke_for_tenant_async_with_expected_result
-
     [WolverinePost("/todoitems/{tenant}")]
     public static CreationResponse<TodoCreated> Create(
         // Only need this to express the location of the newly created
@@ -72,7 +70,6 @@ public static class TodoEndpoints
     #endregion
 
     #region sample_invoke_for_tenant
-
     // While this is still valid....
     [WolverineDelete("/todoitems/{tenant}/longhand")]
     public static async Task Delete(

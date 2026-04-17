@@ -9,7 +9,6 @@ public class LoggingUsage
     public static async Task show_entry_logging()
     {
         #region sample_log_message_starting
-
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -24,7 +23,6 @@ public class LoggingUsage
     public static async Task customizing_log_levels()
     {
         #region sample_turning_down_message_logging
-
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {

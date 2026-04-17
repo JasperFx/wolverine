@@ -171,7 +171,6 @@ public record ConsistencyAEvent;
 #endregion
 
 #region Commands
-
 public record ConsistentIncrementA(Guid ConsistencyAggregateId);
 public record ConsistentDoNothing(Guid ConsistencyAggregateId);
 public record ConsistentHandlerIncrementA(Guid ConsistencyAggregateId);

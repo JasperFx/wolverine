@@ -11,7 +11,6 @@ public class ConcurrencyExamples
     public static async Task configure_strict_ordering()
     {
         #region sample_using_strict_ordering_for_control_queue
-
         var builder = Host.CreateApplicationBuilder()
             .UseWolverine(opts =>
             {

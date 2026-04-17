@@ -75,8 +75,7 @@ public static class NormalMessageHandler
     public static void Handle(NormalMessage m) => Debug.WriteLine("Got " + m);
 }
 
-#region sample_using_Wolverine_Logging_attribute
-
+#region sample_using_wolverine_logging_attribute
 public record QuietMessage;
 
 public record VerboseMessage;

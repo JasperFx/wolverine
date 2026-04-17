@@ -110,7 +110,6 @@ public class version_source_override : PostgresqlContext, IAsyncLifetime
 }
 
 #region Types
-
 public class VersionSourceAggregate
 {
     public VersionSourceAggregate()
@@ -133,7 +132,6 @@ public record VersionSourceIncremented;
 #endregion
 
 #region Commands
-
 // Command with a non-standard version property name for AggregateHandler usage
 public record IncrementWithCustomVersion(Guid VersionSourceAggregateId, long ExpectedVersion);
 
@@ -143,7 +141,6 @@ public record IncrementWithParamVersionSource(Guid VersionSourceAggregateId, lon
 #endregion
 
 #region Handlers
-
 [AggregateHandler(VersionSource = nameof(IncrementWithCustomVersion.ExpectedVersion))]
 public static class CustomVersionSourceHandler
 {

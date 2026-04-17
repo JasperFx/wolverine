@@ -48,7 +48,7 @@ using var host = await Host.CreateDefaultBuilder()
 
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/ListenerTypes.cs#L13-L41' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_listener_types' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/ListenerTypes.cs#L13-L40' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_listener_types' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Inline Endpoints
@@ -184,7 +184,7 @@ opts.Policies.AllListeners(x => x.MaximumParallelMessages = 5);
 In the case where you need messages from a single endpoint to be processed in strict, global order across the entire application,
 you have the `ListenWithStrictOrdering()` option:
 
-<!-- snippet: sample_utilizing_ListenWithStrictOrdering -->
+<!-- snippet: sample_utilizing_listenwithstrictordering -->
 <a id='snippet-sample_utilizing_listenwithstrictordering'></a>
 ```cs
 var host = await Host.CreateDefaultBuilder().UseWolverine(opts =>
@@ -199,7 +199,7 @@ var host = await Host.CreateDefaultBuilder().UseWolverine(opts =>
         .ListenWithStrictOrdering();
 }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/exclusive_listeners.cs#L34-L48' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_utilizing_listenwithstrictordering' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/exclusive_listeners.cs#L34-L47' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_utilizing_listenwithstrictordering' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 This option does a couple things:
@@ -229,7 +229,7 @@ transports like Rabbit MQ or AWS SQS. To do that, simply set:
     opts.ListenToRabbitQueue("incoming");
 }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/disable_external_listeners.cs#L16-L31' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disable_all_listeners' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/disable_external_listeners.cs#L16-L30' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disable_all_listeners' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The original use case for this flag was a command line tool that needed to publish messages to

@@ -69,7 +69,6 @@ public abstract class SingleTenantContext : IAsyncLifetime
                 opts.UseMessagePackSerialization();
 
                 #region sample_opt_into_wolverine_managed_subscription_distribution
-
                 opts.Services.AddMarten(m =>
                     {
                         m.DisableNpgsqlLogging = true;

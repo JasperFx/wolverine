@@ -8,8 +8,7 @@ using Wolverine.Persistence;
 
 namespace BackLogService.Scraping;
 
-#region sample_Entity_layer_super_type
-
+#region sample_entity_layer_super_type
 // Of course, if you're into DDD, you'll probably 
 // use many more marker interfaces than I do here, 
 // but you do you and I'll do me in throwaway sample code
@@ -25,8 +24,7 @@ public abstract class Entity
 
 #endregion
 
-#region sample_BacklogItem
-
+#region sample_backlogitem
 public class BacklogItem : Entity
 {
     public Guid Id { get; private set; }
@@ -52,8 +50,7 @@ public class ItemsDbContext : DbContext
 
 public record CommitToSprint(Guid BacklogItemId, Guid SprintId);
 
-#region sample_CommitToSprintHandler
-
+#region sample_committosprinthandler
 public static class CommitToSprintHandler
 {
     public static void Handle(

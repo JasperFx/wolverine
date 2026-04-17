@@ -27,7 +27,7 @@ builder.Host.UseWolverine(opts =>
 {
     // Setting up Postgresql-backed message storage
     // This requires a reference to Wolverine.Postgresql
-    opts.PersistMessagesWithPostgresql(connectionString);
+    opts.PersistMessagesWithPostgresql(connectionString!);
 
     // Other Wolverine configuration
 });
@@ -44,7 +44,7 @@ var app = builder.Build();
 // the message storage
 return await app.RunJasperFxCommands(args);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L164-L190' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setup_postgresql_storage' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L158-L183' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setup_postgresql_storage' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Optimizing the Message Store <Badge type="tip" text="5.3" />
@@ -62,7 +62,7 @@ var host = await Host.CreateDefaultBuilder()
     {
         opts.Durability.EnableInboxPartitioning = true;
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PostgresqlTests/compliance_using_table_partitioning.cs#L26-L34' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_enabling_inbox_partitioning' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PostgresqlTests/compliance_using_table_partitioning.cs#L26-L33' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_enabling_inbox_partitioning' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## PostgreSQL Messaging Transport <Badge type="tip" text="2.5" />
@@ -83,7 +83,7 @@ builder.UseWolverine(opts =>
 {
     var connectionString = builder.Configuration.GetConnectionString("postgres");
     opts.UsePostgresqlPersistenceAndTransport(
-            connectionString, 
+            connectionString!,
             
             // This argument is the database schema for the envelope storage
             // If separate logical services are targeting the same physical database,
@@ -118,13 +118,16 @@ builder.UseWolverine(opts =>
 
         // Optionally specify how many messages to
         // fetch into the listener at any one time
-        .MaximumMessagesToReceive(50);
+        .MaximumMessagesToReceive(50)
+
+        // Override how often to poll for new messages when the queue is idle.
+        .PollingInterval(1.Seconds());
 });
 
 using var host = builder.Build();
 await host.StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PostgresqlTests/DocumentationSamples.cs#L12-L61' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_postgres_transport' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PostgresqlTests/DocumentationSamples.cs#L13-L64' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_postgres_transport' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The PostgreSQL transport is strictly queue-based at this point. The queues are configured as durable by default, meaning
@@ -135,7 +138,7 @@ that they are utilizing the transactional inbox and outbox. The PostgreSQL queue
 ```cs
 opts.ListenToPostgresqlQueue("sender").BufferedInMemory();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PostgresqlTests/Transport/compliance_tests.cs#L65-L69' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setting_postgres_queue_to_buffered' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PostgresqlTests/Transport/compliance_tests.cs#L65-L68' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setting_postgres_queue_to_buffered' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Using this option just means that the PostgreSQL queues can be used for both sending or receiving with no integration
@@ -202,15 +205,15 @@ builder.UseWolverine(opts =>
 {
     // First, you do have to have a "main" PostgreSQL database for messaging persistence
     // that will store information about running nodes, agents, and non-tenanted operations
-    opts.PersistMessagesWithPostgresql(configuration.GetConnectionString("main"))
+    opts.PersistMessagesWithPostgresql(configuration.GetConnectionString("main")!)
 
         // Add known tenants at bootstrapping time
         .RegisterStaticTenants(tenants =>
         {
             // Add connection strings for the expected tenant ids
-            tenants.Register("tenant1", configuration.GetConnectionString("tenant1"));
-            tenants.Register("tenant2", configuration.GetConnectionString("tenant2"));
-            tenants.Register("tenant3", configuration.GetConnectionString("tenant3"));
+            tenants.Register("tenant1", configuration.GetConnectionString("tenant1")!);
+            tenants.Register("tenant2", configuration.GetConnectionString("tenant2")!);
+            tenants.Register("tenant3", configuration.GetConnectionString("tenant3")!);
         });
     
     opts.Services.AddDbContextWithWolverineManagedMultiTenancy<ItemsDbContext>((builder, connectionString, _) =>
@@ -219,7 +222,7 @@ builder.UseWolverine(opts =>
     }, AutoCreate.CreateOrUpdate);
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests.MultiTenancy/MultiTenancyDocumentationSamples.cs#L24-L51' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_static_tenant_registry_with_postgresql' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests.MultiTenancy/MultiTenancyDocumentationSamples.cs#L24-L50' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_static_tenant_registry_with_postgresql' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Since the underlying [Npgsql library](https://www.npgsql.org/) supports the `DbDataSource` concept, and you might need to use this for a variety of reasons, you can also
@@ -228,7 +231,7 @@ by saying that you might be using Aspire to configure PostgreSQL and both the ma
 Aspire will register `NpgsqlDataSource` services as `Singleton` scoped in your IoC container. We can build an `IWolverineExtension`
 that utilizes the IoC container to register Wolverine like so:
 
-<!-- snippet: sample_OurFancyPostgreSQLMultiTenancy -->
+<!-- snippet: sample_ourfancypostgresqlmultitenancy -->
 <a id='snippet-sample_ourfancypostgresqlmultitenancy'></a>
 ```cs
 public class OurFancyPostgreSQLMultiTenancy : IWolverineExtension
@@ -252,7 +255,7 @@ public class OurFancyPostgreSQLMultiTenancy : IWolverineExtension
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests.MultiTenancy/MultiTenancyDocumentationSamples.cs#L165-L188' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_ourfancypostgresqlmultitenancy' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests.MultiTenancy/MultiTenancyDocumentationSamples.cs#L160-L182' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_ourfancypostgresqlmultitenancy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And add that to the greater application like so:
@@ -267,7 +270,7 @@ var host = Host.CreateDefaultBuilder()
         services.AddSingleton<IWolverineExtension, OurFancyPostgreSQLMultiTenancy>();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests.MultiTenancy/MultiTenancyDocumentationSamples.cs#L152-L161' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_adding_our_fancy_postgresql_multi_tenancy' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests.MultiTenancy/MultiTenancyDocumentationSamples.cs#L148-L156' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_adding_our_fancy_postgresql_multi_tenancy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: warning
@@ -291,7 +294,7 @@ builder.UseWolverine(opts =>
 {
     // You need a main database no matter what that will hold information about the Wolverine system itself
     // and..
-    opts.PersistMessagesWithPostgresql(configuration.GetConnectionString("wolverine"))
+    opts.PersistMessagesWithPostgresql(configuration.GetConnectionString("wolverine")!)
 
         // ...also a table holding the tenant id to connection string information
         .UseMasterTableTenancy(seed =>
@@ -299,14 +302,14 @@ builder.UseWolverine(opts =>
             // These registrations are 100% just to seed data for local development
             // Maybe you want to omit this during production?
             // Or do something programmatic by looping through data in the IConfiguration?
-            seed.Register("tenant1", configuration.GetConnectionString("tenant1"));
-            seed.Register("tenant2", configuration.GetConnectionString("tenant2"));
-            seed.Register("tenant3", configuration.GetConnectionString("tenant3"));
+            seed.Register("tenant1", configuration.GetConnectionString("tenant1")!);
+            seed.Register("tenant2", configuration.GetConnectionString("tenant2")!);
+            seed.Register("tenant3", configuration.GetConnectionString("tenant3")!);
         });
 
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests.MultiTenancy/MultiTenancyDocumentationSamples.cs#L95-L119' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_postgresql_backed_master_table_tenancy' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests.MultiTenancy/MultiTenancyDocumentationSamples.cs#L93-L116' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_postgresql_backed_master_table_tenancy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: info

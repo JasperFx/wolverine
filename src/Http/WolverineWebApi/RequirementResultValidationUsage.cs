@@ -4,7 +4,6 @@ using Wolverine.Http;
 namespace WolverineWebApi;
 
 #region sample_requirement_result_http_validation
-
 public record RequirementResultHttpMessage(int Number);
 
 public static class RequirementResultHttpEndpoint
@@ -26,7 +25,6 @@ public static class RequirementResultHttpEndpoint
 #endregion
 
 #region sample_requirement_result_http_async
-
 public record RequirementResultHttpAsyncMessage(int Number);
 
 public static class RequirementResultHttpAsyncEndpoint
@@ -48,7 +46,6 @@ public static class RequirementResultHttpAsyncEndpoint
 #endregion
 
 #region sample_requirement_result_http_empty_messages
-
 public record RequirementResultHttpEmptyMessagesMessage(int Number);
 
 public static class RequirementResultHttpEmptyMessagesEndpoint

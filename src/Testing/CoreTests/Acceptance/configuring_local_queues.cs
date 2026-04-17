@@ -99,8 +99,7 @@ public class GreenStuckMessageHandler : IConfigureLocalQueue
 
 public record MultipleMessage;
 
-#region sample_using_IConfigureLocalQueue
-
+#region sample_using_iconfigurelocalqueue
 public class MultipleMessage1Handler : IConfigureLocalQueue
 {
     public static void Handle(MultipleMessage message)

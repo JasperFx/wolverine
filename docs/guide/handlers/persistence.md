@@ -27,7 +27,7 @@ the message type and/or HTTP request body:
 ```cs
 public record RenameTodo(string Id, string Name);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Todos/Todo2.cs#L23-L27' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_rename_todo' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Todos/Todo2.cs#L23-L26' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_rename_todo' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 and the handler & endpoint code handling that message type:
@@ -55,7 +55,7 @@ public static Update<Todo2> Handle(
     return Storage.Update(todo);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Todos/Todo2.cs#L55-L77' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_entity_attribute' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Todos/Todo2.cs#L54-L75' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_entity_attribute' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In the code above, the `Todo2` argument would be filled by trying to load that `Todo2` entity
@@ -86,7 +86,7 @@ public static IStorageAction<Todo2> Handle(MaybeCompleteTodo command, [Entity(Re
     return Storage.Update(todo);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Todos/Todo2.cs#L144-L154' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_not_required_entity_attribute' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Todos/Todo2.cs#L142-L151' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_not_required_entity_attribute' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 So far, all of the examples have depended on a fall back to looking for either a case insensitive match "id"  
@@ -104,14 +104,14 @@ should have the identity like this:
 [WolverineGet("/api/todo/{id}")]
 public static Todo2 Get([Entity("id")] Todo2 todo) => todo;
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Todos/Todo2.cs#L156-L162' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_specifying_the_exact_route_argument' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Todos/Todo2.cs#L153-L158' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_specifying_the_exact_route_argument' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 If you have any conflict between whether the identity should be found on either the route arguments
 or request body, you can specify the identity value source through the `EntityAttribute.ValueSource` property
 to one of these values:
 
-<!-- snippet: sample_ValueSource -->
+<!-- snippet: sample_valuesource -->
 <a id='snippet-sample_valuesource'></a>
 ```cs
 public enum ValueSource
@@ -134,10 +134,25 @@ public enum ValueSource
     /// <summary>
     /// The value should be sourced by a query string parameter of an HTTP request
     /// </summary>
-    FromQueryString
+    FromQueryString,
+
+    /// <summary>
+    /// The value should be sourced by an HTTP request header or an Envelope header in message handlers
+    /// </summary>
+    Header,
+
+    /// <summary>
+    /// The value should be sourced from a claim on the ClaimsPrincipal. Only supported in HTTP endpoints.
+    /// </summary>
+    Claim,
+
+    /// <summary>
+    /// The value should be sourced from the return value of a named static method on the handler or endpoint class
+    /// </summary>
+    Method
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Attributes/ModifyChainAttribute.cs#L18-L43' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_valuesource' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Attributes/ModifyChainAttribute.cs#L18-L57' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_valuesource' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Global Entity Defaults <Badge type="tip" text="5.16" />

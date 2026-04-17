@@ -119,7 +119,6 @@ public static class TenantedHandler
 public record SomeCommand;
 
 #region sample_injecting_tenant_id
-
 public static class SomeCommandHandler
 {
     // Wolverine is keying off the type, the parameter name

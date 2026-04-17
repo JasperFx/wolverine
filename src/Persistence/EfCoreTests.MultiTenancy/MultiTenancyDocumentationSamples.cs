@@ -22,7 +22,6 @@ public class MultiTenancyDocumentationSamples
     public async Task static_postgresql()
     {
         #region sample_static_tenant_registry_with_postgresql
-
         var builder = Host.CreateApplicationBuilder();
         
         var configuration = builder.Configuration;
@@ -54,7 +53,6 @@ public class MultiTenancyDocumentationSamples
     public async Task static_sqlserver()
     {
         #region sample_static_tenant_registry_with_sqlserver
-
         var builder = Host.CreateApplicationBuilder();
         
         var configuration = builder.Configuration;
@@ -93,7 +91,6 @@ public class MultiTenancyDocumentationSamples
     public void dynamic_multi_tenancy_with_postgresql()
     {
         #region sample_using_postgresql_backed_master_table_tenancy
-
         var builder = Host.CreateApplicationBuilder();
 
         var configuration = builder.Configuration;
@@ -122,7 +119,6 @@ public class MultiTenancyDocumentationSamples
     public void dynamic_multi_tenancy_with_sqlserver()
     {
         #region sample_using_sqlserver_backed_master_table_tenancy
-
         var builder = Host.CreateApplicationBuilder();
 
         var configuration = builder.Configuration;
@@ -150,7 +146,6 @@ public class MultiTenancyDocumentationSamples
     public async Task static_postgresql_with_npgsql_data_source()
     {
         #region sample_adding_our_fancy_postgresql_multi_tenancy
-
         var host = Host.CreateDefaultBuilder()
             .UseWolverine()
             .ConfigureServices(services =>
@@ -162,8 +157,7 @@ public class MultiTenancyDocumentationSamples
     }
 }
 
-#region sample_OurFancyPostgreSQLMultiTenancy
-
+#region sample_ourfancypostgresqlmultitenancy
 public class OurFancyPostgreSQLMultiTenancy : IWolverineExtension
 {
     private readonly IServiceProvider _provider;
@@ -187,8 +181,7 @@ public class OurFancyPostgreSQLMultiTenancy : IWolverineExtension
 
 #endregion
 
-#region sample_using_IDbContextOutboxFactory
-
+#region sample_using_idbcontextoutboxfactory
 public class MyMessageHandler
 {
     private readonly IDbContextOutboxFactory _factory;

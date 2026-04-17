@@ -9,7 +9,6 @@ public class InboxOutboxSettings
     public async Task configure()
     {
         #region sample_using_inbox_outbox_stale_time
-
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {

@@ -11,7 +11,6 @@ public class CodegenUsage
     public async Task override_codegen()
     {
         #region sample_codegen_type_load_mode
-
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -36,7 +35,6 @@ public class CodegenUsage
     public async Task use_environment_check_on_expected_prebuilt_types()
     {
         #region sample_asserting_all_pre_built_types_exist_upfront
-
         var builder = Host.CreateApplicationBuilder();
         builder.UseWolverine(opts =>
             {
@@ -61,7 +59,6 @@ public class CodegenUsage
     public async Task use_optimized_workflow()
     {
         #region sample_use_optimized_workflow
-
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -87,7 +84,6 @@ public class CodegenUsage
     public async Task configure_generated_code_output_path()
     {
         #region sample_configure_generated_code_output_path
-
         var builder = Host.CreateApplicationBuilder();
         builder.Services.CritterStackDefaults(opts =>
         {
@@ -101,7 +97,6 @@ public class CodegenUsage
     public async Task auto_resolve_project_root()
     {
         #region sample_auto_resolve_project_root
-
         var builder = Host.CreateApplicationBuilder();
         builder.Services.CritterStackDefaults(opts =>
         {
@@ -116,7 +111,6 @@ public class CodegenUsage
     public async Task direct_wolverine_output_path()
     {
         #region sample_direct_wolverine_output_path
-
         var builder = Host.CreateApplicationBuilder();
         builder.UseWolverine(opts =>
         {

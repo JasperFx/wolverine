@@ -19,7 +19,6 @@ public class Bug_189_fails_if_there_are_many_messages_in_queue_on_startup
         await Host.CreateDefaultBuilder()
 
             #region sample_usage_of_send_inline
-
             .UseWolverine(opts =>
             {
                 opts.UseRabbitMq().AutoProvision().AutoPurgeOnStartup();

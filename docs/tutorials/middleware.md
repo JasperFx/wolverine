@@ -23,7 +23,7 @@ public static async Task Handle(DebitAccount command, IDocumentSession session, 
     // do the real processing
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Middleware/AppWithMiddleware/Account.cs#L18-L33' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_common_scenario' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Middleware/AppWithMiddleware/Account.cs#L18-L32' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_common_scenario' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 That added up to a lot of repetitive code, and it'd be nice if we introduced some kind of middleware to eliminate the duplication -- so let's do just that!
@@ -31,7 +31,7 @@ That added up to a lot of repetitive code, and it'd be nice if we introduced som
 Using Wolverine's [conventional middleware approach](/guide/handlers/middleware.html#conventional-middleware) strategy, we'll start by lifting a common interface for
 command message types that reference an `Account` like so:
 
-<!-- snippet: sample_IAccountCommand -->
+<!-- snippet: sample_iaccountcommand -->
 <a id='snippet-sample_iaccountcommand'></a>
 ```cs
 public interface IAccountCommand
@@ -39,23 +39,23 @@ public interface IAccountCommand
     Guid AccountId { get; }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Middleware/AppWithMiddleware/Account.cs#L36-L43' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_iaccountcommand' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Middleware/AppWithMiddleware/Account.cs#L35-L41' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_iaccountcommand' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 So a command message might look like this:
 
-<!-- snippet: sample_CreditAccount -->
+<!-- snippet: sample_creditaccount -->
 <a id='snippet-sample_creditaccount'></a>
 ```cs
 public record CreditAccount(Guid AccountId, decimal Amount) : IAccountCommand;
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Middleware/AppWithMiddleware/Account.cs#L45-L49' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_creditaccount' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Middleware/AppWithMiddleware/Account.cs#L43-L46' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_creditaccount' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Skipping ahead a little bit, if we had a handler for the `CreditAccount` command type above that was counting on some kind of middleware to just "push" the matching
 `Account` data in, the handler might just be this:
 
-<!-- snippet: sample_CreditAccountHandler -->
+<!-- snippet: sample_creditaccounthandler -->
 <a id='snippet-sample_creditaccounthandler'></a>
 ```cs
 public static class CreditAccountHandler
@@ -78,7 +78,7 @@ public static class CreditAccountHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Middleware/AppWithMiddleware/Account.cs#L51-L73' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_creditaccounthandler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Middleware/AppWithMiddleware/Account.cs#L48-L69' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_creditaccounthandler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 You'll notice at this point that the message handler is synchronous because it's no longer doing any calls to the database. Besides removing some repetitive code, this appproach
@@ -87,7 +87,7 @@ arguably makes the Wolverine message handler methods easier to unit test now tha
 Next, let's build the actual middleware that will attempt to load an `Account` matching a command's `AccountId`, then determine if the message handling should continue
 or be aborted. Here's sample code to do exactly that:
 
-<!-- snippet: sample_AccountLookupMiddleware -->
+<!-- snippet: sample_accountlookupmiddleware -->
 <a id='snippet-sample_accountlookupmiddleware'></a>
 ```cs
 // This is *a* way to build middleware in Wolverine by basically just
@@ -121,7 +121,7 @@ public static class AccountLookupMiddleware
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Middleware/AppWithMiddleware/Account.cs#L78-L111' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_accountlookupmiddleware' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Middleware/AppWithMiddleware/Account.cs#L74-L106' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_accountlookupmiddleware' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Now, some notes about the code above:
@@ -158,5 +158,5 @@ builder.Host.UseWolverine(opts =>
         .BufferedInMemory();
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Middleware/AppWithMiddleware/Program.cs#L30-L54' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_registering_middleware_by_message_type' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Middleware/AppWithMiddleware/Program.cs#L30-L53' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_registering_middleware_by_message_type' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->

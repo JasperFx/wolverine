@@ -4,8 +4,7 @@ using Xunit;
 
 namespace CoreTests.Configuration;
 
-#region sample_using_Topic_attribute
-
+#region sample_using_topic_attribute
 [Topic("one")]
 public class TopicMessage1;
 

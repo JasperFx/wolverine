@@ -18,8 +18,7 @@ public class error_handling
 {
     public static async Task MyApp_with_error_handling()
     {
-        #region sample_MyApp_with_error_handling
-
+        #region sample_myapp_with_error_handling
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts => { opts.Policies.Add<ErrorHandlingPolicy>(); }).StartAsync();
 
@@ -28,8 +27,7 @@ public class error_handling
 
     public static async Task GlobalErrorHandlingConfiguration()
     {
-        #region sample_GlobalErrorHandlingConfiguration
-
+        #region sample_globalerrorhandlingconfiguration
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -49,7 +47,6 @@ public class error_handling
     public static async Task filtering_by_exception_type()
     {
         #region sample_filtering_by_exception_type
-
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -71,7 +68,6 @@ public class error_handling
     public static async Task continuation_actions()
     {
         #region sample_continuation_actions
-
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -105,7 +101,6 @@ public class error_handling
     public static async Task send_to_error_queue()
     {
         #region sample_send_to_error_queue
-
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -119,7 +114,6 @@ public class error_handling
     public static async Task pause_when_unusable()
     {
         #region sample_pause_when_system_is_unusable
-
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -135,7 +129,6 @@ public class error_handling
     public static async Task discard_when_unusable()
     {
         #region sample_discard_when_message_is_invalid
-
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -150,7 +143,6 @@ public class error_handling
     public static async Task with_exponential_backoff()
     {
         #region sample_exponential_backoff
-
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -167,8 +159,7 @@ public class error_handling
 
     public static async Task AppWithCustomContinuation()
     {
-        #region sample_AppWithCustomContinuation
-
+        #region sample_appwithcustomcontinuation
         throw new NotImplementedException();
         // using var host = Host.CreateDefaultBuilder()
         //     .UseWolverine(opts =>
@@ -188,7 +179,6 @@ public class error_handling
     public class InvalidMessageYouWillNeverBeAbleToProcessException : Exception;
 
     #region sample_exponential_backoff_with_attributes
-
     [RetryNow(typeof(SqlException), 50, 100, 250)]
     public class MessageWithBackoff
     {
@@ -198,8 +188,7 @@ public class error_handling
     #endregion
 }
 
-#region sample_ErrorHandlingPolicy
-
+#region sample_errorhandlingpolicy
 // This error policy will apply to all message types in the namespace
 // 'MyApp.Messages', and add a "requeue on SqlException" to all of these
 // message handlers
@@ -217,7 +206,6 @@ public class ErrorHandlingPolicy : IHandlerPolicy
 #endregion
 
 #region sample_configure_error_handling_per_chain_with_configure
-
 public class MyErrorCausingHandler
 {
     // This method signature is meaningful
@@ -252,7 +240,6 @@ public class InvoiceCreated
 public class InvoiceApproved;
 
 #region sample_configuring_error_handling_with_attributes
-
 public class AttributeUsingHandler
 {
     [ScheduleRetry(typeof(IOException), 5)]
@@ -277,8 +264,7 @@ public class FailedOnSecurity
     }
 }
 
-#region sample_RaiseAlert_Continuation
-
+#region sample_raisealert_continuation
 public class RaiseAlert : IContinuation
 {
     private readonly Exception _ex;

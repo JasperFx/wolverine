@@ -73,8 +73,7 @@ app.MapGet("/", () => Results.Redirect("/swagger"));
 return await app.RunJasperFxCommands(args);
 
 
-#region sample_Program_marker
-
+#region sample_program_marker
 // Adding this just makes it easier to bootstrap your
 // application in a test harness project. Only a convenience
 public partial class Program{}

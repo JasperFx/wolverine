@@ -10,7 +10,6 @@ namespace ItemService;
 public class CreateItemController : ControllerBase
 {
     #region sample_using_dbcontext_outbox_1
-
     [HttpPost("/items/create2")]
     public async Task Post(
         [FromBody] CreateItemCommand command,
@@ -43,7 +42,6 @@ public class CreateItemController : ControllerBase
 
 
     #region sample_using_dbcontext_outbox_2
-
     [HttpPost("/items/create3")]
     public async Task Post3(
         [FromBody] CreateItemCommand command,

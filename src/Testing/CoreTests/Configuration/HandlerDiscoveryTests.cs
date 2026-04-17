@@ -34,7 +34,6 @@ public class HandlerDiscoveryTests
     public static async Task completely_replacing_the_built_in_discovery()
     {
         #region sample_replacing_handler_discovery_rules
-
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {

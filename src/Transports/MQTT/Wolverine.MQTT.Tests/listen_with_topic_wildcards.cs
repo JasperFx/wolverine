@@ -40,7 +40,6 @@ public class listen_with_topic_wildcards : IAsyncLifetime
             }).StartAsync();
 
         #region sample_listen_to_mqtt_topic_filter
-
         _receiver = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {

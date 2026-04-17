@@ -9,7 +9,6 @@ using Wolverine.Marten;
 using Wolverine.RabbitMQ;
 
 #region sample_kitchen_sink_bootstrapping
-
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Host.ApplyJasperFxExtensions();

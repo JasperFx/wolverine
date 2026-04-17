@@ -39,7 +39,7 @@ var builder = WebApplication.CreateBuilder();
 var connectionString = builder.Configuration.GetConnectionString("postgres");
 
 builder.Services
-    .AddMarten(connectionString)
+    .AddMarten(connectionString!)
     .IntegrateWithWolverine();
 
 builder.Host.UseWolverine(opts =>
@@ -80,7 +80,7 @@ app.MapWolverineEndpoints(opts =>
 
 return await app.RunJasperFxCommands(args);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/Samples/MultiTenancy.cs#L15-L63' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_tenant_id_detection' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/Samples/MultiTenancy.cs#L15-L62' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_tenant_id_detection' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 All of the options are configured on `WolverineHttpOptions.TenantId`.
@@ -124,7 +124,7 @@ builder.Services.AddMarten(m =>
     })
     .IntegrateWithWolverine(x => x.MainDatabaseConnectionString = connectionString);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/MultiTenantedTodoService/MultiTenantedTodoService/Program.cs#L13-L36' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_wolverine_for_marten_multi_tenancy' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/MultiTenantedTodoService/MultiTenantedTodoService/Program.cs#L13-L35' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_wolverine_for_marten_multi_tenancy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Then configures Wolverine itself like:
@@ -144,7 +144,7 @@ builder.Host.UseWolverine(opts =>
     opts.Policies.UseDurableLocalQueues();
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/MultiTenantedTodoService/MultiTenantedTodoService/Program.cs#L44-L58' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_setup_for_marten_multitenancy' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/MultiTenantedTodoService/MultiTenantedTodoService/Program.cs#L42-L55' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_setup_for_marten_multitenancy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Lastly, the Wolverine.HTTP setup to add the tenant id detection:
@@ -166,7 +166,7 @@ app.MapWolverineEndpoints(opts =>
     opts.WarmUpRoutes = RouteWarmup.Eager;
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/MultiTenantedTodoService/MultiTenantedTodoService/Program.cs#L75-L91' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_tenant_id_detection_for_todo_service' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/MultiTenantedTodoService/MultiTenantedTodoService/Program.cs#L72-L87' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_tenant_id_detection_for_todo_service' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In the code sample above, I'm choosing to make the "tenant" a mandatory route argument
@@ -191,7 +191,7 @@ public static Task<IReadOnlyList<Todo>> Get(string tenant, IQuerySession session
     return session.Query<Todo>().ToListAsync();
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/MultiTenantedTodoService/MultiTenantedTodoService/Endpoints.cs#L25-L34' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_get_all_todos' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/MultiTenantedTodoService/MultiTenantedTodoService/Endpoints.cs#L25-L33' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_get_all_todos' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 At runtime, Wolverine is now generating this code around that endpoint method:
@@ -259,7 +259,7 @@ app.MapWolverineEndpoints(opts =>
     opts.TenantId.AssertExists();
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/Samples/MultiTenancy.cs#L68-L78' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_assert_tenant_id_exists' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/Samples/MultiTenancy.cs#L67-L76' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_assert_tenant_id_exists' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 At runtime, this is going to return a status code of 400 with a [ProblemDetails](https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.mvc.problemdetails?view=aspnetcore-7.0) specification 
@@ -269,7 +269,7 @@ But of course, you will frequently have *some* endpoints within your system that
 of multi-tenancy, so you can completely opt out of all tenant id detection and assertions through the
 `[NotTenanted]` attribute as shown here in the tests:
 
-<!-- snippet: sample_using_NotTenanted -->
+<!-- snippet: sample_using_nottenanted -->
 <a id='snippet-sample_using_nottenanted'></a>
 ```cs
 // Mark this endpoint as not using any kind of multi-tenancy
@@ -279,7 +279,7 @@ public static string NoTenantNoProblem()
     return "hey";
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/MultiTenancy/multi_tenancy_detection_and_integration.cs#L479-L488' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_nottenanted' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/MultiTenancy/multi_tenancy_detection_and_integration.cs#L479-L487' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_nottenanted' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 If the above usage completely disabled all tenant id detection or validation, in the case of an endpoint that *might* be 
@@ -297,7 +297,7 @@ public static string MaybeTenanted(IMessageBus bus)
     return bus.TenantId ?? "none";
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/MultiTenancy/multi_tenancy_detection_and_integration.cs#L490-L499' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_maybe_tenanted_attribute_usage' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/MultiTenancy/multi_tenancy_detection_and_integration.cs#L489-L497' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_maybe_tenanted_attribute_usage' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -308,7 +308,7 @@ needs. Maybe you need to do some database lookups. Maybe you need to interpret t
 parameters. Wolverine still has you covered by allowing you to create custom implementations of its `Wolverine.Http.Runtime.MultiTenancy.ITenantDetection`
 interface:
 
-<!-- snippet: sample_ITenantDetection -->
+<!-- snippet: sample_itenantdetection -->
 <a id='snippet-sample_itenantdetection'></a>
 ```cs
 /// <summary>
@@ -325,12 +325,12 @@ public interface ITenantDetection
     public ValueTask<string?> DetectTenant(HttpContext context);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http/Runtime/MultiTenancy/ITenantDetection.cs#L5-L21' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_itenantdetection' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http/Runtime/MultiTenancy/ITenantDetection.cs#L5-L20' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_itenantdetection' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 As any example, the route argument detection implementation looks like this:
 
-<!-- snippet: sample_ArgumentDetection -->
+<!-- snippet: sample_argumentdetection -->
 <a id='snippet-sample_argumentdetection'></a>
 ```cs
 internal class ArgumentDetection : ITenantDetection, ISynchronousTenantDetection
@@ -360,7 +360,7 @@ internal class ArgumentDetection : ITenantDetection, ISynchronousTenantDetection
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http/Runtime/MultiTenancy/ArgumentDetection.cs#L5-L34' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_argumentdetection' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http/Runtime/MultiTenancy/ArgumentDetection.cs#L5-L33' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_argumentdetection' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: tip
@@ -386,7 +386,7 @@ app.MapWolverineEndpoints(opts =>
     opts.TenantId.DetectWith<MyCustomTenantDetection>();
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/Samples/MultiTenancy.cs#L83-L99' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_registering_custom_tenant_detection' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/Samples/MultiTenancy.cs#L81-L96' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_registering_custom_tenant_detection' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Just note that if you are having the IoC container for your Wolverine application resolve your
@@ -429,7 +429,7 @@ public static void Delete(
     session.Delete<Todo>(command.Id);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/MultiTenantedTodoService/MultiTenantedTodoService/Endpoints.cs#L74-L100' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_invoke_for_tenant' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/MultiTenantedTodoService/MultiTenantedTodoService/Endpoints.cs#L72-L97' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_invoke_for_tenant' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 and with an expected result:
@@ -456,7 +456,7 @@ public static CreationResponse<TodoCreated> Create(
     return CreationResponse.For(new TodoCreated(todo.Id), $"/todoitems/{tenant}/{todo.Id}");
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/MultiTenantedTodoService/MultiTenantedTodoService/Endpoints.cs#L51-L72' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_calling_invoke_for_tenant_async_with_expected_result' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/MultiTenantedTodoService/MultiTenantedTodoService/Endpoints.cs#L50-L70' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_calling_invoke_for_tenant_async_with_expected_result' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 See [Multi-Tenancy with Wolverine](/guide/handlers/multi-tenancy) for a little more information.
@@ -471,7 +471,7 @@ the tenant id detection for Marten directly within HTTP requests without using W
 Using the `WolverineFx.Http.Marten` Nuget, there's a helper to replace Marten's `ISessionFactory`
 with a multi-tenanted version like this:
 
-<!-- snippet: sample_using_AddMartenTenancyDetection -->
+<!-- snippet: sample_using_addmartentenancydetection -->
 <a id='snippet-sample_using_addmartentenancydetection'></a>
 ```cs
 builder.Services.AddMartenTenancyDetection(tenantId =>
@@ -480,7 +480,7 @@ builder.Services.AddMartenTenancyDetection(tenantId =>
     tenantId.DefaultIs("default-tenant");
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/Marten/multi_tenanted_session_factory_without_wolverine.cs#L29-L37' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_addmartentenancydetection' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/Marten/multi_tenanted_session_factory_without_wolverine.cs#L29-L36' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_addmartentenancydetection' title='Start of snippet'>anchor</a></sup>
 <a id='snippet-sample_using_addmartentenancydetection-1'></a>
 ```cs
 builder.Services.AddMartenTenancyDetection(tenantId =>
@@ -492,6 +492,6 @@ builder.Services.AddMartenTenancyDetection(tenantId =>
     session.CorrelationId = c.TraceIdentifier;
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/Marten/multi_tenanted_session_factory_without_wolverine.cs#L92-L103' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_addmartentenancydetection-1' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/Marten/multi_tenanted_session_factory_without_wolverine.cs#L91-L101' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_addmartentenancydetection-1' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 

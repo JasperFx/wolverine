@@ -13,7 +13,6 @@ public class AttributeEndpoints
     }
 
     #region sample_using_not_body_attribute
-
     [WolverinePost("/notbody")]
     // The Recorder parameter will be sourced as an IoC service
     // instead of being treated as the HTTP request body

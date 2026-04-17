@@ -13,7 +13,6 @@ public static class AppWithErrorHandling
     public static async Task concurrency_retries()
     {
         #region sample_simple_retries_on_concurrency_exception
-
         var builder = Host.CreateApplicationBuilder();
         builder.UseWolverine(opts =>
         {
@@ -29,8 +28,7 @@ public static class AppWithErrorHandling
     
     public static async Task sample()
     {
-        #region sample_AppWithErrorHandling
-
+        #region sample_appwitherrorhandling
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -45,8 +43,7 @@ public static class AppWithErrorHandling
 
     public static async Task with_scripted_error_handling()
     {
-        #region sample_AppWithScriptedErrorHandling
-
+        #region sample_appwithscriptederrorhandling
         using var host = Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -86,7 +83,6 @@ public static class AppWithErrorHandling
     public static async Task with_scheduled_retry()
     {
         #region sample_using_scheduled_retry
-
         using var host = Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {

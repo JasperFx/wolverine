@@ -26,7 +26,6 @@ public static class TestEndpoints
     }
 
     #region sample_using_string_route_parameter
-
     [WolverineGet("/name/{name}")]
     public static string SimpleStringRouteArgument(string name)
     {
@@ -36,7 +35,6 @@ public static class TestEndpoints
     #endregion
 
     #region sample_using_numeric_route_parameter
-
     [WolverineGet("/age/{age}")]
     public static string IntRouteArgument(int age)
     {
@@ -46,7 +44,6 @@ public static class TestEndpoints
     #endregion
 
     #region sample_using_string_value_as_query_string
-
     [WolverineGet("/querystring/string")]
     public static string UsingQueryString(string name) // name is from the query string
     {
@@ -56,7 +53,6 @@ public static class TestEndpoints
     #endregion
 
     #region sample_using_string_value_as_form
-
     [WolverinePost("/form/string")]
     public static string UsingForm([FromForm]string name) // name is from form data
     {
@@ -120,7 +116,6 @@ public static class TestEndpoints
     }
 
     #region sample_simple_wolverine_http_endpoint
-
     [WolverinePost("/question")]
     public static ArithmeticResults PostJson(Question question)
     {
@@ -134,7 +129,6 @@ public static class TestEndpoints
     #endregion
 
     #region sample_simple_wolverine_http_endpoint_async
-
     [WolverinePost("/question2")]
     public static Task<ArithmeticResults> PostJsonAsync(Question question)
     {

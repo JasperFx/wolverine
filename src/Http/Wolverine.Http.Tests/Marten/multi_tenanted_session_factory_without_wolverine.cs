@@ -26,8 +26,7 @@ public class multi_tenanted_session_factory_without_wolverine
                 options.Schema.For<ColorDoc>().MultiTenanted();
             });
 
-        #region sample_using_AddMartenTenancyDetection
-
+        #region sample_using_addmartentenancydetection
         builder.Services.AddMartenTenancyDetection(tenantId =>
         {
             tenantId.IsQueryStringValue("tenant");
@@ -89,8 +88,7 @@ public class multi_tenanted_session_factory_without_wolverine
                 options.Schema.For<ColorDoc>().MultiTenanted();
             });
 
-        #region sample_using_AddMartenTenancyDetection
-
+        #region sample_using_addmartentenancydetection
         builder.Services.AddMartenTenancyDetection(tenantId =>
         {
             tenantId.IsQueryStringValue("tenant");

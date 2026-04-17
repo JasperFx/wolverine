@@ -6,8 +6,7 @@ using Wolverine;
 
 namespace DocumentationSamples;
 
-#region sample_SampleExtension
-
+#region sample_sampleextension
 public class SampleExtension : IWolverineExtension
 {
     public void Configure(WolverineOptions options)
@@ -24,7 +23,6 @@ public class SampleExtension : IWolverineExtension
 #endregion
 
 #region sample_configuration_using_extension
-
 public class ConfigurationUsingExtension : IWolverineExtension
 {
     private readonly IConfiguration _configuration;
@@ -50,7 +48,6 @@ public static class ExtensionUse
     public static async Task spin_up()
     {
         #region sample_including_extension
-
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {

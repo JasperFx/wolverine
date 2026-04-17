@@ -36,8 +36,7 @@ internal class HandlerChainPolicy : IHandlerPolicy
     }
 }
 
-#region sample_IHandlerPolicy
-
+#region sample_ihandlerpolicy
 /// <summary>
 ///     Use to apply your own conventions or policies to message handlers
 /// </summary>

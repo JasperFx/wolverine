@@ -6,8 +6,7 @@ namespace Wolverine.Http.FluentValidation.Internals;
 
 public static class FluentValidationHttpExecutor
 {
-    #region sample_FluentValidationHttpExecutor_ExecuteOne
-
+    #region sample_fluentvalidationhttpexecutor_executeone
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static async Task<IResult> ExecuteOne<T>(IValidator<T> validator, IProblemDetailSource<T> source, T message)
     {

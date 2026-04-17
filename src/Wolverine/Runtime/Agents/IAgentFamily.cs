@@ -13,8 +13,7 @@ public class InvalidAgentException : Exception
     }
 }
 
-#region sample_IAgentFamily
-
+#region sample_iagentfamily
 /// <summary>
 ///     Pluggable model for managing the assignment and execution of stateful, "sticky"
 ///     background agents on the various nodes of a running Wolverine cluster

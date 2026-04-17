@@ -29,7 +29,7 @@ public class SignupEndpoint
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/SignupEndpoint.cs#L6-L21' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_openapi_attributes' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/SignupEndpoint.cs#L6-L20' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_openapi_attributes' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Or if you prefer the fluent interface from Minimal API, that's actually supported as well for either individual endpoints or by 
@@ -55,7 +55,7 @@ public static void Configure(HttpChain chain)
     });
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http/Runtime/PublishingEndpoint.cs#L15-L34' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_programmatic_one_off_openapi_metadata' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http/Runtime/PublishingEndpoint.cs#L15-L33' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_programmatic_one_off_openapi_metadata' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Swashbuckle and Wolverine
@@ -67,7 +67,7 @@ Wolverine endpoints by using a custom `IOperationFilter` of your making that can
 for finer grained control. Here's a sample from the Wolverine testing code that just uses Wolverine' own model to
 determine the OpenAPI operation id:
 
-<!-- snippet: sample_WolverineOperationFilter -->
+<!-- snippet: sample_wolverineoperationfilter -->
 <a id='snippet-sample_wolverineoperationfilter'></a>
 ```cs
 // This class is NOT distributed in any kind of Nuget today, but feel very free
@@ -84,7 +84,7 @@ public class WolverineOperationFilter : IOperationFilter // IOperationFilter is 
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/WolverineOperationFilter.cs#L7-L23' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverineoperationfilter' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/WolverineOperationFilter.cs#L7-L22' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverineoperationfilter' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And that would be registered with Swashbuckle inside of your `Program.Main()` method like so:
@@ -98,7 +98,7 @@ builder.Services.AddSwaggerGen(x =>
     x.ResolveConflictingActions(apiDescriptions => apiDescriptions.First());
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L55-L63' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_register_custom_swashbuckle_filter' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L56-L63' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_register_custom_swashbuckle_filter' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Operation Id
@@ -123,7 +123,7 @@ public Task<string> SayHelloAsync()
     return Task.FromResult("Hello");
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/FakeEndpoint.cs#L13-L23' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_override_operation_id_for_openapi' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/FakeEndpoint.cs#L13-L22' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_override_operation_id_for_openapi' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## IHttpAware or IEndpointMetadataProvider Models
@@ -135,7 +135,7 @@ If you want Wolverine to automatically apply metadata (and HTTP runtime behavior
 an HTTP endpoint, you can have your response type implement the `IHttpAware` interface from Wolverine. As an example, 
 consider the `CreationResponse` type in Wolverine:
 
-<!-- snippet: sample_CreationResponse -->
+<!-- snippet: sample_creationresponse -->
 <a id='snippet-sample_creationresponse'></a>
 ```cs
 /// <summary>
@@ -162,7 +162,7 @@ public record CreationResponse([StringSyntax("Route")]string Url) : IHttpAware
     public static CreationResponse<T> For<T>(T value, string url) => new CreationResponse<T>(url, value);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http/IHttpAware.cs#L82-L108' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_creationresponse' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http/IHttpAware.cs#L82-L107' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_creationresponse' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Any endpoint that returns `CreationResponse` or a sub class will automatically expose a status code of `201` for successful
@@ -203,7 +203,7 @@ public class ValidatedCompoundEndpoint2
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Validation/ValidatedCompoundEndpoint.cs#L33-L61' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_optional_iresult_with_openapi_metadata' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Validation/ValidatedCompoundEndpoint.cs#L33-L60' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_optional_iresult_with_openapi_metadata' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## With Microsoft.Extensions.ApiDescription.Server

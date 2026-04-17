@@ -4,8 +4,7 @@ using Wolverine.Http;
 
 namespace TodoWebService;
 
-#region sample_Todo
-
+#region sample_todo
 public class Todo
 {
     public int Id { get; set; }
@@ -26,7 +25,6 @@ public record TodoCreated(int Id);
 public static class TodoEndpoints
 {
     #region sample_get_to_json
-
     [WolverineGet("/todoitems")]
     public static Task<IReadOnlyList<Todo>> Get(IQuerySession session)
         => session.Query<Todo>().ToListAsync();
@@ -37,8 +35,7 @@ public static class TodoEndpoints
     public static Task<IReadOnlyList<Todo>> GetComplete(IQuerySession session) =>
         session.Query<Todo>().Where(x => x.IsComplete).ToListAsync();
 
-    #region sample_GetTodo
-
+    #region sample_gettodo
     // Wolverine can infer the 200/404 status codes for you here
     // so there's no code noise just to satisfy OpenAPI tooling
     [WolverineGet("/todoitems/{id}")]
@@ -48,7 +45,6 @@ public static class TodoEndpoints
     #endregion
 
     #region sample_posting_new_todo_with_middleware
-
     [WolverinePost("/todoitems")]
     public static async Task<IResult> Create(CreateTodo command, IDocumentSession session, IMessageBus bus)
     {
@@ -78,8 +74,7 @@ public static class TodoCreatedHandler
     }
 }
 
-#region sample_UpdateTodoEndpoint
-
+#region sample_updatetodoendpoint
 public static class UpdateTodoEndpoint
 {
     public static async Task<(Todo? todo, IResult result)> LoadAsync(UpdateTodo command, IDocumentSession session)

@@ -77,8 +77,7 @@ public class read_aggregate_attribute_usage : PostgresqlContext, IAsyncLifetime
 
 public record LetterAggregateEnvelope(LetterAggregate Inner);
 
-#region sample_using_ReadAggregate_in_messsage_handlers
-
+#region sample_using_readaggregate_in_messsage_handlers
 public record FindAggregate(Guid Id);
 
 public static class FindLettersHandler

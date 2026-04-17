@@ -29,7 +29,7 @@ Do note that there's some [additional configuration to use WolverineFx.HTTP](/gu
 Below is a sample of adding Wolverine to an ASP.NET Core application that is bootstrapped with
 `WebApplicationBuilder`:
 
-<!-- snippet: sample_Quickstart_Program -->
+<!-- snippet: sample_quickstart_program -->
 <a id='snippet-sample_quickstart_program'></a>
 ```cs
 using JasperFx;
@@ -72,7 +72,7 @@ app.MapGet("/", () => Results.Redirect("/swagger"));
 // your Wolverine application
 return await app.RunJasperFxCommands(args);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Quickstart/Program.cs#L1-L43' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_quickstart_program' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Quickstart/Program.cs#L1-L42' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_quickstart_program' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## "Headless" Applications
@@ -122,7 +122,7 @@ return await Host.CreateDefaultBuilder(args)
     // quite a few utilities and diagnostics in our Wolverine application
     .RunOaktonCommands(args);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/OpenTelemetry/Subscriber1/Program.cs#L10-L46' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_headless_service' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/OpenTelemetry/Subscriber1/Program.cs#L10-L45' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_headless_service' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 As of Wolverine 3.0, you can also use the `HostApplicationBuilder` mechanism as well:
@@ -147,7 +147,7 @@ builder.UseWolverine(opts =>
 using var host = builder.Build();
 await host.StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests/SampleUsageWithAutoApplyTransactions.cs#L16-L35' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_with_auto_apply_transactions_for_sql_server' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests/SampleUsageWithAutoApplyTransactions.cs#L16-L34' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_with_auto_apply_transactions_for_sql_server' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And lastly, you can just use `IServiceCollection.AddWolverine()` by itself.
@@ -174,7 +174,7 @@ If you're using `IHostBuilder` like you might for a simple console app, it's:
 var builder = Host.CreateDefaultBuilder();
 builder.UseLamar();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/DocumentationSamples.cs#L14-L20' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_use_lamar_with_host_builder' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/DocumentationSamples.cs#L14-L19' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_use_lamar_with_host_builder' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In a web application, it's:
@@ -228,5 +228,5 @@ host.Services.GetRequiredService<IWolverineRuntime>()
     .Mode
     .ShouldBe(DurabilityMode.Solo);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/using_configure_wolverine.cs#L14-L40' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_configure_wolverine' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/using_configure_wolverine.cs#L14-L39' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_configure_wolverine' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->

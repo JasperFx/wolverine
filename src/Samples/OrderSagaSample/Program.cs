@@ -1,5 +1,4 @@
 #region sample_bootstrapping_order_saga_sample
-
 using Marten;
 using JasperFx;
 using JasperFx.Resources;

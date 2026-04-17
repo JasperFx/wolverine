@@ -4,8 +4,7 @@ using Wolverine.Runtime.Interop.MassTransit;
 
 namespace Wolverine.AmazonSqs.Internal;
 
-#region sample_MassTransitMapper_for_SQS
-
+#region sample_masstransitmapper_for_sqs
 // This guy is the envelope mapper for interoperating
 // with MassTransit 
 internal class MassTransitMapper : ISqsEnvelopeMapper

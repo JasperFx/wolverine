@@ -231,7 +231,6 @@ public static class Bootstrapping
     public static void Configure()
     {
         #region sample_configuring_external_database_messaging
-
         var builder = Host.CreateApplicationBuilder();
         builder.UseWolverine(opts =>
         {

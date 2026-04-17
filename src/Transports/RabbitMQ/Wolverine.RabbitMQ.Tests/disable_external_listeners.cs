@@ -14,7 +14,6 @@ public class disable_external_listeners
         using var host = await Host.CreateDefaultBuilder()
 
             #region sample_disable_all_listeners
-
             .UseWolverine(opts =>
             {
                 // This will disable all message listening to

@@ -39,7 +39,6 @@ public class configuring_idempotency_style
     public async Task use_transactional_policies_to_eager()
     {
         #region sample_setting_default_idempotency_check_level
-
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -108,7 +107,6 @@ public record DoSomething(Guid Id);
 public static class DoSomethingHandler
 {
     #region sample_using_explicit_idempotency_on_single_handler
-
     [Transactional(IdempotencyStyle.Eager)]
     public static void Handle(DoSomething msg)
     {

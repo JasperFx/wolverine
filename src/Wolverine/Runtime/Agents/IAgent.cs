@@ -5,10 +5,8 @@ using Microsoft.Extensions.Hosting;
 
 namespace Wolverine.Runtime.Agents;
 
-#region sample_IAgent
-
-#region sample_IAgent
-
+#region sample_iagent
+#region sample_iagent
 /// <summary>
 ///     Models a constantly running background process within a Wolverine
 ///     node cluster

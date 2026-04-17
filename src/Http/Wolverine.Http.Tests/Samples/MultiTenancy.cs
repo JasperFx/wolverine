@@ -13,7 +13,6 @@ public static class MultiTenancy
     public static async Task<int> bootstrap(params string[] args)
     {
         #region sample_configuring_tenant_id_detection
-
         var builder = WebApplication.CreateBuilder();
 
         var connectionString = builder.Configuration.GetConnectionString("postgres");
@@ -66,7 +65,6 @@ public static class MultiTenancy
     public static void require_tenant(WebApplication app)
     {
         #region sample_assert_tenant_id_exists
-
         app.MapWolverineEndpoints(opts =>
         {
             // Configure your tenant id detection...
@@ -81,7 +79,6 @@ public static class MultiTenancy
     public static void use_custom_detection(WebApplication app)
     {
         #region sample_registering_custom_tenant_detection
-
         app.MapWolverineEndpoints(opts =>
         {
             // If your strategy does not need any IoC service

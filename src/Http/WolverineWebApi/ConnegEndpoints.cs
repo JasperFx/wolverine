@@ -8,7 +8,6 @@ namespace WolverineWebApi;
 public record ConnegItem(string Name, int Value);
 
 #region sample_conneg_write_response
-
 /// <summary>
 /// Demonstrates content negotiation with [Writes] attribute.
 /// Multiple WriteResponse methods handle different content types.
@@ -45,7 +44,6 @@ public static class ConnegWriteEndpoints
 #endregion
 
 #region sample_conneg_strict
-
 /// <summary>
 /// Strict content negotiation — returns 406 when Accept header doesn't match
 /// </summary>
@@ -69,7 +67,6 @@ public static class StrictConnegEndpoints
 #endregion
 
 #region sample_conneg_loose_fallback
-
 /// <summary>
 /// Loose content negotiation (default) — falls back to JSON when no match
 /// </summary>

@@ -448,7 +448,6 @@ public class using_querystring_parameters : IntegrationContext
     }
 
     #region sample_query_string_usage
-
     [Fact]
     public async Task use_string_querystring_hit()
     {

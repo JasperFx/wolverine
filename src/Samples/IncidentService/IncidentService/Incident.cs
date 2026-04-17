@@ -4,7 +4,6 @@ using Marten.Events;
 namespace IncidentService;
 
 #region sample_incident_events
-
 public record IncidentLogged(
     Guid CustomerId,
     Contact Contact,
@@ -72,8 +71,7 @@ public enum IncidentStatus
     Closed = 32
 }
 
-#region sample_Incident_aggregate
-
+#region sample_incident_aggregate
 public class Incident
 {
     public Guid Id { get; set; }

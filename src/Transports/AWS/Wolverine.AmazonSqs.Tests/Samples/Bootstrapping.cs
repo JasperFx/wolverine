@@ -16,7 +16,6 @@ public class Bootstrapping
     public static async Task use_named_brokers()
     {
         #region sample_using_multiple_sqs_brokers
-
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -50,7 +49,6 @@ public class Bootstrapping
     public async Task for_local_development()
     {
         #region sample_connect_to_sqs_and_localstack
-
         var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -65,7 +63,6 @@ public class Bootstrapping
     public async Task connect_to_broker()
     {
         #region sample_simplistic_aws_sqs_setup
-
         var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -87,7 +84,6 @@ public class Bootstrapping
     public async Task connect_with_customization()
     {
         #region sample_config_aws_sqs_connection
-
         var builder = Host.CreateApplicationBuilder();
         builder.UseWolverine(opts =>
         {
@@ -117,7 +113,6 @@ public class Bootstrapping
     public async Task setting_credentials()
     {
         #region sample_setting_aws_credentials
-
         var builder = Host.CreateApplicationBuilder();
         builder.UseWolverine(opts =>
         {
@@ -150,7 +145,6 @@ public class Bootstrapping
     public async Task configuring_queues()
     {
         #region sample_listen_to_sqs_queue
-
         var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -182,7 +176,6 @@ public class Bootstrapping
     public async Task publishing()
     {
         #region sample_subscriber_rules_for_sqs
-
         var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -209,7 +202,6 @@ public class Bootstrapping
     public async Task using_conventional_routing()
     {
         #region sample_using_conventional_sqs_routing
-
         var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -223,7 +215,6 @@ public class Bootstrapping
     public async Task overriding_dead_letter_queueing()
     {
         #region sample_configuring_dead_letter_queue_for_sqs
-
         var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -249,7 +240,6 @@ public class Bootstrapping
     public async Task receive_raw_json()
     {
         #region sample_receive_raw_json_in_sqs
-
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -270,7 +260,6 @@ public class Bootstrapping
     public async Task receive_sns_topic_metadata()
     {
         #region sample_receive_sns_topic_metadata_in_sqs
-
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -287,7 +276,6 @@ public class Bootstrapping
     public async Task receive_sns_topic_metadata_with_custom_mapper()
     {
         #region sample_receive_sns_topic_metadata_with_custom_mapper_in_sqs
-
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -306,7 +294,6 @@ public class Bootstrapping
     public async Task publish_raw_json()
     {
         #region sample_publish_raw_json_in_sqs
-
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -327,7 +314,6 @@ public class Bootstrapping
     public async Task customize_mappers()
     {
         #region sample_apply_custom_sqs_mapping
-
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -344,7 +330,6 @@ public class Bootstrapping
     public async Task customize_mappers_with_all_message_attributes()
     {
         #region sample_receive_all_message_attributes
-
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -364,7 +349,6 @@ public class Bootstrapping
     public async Task customize_mappers_with_specific_message_attributes()
     {
         #region sample_receive_specific_message_attributes
-
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -383,7 +367,6 @@ public class Bootstrapping
 }
 
 #region sample_custom_sqs_mapper
-
 public class CustomSqsMapper : ISqsEnvelopeMapper
 {
     public string BuildMessageBody(Envelope envelope)

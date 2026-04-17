@@ -144,7 +144,6 @@ public class NewtonsoftSerializer : IMessageSerializer
     public static JsonSerializerSettings DefaultSettings()
     {
         #region sample_default_newtonsoft_settings
-
         return new JsonSerializerSettings
         {
             TypeNameHandling = TypeNameHandling.Auto,

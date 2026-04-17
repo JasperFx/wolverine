@@ -11,7 +11,6 @@ public class FakeEndpoint
     }
 
     #region sample_override_operation_id_for_openapi
-
     // Override the operation id within the generated OpenAPI
     // metadata
     [WolverineGet("/fake/hello/async", OperationId = "OverriddenId")]
@@ -85,7 +84,6 @@ public static class NoDependencyEndpoints
 public class BigResponse;
 
 #region sample_openapi_summary_and_description
-
 public static class OpenApiMetadataEndpoints
 {
     [WolverineGet("/openapi/with-summary",

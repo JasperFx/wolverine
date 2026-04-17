@@ -77,7 +77,6 @@ public partial class Envelope : IHasTenantId
     }
 
     #region sample_envelope_deliver_by_property
-
     /// <summary>
     ///     Instruct Wolverine to throw away this message if it is not successfully sent and processed
     ///     by the time specified

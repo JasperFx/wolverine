@@ -23,8 +23,7 @@ public class local_integration_specs : IntegrationContext
             opts.Publish(x => x.Message<Message1>()
                 .ToLocalQueue("incoming"));
 
-            #region sample_opting_into_STJ
-
+            #region sample_opting_into_stj
             opts.UseSystemTextJsonForSerialization(stj =>
             {
                 stj.UnknownTypeHandling = JsonUnknownTypeHandling.JsonNode;

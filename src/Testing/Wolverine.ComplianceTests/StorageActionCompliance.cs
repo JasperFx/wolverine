@@ -292,8 +292,7 @@ public record MaybeInsertTodo(string Id, string Name, bool ShouldInsert);
 public record ReturnNullInsert;
 public record ReturnNullStorageAction;
 
-#region sample_TodoHandler_to_demonstrate_storage_operations
-
+#region sample_todohandler_to_demonstrate_storage_operations
 public static class TodoHandler
 {
     public static Insert<Todo> Handle(CreateTodo command) => Storage.Insert(new Todo
@@ -430,7 +429,6 @@ public static class ExamineFirstHandler
 }
 
 #region sample_using_unit_of_work_as_side_effect
-
 public record StoreMany(string[] Adds);
 
 public static class StoreManyHandler

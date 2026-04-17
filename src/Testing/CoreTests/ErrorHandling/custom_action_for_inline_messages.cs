@@ -46,7 +46,6 @@ public class custom_action_for_inline_messages : IntegrationContext
 }
 
 #region sample_using_custom_actions_for_inline_processing
-
 public record ApproveInvoice(string InvoiceId);
 public record RequireIntervention(string InvoiceId);
 

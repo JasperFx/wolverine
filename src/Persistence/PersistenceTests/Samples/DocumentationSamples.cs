@@ -19,7 +19,6 @@ namespace PersistenceTests.Samples;
 public class DocumentationSamples
 {
     #region sample_programmatic_management_of_message_storage
-
     // IHost would be your application in a testing harness
     public static async Task testing_setup_or_teardown(IHost host)
     {
@@ -51,7 +50,6 @@ public class DocumentationSamples
     public static async Task configure_all_subscribers_as_durable()
     {
         #region sample_make_all_subscribers_be_durable
-
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -66,7 +64,6 @@ public class DocumentationSamples
     public static async Task configure_one_subscribers_as_durable()
     {
         #region sample_make_specific_subscribers_be_durable
-
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -83,7 +80,6 @@ public class DocumentationSamples
     public static async Task configure_inbox_on_listeners()
     {
         #region sample_configuring_durable_inbox
-
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -104,7 +100,6 @@ public class DocumentationSamples
     public static async Task configure_local_subscribers()
     {
         #region sample_durable_local_queues
-
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -131,7 +126,6 @@ public class DocumentationSamples
     public static async Task<int> SetupSqlServer(string[] args)
     {
         #region sample_setup_sqlserver_storage
-
         var builder = WebApplication.CreateBuilder(args);
         var connectionString = builder.Configuration.GetConnectionString("sqlserver");
 
@@ -162,7 +156,6 @@ public class DocumentationSamples
     public static async Task<int> SetupPostgresql(string[] args)
     {
         #region sample_setup_postgresql_storage
-
         var builder = WebApplication.CreateBuilder(args);
         var connectionString = builder.Configuration.GetConnectionString("postgres");
 
@@ -192,8 +185,7 @@ public class DocumentationSamples
 
     public static async Task configure_inbox_keeping()
     {
-        #region sample_configuring_KeepAfterMessageHandling
-
+        #region sample_configuring_keepaftermessagehandling
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -209,7 +201,6 @@ public class DocumentationSamples
     public static async Task configure_persistence_metrics()
     {
         #region sample_configuring_persistence_metrics
-
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -232,7 +223,6 @@ public class DocumentationSamples
     public static async Task options_important_for_modular_monolith()
     {
         #region sample_important_settings_for_modular_monoliths
-
         var builder = Host.CreateApplicationBuilder();
 
         // It's not important that it's Marten here, just that if you have
@@ -279,7 +269,6 @@ public class DocumentationSamples
     public static async Task options_for_bumping_stale_outbox_messages()
     {
         #region sample_configuring_outbox_stale_timeout
-
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {

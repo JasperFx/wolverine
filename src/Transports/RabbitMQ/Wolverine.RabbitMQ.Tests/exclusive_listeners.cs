@@ -31,8 +31,7 @@ public class exclusive_listeners : IAsyncLifetime
 
     public static async Task documentation_sample()
     {
-        #region sample_utilizing_ListenWithStrictOrdering
-
+        #region sample_utilizing_listenwithstrictordering
         var host = await Host.CreateDefaultBuilder().UseWolverine(opts =>
         {
             opts.UseRabbitMq().EnableWolverineControlQueues();

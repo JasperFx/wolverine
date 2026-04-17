@@ -13,7 +13,6 @@ namespace Wolverine.Http.CodeGen;
 internal class RouteParameterStrategy : IParameterStrategy
 {
     #region sample_supported_route_parameter_types
-
     public static readonly Dictionary<Type, string> TypeOutputs = new()
     {
         { typeof(bool), "bool" },

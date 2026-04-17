@@ -97,7 +97,7 @@ In a real project, the event types and especially any projected documents will b
 and will probably evolve through subsequent user stories. We're starting from an existing sample project,
 so we're going to skip ahead to some of our initial event types:
 
-<!-- snippet: sample_Incident_aggregate -->
+<!-- snippet: sample_incident_aggregate -->
 <a id='snippet-sample_incident_aggregate'></a>
 ```cs
 public class Incident
@@ -132,7 +132,7 @@ public class Incident
     public bool ShouldDelete(Archived @event) => true;
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/IncidentService/IncidentService/Incident.cs#L75-L109' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_incident_aggregate' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/IncidentService/IncidentService/Incident.cs#L74-L107' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_incident_aggregate' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: info
@@ -171,7 +171,7 @@ public record IncidentClosed(
     Guid ClosedBy
 );
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/IncidentService/IncidentService/Incident.cs#L6-L32' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_incident_events' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/IncidentService/IncidentService/Incident.cs#L6-L31' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_incident_events' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Many people -- myself included -- prefer to use `record` types for the event types. I would deviate from that though
@@ -184,7 +184,7 @@ So of course we're going to use a [Vertical Slice Architecture](/tutorials/verti
 our code, so here's the first cut at the HTTP endpoint that will log a new incident by starting a new event stream
 for the incident in one file:
 
-<!-- snippet: sample_LogIncident -->
+<!-- snippet: sample_logincident -->
 <a id='snippet-sample_logincident'></a>
 ```cs
 public record LogIncident(
@@ -210,7 +210,7 @@ public static class LogIncidentEndpoint
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/IncidentService/IncidentService/LogIncident.cs#L7-L32' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_logincident' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/IncidentService/IncidentService/LogIncident.cs#L7-L31' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_logincident' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And maybe there's a few details to unpack. It might help to [see the code](/guide/codegen) that Wolverine generates for this HTTP
@@ -314,7 +314,7 @@ public void unit_test()
     ]);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/IncidentService/IncidentService.Tests/when_logging_an_incident.cs#L18-L35' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_unit_test_log_incident' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/IncidentService/IncidentService.Tests/when_logging_an_incident.cs#L18-L34' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_unit_test_log_incident' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: tip
@@ -340,20 +340,20 @@ My preference is to mostly use the application's `Program` bootstrapping with ma
 overrides so that you are mostly using the application **as it is actually configured in production**.
 As a little tip, I've added this bit of marker code to the very bottom of our `Program` file:
 
-<!-- snippet: sample_Program_marker -->
+<!-- snippet: sample_program_marker -->
 <a id='snippet-sample_program_marker'></a>
 ```cs
 // Adding this just makes it easier to bootstrap your
 // application in a test harness project. Only a convenience
 public partial class Program{}
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/IncidentService/IncidentService/Program.cs#L76-L82' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_program_marker' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/IncidentService/IncidentService/Program.cs#L76-L81' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_program_marker' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Having that above, I'll switch to the test harness project and create a shared fixture to bootstrap
 the `IHost` for the application throughout the integration tests:
 
-<!-- snippet: sample_AppFixture_in_incident_service_testing -->
+<!-- snippet: sample_appfixture_in_incident_service_testing -->
 <a id='snippet-sample_appfixture_in_incident_service_testing'></a>
 ```cs
 public class AppFixture : IAsyncLifetime
@@ -362,8 +362,6 @@ public class AppFixture : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-        JasperFxEnvironment.AutoStartHost = true;
-
         // This is bootstrapping the actual application using
         // its implied Program.Main() set up
         Host = await AlbaHost.For<Program>(x =>
@@ -392,13 +390,13 @@ public class AppFixture : IAsyncLifetime
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/IncidentService/IncidentService.Tests/IntegrationContext.cs#L15-L53' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_appfixture_in_incident_service_testing' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/IncidentService/IncidentService.Tests/IntegrationContext.cs#L12-L47' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_appfixture_in_incident_service_testing' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And I like to add a base class for integration tests with some convenience methods that have
 been useful here and there:
 
-<!-- snippet: sample_IntegrationContext_for_integration_service -->
+<!-- snippet: sample_integrationcontext_for_integration_service -->
 <a id='snippet-sample_integrationcontext_for_integration_service'></a>
 ```cs
 [CollectionDefinition("integration")]
@@ -465,7 +463,7 @@ public abstract class IntegrationContext : IAsyncLifetime
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/IncidentService/IncidentService.Tests/IntegrationContext.cs#L55-L122' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_integrationcontext_for_integration_service' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/IncidentService/IncidentService.Tests/IntegrationContext.cs#L49-L115' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_integrationcontext_for_integration_service' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 With all of that in place (and if you're using Docker for your infrastructure, a quick `docker compose up -d` command),
@@ -499,10 +497,10 @@ public async Task happy_path_end_to_end()
     // This wallpapers over the exact projection lifecycle....
     var incident = await session.Events.FetchLatest<Incident>(response.Value);
     
-    incident.Status.ShouldBe(IncidentStatus.Pending);
+    incident!.Status.ShouldBe(IncidentStatus.Pending);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/IncidentService/IncidentService.Tests/when_logging_an_incident.cs#L37-L67' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_end_to_end_on_log_incident' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/IncidentService/IncidentService.Tests/when_logging_an_incident.cs#L36-L65' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_end_to_end_on_log_incident' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Appending Events to an Existing Stream
@@ -521,7 +519,7 @@ allows you to express most command handlers that target Marten event sourcing as
 
 On to the code:
 
-<!-- snippet: sample_CategoriseIncident -->
+<!-- snippet: sample_categoriseincident -->
 <a id='snippet-sample_categoriseincident'></a>
 ```cs
 public record CategoriseIncident(
@@ -563,7 +561,7 @@ public static class CategoriseIncidentEndpoint
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/IncidentService/IncidentService/CategoriseIncident.cs#L8-L49' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_categoriseincident' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/IncidentService/IncidentService/CategoriseIncident.cs#L8-L48' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_categoriseincident' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In this case, I'm sourcing the `Incident` value using the `incidentId` route argument as 

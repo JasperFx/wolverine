@@ -1,7 +1,6 @@
 ﻿namespace Messages;
 
-#region sample_PingPongMessages
-
+#region sample_pingpongmessages
 public class Ping
 {
     public int Number { get; set; }

@@ -13,7 +13,6 @@ public class SagaChainPolicies
     public static async Task configure()
     {
         #region sample_configuring_chain_policy_on_sagas
-
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -25,7 +24,6 @@ public class SagaChainPolicies
 }
 
 #region sample_turn_down_logging_for_sagas
-
 public class TurnDownLoggingOnSagas : IChainPolicy
 {
     public void Apply(IReadOnlyList<IChain> chains, GenerationRules rules, IServiceContainer container)

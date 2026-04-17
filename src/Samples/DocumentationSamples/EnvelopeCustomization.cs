@@ -9,8 +9,7 @@ public static class EnvelopeCustomizationSamples
 {
     public static async Task monitoring_data_publisher()
     {
-        #region sample_MonitoringDataPublisher
-
+        #region sample_monitoringdatapublisher
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {

@@ -170,7 +170,6 @@ public class when_building_a_handler_chain_for_sticky_handlers
     public static async Task explicit_listener()
     {
         #region sample_named_listener_endpoint
-
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -185,7 +184,6 @@ public class when_building_a_handler_chain_for_sticky_handlers
     public static async Task explicit_listeners_by_fluent_interface()
     {
         #region sample_sticky_handlers_by_endpoint_with_fluent_interface
-
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -231,14 +229,12 @@ public class HandlerGrouping : IGrouping<Type, HandlerCall>
 
 
 
-#region sample_StickyMessage
-
+#region sample_stickymessage
 public class StickyMessage;
 
     #endregion
 
     #region sample_using_sticky_handler_attribute
-
     [StickyHandler("blue")]
     public static class BlueStickyHandler
     {

@@ -11,7 +11,6 @@ public record ReservationBooked(string ReservationId, DateTimeOffset Time);
 public static class ReservationEndpoint
 {
     #region sample_starting_saga_from_http_endpoint
-
     [WolverinePost("/reservation")]
     public static (
         // The first return value would be written out as the HTTP response body
@@ -31,7 +30,6 @@ public static class ReservationEndpoint
     #endregion
 
     #region sample_start_saga_from_http_endpoint_empty_body
-
     [WolverinePost("/reservation2")]
 
     // This directs Wolverine to disregard the Reservation return value
@@ -51,7 +49,6 @@ public record BookReservation(string Id);
 public record ReservationTimeout(string Id) : TimeoutMessage(1.Minutes());
 
 #region sample_return_saga_from_handler
-
 public class StartReservationHandler
 {
     public static (
@@ -74,7 +71,6 @@ public class StartReservationHandler
 #endregion
 
 #region sample_reservation_saga
-
 public class Reservation : Saga
 {
     public string? Id { get; set; }

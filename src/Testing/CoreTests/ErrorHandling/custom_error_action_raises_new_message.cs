@@ -29,7 +29,6 @@ public class custom_error_action_raises_new_message_1 : IAsyncLifetime
             }).StartAsync();
 
         #region sample_inline_exception_handling_action
-
         theReceiver = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -74,8 +73,7 @@ public class custom_error_action_raises_new_message_1 : IAsyncLifetime
     }
 }
 
-#region sample_ShippingOrderFailurePolicy
-
+#region sample_shippingorderfailurepolicy
 public class ShippingOrderFailurePolicy : UserDefinedContinuation
 {
     public ShippingOrderFailurePolicy() : base(
@@ -115,7 +113,6 @@ public class custom_error_action_raises_new_message_2 : IAsyncLifetime
             }).StartAsync();
 
         #region sample_registering_custom_user_continuation_policy
-
         theReceiver = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {

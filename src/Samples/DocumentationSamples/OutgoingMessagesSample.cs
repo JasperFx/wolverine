@@ -6,8 +6,7 @@ namespace DocumentationSamples;
 
 public static class OutgoingMessageHandler
 {
-    #region sample_using_OutgoingMessage
-
+    #region sample_using_outgoingmessage
     public static OutgoingMessages Handle(Incoming incoming)
     {
         // You can use collection initializers for OutgoingMessages in C#
@@ -35,7 +34,6 @@ public static class OutgoingMessageHandler
     #endregion
 
     #region sample_customized_cascaded_messages
-
     public static IEnumerable<object> Consume(Incoming incoming)
     {
         // Delay the message delivery by 10 minutes

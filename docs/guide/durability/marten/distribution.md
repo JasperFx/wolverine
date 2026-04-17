@@ -26,7 +26,7 @@ opts.Services.AddMarten(m =>
         m.UseWolverineManagedEventSubscriptionDistribution = true;
     });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/Distribution/Support/SingleTenantContext.cs#L71-L91' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_opt_into_wolverine_managed_subscription_distribution' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/Distribution/Support/SingleTenantContext.cs#L71-L90' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_opt_into_wolverine_managed_subscription_distribution' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: tip
@@ -152,6 +152,6 @@ var host = await Host.CreateDefaultBuilder()
         opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/Distribution/with_ancillary_stores.cs#L76-L122' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_distributed_projections_with_ancillary_stores' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/Distribution/with_ancillary_stores.cs#L76-L121' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_distributed_projections_with_ancillary_stores' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 

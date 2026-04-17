@@ -19,7 +19,6 @@ public interface IProfanityDetector
 }
 
 #region sample_using_conditional_storage_action
-
 public record CreateItem(Guid Id, string Name);
 
 public static class CreateItemHandler

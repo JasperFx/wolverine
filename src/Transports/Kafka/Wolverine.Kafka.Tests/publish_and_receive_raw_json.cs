@@ -19,7 +19,6 @@ public class publish_and_receive_raw_json : IAsyncLifetime
     public async Task InitializeAsync()
     {
         #region sample_raw_json_sending_and_receiving_with_kafka
-
         _receiver = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {

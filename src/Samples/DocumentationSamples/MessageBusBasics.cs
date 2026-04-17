@@ -6,7 +6,6 @@ namespace DocumentationSamples;
 public class MessageBusBasics
 {
     #region sample_message_bus_basics
-
     public static async Task use_message_bus(IMessageBus bus)
     {
         // Execute this command message right now! And wait until
@@ -35,7 +34,6 @@ public class MessageBusBasics
     #endregion
 
     #region sample_invoke_debit_account
-
     public async Task invoke_debit_account(IMessageBus bus)
     {
         // Debit $250 from the account #2222
@@ -45,7 +43,6 @@ public class MessageBusBasics
     #endregion
 
     #region sample_using_invoke_with_response_type
-
     public async Task invoke_math_operations(IMessageBus bus)
     {
         var results = await bus.InvokeAsync<Results>(new Numbers(3, 4));
@@ -61,8 +58,7 @@ public class MessageBusBasics
     #endregion
 }
 
-#region sample_DebitAccountHandler
-
+#region sample_debitaccounthandler
 public static class DebitAccountHandler
 {
     public static void Handle(DebitAccount account)
@@ -73,8 +69,7 @@ public static class DebitAccountHandler
 
 #endregion
 
-#region sample_DebutAccount_command
-
+#region sample_debutaccount_command
 // A "command" message
 public record DebitAccount(long AccountId, decimal Amount);
 
@@ -86,7 +81,6 @@ public record AccountOverdrawn(long AccountId);
 public record AccountStatus(long AccountId, float Status);
 
 #region sample_numbers_and_results_for_request_response
-
 public record Numbers(int X, int Y);
 
 public record Results(int Sum, int Product);

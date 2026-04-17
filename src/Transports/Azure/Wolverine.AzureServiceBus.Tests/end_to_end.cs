@@ -17,7 +17,6 @@ public class end_to_end : IAsyncLifetime
     public async Task InitializeAsync()
     {
         #region sample_using_azure_service_bus_session_identifiers
-
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -85,7 +84,6 @@ public class end_to_end : IAsyncLifetime
     public async Task disable_system_queues()
     {
         #region sample_disable_system_queues_in_azure_service_bus
-
         var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -151,7 +149,6 @@ public class end_to_end : IAsyncLifetime
         Func<IMessageContext, Task> sendMany = async bus =>
         {
             #region sample_sending_with_session_identifier
-
             // bus is an IMessageBus
             await bus.SendAsync(new AsbMessage3("Red"), new DeliveryOptions { GroupId = "2" });
             await bus.SendAsync(new AsbMessage3("Green"), new DeliveryOptions { GroupId = "2" });

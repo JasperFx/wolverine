@@ -12,7 +12,6 @@ using Wolverine.Tracking;
 namespace MartenTests.Saga;
 
 #region sample_strong_typed_id_saga
-
 [StronglyTypedId(Template.Guid)]
 public readonly partial struct OrderSagaId;
 

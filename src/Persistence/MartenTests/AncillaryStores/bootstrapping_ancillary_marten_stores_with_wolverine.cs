@@ -55,12 +55,10 @@ public class bootstrapping_ancillary_marten_stores_with_wolverine : IAsyncLifeti
         await dropSchemaOnDatabase(tenant3ConnectionString, "things");
 
         #region sample_bootstrapping_with_ancillary_marten_stores
-
         theHost = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
                 #region sample_using_message_storage_schema_name
-
                 // THIS IS IMPORTANT FOR MODULAR MONOLITH USAGE!
                 // This helps Wolverine out to always utilize the same envelope storage
                 // for all modules for more efficient usage of resources
@@ -251,8 +249,7 @@ public class bootstrapping_ancillary_marten_stores_with_wolverine : IAsyncLifeti
 
 public record PlayerMessage(string Id);
 
-#region sample_PlayerMessageHandler
-
+#region sample_playermessagehandler
 // This will use a Marten session from the
 // IPlayerStore rather than the main IDocumentStore
 [MartenStore(typeof(IPlayerStore))]
@@ -268,7 +265,6 @@ public static class PlayerMessageHandler
 #endregion
 
 #region sample_separate_marten_stores
-
 public interface IPlayerStore : IDocumentStore;
 
 public interface IThingStore : IDocumentStore;

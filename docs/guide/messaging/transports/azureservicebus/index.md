@@ -22,7 +22,7 @@ builder.UseWolverine(opts =>
     // connection string out of configuration
     var azureServiceBusConnectionString = builder
         .Configuration
-        .GetConnectionString("azure-service-bus");
+        .GetConnectionString("azure-service-bus")!;
 
     // Connect to the broker in the simplest possible way
     opts.UseAzureServiceBus(azureServiceBusConnectionString)
@@ -43,7 +43,7 @@ builder.UseWolverine(opts =>
 using var host = builder.Build();
 await host.StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L14-L44' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_basic_connection_to_azure_service_bus' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L14-L43' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_basic_connection_to_azure_service_bus' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The advanced configuration for the broker is the [ServiceBusClientOptions](https://learn.microsoft.com/en-us/dotnet/api/azure.messaging.servicebus.servicebusclientoptions?view=azure-dotnet) class from the Azure.Messaging.ServiceBus
@@ -94,7 +94,7 @@ builder.UseWolverine(opts =>
 
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L193-L216' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_enabling_azure_service_bus_control_queues' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L187-L209' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_enabling_azure_service_bus_control_queues' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Disabling System Queues
@@ -117,7 +117,7 @@ var host = await Host.CreateDefaultBuilder()
         opts.PublishAllMessages().ToAzureServiceBusQueue("send_and_receive");
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/end_to_end.cs#L85-L99' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disable_system_queues_in_azure_service_bus' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/end_to_end.cs#L86-L99' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disable_system_queues_in_azure_service_bus' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Connecting To Multiple Namespaces <Badge type="tip" text="5.0" />
@@ -130,10 +130,10 @@ Wolverine supports the "named broker" feature to connect to multiple Azure Servi
 var builder = Host.CreateApplicationBuilder();
 builder.UseWolverine(opts =>
 {
-    var connectionString1 = builder.Configuration.GetConnectionString("azureservicebus1");
+    var connectionString1 = builder.Configuration.GetConnectionString("azureservicebus1")!;
     opts.AddNamedAzureServiceBusBroker(new BrokerName("one"), connectionString1);
-    
-    var connectionString2 = builder.Configuration.GetConnectionString("azureservicebus2");
+
+    var connectionString2 = builder.Configuration.GetConnectionString("azureservicebus2")!;
     opts.AddNamedAzureServiceBusBroker(new BrokerName("two"), connectionString2);
 
     opts.PublishAllMessages().ToAzureServiceBusQueueOnNamedBroker(new BrokerName("one"), "queue1");
@@ -143,7 +143,7 @@ builder.UseWolverine(opts =>
     opts.ListenToAzureServiceBusSubscriptionOnNamedBroker(new BrokerName("two"), "subscription1");
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/end_to_end_with_named_broker.cs#L26-L44' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_named_azure_service_bus_broker' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/end_to_end_with_named_broker.cs#L26-L43' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_named_azure_service_bus_broker' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## URI reference

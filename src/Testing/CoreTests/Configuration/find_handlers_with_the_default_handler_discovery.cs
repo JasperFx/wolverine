@@ -234,8 +234,7 @@ public static class StaticClassHandler
     }
 }
 
-#region sample_WolverineIgnoreAttribute
-
+#region sample_wolverineignoreattribute
 public class NetflixHandler : IMovieSink
 {
     public void Listen(MovieAdded added)

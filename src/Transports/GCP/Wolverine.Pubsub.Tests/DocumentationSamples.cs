@@ -13,7 +13,6 @@ public class DocumentationSamples
     public async Task bootstraping()
     {
         #region sample_basic_setup_to_pubsub
-
         var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -33,7 +32,6 @@ public class DocumentationSamples
     public async Task for_local_development()
     {
         #region sample_connect_to_pubsub_emulator
-
         var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -51,7 +49,6 @@ public class DocumentationSamples
     public async Task enable_system_endpoints()
     {
         #region sample_enable_system_endpoints_in_pubsub
-
         var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -65,7 +62,6 @@ public class DocumentationSamples
     public async Task configuring_listeners()
     {
         #region sample_listen_to_pubsub_topic
-
         var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -107,7 +103,6 @@ public class DocumentationSamples
     public async Task publishing()
     {
         #region sample_subscriber_rules_for_pubsub
-
         var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -133,7 +128,6 @@ public class DocumentationSamples
     public async Task conventional_routing()
     {
         #region sample_conventional_routing_for_pubsub
-
         var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -173,7 +167,6 @@ public class DocumentationSamples
     public async Task enable_dead_lettering()
     {
         #region sample_enable_wolverine_dead_lettering_for_pubsub
-
         var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -200,7 +193,6 @@ public class DocumentationSamples
     public async Task overriding_wolverine_dead_lettering()
     {
         #region sample_configuring_wolverine_dead_lettering_for_pubsub
-
         var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -228,7 +220,6 @@ public class DocumentationSamples
     public async Task customize_mappers()
     {
         #region sample_configuring_custom_envelope_mapper_for_pubsub
-
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -243,7 +234,6 @@ public class DocumentationSamples
 }
 
 #region sample_custom_pubsub_mapper
-
 public class CustomPubsubMapper : EnvelopeMapper<PubsubMessage, PubsubMessage>, IPubsubEnvelopeMapper
 {
     public CustomPubsubMapper(PubsubEndpoint endpoint) : base(endpoint)

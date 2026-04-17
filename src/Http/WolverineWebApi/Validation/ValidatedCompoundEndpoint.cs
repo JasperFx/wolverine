@@ -31,7 +31,6 @@ public class ValidatedCompoundEndpoint
 }
 
 #region sample_using_optional_iresult_with_openapi_metadata
-
 public class ValidatedCompoundEndpoint2
 {
     public static User? Load(BlockUser2 cmd)

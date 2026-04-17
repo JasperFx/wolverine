@@ -7,7 +7,6 @@ using Wolverine.Http;
 namespace WolverineWebApi;
 
 #region sample_using_file_uploads
-
 public class FileUploadEndpoint
 {
     // If you have exactly one file upload, take
@@ -75,7 +74,6 @@ public class SomeSideEffect : ISideEffect
 public record UploadMetadata(string Title, string Description);
 
 #region sample_multipart_upload_endpoints
-
 public static class MultipartUploadEndpoints
 {
     // Multiple named file parameters are bound by form field name

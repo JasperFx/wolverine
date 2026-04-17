@@ -28,7 +28,6 @@ builder.Services.AddMarten(opts =>
     .IntegrateWithWolverine();
 
 #region sample_registering_middleware_by_message_type
-
 builder.Host.UseWolverine(opts =>
 {
     // This middleware should be applied to all handlers where the

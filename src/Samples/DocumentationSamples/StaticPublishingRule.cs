@@ -9,8 +9,7 @@ public static class static_publishing_rules
 {
     public static async Task StaticPublishingRules()
     {
-        #region sample_StaticPublishingRules
-
+        #region sample_staticpublishingrules
         using var host = Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {

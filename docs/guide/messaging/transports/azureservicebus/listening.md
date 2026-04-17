@@ -18,7 +18,7 @@ builder.UseWolverine(opts =>
     // connection string out of configuration
     var azureServiceBusConnectionString = builder
         .Configuration
-        .GetConnectionString("azure-service-bus");
+        .GetConnectionString("azure-service-bus")!;
 
     // Connect to the broker in the simplest possible way
     opts.UseAzureServiceBus(azureServiceBusConnectionString).AutoProvision();
@@ -42,7 +42,7 @@ builder.UseWolverine(opts =>
 using var host = builder.Build();
 await host.StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L89-L122' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_an_azure_service_bus_listener' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L87-L119' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_an_azure_service_bus_listener' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Conventional Listener Configuration
@@ -60,7 +60,7 @@ builder.UseWolverine(opts =>
     // connection string out of configuration
     var azureServiceBusConnectionString = builder
         .Configuration
-        .GetConnectionString("azure-service-bus");
+        .GetConnectionString("azure-service-bus")!;
 
     // Connect to the broker in the simplest possible way
     opts.UseAzureServiceBus(azureServiceBusConnectionString).AutoProvision()
@@ -73,7 +73,7 @@ builder.UseWolverine(opts =>
 using var host = builder.Build();
 await host.StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L316-L338' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conventional_listener_configuration_for_azure_service_bus' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L306-L327' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conventional_listener_configuration_for_azure_service_bus' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Note that any of these settings would be overridden by specific configuration to

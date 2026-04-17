@@ -9,7 +9,6 @@ public class DocumentationSamples
     public static async Task include_assemblies()
     {
         #region sample_programmatically_scan_assemblies
-
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -28,8 +27,7 @@ public record GoToColor(string Color);
 
 public class ConditionalRedirectHandler
 {
-    #region sample_conditional_IResult_return
-
+    #region sample_conditional_iresult_return
     [WolverinePost("/choose/color")]
     public IResult Redirect(GoToColor request)
     {

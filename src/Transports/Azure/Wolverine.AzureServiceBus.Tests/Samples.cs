@@ -15,7 +15,6 @@ public class Samples
     public static async Task configure_topics()
     {
         #region sample_using_azure_service_bus_subscriptions_and_topics
-
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -55,7 +54,6 @@ public class Samples
     public static async Task configure_resources()
     {
         #region sample_resource_setup_with_azure_service_bus
-
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -73,7 +71,6 @@ public class Samples
     public static async Task configure_auto_provision()
     {
         #region sample_auto_provision_with_azure_service_bus
-
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -90,7 +87,6 @@ public class Samples
     public static async Task configure_auto_purge()
     {
         #region sample_auto_purge_with_azure_service_bus
-
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -104,7 +100,6 @@ public class Samples
     public static async Task configure_custom_mappers()
     {
         #region sample_configuring_custom_envelope_mapper_for_azure_service_bus
-
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -125,7 +120,6 @@ public class multi_tenanted_brokers
     public void show_bootstrapping()
     {
         #region sample_configuring_azure_service_bus_for_multi_tenancy
-
         var builder = Host.CreateApplicationBuilder();
 
         builder.UseWolverine(opts =>
@@ -189,7 +183,6 @@ public class multi_tenanted_brokers
 }
 
 #region sample_custom_azure_service_bus_mapper
-
 public class CustomAzureServiceBusMapper : IAzureServiceBusEnvelopeMapper
 {
     public void MapEnvelopeToOutgoing(Envelope envelope, ServiceBusMessage outgoing)

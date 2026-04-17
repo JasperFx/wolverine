@@ -12,7 +12,6 @@ public class DocumentationSamples
     public static async Task bootstrap()
     {
         #region sample_bootstrapping_with_ravendb
-
         var builder = Host.CreateApplicationBuilder();
         
         // You'll need a reference to RavenDB.DependencyInjection
@@ -39,7 +38,6 @@ public class DocumentationSamples
 }
 
 #region sample_ravendb_saga
-
 public class Order : Saga
 {
     // Just use this for the identity
@@ -58,7 +56,6 @@ public class CreateDocCommand
 
 
 #region sample_using_transactional_with_raven
-
 public class CreateDocCommandHandler
 {
     [Transactional]
@@ -71,7 +68,6 @@ public class CreateDocCommandHandler
 #endregion
 
 #region sample_raven_using_handler_for_auto_transactions
-
 public class AlternativeCreateDocCommandHandler
 {
     // Auto transactions would kick in just because of the dependency

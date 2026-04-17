@@ -10,8 +10,7 @@ public class using_separate_handlers : MessageRoutingContext
 {
     public static async Task MultipleHandlerBehaviorUsage()
     {
-        #region sample_using_MultipleHandlerBehavior
-
+        #region sample_using_multiplehandlerbehavior
         using var host = Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {

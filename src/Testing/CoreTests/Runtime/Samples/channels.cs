@@ -3,7 +3,6 @@ using Wolverine.ComplianceTests.Compliance;
 namespace CoreTests.Runtime.Samples;
 
 #region sample_sending_messages_for_static_routing
-
 public class SendingExample
 {
     public async Task SendPingsAndPongs(IMessageContext bus)

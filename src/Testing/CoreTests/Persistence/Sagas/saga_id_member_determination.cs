@@ -60,8 +60,7 @@ public record SomeSagaMessage3(Guid Id, Guid SomeSagaId, Guid SagaId);
 public record SomeSagaMessage4(Guid Id);
 public record SomeSagaMessage5(Guid Hello, Guid Id, Guid SagaId, Guid SomeSagaId);
 
-#region sample_using_SagaIdentityFrom
-
+#region sample_using_sagaidentityfrom
 public class SomeSaga
 {
     public Guid Id { get; set; }

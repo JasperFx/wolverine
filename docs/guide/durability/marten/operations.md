@@ -13,7 +13,7 @@ model when using Marten~~~~ with Wolverine.
 The `Wolverine.Marten` library includes some helpers for Wolverine [side effects](/guide/handlers/side-effects) using
 Marten with the `IMartenOp` interface:
 
-<!-- snippet: sample_IMartenOp -->
+<!-- snippet: sample_imartenop -->
 <a id='snippet-sample_imartenop'></a>
 ```cs
 /// <summary>
@@ -24,7 +24,7 @@ public interface IMartenOp : ISideEffect
     void Execute(IDocumentSession session);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/Wolverine.Marten/IMartenOp.cs#L18-L28' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_imartenop' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/Wolverine.Marten/IMartenOp.cs#L19-L28' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_imartenop' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The built in side effects can all be used from the `MartenOps` static class like this HTTP endpoint example:
@@ -39,7 +39,7 @@ public static IMartenOp Pay([Document] Invoice invoice)
     return MartenOps.Store(invoice);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Documents.cs#L43-L52' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_marten_op_from_http_endpoint' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Documents.cs#L41-L49' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_marten_op_from_http_endpoint' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 There are existing Marten ops for storing, inserting, updating, and deleting a document.
@@ -143,7 +143,7 @@ public static class TodoListEndpoint
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/TodoWebService/TodoWebService/TodoListEndpoint.cs#L15-L32' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_start_stream_side_effect' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/TodoWebService/TodoWebService/TodoListEndpoint.cs#L15-L31' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_start_stream_side_effect' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The major advantage of using a Marten side effect is to help keep your Wolverine handlers or HTTP endpoints 
@@ -169,7 +169,7 @@ public static IEnumerable<IMartenOp> Handle(AppendManyNamedDocuments command)
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/handler_actions_with_implied_marten_operations.cs#L342-L354' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_ienumerable_of_martenop_as_side_effect' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/handler_actions_with_implied_marten_operations.cs#L342-L353' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_ienumerable_of_martenop_as_side_effect' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Wolverine will pick up on any return type that can be cast to `IEnumerable<IMartenOp>`, so for example:

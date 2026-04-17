@@ -6,8 +6,7 @@ using Wolverine.Runtime.Agents;
 
 namespace Wolverine.Runtime.Handlers;
 
-#region sample_MessageHandler
-
+#region sample_messagehandler
 public interface IMessageHandler
 {
     Type MessageType { get; }

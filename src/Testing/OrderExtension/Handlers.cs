@@ -1,5 +1,4 @@
 ﻿#region sample_using_wolverine_module_attribute
-
 using Wolverine.Attributes;
 
 [assembly: WolverineModule]

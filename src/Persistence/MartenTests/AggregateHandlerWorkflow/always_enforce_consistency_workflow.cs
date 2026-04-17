@@ -173,7 +173,6 @@ public record ConsistencyAEvent;
 #endregion
 
 #region Commands
-
 // Happy path commands
 public record ConsistentIncrementA(Guid ConsistencyAggregateId);
 public record ConsistentDoNothing(Guid ConsistencyAggregateId);

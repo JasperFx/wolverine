@@ -26,7 +26,7 @@ getting lost en route.
 
 Consider this sample message handler from Wolverine's [AppWithMiddleware sample project](https://github.com/JasperFx/wolverine/tree/main/src/Samples/Middleware):
 
-<!-- snippet: sample_DebitAccountHandler_that_uses_IMessageContext -->
+<!-- snippet: sample_debitaccounthandler_that_uses_imessagecontext -->
 <a id='snippet-sample_debitaccounthandler_that_uses_imessagecontext'></a>
 ```cs
 [Transactional]
@@ -62,7 +62,7 @@ public static async Task Handle(
         new DeliveryOptions { DeliverWithin = 5.Seconds() });
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Middleware/AppWithMiddleware/Account.cs#L126-L161' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_debitaccounthandler_that_uses_imessagecontext' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Middleware/AppWithMiddleware/Account.cs#L121-L155' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_debitaccounthandler_that_uses_imessagecontext' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The handler code above is committing changes to an `Account` in the underlying database and potentially sending out additional messages based on the state of the `Account`. 
@@ -123,7 +123,7 @@ using var host = await Host.CreateDefaultBuilder()
             .UseDurableOutbox();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L68-L80' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_make_specific_subscribers_be_durable' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L66-L77' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_make_specific_subscribers_be_durable' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Or globally through a built in policy:
@@ -139,7 +139,7 @@ using var host = await Host.CreateDefaultBuilder()
         opts.Policies.UseDurableOutboxOnAllSendingEndpoints();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L53-L63' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_make_all_subscribers_be_durable' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L52-L61' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_make_all_subscribers_be_durable' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ### Bumping out Stale Inbox/Outbox Messages <Badge type="tip" text="5.2" />
@@ -186,7 +186,7 @@ using var host = await Host.CreateDefaultBuilder()
         opts.Durability.InboxStaleTime = 10.Minutes();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L281-L299' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_outbox_stale_timeout' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L271-L288' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_outbox_stale_timeout' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Note that this will still respect the "deliver by" semantics. This is part of the polling that Wolverine normally does
@@ -219,7 +219,7 @@ using var host = await Host.CreateDefaultBuilder()
         opts.Policies.UseDurableInboxOnAllListeners();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L85-L101' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_durable_inbox' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L82-L97' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_durable_inbox' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Local Queues
@@ -253,7 +253,7 @@ using var host = await Host.CreateDefaultBuilder()
         });
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L106-L128' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_durable_local_queues' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L102-L123' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_durable_local_queues' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Message Identity <Badge type="tip" text="3.7" />
@@ -288,7 +288,7 @@ var host = await Host.CreateDefaultBuilder()
     })
     .StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqlServerTests/Persistence/SqlServerMessageStore_with_IdAndDestination_Identity.cs#L34-L46' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_message_identity_to_use_id_and_destination' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqlServerTests/Persistence/SqlServerMessageStore_with_IdAndDestination_Identity.cs#L34-L45' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_message_identity_to_use_id_and_destination' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 This might be an important setting for [modular monolith architectures](/tutorials/modular-monolith). 
@@ -323,7 +323,7 @@ using var host = await Host.CreateDefaultBuilder()
         opts.Durability.OutboxStaleTime = 5.Minutes();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/InboxOutboxSettings.cs#L11-L29' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_inbox_outbox_stale_time' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/InboxOutboxSettings.cs#L11-L28' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_inbox_outbox_stale_time' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: info

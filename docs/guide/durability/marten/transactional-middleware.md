@@ -26,7 +26,7 @@ using var host = await Host.CreateDefaultBuilder()
         opts.Policies.AutoApplyTransactions();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/Sample/BootstrapWithAutoTransactions.cs#L12-L24' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_auto_apply_transactions_with_marten' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/Sample/BootstrapWithAutoTransactions.cs#L12-L23' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_auto_apply_transactions_with_marten' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 With this enabled, Wolverine will automatically use the Marten
@@ -117,7 +117,7 @@ public static OrderCreated Handle(CreateOrder command, IDocumentSession session)
     return new OrderCreated(order.Id);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/WebApiWithMarten/Order.cs#L51-L71' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_shorthand_order_handler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/WebApiWithMarten/Order.cs#L50-L69' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_shorthand_order_handler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Or if you need to take more control over how the outgoing `OrderCreated` message is sent, you can use this slightly different alternative:
@@ -146,7 +146,7 @@ public static ValueTask Handle(
         new DeliveryOptions { DeliverWithin = 5.Minutes() });
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/WebApiWithMarten/Order.cs#L76-L99' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_shorthand_order_handler_alternative' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/WebApiWithMarten/Order.cs#L74-L96' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_shorthand_order_handler_alternative' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In both cases Wolverine's transactional middleware for Marten is taking care of registering the Marten session with Wolverine's outbox before you call into the message handler, and
@@ -161,7 +161,7 @@ If so desired, you *can* also use a policy to apply the Marten transaction seman
 name ends with "Command" to use the Marten transaction middleware. You could accomplish that
 with a handler policy like this:
 
-<!-- snippet: sample_CommandsAreTransactional -->
+<!-- snippet: sample_commandsaretransactional -->
 <a id='snippet-sample_commandsaretransactional'></a>
 ```cs
 public class CommandsAreTransactional : IHandlerPolicy
@@ -176,12 +176,12 @@ public class CommandsAreTransactional : IHandlerPolicy
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/transactional_frame_end_to_end.cs#L136-L150' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_commandsaretransactional' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/transactional_frame_end_to_end.cs#L134-L147' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_commandsaretransactional' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Then add the policy to your application like this:
 
-<!-- snippet: sample_Using_CommandsAreTransactional -->
+<!-- snippet: sample_using_commandsaretransactional -->
 <a id='snippet-sample_using_commandsaretransactional'></a>
 ```cs
 using var host = await Host.CreateDefaultBuilder()
@@ -191,7 +191,7 @@ using var host = await Host.CreateDefaultBuilder()
         opts.Policies.Add<CommandsAreTransactional>();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/transactional_frame_end_to_end.cs#L66-L75' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_commandsaretransactional' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/transactional_frame_end_to_end.cs#L66-L74' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_commandsaretransactional' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Using IDocumentOperations <Badge type="tip" text="3.14" />
@@ -204,7 +204,7 @@ the ability to commit the ongoing unit of work with a `SaveChangesAsync` API.
 
 Here's an example:
 
-<!-- snippet: sample_using_IDocumentOperations -->
+<!-- snippet: sample_using_idocumentoperations -->
 <a id='snippet-sample_using_idocumentoperations'></a>
 ```cs
 public class CreateDocCommand2Handler
@@ -223,6 +223,6 @@ public class CreateDocCommand2Handler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/transactional_frame_end_to_end.cs#L91-L109' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_idocumentoperations' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/transactional_frame_end_to_end.cs#L90-L107' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_idocumentoperations' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 

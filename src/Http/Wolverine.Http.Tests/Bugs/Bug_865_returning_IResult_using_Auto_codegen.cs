@@ -117,8 +117,7 @@ public static class CounterEndpoint
         return (Results.Ok(), MartenOps.Store(counter));
     }
 
-    #region sample_using_Document_required
-
+    #region sample_using_document_required
     [WolverinePost("/api/tenants/{tenant}/counters/{id}/inc2")]
     public static IMartenOp Increment2([Document] Counter counter)
     {

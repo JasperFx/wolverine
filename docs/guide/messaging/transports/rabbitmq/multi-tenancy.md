@@ -27,7 +27,7 @@ builder.UseWolverine(opts =>
 {
     // At this point, you still have to have a *default* broker connection to be used for 
     // messaging. 
-    opts.UseRabbitMq(new Uri(builder.Configuration.GetConnectionString("main")))
+    opts.UseRabbitMq(new Uri(builder.Configuration.GetConnectionString("main")!))
         
         // This will be respected across *all* the tenant specific
         // virtual hosts and separate broker connections
@@ -53,7 +53,7 @@ builder.UseWolverine(opts =>
 
         // Or, you can add a broker connection to something completel
         // different for a tenant
-        .AddTenant("four", new Uri(builder.Configuration.GetConnectionString("rabbit_four")));
+        .AddTenant("four", new Uri(builder.Configuration.GetConnectionString("rabbit_four")!));
 
     // This Wolverine application would be listening to a queue
     // named "incoming" on all virtual hosts and/or tenant specific message
@@ -72,7 +72,7 @@ builder.UseWolverine(opts =>
         .ToRabbitQueue("outgoing").GlobalSender();
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/multi_tenancy_through_virtual_hosts.cs#L264-L317' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_rabbit_mq_for_tenancy' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/multi_tenancy_through_virtual_hosts.cs#L269-L321' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_rabbit_mq_for_tenancy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: warning
@@ -95,7 +95,7 @@ public static async Task send_message_to_specific_tenant(IMessageBus bus)
     await bus.PublishAsync(new Message1(), new DeliveryOptions { TenantId = "two" });
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/multi_tenancy_through_virtual_hosts.cs#L322-L330' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_send_message_to_specific_tenant' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/multi_tenancy_through_virtual_hosts.cs#L326-L333' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_send_message_to_specific_tenant' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In the case above, in the Wolverine internals, it:

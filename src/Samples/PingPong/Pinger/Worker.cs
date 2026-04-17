@@ -1,5 +1,4 @@
-#region sample_PingPong_Worker
-
+#region sample_pingpong_worker
 using Messages;
 using Wolverine;
 

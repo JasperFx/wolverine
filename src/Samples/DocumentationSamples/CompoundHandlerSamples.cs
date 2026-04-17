@@ -25,8 +25,7 @@ public class Customer
     public string Name { get; set; } = null!;
 }
 
-#region sample_ShipOrderHandler
-
+#region sample_shiporderhandler
 public static class ShipOrderHandler
 {
     // This would be called first

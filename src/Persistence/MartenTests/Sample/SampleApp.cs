@@ -71,8 +71,7 @@ public class MessageInvocationTests : PostgresqlContext, IAsyncLifetime
 
 public class UserHandler
 {
-    #region sample_UserHandler_handle_CreateUser
-
+    #region sample_userhandler_handle_createuser
     [Transactional]
     public static UserCreated Handle(CreateUser message, IDocumentSession session)
     {

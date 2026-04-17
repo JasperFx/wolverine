@@ -79,8 +79,7 @@ public static class EndpointBuilderExtensions
     }
 }
 
-#region sample_CreationResponse
-
+#region sample_creationresponse
 /// <summary>
 /// Base class for resource types that denote some kind of resource being created
 /// in the system. Wolverine specific, and more efficient, version of Created<T> from ASP.Net Core
@@ -110,8 +109,7 @@ public record CreationResponse([StringSyntax("Route")]string Url) : IHttpAware
 public record CreationResponse<T>(string Url, T Value) : CreationResponse(Url);
 
 
-#region sample_AcceptResponse
-
+#region sample_acceptresponse
 /// <summary>
 /// Base class for resource types that denote some kind of request being accepted in the system.
 /// </summary>

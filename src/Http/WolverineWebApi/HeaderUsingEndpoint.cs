@@ -13,7 +13,6 @@ public class HeaderUsingEndpoint
 
 
     #region sample_pushing_header_values_into_endpoint_methods
-
     // As of Wolverine 2.6, you can utilize header data in middleware
     public static void Before([FromHeader(Name = "x-day")] string? day)
     {

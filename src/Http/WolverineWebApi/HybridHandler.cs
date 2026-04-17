@@ -2,8 +2,7 @@ using Wolverine.Http;
 
 namespace WolverineWebApi;
 
-#region sample_HybridHandler_with_null_HttpContext
-
+#region sample_hybridhandler_with_null_httpcontext
 public record DoHybrid(string Message);
 
 public static class HybridHandler

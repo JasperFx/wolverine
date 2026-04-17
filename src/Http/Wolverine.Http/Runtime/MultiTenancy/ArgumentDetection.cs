@@ -2,8 +2,7 @@ using Microsoft.AspNetCore.Http;
 
 namespace Wolverine.Http.Runtime.MultiTenancy;
 
-#region sample_ArgumentDetection
-
+#region sample_argumentdetection
 internal class ArgumentDetection : ITenantDetection, ISynchronousTenantDetection
 {
     private readonly string _argumentName;

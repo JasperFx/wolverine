@@ -78,7 +78,6 @@ public class using_revisioned_sagas : IAsyncLifetime
 }
 
 #region sample_overriding_logging_on_saga
-
 public class RevisionedSaga : Wolverine.Saga
 {
     // This works just the same as on any other message handler

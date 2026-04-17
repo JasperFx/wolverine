@@ -42,7 +42,7 @@ public static class ConnegWriteEndpoints
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/ConnegEndpoints.cs#L11-L52' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conneg_write_response' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/ConnegEndpoints.cs#L10-L44' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conneg_write_response' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Key points:
@@ -83,7 +83,7 @@ public static class StrictConnegEndpoints
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/ConnegEndpoints.cs#L54-L76' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conneg_strict' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/ConnegEndpoints.cs#L46-L67' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conneg_strict' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ### Global Configuration
@@ -129,7 +129,7 @@ public static class LooseConnegEndpoints
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/ConnegEndpoints.cs#L78-L99' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conneg_loose_fallback' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/ConnegEndpoints.cs#L69-L89' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conneg_loose_fallback' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## How It Works

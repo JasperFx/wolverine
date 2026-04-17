@@ -26,7 +26,6 @@ public class send_by_topics : IDisposable
     public send_by_topics()
     {
         #region sample_binding_topics_and_topic_patterns_to_queues
-
         theSender = Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -108,7 +107,6 @@ public class send_by_topics : IDisposable
     internal async Task send_by_topic_sample()
     {
         #region sample_send_to_topic
-
         var publisher = theSender.Services
             .GetRequiredService<IMessageBus>();
 
@@ -321,7 +319,6 @@ public class send_by_topics_durable : IDisposable
     internal async Task send_by_topic_sample()
     {
         #region sample_send_to_topic
-
         var publisher = theSender.Services
             .GetRequiredService<IMessageBus>();
 
@@ -445,7 +442,6 @@ public class send_by_topics_durable : IDisposable
 public class PurpleMessage;
 
 #region sample_using_topic_attribute
-
 [Topic("color.blue")]
 public class FirstMessage
 {

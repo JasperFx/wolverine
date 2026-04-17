@@ -3,8 +3,7 @@ using Wolverine.Polecat;
 
 namespace PolecatIncidentService;
 
-#region sample_polecat_LogIncident
-
+#region sample_polecat_logincident
 public record LogIncident(
     Guid CustomerId,
     Contact Contact,

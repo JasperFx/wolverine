@@ -2,8 +2,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace ItemService;
 
-#region sample_ItemsDbContext
-
+#region sample_itemsdbcontext
 public class ItemsDbContext : DbContext
 {
     public ItemsDbContext(DbContextOptions<ItemsDbContext> options) : base(options)
@@ -27,8 +26,7 @@ public class ItemsDbContext : DbContext
 #endregion
 
 
-#region sample_ItemsDbContext_NotIntegratedWithOutbox
-
+#region sample_itemsdbcontext_notintegratedwithoutbox
 public class ItemsDbContextWithoutOutbox : DbContext
 {
     public ItemsDbContextWithoutOutbox(DbContextOptions<ItemsDbContextWithoutOutbox> options) : base(options)

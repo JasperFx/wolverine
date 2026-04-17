@@ -14,7 +14,7 @@ code from the Wolverine testing code:
 public static void Before([FromHeader(Name = "x-day")] string? day)
 {
     Debug.WriteLine($"Day header is {day}");
-    Day = day; // This is for testing
+    Day = day!; // This is for testing
 }
 
 [WolverineGet("/headers/simple")]
@@ -48,5 +48,5 @@ public string GetETag([FromHeader] string accepts)
     return accepts;
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/HeaderUsingEndpoint.cs#L15-L55' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pushing_header_values_into_endpoint_methods' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/HeaderUsingEndpoint.cs#L15-L54' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pushing_header_values_into_endpoint_methods' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->

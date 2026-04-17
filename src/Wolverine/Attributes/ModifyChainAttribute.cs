@@ -15,8 +15,7 @@ public abstract class ModifyChainAttribute : Attribute
     public abstract void Modify(IChain chain, GenerationRules rules, IServiceContainer container);
 }
 
-#region sample_ValueSource
-
+#region sample_valuesource
 public enum ValueSource
 {
     /// <summary>

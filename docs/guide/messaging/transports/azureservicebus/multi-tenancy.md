@@ -29,7 +29,7 @@ builder.UseWolverine(opts =>
     // connection string out of configuration
     var azureServiceBusConnectionString = builder
         .Configuration
-        .GetConnectionString("azure-service-bus");
+        .GetConnectionString("azure-service-bus")!;
 
     // Connect to the broker in the simplest possible way
     opts.UseAzureServiceBus(azureServiceBusConnectionString)
@@ -48,15 +48,15 @@ builder.UseWolverine(opts =>
 
         // Add new tenants by registering the tenant id and a separate fully qualified namespace
         // to a different Azure Service Bus connection
-        .AddTenantByNamespace("one", builder.Configuration.GetValue<string>("asb_ns_one"))
-        .AddTenantByNamespace("two", builder.Configuration.GetValue<string>("asb_ns_two"))
-        .AddTenantByNamespace("three", builder.Configuration.GetValue<string>("asb_ns_three"))
+        .AddTenantByNamespace("one", builder.Configuration.GetValue<string>("asb_ns_one")!)
+        .AddTenantByNamespace("two", builder.Configuration.GetValue<string>("asb_ns_two")!)
+        .AddTenantByNamespace("three", builder.Configuration.GetValue<string>("asb_ns_three")!)
 
         // OR, instead, add tenants by registering the tenant id and a separate connection string
         // to a different Azure Service Bus connection
-        .AddTenantByConnectionString("four", builder.Configuration.GetConnectionString("asb_four"))
-        .AddTenantByConnectionString("five", builder.Configuration.GetConnectionString("asb_five"))
-        .AddTenantByConnectionString("six", builder.Configuration.GetConnectionString("asb_six"));
+        .AddTenantByConnectionString("four", builder.Configuration.GetConnectionString("asb_four")!)
+        .AddTenantByConnectionString("five", builder.Configuration.GetConnectionString("asb_five")!)
+        .AddTenantByConnectionString("six", builder.Configuration.GetConnectionString("asb_six")!);
     
     // This Wolverine application would be listening to a queue
     // named "incoming" on all Azure Service Bus connections, including the default
@@ -78,7 +78,7 @@ builder.UseWolverine(opts =>
         .GlobalSender();
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/Samples.cs#L127-L186' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_azure_service_bus_for_multi_tenancy' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/Samples.cs#L122-L180' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_azure_service_bus_for_multi_tenancy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: warning
@@ -104,7 +104,7 @@ public static async Task send_message_to_specific_tenant(IMessageBus bus)
     await bus.PublishAsync(new Message1(), new DeliveryOptions { TenantId = "two" });
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/multi_tenancy_through_virtual_hosts.cs#L322-L330' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_send_message_to_specific_tenant' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/multi_tenancy_through_virtual_hosts.cs#L326-L333' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_send_message_to_specific_tenant' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In the case above, in the Wolverine internals, it:

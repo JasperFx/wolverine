@@ -17,8 +17,7 @@ public record CreateOrder(string Description);
 
 public record OrderCreated(Guid Id);
 
-#region sample_CreateOrderController
-
+#region sample_createordercontroller
 public class CreateOrderController : ControllerBase
 {
     [HttpPost("/orders/create2")]
@@ -49,7 +48,6 @@ public class CreateOrderController : ControllerBase
 public class OrderHandler
 {
     #region sample_shorthand_order_handler
-
     // Note that we're able to avoid doing any kind of asynchronous
     // code in this handler
     [Transactional]
@@ -74,7 +72,6 @@ public class OrderHandler
 public class OrderHandler2
 {
     #region sample_shorthand_order_handler_alternative
-
     [Transactional]
     public static ValueTask Handle(
         CreateOrder command,
@@ -102,7 +99,6 @@ public class OrderHandler2
 public class LonghandOrderHandler
 {
     #region sample_longhand_order_handler
-
     public static async Task Handle(
         CreateOrder command,
         IDocumentSession session,

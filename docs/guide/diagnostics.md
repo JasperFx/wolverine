@@ -8,7 +8,7 @@ Many of the diagnostics explained in this page are part of the [JasperFx command
 to utilize this command line integration, you need to apply JasperFx as your command line parser as shown in the last line of the quickstart
 sample `Program.cs` file:
 
-<!-- snippet: sample_Quickstart_Program -->
+<!-- snippet: sample_quickstart_program -->
 <a id='snippet-sample_quickstart_program'></a>
 ```cs
 using JasperFx;
@@ -51,7 +51,7 @@ app.MapGet("/", () => Results.Redirect("/swagger"));
 // your Wolverine application
 return await app.RunJasperFxCommands(args);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Quickstart/Program.cs#L1-L43' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_quickstart_program' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Quickstart/Program.cs#L1-L42' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_quickstart_program' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Command Line Description
@@ -133,7 +133,7 @@ using var host = await Host.CreateDefaultBuilder()
         Console.WriteLine(opts.DescribeHandlerMatch(typeof(MyMissingMessageHandler)));
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerDiscoverySamples.cs#L148-L160' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_describe_handler_match' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerDiscoverySamples.cs#L140-L151' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_describe_handler_match' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Troubleshooting Message Routing
@@ -166,6 +166,6 @@ public static void using_preview_subscriptions(IMessageBus bus)
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Runtime/Routing/routing_rules.cs#L102-L116' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_preview_subscriptions' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Runtime/Routing/routing_rules.cs#L102-L115' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_preview_subscriptions' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
