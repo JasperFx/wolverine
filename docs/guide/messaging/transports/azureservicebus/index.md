@@ -146,8 +146,20 @@ builder.UseWolverine(opts =>
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/end_to_end_with_named_broker.cs#L26-L44' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_named_azure_service_bus_broker' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## URI reference
 
+The `AzureServiceBusEndpointUri` helper class builds canonical endpoint URIs:
 
+| URI form | Helper call |
+|---|---|
+| `asb://queue/{name}` | `AzureServiceBusEndpointUri.Queue("name")` |
+| `asb://topic/{name}` | `AzureServiceBusEndpointUri.Topic("name")` |
+| `asb://topic/{topic}/{subscription}` | `AzureServiceBusEndpointUri.Subscription("topic", "sub")` |
 
+```csharp
+using Wolverine.AzureServiceBus;
+
+var uri = AzureServiceBusEndpointUri.Subscription("events", "audit");
+```
 
 

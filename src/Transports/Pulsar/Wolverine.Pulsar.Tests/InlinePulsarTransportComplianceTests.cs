@@ -14,7 +14,7 @@ public class InlinePulsarTransportFixture : TransportComplianceFixture, IAsyncLi
     {
         var topic = Guid.NewGuid().ToString();
         var topicPath = $"persistent://public/default/{topic}";
-        OutboundAddress = PulsarEndpoint.UriFor(topicPath);
+        OutboundAddress = PulsarEndpointUri.Topic(topicPath);
 
         await ReceiverIs(opts =>
         {

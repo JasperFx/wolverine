@@ -272,3 +272,21 @@ This creates RabbitMQ queues named `sequenced1` through `sequenced5` with compan
 ::: info
 Wolverine with the `WolverineFX.RabbitMQ` transport has also been verified to work against [LavinMQ](https://lavinmq.com/), a modern RabbitMQ-protocol compatible message broker, using the RabbitMQ transport with 100% protocol compatibility when configured through the standard RabbitMQ integration shown above.
 :::
+
+## URI reference
+
+The `RabbitMqEndpointUri` helper class builds canonical endpoint URIs:
+
+| URI form | Helper call |
+|---|---|
+| `rabbitmq://queue/{name}` | `RabbitMqEndpointUri.Queue("name")` |
+| `rabbitmq://exchange/{name}` | `RabbitMqEndpointUri.Exchange("name")` |
+| `rabbitmq://topic/{exchange}/{routingKey}` | `RabbitMqEndpointUri.Topic("ex", "key")` |
+| `rabbitmq://exchange/{exchange}/routing/{routingKey}` | `RabbitMqEndpointUri.Routing("ex", "key")` |
+
+```csharp
+using Wolverine.RabbitMQ;
+
+var uri = RabbitMqEndpointUri.Queue("orders");
+// new Uri("rabbitmq://queue/orders")
+```

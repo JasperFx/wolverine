@@ -100,3 +100,17 @@ opts.UsePubsub("your-project-id")
 ```
 
 The default delimiter between the prefix and the original name is `.` for GCP Pub/Sub (e.g., `dev-john.orders`).
+
+## URI reference
+
+The `GcpPubsubEndpointUri` helper class builds canonical endpoint URIs:
+
+| URI form | Helper call |
+|---|---|
+| `pubsub://{projectId}/{topicName}` | `GcpPubsubEndpointUri.Topic("projectId", "topicName")` |
+
+```csharp
+using Wolverine.Pubsub;
+
+var uri = GcpPubsubEndpointUri.Topic("my-project", "orders");
+```

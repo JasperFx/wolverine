@@ -259,4 +259,21 @@ using var host = await builder.UseWolverine(opts =>
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Redis/Wolverine.Redis.Tests/Samples/RedisTransportWithScheduling.cs#L7-L36' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_dead_letter_queue_for_redis' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## URI reference
 
+The `RedisEndpointUri` helper class builds canonical endpoint URIs:
+
+| URI form | Helper call |
+|---|---|
+| `redis://stream/{databaseId}/{streamKey}` | `RedisEndpointUri.Stream("key", databaseId: 0)` |
+| `redis://stream/{databaseId}/{streamKey}?consumerGroup={group}` | `RedisEndpointUri.Stream("key", 0, "group")` |
+
+```csharp
+using Wolverine.Redis;
+
+var uri = RedisEndpointUri.Stream("orders", databaseId: 3);
+```
+
+::: tip
+`RedisTransport.BuildRedisStreamUri` is deprecated. Use `RedisEndpointUri.Stream` instead.
+:::

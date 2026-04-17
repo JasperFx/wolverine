@@ -14,7 +14,7 @@ public class PulsarTransportFixture : TransportComplianceFixture, IAsyncLifetime
     {
         var topic = Guid.NewGuid().ToString();
         var topicPath = $"persistent://public/default/compliance{topic}";
-        OutboundAddress = PulsarEndpoint.UriFor(topicPath);
+        OutboundAddress = PulsarEndpointUri.Topic(topicPath);
 
         await SenderIs(opts =>
         {

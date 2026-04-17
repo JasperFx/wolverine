@@ -199,3 +199,19 @@ Also see the more generic [Wolverine Guide on Interoperability](/tutorials/inter
 
 SNS interoperability is done through the `ISnsEnvelopeMapper`. At this point, SNS supports interoperability through
 MassTransit, NServiceBus, CloudEvents, or user defined mapping strategies.
+
+## URI reference
+
+The `SnsEndpointUri` helper class builds canonical endpoint URIs:
+
+| URI form | Helper call |
+|---|---|
+| `sns://{name}` | `SnsEndpointUri.Topic("name")` |
+
+```csharp
+using Wolverine.AmazonSns;
+
+var uri = SnsEndpointUri.Topic("events");
+// FIFO topic (suffix preserved verbatim):
+var fifoUri = SnsEndpointUri.Topic("events.fifo");
+```

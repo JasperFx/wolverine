@@ -14,7 +14,7 @@ public class PulsarWithCloudEventsFixture : TransportComplianceFixture, IAsyncLi
     {
         var topic = Guid.NewGuid().ToString();
         var topicPath = $"persistent://public/default/compliance{topic}";
-        OutboundAddress = PulsarEndpoint.UriFor(topicPath);
+        OutboundAddress = PulsarEndpointUri.Topic(topicPath);
 
         await SenderIs(opts =>
         {
