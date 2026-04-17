@@ -19,8 +19,10 @@
     <PackageVersion Include="GitHubActionsTestLogger" Version="2.4.1" />
     <PackageVersion Include="Google.Cloud.PubSub.V1" Version="3.24.0" />
     <PackageVersion Include="Google.Protobuf" Version="3.31.1" />
+    <PackageVersion Include="Grpc.AspNetCore" Version="2.76.0" />
     <PackageVersion Include="Grpc.Core" Version="2.46.6" />
-    <PackageVersion Include="Grpc.Tools" Version="2.72.0" />
+    <PackageVersion Include="Grpc.Net.Client" Version="2.76.0" />
+    <PackageVersion Include="Grpc.Tools" Version="2.76.0" />
     <PackageVersion Include="HtmlTags" Version="9.0.0" />
     <PackageVersion Include="JasperFx" Version="1.24.1" />
     <PackageVersion Include="JasperFx.Events" Version="1.27.0" />
@@ -67,6 +69,8 @@
     <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.14.0" />
     <PackageVersion Include="Oracle.ManagedDataAccess.Core" Version="23.7.0" />
     <PackageVersion Include="protobuf-net.BuildTools" Version="3.2.52" />
+    <PackageVersion Include="protobuf-net.Grpc" Version="1.2.2" />
+    <PackageVersion Include="protobuf-net.Grpc.AspNetCore" Version="1.2.2" />
     <PackageVersion Include="RabbitMQ.Client" Version="7.1.2" />
     <PackageVersion Include="RavenDB.Client" Version="7.0.2" />
     <PackageVersion Include="RavenDB.DependencyInjection" Version="5.0.1" />

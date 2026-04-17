@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <Description>Code-first and proto-first gRPC service support for Wolverine</Description>
+        <PackageId>WolverineFx.Http.Grpc</PackageId>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <FrameworkReference Include="Microsoft.AspNetCore.App"/>
+        <ProjectReference Include="..\..\Wolverine\Wolverine.csproj"/>
+        <PackageReference Include="Grpc.AspNetCore"/>
+        <PackageReference Include="protobuf-net.Grpc.AspNetCore"/>
+    </ItemGroup>
+
+</Project>

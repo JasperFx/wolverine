@@ -42,6 +42,8 @@
     <Project Path="src/Http/StaticCodeGenDemonstrator/StaticCodeGenDemonstrator.csproj" />
     <Project Path="src/Http/Wolverine.AdminApi/Wolverine.AdminApi.csproj" />
     <Project Path="src/Http/Wolverine.Http.FluentValidation/Wolverine.Http.FluentValidation.csproj" />
+    <Project Path="src/Http/Wolverine.Http.Grpc/Wolverine.Http.Grpc.csproj" />
+    <Project Path="src/Http/Wolverine.Http.Grpc.Tests/Wolverine.Http.Grpc.Tests.csproj" />
     <Project Path="src/Http/Wolverine.Http.Marten/Wolverine.Http.Marten.csproj" />
     <Project Path="src/Http/Wolverine.Http.Tests.DifferentAssembly/Wolverine.Http.Tests.DifferentAssembly.csproj" />
     <Project Path="src/Http/Wolverine.Http.Tests/Wolverine.Http.Tests.csproj" />
