@@ -10,6 +10,7 @@ using Microsoft.Extensions.Hosting;
 using Shouldly;
 using Wolverine;
 using Wolverine.Marten;
+using Wolverine.Persistence;
 using Wolverine.Tracking;
 using Xunit;
 

@@ -127,6 +127,48 @@ internal class MartenPersistenceFrameProvider : IPersistenceFrameProvider
     {
         return [new SetVariableToNullIfSoftDeletedFrame(entity)];
     }
+
+    public bool TryBuildFetchSpecificationFrame(
+        Variable specVariable,
+        IServiceContainer container,
+        out Frame? frame,
+        out Variable? result)
+    {
+        if (specVariable is null)
+        {
+            frame = null;
+            result = null;
+            return false;
+        }
+
+        var specType = specVariable.VariableType;
+
+        // Marten spec shapes: ICompiledQuery<,>, IBatchQueryPlan<>, IQueryPlan<>
+        var compiled = specType.FindInterfaceThatCloses(typeof(global::Marten.Linq.ICompiledQuery<,>));
+        var batchPlan = specType.FindInterfaceThatCloses(typeof(global::Marten.IBatchQueryPlan<>));
+        var queryPlan = specType.FindInterfaceThatCloses(typeof(global::Marten.IQueryPlan<>));
+
+        // Namespace guard — only Marten's own interfaces match (user types in other
+        // namespaces that happen to be named the same won't match).
+        var isMartenCompiled = compiled is not null
+                               && compiled.Namespace == typeof(global::Marten.Linq.ICompiledQuery<,>).Namespace;
+        var isMartenBatchPlan = batchPlan is not null
+                                && batchPlan.Namespace == typeof(global::Marten.IBatchQueryPlan<>).Namespace;
+        var isMartenPlan = queryPlan is not null
+                           && queryPlan.Namespace == typeof(global::Marten.IQueryPlan<>).Namespace;
+
+        if (!isMartenCompiled && !isMartenBatchPlan && !isMartenPlan)
+        {
+            frame = null;
+            result = null;
+            return false;
+        }
+
+        var fetch = new FetchSpecificationFrame(specVariable);
+        frame = fetch;
+        result = fetch.Result;
+        return true;
+    }
 }
 
 internal class SetVariableToNullIfSoftDeletedFrame : AsyncFrame

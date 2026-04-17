@@ -3,18 +3,21 @@ using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
 
-namespace Wolverine.Marten.Codegen;
+namespace Wolverine.Persistence;
 
 /// <summary>
-/// Constructs a Marten query specification (compiled query or query plan) at
-/// codegen time. Supports both constructor injection (resolve ctor parameters
+/// Constructs a query specification (e.g. a Marten compiled query / query plan or
+/// a Wolverine.EntityFrameworkCore <see cref="EntityFrameworkCore.IQueryPlan{TDbContext,TResult}"/>)
+/// at codegen time. Supports both constructor injection (resolve ctor parameters
 /// from other variables in the method) and property injection (resolve public
 /// settable properties — the canonical pattern for Marten compiled queries).
-/// Used by <see cref="FromQuerySpecificationAttribute"/> to turn a handler
-/// parameter decorated with that attribute into a spec-construct-then-fetch
-/// pair of frames.
+/// <para>
+/// Used by <see cref="FromQuerySpecificationAttribute"/> to build the spec
+/// instance, which is then handed to an <see cref="IPersistenceFrameProvider"/>
+/// for execution.
+/// </para>
 /// </summary>
-internal class ConstructSpecificationFrame : SyncFrame
+public class ConstructSpecificationFrame : SyncFrame
 {
     private readonly Variable[] _ctorArgs;
     private readonly (string PropertyName, Variable Source)[] _propertyAssignments;
@@ -34,7 +37,7 @@ internal class ConstructSpecificationFrame : SyncFrame
 
     /// <summary>
     /// The constructed specification variable, ready to be consumed by a
-    /// <see cref="FetchSpecificationFrame"/>.
+    /// provider-specific fetch frame.
     /// </summary>
     public Variable Spec { get; }
 

@@ -15,6 +15,13 @@ internal class EntityFrameworkCoreBackedPersistence : IWolverineExtension
     public void Configure(WolverineOptions options)
     {
         options.CodeGeneration.InsertFirstPersistenceStrategy<EFCorePersistenceFrameProvider>();
+
+        // EFCoreQuerySpecificationPolicy detects IQueryPlan<TDbContext,TResult>-typed
+        // variables produced by Load/LoadAsync methods and injects FetchSpecificationFrames
+        // to execute them. Must run BEFORE EFCoreBatchingPolicy so those injected frames
+        // (IEFCoreBatchableFrame) are grouped into a single BatchedQuery round-trip.
+        options.CodeGeneration.MethodPreCompilation.Add(new EFCoreQuerySpecificationPolicy());
+        options.CodeGeneration.MethodPreCompilation.Add(new EFCoreBatchingPolicy());
     }
 }
 
@@ -31,5 +38,8 @@ internal class EntityFrameworkCoreBackedPersistence<T> : IWolverineExtension whe
         options.CodeGeneration.ReferenceAssembly(GetType().Assembly);
         options.CodeGeneration.InsertFirstPersistenceStrategy<EFCorePersistenceFrameProvider>();
         options.CodeGeneration.Sources.Add(new TenantedDbContextSource<T>());
+
+        options.CodeGeneration.MethodPreCompilation.Add(new EFCoreQuerySpecificationPolicy());
+        options.CodeGeneration.MethodPreCompilation.Add(new EFCoreBatchingPolicy());
     }
 }
