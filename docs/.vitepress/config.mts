@@ -328,7 +328,8 @@ const config: UserConfig<DefaultTheme.Config> = {
                                 {text: 'Saga Storage', link: '/guide/durability/efcore/sagas'},
                                 {text: 'Multi-Tenancy', link: '/guide/durability/efcore/multi-tenancy'},
                                 {text: 'Domain Events', link: '/guide/durability/efcore/domain-events'},
-                                {text: 'Database Migrations', link: '/guide/durability/efcore/migrations'}
+                                {text: 'Database Migrations', link: '/guide/durability/efcore/migrations'},
+                                {text: 'Query Plans', link: '/guide/durability/efcore/query-plans'}
 
                             ]},
                         {text: 'Managing Message Storage', link: '/guide/durability/managing'},
