@@ -34,7 +34,7 @@ public class otel_activity_propagation_tests : IClassFixture<GrpcTestFixture>
         var reply = await client.Ping(new PingRequest { Message = "otel" });
 
         reply.Echo.ShouldBe("otel");
-        capture.AssertWolverineActivityChainedUnderServerHostingActivity();
+        capture.AssertRequestActivityChainedUnderServerHostingActivity<PingRequest>();
     }
 
     [Fact]
@@ -51,7 +51,7 @@ public class otel_activity_propagation_tests : IClassFixture<GrpcTestFixture>
         }
 
         count.ShouldBe(3);
-        capture.AssertWolverineActivityChainedUnderServerHostingActivity();
+        capture.AssertRequestActivityChainedUnderServerHostingActivity<PingStreamRequest>();
     }
 }
 
@@ -64,12 +64,12 @@ public class otel_activity_propagation_tests : IClassFixture<GrpcTestFixture>
 internal sealed class WolverineActivityCapture : IDisposable
 {
     private readonly ActivityListener _listener;
+    private readonly object _sync = new();
+    private readonly List<Activity> _all = new();
+    private readonly List<Activity> _wolverine = new();
 
     public WolverineActivityCapture()
     {
-        WolverineActivities = new List<Activity>();
-        AllActivities = new List<Activity>();
-
         // Broad sampling is deliberate: Microsoft.AspNetCore.* in particular must be sampled so the
         // server emits a hosting activity, which is the chain root every Wolverine handler hangs
         // under. Narrower filters silently skip the hosting activity and the whole test becomes moot.
@@ -80,10 +80,18 @@ internal sealed class WolverineActivityCapture : IDisposable
             SampleUsingParentId = SampleAllDataByParentId,
             ActivityStopped = activity =>
             {
-                AllActivities.Add(activity);
-                if (activity.Source.Name == "Wolverine")
+                // ActivityStopped fires on whatever thread completed the activity — including
+                // Wolverine's runtime threads and ASP.NET Core's request pipeline. A plain
+                // List<T>.Add would race with the snapshot reads taken by the assertion helper
+                // (and with interpolated-string message construction on Shouldly assertions,
+                // which is eager), so all access funnels through a single lock.
+                lock (_sync)
                 {
-                    WolverineActivities.Add(activity);
+                    _all.Add(activity);
+                    if (activity.Source.Name == "Wolverine")
+                    {
+                        _wolverine.Add(activity);
+                    }
                 }
             }
         };
@@ -91,28 +99,54 @@ internal sealed class WolverineActivityCapture : IDisposable
         ActivitySource.AddActivityListener(_listener);
     }
 
-    public List<Activity> WolverineActivities { get; }
+    public IReadOnlyList<Activity> WolverineActivities
+    {
+        get
+        {
+            lock (_sync) return _wolverine.ToArray();
+        }
+    }
 
-    public List<Activity> AllActivities { get; }
+    public IReadOnlyList<Activity> AllActivities
+    {
+        get
+        {
+            lock (_sync) return _all.ToArray();
+        }
+    }
 
     /// <summary>
     ///     Core M6 guarantee: whatever activity ASP.NET Core's hosting diagnostics establishes for
-    ///     the inbound gRPC request, every Wolverine handler activity started during that request
+    ///     the inbound gRPC request, the Wolverine handler activity started during that request
     ///     must share the same TraceId. That proves the gRPC adapter honours Activity.Current so
     ///     downstream consumers (OTel exporters, logs correlated on TraceId) see a single trace.
+    ///
+    ///     The <see cref="ActivityListener"/> installed by this capture is process-wide, so in a
+    ///     parallel xUnit run it also sees activities from other test collections' fixtures and
+    ///     from Wolverine background work (e.g. <c>wolverine.stopping.listener</c>). Anchoring the
+    ///     assertion on the message type the caller just sent picks out exactly the activity pair
+    ///     tied to this test's request and ignores the rest.
+    ///
+    ///     Match happens on the <c>messaging.message_type</c> tag (from <c>Envelope.WriteTags</c>)
+    ///     rather than on <see cref="Activity.OperationName"/>: unary handlers name their span after
+    ///     the message type, but streaming handlers use the literal <c>wolverine.streaming</c> span
+    ///     name — the tag is the one consistent identifier across both shapes.
     /// </summary>
-    public void AssertWolverineActivityChainedUnderServerHostingActivity()
+    public void AssertRequestActivityChainedUnderServerHostingActivity<TMessage>()
     {
+        var expectedMessageType = typeof(TMessage).FullName!;
+
+        var wolverineActivity = WolverineActivities.FirstOrDefault(a =>
+            a.GetTagItem("messaging.message_type") as string == expectedMessageType);
+        wolverineActivity.ShouldNotBeNull(
+            $"No Wolverine activity captured with messaging.message_type={expectedMessageType}. All: {DiagnosticDump()}");
+
         var hosting = AllActivities.FirstOrDefault(a =>
-            a.Source.Name == "Microsoft.AspNetCore" && a.OperationName == "Microsoft.AspNetCore.Hosting.HttpRequestIn");
-
+            a.Source.Name == "Microsoft.AspNetCore"
+            && a.OperationName == "Microsoft.AspNetCore.Hosting.HttpRequestIn"
+            && a.TraceId == wolverineActivity.TraceId);
         hosting.ShouldNotBeNull(
-            $"No server-side hosting activity captured. All: {DiagnosticDump()}");
-
-        WolverineActivities.ShouldNotBeEmpty($"No Wolverine activity captured. All: {DiagnosticDump()}");
-        WolverineActivities.ShouldAllBe(
-            a => a.TraceId == hosting.TraceId,
-            $"Wolverine activity TraceId did not match server hosting activity ({hosting.TraceId}). All: {DiagnosticDump()}");
+            $"No server-side hosting activity sharing TraceId {wolverineActivity.TraceId} with Wolverine activity for {expectedMessageType}. All: {DiagnosticDump()}");
     }
 
     private string DiagnosticDump()

@@ -127,7 +127,7 @@ public class proto_first_grpc_tests : IClassFixture<ProtoFirstGrpcFixture>
         var reply = await client.SayHelloAsync(new HelloRequest { Name = "Erik" });
 
         reply.Message.ShouldBe("Hello, Erik");
-        capture.AssertWolverineActivityChainedUnderServerHostingActivity();
+        capture.AssertRequestActivityChainedUnderServerHostingActivity<HelloRequest>();
     }
 
     [Fact]
