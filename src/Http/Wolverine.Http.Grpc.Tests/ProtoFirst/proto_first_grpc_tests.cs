@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Grpc.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
@@ -111,6 +112,22 @@ public class proto_first_grpc_tests : IClassFixture<ProtoFirstGrpcFixture>
     }
 
     [Fact]
+    public async Task unary_call_wolverine_activity_chains_under_aspnetcore_hosting_activity()
+    {
+        // M6: proto-first generated wrappers route through the same ASP.NET Core gRPC + Wolverine
+        // pipeline as code-first, so the handler activity must chain under the same server-side
+        // hosting activity. (Client → server header propagation is separately guaranteed by
+        // ASP.NET Core + HttpClient on real HTTP/2; TestServer bypasses that layer.)
+        using var capture = new WolverineActivityCapture();
+
+        var client = new Greeter.GreeterClient(_fixture.Channel);
+        var reply = await client.SayHelloAsync(new HelloRequest { Name = "Erik" });
+
+        reply.Message.ShouldBe("Hello, Erik");
+        capture.AssertWolverineActivityChainedUnderServerHostingActivity();
+    }
+
+    [Fact]
     public void graph_is_registered_with_options_parts_for_cli_describe()
     {
         // CLI diagnostics ('describe', 'describe-routing') iterate Options.Parts — proto-first
@@ -160,6 +177,18 @@ public class proto_first_discovery_tests
         classified["SayHello"].ShouldBe(GrpcMethodKind.Unary);
         classified["SayGoodbye"].ShouldBe(GrpcMethodKind.Unary);
         classified["StreamGreetings"].ShouldBe(GrpcMethodKind.ServerStreaming);
+    }
+
+    [Fact]
+    public void discovered_methods_are_sorted_alphabetically_for_byte_stable_codegen()
+    {
+        // Reflection's GetMethods() order is unspecified; the discovery API promises a
+        // stable (ordinal) sort so generated source stays byte-identical across runs.
+        var names = GrpcServiceChain.DiscoverSupportedMethods(typeof(Greeter.GreeterBase))
+            .Select(m => m.Method.Name)
+            .ToList();
+
+        names.ShouldBe(["Fault", "SayGoodbye", "SayHello", "StreamGreetings"]);
     }
 
     [Fact]

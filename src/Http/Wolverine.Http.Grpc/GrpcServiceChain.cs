@@ -248,9 +248,13 @@ public class GrpcServiceChain : Chain<GrpcServiceChain, ModifyGrpcServiceChainAt
     ///     Walks the proto-generated service base, classifying each virtual RPC method by its signature.
     ///     Methods with shapes Wolverine can't yet generate (client-streaming, bidirectional-streaming)
     ///     are still returned — the chain constructor fails fast rather than silently skipping them.
+    ///     Results are sorted by method name so generated source is byte-stable across runs, which
+    ///     keeps diagnostic diffs and code-gen caches deterministic even when reflection reorders methods.
     /// </summary>
     public static IEnumerable<GrpcRpcMethod> DiscoverSupportedMethods(Type protoServiceBase)
     {
+        var results = new List<GrpcRpcMethod>();
+
         foreach (var method in protoServiceBase.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly))
         {
             if (!method.IsVirtual || method.IsFinal) continue;
@@ -258,8 +262,11 @@ public class GrpcServiceChain : Chain<GrpcServiceChain, ModifyGrpcServiceChainAt
             var kind = ClassifyRpcMethod(method);
             if (kind == null) continue;
 
-            yield return new GrpcRpcMethod(method, kind.Value);
+            results.Add(new GrpcRpcMethod(method, kind.Value));
         }
+
+        results.Sort(static (a, b) => string.CompareOrdinal(a.Method.Name, b.Method.Name));
+        return results;
     }
 
     /// <summary>
@@ -381,8 +388,8 @@ internal sealed class ForwardUnaryToMessageBusFrame : SyncFrame
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
         var parameters = _rpc.GetParameters();
-        var requestName = parameters[0].Name!;
-        var contextName = parameters[1].Name!;
+        var requestName = ParameterName(parameters, 0);
+        var contextName = ParameterName(parameters, 1);
         var responseType = _rpc.ReturnType.GetGenericArguments()[0];
 
         writer.Write(
@@ -390,6 +397,11 @@ internal sealed class ForwardUnaryToMessageBusFrame : SyncFrame
 
         Next?.GenerateCode(method, writer);
     }
+
+    // Grpc.Tools always emits parameter names, but reflection over optimized assemblies can return null.
+    // A stable fallback keeps the generated source compilable even in those odd cases.
+    internal static string ParameterName(ParameterInfo[] parameters, int index)
+        => parameters[index].Name ?? $"arg{index}";
 }
 
 /// <summary>
@@ -411,9 +423,9 @@ internal sealed class ForwardServerStreamToMessageBusFrame : AsyncFrame
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
         var parameters = _rpc.GetParameters();
-        var requestName = parameters[0].Name!;
-        var streamWriterName = parameters[1].Name!;
-        var contextName = parameters[2].Name!;
+        var requestName = ForwardUnaryToMessageBusFrame.ParameterName(parameters, 0);
+        var streamWriterName = ForwardUnaryToMessageBusFrame.ParameterName(parameters, 1);
+        var contextName = ForwardUnaryToMessageBusFrame.ParameterName(parameters, 2);
 
         // IServerStreamWriter<TResponse> → TResponse
         var responseType = parameters[1].ParameterType.GetGenericArguments()[0];

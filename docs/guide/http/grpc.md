@@ -209,6 +209,47 @@ a follow-up. Until then, throwing `RpcException` directly is the escape hatch wh
 code or trailer that isn't in the default table.
 :::
 
+## Observability
+
+Wolverine's gRPC adapter preserves `Activity.Current` across the boundary between the ASP.NET Core
+gRPC pipeline and the Wolverine handler pipeline. Concretely:
+
+- ASP.NET Core's hosting diagnostics starts an inbound activity (`Microsoft.AspNetCore.Hosting.HttpRequestIn`)
+  and extracts any W3C `traceparent` header the client sent.
+- The gRPC service method (code-first or proto-first generated wrapper) invokes
+  `IMessageBus.InvokeAsync` / `IMessageBus.StreamAsync` on the same ExecutionContext, so
+  `Activity.Current` is still the hosting activity when Wolverine starts its own handler span.
+- Wolverine's `WolverineTracing.StartExecuting` inherits `Activity.Current` as parent, which means
+  every handler activity lives under the same TraceId as the inbound gRPC request.
+
+The result: a single trace covers the full request, from inbound gRPC to every Wolverine handler it
+invokes, with no additional wiring. If you expose an OpenTelemetry pipeline for other Wolverine
+transports, it will pick up gRPC traffic for free.
+
+### Registering OpenTelemetry
+
+Add the `"Wolverine"` ActivitySource alongside the ASP.NET Core and gRPC sources:
+
+```csharp
+builder.Services.AddOpenTelemetry()
+    .WithTracing(tracing => tracing
+        .AddSource("Wolverine")                  // Wolverine handler activities
+        .AddAspNetCoreInstrumentation()          // ASP.NET Core hosting activities
+        .AddGrpcClientInstrumentation()          // outbound gRPC calls
+        .AddOtlpExporter());
+```
+
+See [Instrumentation and Metrics](/guide/logging) for the full set of Wolverine ActivitySource tags
+and semantic conventions.
+
+::: warning
+Cross-process traceparent propagation depends on real HTTP/2 — it goes through `HttpClient`'s
+diagnostic handler on the client and ASP.NET Core hosting diagnostics on the server. Integration
+tests based on `Microsoft.AspNetCore.TestHost.TestServer` bypass that layer, so the client's
+TraceId will not reach the server in tests even though it does in production. Use real hosts or
+`WebApplicationFactory` with a loopback port if you need to assert end-to-end propagation.
+:::
+
 ## API Reference
 
 | Type / Member                              | Purpose                                                           |
